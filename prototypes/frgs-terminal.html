@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=800, height=480, initial-scale=1.0">
+  <title>FRGS Vereins-Bar Terminal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a1628;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // FRGS Bar Terminal - 800x480 Touchscreen
+    // Flow: RFID Scan → Products → Basket → Payment
+
+    const LOGO_BASE64 = null; // Logo removed
+
+    // Sample data
+    const PRODUCTS = {
+      getraenke: [
+        { id: 1, name: 'Pils 0,5l', price: 3.50, emoji: '🍺' },
+        { id: 2, name: 'Radler 0,5l', price: 3.00, emoji: '🍋' },
+        { id: 3, name: 'Weizen 0,5l', price: 3.80, emoji: '🌾' },
+        { id: 4, name: 'Wasser 0,33l', price: 1.50, emoji: '💧' },
+        { id: 5, name: 'Apfelschorle', price: 2.00, emoji: '🍎' },
+        { id: 6, name: 'Apfelwein 1l', price: 3.00, emoji: '🍷' },
+        { id: 7, name: 'Wasser 1l', price: 2.00, emoji: '💦' },
+        { id: 8, name: 'Kaffee', price: 2.00, emoji: '☕' },
+      ],
+      sauna: [
+        { id: 20, name: 'Sauna-Token', price: 2.00, emoji: '🪵', duration: '30 Min.' },
+      ]
+    };
+
+    const MOCK_USER = {
+      id: 'RF-4821',
+      name: 'Max Mustermann',
+      initials: 'MM',
+      deckel: 47.50,
+      offenePosten: [
+        { date: '22.01.2026 18:34', item: 'Pils 0,5l', qty: 2, price: 3.50 },
+        { date: '22.01.2026 18:34', item: 'Brezel', qty: 1, price: 1.50 },
+        { date: '19.01.2026 19:12', item: 'Weizen 0,5l', qty: 1, price: 3.80 },
+        { date: '19.01.2026 19:12', item: 'Sauna-Token', qty: 1, price: 2.00 },
+        { date: '15.01.2026 20:45', item: 'Radler 0,5l', qty: 3, price: 3.00 },
+        { date: '12.01.2026 18:20', item: 'Kaffee', qty: 1, price: 2.00 },
+        { date: '12.01.2026 18:20', item: 'Kuchen', qty: 1, price: 2.50 },
+        { date: '10.01.2026 19:55', item: 'Cola 0,33l', qty: 2, price: 2.50 },
+        { date: '08.01.2026 17:30', item: 'Pils 0,5l', qty: 1, price: 3.50 },
+        { date: '05.01.2026 20:10', item: 'Apfelschorle', qty: 2, price: 2.00 },
+      ]
+    };
+
+    // Icons
+    const RfidIcon = () => (
+      <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 4"/>
+        <path d="M5 12c0-3.9 3.1-7 7-7a7 7 0 0 1 5.7 2.9"/>
+        <circle cx="12" cy="12" r="2"/>
+        <path d="M8.5 12c0-1.9 1.6-3.5 3.5-3.5a3.5 3.5 0 0 1 2.8 1.4"/>
+      </svg>
+    );
+
+    const BasketIcon = ({ count }) => (
+      <div style={{ position: 'relative' }}>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg>
+        {count > 0 && (
+          <div style={{
+            position: 'absolute', top: -8, right: -8,
+            background: '#ef4444', color: 'white',
+            borderRadius: '50%', width: 20, height: 20,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 700
+          }}>{count}</div>
+        )}
+      </div>
+    );
+
+    const UserIcon = () => (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    );
+
+    const BackIcon = () => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+    );
+
+    const MinusIcon = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14"/></svg>
+    );
+
+    const PlusIcon = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+    );
+
+    const TrashIcon = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      </svg>
+    );
+
+    const LogoutIcon = () => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+    );
+
+    // Utility
+    const formatPrice = (price) => price.toFixed(2).replace('.', ',') + ' €';
+    const formatTime = (date) => date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+    // Styles
+    const styles = {
+      container: {
+        width: 800, height: 480, overflow: 'hidden',
+        fontFamily: "'DM Sans', -apple-system, sans-serif",
+        background: 'linear-gradient(145deg, #0a1628 0%, #0f1d32 100%)',
+        color: '#f1f5f9', userSelect: 'none',
+        display: 'flex', flexDirection: 'column'
+      },
+      header: {
+        height: 56, padding: '0 16px',
+        background: 'rgba(15, 23, 42, 0.95)',
+        borderBottom: '1px solid rgba(59, 130, 246, 0.2)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexShrink: 0
+      },
+      headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
+      headerTitle: { fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em' },
+      headerRight: { display: 'flex', alignItems: 'center', gap: 12 },
+      iconBtn: {
+        width: 44, height: 44, borderRadius: 10,
+        background: 'rgba(59, 130, 246, 0.1)',
+        border: '1px solid rgba(59, 130, 246, 0.2)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'pointer', transition: 'all 0.15s',
+        color: '#94a3b8'
+      },
+      time: {
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 16, color: '#64748b'
+      },
+      main: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+    };
+
+    // ========== SCREENS ==========
+
+    // 1. RFID Scan Screen
+    function RfidScreen({ onUserDetected }) {
+      const [scanning, setScanning] = useState(false);
+
+      const handleScan = () => {
+        setScanning(true);
+        setTimeout(() => {
+          onUserDetected(MOCK_USER);
+        }, 1200);
+      };
+
+      return (
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 24,
+          background: 'radial-gradient(ellipse at center, rgba(59, 130, 246, 0.08) 0%, transparent 70%)'
+        }}>
+          <div style={{
+            width: 140, height: 140, borderRadius: 70,
+            background: scanning 
+              ? 'linear-gradient(135deg, #3b82f6 0%, #14b8a6 100%)'
+              : 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(20, 184, 166, 0.2) 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: scanning ? '0 0 60px rgba(59, 130, 246, 0.5)' : '0 0 40px rgba(59, 130, 246, 0.2)',
+            animation: scanning ? 'pulse 0.8s ease-in-out infinite' : 'glow 2s ease-in-out infinite',
+            cursor: 'pointer', transition: 'all 0.3s'
+          }} onClick={handleScan}>
+            <RfidIcon />
+          </div>
+          
+          <div style={{ textAlign: 'center' }}>
+            <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>
+              {scanning ? 'Wird erkannt...' : 'Durstig?'}
+            </h1>
+            <p style={{ fontSize: 16, color: '#94a3b8', maxWidth: 320 }}>
+              {scanning 
+                ? 'Bitte warten...' 
+                : 'Halte deinen RFID-Chip an das Lesegerät'}
+            </p>
+          </div>
+
+          <div style={{
+            marginTop: 16, padding: '12px 24px',
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: 12, fontSize: 14, color: '#94a3b8'
+          }}>
+            💡 Demo: Klicke auf das Symbol zum Testen
+          </div>
+
+          <style>{`
+            @keyframes glow {
+              0%, 100% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.2); }
+              50% { box-shadow: 0 0 60px rgba(59, 130, 246, 0.4); }
+            }
+            @keyframes pulse {
+              0%, 100% { transform: scale(1); }
+              50% { transform: scale(1.05); }
+            }
+          `}</style>
+        </div>
+      );
+    }
+
+    // 2. Products Screen
+    function ProductsScreen({ user, cart, onAddToCart, onOpenBasket, onOpenUser, onLogout }) {
+      const [category, setCategory] = useState('getraenke');
+      const itemCount = cart.reduce((sum, item) => sum + item.qty, 0);
+
+      return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 12, gap: 10 }}>
+          {/* User Bar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '10px 14px', background: 'rgba(30, 41, 59, 0.8)',
+            border: '1px solid rgba(71, 85, 105, 0.4)', borderRadius: 12
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={onOpenUser}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 18,
+                background: 'linear-gradient(135deg, #f97316 0%, #ef4444 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 600, fontSize: 14
+              }}>{user.initials}</div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{user.name}</div>
+                <div style={{ fontSize: 12, color: user.deckel > 0 ? '#f97316' : '#22c55e' }}>
+                  Deckel: {formatPrice(user.deckel)}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{...styles.iconBtn, background: itemCount > 0 ? 'rgba(59, 130, 246, 0.2)' : styles.iconBtn.background, borderColor: itemCount > 0 ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.2)'}} onClick={onOpenBasket}>
+                <BasketIcon count={itemCount} />
+              </div>
+              <div style={{...styles.iconBtn, background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)', color: '#ef4444'}} onClick={onLogout}>
+                <LogoutIcon />
+              </div>
+            </div>
+          </div>
+
+          {/* Category Tabs */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[
+              { key: 'getraenke', label: 'Getränke', icon: '🍺' },
+              { key: 'sauna', label: 'Sauna', icon: '🔥' }
+            ].map(cat => (
+              <button key={cat.key} onClick={() => setCategory(cat.key)} style={{
+                flex: 1, padding: '10px 16px', border: 'none', borderRadius: 10,
+                background: category === cat.key ? '#3b82f6' : 'rgba(59, 130, 246, 0.1)',
+                color: category === cat.key ? 'white' : '#94a3b8',
+                fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'all 0.15s'
+              }}>
+                <span>{cat.icon}</span> {cat.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Products Grid or Sauna Button */}
+          {category === 'getraenke' ? (
+            <div style={{
+              flex: 1, display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 10, overflowY: 'auto', paddingBottom: 4
+            }}>
+              {PRODUCTS.getraenke.map(product => {
+                const inCart = cart.find(i => i.id === product.id);
+                return (
+                  <div key={product.id} onClick={() => onAddToCart(product)} style={{
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    padding: 12, background: inCart ? 'rgba(59, 130, 246, 0.15)' : 'rgba(30, 41, 59, 0.8)',
+                    border: inCart ? '2px solid #3b82f6' : '1px solid rgba(71, 85, 105, 0.4)',
+                    borderRadius: 12, cursor: 'pointer', transition: 'all 0.12s',
+                    position: 'relative', minHeight: 100
+                  }}>
+                    {inCart && (
+                      <div style={{
+                        position: 'absolute', top: 6, right: 6,
+                        background: '#3b82f6', color: 'white',
+                        borderRadius: 10, padding: '2px 8px',
+                        fontSize: 11, fontWeight: 700
+                      }}>{inCart.qty}×</div>
+                    )}
+                    <span style={{ fontSize: 32, marginBottom: 6 }}>{product.emoji}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'center', lineHeight: 1.2 }}>{product.name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#14b8a6', marginTop: 4 }}>{formatPrice(product.price)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 20
+            }}>
+              {(() => {
+                const saunaProduct = PRODUCTS.sauna[0];
+                const inCart = cart.find(i => i.id === saunaProduct.id);
+                return (
+                  <div onClick={() => onAddToCart(saunaProduct)} style={{
+                    width: '100%', maxWidth: 450, padding: '20px 32px',
+                    background: 'linear-gradient(145deg, rgba(249, 115, 22, 0.2) 0%, rgba(234, 88, 12, 0.1) 100%)',
+                    border: inCart ? '3px solid #f97316' : '2px solid rgba(249, 115, 22, 0.4)',
+                    borderRadius: 20, cursor: 'pointer', transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', gap: 24,
+                    boxShadow: '0 8px 32px rgba(249, 115, 22, 0.2)',
+                    position: 'relative'
+                  }}>
+                    {inCart && (
+                      <div style={{
+                        position: 'absolute', top: 12, right: 12,
+                        background: '#f97316', color: 'white',
+                        borderRadius: 12, padding: '4px 12px',
+                        fontSize: 13, fontWeight: 700
+                      }}>{inCart.qty}× im Korb</div>
+                    )}
+                    <div style={{
+                      fontSize: 56,
+                      background: 'linear-gradient(135deg, rgba(180, 83, 9, 0.3) 0%, rgba(120, 53, 15, 0.2) 100%)',
+                      padding: '12px 16px',
+                      borderRadius: 16,
+                      border: '1px solid rgba(180, 83, 9, 0.3)'
+                    }}>🔥</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Sauna-Token</div>
+                      <div style={{ fontSize: 14, color: '#94a3b8' }}>30 Minuten Entspannung</div>
+                    </div>
+                    <div style={{
+                      padding: '10px 24px', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                      borderRadius: 10, color: 'white', fontSize: 18, fontWeight: 700,
+                      boxShadow: '0 4px 16px rgba(249, 115, 22, 0.4)'
+                    }}>
+                      {formatPrice(saunaProduct.price)}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 3. Basket Screen
+    function BasketScreen({ user, cart, onUpdateQty, onRemove, onBack, onPay }) {
+      const total = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+      const canPay = cart.length > 0;
+      const newDeckel = user.deckel + total;
+
+      return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 12 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <div style={styles.iconBtn} onClick={onBack}><BackIcon /></div>
+            <h2 style={{ fontSize: 20, fontWeight: 600 }}>Warenkorb</h2>
+          </div>
+
+          {/* Cart Items */}
+          <div style={{
+            flex: 1, background: 'rgba(30, 41, 59, 0.6)',
+            border: '1px solid rgba(71, 85, 105, 0.4)',
+            borderRadius: 12, padding: 12, overflowY: 'auto'
+          }}>
+            {cart.length === 0 ? (
+              <div style={{
+                height: '100%', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', color: '#64748b'
+              }}>
+                <span style={{ fontSize: 48, marginBottom: 12, opacity: 0.5 }}>🛒</span>
+                <span>Dein Warenkorb ist leer</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {cart.map(item => (
+                  <div key={item.id} style={{
+                    display: 'flex', alignItems: 'center',
+                    padding: 12, background: 'rgba(15, 23, 42, 0.6)',
+                    borderRadius: 10, gap: 12
+                  }}>
+                    <span style={{ fontSize: 28 }}>{item.emoji}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 500, fontSize: 14 }}>{item.name}</div>
+                      <div style={{ fontSize: 13, color: '#14b8a6' }}>{formatPrice(item.price)} / Stück</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button onClick={() => onUpdateQty(item.id, -1)} style={{
+                        width: 36, height: 36, borderRadius: 8, border: 'none',
+                        background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}><MinusIcon /></button>
+                      <span style={{ width: 32, textAlign: 'center', fontWeight: 700, fontSize: 16 }}>{item.qty}</span>
+                      <button onClick={() => onUpdateQty(item.id, 1)} style={{
+                        width: 36, height: 36, borderRadius: 8, border: 'none',
+                        background: 'rgba(34, 197, 94, 0.2)', color: '#22c55e',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}><PlusIcon /></button>
+                    </div>
+                    <div style={{ width: 70, textAlign: 'right', fontWeight: 700, color: '#f1f5f9' }}>
+                      {formatPrice(item.price * item.qty)}
+                    </div>
+                    <button onClick={() => onRemove(item.id)} style={{
+                      width: 36, height: 36, borderRadius: 8, border: 'none',
+                      background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}><TrashIcon /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ marginTop: 12 }}>
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '12px 16px', background: 'rgba(30, 41, 59, 0.8)',
+              borderRadius: 12, marginBottom: 10
+            }}>
+              <div>
+                <div style={{ fontSize: 14, color: '#94a3b8' }}>Summe</div>
+                <div style={{ fontSize: 12, color: '#f97316' }}>
+                  Neuer Deckel: {formatPrice(newDeckel)}
+                </div>
+              </div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 32, fontWeight: 700 }}>
+                {formatPrice(total)}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={onBack} style={{
+                flex: 1, padding: 16, borderRadius: 12, border: 'none',
+                background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444',
+                fontSize: 16, fontWeight: 600, cursor: 'pointer'
+              }}>Abbrechen</button>
+              <button onClick={onPay} disabled={!canPay} style={{
+                flex: 2, padding: 16, borderRadius: 12, border: 'none',
+                background: canPay ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' : '#1e293b',
+                color: canPay ? 'white' : '#64748b',
+                fontSize: 16, fontWeight: 600, cursor: canPay ? 'pointer' : 'not-allowed',
+                boxShadow: canPay ? '0 4px 20px rgba(34, 197, 94, 0.3)' : 'none'
+              }}>✓ Buchen</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 4. User Screen
+    function UserScreen({ user, onBack, onLogout }) {
+      return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 12 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <div style={styles.iconBtn} onClick={onBack}><BackIcon /></div>
+            <h2 style={{ fontSize: 20, fontWeight: 600 }}>Mein Konto</h2>
+          </div>
+
+          {/* User Info */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 16, padding: 16,
+            background: 'rgba(30, 41, 59, 0.8)', borderRadius: 12, marginBottom: 12
+          }}>
+            <div style={{
+              width: 60, height: 60, borderRadius: 30,
+              background: 'linear-gradient(135deg, #f97316 0%, #ef4444 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 700, fontSize: 22
+            }}>{user.initials}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>{user.name}</div>
+              <div style={{ fontSize: 13, color: '#94a3b8' }}>Chip-ID: {user.id}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 12, color: '#94a3b8' }}>Dein Deckel</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: user.deckel > 0 ? '#f97316' : '#22c55e' }}>
+                {formatPrice(user.deckel)}
+              </div>
+            </div>
+          </div>
+
+          {/* Open Items - Offene Posten */}
+          <div style={{ 
+            fontSize: 14, fontWeight: 600, color: '#94a3b8', marginBottom: 8,
+            display: 'flex', alignItems: 'center', gap: 8
+          }}>
+            <span>📋</span> WAS AUF DEINEM DECKEL STEHT
+          </div>
+          <div style={{
+            flex: 1, background: 'rgba(30, 41, 59, 0.6)',
+            border: '1px solid rgba(71, 85, 105, 0.4)',
+            borderRadius: 12, overflowY: 'auto'
+          }}>
+            {user.offenePosten.map((posten, i) => (
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '10px 14px', borderBottom: i < user.offenePosten.length - 1 ? '1px solid rgba(71, 85, 105, 0.3)' : 'none'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{
+                    background: 'rgba(249, 115, 22, 0.15)',
+                    color: '#f97316',
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    minWidth: 28,
+                    textAlign: 'center'
+                  }}>{posten.qty}×</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500 }}>{posten.item}</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>{posten.date}</div>
+                  </div>
+                </div>
+                <div style={{ fontWeight: 600, color: '#f97316' }}>
+                  {formatPrice(posten.price * posten.qty)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Logout */}
+          <button onClick={onLogout} style={{
+            marginTop: 12, padding: 14, borderRadius: 12, border: 'none',
+            background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444',
+            fontSize: 15, fontWeight: 600, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+          }}>
+            <LogoutIcon /> Abmelden
+          </button>
+        </div>
+      );
+    }
+
+    // 5. Success Screen
+    function SuccessScreen({ amount, onDone, onLogout }) {
+      return (
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          background: 'radial-gradient(ellipse at center, rgba(34, 197, 94, 0.15) 0%, transparent 70%)'
+        }}>
+          <div style={{
+            width: 100, height: 100, borderRadius: 50,
+            background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 48, marginBottom: 20,
+            boxShadow: '0 0 60px rgba(34, 197, 94, 0.4)'
+          }}>✓</div>
+          <h1 style={{ fontSize: 28, fontWeight: 600, marginBottom: 8 }}>Gebucht!</h1>
+          <p style={{ fontSize: 18, color: '#94a3b8' }}>{formatPrice(amount)} auf deinen Deckel</p>
+          
+          <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
+            <button onClick={onDone} style={{
+              padding: '14px 28px', borderRadius: 12, border: 'none',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+              color: 'white', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)'
+            }}>Weiter bestellen</button>
+            <button onClick={onLogout} style={{
+              padding: '14px 28px', borderRadius: 12, border: 'none',
+              background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444',
+              fontSize: 15, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8
+            }}>
+              <LogoutIcon /> Fertig
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ========== MAIN APP ==========
+    function App() {
+      const [currentTime, setCurrentTime] = useState(new Date());
+      const [user, setUser] = useState(null);
+      const [cart, setCart] = useState([]);
+      const [screen, setScreen] = useState('rfid');
+      const [lastPayment, setLastPayment] = useState(0);
+
+      useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+      }, []);
+
+      const handleUserDetected = (detectedUser) => {
+        setUser(detectedUser);
+        setScreen('products');
+      };
+
+      const handleAddToCart = (product) => {
+        setCart(prev => {
+          const existing = prev.find(i => i.id === product.id);
+          if (existing) {
+            return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
+          }
+          return [...prev, { ...product, qty: 1 }];
+        });
+      };
+
+      const handleUpdateQty = (id, delta) => {
+        setCart(prev => prev.map(i => {
+          if (i.id === id) {
+            const newQty = i.qty + delta;
+            return newQty > 0 ? { ...i, qty: newQty } : i;
+          }
+          return i;
+        }).filter(i => i.qty > 0));
+      };
+
+      const handleRemove = (id) => {
+        setCart(prev => prev.filter(i => i.id !== id));
+      };
+
+      const handlePay = () => {
+        const total = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
+        setLastPayment(total);
+        setUser(prev => ({ ...prev, deckel: prev.deckel + total }));
+        setCart([]);
+        setScreen('success');
+      };
+
+      const handleLogout = () => {
+        setUser(null);
+        setCart([]);
+        setScreen('rfid');
+      };
+
+      const handleSuccessDone = () => {
+        setScreen('products');
+      };
+
+      return (
+        <div style={styles.container}>
+          {/* Header */}
+          <header style={styles.header}>
+            <div style={styles.headerLeft}>
+              <span style={{...styles.headerTitle, fontSize: 20}}>FRGS Vereins-Bar</span>
+            </div>
+            <div style={styles.headerRight}>
+              {user && screen !== 'rfid' && (
+                <div style={{
+                  padding: '6px 12px', background: 'rgba(34, 197, 94, 0.15)',
+                  border: '1px solid rgba(34, 197, 94, 0.3)',
+                  borderRadius: 16, fontSize: 12, color: '#22c55e', fontWeight: 500
+                }}>● Online</div>
+              )}
+              <span style={styles.time}>{formatTime(currentTime)}</span>
+            </div>
+          </header>
+
+          {/* Main Content */}
+          <main style={styles.main}>
+            {screen === 'rfid' && <RfidScreen onUserDetected={handleUserDetected} />}
+            {screen === 'products' && (
+              <ProductsScreen
+                user={user}
+                cart={cart}
+                onAddToCart={handleAddToCart}
+                onOpenBasket={() => setScreen('basket')}
+                onOpenUser={() => setScreen('user')}
+                onLogout={handleLogout}
+              />
+            )}
+            {screen === 'basket' && (
+              <BasketScreen
+                user={user}
+                cart={cart}
+                onUpdateQty={handleUpdateQty}
+                onRemove={handleRemove}
+                onBack={() => setScreen('products')}
+                onPay={handlePay}
+              />
+            )}
+            {screen === 'user' && (
+              <UserScreen
+                user={user}
+                onBack={() => setScreen('products')}
+                onLogout={handleLogout}
+              />
+            )}
+            {screen === 'success' && (
+              <SuccessScreen amount={lastPayment} onDone={handleSuccessDone} onLogout={handleLogout} />
+            )}
+          </main>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
