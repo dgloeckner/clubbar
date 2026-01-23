@@ -46,6 +46,7 @@ Each ADR follows this structure:
 | [0019](./0019-frontend-access-token-configuration.md) | Frontend Access Token Configuration | Accepted | 2025-01-23 |
 | [0020](./0020-sepa-mandate-requirement-terminal-access.md) | SEPA Mandate Requirement for Terminal Access | Accepted | 2025-01-23 |
 | [0021](./0021-rfid-card-assignment-workflow.md) | RFID Card Assignment Workflow | Accepted | 2025-01-23 |
+| [0022](./0022-test-strategy-and-automation.md) | Test Strategy and Automation | Accepted | 2025-01-23 |
 
 ## Creating a New ADR
 
