@@ -1,0 +1,3500 @@
+openapi: 3.0.3
+info:
+  title: Member Bar System - Admin API
+  description: |
+    REST API for the Admin Panel of the Member Bar System.
+
+    ## Authentication
+
+    All endpoints (except `/auth/login`) require session-based authentication.
+    The admin panel uses secure cookies (`HttpOnly`, `Secure`, `SameSite=Lax`).
+
+    ## Session Management
+
+    - Session lifetime: 2 hours idle timeout, 24 hours absolute
+    - Session ID regenerated on login (prevent fixation)
+    - Multi-device sessions allowed
+
+    ## Common Patterns
+
+    - **Monetary values**: Always integer cents (e.g., 350 = €3.50)
+    - **Timestamps**: ISO 8601 format with timezone (e.g., `2025-01-23T14:30:00Z`)
+    - **UUIDs**: Hyphenated format (e.g., `550e8400-e29b-41d4-a716-446655440000`)
+    - **Pagination**: `page` (1-indexed), `per_page`, response includes `pagination` object
+    - **IBAN masking**: Displayed as `DE89****3000` (first 4 + last 4 chars) except in exports
+
+    ## Audit Logging
+
+    All state-changing operations are logged to the audit trail with:
+    - Admin user ID
+    - Action type
+    - Entity type and ID
+    - Old/new values (sensitive data masked)
+    - IP address and user agent
+    - Timestamp
+
+    See [ADR-0013](../../adr/0013-audit-logging.md) for details.
+
+    ## Related Documentation
+
+    - [ADR-0005](../../adr/0005-iban-storage-and-validation.md): IBAN validation
+    - [ADR-0007](../../adr/0007-organization-sepa-configuration-storage.md): SEPA configuration
+    - [ADR-0008](../../adr/0008-sepa-xml-export-format-selection.md): SEPA XML export
+    - [ADR-0013](../../adr/0013-audit-logging.md): Audit logging
+    - [ADR-0015](../../adr/0015-authentication-and-authorization-strategy.md): Authentication
+
+  version: 1.0.0
+  contact:
+    name: Member Bar System
+    url: https://github.com/frgs/vereinsbar
+
+servers:
+  - url: /api
+    description: Relative API path
+
+tags:
+  - name: Authentication
+    description: Admin login, logout, and password management
+  - name: Members
+    description: Member CRUD, RFID card management, GDPR workflows
+  - name: Transactions
+    description: Transaction viewing and manual corrections
+  - name: Products
+    description: Product and category management
+  - name: Settlements
+    description: Settlement creation, preview, finalization, and export
+  - name: SEPA Configuration
+    description: Organization-level SEPA settings
+  - name: Admin Users
+    description: Admin user management
+  - name: Reports
+    description: Dashboard, reports, and analytics
+  - name: Audit Log
+    description: Audit trail access
+  - name: RFID Cards
+    description: Unknown and blocked card management
+
+paths:
+  # ============================================================================
+  # AUTHENTICATION
+  # ============================================================================
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Admin login
+      description: |
+        Authenticate admin user with email and password.
+        On success, creates a session and sets a secure cookie.
+
+        **Use Case**: UC-A01
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              description: Session cookie (HttpOnly, Secure, SameSite=Lax)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid_credentials
+                message: Invalid email or password
+        '429':
+          description: Too many login attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: rate_limited
+                message: Too many login attempts. Please try again later.
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Admin logout
+      description: |
+        Destroy the current session and clear the session cookie.
+
+        **Use Case**: UC-A02
+      operationId: logout
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current session info
+      description: Returns information about the currently authenticated admin user.
+      operationId: getCurrentUser
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/change-password:
+    post:
+      tags: [Authentication]
+      summary: Change password
+      description: |
+        Change the current admin user's password.
+        Requires the current password for verification.
+
+        **Use Case**: UC-A03
+
+        **Password requirements**:
+        - Minimum 8 characters
+        - At least 1 uppercase letter
+        - At least 1 lowercase letter
+        - At least 1 digit
+      operationId: changePassword
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============================================================================
+  # MEMBERS
+  # ============================================================================
+  /members:
+    get:
+      tags: [Members]
+      summary: List members
+      description: |
+        Retrieve a paginated list of members with optional filtering and sorting.
+
+        **Use Case**: UC-A10
+      operationId: listMembers
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+        - name: status
+          in: query
+          description: Filter by member status
+          schema:
+            type: string
+            enum: [all, active, inactive]
+            default: all
+        - name: balance
+          in: query
+          description: Filter by balance
+          schema:
+            type: string
+            enum: [all, with_balance, zero_balance]
+            default: all
+        - name: sepa_status
+          in: query
+          description: Filter by SEPA data validity
+          schema:
+            type: string
+            enum: [all, valid, invalid]
+            default: all
+        - name: search
+          in: query
+          description: Search in first name, last name, or card UID
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          description: Sort field and direction
+          schema:
+            type: string
+            enum: [name_asc, name_desc, balance_asc, balance_desc, created_at_desc]
+            default: name_asc
+      responses:
+        '200':
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MemberListItem'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Members]
+      summary: Create member
+      description: |
+        Create a new member account.
+
+        **Use Case**: UC-A11
+
+        **Required fields**: first_name, last_name, iban, mandate_signed_at, preferred_language
+
+        **Auto-generated**:
+        - `id`: UUID
+        - `mandate_reference`: UUID without hyphens (can be overridden)
+        - `is_active`: true
+        - `created_at`, `updated_at`: current timestamp
+      operationId: createMember
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberCreateRequest'
+      responses:
+        '201':
+          description: Member created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Conflict (e.g., duplicate email or card_uid)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /members/{memberId}:
+    parameters:
+      - $ref: '#/components/parameters/memberId'
+
+    get:
+      tags: [Members]
+      summary: Get member details
+      description: Retrieve detailed information about a specific member.
+      operationId: getMember
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Member details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Members]
+      summary: Update member
+      description: |
+        Update member information. All fields are optional.
+
+        **Use Cases**: UC-A12 (edit), UC-A15 (deactivate), UC-DSGVO-03 (rectification), UC-DSGVO-05 (restriction)
+
+        **Validation**:
+        - `iban`: ISO 13616 format with mod-97 checksum
+        - `mandate_reference`: Max 35 chars, SEPA charset
+        - `preferred_language`: Must be in enabled languages
+      operationId: updateMember
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberUpdateRequest'
+      responses:
+        '200':
+          description: Member updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Conflict (e.g., card_uid already assigned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Member is anonymized and cannot be modified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /members/{memberId}/assign-card:
+    parameters:
+      - $ref: '#/components/parameters/memberId'
+    post:
+      tags: [Members]
+      summary: Assign RFID card to member
+      description: |
+        Assign an RFID card to a member.
+
+        **Use Case**: UC-A13
+
+        If the card is in the unknown_card_scans table, it will be removed.
+        If the card is already assigned to another member, returns 409 unless `force_reassign` is true.
+      operationId: assignCard
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [card_uid]
+              properties:
+                card_uid:
+                  type: string
+                  description: RFID card identifier (8-20 hex characters, uppercase)
+                  pattern: '^[0-9A-F]{8,20}$'
+                  example: "04A2B3C4D5E6F7"
+                force_reassign:
+                  type: boolean
+                  description: If true, reassign card from another member
+                  default: false
+      responses:
+        '200':
+          description: Card assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Card already assigned to another member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: card_already_assigned
+                message: Card is already assigned to another member
+                details:
+                  assigned_to_member_id: "550e8400-e29b-41d4-a716-446655440000"
+
+  /members/{memberId}/remove-card:
+    parameters:
+      - $ref: '#/components/parameters/memberId'
+    post:
+      tags: [Members]
+      summary: Remove RFID card from member
+      description: |
+        Remove the assigned RFID card from a member.
+
+        **Use Case**: UC-A14
+
+        The card becomes available for assignment to another member.
+      operationId: removeCard
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Card removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /members/{memberId}/transactions:
+    parameters:
+      - $ref: '#/components/parameters/memberId'
+
+    get:
+      tags: [Transactions]
+      summary: Get member's transaction history (tab)
+      description: |
+        Retrieve the transaction history for a specific member.
+
+        **Use Case**: UC-A20
+      operationId: getMemberTransactions
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          description: Filter from date (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          description: Filter to date (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: type
+          in: query
+          description: Filter by transaction type
+          schema:
+            type: string
+            enum: [all, purchase, correction]
+            default: all
+        - name: include_settled
+          in: query
+          description: Include transactions that have been settled
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Transaction history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberTransactionHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags: [Transactions]
+      summary: Create manual transaction (correction)
+      description: |
+        Create a manual correction transaction for a member.
+
+        **Use Case**: UC-A21
+
+        Manual transactions can have positive amounts (charge) or negative amounts (credit/reversal).
+        A reason is required for audit purposes.
+      operationId: createManualTransaction
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualTransactionRequest'
+      responses:
+        '201':
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /members/{memberId}/export:
+    parameters:
+      - $ref: '#/components/parameters/memberId'
+    post:
+      tags: [Members]
+      summary: Export member data (GDPR)
+      description: |
+        Generate a GDPR data export for a member.
+
+        **Use Cases**: UC-DSGVO-01 (right to access), UC-DSGVO-04 (right to portability)
+
+        **Export types**:
+        - `gdpr_access`: Full data export including system-generated data (Art. 15)
+        - `gdpr_portability`: Only data provided by the member (Art. 20)
+
+        **Formats**:
+        - `json`: Machine-readable format
+        - `pdf`: Human-readable document
+      operationId: exportMemberData
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [format]
+              properties:
+                format:
+                  type: string
+                  enum: [json, pdf]
+                  description: Export format
+                export_type:
+                  type: string
+                  enum: [gdpr_access, gdpr_portability]
+                  default: gdpr_access
+                  description: Type of GDPR export
+      responses:
+        '200':
+          description: Export file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GdprExport'
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Member is anonymized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /members/{memberId}/anonymize:
+    parameters:
+      - $ref: '#/components/parameters/memberId'
+    post:
+      tags: [Members]
+      summary: Anonymize member (GDPR erasure)
+      description: |
+        Anonymize a member's personal data per GDPR Art. 17 (Right to Erasure).
+
+        **Use Case**: UC-DSGVO-02
+
+        **Preconditions**:
+        - Member balance must be €0.00
+        - Member must not be included in any pending settlement
+
+        **Anonymization transforms**:
+        - `first_name`, `last_name`, `email` → NULL
+        - `iban`, `mandate_reference` → NULL
+        - `card_uid` → "ANONYMOUS-{uuid}"
+        - `is_active` → false
+        - `deleted_at` → current timestamp
+
+        **Retention**: Transaction history is retained (linked to anonymous member).
+      operationId: anonymizeMember
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Optional reason for audit trail
+                  maxLength: 500
+      responses:
+        '200':
+          description: Member anonymized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  member_id:
+                    type: string
+                    format: uuid
+                  anonymized_at:
+                    type: string
+                    format: date-time
+        '400':
+          description: Cannot anonymize (balance > 0 or pending settlement)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: cannot_anonymize
+                message: Member has outstanding balance
+                details:
+                  balance_cents: 1250
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Member already anonymized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /members/import:
+    post:
+      tags: [Members]
+      summary: Import members from CSV
+      description: |
+        Import members from a CSV file.
+
+        **Use Case**: UC-A16
+
+        **CSV columns** (required): first_name, last_name, iban, mandate_signed_at
+        **CSV columns** (optional): email, preferred_language
+
+        Returns a preview of the import. Call `/members/import/confirm` to execute.
+      operationId: importMembersPreview
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV file
+      responses:
+        '200':
+          description: Import preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberImportPreview'
+        '400':
+          description: Invalid CSV format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /members/import/confirm:
+    post:
+      tags: [Members]
+      summary: Confirm member import
+      description: |
+        Execute the member import after preview.
+
+        **Use Case**: UC-A16
+      operationId: importMembersConfirm
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [import_id]
+              properties:
+                import_id:
+                  type: string
+                  description: Import ID from preview response
+      responses:
+        '201':
+          description: Members imported
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported_count:
+                    type: integer
+                  skipped_count:
+                    type: integer
+                  members:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Member'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Import preview not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============================================================================
+  # TRANSACTIONS
+  # ============================================================================
+  /transactions/export:
+    get:
+      tags: [Transactions]
+      summary: Export transactions as CSV
+      description: |
+        Export transactions to CSV file.
+
+        **Use Case**: UC-A22
+      operationId: exportTransactions
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          required: true
+          description: Start date (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          required: true
+          description: End date (inclusive)
+          schema:
+            type: string
+            format: date
+        - name: member_id
+          in: query
+          description: Filter by member
+          schema:
+            type: string
+            format: uuid
+        - name: product_id
+          in: query
+          description: Filter by product
+          schema:
+            type: string
+            format: uuid
+        - name: type
+          in: query
+          description: Filter by transaction type
+          schema:
+            type: string
+            enum: [all, purchase, correction]
+            default: all
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: Attachment filename
+              schema:
+                type: string
+                example: 'attachment; filename="transactions-2025-01-01-to-2025-01-31.csv"'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # PRODUCTS
+  # ============================================================================
+  /products:
+    get:
+      tags: [Products]
+      summary: List products
+      description: |
+        Retrieve a paginated list of products.
+
+        **Use Case**: UC-A40
+      operationId: listProducts
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+        - name: status
+          in: query
+          description: Filter by active status
+          schema:
+            type: string
+            enum: [all, active, inactive]
+            default: all
+        - name: category_id
+          in: query
+          description: Filter by category
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          description: Search in product names
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          description: Sort field
+          schema:
+            type: string
+            enum: [name_asc, name_desc, price_asc, price_desc, category]
+            default: name_asc
+      responses:
+        '200':
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Products]
+      summary: Create product
+      description: |
+        Create a new product.
+
+        **Use Case**: UC-A41
+
+        Product names and descriptions are multilingual (JSON object with ISO 639-1 keys).
+        At least one language is required for `names`.
+      operationId: createProduct
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /products/{productId}:
+    parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags: [Products]
+      summary: Get product details
+      operationId: getProduct
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Products]
+      summary: Update product
+      description: |
+        Update product information.
+
+        **Use Cases**: UC-A42 (edit), UC-A43 (deactivate)
+      operationId: updateProduct
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUpdateRequest'
+      responses:
+        '200':
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # CATEGORIES
+  # ============================================================================
+  /categories:
+    get:
+      tags: [Products]
+      summary: List categories
+      description: |
+        Retrieve all product categories.
+
+        **Use Case**: UC-A44
+      operationId: listCategories
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Products]
+      summary: Create category
+      description: |
+        Create a new product category.
+
+        **Use Case**: UC-A44
+      operationId: createCategory
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreateRequest'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /categories/{categoryId}:
+    parameters:
+      - name: categoryId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      tags: [Products]
+      summary: Update category
+      description: |
+        Update category information.
+
+        **Use Case**: UC-A44
+      operationId: updateCategory
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpdateRequest'
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Products]
+      summary: Delete category
+      description: |
+        Delete a product category.
+
+        **Use Case**: UC-A44
+
+        Category can only be deleted if it has no products.
+      operationId: deleteCategory
+      security:
+        - sessionAuth: []
+      responses:
+        '204':
+          description: Category deleted
+        '400':
+          description: Category has products
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: category_has_products
+                message: Cannot delete category with existing products
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /categories/reorder:
+    post:
+      tags: [Products]
+      summary: Reorder categories
+      description: |
+        Update the display order of all categories.
+
+        **Use Case**: UC-A44
+      operationId: reorderCategories
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [order]
+              properties:
+                order:
+                  type: array
+                  description: Category IDs in desired order
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Categories reordered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # SETTLEMENTS
+  # ============================================================================
+  /settlements:
+    get:
+      tags: [Settlements]
+      summary: List settlements
+      description: |
+        Retrieve settlement history.
+
+        **Use Case**: UC-A33
+      operationId: listSettlements
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+        - name: type
+          in: query
+          description: Filter by settlement type
+          schema:
+            type: string
+            enum: [all, sepa, manual]
+            default: all
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [created_at_desc, created_at_asc, execution_date]
+            default: created_at_desc
+      responses:
+        '200':
+          description: List of settlements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SettlementListItem'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Settlements]
+      summary: Create settlement
+      description: |
+        Create a new settlement.
+
+        **Use Cases**: UC-A30 (SEPA), UC-A35 (manual), UC-SEPA-05
+
+        **SEPA settlements**:
+        - Require `execution_date` (minimum TODAY + 7 calendar days)
+        - All members with valid SEPA data are included in XML export
+
+        **Manual settlements**:
+        - Require `manual_reason` and `notes` (min 10 chars)
+        - No SEPA XML export available
+      operationId: createSettlement
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettlementCreateRequest'
+      responses:
+        '201':
+          description: Settlement created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settlement'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '412':
+          description: SEPA configuration incomplete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: sepa_config_incomplete
+                message: SEPA configuration is incomplete
+
+  /settlements/preview:
+    get:
+      tags: [Settlements]
+      summary: Preview unsettled transactions
+      description: |
+        Get a preview of transactions available for settlement.
+
+        **Use Cases**: UC-A30, UC-SEPA-06
+      operationId: previewSettlement
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: member_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Settlement preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementPreview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /settlements/{settlementId}:
+    parameters:
+      - name: settlementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags: [Settlements]
+      summary: Get settlement details
+      description: |
+        Retrieve detailed information about a settlement.
+
+        **Use Cases**: UC-A34, UC-SEPA-06
+      operationId: getSettlement
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Settlement details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settlement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /settlements/{settlementId}/finalize:
+    parameters:
+      - name: settlementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Settlements]
+      summary: Finalize settlement
+      description: |
+        Finalize a settlement and lock its transactions.
+
+        **Use Case**: UC-SEPA-07
+
+        **Requirements** (SEPA):
+        - `execution_date` must be set (>= TODAY + 7 calendar days)
+
+        **Effects**:
+        - Settlement status changes to "finalized"
+        - Transactions are marked as settled
+        - Settlement becomes eligible for export
+        - Cannot be undone (create new settlement to correct)
+      operationId: finalizeSettlement
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [execution_date]
+              properties:
+                execution_date:
+                  type: string
+                  format: date
+                  description: SEPA execution date (must be >= TODAY + 7 days)
+      responses:
+        '200':
+          description: Settlement finalized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settlement'
+        '400':
+          description: Invalid execution date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid_execution_date
+                message: Execution date must be at least 7 days in the future
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Settlement already finalized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /settlements/{settlementId}/cancel:
+    parameters:
+      - name: settlementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Settlements]
+      summary: Cancel settlement
+      description: |
+        Cancel a settlement, releasing its transactions for future settlements.
+
+        Transactions linked to this settlement will have their settlement_id cleared
+        and become available for new settlements.
+      operationId: cancelSettlement
+      security:
+        - sessionAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Cancellation reason for audit trail
+                  maxLength: 500
+      responses:
+        '200':
+          description: Settlement cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settlement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Settlement already cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /settlements/{settlementId}/export/sepa-xml:
+    parameters:
+      - name: settlementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Settlements]
+      summary: Download SEPA XML
+      description: |
+        Download the settlement as a SEPA Direct Debit XML file (pain.008.001.02).
+
+        **Use Cases**: UC-A31, UC-SEPA-08
+
+        **Requirements**:
+        - Settlement must be finalized
+        - Settlement type must be "sepa"
+        - At least one member must have valid SEPA data
+
+        **XML format**: pain.008.001.02 (SEPA Core Direct Debit)
+        - Sequence type: Always RCUR
+        - Minimal debtor data (name, IBAN only)
+
+        See [ADR-0008](../../adr/0008-sepa-xml-export-format-selection.md) for details.
+      operationId: downloadSepaXml
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: SEPA XML file
+          content:
+            application/xml:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="sepa-SET-2025-001-20250123.xml"'
+        '400':
+          description: No eligible members for SEPA export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          description: Settlement not finalized or not SEPA type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /settlements/{settlementId}/export/csv:
+    parameters:
+      - name: settlementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Settlements]
+      summary: Download settlement CSV
+      description: |
+        Download the settlement as a CSV file.
+
+        **Use Cases**: UC-A32, UC-SEPA-09
+
+        **CSV format**:
+        - Encoding: UTF-8 with BOM
+        - Delimiter: Semicolon (;)
+        - Columns: Name, IBAN, Betrag, Verwendungszweck, Mandatsreferenz, Sequenztyp
+      operationId: downloadSettlementCsv
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="abrechnung-SET-2025-001-20250123.csv"'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          description: Settlement not finalized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============================================================================
+  # SEPA CONFIGURATION
+  # ============================================================================
+  /sepa-config:
+    get:
+      tags: [SEPA Configuration]
+      summary: Get SEPA configuration
+      description: |
+        Retrieve the organization's SEPA configuration.
+
+        **Use Cases**: UC-SEPA-01, UC-SEPA-02
+
+        Sensitive fields (creditor_id, creditor_iban) are masked in the response.
+      operationId: getSepaConfig
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: SEPA configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SepaConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: SEPA configuration not set up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [SEPA Configuration]
+      summary: Create SEPA configuration
+      description: |
+        Set up the organization's SEPA configuration.
+
+        **Use Case**: UC-SEPA-01
+
+        **Note**: `creditor_id` (Gläubiger-ID) cannot be changed after initial setup.
+      operationId: createSepaConfig
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SepaConfigRequest'
+      responses:
+        '201':
+          description: SEPA configuration created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SepaConfig'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: SEPA configuration already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags: [SEPA Configuration]
+      summary: Update SEPA configuration
+      description: |
+        Update the organization's SEPA configuration.
+
+        **Use Case**: UC-SEPA-02
+
+        **Note**: `creditor_id` (Gläubiger-ID) cannot be changed after initial setup.
+      operationId: updateSepaConfig
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SepaConfigUpdateRequest'
+      responses:
+        '200':
+          description: SEPA configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SepaConfig'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: SEPA configuration not set up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============================================================================
+  # ADMIN USERS
+  # ============================================================================
+  /admin-users:
+    get:
+      tags: [Admin Users]
+      summary: List admin users
+      description: |
+        Retrieve all admin users.
+
+        **Use Case**: UC-A61
+      operationId: listAdminUsers
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: List of admin users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Admin Users]
+      summary: Create admin user
+      description: |
+        Create a new admin user.
+
+        **Use Case**: UC-A62
+
+        A random 16-character password is generated and returned.
+        The password is only shown once and should be communicated to the user securely.
+      operationId: createAdminUser
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserCreateRequest'
+      responses:
+        '201':
+          description: Admin user created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserWithPassword'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin-users/{adminUserId}:
+    parameters:
+      - name: adminUserId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      tags: [Admin Users]
+      summary: Update admin user
+      operationId: updateAdminUser
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                display_name:
+                  type: string
+                  maxLength: 100
+                locale:
+                  type: string
+                  description: ISO 639-1 language code
+                is_active:
+                  type: boolean
+      responses:
+        '200':
+          description: Admin user updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin-users/{adminUserId}/reset-password:
+    parameters:
+      - name: adminUserId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Admin Users]
+      summary: Reset admin user password
+      description: |
+        Generate a new password for an admin user.
+
+        **Use Case**: UC-A63
+
+        The new password is returned once. All sessions for this user are invalidated.
+      operationId: resetAdminPassword
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserWithPassword'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # REPORTS & DASHBOARD
+  # ============================================================================
+  /dashboard:
+    get:
+      tags: [Reports]
+      summary: Get dashboard data
+      description: |
+        Retrieve dashboard overview data.
+
+        **Use Case**: UC-A80
+      operationId: getDashboard
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/{reportType}:
+    parameters:
+      - name: reportType
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [revenue, consumption, transactions]
+    get:
+      tags: [Reports]
+      summary: Get report data
+      description: |
+        Retrieve report data for analytics.
+
+        **Use Case**: UC-A50
+      operationId: getReport
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: group_by
+          in: query
+          schema:
+            type: string
+            enum: [category, product, member, day, week, month, year]
+            default: month
+        - name: category_ids
+          in: query
+          description: Comma-separated category IDs
+          schema:
+            type: string
+        - name: product_ids
+          in: query
+          description: Comma-separated product IDs
+          schema:
+            type: string
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+      responses:
+        '200':
+          description: Report data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/{reportType}/export:
+    parameters:
+      - name: reportType
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [revenue, consumption, transactions]
+    get:
+      tags: [Reports]
+      summary: Export report as CSV
+      description: |
+        Export report data as CSV.
+
+        **Use Case**: UC-A50
+      operationId: exportReport
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: group_by
+          in: query
+          schema:
+            type: string
+            enum: [category, product, member, day, week, month, year]
+            default: month
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/member-ranking:
+    get:
+      tags: [Reports]
+      summary: Get member ranking
+      description: |
+        Retrieve member ranking by consumption.
+
+        **Use Case**: UC-A51
+      operationId: getMemberRanking
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: anonymize
+          in: query
+          description: Display anonymized member names
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            enum: [10, 25, 50, 100]
+            default: 25
+      responses:
+        '200':
+          description: Member ranking
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        rank:
+                          type: integer
+                        member_name:
+                          type: string
+                          description: Real name or "Member N" if anonymized
+                        total_amount_cents:
+                          type: integer
+                        transaction_count:
+                          type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/terminal-activity:
+    get:
+      tags: [Reports]
+      summary: Get terminal activity
+      description: |
+        Retrieve terminal activity statistics.
+
+        **Use Case**: UC-A52
+      operationId: getTerminalActivity
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: terminal_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Terminal activity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TerminalActivityReport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reports/sepa-issues:
+    get:
+      tags: [Reports]
+      summary: Get SEPA issues report
+      description: |
+        Retrieve members with SEPA data issues.
+
+        **Use Case**: UC-A82
+      operationId: getSepaIssuesReport
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: missing_data
+          in: query
+          schema:
+            type: string
+            enum: [all, iban_only, mandate_only, both]
+            default: all
+        - name: balance
+          in: query
+          schema:
+            type: string
+            enum: [all, has_balance, zero_balance]
+            default: all
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [balance_desc, last_transaction, name]
+            default: balance_desc
+      responses:
+        '200':
+          description: SEPA issues report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        member_name:
+                          type: string
+                        balance_cents:
+                          type: integer
+                        missing_data:
+                          type: string
+                          enum: [iban, mandate, both]
+                        last_transaction_at:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        created_at:
+                          type: string
+                          format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # AUDIT LOG
+  # ============================================================================
+  /audit-log:
+    get:
+      tags: [Audit Log]
+      summary: List audit log entries
+      description: |
+        Retrieve audit log entries with filtering.
+
+        **Use Case**: UC-A81, UC-DSGVO-06
+
+        Sensitive data is masked in the log entries.
+      operationId: listAuditLog
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: admin_user_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [create, update, delete, anonymize, login, logout, login_failed, export, settlement_create, settlement_cancel, settlement_export]
+        - name: entity_type
+          in: query
+          schema:
+            type: string
+            enum: [member, product, category, admin_user, terminal, settlement, sepa_config]
+        - name: entity_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          description: Search in entity ID, admin email, or IP address
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLogEntry'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /audit-log/{entryId}:
+    parameters:
+      - name: entryId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Audit Log]
+      summary: Get audit log entry details
+      description: |
+        Retrieve detailed information about an audit log entry.
+
+        **Use Case**: UC-DSGVO-06
+      operationId: getAuditLogEntry
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Audit log entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # RFID CARDS
+  # ============================================================================
+  /unknown-cards:
+    get:
+      tags: [RFID Cards]
+      summary: List unknown cards
+      description: |
+        Retrieve cards scanned at terminals that are not assigned to any member.
+
+        **Use Case**: UC-A70
+      operationId: listUnknownCards
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Unknown cards
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UnknownCard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /blocked-cards:
+    get:
+      tags: [RFID Cards]
+      summary: List blocked cards
+      description: |
+        Retrieve blocked RFID cards.
+
+        **Use Case**: UC-A71
+      operationId: listBlockedCards
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Blocked cards
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BlockedCard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [RFID Cards]
+      summary: Block a card
+      description: |
+        Add a card to the blocklist.
+
+        **Use Case**: UC-A71
+
+        If the card is assigned to a member, the assignment is removed.
+      operationId: blockCard
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [card_uid]
+              properties:
+                card_uid:
+                  type: string
+                  pattern: '^[0-9A-F]{8,20}$'
+                reason:
+                  type: string
+                  maxLength: 255
+      responses:
+        '201':
+          description: Card blocked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlockedCard'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /blocked-cards/{cardUid}:
+    parameters:
+      - name: cardUid
+        in: path
+        required: true
+        schema:
+          type: string
+    delete:
+      tags: [RFID Cards]
+      summary: Unblock a card
+      description: |
+        Remove a card from the blocklist.
+
+        **Use Case**: UC-A71
+      operationId: unblockCard
+      security:
+        - sessionAuth: []
+      responses:
+        '204':
+          description: Card unblocked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+# ==============================================================================
+# COMPONENTS
+# ==============================================================================
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: PHPSESSID
+      description: PHP session cookie (HttpOnly, Secure, SameSite=Lax)
+
+  parameters:
+    memberId:
+      name: memberId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    page:
+      name: page
+      in: query
+      description: Page number (1-indexed)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    perPage:
+      name: per_page
+      in: query
+      description: Items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+
+  responses:
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: unauthorized
+            message: Authentication required
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: not_found
+            message: Resource not found
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+
+  schemas:
+    # --------------------------------------------------------------------------
+    # Common
+    # --------------------------------------------------------------------------
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: validation_error
+        message:
+          type: string
+          example: Validation failed
+        details:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            iban: ["Invalid IBAN checksum"]
+            first_name: ["Required field"]
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+
+    MultilingualText:
+      type: object
+      description: Multilingual text (ISO 639-1 keys)
+      additionalProperties:
+        type: string
+      example:
+        de: "Bier 0,5L"
+        en: "Beer 0.5L"
+
+    # --------------------------------------------------------------------------
+    # Authentication
+    # --------------------------------------------------------------------------
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      properties:
+        admin_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        locale:
+          type: string
+
+    ChangePasswordRequest:
+      type: object
+      required: [current_password, new_password, confirm_password]
+      properties:
+        current_password:
+          type: string
+          format: password
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          description: "Min 8 chars, 1 uppercase, 1 lowercase, 1 digit"
+        confirm_password:
+          type: string
+          format: password
+
+    # --------------------------------------------------------------------------
+    # Members
+    # --------------------------------------------------------------------------
+    MemberListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        balance_cents:
+          type: integer
+          description: Current outstanding balance in cents
+        card_uid:
+          type: string
+          nullable: true
+        iban_masked:
+          type: string
+          nullable: true
+          description: Masked IBAN (e.g., DE89****3000)
+        is_active:
+          type: boolean
+        is_sepa_valid:
+          type: boolean
+          description: Whether member has valid IBAN and mandate_reference
+        created_at:
+          type: string
+          format: date-time
+
+    Member:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        last_name:
+          type: string
+          nullable: true
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          nullable: true
+        card_uid:
+          type: string
+          nullable: true
+        preferred_language:
+          type: string
+          description: ISO 639-1 language code
+        iban:
+          type: string
+          nullable: true
+          description: Full IBAN (unmasked in detail view)
+        mandate_reference:
+          type: string
+          nullable: true
+          maxLength: 35
+        mandate_signed_at:
+          type: string
+          format: date
+          nullable: true
+        is_active:
+          type: boolean
+        is_sepa_valid:
+          type: boolean
+        balance_cents:
+          type: integer
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MemberCreateRequest:
+      type: object
+      required: [first_name, last_name, iban, mandate_signed_at, preferred_language]
+      properties:
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        preferred_language:
+          type: string
+          description: ISO 639-1 language code
+          example: de
+        iban:
+          type: string
+          description: ISO 13616 IBAN
+          minLength: 15
+          maxLength: 34
+        mandate_signed_at:
+          type: string
+          format: date
+          description: Mandate signature date (not in future)
+        mandate_reference:
+          type: string
+          maxLength: 35
+          description: Optional; defaults to UUID without hyphens
+
+    MemberUpdateRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          nullable: true
+        preferred_language:
+          type: string
+        iban:
+          type: string
+          minLength: 15
+          maxLength: 34
+        mandate_reference:
+          type: string
+          maxLength: 35
+        mandate_signed_at:
+          type: string
+          format: date
+        is_active:
+          type: boolean
+
+    MemberImportPreview:
+      type: object
+      properties:
+        import_id:
+          type: string
+          description: ID to use for confirmation
+        preview:
+          type: array
+          items:
+            type: object
+            properties:
+              row:
+                type: integer
+              status:
+                type: string
+                enum: [valid, error]
+              data:
+                type: object
+              errors:
+                type: array
+                items:
+                  type: string
+        summary:
+          type: object
+          properties:
+            total_rows:
+              type: integer
+            valid:
+              type: integer
+            invalid:
+              type: integer
+
+    # --------------------------------------------------------------------------
+    # Transactions
+    # --------------------------------------------------------------------------
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        member_id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+          nullable: true
+        amount_cents:
+          type: integer
+        transaction_type:
+          type: string
+          enum: [purchase, correction]
+        notes:
+          type: string
+          nullable: true
+        related_transaction_id:
+          type: string
+          format: uuid
+          nullable: true
+        settlement_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_by_terminal_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_by_admin_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    MemberTransactionHistory:
+      type: object
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        current_balance_cents:
+          type: integer
+        transactions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              date:
+                type: string
+                format: date-time
+              type:
+                type: string
+                enum: [purchase, correction]
+              description:
+                type: string
+              amount_cents:
+                type: integer
+              running_total_cents:
+                type: integer
+              settlement_id:
+                type: string
+                format: uuid
+                nullable: true
+        settlements:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              date:
+                type: string
+                format: date
+              amount_cents:
+                type: integer
+              type:
+                type: string
+                enum: [sepa, manual]
+
+    ManualTransactionRequest:
+      type: object
+      required: [amount_cents, notes]
+      properties:
+        amount_cents:
+          type: integer
+          description: Positive for charge, negative for credit/reversal (non-zero)
+        notes:
+          type: string
+          maxLength: 500
+          description: Reason for the correction (required)
+        related_transaction_id:
+          type: string
+          format: uuid
+          description: Optional reference to original transaction
+
+    # --------------------------------------------------------------------------
+    # Products & Categories
+    # --------------------------------------------------------------------------
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        category_id:
+          type: string
+          format: uuid
+        names:
+          $ref: '#/components/schemas/MultilingualText'
+        descriptions:
+          $ref: '#/components/schemas/MultilingualText'
+        price_cents:
+          type: integer
+          minimum: 1
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProductCreateRequest:
+      type: object
+      required: [names, price_cents, category_id]
+      properties:
+        names:
+          $ref: '#/components/schemas/MultilingualText'
+        descriptions:
+          $ref: '#/components/schemas/MultilingualText'
+        price_cents:
+          type: integer
+          minimum: 1
+          maximum: 999999
+        category_id:
+          type: string
+          format: uuid
+
+    ProductUpdateRequest:
+      type: object
+      properties:
+        names:
+          $ref: '#/components/schemas/MultilingualText'
+        descriptions:
+          $ref: '#/components/schemas/MultilingualText'
+        price_cents:
+          type: integer
+          minimum: 1
+          maximum: 999999
+        category_id:
+          type: string
+          format: uuid
+        is_active:
+          type: boolean
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        names:
+          $ref: '#/components/schemas/MultilingualText'
+        display_order:
+          type: integer
+          minimum: 0
+        is_active:
+          type: boolean
+        product_count:
+          type: integer
+          description: Number of products in this category
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CategoryCreateRequest:
+      type: object
+      required: [names]
+      properties:
+        names:
+          $ref: '#/components/schemas/MultilingualText'
+        is_active:
+          type: boolean
+          default: true
+
+    CategoryUpdateRequest:
+      type: object
+      properties:
+        names:
+          $ref: '#/components/schemas/MultilingualText'
+        is_active:
+          type: boolean
+
+    # --------------------------------------------------------------------------
+    # Settlements
+    # --------------------------------------------------------------------------
+    SettlementListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        settlement_type:
+          type: string
+          enum: [sepa, manual]
+        settlement_date:
+          type: string
+          format: date
+        execution_date:
+          type: string
+          format: date
+          nullable: true
+        member_count:
+          type: integer
+        total_amount_cents:
+          type: integer
+        is_cancelled:
+          type: boolean
+        exported_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    Settlement:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        settlement_type:
+          type: string
+          enum: [sepa, manual]
+        settlement_date:
+          type: string
+          format: date
+        execution_date:
+          type: string
+          format: date
+          nullable: true
+        period_start:
+          type: string
+          format: date
+          nullable: true
+        period_end:
+          type: string
+          format: date
+          nullable: true
+        sepa_message_id:
+          type: string
+          nullable: true
+        manual_reason:
+          type: string
+          enum: [cash_payment, bank_transfer, other_payment, write_off, goodwill, correction, other]
+          nullable: true
+        total_amount_cents:
+          type: integer
+        member_count:
+          type: integer
+        is_cancelled:
+          type: boolean
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+        exported_at:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        created_by_admin_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              member_id:
+                type: string
+                format: uuid
+              member_name:
+                type: string
+              amount_cents:
+                type: integer
+              iban_masked:
+                type: string
+                nullable: true
+              mandate_reference:
+                type: string
+                nullable: true
+              is_sepa_eligible:
+                type: boolean
+
+    SettlementPreview:
+      type: object
+      properties:
+        total_amount_cents:
+          type: integer
+        member_count:
+          type: integer
+        transaction_count:
+          type: integer
+        sepa_eligible_count:
+          type: integer
+        sepa_ineligible_count:
+          type: integer
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              member_id:
+                type: string
+                format: uuid
+              member_name:
+                type: string
+              transaction_count:
+                type: integer
+              amount_cents:
+                type: integer
+              iban_status:
+                type: string
+                enum: [valid, missing, invalid]
+              mandate_status:
+                type: string
+                enum: [present, missing]
+              warnings:
+                type: array
+                items:
+                  type: string
+        warnings:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              member_id:
+                type: string
+                format: uuid
+              member_name:
+                type: string
+
+    SettlementCreateRequest:
+      type: object
+      required: [settlement_type]
+      properties:
+        settlement_type:
+          type: string
+          enum: [sepa, manual]
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        execution_date:
+          type: string
+          format: date
+          description: Required for SEPA (>= TODAY + 7 days)
+        manual_reason:
+          type: string
+          enum: [cash_payment, bank_transfer, other_payment, write_off, goodwill, correction, other]
+          description: Required for manual settlements
+        notes:
+          type: string
+          maxLength: 500
+          description: Required for manual settlements (min 10 chars)
+        member_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Optional filter to specific members
+
+    # --------------------------------------------------------------------------
+    # SEPA Configuration
+    # --------------------------------------------------------------------------
+    SepaConfig:
+      type: object
+      properties:
+        creditor_id:
+          type: string
+          description: Gläubiger-ID (masked)
+        creditor_name:
+          type: string
+          maxLength: 70
+        creditor_iban:
+          type: string
+          description: Masked IBAN
+        creditor_address_street:
+          type: string
+          maxLength: 70
+        creditor_address_city:
+          type: string
+          maxLength: 70
+        creditor_address_country:
+          type: string
+          minLength: 2
+          maxLength: 2
+        updated_at:
+          type: string
+          format: date-time
+
+    SepaConfigRequest:
+      type: object
+      required: [creditor_id, creditor_name, creditor_iban, creditor_address_street, creditor_address_city]
+      properties:
+        creditor_id:
+          type: string
+          maxLength: 35
+          description: Gläubiger-ID (immutable after set)
+        creditor_name:
+          type: string
+          maxLength: 70
+        creditor_iban:
+          type: string
+          minLength: 15
+          maxLength: 34
+        creditor_address_street:
+          type: string
+          maxLength: 70
+        creditor_address_city:
+          type: string
+          maxLength: 70
+        creditor_address_country:
+          type: string
+          minLength: 2
+          maxLength: 2
+          default: DE
+
+    SepaConfigUpdateRequest:
+      type: object
+      properties:
+        creditor_name:
+          type: string
+          maxLength: 70
+        creditor_iban:
+          type: string
+          minLength: 15
+          maxLength: 34
+        creditor_address_street:
+          type: string
+          maxLength: 70
+        creditor_address_city:
+          type: string
+          maxLength: 70
+        creditor_address_country:
+          type: string
+          minLength: 2
+          maxLength: 2
+
+    # --------------------------------------------------------------------------
+    # Admin Users
+    # --------------------------------------------------------------------------
+    AdminUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        locale:
+          type: string
+        is_active:
+          type: boolean
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    AdminUserWithPassword:
+      allOf:
+        - $ref: '#/components/schemas/AdminUser'
+        - type: object
+          properties:
+            password:
+              type: string
+              description: Generated password (shown once)
+
+    AdminUserCreateRequest:
+      type: object
+      required: [email, display_name]
+      properties:
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+          maxLength: 100
+        locale:
+          type: string
+          default: de
+
+    # --------------------------------------------------------------------------
+    # Reports & Dashboard
+    # --------------------------------------------------------------------------
+    Dashboard:
+      type: object
+      properties:
+        metrics:
+          type: object
+          properties:
+            active_members:
+              type: integer
+            outstanding_balance_cents:
+              type: integer
+            today_revenue_cents:
+              type: integer
+            terminal_status:
+              type: string
+              enum: [online, offline, unknown]
+            last_sync_at:
+              type: string
+              format: date-time
+              nullable: true
+        alerts:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              severity:
+                type: string
+                enum: [info, warning, error]
+              count:
+                type: integer
+              message:
+                type: string
+        recent_transactions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              timestamp:
+                type: string
+                format: date-time
+              member_name:
+                type: string
+              product_name:
+                type: string
+              amount_cents:
+                type: integer
+        system_status:
+          type: object
+          properties:
+            pending_syncs:
+              type: integer
+            last_settlement_date:
+              type: string
+              format: date
+              nullable: true
+
+    Report:
+      type: object
+      properties:
+        metadata:
+          type: object
+          properties:
+            report_type:
+              type: string
+            generated_at:
+              type: string
+              format: date-time
+            filters:
+              type: object
+        summary:
+          type: object
+          properties:
+            total_revenue_cents:
+              type: integer
+            total_quantity:
+              type: integer
+            transaction_count:
+              type: integer
+            avg_transaction_cents:
+              type: integer
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              dimension:
+                type: string
+              revenue_cents:
+                type: integer
+              quantity:
+                type: integer
+              count:
+                type: integer
+              percent_of_total:
+                type: number
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    TerminalActivityReport:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              start_time:
+                type: string
+              end_time:
+                type: string
+              transaction_count:
+                type: integer
+              revenue_cents:
+                type: integer
+        hourly_distribution:
+          type: array
+          items:
+            type: object
+            properties:
+              hour:
+                type: integer
+                minimum: 0
+                maximum: 23
+              transaction_count:
+                type: integer
+        terminals:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              transaction_count:
+                type: integer
+              last_sync_at:
+                type: string
+                format: date-time
+
+    # --------------------------------------------------------------------------
+    # Audit Log
+    # --------------------------------------------------------------------------
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        admin_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        admin_user_email:
+          type: string
+          nullable: true
+        action:
+          type: string
+          enum: [create, update, delete, anonymize, login, logout, login_failed, export, settlement_create, settlement_cancel, settlement_export]
+        entity_type:
+          type: string
+        entity_id:
+          type: string
+          nullable: true
+        old_values:
+          type: object
+          nullable: true
+          description: Values before change (sensitive data masked)
+        new_values:
+          type: object
+          nullable: true
+          description: Values after change (sensitive data masked)
+        ip_address:
+          type: string
+          nullable: true
+        user_agent:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    # --------------------------------------------------------------------------
+    # RFID Cards
+    # --------------------------------------------------------------------------
+    UnknownCard:
+      type: object
+      properties:
+        card_uid:
+          type: string
+        terminal_name:
+          type: string
+          nullable: true
+        first_seen_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        scan_count:
+          type: integer
+
+    BlockedCard:
+      type: object
+      properties:
+        card_uid:
+          type: string
+        reason:
+          type: string
+          nullable: true
+        blocked_at:
+          type: string
+          format: date-time
+        blocked_by_admin_id:
+          type: string
+          format: uuid
+
+    # --------------------------------------------------------------------------
+    # GDPR Export
+    # --------------------------------------------------------------------------
+    GdprExport:
+      type: object
+      description: GDPR data export (Art. 15 / Art. 20)
+      properties:
+        export_info:
+          type: object
+          properties:
+            export_date:
+              type: string
+              format: date-time
+            export_type:
+              type: string
+              enum: [gdpr_access, gdpr_portability]
+            format_version:
+              type: string
+        personal_data:
+          type: object
+          properties:
+            first_name:
+              type: string
+            last_name:
+              type: string
+            email:
+              type: string
+              nullable: true
+            card_uid:
+              type: string
+              nullable: true
+            preferred_language:
+              type: string
+            iban:
+              type: string
+              description: Full IBAN (unmasked)
+            mandate_reference:
+              type: string
+            member_since:
+              type: string
+              format: date
+            is_active:
+              type: boolean
+        transactions:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date-time
+              type:
+                type: string
+              product_name:
+                type: string
+                nullable: true
+              amount_cents:
+                type: integer
+              notes:
+                type: string
+                nullable: true
+        settlements:
+          type: array
+          items:
+            type: object
+            properties:
+              period_start:
+                type: string
+                format: date
+              period_end:
+                type: string
+                format: date
+              amount_cents:
+                type: integer
+              execution_date:
+                type: string
+                format: date
+        current_balance:
+          type: object
+          properties:
+            outstanding_cents:
+              type: integer
+            pending_transaction_count:
+              type: integer
