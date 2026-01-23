@@ -5,7 +5,7 @@
 
 ## Context
 
-The Member Bar system accepts input from multiple sources:
+The Ruderbar system accepts input from multiple sources:
 
 - **Terminal**: Transaction data, RFID card UIDs, sync requests
 - **Admin Panel**: Member data, product data, SEPA configuration, search queries

@@ -65,7 +65,7 @@ CREATE TABLE sepa_config (
 
   creditor_name VARCHAR(70) NOT NULL,
     -- Organization name for SEPA (max 70 chars per SEPA standard)
-    -- Example: FRGS Frankfurter Rudergesellschaft Sachsenhausen
+    -- Example: Frankfurter Rudergesellschaft Sachsenhausen
 
   creditor_iban VARCHAR(34) NOT NULL,
     -- Organization's bank account for receiving payments
@@ -216,7 +216,7 @@ CREATE TABLE settings (
 
 INSERT INTO settings VALUES
   ('sepa_creditor_id', '"DE98ZZZ..."', NOW()),
-  ('sepa_creditor_name', '"FRGS..."', NOW()),
+  ('sepa_creditor_name', '"Ruderbar..."', NOW()),
   ...
 ```
 
@@ -234,7 +234,7 @@ INSERT INTO settings VALUES
 ```bash
 # .env file
 SEPA_CREDITOR_ID=DE98ZZZ09999999999
-SEPA_CREDITOR_NAME="FRGS Frankfurter Rudergesellschaft"
+SEPA_CREDITOR_NAME="Ruderbar Frankfurter Rudergesellschaft"
 SEPA_CREDITOR_IBAN=DE89370400440532013000
 ```
 
@@ -278,7 +278,7 @@ CREATE TABLE sepa_config (
 
 INSERT INTO sepa_config VALUES (1, JSON_OBJECT(
   'creditor_id', 'DE98ZZZ...',
-  'creditor_name', 'FRGS...',
+  'creditor_name', 'Ruderbar...',
   ...
 ));
 ```

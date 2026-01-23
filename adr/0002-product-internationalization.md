@@ -10,7 +10,7 @@
 
 ## Context
 
-The Member Bar system is designed for open-source use in international organizations. Products (beverages, snacks, services) are created and managed via the Admin UI. Organizations need to support products in multiple languages, with each terminal operator viewing products in their preferred language.
+The Ruderbar system is designed for open-source use in international organizations. Products (beverages, snacks, services) are created and managed via the Admin UI. Organizations need to support products in multiple languages, with each terminal operator viewing products in their preferred language.
 
 Key requirements:
 - **Admin UI**: Create products in multiple languages via a single product form

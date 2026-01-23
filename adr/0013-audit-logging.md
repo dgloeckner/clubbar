@@ -8,7 +8,7 @@
 
 ## Context
 
-The Member Bar system manages sensitive member data (personal information, banking details) and financial records. Regulatory and operational requirements demand a complete audit trail:
+The Ruderbar system manages sensitive member data (personal information, banking details) and financial records. Regulatory and operational requirements demand a complete audit trail:
 
 1. **GDPR compliance**: Demonstrate lawful data processing; track who accessed/modified personal data
 2. **Financial accountability**: Record who created settlements, exported data, or modified member accounts

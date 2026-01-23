@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=1024, height=768, initial-scale=1.0">
-  <title>FRGS-Bar-Admin - Vereins-Bar Verwaltung</title>
+  <title>Ruderbar Admin - Vereins-Bar Verwaltung</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
@@ -554,7 +554,7 @@
             boxShadow: '0 25px 50px rgba(0,0,0,0.3)',
           }}>
             <div style={{ textAlign: 'center', marginBottom: 32 }}>
-              <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>FRGS-Bar-Admin</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Ruderbar Admin</h1>
               <p style={{ color: colors.textSecondary }}>Vereins-Bar Verwaltung</p>
             </div>
 
@@ -1071,7 +1071,7 @@
         // Generate SEPA-like CSV export
         const header = 'Name;IBAN;BIC;Betrag;Verwendungszweck\n';
         const rows = usersWithDeckel.map(u => 
-          `${u.lastName}, ${u.firstName};${u.iban};${u.bic};${u.deckel.toFixed(2)};FRGS Vereins-Bar Deckel`
+          `${u.lastName}, ${u.firstName};${u.iban};${u.bic};${u.deckel.toFixed(2)};Ruderbar Deckel`
         ).join('\n');
         
         const csv = header + rows;
@@ -1981,7 +1981,7 @@
       const handleExportCSV = (settlement) => {
         const header = 'Name;IBAN;BIC;Betrag;Verwendungszweck\n';
         const rows = settlement.users.map(u => 
-          `${u.name};${u.iban};${u.bic};${u.amount.toFixed(2)};FRGS Vereins-Bar Deckel ${settlement.date}`
+          `${u.name};${u.iban};${u.bic};${u.amount.toFixed(2)};Ruderbar Deckel ${settlement.date}`
         ).join('\n');
         
         const csv = header + rows;
@@ -2283,7 +2283,7 @@
           <header style={styles.header}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
               <div style={styles.headerTitle}>
-                <span>FRGS-Bar-Admin</span>
+                <span>Ruderbar Admin</span>
               </div>
               {/* Navigation Tabs */}
               <nav style={{ display: 'flex', gap: 4 }}>

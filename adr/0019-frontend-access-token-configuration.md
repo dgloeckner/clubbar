@@ -12,7 +12,7 @@ The Terminal application (Electron) requires configuration to connect to the bac
 
 - **Backend URL**: The root URL of the backend API (e.g., `https://bar.example.org/api`)
 - **Access Token**: The Bearer token for terminal authentication (per ADR-0015)
-- **Terminal ID**: A human-readable identifier for this terminal instance (e.g., `FRGS-Kühlschrank`)
+- **Terminal ID**: A human-readable identifier for this terminal instance (e.g., `Ruderbar-Kühlschrank`)
 
 This configuration must be:
 - **Flexible**: Deployable to different environments (development, staging, production)
@@ -44,7 +44,7 @@ Configuration is loaded with the following precedence (highest to lowest):
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `TERMINAL_ID` | Human-readable terminal identifier | `FRGS-Kühlschrank` |
+| `TERMINAL_ID` | Human-readable terminal identifier | `Ruderbar-Kühlschrank` |
 | `TERMINAL_API_URL` | Backend API root URL | `https://bar.example.org/api` |
 | `TERMINAL_API_TOKEN` | Bearer token for authentication | `a1b2c3d4...` (64 hex chars) |
 
@@ -62,7 +62,7 @@ Location varies by platform:
 
 ```json
 {
-  "terminalId": "FRGS-Kühlschrank",
+  "terminalId": "Ruderbar-Kühlschrank",
   "apiUrl": "https://bar.example.org/api",
   "apiToken": "a1b2c3d4e5f6..."
 }
@@ -96,7 +96,7 @@ This file is committed to version control but contains no secrets.
 
 - `terminalId` must be 1-50 characters, allowing letters, numbers, hyphens, underscores, and spaces
 - `terminalId` is used for display in UI, logging, and sent to backend in sync requests
-- `terminalId` should be unique within a deployment (e.g., `FRGS-Kühlschrank`, `Bar-Terminal-1`, `Sauna-Kiosk`)
+- `terminalId` should be unique within a deployment (e.g., `Ruderbar-Kühlschrank`, `Bar-Terminal-1`, `Sauna-Kiosk`)
 - `apiUrl` must be a valid URL (protocol + host)
 - `apiUrl` must use HTTPS in production builds (HTTP allowed in development)
 - `apiToken` must be exactly 64 hexadecimal characters
@@ -115,7 +115,7 @@ The `terminalId` serves multiple purposes:
 | **Troubleshooting** | Operators can identify which physical device corresponds to which config |
 
 **Examples of good terminal IDs:**
-- `FRGS-Kühlschrank` (location-based)
+- `Ruderbar-Kühlschrank` (location-based)
 - `Bar-Terminal-1` (numbered)
 - `Sauna-Kiosk` (function-based)
 - `Hauptraum-Links` (position-based)
@@ -179,7 +179,7 @@ sequenceDiagram
     Terminal->>Terminal: Detect missing/invalid config
     Terminal->>Operator: Show setup wizard
 
-    Operator->>Terminal: Enter terminal ID (e.g., "FRGS-Kühlschrank")
+    Operator->>Terminal: Enter terminal ID (e.g., "Ruderbar-Kühlschrank")
     Operator->>Terminal: Enter backend URL
     Operator->>Terminal: Paste API token
 

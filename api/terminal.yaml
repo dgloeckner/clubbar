@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Member Bar - Terminal API
+  title: Ruderbar - Terminal API
   description: |
     REST API for offline-capable POS terminal synchronization.
 
@@ -49,11 +49,11 @@ info:
 
   version: 1.0.0
   contact:
-    name: Member Bar Project
-    url: https://github.com/member-bar/member-bar-system
+    name: Ruderbar Project
+    url: https://github.com/ruderbar/ruderbar
   license:
     name: TBD
-    url: https://github.com/member-bar/member-bar-system/blob/main/LICENSE
+    url: https://github.com/ruderbar/ruderbar/blob/main/LICENSE
 
 servers:
   - url: https://api.example.com

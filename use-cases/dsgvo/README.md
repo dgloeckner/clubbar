@@ -1,6 +1,6 @@
 # DSGVO (GDPR) Use Cases
 
-This directory contains GDPR-specific use cases for the Member Bar system. Each use case is documented in a separate file for clarity and traceability.
+This directory contains GDPR-specific use cases for the Ruderbar system. Each use case is documented in a separate file for clarity and traceability.
 
 ## Use Case Index
 

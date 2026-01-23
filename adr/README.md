@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADRs)
 
-This directory contains Architecture Decision Records (ADRs) for the Member Bar project.
+This directory contains Architecture Decision Records (ADRs) for the Ruderbar project.
 
 ## What is an ADR?
 

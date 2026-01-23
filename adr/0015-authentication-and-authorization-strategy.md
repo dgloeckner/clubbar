@@ -5,7 +5,7 @@
 
 ## Context
 
-The Member Bar system has two distinct client types with different security requirements:
+The Ruderbar system has two distinct client types with different security requirements:
 
 1. **Terminal Application** (Electron): Unattended kiosk device at bar location
 2. **Admin Panel** (React SPA): Management interface for administrators

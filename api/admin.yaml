@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Member Bar System - Admin API
+  title: Ruderbar - Admin API
   description: |
-    REST API for the Admin Panel of the Member Bar System.
+    REST API for the Admin Panel of Ruderbar.
 
     ## Authentication
 
@@ -45,8 +45,8 @@ info:
 
   version: 1.0.0
   contact:
-    name: Member Bar System
-    url: https://github.com/frgs/vereinsbar
+    name: Ruderbar
+    url: https://github.com/ruderbar/ruderbar
 
 servers:
   - url: /api

@@ -5,7 +5,7 @@
 
 ## Context
 
-The Member Bar System requires a comprehensive testing strategy that ensures:
+The Ruderbar system requires a comprehensive testing strategy that ensures:
 
 1. **Functional correctness**: Business logic matches requirements
 2. **Integration reliability**: Frontend, backend, and database work together correctly

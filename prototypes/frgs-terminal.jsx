@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-// FRGS Bar Terminal - 800x480 Touchscreen
+// Ruderbar Terminal - 800x480 Touchscreen
 // Flow: RFID Scan → Products → Basket → Payment
 
 const LOGO_BASE64 = null; // Logo removed
@@ -643,7 +643,7 @@ export default function App() {
       {/* Header */}
       <header style={styles.header}>
         <div style={styles.headerLeft}>
-          <span style={{...styles.headerTitle, fontSize: 20}}>FRGS Vereins-Bar</span>
+          <span style={{...styles.headerTitle, fontSize: 20}}>Ruderbar</span>
         </div>
         <div style={styles.headerRight}>
           {user && screen !== 'rfid' && (
