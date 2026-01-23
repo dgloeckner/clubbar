@@ -36,6 +36,12 @@ Each ADR follows this structure:
 | [0009](./0009-settlement-lead-times-bank-working-days.md) | Settlement Lead Times and Bank Working Days | Accepted | 2025-01-23 |
 | [0010](./0010-mandate-lifecycle-and-retention.md) | Mandate Lifecycle and Retention | Accepted | 2025-01-23 |
 | [0011](./0011-sepa-configuration-management-admin-frontend.md) | SEPA Configuration Management in Admin Frontend | Accepted | 2025-01-23 |
+| [0012](./0012-eventual-consistency-frontend-caching.md) | Eventual Consistency and Frontend Caching | Accepted | 2025-01-23 |
+| [0013](./0013-audit-logging.md) | Audit Logging | Accepted | 2025-01-23 |
+| [0014](./0014-rfid-scanning-integration.md) | RFID Scanning Integration | Accepted | 2025-01-23 |
+| [0015](./0015-authentication-and-authorization-strategy.md) | Authentication and Authorization Strategy | Accepted | 2025-01-23 |
+| [0016](./0016-transport-security.md) | Transport Security (HTTPS and TLS) | Accepted | 2025-01-23 |
+| [0017](./0017-input-validation-injection-prevention.md) | Input Validation and Injection Prevention | Accepted | 2025-01-23 |
 
 ## Creating a New ADR
 
