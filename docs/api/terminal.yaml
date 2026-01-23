@@ -1,0 +1,1243 @@
+openapi: 3.0.3
+info:
+  title: Member Bar - Terminal API
+  description: |
+    REST API for offline-capable POS terminal synchronization.
+
+    ## Overview
+    The Terminal API enables Electron-based POS terminals to synchronize member data,
+    product catalogs, and transaction records with the backend. The API follows these principles:
+
+    - **Offline-first**: Terminal caches members/products locally; transactions queue when offline
+    - **Delta sync**: Members/products fetched since last known timestamp (efficient for slow networks)
+    - **Idempotent**: All state-changing operations are safely retryable (UUID-based deduplication)
+    - **Stateless**: Bearer token authentication (no session state on server)
+    - **Polling-based**: Terminal initiates all requests; no WebSockets or push notifications
+    - **Minimal member data**: Terminal receives only first/last name, registration date, and language preference (no display_name or bank details)
+
+    ## Compression
+    All API responses are GZIP-compressed (HTTP standard). The terminal's HTTP client
+    automatically handles decompression. This reduces bandwidth by 70-85% for typical JSON payloads.
+
+    - Request header: `Accept-Encoding: gzip` (sent automatically by fetch API)
+    - Response header: `Content-Encoding: gzip`
+    - Transparent to client: decompression handled automatically
+
+    See [ADR-0003](../../adr/0003-gzip-compression-http.md) for details.
+
+    ## Authentication
+    All requests must include a Bearer token in the `Authorization` header:
+    ```
+    Authorization: Bearer {terminal_api_token}
+    ```
+    Tokens are generated and managed via the Admin API. Each terminal is assigned a unique token.
+
+    ## Sync Flow (Recommended Interval: 60s)
+    1. Check connectivity (optional ping endpoint)
+    2. Download members (delta): `GET /sync/members?since={timestamp}`
+    3. Download categories (delta): `GET /sync/categories?since={timestamp}`
+    4. Download products (delta): `GET /sync/products?since={timestamp}`
+    5. Upload transactions (batch): `POST /sync/transactions`
+    6. Store new sync timestamps locally
+
+    ## Transaction Upload
+    - Batch upload max 100 transactions per request
+    - Each transaction must have a client-generated UUID (for deduplication)
+    - Server deduplicates via UUID (INSERT IGNORE pattern)
+    - Response confirms accepted transaction UUIDs
+    - Retry failed uploads in next sync cycle
+
+  version: 1.0.0
+  contact:
+    name: Member Bar Project
+    url: https://github.com/member-bar/member-bar-system
+  license:
+    name: TBD
+    url: https://github.com/member-bar/member-bar-system/blob/main/LICENSE
+
+servers:
+  - url: https://api.example.com
+    description: Production server (HTTPS only)
+  - url: http://localhost:8080
+    description: Local development (Docker)
+
+tags:
+  - name: Synchronization
+    description: Member, product, and transaction synchronization
+  - name: Health
+    description: Terminal health checks
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check (no auth required)
+      description: |
+        Simple health check endpoint. Useful for terminal to verify connectivity
+        without requiring authentication. Does not consume rate limits.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Backend is healthy and reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: Server time (UTC)
+                required:
+                  - status
+                  - timestamp
+              examples:
+                success:
+                  value:
+                    status: ok
+                    timestamp: '2025-01-23T14:30:45Z'
+
+  /sync/members:
+    get:
+      tags:
+        - Synchronization
+      summary: Download members (delta sync)
+      description: |
+        Fetch members modified since `since` timestamp. Returns only members whose
+        `updated_at >= since`. This enables efficient delta sync on slow networks.
+
+        **Deletion handling**: Deleted members are returned with `deleted_at` set.
+        Terminal should remove from local cache when `deleted_at` is not null.
+
+        **Rate limiting**: Recommended sync interval is 60 seconds.
+      operationId: syncMembers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: |
+            ISO 8601 timestamp. Return members with `updated_at >= since`.
+            On first sync, use epoch (1970-01-01T00:00:00Z) or current time.
+          example: '2025-01-23T14:00:00Z'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+          description: Maximum members to return. Pagination not required; full delta returned.
+      responses:
+        '200':
+          description: Delta sync successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberDeltaResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /sync/categories:
+    get:
+      tags:
+        - Synchronization
+      summary: Download categories (delta sync)
+      description: |
+        Fetch product categories modified since `since` timestamp. Categories are used
+        for organizing products into tabs on the terminal UI.
+
+        **Internationalization (i18n)**: Categories support translations via multilingual `names`
+        JSON field. All translations are always included in the response. Terminal caches all
+        translations and applies localization at display time based on member's `preferred_language`.
+
+        **Display order**: Categories should be displayed as tabs sorted by `display_order` (ascending).
+
+        **Inactive categories**: Returned with `is_active: false`. Terminal should hide these
+        categories AND all products in them, regardless of product's own `is_active` status.
+
+        **Rate limiting**: Recommended sync interval is 60 seconds.
+      operationId: syncCategories
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: |
+            ISO 8601 timestamp. Return categories with `updated_at >= since`.
+            On first sync, use epoch (1970-01-01T00:00:00Z) or current time.
+          example: '2025-01-23T14:00:00Z'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+          description: Maximum categories to return.
+      responses:
+        '200':
+          description: Delta sync successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryDeltaResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /sync/products:
+    get:
+      tags:
+        - Synchronization
+      summary: Download products (delta sync, language-agnostic)
+      description: |
+        Fetch products modified since `since` timestamp. Includes all products
+        (active and inactive); terminal is responsible for filtering UI display.
+
+        **Internationalization (i18n)**: Products support translations via multilingual `names` and `descriptions`
+        JSON fields. All translations are always included in the response. Terminal caches all translations
+        and applies localization at display time based on member's `preferred_language`.
+
+        **Terminal localization**:
+        1. Fetch product: `names: {"en": "Pilsner", "de": "Pils", "fr": "Pilsner"}`
+        2. Read member's `preferred_language: "de"` (from /sync/members response)
+        3. Display: `product.names[member.preferred_language]` = "Pils"
+        4. Fallback (if translation missing): Use backend-configured default language (e.g., "en")
+
+        **Fallback behavior**: If member's preferred language not available:
+        1. Use backend default language (`en`, configurable per organization)
+        2. Fall back to any available language (sorted alphabetically)
+
+        **Inactive products**: Returned with `is_active: false`. Terminal may hide
+        from UI but should maintain in cache for transaction history integrity.
+
+        **Rate limiting**: Recommended sync interval is 60 seconds.
+      operationId: syncProducts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: |
+            ISO 8601 timestamp. Return products with `updated_at >= since`.
+            On first sync, use epoch (1970-01-01T00:00:00Z) or current time.
+          example: '2025-01-23T14:00:00Z'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+          description: Maximum products to return.
+      responses:
+        '200':
+          description: Delta sync successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDeltaResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /sync/members/{memberId}/language:
+    patch:
+      tags:
+        - Synchronization
+      summary: Update member's preferred language
+      description: |
+        Update a member's preferred language setting. This is the only member field
+        that can be modified from the terminal (all other member data is read-only).
+
+        The terminal should queue this update locally and sync when connectivity is available.
+        The update is idempotent: setting the same language multiple times has no additional effect.
+
+        **Use case**: Member changes display language via terminal settings (UC-T03).
+
+        See [ADR-0002](../../adr/0002-product-internationalization.md) for language handling details.
+      operationId: updateMemberLanguage
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Member UUID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preferred_language:
+                  type: string
+                  pattern: '^[a-z]{2}(-[A-Z]{2})?$'
+                  description: |
+                    New preferred language (ISO 639-1 code).
+                    Must be one of the organization's enabled languages.
+              required:
+                - preferred_language
+            examples:
+              change_to_german:
+                value:
+                  preferred_language: de
+              change_to_english:
+                value:
+                  preferred_language: en
+      responses:
+        '200':
+          description: Language updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    description: Member UUID
+                  preferred_language:
+                    type: string
+                    description: New preferred language
+                  updated_at:
+                    type: string
+                    format: date-time
+                    description: Updated timestamp
+              example:
+                id: 123e4567-e89b-12d3-a456-426614174000
+                preferred_language: de
+                updated_at: '2025-01-23T14:30:45Z'
+        '400':
+          description: Invalid language code or language not enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: invalid_request
+                message: "Language 'xx' is not enabled for this organization"
+                timestamp: '2025-01-23T14:30:45Z'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: not_found
+                message: Member not found
+                timestamp: '2025-01-23T14:30:45Z'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /sync/transactions:
+    post:
+      tags:
+        - Synchronization
+      summary: Upload purchase transactions (batch, immutable, idempotent)
+      description: |
+        Batch upload purchase transactions from terminal to backend.
+
+        **Terminal transactions are always purchases**: The terminal only creates purchase transactions
+        (positive amounts). Corrections and adjustments are admin-only operations via the Admin API.
+        See [ADR-0004](../../adr/0004-immutable-transaction-storage.md) for details.
+
+        ## Immutability Guarantee
+        - Transactions are **append-only**: only INSERT, never UPDATE or DELETE
+        - Once accepted, transaction cannot be modified or deleted
+        - Corrections made by admins via Admin API (not terminal)
+        - Full audit trail preserved: history never lost or hidden
+
+        ## Idempotency Guarantee
+        - Each transaction must have a unique `id` (UUID v4, generated by terminal)
+        - Server deduplicates via `INSERT IGNORE` or similar pattern
+        - Response confirms which transaction UUIDs were accepted
+        - Terminal marks accepted transactions as `synced: true` in local store
+        - Retry failed uploads in next sync cycle (same UUID safe to resubmit)
+
+        ## Request Format
+        - **Batch size**: Max 100 transactions per request
+        - **All fields required**: id, member_id, product_id, amount_cents, created_at
+        - **Amount**: Always positive (purchases only); stored as integer cents
+
+        ## Response Format
+        - Returns array of accepted transaction IDs
+        - Terminal should only mark transactions as synced if ID appears in response
+        - If transaction ID is missing from response, retry in next cycle
+
+        ## Error Handling
+        - **Validation error**: Return 422 with detailed field errors; no transactions inserted
+        - **Database error**: Return 500; terminal retries entire batch
+        - **Partial failure is NOT supported**: All-or-nothing semantics for consistency
+      operationId: syncTransactions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionBatchRequest'
+            examples:
+              single_transaction:
+                value:
+                  transactions:
+                    - id: 550e8400-e29b-41d4-a716-446655440001
+                      member_id: 123e4567-e89b-12d3-a456-426614174000
+                      product_id: 987f6543-e21a-11d3-b456-426614174999
+                      amount_cents: 350
+                      created_at: '2025-01-23T14:23:15Z'
+              batch_multiple:
+                value:
+                  transactions:
+                    - id: 550e8400-e29b-41d4-a716-446655440001
+                      member_id: 123e4567-e89b-12d3-a456-426614174000
+                      product_id: 987f6543-e21a-11d3-b456-426614174999
+                      amount_cents: 350
+                      created_at: '2025-01-23T14:23:15Z'
+                    - id: 550e8400-e29b-41d4-a716-446655440002
+                      member_id: 223e4567-e89b-12d3-a456-426614174001
+                      product_id: 987f6543-e21a-11d3-b456-426614174999
+                      amount_cents: 280
+                      created_at: '2025-01-23T14:24:30Z'
+      responses:
+        '200':
+          description: Transactions accepted (some or all)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionBatchResponse'
+              examples:
+                all_accepted:
+                  value:
+                    accepted_ids:
+                      - 550e8400-e29b-41d4-a716-446655440001
+                      - 550e8400-e29b-41d4-a716-446655440002
+                    rejected:
+                      count: 0
+                      errors: []
+        '400':
+          description: Malformed request (missing required field, invalid JSON)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                malformed:
+                  value:
+                    error: invalid_request
+                    message: Request body is not valid JSON
+        '422':
+          description: |
+            Validation error. Request was well-formed but contains invalid data
+            (e.g., unknown member_id, unknown product_id, invalid UUID, future timestamp).
+            **No transactions are inserted if any field fails validation.**
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              examples:
+                validation_error:
+                  value:
+                    error: validation_failed
+                    message: Validation errors in transaction batch
+                    details:
+                      - index: 0
+                        field: member_id
+                        message: Member not found (member must exist on backend)
+                      - index: 1
+                        field: product_id
+                        message: Product not found
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    # ============================================================================
+    # Member Schema
+    # ============================================================================
+    Member:
+      type: object
+      description: |
+        Member record (cached locally on terminal).
+        Contains only non-sensitive data: UUID, card_uid, first/last name, registration date, and preferred language.
+        Bank details, contact info, and other sensitive data stored backend-only (admin UI only).
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Permanent member identifier (UUIDv4)
+        card_uid:
+          type: string
+          description: |
+            RFID/NFC card identifier (e.g., Mifare UID).
+            Used for card scans at terminal. Immutable (except on anonymization).
+        first_name:
+          type: string
+          nullable: true
+          maxLength: 100
+          description: Member's first name (null if anonymized)
+        last_name:
+          type: string
+          nullable: true
+          maxLength: 100
+          description: Member's last name (null if anonymized)
+        preferred_language:
+          type: string
+          pattern: '^[a-z]{2}(-[A-Z]{2})?$'
+          default: 'en'
+          description: |
+            Member's preferred language for product display (ISO 639-1 code).
+            E.g., 'en', 'de', 'fr'. Terminal uses this when displaying products.
+            Backend will fallback to default language if translation unavailable.
+        is_active:
+          type: boolean
+          description: |
+            If false, member exists but cannot transact.
+            Terminal should accept card scan but show "Member inactive" message.
+        is_sepa_valid:
+          type: boolean
+          description: |
+            Indicates whether member has valid SEPA data (IBAN and mandate_reference).
+            Calculated by backend as: `iban IS NOT NULL AND mandate_reference IS NOT NULL`.
+            If false, terminal should reject member with "SEPA mandate missing" message.
+            See [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md).
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            If set, member has been anonymized (GDPR deletion).
+            Terminal should remove from local cache and show "Unknown member" on scan.
+        created_at:
+          type: string
+          format: date-time
+          description: Member registration date (UTC). Immutable after creation.
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp (UTC). Used for delta sync.
+      required:
+        - id
+        - card_uid
+        - first_name
+        - last_name
+        - preferred_language
+        - is_active
+        - is_sepa_valid
+        - created_at
+        - updated_at
+      example:
+        id: 123e4567-e89b-12d3-a456-426614174000
+        card_uid: '04:d2:3e:5a:10:80:80'
+        first_name: Max
+        last_name: Mustermann
+        preferred_language: de
+        is_active: true
+        is_sepa_valid: true
+        deleted_at: null
+        created_at: '2024-06-15T10:00:00Z'
+        updated_at: '2025-01-20T14:23:45Z'
+
+    # ============================================================================
+    # Category Schema
+    # ============================================================================
+    Category:
+      type: object
+      description: |
+        Product category for grouping products in terminal UI tabs.
+
+        **Internationalization (i18n)**: Categories support multilingual names via JSON field.
+        Terminal applies localization at display time based on member's `preferred_language`.
+
+        **Display**: Categories are shown as tabs in the terminal product view, sorted by `display_order`.
+        Only categories with `is_active: true` AND at least one active product should be displayed.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique category identifier (UUIDv4)
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          minProperties: 1
+          description: |
+            All available translations of category name (keyed by ISO 639-1 language code).
+            Example: {"en": "Beverages", "de": "Getränke", "fr": "Boissons"}
+            Terminal displays name for member's preferred_language (with fallback to backend default).
+        display_order:
+          type: integer
+          minimum: 0
+          description: |
+            Sort position for tab ordering (ascending).
+            Categories with lower display_order appear first.
+        is_active:
+          type: boolean
+          description: |
+            If false, category is hidden from terminal UI.
+            Products in inactive categories are also hidden, regardless of product's own is_active status.
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp of category creation (UTC)
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp (UTC). Used for delta sync.
+      required:
+        - id
+        - names
+        - display_order
+        - is_active
+        - created_at
+        - updated_at
+      example:
+        id: abc12345-e21a-11d3-b456-426614174001
+        names:
+          en: Beverages
+          de: Getränke
+          fr: Boissons
+        display_order: 1
+        is_active: true
+        created_at: '2024-01-01T00:00:00Z'
+        updated_at: '2025-01-10T10:15:30Z'
+
+    # ============================================================================
+    # Product Schema
+    # ============================================================================
+    Product:
+      type: object
+      description: |
+        Product/item for purchase. May be active or inactive.
+        Terminal filters UI based on `is_active` but retains all in cache for history.
+
+        **Internationalization (i18n)**: Products support multilingual names and descriptions.
+        The response includes:
+        - `names`: Object with all available translations (keyed by ISO 639-1 language code)
+        - `descriptions`: Object with all available translations
+
+        Terminal applies localization at display time based on member's `preferred_language`.
+        Example: `product.names[member.preferred_language]` with fallback to backend default language.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique product identifier (UUIDv4)
+        names:
+          type: object
+          additionalProperties:
+            type: string
+          minProperties: 1
+          description: |
+            All available translations of product name (keyed by ISO 639-1 language code).
+            Example: {"en": "Pilsner 0.5L", "de": "Pils 0,5L", "fr": "Pilsner 0,5L"}
+            Terminal displays name for member's preferred_language (with fallback to backend default).
+        descriptions:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: string
+          description: |
+            All available translations of product description (keyed by ISO 639-1 language code).
+            May be null/empty if no descriptions provided.
+        price_cents:
+          type: integer
+          minimum: 0
+          description: Price in cents (e.g., 350 = €3.50). Always positive.
+        category_id:
+          type: string
+          format: uuid
+          description: |
+            Reference to category (FK to categories table).
+            Terminal uses this to group products under category tabs.
+            Products in inactive categories should be hidden.
+        is_active:
+          type: boolean
+          description: |
+            If false, product is archived but should be retained in transaction history.
+            Terminal should hide from purchase UI but keep in local cache.
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp of product creation (UTC)
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp (UTC). Used for delta sync.
+      required:
+        - id
+        - names
+        - price_cents
+        - category_id
+        - is_active
+        - created_at
+        - updated_at
+      example:
+        id: 987f6543-e21a-11d3-b456-426614174999
+        names:
+          en: Pilsner 0.5L
+          de: Pils 0,5L
+          fr: Pilsner 0,5L
+        descriptions:
+          en: German pilsner beer
+          de: Deutsches Lagerbier
+          fr: Bière lager allemande
+        price_cents: 350
+        category_id: abc12345-e21a-11d3-b456-426614174001
+        is_active: true
+        created_at: '2024-01-01T00:00:00Z'
+        updated_at: '2025-01-10T10:15:30Z'
+
+    # ============================================================================
+    # Transaction Schema
+    # ============================================================================
+    Transaction:
+      type: object
+      description: |
+        A purchase transaction record uploaded from terminal.
+
+        **Terminal transactions are always purchases**: The terminal only creates `purchase` type
+        transactions. Corrections and adjustments are made by admins via the Admin API.
+
+        **Immutability**: Transactions are append-only and immutable once created. Never modified or deleted.
+        See [ADR-0004](../../adr/0004-immutable-transaction-storage.md) for details.
+
+        **Corrections (Admin only)**: If a terminal transaction needs correction, an admin creates
+        a correction transaction via the Admin API. Example: Member charged €5.00 by mistake →
+        Admin creates correction with -€5.00, then optionally a new purchase with correct amount.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: |
+            Unique transaction identifier (UUIDv4, generated by terminal).
+            Permanent; used for deduplication on retry.
+        member_id:
+          type: string
+          format: uuid
+          description: Member who made the purchase
+        product_id:
+          type: string
+          format: uuid
+          description: Product purchased (required for terminal transactions)
+        amount_cents:
+          type: integer
+          minimum: 1
+          description: |
+            Transaction amount in cents (smallest currency unit).
+            Always positive for terminal purchases. E.g., 350 = €3.50.
+            See [ADR-0001](../../adr/0001-monetary-values-as-integer-cents.md).
+        created_at:
+          type: string
+          format: date-time
+          description: |
+            Timestamp when transaction occurred (immutable).
+            Terminal time (UTC). Reflects actual time transaction was created, not when uploaded.
+      required:
+        - id
+        - member_id
+        - product_id
+        - amount_cents
+        - created_at
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440001
+        member_id: 123e4567-e89b-12d3-a456-426614174000
+        product_id: 987f6543-e21a-11d3-b456-426614174999
+        amount_cents: 350
+        created_at: '2025-01-23T14:23:15Z'
+
+    # ============================================================================
+    # Response Schemas
+    # ============================================================================
+    MemberDeltaResponse:
+      type: object
+      description: |
+        Delta sync response for members. Contains members modified since `since` parameter,
+        plus metadata for next sync.
+      properties:
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/Member'
+          description: Array of member records (modified since `since` timestamp)
+        cursor:
+          type: string
+          format: date-time
+          description: |
+            Next sync cursor. Terminal should store this timestamp and use as `since`
+            parameter in next sync request. Ensures no missed updates.
+        count:
+          type: integer
+          minimum: 0
+          description: Number of members in this response
+        has_more:
+          type: boolean
+          description: |
+            If true, more members exist beyond `limit`. Terminal should make
+            another request with same `since` but higher `limit`.
+      required:
+        - members
+        - cursor
+        - count
+        - has_more
+      example:
+        members:
+          - id: 123e4567-e89b-12d3-a456-426614174000
+            card_uid: '04:d2:3e:5a:10:80:80'
+            first_name: Max
+            last_name: Mustermann
+            preferred_language: de
+            is_active: true
+            is_sepa_valid: true
+            deleted_at: null
+            created_at: '2024-06-15T10:00:00Z'
+            updated_at: '2025-01-20T14:23:45Z'
+          - id: 223e4567-e89b-12d3-a456-426614174001
+            card_uid: '04:d2:3e:5a:10:80:90'
+            first_name: null
+            last_name: null
+            preferred_language: en
+            is_active: false
+            is_sepa_valid: false
+            deleted_at: '2025-01-21T10:00:00Z'
+            created_at: '2024-07-01T12:30:00Z'
+            updated_at: '2025-01-21T10:00:00Z'
+        cursor: '2025-01-20T14:23:45Z'
+        count: 2
+        has_more: false
+
+    CategoryDeltaResponse:
+      type: object
+      description: |
+        Delta sync response for categories. Contains categories modified since `since` parameter.
+        Categories include all translations in `names` object (language-agnostic).
+        Terminal applies localization at display time based on member's `preferred_language`.
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+          description: Array of category records (modified since `since` timestamp)
+        cursor:
+          type: string
+          format: date-time
+          description: |
+            Next sync cursor. Terminal should store this timestamp and use as `since`
+            parameter in next sync request.
+        count:
+          type: integer
+          minimum: 0
+          description: Number of categories in this response
+        has_more:
+          type: boolean
+          description: |
+            If true, more categories exist beyond `limit`. Terminal should make
+            another request with same `since` but higher `limit`.
+      required:
+        - categories
+        - cursor
+        - count
+        - has_more
+      example:
+        categories:
+          - id: abc12345-e21a-11d3-b456-426614174001
+            names:
+              en: Beverages
+              de: Getränke
+              fr: Boissons
+            display_order: 1
+            is_active: true
+            created_at: '2024-01-01T00:00:00Z'
+            updated_at: '2025-01-10T10:15:30Z'
+          - id: abc12345-e21a-11d3-b456-426614174002
+            names:
+              en: Snacks
+              de: Snacks
+              fr: Encas
+            display_order: 2
+            is_active: true
+            created_at: '2024-01-01T00:00:00Z'
+            updated_at: '2025-01-10T10:15:30Z'
+        cursor: '2025-01-10T10:15:30Z'
+        count: 2
+        has_more: false
+
+    ProductDeltaResponse:
+      type: object
+      description: |
+        Delta sync response for products. Contains products modified since `since` parameter.
+        Products include all translations in `names` and `descriptions` objects (language-agnostic).
+        Terminal applies localization at display time based on member's `preferred_language`.
+      properties:
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+          description: Array of product records (modified since `since` timestamp)
+        cursor:
+          type: string
+          format: date-time
+          description: |
+            Next sync cursor. Terminal should store this timestamp and use as `since`
+            parameter in next sync request.
+        count:
+          type: integer
+          minimum: 0
+          description: Number of products in this response
+        has_more:
+          type: boolean
+          description: |
+            If true, more products exist beyond `limit`. Terminal should make
+            another request with same `since` but higher `limit`.
+      required:
+        - products
+        - cursor
+        - count
+        - has_more
+      example:
+        products:
+          - id: 987f6543-e21a-11d3-b456-426614174999
+            names:
+              en: Pilsner 0.5L
+              de: Pils 0,5L
+              fr: Pilsner 0,5L
+            descriptions:
+              en: German pilsner beer
+              de: Deutsches Lagerbier
+              fr: Bière lager allemande
+            price_cents: 350
+            category_id: abc12345-e21a-11d3-b456-426614174001
+            is_active: true
+            created_at: '2024-01-01T00:00:00Z'
+            updated_at: '2025-01-10T10:15:30Z'
+          - id: 987f6543-e21a-11d3-b456-426614174998
+            names:
+              en: Radler 0.5L
+              de: Radler 0,5L
+              fr: Radler 0,5L
+            descriptions:
+              en: Beer and lemonade mix
+              de: Biergemisch
+              fr: Mélange de bière et limonade
+            price_cents: 300
+            category_id: abc12345-e21a-11d3-b456-426614174001
+            is_active: true
+            created_at: '2024-01-01T00:00:00Z'
+            updated_at: '2025-01-10T10:15:30Z'
+        cursor: '2025-01-10T10:15:30Z'
+        count: 2
+        has_more: false
+
+    TransactionBatchRequest:
+      type: object
+      description: Batch transaction upload request
+      properties:
+        transactions:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Transaction'
+          description: Array of transactions (1-100 items)
+      required:
+        - transactions
+      example:
+        transactions:
+          - id: 550e8400-e29b-41d4-a716-446655440001
+            member_id: 123e4567-e89b-12d3-a456-426614174000
+            product_id: 987f6543-e21a-11d3-b456-426614174999
+            amount_cents: 350
+            created_at: '2025-01-23T14:23:15Z'
+
+    TransactionBatchResponse:
+      type: object
+      description: Batch transaction upload response
+      properties:
+        accepted_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: |
+            List of transaction IDs that were successfully inserted.
+            Terminal should mark these as `synced: true` in local store.
+        rejected:
+          type: object
+          properties:
+            count:
+              type: integer
+              minimum: 0
+            errors:
+              type: array
+              items:
+                type: object
+                properties:
+                  transaction_id:
+                    type: string
+                    format: uuid
+                  reason:
+                    type: string
+                    description: Reason for rejection (e.g., "duplicate", "member_not_found")
+          description: Rejected transactions (only if `count > 0`)
+      required:
+        - accepted_ids
+        - rejected
+      example:
+        accepted_ids:
+          - 550e8400-e29b-41d4-a716-446655440001
+          - 550e8400-e29b-41d4-a716-446655440002
+        rejected:
+          count: 0
+          errors: []
+
+    # ============================================================================
+    # Error Schemas
+    # ============================================================================
+    ErrorResponse:
+      type: object
+      description: Standard error response
+      properties:
+        error:
+          type: string
+          enum:
+            - invalid_request
+            - unauthorized
+            - forbidden
+            - not_found
+            - validation_failed
+            - rate_limit_exceeded
+            - server_error
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error message
+        timestamp:
+          type: string
+          format: date-time
+          description: Server time when error occurred (UTC)
+      required:
+        - error
+        - message
+      example:
+        error: invalid_request
+        message: Authorization header missing or malformed
+        timestamp: '2025-01-23T14:30:45Z'
+
+    ValidationErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  index:
+                    type: integer
+                    description: Index in request array (for batch operations)
+                  field:
+                    type: string
+                    description: Field name that failed validation
+                  message:
+                    type: string
+                    description: Validation error message
+          description: Array of validation errors
+      example:
+        error: validation_failed
+        message: Validation errors in transaction batch
+        timestamp: '2025-01-23T14:30:45Z'
+        details:
+          - index: 0
+            field: member_id
+            message: Member not found
+          - index: 1
+            field: created_at
+            message: Timestamp cannot be in the future
+
+  responses:
+    UnauthorizedError:
+      description: |
+        Unauthorized. Possible causes:
+        - Missing Authorization header
+        - Invalid, expired, or revoked token
+        - Token format is invalid (should be "Bearer {token}")
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: unauthorized
+            message: Authorization header missing or token invalid
+            timestamp: '2025-01-23T14:30:45Z'
+
+    RateLimitError:
+      description: |
+        Rate limit exceeded.
+        - Requests too frequent (e.g., sync more than once per second)
+        - Per-terminal request quota exceeded
+
+        Include `Retry-After` header (seconds).
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: rate_limit_exceeded
+            message: Too many requests. Please retry after 60 seconds.
+            timestamp: '2025-01-23T14:30:45Z'
+
+    ServerError:
+      description: |
+        Internal server error (500).
+        Terminal should retry the same request in next sync cycle.
+        No data is committed on server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: server_error
+            message: Database connection failed. Please retry later.
+            timestamp: '2025-01-23T14:30:45Z'
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: UUID
+      description: |
+        Terminal API token (Bearer token).
+        Format: `Authorization: Bearer {terminal_api_token}`
+
+        Tokens are generated in the Admin UI and unique per terminal.
+        Do not share tokens between terminals.
+        Tokens can be revoked or rotated via Admin UI.
+
+# ============================================================================
+# Security and Compliance
+# ============================================================================
+security:
+  - BearerAuth: []
+
+# ============================================================================
+# Additional Information
+# ============================================================================
+x-internal-notes: |
+  ## Implementation Notes for Backend Developers
+
+  ### Delta Sync Algorithm (Members)
+  ```
+  SELECT
+    id, card_uid, first_name, last_name, preferred_language,
+    is_active,
+    (iban IS NOT NULL AND mandate_reference IS NOT NULL) AS is_sepa_valid,
+    deleted_at, created_at, updated_at
+  FROM members
+  WHERE updated_at >= {since_timestamp}
+  ORDER BY updated_at ASC
+  LIMIT {limit}
+
+  # Return cursor as max(updated_at) from result set
+  # has_more = (COUNT > 0 AND COUNT == limit)
+  ```
+
+  ### Delta Sync Algorithm (Categories)
+  ```
+  SELECT id, names, display_order, is_active, created_at, updated_at
+  FROM categories
+  WHERE updated_at >= {since_timestamp}
+  ORDER BY updated_at ASC
+  LIMIT {limit}
+
+  # Return cursor as max(updated_at) from result set
+  # has_more = (COUNT > 0 AND COUNT == limit)
+  ```
+
+  ### Delta Sync Algorithm (Products)
+  ```
+  SELECT id, category_id, names, descriptions, price_cents, is_active, created_at, updated_at
+  FROM products
+  WHERE updated_at >= {since_timestamp}
+  ORDER BY updated_at ASC
+  LIMIT {limit}
+
+  # Return cursor as max(updated_at) from result set
+  # has_more = (COUNT > 0 AND COUNT == limit)
+  ```
+
+  ### Transaction Deduplication
+  ```
+  -- Terminal transactions are always type='purchase' (set by backend)
+  INSERT IGNORE INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at)
+  VALUES (?, ?, ?, ?, 'purchase', ?)
+
+  # MySQL/MariaDB: INSERT IGNORE skips duplicates
+  # PostgreSQL: Use ON CONFLICT DO NOTHING
+  # SQLite: Use INSERT OR IGNORE
+  ```
+
+  ### Validation Rules
+  - `member_id`: Must exist (even if inactive; terminal already validated at scan time)
+  - `product_id`: Must exist (even if inactive; terminal may have cached old product)
+  - `amount_cents`: Must be positive integer, > 0 and < 999999 (terminal only creates purchases)
+  - `created_at`: Must not be in the future (allow small clock skew, e.g., ±5 minutes)
+  - `id`: Must be valid UUIDv4; duplicates silently ignored (idempotency)
+
+  ### Audit Logging
+  - Log all transaction uploads with terminal_id, count, timestamp
+  - Log failed validations (e.g., member not found) for debugging
+  - Do NOT log transaction details (for privacy)
+
+  ### Rate Limiting Recommendations
+  - Per-terminal: 30 requests per minute (1 per 2 seconds)
+  - Per-IP: 100 requests per minute (additional layer)
+  - Burst allowance: 5 requests per 10 seconds
+  - Return 429 with `Retry-After` header
