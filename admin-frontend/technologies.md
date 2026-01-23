@@ -132,18 +132,22 @@ sequenceDiagram
 
 ## Deployment
 
+The admin frontend is a static SPA, designed for Apache hosting (mass hoster compatible).
+
 | Option | Description |
 |--------|-------------|
-| **Static Hosting** | Build → nginx / Apache / S3 |
+| **Apache (Mass Hoster)** | Build → upload `dist/` to web root |
 | **With Backend** | Deploy to Laravel `public/` |
-| **Docker** | Multi-stage build |
+| **Docker** | Multi-stage build (Node → Apache) |
 
 ```bash
 # Build
 npm run build
 
-# Output in dist/ → copy to web server
+# Output in dist/ → copy to Apache document root
 ```
+
+**SPA Routing**: Configure Apache `FallbackResource /index.html` or `.htaccess` rewrite rules to route all paths to `index.html`.
 
 ---
 

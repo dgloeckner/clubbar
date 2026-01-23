@@ -1,6 +1,12 @@
-# Ruderbar
+<p align="center">
+  <img src="artwork/logo1.svg" alt="Ruderbar Logo" width="128" height="128">
+</p>
 
-**Open-source POS system for member-managed bars and clubs**
+<h1 align="center">Ruderbar</h1>
+
+<p align="center">
+  <strong>Open-source POS system for member-managed bars and clubs</strong>
+</p>
 
 Ruderbar is a complete point-of-sale solution designed for sports clubs, community centers, and member organizations that operate their own bar or canteen. Built with privacy, offline capability, and SEPA settlement in mind.
 
@@ -20,19 +26,33 @@ Ruderbar is a complete point-of-sale solution designed for sports clubs, communi
 
 ## System Components
 
-```
-┌─────────────────────┐     ┌─────────────────────┐     ┌─────────────────────┐
-│   Terminal App      │     │   Admin Panel       │     │   Backend API       │
-│   (Electron)        │     │   (React SPA)       │     │   (Laravel)         │
-├─────────────────────┤     ├─────────────────────┤     ├─────────────────────┤
-│ • RFID card scan    │     │ • Member management │     │ • REST API          │
-│ • Product selection │     │ • Product catalog   │     │ • SEPA XML export   │
-│ • Offline checkout  │     │ • SEPA settlements  │     │ • Audit logging     │
-│ • Touch-optimized   │     │ • GDPR compliance   │     │ • Delta sync        │
-└─────────────────────┘     └─────────────────────┘     └─────────────────────┘
-         │                           │                           │
-         └───────────────────────────┴───────────────────────────┘
-                              Sync via REST API
+```mermaid
+flowchart TB
+    subgraph Terminal["Terminal App (Electron)"]
+        T1[RFID card scan]
+        T2[Product selection]
+        T3[Offline checkout]
+        T4[Touch-optimized UI]
+    end
+
+    subgraph Admin["Admin Panel (React SPA)"]
+        A1[Member management]
+        A2[Product catalog]
+        A3[SEPA settlements]
+        A4[GDPR compliance]
+    end
+
+    subgraph Backend["Backend API (Laravel)"]
+        B1[REST API]
+        B2[SEPA XML export]
+        B3[Audit logging]
+        B4[Delta sync]
+        DB[(Database)]
+        B1 --> DB
+    end
+
+    Terminal <-->|"Sync API"| Backend
+    Admin <-->|"REST API"| Backend
 ```
 
 ---
@@ -80,15 +100,15 @@ Ruderbar is a complete point-of-sale solution designed for sports clubs, communi
 - [x] Data Model (Backend + Terminal ERMs)
 - [x] UI Prototypes (Terminal + Admin)
 - [x] Technology Stack Documentation
+- [x] Docker Compose Setup
 - [ ] Backend Implementation
 - [ ] Terminal Implementation
 - [ ] Admin Panel Implementation
-- [ ] Docker Compose Setup
 - [ ] Test Suite
 
 ---
 
-## Quick Start (Coming Soon)
+## Quick Start
 
 ```bash
 # Clone the repository
@@ -98,11 +118,24 @@ cd ruderbar
 # Start with Docker
 docker-compose up -d
 
+# Run database migrations (first time only)
+docker-compose exec backend php artisan migrate
+
 # Access the applications
-# Terminal:  http://localhost:5174
-# Admin:     http://localhost:5173
-# API:       http://localhost:8080
+# Admin Panel:  http://localhost:5173
+# Terminal:     http://localhost:5174
+# Backend API:  http://localhost:8080
+# Database:     localhost:3306 (user: ruderbar, pass: ruderbar)
 ```
+
+### Services
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| `database` | `localhost:3306` | MariaDB 10.11 |
+| `backend` | `localhost:8080` | PHP 8.3 + Laravel |
+| `admin-frontend` | `localhost:5173` | React SPA (Apache) |
+| `terminal-frontend` | `localhost:5174` | React + Vite dev server |
 
 ---
 
