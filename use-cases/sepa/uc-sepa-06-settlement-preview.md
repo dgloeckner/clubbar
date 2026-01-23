@@ -13,7 +13,7 @@ Admin reviews settlement details before finalization, including member totals an
 ## Preconditions
 
 1. Settlement exists (draft status)
-2. Admin has `admin` role
+2. Admin is logged in
 
 ## Trigger
 
@@ -100,5 +100,5 @@ Member eligible for SEPA XML export if:
 | T07 | Total amount calculation | Correct sum displayed |
 | T08 | Member count accuracy | Correct count displayed |
 | T09 | Transaction count accuracy | Correct count displayed |
-| T10 | Preview by viewer role | Read-only access allowed |
+| T10 | Preview without authentication | Access denied (401) |
 | T11 | Anonymized member in period | Not shown in preview |

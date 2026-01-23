@@ -24,7 +24,7 @@ A member requests their data in a structured, machine-readable format for transf
 
 1. Member exists in system (not anonymized)
 2. Admin has verified member identity
-3. Admin has `admin` role
+3. Admin is logged in
 
 ## Trigger
 

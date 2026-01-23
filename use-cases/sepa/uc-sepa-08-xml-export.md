@@ -16,7 +16,7 @@ Admin exports finalized settlement as SEPA Direct Debit XML file for bank upload
 1. Settlement is finalized
 2. SEPA configuration complete
 3. At least one member eligible for SEPA export
-4. Admin has `admin` role
+4. Admin is logged in
 
 ## Member Eligibility for XML
 
@@ -137,4 +137,4 @@ Example: `sepa-SET-2025-001-20250123.xml`
 | T12 | Re-export same settlement | Same XML generated |
 | T13 | EndToEndId format | SET-YYYY-NNN-NNNN format |
 | T14 | Audit log entry | Contains export details |
-| T15 | Export by viewer role | Access denied |
+| T15 | Export without authentication | Access denied (401) |

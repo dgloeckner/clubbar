@@ -17,7 +17,19 @@ The terminal records member transactions for products consumed. Transactions are
 
 | Actor | Description |
 |-------|-------------|
-| **Member** | Organization member with RFID card |
+| **Member** | Organization member with RFID card and valid SEPA mandate |
+
+## Terminal Access Requirements
+
+Members must meet all requirements to use the terminal:
+
+| Requirement | Check | Error if Failed |
+|-------------|-------|-----------------|
+| Valid card | card_uid exists in cache | "Unknown card" |
+| Active account | is_active = true | "Account inactive" |
+| SEPA valid | is_sepa_valid = true | "SEPA mandate missing" |
+
+SEPA validity is derived from `iban IS NOT NULL AND mandate_reference IS NOT NULL`. See [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md).
 
 ## Shopping Cart Model
 
@@ -33,14 +45,26 @@ The terminal uses a transient shopping cart:
 
 Transactions are only recorded when the user confirms via "Buy" button.
 
+## Product/Category Visibility
+
+Terminal only shows active categories and products:
+
+| Item | Visible When |
+|------|--------------|
+| Category tab | `category.is_active = true` AND has active products |
+| Product tile | `product.is_active = true` AND `category.is_active = true` |
+
+Products in inactive categories are hidden even if the product itself is active.
+
 ## Use Case Index
 
 | ID | Name | Description |
 |----|------|-------------|
 | [UC-T01](./UC-T01-book-product-to-tab.md) | Book Product to Tab | Browse products, add to cart, checkout |
 | [UC-T02](./UC-T02-view-tab-balance.md) | View Tab Balance | View balance and 90-day transaction history |
+| [UC-T03](./UC-T03-change-language.md) | Change Language | Change display language preference |
 | [UC-T11](./UC-T11-shopping-cart.md) | Shopping Cart | Review cart, adjust quantities, confirm purchase |
-| [UC-T12](./UC-T12-error-scenarios.md) | Error Scenarios | Unknown card, balance limit, inactive account, timeouts |
+| [UC-T12](./UC-T12-error-scenarios.md) | Error Scenarios | Unknown card, balance limit, inactive account, SEPA invalid, timeouts |
 
 ## Screen Flow
 

@@ -16,7 +16,7 @@ Each requires appropriate authentication mechanisms that balance security with u
 
 - Terminals operate unattended (no operator login)
 - Multiple terminals may exist per deployment
-- Admin users need role-based access control
+- Admin users need session-based authentication
 - RFID cards identify members but do not authenticate them
 - Backend runs on shared hosting (no WebSockets, limited background processes)
 
@@ -27,8 +27,7 @@ Each requires appropriate authentication mechanisms that balance security with u
 1. **Separation of Identification and Authentication**: RFID identifies members; it does not authenticate them or grant system access
 2. **Device-level Terminal Authentication**: Terminals authenticate as devices, not users
 3. **Session-based Admin Authentication**: Admin panel uses traditional session cookies
-4. **Role-based Authorization**: Admin users have roles that restrict available actions
-5. **No Member Authentication**: Members never log in; they are identified by RFID for billing purposes only
+4. **No Member Authentication**: Members never log in; they are identified by RFID for billing purposes only
 
 ### Terminal Authentication
 
@@ -79,15 +78,9 @@ Session-based authentication with secure cookies:
 | Session Lifetime | 2 hours idle timeout; 24 hours absolute |
 | Multi-device | Allowed; sessions tracked per device |
 
-### Admin Authorization (Roles)
+### Admin Authorization
 
-| Role | Permissions |
-|------|-------------|
-| `admin` | Full access: CRUD all entities, settlements, GDPR workflows, user management |
-| `viewer` | Read-only: Dashboard, reports, transaction history |
-| `auditor` | Read-only + audit log access (for compliance reviews) |
-
-Role is stored in `admin_users.role` and checked on each API request.
+All admin users have full access: CRUD all entities, settlements, GDPR workflows, user management, audit log. Access is controlled by `is_active` flag on the admin user account.
 
 ### Authentication Flow Diagrams
 
@@ -133,16 +126,16 @@ sequenceDiagram
 
 ### API Endpoint Protection
 
-| Endpoint Pattern | Auth Required | Roles Allowed |
-|------------------|---------------|---------------|
-| `POST /api/auth/login` | None | - |
-| `GET /api/sync/*` | Bearer token | Terminal |
-| `POST /api/sync/transactions` | Bearer token | Terminal |
-| `GET /api/members` | Session | admin, viewer, auditor |
-| `POST /api/members` | Session | admin |
-| `POST /api/members/{id}/anonymize` | Session | admin |
-| `GET /api/audit-log` | Session | admin, auditor |
-| `GET /api/admin-users` | Session | admin |
+| Endpoint Pattern | Auth Required |
+|------------------|---------------|
+| `POST /api/auth/login` | None |
+| `GET /api/sync/*` | Bearer token (Terminal) |
+| `POST /api/sync/transactions` | Bearer token (Terminal) |
+| `GET /api/members` | Session (Admin) |
+| `POST /api/members` | Session (Admin) |
+| `POST /api/members/{id}/anonymize` | Session (Admin) |
+| `GET /api/audit-log` | Session (Admin) |
+| `GET /api/admin-users` | Session (Admin) |
 
 ## Consequences
 

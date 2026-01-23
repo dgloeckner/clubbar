@@ -12,7 +12,7 @@ Admin adds or updates a member's IBAN for SEPA direct debit collections.
 
 ## Preconditions
 
-1. Admin has `admin` role
+1. Admin is logged in
 2. Member exists and is not anonymized
 
 ## Trigger
@@ -103,7 +103,7 @@ IBAN is NOT synced to terminal (backend-only data).
 | T06 | IBAN with spaces | Spaces removed, validation passes |
 | T07 | IBAN lowercase | Converted to uppercase |
 | T08 | Clear existing IBAN | IBAN set to NULL |
-| T09 | Update by viewer role | Access denied |
+| T09 | Update without authentication | Access denied (401) |
 | T10 | Audit log IBAN masking | Only first 4 + last 4 visible |
 | T11 | Real-time validation feedback | Shows valid/invalid while typing |
 | T12 | Server-side validation | Validates even if client bypassed |

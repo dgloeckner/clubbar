@@ -7,6 +7,7 @@ Member
 - Member has valid RFID card
 - Member exists in local cache
 - Member is active
+- Member has valid SEPA data (IBAN and mandate reference)
 
 ## Trigger
 Member scans RFID card
@@ -36,6 +37,9 @@ Member scans RFID card
 ## Product View Layout
 
 ### Category Tabs
+
+Only **active categories** are shown. Sorted by `display_order`.
+
 | Tab | Examples |
 |-----|----------|
 | Beer | 0.3L, 0.5L, Craft |
@@ -44,12 +48,20 @@ Member scans RFID card
 | Coffee | Espresso, Cappuccino |
 | Snacks | Chips, Nuts |
 
+**Filtering Rules:**
+- Category must have `is_active = true`
+- Category must have at least one active product
+
 ### Product Tile Display
+
+Only **active products in active categories** are shown.
+
 | State | Display |
 |-------|---------|
 | Not in cart | Product name, price |
 | In cart (qty > 0) | Product name, price, quantity badge |
-| Inactive | Hidden |
+| Inactive product | Hidden |
+| Product in inactive category | Hidden |
 
 ### Navigation Elements
 | Element | Action |
@@ -149,6 +161,13 @@ Member scans RFID card
 - Member must remove items to proceed
 - See [UC-T12](./UC-T12-error-scenarios.md) for details
 
+### E5: SEPA Mandate Invalid
+- Member found but `is_sepa_valid = false` (missing IBAN or mandate reference)
+- Display "SEPA mandate missing or invalid" message
+- No product selection allowed
+- Member must contact admin to set up payment details
+- See [UC-T12](./UC-T12-error-scenarios.md) for details
+
 ## Test Derivation
 - Happy path: scan, add product, checkout, verify transaction
 - Add multiple different products: add 3 products, checkout, verify 3 transactions
@@ -162,3 +181,8 @@ Member scans RFID card
 - Timeout without checkout: add items, wait for timeout, verify no transactions
 - Balance preview: add items, verify preview = current balance + cart total
 - Product language: verify names display in member's preferred language
+- SEPA invalid: scan card of member without IBAN, verify error message and no product view
+- SEPA invalid (no mandate): scan card of member with IBAN but no mandate_reference, verify error
+- Inactive category: deactivate category, verify tab hidden on terminal
+- Inactive category products: products in inactive category hidden even if product is active
+- Empty category: category with no active products not shown as tab

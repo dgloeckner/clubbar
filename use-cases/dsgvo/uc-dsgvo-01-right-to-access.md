@@ -16,7 +16,7 @@ A member requests a complete overview of all personal data stored about them.
 
 1. Member exists in system (not anonymized)
 2. Admin has verified member identity (out of system scope)
-3. Admin has `admin` role
+3. Admin is logged in
 
 ## Trigger
 
@@ -77,6 +77,6 @@ Member submits data access request (verbal, written, or email - outside system).
 | T02 | Export for member with no transactions | JSON/PDF contains personal data, empty transaction list |
 | T03 | Export for member with settlements | JSON/PDF includes settlement records |
 | T04 | Export for anonymized member | Export action not available or shows error |
-| T05 | Export by viewer role | Access denied |
+| T05 | Export without authentication | Access denied (401) |
 | T06 | Audit log entry created | Log contains action=export, correct member ID |
 | T07 | IBAN in export | Full IBAN visible (not masked) |

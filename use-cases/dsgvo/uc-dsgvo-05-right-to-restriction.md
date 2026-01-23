@@ -24,7 +24,7 @@ A member requests that their data processing be restricted (but not deleted). Th
 ## Preconditions
 
 1. Member exists in system (not anonymized)
-2. Admin has `admin` role
+2. Admin is logged in
 
 ## Trigger
 
@@ -106,5 +106,5 @@ When member is deactivated:
 | T06 | Anonymize inactive member | Anonymization proceeds normally |
 | T07 | Reactivate member | is_active = true, audit log created |
 | T08 | RFID scan after reactivation | Transactions allowed again |
-| T09 | Deactivate by viewer role | Access denied |
+| T09 | Deactivate without authentication | Access denied (401) |
 | T10 | Deactivate already inactive member | No error, no duplicate audit entry |

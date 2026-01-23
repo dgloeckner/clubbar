@@ -13,7 +13,7 @@ Admin exports settlement as CSV file for manual processing or bank tool import.
 ## Preconditions
 
 1. Settlement is finalized
-2. Admin has `admin` role
+2. Admin is logged in
 
 ## CSV Format
 
@@ -113,6 +113,6 @@ Note: Unlike SEPA XML, CSV may include members without IBAN (for reference/manua
 | T07 | Name with special chars | Quoted and escaped |
 | T08 | Re-export same settlement | Same CSV generated |
 | T09 | Audit log entry | Contains export details |
-| T10 | Export by viewer role | Access denied |
+| T10 | Export without authentication | Access denied (401) |
 | T11 | Purpose text format | Contains org name and period |
 | T12 | Sequenztyp column | Always RCUR |

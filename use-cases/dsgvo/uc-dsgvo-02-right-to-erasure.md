@@ -17,7 +17,7 @@ A member requests deletion of their personal data. Due to tax law requirements, 
 
 1. Member exists in system (not already anonymized)
 2. Admin has verified member identity
-3. Admin has `admin` role
+3. Admin is logged in
 
 ## Trigger
 
@@ -112,6 +112,6 @@ Note: IBAN masked in audit log (first 4 + last 4 characters only).
 | T05 | Transactions after anonymization | Transactions exist, linked to anonymized member |
 | T06 | Terminal sync after anonymization | Member removed from terminal cache |
 | T07 | RFID scan after anonymization | "Unknown card" displayed |
-| T08 | Anonymize by viewer role | Access denied |
+| T08 | Anonymize without authentication | Access denied (401) |
 | T09 | Audit log IBAN masking | IBAN shows as "DE89****0000" in log |
 | T10 | Double anonymization attempt | Action not available |

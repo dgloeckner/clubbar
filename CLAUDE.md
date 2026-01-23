@@ -94,7 +94,7 @@ Terminal (Electron + React)          Backend (PHP 8.1 + MariaDB)
 - **products**: id (UUID), names (JSON: multilingual), descriptions (JSON: multilingual), price_cents (integer), category, is_active, created_at, updated_at
 - **transactions**: id (UUID), member_id, product_id, amount_cents (integer), created_at (immutable, append-only)
 - **settlements**: id (UUID), period_start, period_end, sepa_execution_date, sepa_message_id, created_at
-- **admin_users**: id (UUID), email, password_hash, role (admin/viewer/auditor), is_active, created_at, updated_at
+- **admin_users**: id (UUID), email, password_hash, is_active, created_at, updated_at
 - **audit_log**: id, admin_user_id, action (create/update/delete/export/anonymize), entity_type, entity_id, changes_json, ip_address, user_agent, created_at
 
 ### API Endpoints (Key Examples)
@@ -220,10 +220,7 @@ npm run dev
 ### Authentication & Authorization
 - **Session-based**: PHP sessions with secure cookies (HttpOnly, Secure, SameSite=Lax)
 - **Login flow**: Email + password → session_regenerate_id → set-cookie → subsequent requests auto-authenticated
-- **Role-based access**:
-  - **admin**: Full CRUD on all entities, settlements, member anonymization, user management
-  - **viewer**: Read-only (dashboard, reports, transaction history)
-  - **auditor**: Read-only + audit log access (optional role for compliance)
+- **Single admin role**: Full CRUD on all entities, settlements, member anonymization, user management, audit log
 - **Session timeout**: 2 hours (configurable; auto-logout with warning)
 
 ### Core Features
@@ -238,8 +235,8 @@ npm run dev
   - **CSV export**: Traditional format for bank tool imports (member name, IBAN, amount)
   - **SEPA XML export**: pain.008.001.02 format for direct online banking upload with mandate references
   - **Lead time validation**: Automatic business-day calculation (5 days FRST, 2 days RCUR); prevents bank rejection
-  - **Mandate health check**: Shows expired/revoked mandates; warns before settlement if issues
-  - See [ADR-0004](./adr/0004-immutable-transaction-storage.md), [ADR-0005](./adr/0005-iban-storage-and-validation.md), [ADR-0006](./adr/0006-sepa-mandate-reference-strategy.md), [ADR-0008](./adr/0008-sepa-xml-export-format-selection.md), [ADR-0009](./adr/0009-settlement-lead-times-bank-working-days.md)
+  - **SEPA validation**: Shows members missing IBAN or mandate reference; warns before settlement if issues
+  - See [ADR-0004](./adr/0004-immutable-transaction-storage.md), [ADR-0005](./adr/0005-iban-storage-and-validation.md), [ADR-0006](./adr/0006-sepa-mandate-reference-strategy.md), [ADR-0008](./adr/0008-sepa-xml-export-format-selection.md), [ADR-0009](./adr/0009-settlement-lead-times-bank-working-days.md), [ADR-0020](./adr/0020-sepa-mandate-requirement-terminal-access.md)
 - **Terminal Management**: Pair/register terminals, generate API tokens, monitor connectivity and sync status
 - **Audit Log**: Searchable, filterable by action/entity/admin/timestamp; diff-view of changes
 
@@ -361,7 +358,7 @@ See [ADR-0008](./adr/0008-sepa-xml-export-format-selection.md) for implementatio
 
 ### Access Control
 - Terminal: API token per device
-- Admin: session + role-based (admin/viewer)
+- Admin: session-based authentication
 - No direct user authentication at terminal (RFID lookup only)
 
 ---

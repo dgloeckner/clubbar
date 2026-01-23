@@ -57,14 +57,14 @@ Member scans RFID card
 | Time | Transaction time (e.g., "14:32") |
 | Product | Product name (in member's language) |
 | Quantity | If > 1, show "2x Product Name" |
-| Amount | Positive (charge) or negative (reversal) |
+| Amount | Positive (charge) or negative (correction) |
 
 ### Transaction Types
 
 | Type | Display | Amount Color |
 |------|---------|--------------|
 | Purchase | Product name | Red/negative |
-| Reversal | "Reversal: [Product]" | Green/positive |
+| Correction | "Correction: [Product]" or reason | Green/positive |
 
 ### Grouping
 - Transactions grouped by date
@@ -109,12 +109,12 @@ Product View     Transaction List
 ## Test Derivation
 - View balance: scan, tap balance, verify detail screen shown
 - Transaction list: verify transactions from last 90 days displayed
-- Correct amounts: verify purchase shows as charge, reversal shows as credit
+- Correct amounts: verify purchase shows as charge, correction shows as credit
 - Date grouping: verify transactions grouped by date
 - Sort order: verify newest transactions first
 - Empty history: new member, verify "No recent transactions" message
 - Scroll: member with many transactions, verify scroll works
 - Back navigation: tap back, verify return to product view
 - Timeout: view transactions, wait for timeout, verify return to idle
-- Reversals: verify reversals shown with original product name
+- Corrections: verify corrections shown with product name or reason
 - Offline data: verify cached transactions shown when offline

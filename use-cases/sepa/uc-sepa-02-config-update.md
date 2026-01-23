@@ -12,7 +12,7 @@ Admin updates existing SEPA configuration. Gläubiger-ID cannot be changed after
 
 ## Preconditions
 
-1. Admin has `admin` role
+1. Admin is logged in
 2. SEPA configuration exists
 
 ## Trigger
@@ -87,7 +87,7 @@ Admin navigates to Settings → SEPA Configuration to modify settings.
 | T02 | Update IBAN with valid value | IBAN updated |
 | T03 | Update IBAN with invalid value | Validation error |
 | T04 | Attempt to change Gläubiger-ID | Field disabled, cannot change |
-| T05 | Update by viewer role | Access denied |
+| T05 | Update without authentication | Access denied (401) |
 | T06 | Audit log old/new values | Both values present, IBAN masked |
 | T07 | Update address fields | All address fields updated |
 | T08 | Cancel edit without saving | No changes persisted |

@@ -245,6 +245,63 @@ No user interaction for configured timeout period (30 seconds)
 
 ---
 
+---
+
+## E6: SEPA Mandate Invalid
+
+### Actor
+Member with missing or invalid SEPA data
+
+### Trigger
+Card scanned for member without valid IBAN or mandate_reference
+
+### Flow
+1. Member scans RFID card
+2. System finds member but `is_sepa_valid = false`
+3. System displays error screen
+
+### Error Display
+
+| Element | Content |
+|---------|---------|
+| Icon | Warning/payment icon |
+| Title | "SEPA Mandate Missing" |
+| Message (DE) | "SEPA-Mandat fehlt oder ungültig. Bitte wende dich an die Verwaltung, um deine Zahlungsdaten einzurichten." |
+| Message (EN) | "SEPA mandate missing or invalid. Please contact administration to set up your payment details." |
+| Duration | 5 seconds, then return to idle |
+
+### Postconditions
+- No session started
+- No data modified
+- Return to idle screen after timeout
+
+### SEPA Validity Check
+```
+is_sepa_valid = (iban IS NOT NULL) AND (mandate_reference IS NOT NULL)
+```
+
+Terminal receives `is_sepa_valid` boolean in member sync data; does not have access to actual IBAN/mandate values.
+
+### UI Requirements
+- Clear, actionable error message
+- Directs member to administration
+- Localized in member's preferred language (if known) or terminal default
+- Large text for visibility
+
+### Test Derivation
+- Missing IBAN: scan card of member without IBAN → error shown
+- Missing mandate: scan card of member with IBAN but no mandate_reference → error shown
+- Missing both: scan card of member without IBAN and mandate → error shown
+- Error timeout: verify return to idle after 5 seconds
+- Tap to dismiss: verify tap returns to idle immediately
+- No session: verify no member session created
+- SEPA restored: admin adds IBAN + mandate, next sync, verify member can login
+
+### Related
+- [ADR-0020: SEPA Mandate Requirement for Terminal Access](../../adr/0020-sepa-mandate-requirement-terminal-access.md)
+
+---
+
 ## Summary: Error Messages
 
 | Code | Title | Message |
@@ -254,6 +311,7 @@ No user interaction for configured timeout period (30 seconds)
 | E3 | Account Inactive | "Your account is currently inactive. Please contact administration." |
 | E4 | Sync Pending | (Status indicator only, no blocking message) |
 | E5 | Session Timeout | "Session ending in X seconds. Tap to continue." |
+| E6 | SEPA Mandate Missing | "SEPA mandate missing or invalid. Please contact administration to set up your payment details." |
 
 ## Localization
 

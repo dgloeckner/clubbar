@@ -179,7 +179,7 @@ Configuration manageable only via:
 - No audit trail visibility
 - Difficult to debug issues
 
-**Rejected**: Admin panel must provide accessible interface for all user roles.
+**Rejected**: Admin panel must provide accessible interface for administrators.
 
 ### Alternative 3: Inline Editing (No Modal/Page)
 

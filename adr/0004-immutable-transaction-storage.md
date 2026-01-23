@@ -15,7 +15,7 @@ The Member Bar system records financial transactions (purchases, corrections) ac
 - **Member accounting**: Calculate outstanding balance (open amount owed)
 - **Audit trails**: Full history for compliance and dispute resolution
 - **Synchronization**: Offline terminal sync to backend without conflicts
-- **Settlement reporting**: Generate accounting records and bank export CSVs
+- **Settlement reporting**: Generate accounting records and SEPA exports
 - **GDPR compliance**: Retention of transaction records for 10 years (per tax law § 147 AO)
 
 Key requirements and constraints:
@@ -26,7 +26,7 @@ Key requirements and constraints:
 4. **Corrections needed**: Admin/system must handle user errors (wrong amount, wrong product)
 5. **Conflict-free**: Distributed system; no complex merge logic needed
 6. **Eventually consistent**: Terminal and backend may be temporarily out of sync
-7. **Settlement workflow**: Admin marks outstanding transactions as "paid" (settled), generates CSV for bank processing
+7. **Settlement workflow**: Admin marks outstanding transactions as "paid" (settled), generates SEPA exports for bank processing
 
 ### Problem Without Immutability
 
@@ -52,7 +52,7 @@ UPDATE transactions SET amount_cents = 380 WHERE id = 'uuid1';  -- PROBLEM!
 
 ## Decision
 
-**Purchase transactions are immutable and append-only. Once created, they are never modified or deleted. Corrections are made via reverse transactions (negative amounts). Settlement marks transactions as "paid" without modifying them; CSV exports enable external bank processing.**
+**Purchase transactions are immutable and append-only. Once created, they are never modified or deleted. Corrections are made via reverse transactions (negative amounts). Settlement marks transactions as "paid" without modifying them; SEPA exports enable external bank processing.**
 
 ### Core Principles
 
@@ -62,7 +62,7 @@ UPDATE transactions SET amount_cents = 380 WHERE id = 'uuid1';  -- PROBLEM!
 4. **UUID-based identity**: Each transaction has permanent, unique identifier
 5. **Timestamp immutable**: created_at never changes; reflects actual time transaction occurred
 6. **Settlement is separate**: Settlement marks transactions as "settled" via flag/status, doesn't create transaction records
-7. **External bank processing**: CSV export used for actual bank transfers; system doesn't track bank confirmations
+7. **External bank processing**: SEPA exports used for actual bank transfers; system doesn't track bank confirmations
 
 ### Database Schema
 
@@ -77,16 +77,14 @@ CREATE TABLE transactions (
   created_at DATETIME NOT NULL,             -- Immutable: actual transaction time
   notes VARCHAR(500),                       -- Optional: reason for correction
   transaction_type ENUM(
-    'purchase',                             -- Normal product purchase (positive amount)
-    'manual_credit',                        -- Manual balance adjustment (positive)
-    'manual_debit',                         -- Manual balance adjustment (negative)
-    'reversal'                              -- Correction/reversal of previous transaction (negative)
+    'purchase',                             -- Normal product purchase at terminal (positive amount)
+    'correction'                            -- Any correction or adjustment (+/- amount; manual entries, refunds, fixes)
   ) NOT NULL,
 
   -- Audit fields (immutable)
   created_by_terminal_id BINARY(16),        -- Which terminal created this
   created_by_admin_id BINARY(16),           -- Which admin (if manual entry)
-  related_transaction_id BINARY(16),        -- If reversal: points to corrected transaction
+  related_transaction_id BINARY(16),        -- Optional: points to original transaction if correcting specific purchase
 
   -- Sync status (terminal-only; not relevant to backend)
   synced BOOLEAN DEFAULT FALSE,
@@ -101,7 +99,7 @@ CREATE TABLE transactions (
 ) ENGINE=InnoDB;
 
 -- IMPORTANT: No UPDATE or DELETE operations allowed on this table
--- Corrections are made via new rows (reversals), not modifications
+-- Corrections are made via new rows (correction transactions), not modifications
 ```
 
 #### Settlements Table (Settlement Workflow Tracking)
@@ -110,20 +108,20 @@ CREATE TABLE transactions (
 CREATE TABLE settlements (
   id BINARY(16) PRIMARY KEY,
   settlement_date DATE NOT NULL,            -- Date settlement was created
+  execution_date DATE NOT NULL,             -- SEPA execution date (>= settlement_date + 7 days)
   created_by_admin_id BINARY(16) NOT NULL,  -- Which admin created settlement
   settlement_period_start DATE,             -- Optional: accounting period start
   settlement_period_end DATE,               -- Optional: accounting period end
   notes VARCHAR(500),                       -- Optional: description of settlement
-  status ENUM(
-    'draft',                                -- Settlement created but not finalized
-    'finalized',                            -- Settlement finalized; CSV generated
-    'exported',                             -- CSV exported for bank processing
-    'cancelled'                             -- Settlement cancelled (undo)
-  ) DEFAULT 'draft',
+  is_cancelled BOOLEAN DEFAULT FALSE,       -- If true, transactions are unsettled
+  cancelled_at DATETIME,                    -- When settlement was cancelled
+  cancelled_by_admin_id BINARY(16),         -- Who cancelled
+  exported_at DATETIME,                     -- Last export timestamp (audit log entry per export)
+  sepa_message_id VARCHAR(35),              -- SEPA XML message ID
   created_at DATETIME DEFAULT NOW(),
   updated_at DATETIME DEFAULT NOW() ON UPDATE NOW(),
 
-  INDEX idx_status (status),
+  INDEX idx_is_cancelled (is_cancelled),
   INDEX idx_settlement_date (settlement_date),
   FOREIGN KEY (created_by_admin_id) REFERENCES admin_users(id)
 ) ENGINE=InnoDB;
@@ -133,7 +131,8 @@ CREATE TABLE settlement_items (
   id INT AUTO_INCREMENT PRIMARY KEY,
   settlement_id BINARY(16) NOT NULL,
   transaction_id BINARY(16) NOT NULL,
-  -- When settlement is created/finalized, these transactions are marked as "settled"
+  -- When settlement is created, these transactions are marked as "settled"
+  -- When settlement is cancelled, they become unsettled again
 
   FOREIGN KEY (settlement_id) REFERENCES settlements(id) ON DELETE CASCADE,
   FOREIGN KEY (transaction_id) REFERENCES transactions(id),
@@ -176,39 +175,36 @@ sequenceDiagram
     participant API as Backend API
     participant DB as Database
 
-    Admin->>UI: Create Settlement (date range)
-    UI->>API: POST /api/settlements {period_start, period_end}
-    API->>DB: Insert settlement (status='draft')
+    Admin->>UI: Create Settlement (select execution date)
+    UI->>API: POST /api/settlements {execution_date, period_start, period_end}
+    API->>DB: Insert settlement + settlement_items (transactions marked settled)
     DB-->>API: settlement_id
-    API-->>UI: Success
-
-    Admin->>UI: Preview outstanding transactions
-    UI->>API: GET /api/settlements/{id}/preview
-    API->>DB: Query transactions NOT IN settlement_items
-    DB-->>API: Outstanding transactions
-    API-->>UI: Show preview per member
-
-    Admin->>UI: Finalize settlement
-    UI->>API: POST /api/settlements/{id}/finalize {transaction_ids}
-    API->>DB: INSERT settlement_items (links transactions to settlement)
-    DB-->>API: Success
-    API-->>UI: Settlement finalized
+    API-->>UI: Settlement created
 
     Admin->>UI: Export CSV/SEPA XML
     UI->>API: GET /api/settlements/{id}/export-csv
     API->>DB: Query settled transactions SUM per member
+    API->>DB: Update exported_at timestamp
+    API->>DB: Insert audit_log entry
     DB-->>API: Member balances
     API-->>Admin: Download CSV file
 
-    Note over Admin,DB: CSV used outside system for bank transfers
-    Admin->>DB: (Manual step) Upload to bank, process transfers
+    Note over Admin,DB: CSV/XML used outside system for bank transfers
+    Admin->>Admin: (Manual step) Upload to bank, process transfers
+
+    opt Cancel Settlement
+        Admin->>UI: Cancel settlement
+        UI->>API: POST /api/settlements/{id}/cancel
+        API->>DB: Set is_cancelled=true, cancelled_at, cancelled_by_admin_id
+        API->>DB: (Transactions become unsettled - available for future settlement)
+        API-->>UI: Settlement cancelled
+    end
 ```
 
-**Settlement States:**
-- `draft`: Created, not yet finalized (can modify)
-- `finalized`: Transactions marked as settled; ready for export
-- `exported`: CSV/SEPA export generated; settlement complete
-- `cancelled`: Settlement cancelled; transactions unmarked (admin can re-settle)
+**Settlement Model:**
+- Created immediately (no draft stage) - transactions marked as settled
+- `is_cancelled`: If true, settlement is void; transactions become unsettled again
+- `exported_at`: Timestamp of last export; audit log entry created per export
 
 **Query Examples (Pseudocode):**
 
@@ -216,7 +212,12 @@ Outstanding balance (unpaid transactions):
 ```
 SELECT member_id, SUM(amount_cents)
 FROM transactions
-WHERE id NOT IN (SELECT transaction_id FROM settlement_items)
+WHERE id NOT IN (
+  SELECT si.transaction_id
+  FROM settlement_items si
+  JOIN settlements s ON si.settlement_id = s.id
+  WHERE s.is_cancelled = FALSE
+)
 GROUP BY member_id
 ```
 
@@ -226,7 +227,7 @@ SELECT t.member_id, s.settlement_date, SUM(t.amount_cents)
 FROM settlement_items si
 JOIN transactions t ON si.transaction_id = t.id
 JOIN settlements s ON si.settlement_id = s.id
-WHERE s.status IN ('finalized', 'exported')
+WHERE s.is_cancelled = FALSE
 GROUP BY t.member_id, s.settlement_date
 ```
 
@@ -241,15 +242,22 @@ External bank processing (outside system): CSV imported into bank software; tran
 
 ### Correcting a Transaction (Immutable Pattern)
 
-Error correction requires creating new reversal transaction (never modify original):
+Error correction requires creating new correction transaction (never modify original):
 
-**Scenario**: Member charged €5.00 instead of €3.50
+**Scenario A**: Member charged €5.00 instead of €3.50 (linked correction)
 
 **Approach:**
-1. Create reversal transaction: amount_cents = -500, transaction_type = 'reversal', related_transaction_id = original_id
-2. Create corrected transaction: amount_cents = 350, transaction_type = 'purchase', notes = 'Correction'
+1. Create correction transaction: amount_cents = -500, transaction_type = 'correction', related_transaction_id = original_id, notes = 'Wrong amount'
+2. Create new purchase transaction: amount_cents = 350, transaction_type = 'purchase'
 3. Result: Member balance = 500 - 500 + 350 = 350 cents (€3.50)
 4. Audit trail preserved: All three transactions visible; linked via related_transaction_id
+
+**Scenario B**: Manual balance adjustment (standalone correction)
+
+**Approach:**
+1. Create correction transaction: amount_cents = -200, transaction_type = 'correction', related_transaction_id = NULL, notes = 'Goodwill credit for service issue'
+2. Result: Member balance reduced by €2.00
+3. No link to specific transaction; standalone adjustment
 
 ---
 
@@ -270,10 +278,10 @@ Error correction requires creating new reversal transaction (never modify origin
 
 ### Negative
 
-❌ **Storage overhead**: Corrections add rows (reversal + corrected); tables grow over time
+❌ **Storage overhead**: Corrections add rows (correction + new purchase); tables grow over time
 ❌ **Query complexity**: Balance calculation requires SUM with settlement_items JOIN
-❌ **Admin workflow**: Corrections require understanding "reversal" concept
-❌ **CSV-dependent**: Settlement relies on manual external bank processing (no confirmation loop)
+❌ **Admin workflow**: Corrections require understanding correction transaction concept
+❌ **Export-dependent**: Settlement relies on manual external bank processing (no confirmation loop)
 ❌ **Manual CSV handling**: Error-prone if CSV manually edited or duplicated
 
 ### Mitigations
@@ -385,7 +393,7 @@ UPDATE transactions SET deleted_at = NOW() WHERE id IN (...);
 
 **API Endpoints:**
 - `POST /api/sync/transactions`: Terminal batch upload; use INSERT IGNORE for idempotency
-- `POST /api/settlements`: Create settlement (draft)
+- `POST /api/settlements`: Create settlement (immediately marks transactions as settled)
 - `POST /api/settlements/{id}/finalize`: Finalize (mark transactions as settled)
 - `GET /api/settlements/{id}/export-csv`: Generate CSV
 - `POST /api/settlements/{id}/cancel`: Undo (delete settlement_items rows)
@@ -427,9 +435,9 @@ UPDATE transactions SET deleted_at = NOW() WHERE id IN (...);
 
 - Monitor transaction table growth
 - Verify no UPDATE/DELETE operations (query logs)
-- Track reversal frequency (correction rate)
+- Track correction frequency (correction rate)
 - Measure settlement workflow time
-- Test CSV export accuracy
+- Test SEPA export accuracy
 - Verify audit trail completeness
 - Compliance verification: can reconstruct full history
 - User feedback: settlement workflow clarity

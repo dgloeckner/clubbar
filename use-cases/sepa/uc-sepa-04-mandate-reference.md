@@ -12,7 +12,7 @@ Admin manages a member's SEPA mandate reference. Default is auto-generated from 
 
 ## Preconditions
 
-1. Admin has `admin` role
+1. Admin is logged in
 2. Member exists and is not anonymized
 
 ## Mandate Reference Rules
@@ -98,6 +98,6 @@ These are the organization's responsibility to track externally.
 | T05 | Update with special SEPA chars (+?/-:) | Reference saved |
 | T06 | Clear reference | Validation error (required field) |
 | T07 | Reset to default | UUID-based reference restored |
-| T08 | Update by viewer role | Access denied |
+| T08 | Update without authentication | Access denied (401) |
 | T09 | Audit log entry | Old and new reference recorded |
 | T10 | Reference with spaces | Spaces allowed (SEPA compliant) |

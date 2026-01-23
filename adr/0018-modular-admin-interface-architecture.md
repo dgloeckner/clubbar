@@ -56,7 +56,7 @@ A **module** is a self-contained functional area that includes:
 | `transactions` | Transaction journal | List, filter, correction booking |
 | `settlements` | Periodic billing | Create, preview, export (CSV/SEPA), revoke |
 | `terminals` | Terminal devices | Register, token generation, status monitoring |
-| `admin-users` | Admin accounts | CRUD, role assignment, password reset |
+| `admin-users` | Admin accounts | CRUD, password reset, activation toggle |
 | `audit-log` | Activity history | List, filter, detail view (read-only) |
 | `sepa-config` | SEPA settings | Setup wizard, configuration edit |
 | `dashboard` | Overview | Statistics, quick actions, sync status |

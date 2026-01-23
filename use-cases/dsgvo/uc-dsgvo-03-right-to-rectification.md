@@ -15,7 +15,7 @@ A member requests correction of inaccurate personal data.
 ## Preconditions
 
 1. Member exists in system (not anonymized)
-2. Admin has `admin` role
+2. Admin is logged in
 
 ## Trigger
 
@@ -105,7 +105,7 @@ IBAN changes do NOT affect terminal (not synced).
 | T04 | Update card_uid to unique value | card_uid updated |
 | T05 | Update card_uid to duplicate | Validation error, no update |
 | T06 | Update anonymized member | Edit not available |
-| T07 | Update by viewer role | Access denied |
+| T07 | Update without authentication | Access denied (401) |
 | T08 | Terminal sync after name change | Terminal shows new name |
 | T09 | Terminal sync after IBAN change | No change on terminal (IBAN not synced) |
 | T10 | Transactions after name change | Transactions unchanged |

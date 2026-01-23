@@ -69,7 +69,7 @@ erDiagram
         varchar_255 email UK "Login email"
         varchar_255 password_hash "bcrypt hash"
         varchar_100 display_name "Display name"
-        enum_role role "admin, viewer, auditor"
+        boolean is_admin "Always true for admin users"
         varchar_5 locale "UI language preference"
         boolean is_active "Account enabled"
         datetime last_login_at "Last successful login"
@@ -235,7 +235,7 @@ Administrator accounts for the admin panel.
 | email | VARCHAR(255) | UNIQUE, NOT NULL | Login email address |
 | password_hash | VARCHAR(255) | NOT NULL | bcrypt hash (cost ≥ 12) |
 | display_name | VARCHAR(100) | NOT NULL | Display name in UI |
-| role | ENUM('admin', 'viewer', 'auditor') | NOT NULL | Access level |
+| is_active | BOOLEAN | NOT NULL | Account enabled |
 | locale | VARCHAR(5) | NOT NULL, DEFAULT 'de' | UI language preference |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Account enabled |
 | last_login_at | DATETIME | NULL | Last successful login |
@@ -246,10 +246,8 @@ Administrator accounts for the admin panel.
 - `idx_admin_users_email` on `email`
 - `idx_admin_users_active` on `is_active`
 
-**Roles:**
-- `admin`: Full CRUD access, settlements, GDPR operations, user management
-- `viewer`: Read-only access to dashboard, reports, transaction history
-- `auditor`: Read-only access including audit log (for compliance reviews)
+**Access:**
+- All admin users have full access: CRUD on all entities, settlements, GDPR operations, user management, audit log
 
 ---
 

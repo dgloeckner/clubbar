@@ -13,7 +13,7 @@ Admin performs initial SEPA configuration to enable direct debit settlements.
 
 ## Preconditions
 
-1. Admin has `admin` role
+1. Admin is logged in
 2. SEPA configuration does not exist (first-time setup)
 3. Organization has obtained Gläubiger-ID from Bundesbank
 
@@ -84,7 +84,7 @@ Admin navigates to Settings → SEPA Configuration for the first time.
 | T02 | Setup with invalid IBAN | Validation error |
 | T03 | Setup with invalid Gläubiger-ID format | Validation error |
 | T04 | Setup with name > 70 chars | Validation error or truncation |
-| T05 | Setup by viewer role | Access denied |
+| T05 | Setup without authentication | Access denied (401) |
 | T06 | Audit log created | Contains all fields, IBAN masked |
 | T07 | IBAN real-time validation | Feedback shown before submit |
 | T08 | Country code validation | Only 2-letter codes accepted |

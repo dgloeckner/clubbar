@@ -13,7 +13,7 @@ Admin finalizes a settlement, locking transactions and enabling export.
 ## Preconditions
 
 1. Settlement exists (draft status)
-2. Admin has `admin` role
+2. Admin is logged in
 3. Execution date selected (see execution date rules)
 
 ## Execution Date Rules
@@ -107,7 +107,7 @@ Finalization is **permanent**:
 | T02 | Finalize with date < TODAY + 7 | Validation error |
 | T03 | Finalize with date = TODAY + 7 | Settlement finalized |
 | T04 | Finalize already finalized | Action not available |
-| T05 | Finalize by viewer role | Access denied |
+| T05 | Finalize without authentication | Access denied (401) |
 | T06 | Transactions get settlement_id | All included transactions updated |
 | T07 | SEPA message ID generated | Valid format (SET-YYYY-NNN) |
 | T08 | Audit log entry | Contains status, date, message_id |

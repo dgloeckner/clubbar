@@ -12,7 +12,7 @@ Admin creates a new settlement period to collect outstanding member balances.
 
 ## Preconditions
 
-1. Admin has `admin` role
+1. Admin is logged in
 2. SEPA configuration is complete (UC-SEPA-01)
 3. Unsettled transactions exist
 
@@ -81,7 +81,7 @@ Transactions included if:
 | T02 | Create with no transactions in period | Error or warning |
 | T03 | Create with incomplete SEPA config | Warning shown |
 | T04 | Period start after period end | Validation error |
-| T05 | Create by viewer role | Access denied |
+| T05 | Create without authentication | Access denied (401) |
 | T06 | Settlement ID is UUID | Valid UUID format |
 | T07 | Multiple settlements same period | Allowed (transactions not yet assigned) |
 | T08 | Inactive members excluded | Only active members in preview |

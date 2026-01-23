@@ -9,13 +9,11 @@ Administrators access the audit log to review data processing activities for com
 
 ## Actors
 
-- **Admin**: Full access to audit log (role: `admin`)
-- **Auditor**: Read-only access for compliance (role: `auditor`)
-- **Viewer**: No access (role: `viewer`)
+- **Admin**: Full access to audit log
 
 ## Preconditions
 
-1. User has `admin` or `auditor` role
+1. User is authenticated as admin
 2. Audit log contains entries
 
 ## Use Cases for Audit Log Access
@@ -30,7 +28,7 @@ Administrators access the audit log to review data processing activities for com
 
 ## Main Flow
 
-1. Admin/Auditor navigates to Audit Log section
+1. Admin navigates to Audit Log section
 2. System displays list of audit entries (newest first)
 3. User applies filters as needed
 4. User selects entry to view details
@@ -102,9 +100,6 @@ Data masked in audit log entries:
 ### AF1: No entries match filter
 - Step 3: System shows "No entries found"
 
-### AF2: Viewer attempts access
-- Step 1: Audit Log section not visible or access denied
-
 ## Postconditions
 
 - Audit log entries displayed (read-only)
@@ -122,8 +117,7 @@ Data masked in audit log entries:
 | ID | Scenario | Expected Result |
 |----|----------|-----------------|
 | T01 | Admin views audit log | Full list displayed |
-| T02 | Auditor views audit log | Full list displayed (read-only) |
-| T03 | Viewer views audit log | Access denied |
+| T02 | Unauthenticated user views audit log | Access denied (401) |
 | T04 | Filter by action=anonymize | Only anonymize entries shown |
 | T05 | Filter by entity_type=member | Only member entries shown |
 | T06 | Filter by date range | Entries within range shown |

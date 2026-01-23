@@ -73,7 +73,8 @@ The Member Bar system manages sensitive member data (personal information, banki
 | `login_failed` | Failed login attempt | NULL | `{ "attempted_email": "..." }` |
 | `export` | Data export generated | NULL | `{ "export_type": "...", "format": "..." }` |
 | `settlement_create` | Settlement created | NULL | `{ "settlement_id": "...", "total_amount": ... }` |
-| `settlement_revoke` | Settlement revoked | `{ "settlement_id": "..." }` | NULL |
+| `settlement_cancel` | Settlement cancelled | `{ "settlement_id": "..." }` | NULL |
+| `settlement_export` | Settlement exported | NULL | `{ "settlement_id": "...", "format": "csv/xml" }` |
 
 ### Audited Entities
 
@@ -83,7 +84,7 @@ The Member Bar system manages sensitive member data (personal information, banki
 | products | ✓ | ✓ | ✓ | — |
 | admin_users | ✓ | ✓ | ✓ | Password changes logged as `[CHANGED]` |
 | terminals | ✓ | ✓ | ✓ | API tokens never logged |
-| settlements | ✓ | — | ✓ (revoke) | Immutable after creation |
+| settlements | ✓ | — | ✓ (cancel) | Can be cancelled; export logged separately |
 | sepa_config | ✓ | ✓ | — | IBAN masked |
 
 ### Sensitive Data Handling
@@ -181,9 +182,7 @@ Clicking an audit entry opens a detail panel showing:
 
 **Access Control:**
 
-- **admin** role: Full access to audit log viewer
-- **viewer** role: No access (audit log may contain sensitive operational data)
-- **auditor** role (optional): Read-only access to audit log for compliance reviews
+- All admin users have full access to audit log viewer
 
 ---
 

@@ -104,7 +104,7 @@ Algorithm: ValidateIBAN(input_string)
 ### Mitigations
 
 1. **HTTPS enforcement**: All IBAN transmission encrypted (TLS 1.2+)
-2. **Access control**: Only admin role can view/edit IBANs (role-based)
+2. **Access control**: Only authenticated admins can view/edit IBANs
 3. **Audit masking**: Logs show only first 2 + last 4 chars; full IBAN never logged
 4. **Validation**: Checksum validation prevents typos before save
 5. **Backups**: Database backups encrypted at rest
@@ -210,7 +210,7 @@ Store BIC in members table alongside IBAN.
 ### Mitigations
 
 1. **HTTPS enforcement**: All IBAN transmission encrypted (TLS 1.2+)
-2. **Access control**: Only admins can view/edit IBANs (role-based)
+2. **Access control**: Only authenticated admins can view/edit IBANs
 3. **Audit masking**: Logs show only first 2 + last 4 chars; full IBAN never logged
 4. **Validation**: Checksum validation prevents typos before save
 5. **Backups**: Database backups encrypted at rest
