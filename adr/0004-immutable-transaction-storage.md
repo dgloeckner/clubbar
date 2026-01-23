@@ -165,223 +165,91 @@ WHERE si.transaction_id IS NULL  -- Exclude settled transactions
 GROUP BY m.id, m.first_name, m.last_name;
 ```
 
-### Settlement Workflow (Abrechnung)
+### Settlement Workflow Sequence
 
-The settlement workflow is a pure accounting operation. It does NOT create new transaction records. Instead:
+The settlement workflow marks transactions as settled without modifying them. Settlement is a pure accounting operation:
 
-1. **Admin initiates settlement**: Decides which transactions to mark as "settled" (typically: all outstanding as of a date)
-2. **System calculates totals**: Sum of outstanding transactions per member
-3. **Settlement is finalized**: Marks selected transactions as "settled" (via settlement_items table)
-4. **CSV export generated**: One row per member with outstanding balance
-5. **External bank processing**: Human/bank system uses CSV to create actual bank transfers (outside this system)
+```mermaid
+sequenceDiagram
+    participant Admin as Admin User
+    participant UI as Admin UI
+    participant API as Backend API
+    participant DB as Database
 
-#### Step 1: Create Settlement (Admin Action)
+    Admin->>UI: Create Settlement (date range)
+    UI->>API: POST /api/settlements {period_start, period_end}
+    API->>DB: Insert settlement (status='draft')
+    DB-->>API: settlement_id
+    API-->>UI: Success
 
-```php
-<?php
-// Admin UI: "Create Settlement (Abrechnung)"
-// POST /api/settlements
+    Admin->>UI: Preview outstanding transactions
+    UI->>API: GET /api/settlements/{id}/preview
+    API->>DB: Query transactions NOT IN settlement_items
+    DB-->>API: Outstanding transactions
+    API-->>UI: Show preview per member
 
-$settlement = [
-    'id' => Uuid::v4(),
-    'settlement_date' => date('Y-m-d'),
-    'settlement_period_start' => '2025-01-01',
-    'settlement_period_end' => '2025-01-31',
-    'notes' => 'January 2025 settlement',
-    'status' => 'draft',
-    'created_by_admin_id' => $adminId
-];
+    Admin->>UI: Finalize settlement
+    UI->>API: POST /api/settlements/{id}/finalize {transaction_ids}
+    API->>DB: INSERT settlement_items (links transactions to settlement)
+    DB-->>API: Success
+    API-->>UI: Settlement finalized
 
-$db->insert('settlements', $settlement);
+    Admin->>UI: Export CSV/SEPA XML
+    UI->>API: GET /api/settlements/{id}/export-csv
+    API->>DB: Query settled transactions SUM per member
+    DB-->>API: Member balances
+    API-->>Admin: Download CSV file
 
-return json_encode(['settlement_id' => $settlement['id']]);
+    Note over Admin,DB: CSV used outside system for bank transfers
+    Admin->>DB: (Manual step) Upload to bank, process transfers
 ```
 
-#### Step 2: Select Transactions to Settle
+**Settlement States:**
+- `draft`: Created, not yet finalized (can modify)
+- `finalized`: Transactions marked as settled; ready for export
+- `exported`: CSV/SEPA export generated; settlement complete
+- `cancelled`: Settlement cancelled; transactions unmarked (admin can re-settle)
 
-```php
-<?php
-// Admin selects transactions to include in settlement
-// Typically: all outstanding transactions as of settlement_date
+**Query Examples (Pseudocode):**
 
-$transactions = $db->query("
-    SELECT
-        t.id as transaction_id,
-        m.id as member_id,
-        m.first_name,
-        m.last_name,
-        m.iban,
-        m.bic,
-        SUM(t.amount_cents) as outstanding_cents
-    FROM transactions t
-    JOIN members m ON t.member_id = m.id
-    WHERE t.created_at <= ?
-      AND t.id NOT IN (
-        SELECT transaction_id FROM settlement_items
-      )
-      AND m.is_active = TRUE
-    GROUP BY m.id
-    HAVING outstanding_cents > 0
-", [$settlementDate]);
-
-return json_encode($transactions);
+Outstanding balance (unpaid transactions):
+```
+SELECT member_id, SUM(amount_cents)
+FROM transactions
+WHERE id NOT IN (SELECT transaction_id FROM settlement_items)
+GROUP BY member_id
 ```
 
-#### Step 3: Finalize Settlement
-
-```php
-<?php
-// Admin clicks "Finalize Settlement"
-// This marks selected transactions as settled (adds to settlement_items)
-
-$settlementId = $_POST['settlement_id'];
-$transactionIds = $_POST['transaction_ids'];  // Selected by admin
-
-foreach ($transactionIds as $txId) {
-    $db->insert('settlement_items', [
-        'settlement_id' => $settlementId,
-        'transaction_id' => $txId
-    ]);
-}
-
-// Update settlement status
-$db->update('settlements', ['status' => 'finalized'], ['id' => $settlementId]);
-
-return json_encode(['status' => 'finalized', 'transaction_count' => count($transactionIds)]);
+Settled transactions (historical):
+```
+SELECT t.member_id, s.settlement_date, SUM(t.amount_cents)
+FROM settlement_items si
+JOIN transactions t ON si.transaction_id = t.id
+JOIN settlements s ON si.settlement_id = s.id
+WHERE s.status IN ('finalized', 'exported')
+GROUP BY t.member_id, s.settlement_date
 ```
 
-#### Step 4: Generate CSV Export for Bank Processing
-
-```php
-<?php
-// Admin clicks "Export CSV for Bank Processing"
-// GET /api/settlements/{id}/export-csv
-
-$settlementId = $_GET['id'];
-
-// Fetch outstanding balances for all settled transactions
-$balances = $db->query("
-    SELECT DISTINCT
-        m.id as member_id,
-        m.first_name,
-        m.last_name,
-        m.iban,
-        m.bic,
-        SUM(t.amount_cents) as outstanding_cents
-    FROM settlement_items si
-    JOIN transactions t ON si.transaction_id = t.id
-    JOIN members m ON t.member_id = m.id
-    WHERE si.settlement_id = ?
-    GROUP BY m.id
-    HAVING outstanding_cents > 0
-", [$settlementId]);
-
-// Generate CSV for bank import/SEPA processing
-header('Content-Type: text/csv');
-header('Content-Disposition: attachment; filename="settlement_export_' . date('Y-m-d') . '.csv"');
-
-echo "First Name,Last Name,IBAN,BIC,Amount EUR\n";
-foreach ($balances as $row) {
-    $amountEur = $row['outstanding_cents'] / 100;
-    echo sprintf(
-        "\"%s\",\"%s\",\"%s\",\"%s\",\"%.2f\"\n",
-        $row['first_name'],
-        $row['last_name'],
-        $row['iban'],
-        $row['bic'],
-        $amountEur
-    );
-}
-
-// Update settlement status: exported
-$db->update('settlements', ['status' => 'exported'], ['id' => $settlementId]);
-```
-
-**CSV Output Example:**
+**CSV Export Format:**
 ```
 First Name,Last Name,IBAN,BIC,Amount EUR
 "Max","Mustermann","DE89370400440532013000","COBADEFFXXX","47.50"
 "Anna","Schmidt","DE89370400440532013001","COBADEFFXXX","82.30"
-"Klaus","Weber","DE89370400440532013002","COBADEFFXXX","155.75"
 ```
 
-#### Step 5: External Bank Processing (Outside System)
-
-The CSV is used outside this system to:
-- Import into bank software (e.g., SEPA tool, accounting software)
-- Create actual bank transfers to members
-- Process accounting records
-- Generate confirmations
-
-**This system does NOT track bank confirmations or actual payment status.** The CSV export is the handoff point.
-
-### Implementation: Querying Settled vs Outstanding
-
-```php
-<?php
-// Get outstanding balance (unpaid transactions)
-$outstanding = $db->query("
-    SELECT
-        t.member_id,
-        SUM(t.amount_cents) as outstanding_cents
-    FROM transactions t
-    WHERE t.id NOT IN (SELECT transaction_id FROM settlement_items)
-    GROUP BY t.member_id
-");
-
-// Get settled balance (paid transactions, for historical records)
-$settled = $db->query("
-    SELECT
-        t.member_id,
-        s.settlement_date,
-        SUM(t.amount_cents) as settled_cents
-    FROM settlement_items si
-    JOIN transactions t ON si.transaction_id = t.id
-    JOIN settlements s ON si.settlement_id = s.id
-    WHERE s.status IN ('finalized', 'exported')
-    GROUP BY t.member_id, s.settlement_date
-");
-```
+External bank processing (outside system): CSV imported into bank software; transfers processed; no confirmation loop in this system.
 
 ### Correcting a Transaction (Immutable Pattern)
 
-**Scenario**: Admin discovers member was charged €5.00 instead of €3.50
+Error correction requires creating new reversal transaction (never modify original):
 
-```php
-<?php
-// Step 1: Create reversal transaction (never modify original)
-$reversal = [
-    'id' => Uuid::v4(),
-    'member_id' => $originalTransaction['member_id'],
-    'product_id' => null,  // Correction, not a product
-    'amount_cents' => -$originalTransaction['amount_cents'],  // Negative amount
-    'created_at' => date('c'),
-    'transaction_type' => 'reversal',
-    'created_by_admin_id' => $adminId,
-    'related_transaction_id' => $originalTransactionId,
-    'notes' => 'Correction: charged €5.00 instead of €3.50'
-];
+**Scenario**: Member charged €5.00 instead of €3.50
 
-$db->insert('transactions', $reversal);
-
-// Step 2: Create corrected purchase transaction
-$corrected = [
-    'id' => Uuid::v4(),
-    'member_id' => $originalTransaction['member_id'],
-    'product_id' => $originalTransaction['product_id'],
-    'amount_cents' => 350,  // Correct amount
-    'created_at' => date('c'),
-    'transaction_type' => 'purchase',
-    'created_by_terminal_id' => null,
-    'created_by_admin_id' => $adminId,
-    'notes' => 'Correction: correct purchase amount'
-];
-
-$db->insert('transactions', $corrected);
-
-// Result: Member balance = €5.00 (original) - €5.00 (reversal) + €3.50 (corrected) = €3.50
-// History preserved: all three transactions visible in audit trail
-```
+**Approach:**
+1. Create reversal transaction: amount_cents = -500, transaction_type = 'reversal', related_transaction_id = original_id
+2. Create corrected transaction: amount_cents = 350, transaction_type = 'purchase', notes = 'Correction'
+3. Result: Member balance = 500 - 500 + 350 = 350 cents (€3.50)
+4. Audit trail preserved: All three transactions visible; linked via related_transaction_id
 
 ---
 
@@ -511,73 +379,23 @@ UPDATE transactions SET deleted_at = NOW() WHERE id IN (...);
 
 ---
 
-## Implementation Checklist
+## Implementation Notes
 
-### Database Schema
+**Database Schema**: Transactions table must have NO UPDATE/DELETE triggers or procedures. Settlement workflow uses settlement_items table to link transactions to settlements (read-only join).
 
-- [ ] Create transactions table (immutable, append-only)
-- [ ] Create settlements table (settlement metadata)
-- [ ] Create settlement_items table (links transactions to settlements)
-- [ ] Create member_outstanding_balance view (for balance queries)
-- [ ] Add indexes for performance (member_id, created_at, status)
-- [ ] Add FOREIGN KEY constraints
-- [ ] Add UNIQUE constraint on settlement_items (settlement_id, transaction_id)
+**API Endpoints:**
+- `POST /api/sync/transactions`: Terminal batch upload; use INSERT IGNORE for idempotency
+- `POST /api/settlements`: Create settlement (draft)
+- `POST /api/settlements/{id}/finalize`: Finalize (mark transactions as settled)
+- `GET /api/settlements/{id}/export-csv`: Generate CSV
+- `POST /api/settlements/{id}/cancel`: Undo (delete settlement_items rows)
 
-### Backend API
-
-**Transactions:**
-- [ ] `POST /api/sync/transactions`: Batch upload, INSERT IGNORE (idempotent)
-- [ ] `GET /api/members/{id}/transactions`: Full history with reversals
-- [ ] `POST /api/members/{id}/transactions/reverse`: Admin reversal endpoint
-- [ ] `GET /api/members/{id}/balance/outstanding`: Calculate unpaid balance
-
-**Settlements:**
-- [ ] `POST /api/settlements`: Create new settlement (draft status)
-- [ ] `GET /api/settlements`: List all settlements
-- [ ] `GET /api/settlements/{id}`: Settlement details
-- [ ] `POST /api/settlements/{id}/add-transactions`: Add transactions to settlement
-- [ ] `POST /api/settlements/{id}/finalize`: Finalize settlement
-- [ ] `GET /api/settlements/{id}/export-csv`: Generate CSV for bank processing
-- [ ] `POST /api/settlements/{id}/cancel`: Cancel settlement (undo)
-
-### Admin UI
-
-- [ ] Settlement creation workflow (date range, description)
-- [ ] Select transactions to settle (checkboxes, filter/search)
-- [ ] Preview outstanding amounts per member
-- [ ] Finalize settlement (confirmation dialog)
-- [ ] Download CSV export
-- [ ] View settlement history
-- [ ] View which transactions were settled in which settlement
-- [ ] Cancel settlement (if not yet exported)
-
-### Terminal
-
-- [ ] Create transactions with UUID, timestamp
-- [ ] Queue transactions locally
-- [ ] Sync: POST batch to `/api/sync/transactions`
-- [ ] Receive accepted IDs, mark as synced
-- [ ] No settlement awareness needed (admin-only feature)
-
-### Testing
-
-- [ ] Create transaction, verify immutability (INSERT succeeds, UPDATE fails)
-- [ ] Create reversal, verify balance calculation
-- [ ] Linked reversals show related_transaction_id
-- [ ] Settlement creation marks transactions correctly
-- [ ] Multiple settlements don't interfere
-- [ ] CSV export contains correct member names, IBANs, amounts
-- [ ] CSV roundtrip: export → validate → reimport logic
-- [ ] Offline sync: transactions created offline sync correctly after reconnection
-- [ ] Cancel settlement: transactions unmarked, can be re-settled
-
-### Documentation
-
-- [ ] Update CLAUDE.md: settlement workflow explanation
-- [ ] Terminal API spec: clarify immutability, no settlement types
-- [ ] Admin API spec (new): settlement endpoints and CSV format
-- [ ] User guide: settlement/Abrechnung workflow for admins
-- [ ] CSV format specification (column order, encoding, validation)
+**Admin UI Settlement Workflow:**
+- Date range selection
+- Preview of outstanding transactions per member
+- Checkboxes to select transactions
+- Confirmation before finalize
+- CSV/SEPA export download
 
 ---
 
@@ -605,26 +423,13 @@ UPDATE transactions SET deleted_at = NOW() WHERE id IN (...);
 
 ---
 
-## Approval
-
-- **Decided by**: Architecture Team
-- **Rationale**: Audit compliance, sync safety, GDPR compliance, flexible settlement, conflict-free design
-- **Implementation start**: Phase 1 (Database schema)
-- **Review date**: 2025-04-23 (after first settlement cycle)
-- **Sign-off**:
-  - Backend Lead: _________________ Date: _______
-  - Data/Compliance Officer: _________________ Date: _______
-  - QA Lead: _________________ Date: _______
-
----
-
 ## Post-Implementation Monitoring
 
-- [ ] Monitor transaction table growth
-- [ ] Verify no UPDATE/DELETE operations (query logs)
-- [ ] Track reversal frequency (correction rate)
-- [ ] Measure settlement workflow time
-- [ ] Test CSV export accuracy
-- [ ] Verify audit trail completeness
-- [ ] Compliance verification: can reconstruct full history
-- [ ] User feedback: settlement workflow clarity
+- Monitor transaction table growth
+- Verify no UPDATE/DELETE operations (query logs)
+- Track reversal frequency (correction rate)
+- Measure settlement workflow time
+- Test CSV export accuracy
+- Verify audit trail completeness
+- Compliance verification: can reconstruct full history
+- User feedback: settlement workflow clarity

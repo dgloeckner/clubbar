@@ -29,129 +29,72 @@ Examples:
 - €100.00 → `10000` cents
 - Negative amounts (refunds): `-350` cents
 
-### Implementation Details
+### Storage and Arithmetic
 
-**Database (MariaDB/MySQL)**:
-```sql
-CREATE TABLE transactions (
-  id BINARY(16),
-  member_id BINARY(16),
-  product_id BINARY(16),
-  amount_cents INT NOT NULL,          -- ALWAYS integers, no DECIMAL
-  created_at DATETIME DEFAULT NOW(),
-  PRIMARY KEY (id)
-);
+**Database Schema**: All monetary columns use `INT` type (never `DECIMAL`, `FLOAT`, or `VARCHAR`)
 
-CREATE TABLE products (
-  id BINARY(16),
-  name VARCHAR(255) NOT NULL,
-  price_cents INT NOT NULL,           -- Integer cents
-  is_active BOOLEAN DEFAULT TRUE,
-  PRIMARY KEY (id)
-);
+| Table | Column | Type | Example |
+|-------|--------|------|---------|
+| transactions | amount_cents | INT | 350 (€3.50) |
+| products | price_cents | INT | 350 (€3.50) |
+| settlements | amount_cents | INT | -500 (−€5.00) |
 
-CREATE TABLE settlements (
-  id BINARY(16),
-  period_start DATE NOT NULL,
-  period_end DATE NOT NULL,
-  member_id BINARY(16),
-  amount_cents INT NOT NULL,          -- Integer cents
-  PRIMARY KEY (id)
-);
+**Arithmetic**: Integer addition/subtraction is exact; no rounding errors
+
+**Pseudocode**:
+```
+// Receiving from API
+amount_cents = parseInt(request.amount_cents)
+validate: -999999 <= amount_cents <= 999999
+
+// Calculating total
+total_cents = 0
+foreach transaction in batch:
+  total_cents += transaction.amount_cents  // Safe integer arithmetic
+
+// Returning to API
+response.amount_cents = total_cents         // Sent as integer
 ```
 
-**Backend (PHP)**:
-```php
-// When receiving transaction data
-$amountCents = (int) $request['amount_cents'];  // Always cast to int
-if ($amountCents < -999999 || $amountCents > 999999) {
-    throw new ValidationException('Amount out of range');
-}
+**Display (UI only)**: Format cents for human reading
 
-// When calculating totals
-$totalCents = 0;
-foreach ($transactions as $t) {
-    $totalCents += (int) $t['amount_cents'];  // Integer addition (safe)
-}
-
-// When returning to API
-return [
-    'amount_cents' => $totalCents,              // Return as integer
-    'amount_formatted' => $this->formatCents($totalCents)  // €34.56 for UI only
-];
-
-// Helper function for display (UI/reports only)
-function formatCents($cents, $locale = 'de_DE') {
-    return number_format($cents / 100, 2, ',', '.');  // €34,56
-}
+```
+formatCents(350) = "€3,50" (German locale)
+formatCents(350) = "$3.50" (US locale)
 ```
 
-**Terminal (JavaScript/Node.js)**:
-```javascript
-// When receiving member/product data
-const priceCents = parseInt(product.price_cents, 10);  // Always parse as integer
+### Monetary Value Decision Flow
 
-// When building transaction in local SQLite
-const transaction = {
-  id: uuidv4(),
-  member_id: member.id,
-  product_id: product.id,
-  amount_cents: priceCents,                    // Integer
-  created_at: new Date().toISOString()
-};
+```mermaid
+flowchart TD
+    A["Receive monetary value<br/>(API, user input, database)"]
+    B{Is it an integer<br/>number of cents?}
+    C["Parse as integer<br/>(cents)"]
+    D["Validate range<br/>(-999999 to +999999)"]
+    E["Store as INT<br/>(database)"]
+    F["Arithmetic:<br/>Integer addition/subtraction"]
+    G["Return as integer<br/>(API response)"]
+    H["Format for display<br/>(UI only)"]
+    I["Show human-readable<br/>€3,50 or $3.50"]
 
-// When calculating basket total
-let totalCents = 0;
-basket.forEach(item => {
-  totalCents += item.amount_cents;             // Integer addition
-});
-
-// When uploading batch
-const batch = {
-  transactions: transactions.map(t => ({
-    id: t.id,
-    member_id: t.member_id,
-    product_id: t.product_id,
-    amount_cents: t.amount_cents,              // Send as integer
-    created_at: t.created_at
-  }))
-};
-
-// When displaying to user (UI formatting only)
-const displayAmount = (cents) => {
-  const euros = Math.floor(cents / 100);
-  const centsPart = cents % 100;
-  return `€${euros},${centsPart.toString().padStart(2, '0')}`;
-};
-```
-
-**API (OpenAPI Specification)**:
-```yaml
-Transaction:
-  type: object
-  properties:
-    amount_cents:
-      type: integer
-      description: Amount in cents (e.g., 350 = €3.50)
-      example: 350
-
-Product:
-  type: object
-  properties:
-    price_cents:
-      type: integer
-      description: Price in cents
-      example: 350
+    A --> B
+    B -->|Yes| C
+    B -->|No, has decimals| C
+    B -->|No, invalid| Z["Reject: invalid amount"]
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
 ```
 
 ### Validation Rules
 
-- **Range**: -999,999 cents (−€9,999.99) to +999,999 cents (+€9,999.99)
-  - Rationale: Prevents integer overflow; realistic for small organizations
-  - Configurable per deployment if needed
-- **No decimals**: Must be integer; reject requests with `amount_cents: 3.5`
-- **No null/undefined**: All monetary fields required; no implicit zero
-- **Display formatting**: Always format for UI (e.g., "€3.50"), never display raw cents
+- **Range**: -999,999 to +999,999 cents (−€9,999.99 to +€9,999.99)
+- **Type**: Integer only; reject decimal input (3.5 → invalid)
+- **Required**: No null/undefined; all monetary fields mandatory
+- **Display**: Always format before showing to user (€3.50, never raw 350)
 
 ---
 
@@ -239,10 +182,3 @@ amount_cents_remainder: 50
 - ISO 4217 - Currency codes and minor units (cents/pennies/etc.)
 - Common practice: Stripe, PayPal, Square (all use integer cents)
 
----
-
-## Approval
-
-- **Decided by**: Architecture Team
-- **Implementation**: Backend + Frontend must comply
-- **Review date**: 2025-06-23 (6 months post-implementation)

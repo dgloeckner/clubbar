@@ -32,154 +32,38 @@ Current payload sizes (uncompressed):
 
 ## Decision
 
-**Enable HTTP GZIP compression on all API endpoints.**
+**Enable HTTP GZIP compression on all API responses. Backend automatically compresses JSON responses when client sends Accept-Encoding header. Compression threshold: 1 KB (do not compress tiny responses).**
 
-- Terminal always sends `Accept-Encoding: gzip` header
-- Backend compresses responses using gzip (Content-Encoding: gzip)
-- Compression applied to all content types (JSON, HTML error pages)
-- Compression threshold: 1 KB (compress everything except tiny responses)
+### HTTP Compression Negotiation
 
-### Implementation: Backend (PHP/Apache)
-
-**Apache mod_deflate** (recommended for PHP hosting):
-
-```apache
-# .htaccess or vhost config
-<IfModule mod_deflate.c>
-    # Enable deflate for specific file types
-    AddOutputFilterByType DEFLATE application/json
-    AddOutputFilterByType DEFLATE text/plain
-    AddOutputFilterByType DEFLATE text/html
-    AddOutputFilterByType DEFLATE text/xml
-    AddOutputFilterByType DEFLATE application/javascript
-    AddOutputFilterByType DEFLATE text/css
-
-    # Set compression level (1-9, 6 is default, good balance)
-    DeflateCompressionLevel 6
-
-    # Don't compress if already compressed
-    DeflateBufferSize 8096
-
-    # Exclude some browsers that don't handle it well (rare)
-    SetEnvIfNoCase Request_URI "\.(?:gif|jpe?g|png|exe)$" no-gzip
-</IfModule>
+```mermaid
+flowchart LR
+    A["Client Request<br/>(Terminal or Admin)"] -->|"Accept-Encoding: gzip"| B["Backend Receives<br/>(Apache, Nginx, or PHP)"]
+    B -->|"Content-Encoding: gzip<br/>(compressed payload)"| C["Client Decompresses<br/>(transparent)"]
+    C -->|"JSON parsed<br/>(no code changes)"| D["Application<br/>(Terminal/Admin)"]
 ```
 
-**PHP native support** (if Apache mod_deflate unavailable):
+### Backend Configuration
 
-```php
-<?php
-// At the start of API response handler
-if (extension_loaded('zlib')) {
-    ob_start('ob_gzhandler');  // Automatically gzip output if client supports it
-}
+Enable gzip via web server configuration:
 
-// ... rest of code ...
-// ob_end_flush() called automatically at script end
-```
+- **Apache**: Enable `mod_deflate` in `.htaccess` or vhost config
+- **Nginx**: Configure `gzip on` in `nginx.conf`
+- **PHP**: Use native `zlib` output buffering (fallback)
 
-**Verify compression enabled:**
+All modern web servers support transparent gzip negotiation via Accept-Encoding header. No application code changes required.
 
+### Frontend (Terminal & Admin)
+
+**Automatic decompression**:
+- Browser Fetch API decompresses transparently
+- Axios decompresses automatically
+- No configuration needed; standard HTTP
+
+Query to verify compression working:
 ```bash
-# Check if mod_deflate is available
-apache2ctl -M | grep deflate
-
-# Test compression
-curl -H "Accept-Encoding: gzip" -i https://api.example.com/sync/products | head -20
-# Should show: Content-Encoding: gzip
-```
-
-### Implementation: Terminal (JavaScript/Electron)
-
-**Fetch API** (automatic, no code changes needed):
-
-```javascript
-// Standard fetch with Accept-Encoding header
-fetch('/api/sync/products?since=...', {
-  headers: {
-    'Authorization': `Bearer ${token}`,
-    'Accept-Encoding': 'gzip, deflate, br'  // Included by browser automatically
-  }
-})
-.then(response => response.json())  // Automatically decompressed by fetch API
-.catch(error => console.error('Sync failed:', error));
-```
-
-**Node.js (for Electron main process, if needed):**
-
-```javascript
-// If using node-fetch or axios
-const axios = require('axios');
-
-const instance = axios.create({
-  baseURL: 'https://api.example.com',
-  headers: {
-    'Accept-Encoding': 'gzip, deflate'
-  }
-  // axios automatically handles decompression
-});
-
-instance.get('/api/sync/products?since=...')
-  .then(response => console.log(response.data))
-  .catch(error => console.error(error));
-```
-
-### Implementation: Admin UI (React/Vite)
-
-**Vite development server** - compression built-in (dev only):
-
-```javascript
-// vite.config.js
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import compression from 'vite-plugin-compression'
-
-export default defineConfig({
-  plugins: [
-    react(),
-    compression({
-      algorithm: 'gzip',
-      ext: '.gz'
-    })
-  ]
-})
-```
-
-**Production deployment** - let web server handle it:
-
-- If served via Apache: `.htaccess` handles compression
-- If served via Nginx: Configure compression in nginx.conf
-- If served via CDN: CDN usually handles compression
-
-```nginx
-# nginx.conf
-http {
-    gzip on;
-    gzip_types text/plain application/json text/css application/javascript;
-    gzip_min_length 1024;
-    gzip_comp_level 6;
-}
-```
-
-### Verification: Network Inspection
-
-**Browser DevTools (Terminal/Admin)::**
-1. Open DevTools → Network tab
-2. Make request to backend
-3. Check Response Headers: `Content-Encoding: gzip`
-4. Compare "Size" (transferred/on-disk)
-   - Transferred: ~15 KB (compressed)
-   - On-disk: ~100 KB (uncompressed)
-
-**Command line:**
-
-```bash
-# Test API endpoint with curl
-curl -v -H "Accept-Encoding: gzip" https://api.example.com/api/sync/products?since=1970-01-01T00:00:00Z
-
-# Response headers should include:
-# < Content-Encoding: gzip
-# < Transfer-Encoding: chunked
+curl -H "Accept-Encoding: gzip" https://api.example.com/api/sync/products?since=...
+# Response headers should include: Content-Encoding: gzip
 ```
 
 ---
@@ -284,88 +168,15 @@ Reduce JSON size: remove unnecessary fields, use shorthand keys.
 
 ---
 
-## Implementation Checklist
+## Implementation Notes
 
-### Backend (PHP/Apache)
+**Backend**: Configure compression at web server level (Apache mod_deflate or Nginx gzip module). No application code changes needed.
 
-- [ ] Verify Apache has mod_deflate loaded: `apache2ctl -M | grep deflate`
-- [ ] Add `.htaccess` or vhost config with deflate rules (see above)
-- [ ] Set compression level 6 (balance speed/ratio)
-- [ ] Restart Apache: `systemctl restart apache2`
-- [ ] Test with curl: `curl -H "Accept-Encoding: gzip" https://api.example.com/api/sync/products?since=...`
-- [ ] Verify Content-Encoding header present: `Content-Encoding: gzip`
-- [ ] Monitor server CPU impact (should be negligible)
+**Compression settings**: Level 6 (default), minimum 1 KB threshold, apply to all content types (JSON, HTML, CSS, JavaScript).
 
-### Terminal (Electron)
+**Testing**: Use `curl -H "Accept-Encoding: gzip" <url>` to verify Content-Encoding header in response. Browser DevTools Network tab shows transferred vs. original size.
 
-- [ ] Verify fetch API automatically sends Accept-Encoding header
-- [ ] Test in DevTools Network tab: see gzip in Response Headers
-- [ ] Verify response decompressed correctly (check JSON parsing works)
-- [ ] No code changes needed (automatic)
-
-### Admin UI (React/Vite)
-
-- [ ] Development: Add vite-plugin-compression (optional, for testing)
-- [ ] Production: Verify Apache/CDN handles gzip
-- [ ] Test with DevTools: check compressed assets
-
-### Testing
-
-- [ ] `/sync/members` endpoint returns gzip-encoded response
-- [ ] `/sync/products` endpoint returns gzip-encoded response
-- [ ] `/sync/transactions` endpoint accepts and compresses request body (if applicable)
-- [ ] Terminal sync works correctly with compressed data
-- [ ] Admin UI loads quickly (gzip applied to assets)
-- [ ] Bandwidth saved: measure before/after
-- [ ] Old browsers still work (fallback to uncompressed if Accept-Encoding not sent)
-
-### Monitoring
-
-- [ ] Log compression metrics: bytes_in, bytes_out, compression_ratio
-- [ ] Alert if compression fails (log errors)
-- [ ] Track network timing improvements
-- [ ] Monitor server CPU (should stay below 2% additional)
-
----
-
-## Performance Impact
-
-### Estimated Savings (Empirical Data)
-
-**Product sync (50 products, 5 languages):**
-- Uncompressed JSON: 125 KB
-- Gzip-compressed: 18 KB
-- **Savings: 85% (7x smaller)**
-- Decompression time: < 10 ms on modern hardware
-
-**Member sync (100 members, all fields):**
-- Uncompressed JSON: 85 KB
-- Gzip-compressed: 12 KB
-- **Savings: 86% (7x smaller)**
-
-**Transaction batch (100 transactions):**
-- Uncompressed JSON: 45 KB
-- Gzip-compressed: 8 KB
-- **Savings: 82% (5.6x smaller)**
-
-**Monthly bandwidth (assuming 1 sync/minute):**
-- Uncompressed: ~50 MB/terminal/month
-- Gzip-compressed: ~7 MB/terminal/month
-- **Savings: 43 MB/terminal/month**
-
-### Server CPU Impact
-
-Negligible on modern servers:
-- Compression adds < 1-2 ms per request
-- CPU overhead: < 2% on typical deployment
-- With mod_deflate, most overhead is offloaded to Apache
-
-### Network Timing
-
-On slow connections (2G/3G, 100 kbps):
-- Uncompressed 125 KB: ~10 seconds download
-- Gzip-compressed 18 KB: ~1.4 seconds download
-- **UX improvement: 7x faster**
+**Monitoring**: Track bandwidth reduction and server CPU impact (should be negligible on modern hardware).
 
 ---
 
@@ -399,24 +210,10 @@ On slow connections (2G/3G, 100 kbps):
 
 ---
 
-## Approval
+## Post-Implementation Monitoring
 
-- **Decided by**: Architecture Team
-- **Implementation start**: Phase 1 (Backend setup, immediate)
-- **Review date**: 2025-04-23 (after deployment, monitor performance)
-- **Sign-off**:
-  - Backend Lead: _________________ Date: _______
-  - DevOps Lead: _________________ Date: _______
-  - QA Lead: _________________ Date: _______
-
----
-
-## Post-Implementation Monitoring (First Month)
-
-- [ ] Monitor server CPU usage (should be negligible)
-- [ ] Track network bandwidth savings
-- [ ] Measure sync performance improvement
-- [ ] Verify no client decompression errors
-- [ ] Collect user feedback (faster/slower?)
-- [ ] Document lessons learned
-- [ ] Plan Phase 2 (Brotli support, if beneficial)
+- Monitor server CPU usage (should be negligible)
+- Track network bandwidth savings (expect 70-85% reduction)
+- Measure sync performance improvement
+- Verify no client decompression errors
+- Collect user feedback

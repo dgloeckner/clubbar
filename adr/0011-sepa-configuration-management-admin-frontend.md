@@ -4,515 +4,114 @@
 
 **Date**: 2025-01-23
 
-**Deciders**: Architecture Team
-
 ---
 
 ## Context
 
-Organization-level SEPA configuration (Gläubiger-ID, creditor account details, address) is stored in the backend ([ADR-0007](./0007-organization-sepa-configuration-storage.md)). However, non-technical admins need a user-friendly interface to:
+The admin panel requires a user interface for managing organization-level SEPA configuration (Gläubiger-ID, organization name, IBAN, address). This configuration is required for generating SEPA XML exports during settlement workflows.
 
-1. **Initial setup**: Enter SEPA configuration during system onboarding
-2. **View current config**: See what's currently configured
-3. **Update settings**: Modify bank account details, address, organization name (but NOT creditor_id)
-4. **Understand constraints**: Learn why creditor_id cannot be changed
-5. **Get help**: Know how to obtain a Gläubiger-ID and comply with SEPA requirements
-6. **Audit trail**: Understand that changes are logged
-
-This ADR addresses the admin panel UI/UX for SEPA configuration management.
+Key requirements:
+- **First-time setup**: Guide new organizations through initial SEPA configuration
+- **Edit capability**: Allow admins to update mutable fields (name, IBAN, address)
+- **Immutability enforcement**: Prevent changes to Gläubiger-ID after initial setup (per ADR-0007)
+- **Validation**: Real-time feedback for IBAN checksums and format requirements
+- **Settlement integration**: Block SEPA export if configuration is incomplete
 
 ---
 
 ## Decision
 
-**SEPA Configuration is managed via a dedicated settings panel in the Admin Frontend, with a form that enforces immutability of the Gläubiger-ID, provides real-time validation, and guides admins through the setup process. The UI clearly distinguishes between immutable and mutable fields, and provides helpful documentation.**
-
-### Core Principles
-
-1. **Single source of truth**: Configuration stored in backend (ADR-0007); UI is thin client
-2. **Immutability enforcement**: creditor_id field visually disabled after initial set
-3. **Real-time validation**: IBAN checksum, creditor_id format validated as user types
-4. **Guided setup**: Wizard-like experience for first-time configuration
-5. **Helpful documentation**: Links to Bundesbank, SEPA rules, and requirements
-6. **Clear feedback**: Success/error messages on save, indication of what changed
-7. **Change tracking**: "Last updated by X at Y" metadata visible to admin
+**The admin panel provides a dedicated SEPA Configuration page with a setup wizard for first-time configuration and a form-based edit interface for updates. The Gläubiger-ID field is visually disabled after initial setup to enforce immutability. Settlement export validates configuration completeness before proceeding.**
 
 ---
 
 ## Implementation
 
-### UI Component Structure
+### SEPA Configuration Panel Features
 
-```
-/admin-frontend/src/features/settings/
-├── SEPAConfigPanel.jsx          # Main container
-├── SEPAConfigForm.jsx           # Reusable form component
-├── SEPAConfigDisplay.jsx        # Read-only view
-├── SEPASetupWizard.jsx          # First-time setup flow
-└── hooks/
-    └── useSEPAConfig.js         # Fetch/update config
-```
+The admin panel provides a dedicated settings page for SEPA configuration management. The interface must support the following workflows:
 
-### SEPA Configuration Panel Layout
+| Feature | Type | Requirement | Validation |
+|---------|------|-------------|-----------|
+| Gläubiger-ID | Text | Required, immutable after initial set | Format: 2 letters + 3 alphanumeric + 10+ digits (e.g., DE98ZZZ09999999999) |
+| Organization Name | Text | Required, mutable | Max 70 characters, Latin letters + numbers + basic punctuation |
+| Organization IBAN | Text | Required, mutable | Must pass IBAN checksum validation (mod-97 algorithm) |
+| Street Address | Text | Required, mutable | Max 255 characters |
+| City/Postal Code | Text | Required, mutable | Max 255 characters |
+| Country | Dropdown | Required, mutable | SEPA-participating country (DE, AT, CH, etc.) |
+| Last Updated | Display | Metadata | Shows timestamp and admin who last modified |
 
-```jsx
-// Admin Panel → Settings → SEPA Configuration
+### UX Requirements
 
-function SEPAConfigPanel() {
-  const [config, setConfig] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+1. **Initial Setup Wizard**: Multi-step guided flow for organizations without SEPA configuration
+   - Step 1: Welcome and prerequisites (Gläubiger-ID application)
+   - Step 2: Instructions for obtaining Gläubiger-ID
+   - Step 3: Configuration form
+   - Step 4: Confirmation
 
-  useEffect(() => {
-    fetchSEPAConfig();
-  }, []);
+2. **Read-Only View**: Display current configuration with edit button
 
-  const fetchSEPAConfig = async () => {
-    try {
-      const response = await api.get('/api/admin/sepa-config');
-      setConfig(response.data);
-      setIsLoading(false);
-    } catch (err) {
-      setError(err.message);
-      setIsLoading(false);
-    }
-  };
+3. **Edit Mode**: Form with real-time validation feedback
 
-  if (isLoading) return <LoadingSpinner />;
-  if (error) return <ErrorAlert message={error} />;
+4. **Immutability Enforcement**: Gläubiger-ID field visually disabled after initial set; lock icon clarifies why
 
-  // First-time setup (empty config)
-  if (!config?.creditor_id) {
-    return <SEPASetupWizard onComplete={fetchSEPAConfig} />;
-  }
+5. **Help Text**: Each field includes contextual help and links (e.g., Bundesbank Gläubiger-ID application)
 
-  // Display current config
-  if (!isEditing) {
-    return (
-      <SEPAConfigDisplay
-        config={config}
-        onEdit={() => setIsEditing(true)}
-      />
-    );
-  }
+6. **Error Handling**: Clear error messages on validation failure and API errors
 
-  // Edit mode
-  return (
-    <SEPAConfigForm
-      initialConfig={config}
-      onSave={handleSave}
-      onCancel={() => setIsEditing(false)}
-    />
-  );
-}
-```
+7. **Success Feedback**: Toast notifications on successful save; indication of changed fields
 
-### Read-Only Display View
+8. **Settlement Integration**: Settlement export requires valid SEPA configuration; alert if incomplete
 
-```jsx
-/**
- * Display current SEPA configuration
- */
-function SEPAConfigDisplay({ config, onEdit }) {
-  return (
-    <div className="sepa-config-display">
-      <h2>SEPA Configuration</h2>
+### Admin SEPA Configuration Workflow
 
-      <Alert icon={InfoIcon} color="blue">
-        Organization-wide settings for SEPA Direct Debit collection.
-        All settlements will use this configuration.
-      </Alert>
+```mermaid
+sequenceDiagram
+    participant Admin as Admin User
+    participant UI as Admin Panel
+    participant API as Backend API
+    participant DB as Database
 
-      <Grid cols={2} gutter="lg">
+    Admin->>UI: Access Settings → SEPA Configuration
 
-        <div className="field">
-          <Label>Gläubiger-ID (Creditor ID)</Label>
-          <Code>{config.creditor_id}</Code>
-          <HelpText>
-            Unique identifier assigned by the Bundesbank.
-            Cannot be changed once set.
-          </HelpText>
-        </div>
+    alt First-time setup (no config)
+        UI->>UI: Show Setup Wizard
+        Admin->>UI: Complete Step 1-3: Enter Gläubiger-ID, org name, IBAN, address
+        UI->>API: PATCH /api/admin/sepa-config (initial setup)
+        API->>DB: Store configuration
+        DB-->>API: Success
+        API-->>UI: Config saved
+        UI->>UI: Show completion screen
+        UI->>Admin: Navigate to dashboard
+    else Configuration exists
+        UI->>API: GET /api/admin/sepa-config
+        API->>DB: Retrieve current config
+        DB-->>API: Config data
+        API-->>UI: Display configuration
+        UI->>Admin: Show read-only view with Edit button
+        Admin->>UI: Click Edit
+        UI->>UI: Enable editable form (Gläubiger-ID disabled)
+        Admin->>UI: Modify fields (name, IBAN, address)
+        UI->>UI: Real-time validation feedback
+        Admin->>UI: Click Save
+        UI->>API: PATCH /api/admin/sepa-config (update)
+        API->>DB: Update configuration fields
+        DB-->>API: Success
+        API-->>UI: Updated config
+        UI->>UI: Show success toast
+        UI->>Admin: Return to read-only view
+    end
 
-        <div className="field">
-          <Label>Organization Name</Label>
-          <Text>{config.creditor_name}</Text>
-        </div>
+    Note over Admin,DB: Settlement export validates SEPA config
+    Admin->>UI: Create settlement → Export
+    UI->>API: Check SEPA config completeness
 
-        <div className="field">
-          <Label>Organization IBAN</Label>
-          <Code>{config.creditor_iban}</Code>
-          <HelpText>
-            Bank account for receiving SEPA Direct Debit payments.
-          </HelpText>
-        </div>
-
-        <div className="field">
-          <Label>Address</Label>
-          <Text>
-            {config.creditor_address_street}<br />
-            {config.creditor_address_city}<br />
-            {config.creditor_address_country}
-          </Text>
-        </div>
-
-      </Grid>
-
-      <div className="metadata">
-        <Text size="sm" color="dimmed">
-          Last updated: {formatDateTime(config.updated_at)}
-        </Text>
-      </div>
-
-      <Button onClick={onEdit}>Edit Configuration</Button>
-    </div>
-  );
-}
-```
-
-### Editable Form
-
-```jsx
-/**
- * Edit SEPA Configuration Form
- * - creditor_id field disabled if already set (immutable)
- * - Real-time validation with user feedback
- * - Clear indication of field mutability
- */
-function SEPAConfigForm({ initialConfig, onSave, onCancel }) {
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [ibanError, setIbanError] = useState(null);
-
-  const form = useForm({
-    initialValues: {
-      creditor_id: initialConfig?.creditor_id || '',
-      creditor_name: initialConfig?.creditor_name || '',
-      creditor_iban: initialConfig?.creditor_iban || '',
-      creditor_address_street: initialConfig?.creditor_address_street || '',
-      creditor_address_city: initialConfig?.creditor_address_city || '',
-      creditor_address_country: initialConfig?.creditor_address_country || 'DE'
-    },
-    validate: {
-      creditor_id: (value) => {
-        if (!value) return 'Gläubiger-ID required';
-        if (!/^[A-Z]{2}[0-9A-Z]{3}[0-9]{10,}$/.test(value)) {
-          return 'Invalid format (e.g., DE98ZZZ09999999999)';
-        }
-        return null;
-      },
-      creditor_name: (value) => {
-        if (!value) return 'Organization name required';
-        if (value.length > 70) return 'Max 70 characters';
-        if (!/^[a-zA-Z0-9\s\/\-?()\.,\']+$/.test(value)) {
-          return 'Only Latin letters, numbers, and basic punctuation allowed';
-        }
-        return null;
-      },
-      creditor_iban: (value) => {
-        if (!value) return 'IBAN required';
-        if (!isValidIBAN(value)) return 'Invalid IBAN checksum';
-        return null;
-      },
-      creditor_address_street: (value) =>
-        !value ? 'Street address required' : null,
-      creditor_address_city: (value) =>
-        !value ? 'City/postal code required' : null
-    }
-  });
-
-  const handleSubmit = async (values) => {
-    setIsSubmitting(true);
-    try {
-      await api.patch('/api/admin/sepa-config', values);
-      toast.success('SEPA configuration updated successfully');
-      onSave();
-    } catch (err) {
-      if (err.response?.data?.errors) {
-        setErrors(err.response.data.errors);
-      }
-      toast.error(err.response?.data?.message || 'Failed to save configuration');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const isCreditorIdSetAndImmutable = !!initialConfig?.creditor_id;
-
-  return (
-    <form onSubmit={form.handleSubmit(handleSubmit)}>
-      <h2>Edit SEPA Configuration</h2>
-
-      <TextInput
-        label="Gläubiger-ID (Creditor ID)"
-        placeholder="DE98ZZZ09999999999"
-        disabled={isCreditorIdSetAndImmutable}
-        error={form.errors.creditor_id}
-        description={
-          isCreditorIdSetAndImmutable
-            ? "Immutable after initial set. Request change via Bundesbank."
-            : "Apply at: https://www.glaeubiger-id.bundesbank.de"
-        }
-        {...form.getInputProps('creditor_id')}
-      />
-
-      {isCreditorIdSetAndImmutable && (
-        <Alert icon={LockIcon} color="gray" title="Immutable Field">
-          The Gläubiger-ID cannot be changed once set. This is a SEPA requirement
-          to prevent fraud and ensure mandate validity.
-        </Alert>
-      )}
-
-      <TextInput
-        label="Organization Name"
-        maxLength={70}
-        error={form.errors.creditor_name}
-        description="Max 70 characters. Must match bank records."
-        {...form.getInputProps('creditor_name')}
-      />
-
-      <TextInput
-        label="Organization IBAN"
-        placeholder="DE89370400440532013000"
-        error={form.errors.creditor_iban}
-        description="Bank account for receiving SEPA payments. Must be SEPA-enabled."
-        onChange={(e) => {
-          form.getInputProps('creditor_iban').onChange(e);
-          setIbanError(null);
-        }}
-        {...form.getInputProps('creditor_iban')}
-      />
-
-      <Divider label="Address Information" />
-
-      <TextInput
-        label="Street Address"
-        error={form.errors.creditor_address_street}
-        {...form.getInputProps('creditor_address_street')}
-      />
-
-      <TextInput
-        label="City / Postal Code"
-        error={form.errors.creditor_address_city}
-        placeholder="12345 City Name"
-        {...form.getInputProps('creditor_address_city')}
-      />
-
-      <Select
-        label="Country"
-        data={[
-          { label: 'Germany', value: 'DE' },
-          { label: 'Austria', value: 'AT' },
-          { label: 'Switzerland', value: 'CH' },
-          // Add more countries as needed
-        ]}
-        defaultValue="DE"
-        {...form.getInputProps('creditor_address_country')}
-      />
-
-      <Group mt="xl">
-        <Button
-          type="submit"
-          loading={isSubmitting}
-        >
-          Save Configuration
-        </Button>
-        <Button
-          variant="light"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
-          Cancel
-        </Button>
-      </Group>
-    </form>
-  );
-}
-```
-
-### First-Time Setup Wizard
-
-```jsx
-/**
- * Multi-step wizard for initial SEPA configuration
- * Guides non-technical admins through setup process
- */
-function SEPASetupWizard({ onComplete }) {
-  const [step, setStep] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const steps = [
-    {
-      title: 'Welcome to SEPA Setup',
-      component: (
-        <div className="setup-step">
-          <h2>Set Up SEPA Direct Debit</h2>
-          <Text>
-            To enable automated member billing via SEPA Direct Debit,
-            you'll need to provide your organization's bank details.
-          </Text>
-          <Alert title="Before you start" color="blue">
-            <ul>
-              <li>Apply for a Gläubiger-ID (takes 2-3 business days)</li>
-              <li>Have your bank account IBAN ready</li>
-              <li>Ensure your bank account is SEPA-enabled</li>
-            </ul>
-          </Alert>
-          <Button onClick={() => setStep(1)}>Next</Button>
-        </div>
-      )
-    },
-    {
-      title: 'Gläubiger-ID',
-      component: (
-        <div className="setup-step">
-          <h2>Step 1: Gläubiger-ID (Creditor ID)</h2>
-          <Text>
-            A Gläubiger-ID is a unique 18-character identifier that identifies
-            your organization as a SEPA creditor.
-          </Text>
-          <Steps>
-            <li>
-              Visit{' '}
-              <Link href="https://www.glaeubiger-id.bundesbank.de">
-                Bundesbank Gläubiger-ID Application
-              </Link>
-            </li>
-            <li>Register your organization (free, takes 2-3 business days)</li>
-            <li>Receive your ID via email (format: DE98ZZZ09999999999)</li>
-          </Steps>
-          <Group mt="xl">
-            <Button variant="light" onClick={() => setStep(0)}>Back</Button>
-            <Button onClick={() => setStep(2)}>Next: Enter Details</Button>
-          </Group>
-        </div>
-      )
-    },
-    {
-      title: 'Organization Details',
-      component: (
-        <SEPAConfigForm
-          initialConfig={{}}
-          onSave={() => {
-            setStep(3);
-            onComplete();
-          }}
-          onCancel={() => setStep(1)}
-        />
-      )
-    },
-    {
-      title: 'Setup Complete',
-      component: (
-        <div className="setup-step">
-          <h2>Setup Complete!</h2>
-          <Alert icon={CheckIcon} color="green">
-            Your SEPA configuration is ready. You can now create settlements
-            and export SEPA Direct Debit files.
-          </Alert>
-          <Button onClick={onComplete}>Go to Dashboard</Button>
-        </div>
-      )
-    }
-  ];
-
-  return (
-    <div className="setup-wizard">
-      <Stepper active={step} onStepClick={setStep} allowNextStepsSelect={false}>
-        {steps.map((s, idx) => (
-          <Stepper.Step key={idx} label={s.title}>
-            {s.component}
-          </Stepper.Step>
-        ))}
-      </Stepper>
-    </div>
-  );
-}
-```
-
-### Helper Functions
-
-```js
-// Validation helpers
-export function isValidIBAN(iban) {
-  // Remove spaces
-  iban = iban.replace(/\s/g, '');
-
-  // Check length (15-34 characters)
-  if (iban.length < 15 || iban.length > 34) return false;
-
-  // Check format (country code + check digits + account)
-  if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/.test(iban)) return false;
-
-  // Verify checksum (mod-97 algorithm)
-  return validateIBANChecksum(iban);
-}
-
-function validateIBANChecksum(iban) {
-  iban = iban.replace(/\s/g, '');
-  const rearranged = iban.slice(4) + iban.slice(0, 4);
-  const numeric = rearranged.replace(/[A-Z]/g, (char) => {
-    return (10 + char.charCodeAt(0) - 65).toString();
-  });
-
-  let remainder = numeric;
-  while (remainder.length > 2) {
-    const block = remainder.slice(0, 9);
-    remainder = (parseInt(block) % 97).toString() + remainder.slice(9);
-  }
-
-  return parseInt(remainder) % 97 === 1;
-}
-
-// Formatting helpers
-export function formatDateTime(dateString) {
-  return new Date(dateString).toLocaleString('de-DE', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-```
-
-### Integration with Settlements
-
-When creating a settlement, the UI validates SEPA config before allowing export:
-
-```jsx
-function SettlementExport() {
-  const [sepaConfig, setSEPAConfig] = useState(null);
-  const [isMissing, setIsMissing] = useState(false);
-
-  useEffect(() => {
-    const checkSEPAConfig = async () => {
-      try {
-        const response = await api.get('/api/admin/sepa-config');
-        if (!response.data?.creditor_id) {
-          setIsMissing(true);
-        } else {
-          setSEPAConfig(response.data);
-        }
-      } catch (err) {
-        setIsMissing(true);
-      }
-    };
-    checkSEPAConfig();
-  }, []);
-
-  if (isMissing) {
-    return (
-      <Alert icon={WarningIcon} color="red">
-        SEPA configuration is incomplete.
-        <Link to="/settings/sepa">Configure SEPA settings first</Link>
-      </Alert>
-    );
-  }
-
-  return <ExportOptions config={sepaConfig} />;
-}
+    alt Config complete
+        UI->>Admin: Proceed with export
+    else Config incomplete
+        UI->>Admin: Alert: "Configure SEPA settings first"
+        Admin->>UI: Click link to SEPA settings
+    end
 ```
 
 ---
@@ -613,59 +212,16 @@ Allow creditor_id to be changed via UI without restriction.
 
 ---
 
-## Implementation Checklist
+## Implementation Notes
 
-### Frontend Components
+The Admin Panel uses React with Mantine 7 components. Key implementation considerations:
 
-- [ ] SEPAConfigPanel.jsx (main container)
-- [ ] SEPAConfigDisplay.jsx (read-only view)
-- [ ] SEPAConfigForm.jsx (editable form)
-- [ ] SEPASetupWizard.jsx (first-time setup)
-- [ ] useSEPAConfig.js (custom hook for fetch/update)
-
-### Validation & Helpers
-
-- [ ] IBAN checksum validation (isValidIBAN)
-- [ ] Creditor-ID format validation
-- [ ] SEPA character set validation
-- [ ] Formatting functions (formatDateTime)
-- [ ] Shared validation module (client + server compatible)
-
-### UI/UX
-
-- [ ] Immutability visual affordance (disabled input, lock icon)
-- [ ] Real-time validation feedback
-- [ ] Success/error toast notifications
-- [ ] Help text and links for each field
-- [ ] Wizard step indicators for setup
-- [ ] Metadata display (last updated by/when)
-
-### Integration
-
-- [ ] Navigation: Admin menu → Settings → SEPA Configuration
-- [ ] Settlement export: Check config before allowing export
-- [ ] Error handling: Show helpful error messages from backend
-- [ ] State management: Store SEPA config in app store (Zustand/Redux)
-
-### Testing
-
-- [ ] Form submission with valid data
-- [ ] Form validation (required fields, formats)
-- [ ] Creditor-ID immutability (disabled input after set)
-- [ ] IBAN checksum validation
-- [ ] Real-time validation feedback
-- [ ] Error handling (network errors, validation errors)
-- [ ] Wizard flow (all steps, skip, back, complete)
-- [ ] Settlement export requires valid config
-- [ ] Accessibility (keyboard navigation, screen readers)
-
-### Documentation
-
-- [ ] Update CLAUDE.md: Admin panel features section
-- [ ] Admin user guide: How to configure SEPA
-- [ ] Developer guide: Component structure and state management
-- [ ] API reference: GET/PATCH /api/admin/sepa-config
-- [ ] Cross-reference to ADR-0007
+- Use React Hook Form for form state management with Zod for validation
+- Store SEPA config in application state (Zustand/Redux) to avoid duplicate requests
+- IBAN validation: Implement mod-97 checksum algorithm client-side; backend also validates
+- Wizard should guide admins step-by-step; allow backing up but disable skipping
+- Settlement export validation: Check `creditor_id` is set before allowing SEPA XML generation
+- Add to Admin Menu under Settings → SEPA Configuration (or General/Organization Settings)
 
 ---
 
@@ -688,24 +244,11 @@ Allow creditor_id to be changed via UI without restriction.
 
 ---
 
-## Approval
-
-- **Decided by**: Architecture Team
-- **Rationale**: Admin panel must provide user-friendly, validated interface for SEPA configuration while enforcing backend business rules
-- **Implementation start**: Phase 2 (SEPA settlement)
-- **Review date**: 2025-04-23 (after first admin onboarding)
-- **Sign-off**:
-  - Frontend Lead: _________________ Date: _______
-  - UX/Design Lead: _________________ Date: _______
-  - Product Owner: _________________ Date: _______
-
----
-
 ## Post-Implementation Monitoring
 
-- [ ] Track admin setup completion rate (% of organizations completing SEPA config)
-- [ ] Monitor form submission errors (which fields most problematic?)
-- [ ] Gather feedback: Is UI intuitive for non-technical admins?
-- [ ] Track configuration change frequency (should be rare)
-- [ ] Test with real admins: Can they complete setup without support?
-- [ ] Bank acceptance: Do exports succeed on first attempt?
+- Track admin setup completion rate (% of organizations completing SEPA config)
+- Monitor form submission errors (which fields most problematic?)
+- Gather feedback: Is UI intuitive for non-technical admins?
+- Track configuration change frequency (should be rare)
+- Test with real admins: Can they complete setup without support?
+- Bank acceptance: Do exports succeed on first attempt?

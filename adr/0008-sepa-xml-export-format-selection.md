@@ -198,224 +198,88 @@ Additionally, SEPA Direct Debit has two schemes:
 </Document>
 ```
 
-### Backend Implementation
+### Data Flow Diagram: SEPA XML Export
 
-#### Library: digitick/sepa-xml
+The following sequence shows how settlement data flows through validation and XML generation:
 
-Use the `digitick/sepa-xml` Composer package for SEPA XML generation:
+```mermaid
+sequenceDiagram
+    participant Admin as Admin UI
+    participant API as Backend API
+    participant Validator as Validator
+    participant Exporter as SEPA Exporter
+    participant Digitick as digitick/sepa-xml
+    participant Bank as Bank Portal
 
-```bash
-composer require digitick/sepa-xml
+    Admin->>API: POST /settlements/{id}/export-xml
+    API->>Validator: Validate SEPA readiness
+    Validator->>Validator: Check creditor config<br/>(ID, IBAN, name)
+    Validator->>Validator: Check execution date<br/>(>= TODAY + 7 days)
+    Validator->>Validator: Check each member<br/>(IBAN, mandate_reference)
+    alt Validation fails
+        Validator-->>API: Return errors
+        API-->>Admin: Show validation errors
+    else Validation succeeds
+        Validator-->>API: Validation OK
+        API->>Exporter: Build SEPA XML
+        Exporter->>Exporter: Map settlement to pain.008<br/>structure (Group Header,<br/>Payment Info, Transactions)
+        Exporter->>Exporter: Use IDs:<br/>MsgId = Settlement ID<br/>PmtInfId = Settlement ID<br/>EndToEndId = Settlement ID<br/>+ sequence (0001, 0002, ...)
+        Exporter->>Digitick: Generate XML<br/>(digitick handles encoding,<br/>formatting, XSD validation)
+        Digitick-->>Exporter: Valid SEPA XML
+        Exporter-->>API: XML ready
+        API->>API: Log to audit_trail
+        API-->>Admin: Download XML file
+        Admin->>Bank: Upload to bank portal
+    end
 ```
 
-**Advantages**:
-- ✅ Tested, production-ready SEPA XML generation
-- ✅ Automatic XSD validation built-in
-- ✅ Handles pain.008.001.02 and 003.02 formats
-- ✅ Proper handling of amounts, dates, character encoding
-- ✅ Maintained by community; aligns with SEPA standards
-- ✅ Reduces custom code; less maintenance burden
+### Backend Architecture
 
-#### XML Generation Using digitick/sepa-xml
+**Library**: Use `digitick/sepa-xml` Composer package for SEPA XML generation (pain.008.001.02 format).
 
-```php
-<?php
-require 'vendor/autoload.php';
+**Key responsibility areas**:
+- **Validation**: Check SEPA config completeness, member IBAN/mandate data, execution date constraints
+- **ID Mapping**: Use settlement ID as base for all SEPA identifiers (simple, human-readable, traceable)
+- **Data Transformation**: Map transaction data to pain.008 XML elements (creditor, debtor, amounts, dates)
+- **XSD Validation**: Leverage digitick library's built-in validation against pain.008.001.02 schema
 
-use Digitick\Sepa\TransferFile\Factory\TransferFileFactory;
-use Digitick\Sepa\TransferFile\TransferFileInterface;
-
-class SEPAXmlExporter {
-    private $config;  // Organization SEPA config
-    private $settlement;
-    private $transactions;
-
-    public function __construct($settlementId) {
-        $this->settlement = $db->selectOne('settlements', '*', ['id' => $settlementId]);
-        $this->config = $this->loadSEPAConfig();
-        $this->transactions = $this->loadSettlementTransactions($settlementId);
-    }
-
-    /**
-     * Generate pain.008.001.02 XML using digitick/sepa-xml
-     */
-    public function generate() {
-        // Validation before generation
-        $this->validate();
-
-        // Create transfer file (pain.008.001.02)
-        $transferFile = TransferFileFactory::create('pain.008.001.02');
-
-        // Use settlement ID for all SEPA identifiers
-        $settlementId = $this->settlement['id'];
-
-        // Set up payment information
-        $payment = $transferFile->addPaymentInformation([
-            'id' => generatePaymentInfId($settlementId),
-            'executionDate' => new DateTime($this->settlement['sepa_execution_date']),
-            'originName' => $this->config['creditor_name'],
-            'originIban' => $this->config['creditor_iban'],
-            'originCountry' => $this->config['creditor_address_country'],
-            'originSchemeId' => [
-                'id' => $this->config['creditor_id'],
-                'issuer' => 'DE'
-            ],
-            'originAccount' => [
-                'iban' => $this->config['creditor_iban'],
-                'currency' => 'EUR'
-            ]
-        ]);
-
-        // Always use RCUR (recurring) sequence type
-        // Assumption: all mandates treated as previously used
-        $payment->setSequenceType('RCUR');
-
-        // Add transactions
-        $totalAmount = 0;
-        $transactionIndex = 0;
-        foreach ($this->transactions as $txn) {
-            $totalAmount += $txn['amount_cents'];
-
-            $payment->addTransfer([
-                'amount' => $txn['amount_cents'],  // In cents (digitick handles conversion)
-                'debtorName' => $txn['first_name'] . ' ' . $txn['last_name'],
-                'debtorIban' => $txn['iban'],
-                'mandateId' => $txn['mandate_reference'],  // From member record
-                'endToEndIdentification' => generateEndToEndId($settlementId, $transactionIndex),
-                'remittanceInformation' => 'FRGS Bar Deckel',
-                'instructedAmount' => $txn['amount_cents']  // In cents
-            ]);
-
-            $transactionIndex++;
-        }
-
-        // Generate XML (UTF-8, formatted)
-        $xml = $transferFile->asXML();
-
-        return $xml;
-    }
-
-    private function validate() {
-        // Validation logic (see next section)
-        // Check SEPA config, member data, execution dates, etc.
-    }
-}
-
-// Usage
-$exporter = new SEPAXmlExporter($settlementId);
-$xml = $exporter->generate();
-
-// Generate file
-header('Content-Type: application/xml');
-header('Content-Disposition: attachment; filename="settlement_sepa_' . date('Y-m-d') . '.xml"');
-header('Content-Length: ' . strlen($xml));
-echo $xml;
-```
-
-#### ID Generation Strategy
+### ID Generation Strategy
 
 Pragmatic approach: Use settlement ID as base for all SEPA identifiers.
 
 **Settlement ID format**: `SET-YYYY-NNN` (e.g., `SET-2025-001`)
-- Can be auto-increment or date-based
 - Human-readable for audit trail
 - Max 35 chars (SEPA standard)
 
 **Derived IDs**:
 - **Message ID (MsgId)**: = Settlement ID (e.g., `SET-2025-001`)
 - **Payment Info ID (PmtInfId)**: = Settlement ID (e.g., `SET-2025-001`)
-- **End-to-End ID (EndToEndId)**: = Settlement ID + sequential number (e.g., `SET-2025-001-0001`, `SET-2025-001-0002`, ...)
+- **End-to-End ID (EndToEndId)**: = Settlement ID + padded sequence (e.g., `SET-2025-001-0001`, `SET-2025-001-0002`)
 
-#### Helper Functions
+### Pre-Export Validation Checklist
 
-```php
-<?php
-/**
- * Message ID: Unique per settlement export
- * Pragmatic approach: use settlement ID as-is
- */
-function generateMessageId($settlementId) {
-    return $settlementId;  // e.g., "SET-2025-001"
-}
+Before generating SEPA XML, validate:
 
-/**
- * Payment Information ID: Identifies the batch
- * Pragmatic approach: use settlement ID as-is
- */
-function generatePaymentInfId($settlementId) {
-    return $settlementId;  // e.g., "SET-2025-001"
-}
+**SEPA Configuration**:
+- ✓ Creditor ID (Gläubiger-ID) is set
+- ✓ Creditor IBAN is set and valid
+- ✓ Creditor name is set
+- ✓ Organization country/address is set
 
-/**
- * End-to-End ID: Unique per transaction within file
- * Pragmatic approach: settlement ID + padded transaction sequence
- */
-function generateEndToEndId($settlementId, $transactionIndex) {
-    // $transactionIndex starts at 0
-    $sequence = str_pad($transactionIndex + 1, 4, '0', STR_PAD_LEFT);
-    return $settlementId . '-' . $sequence;  // e.g., "SET-2025-001-0001"
-}
+**Settlement Data**:
+- ✓ Execution date is set
+- ✓ Execution date is in future (>= TODAY + 7 calendar days)
+- ✓ Settlement has at least one transaction
 
-/**
- * Mandate Reference from member UUID
- */
-function getMandateReference($memberId) {
-    return str_replace('-', '', $memberId);
-}
-```
+**Per Member**:
+- ✓ IBAN is present
+- ✓ IBAN is valid (mod-97 checksum)
+- ✓ Mandate reference is present
+- ✓ Member name is present and non-empty
 
-#### XSD Validation
-
-digitick/sepa-xml handles XSD validation automatically during XML generation. If validation fails, an exception is thrown:
-
-```php
-<?php
-try {
-    $exporter = new SEPAXmlExporter($settlementId);
-    $xml = $exporter->generate();
-} catch (\Exception $e) {
-    if (strpos($e->getMessage(), 'Invalid SEPA') !== false) {
-        error_log('SEPA XML generation failed: ' . $e->getMessage());
-        throw new ValidationException('Generated XML does not conform to SEPA standard',
-            ['error' => $e->getMessage()]);
-    }
-    throw $e;
-}
-```
-
-### Validation Checklist
-
-Before generating XML:
-
-```php
-<?php
-function validateForSEPAExport($settlement) {
-    $errors = [];
-
-    // SEPA Config
-    $config = getSEPAConfig();
-    if (!$config['creditor_id']) $errors[] = 'Creditor ID missing';
-    if (!$config['creditor_iban']) $errors[] = 'Creditor IBAN missing';
-
-    // Settlement data
-    if (!$settlement['sepa_execution_date']) $errors[] = 'Execution date not set';
-    if (strtotime($settlement['sepa_execution_date']) <= time()) $errors[] = 'Execution date must be in future';
-
-    // Member data (per member)
-    $members = getSettlementMembers($settlement['id']);
-    foreach ($members as $member) {
-        if (!$member['iban']) $errors[] = 'Member ' . $member['id'] . ' missing IBAN';
-        if (!isValidIBAN($member['iban'])) $errors[] = 'Member ' . $member['id'] . ' invalid IBAN';
-        if (!$member['mandate_reference']) $errors[] = 'Member ' . $member['id'] . ' missing mandate reference';
-    }
-
-    if (!empty($errors)) {
-        throw new ValidationException('Cannot generate SEPA XML', $errors);
-    }
-
-    return true;
-}
-```
+**Character Encoding**:
+- ✓ Member names contain only SEPA-allowed characters (Latin-1)
+- ✓ Sanitize umlauts/accents where necessary
 
 ---
 
@@ -524,62 +388,6 @@ Build SEPA XML manually using PHP's SimpleXML or DOMDocument.
 
 ---
 
-## Implementation Checklist
-
-### Backend
-
-- [ ] Install digitick/sepa-xml via Composer: `composer require digitick/sepa-xml`
-- [ ] Implement ID generation helper functions (generateMessageId, generatePaymentInfId, generateEndToEndId)
-  - Message ID = Settlement ID
-  - Payment Info ID = Settlement ID
-  - End-to-End ID = Settlement ID + padded transaction sequence
-- [ ] Implement SEPAXmlExporter class using digitick/sepa-xml library
-- [ ] Pass transaction index to generateEndToEndId for each transaction
-- [ ] Hard-code sequence type to RCUR (always)
-- [ ] Implement pre-export validation (config, members, IBANs, mandate_reference) - before calling digitick
-- [ ] Handle SEPA character encoding (Latin-1 + sanitization for names)
-- [ ] Add error reporting with actionable messages (catch digitick exceptions)
-- [ ] Add API endpoint: `GET /api/settlements/{id}/export-xml`
-- [ ] Audit logging for XML generation (log which members included, amounts)
-- [ ] Verify digitick library is handling XSD validation (automatic)
-
-### Admin UI
-
-- [ ] Add "Export XML" button alongside CSV export
-- [ ] Show pre-export validation errors with fixes
-- [ ] Allow viewing generated XML (for technical admins)
-- [ ] Success message with file info (count, amount, execution date)
-
-### Settlement Workflow
-
-- [ ] Track sepa_message_id per settlement (already in schema)
-- [ ] Track sepa_execution_date per settlement (already in schema)
-- [ ] After export, log transaction in audit_trail
-
-### Testing
-
-- [ ] Valid XML generated (well-formed)
-- [ ] XML validates against pain.008.001.02.xsd
-- [ ] Message ID = Settlement ID (e.g., `SET-2025-001`)
-- [ ] Payment Info ID = Settlement ID (e.g., `SET-2025-001`)
-- [ ] End-to-End IDs follow pattern: Settlement ID + sequence (e.g., `SET-2025-001-0001`, `SET-2025-001-0002`)
-- [ ] End-to-End IDs are unique and sequential within file
-- [ ] Sequence type always RCUR in generated XML
-- [ ] Control sums correct (NbOfTxs, CtrlSum)
-- [ ] SEPA character encoding (no umlauts/accents in names)
-- [ ] All transactions use RCUR (no FRST logic)
-- [ ] Missing data (IBAN, mandate_reference) caught by validation
-- [ ] Bank upload (test with actual bank, if possible)
-
-### Documentation
-
-- [ ] Update CLAUDE.md: Add SEPA XML export info
-- [ ] Admin guide: SEPA XML export workflow
-- [ ] Technical docs: XML generation, validation, XSD schema
-- [ ] Troubleshooting: Common validation errors
-
----
-
 ## Related Decisions
 
 - [ADR-0004: Immutable Transaction Storage](./0004-immutable-transaction-storage.md) - Settlement workflow
@@ -602,19 +410,6 @@ Build SEPA XML manually using PHP's SimpleXML or DOMDocument.
 - **Implementation Guides**:
   - [German Banking Association Guide](https://www.die-deutsche-boerse.de/) - Bank-specific requirements
   - [SEPA Direct Debit Implementation](https://www.ecb.europa.eu/paym/retpaym/governance/shared/pdf/recommendations_sepa_direct_debit.pdf)
-
----
-
-## Approval
-
-- **Decided by**: Architecture Team
-- **Rationale**: pain.008.001.02 is industry standard; XSD validation ensures compliance; extensible for future enhancements
-- **Implementation start**: Phase 2 (SEPA settlement)
-- **Review date**: 2025-04-23 (after first bank upload)
-- **Sign-off**:
-  - Backend Lead: _________________ Date: _______
-  - Payment Processing Lead: _________________ Date: _______
-  - QA Lead: _________________ Date: _______
 
 ---
 
