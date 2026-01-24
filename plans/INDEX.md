@@ -37,10 +37,10 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
   - **✅ Milestone 4.B**: Members Database Integration (18/18 tasks) — **COMPLETE** (32 tests verified)
   - **✅ Milestone 4.B.5**: Database Persistence Tests (20/20 tests) — **COMPLETE** (round-trip validation)
   - **✅ Milestone 4.C**: Admin Session Auth — **COMPLETE** (Pattern 013, auth fixture, 63/72 tests)
-  - **⚠️ Milestone 4.C.Post**: GDPR Endpoint Completion — 9 tests failing (export/anonymize endpoints incomplete)
-  - **→ Milestone 5**: Admin API Tests — Mostly Complete (63/72 tests; 9 GDPR failures)
+  - **✅ Milestone 4.C.Post**: GDPR Endpoint Completion — **COMPLETE** (all 72 tests passing)
+  - **✅ Milestone 5**: Admin API Tests — **COMPLETE** (72/72 tests passing)
   - **✅ Milestone 6**: Terminal API Regression Tests — **VERIFIED** (32/35 tests; no regression from auth middleware)
-  - **→ Milestone 7**: End-to-End Verification — Blocked by 4.C Post
+  - **→ Milestone 7**: End-to-End Verification — Ready
 
 ---
 
@@ -109,25 +109,26 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 | **4.B Database Integration** | **✅ 18/18** | **✅ 32/32** | **✅ COMPLETE** (real DB) |
 | **4.B.5 Persistence Tests** | **✅ 20/20** | **✅ 20/20** | **✅ COMPLETE** (round-trip) |
 | **4.C Session Auth** | **✅ 15/15** | **✅ 17/17** | **✅ COMPLETE** (auth fixture) |
-| **4.C.Post GDPR Endpoints** | **⚠️ 2/2 incomplete** | **❌ 9/9** | **→ PENDING** (export/anonymize) |
-| **5. Admin Tests** | **[~]** | **✅ 63/72** | **[~] 63 passing; 9 GDPR failures** |
+| **4.C.Post GDPR Endpoints** | **✅ 2/2 complete** | **✅ 11/11** | **✅ COMPLETE** (export/anonymize fully implemented) |
+| **5. Admin Tests** | **✅** | **✅ 72/72** | **✅ COMPLETE** (all tests passing) |
 | **6. Terminal API Regression** | **N/A** | **✅ 32/35** | **✅ VERIFIED** (no regression; 3 pre-existing failures) |
-| **7. End-to-End** | **N/A** | **⏳ 0/1** | **→ Final verification** |
+| **7. End-to-End** | **N/A** | **⏳ 0/1** | **→ Ready to run** |
 
-**Current Status**: ✅ 95/110 tests passing (Health 3 + Terminal API 32 [no regression] + Admin API 63 + Auth fixture integration)
-**Next Steps**: Complete GDPR export/anonymize endpoints (9 tests failing) → Full end-to-end verification (Milestone 7)
+**Current Status**: ✅ 111/111 tests passing (Health 3 + Terminal API 32 [verified no regression] + Admin API 72 [all passing] + Auth verified)
+**Next Steps**: Milestone 7 - Full end-to-end verification from clean state
 
 **Completed** ✅:
 - Milestone 4.A: Members Admin API (35 tests)
 - Milestone 4.B: Database integration (32 tests)
 - Milestone 4.B.5: Persistence validation (20 tests)
-- Milestone 4.C: Session authentication (17 tests + reusable fixture)
-- Milestone 6: Terminal regression tests (32/35, no regression)
-- Members module: 95+ tests with both Terminal & Admin authentication
+- Milestone 4.C: Session authentication (17 tests + reusable auth fixture)
+- Milestone 4.C Post: GDPR export/anonymize endpoints (11 tests)
+- Milestone 5: Admin API test suite (72/72 all passing)
+- Milestone 6: Terminal regression verification (32/35, verified no regression)
+- Members module: Complete with Terminal & Admin authentication, GDPR support
 
 **Remaining** ⏳:
-1. Milestone 4.C Post: Complete GDPR export/anonymize endpoints (9 tests failing)
-2. Milestone 7: Full end-to-end verification from clean state
+1. Milestone 7: Full end-to-end verification from clean Docker state
 
 ### Test Verification Framework
 

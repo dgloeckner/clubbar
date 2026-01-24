@@ -98,9 +98,12 @@ export const test = base.extend<AuthFixtures>({
 
     // Extract session cookie from Set-Cookie header
     const setCookieHeader = loginResponse.headers()["set-cookie"];
-    const cookieString = Array.isArray(setCookieHeader)
+    let fullCookieString = Array.isArray(setCookieHeader)
       ? setCookieHeader[0]
       : setCookieHeader || "";
+
+    // Extract just the name=value part (remove expires, path, httponly, etc.)
+    const cookieString = fullCookieString.split(";")[0];
 
     // Create authenticated request wrapper
     const authenticatedRequest = new AuthenticatedRequestContext(

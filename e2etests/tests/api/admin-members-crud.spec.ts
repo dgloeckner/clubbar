@@ -188,7 +188,18 @@ test.describe('Admin Members CRUD Endpoints', () => {
 
   // DELETE - Delete Member
   test('DELETE /api/admin/members/{id} deletes member', async ({ authenticatedRequest }) => {
-    const deleteResponse = await authenticatedRequest.delete(`/api/admin/members/${MOCK_MEMBER_ID_2}`);
+    // Create a new member to delete (don't delete the seeded test members)
+    const createResponse = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'ToDelete',
+        last_name: 'Member',
+        email: 'todelete@example.com',
+        preferred_language: 'en',
+      },
+    });
+    const memberId = (await createResponse.json()).id;
+
+    const deleteResponse = await authenticatedRequest.delete(`/api/admin/members/${memberId}`);
 
     expect(deleteResponse.ok()).toBeTruthy();
     expect(deleteResponse.status()).toBe(200);
@@ -208,24 +219,25 @@ test.describe('Admin Members CRUD Endpoints', () => {
 
   test('All CRUD endpoints return JSON content type', async ({ authenticatedRequest }) => {
     const data = {
-      first_name: 'Test',
+      first_name: 'JsonTest',
       last_name: 'Member',
-      email: 'test@example.com',
+      email: 'jsontest@example.com',
       preferred_language: 'en',
     };
 
     const createResponse = await authenticatedRequest.post('/api/admin/members', { data });
     expect(createResponse.headers()['content-type']).toContain('application/json');
+    const createdId = (await createResponse.json()).id;
 
-    const getResponse = await authenticatedRequest.get(`/api/admin/members/${MOCK_MEMBER_ID_1}`);
+    const getResponse = await authenticatedRequest.get(`/api/admin/members/${createdId}`);
     expect(getResponse.headers()['content-type']).toContain('application/json');
 
-    const patchResponse = await authenticatedRequest.patch(`/api/admin/members/${MOCK_MEMBER_ID_1}`, {
+    const patchResponse = await authenticatedRequest.patch(`/api/admin/members/${createdId}`, {
       data: { phone: '+41791111111' },
     });
     expect(patchResponse.headers()['content-type']).toContain('application/json');
 
-    const deleteResponse = await authenticatedRequest.delete(`/api/admin/members/${MOCK_MEMBER_ID_1}`);
+    const deleteResponse = await authenticatedRequest.delete(`/api/admin/members/${createdId}`);
     expect(deleteResponse.headers()['content-type']).toContain('application/json');
   });
 });
