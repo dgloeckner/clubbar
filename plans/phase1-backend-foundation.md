@@ -19,9 +19,9 @@
 | **3. ADR-0018 Restructuring** | **[x]** | **✅** | Modular directory structure complete |
 | **4.A Members Admin API** | **[x]** | **35/35** | API structure + tests COMPLETE |
 | **4.B Members Database** | **[x]** | **32/32** | Real database integration COMPLETE |
-| **4.B.5 Persistence Tests** | [ ] | 0/21 | Round-trip validation PENDING |
+| **4.B.5 Persistence Tests** | **[x]** | **20/20** | Round-trip validation COMPLETE |
 | **4.C Admin Auth** | [ ] | TBD | Session authentication PENDING |
-| **5. Playwright Tests (Admin)** | [~] | 32/32 | Real DB tests; need auth + persistence |
+| **5. Playwright Tests (Admin)** | [~] | 52/52 | Real DB + persistence tests; need auth |
 | **6. Terminal API Regression** | [ ] | 0/6 | Verify no breakage |
 | **7. End-to-End Verification** | [ ] | 0/1 | Full stack test |
 
