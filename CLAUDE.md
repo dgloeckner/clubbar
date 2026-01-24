@@ -88,6 +88,67 @@ Reference backend code patterns in `backend/patterns/` directory:
 - **Validate against use cases** before marking work complete
 - **Follow backend patterns** — reference `backend/patterns/` directory for consistent implementation
 
+### Debugging & Testing Best Practices
+
+**When tests fail or requests behave unexpectedly, follow this checklist:**
+
+1. **Check Laravel Application Logs**
+   ```bash
+   docker compose exec backend tail -100 /app/storage/logs/laravel.log
+   ```
+   - Look for `ERROR` and `Exception` entries
+   - Stack traces show exact line numbers where failures occur
+   - Type errors (e.g., Carbon vs DateTimeImmutable) appear here first
+   - Source of truth for debugging application-level issues
+
+2. **Check HTTP Access Logs & Status Codes**
+   ```bash
+   docker compose logs backend | tail -50 | grep "HTTP/1.1"
+   ```
+   - Verify actual HTTP response codes (200, 302, 400, 404, 422, 500, etc.)
+   - Common issues:
+     - `302 Found` → Redirect (often CSRF middleware or route not matching)
+     - `404` → Route not found or path parameter mismatched
+     - `500` → Application error (check Laravel logs)
+     - `422` → Validation error (check request body format)
+   - Compare expected vs actual status codes from logs
+
+3. **Direct Endpoint Testing**
+   ```bash
+   # Test GET endpoint
+   curl -s 'http://localhost:8080/api/endpoint' | jq .
+
+   # Test POST with JSON
+   echo '{"key":"value"}' > /tmp/data.json
+   curl -X POST http://localhost:8080/api/endpoint -H 'Content-Type: application/json' -d @/tmp/data.json
+
+   # Test with verbose headers
+   curl -v -X PATCH http://localhost:8080/api/endpoint -H 'Content-Type: application/json' -d '{}'
+   ```
+   - Verify endpoint responds with correct format (JSON vs HTML error pages)
+   - Check response headers and status code
+   - Test before running full test suite to isolate issues
+
+4. **Docker Container Health**
+   ```bash
+   docker compose ps  # Verify containers are running
+   docker compose logs backend | tail -20  # Check for startup errors
+   docker compose exec backend curl -s http://localhost/api/health | jq .  # Health check
+   ```
+
+5. **Restart Services After Code Changes**
+   ```bash
+   docker compose exec backend supervisorctl restart php-fpm:php-fpmd
+   sleep 2  # Wait for restart to complete
+   ```
+   - PHP code changes require process restart
+   - Always restart after editing service/controller code
+
+6. **Test Execution Order Matters**
+   - Run tests serially (`--workers=1`) when debugging
+   - Parallel tests can exhaust resources and cause false timeouts
+   - Single-worker execution shows actual errors vs resource contention
+
 ### Implementation Plans
 - **Plans are stored in `plans/`** — each plan is a markdown file with clear milestones
 - **Actionable items with testable results** — every task must have a verifiable outcome
