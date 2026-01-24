@@ -18,9 +18,10 @@
 | **2.5. Security Audit (ADR-0015)** | [ ] | 0/18 | Verify security patterns compliance |
 | **3. ADR-0018 Restructuring** | **[x]** | **✅** | Modular directory structure complete |
 | **4.A Members Admin API** | **[x]** | **35/35** | API structure + tests COMPLETE |
-| **4.B Members Database** | [ ] | TBD | Database integration PENDING |
+| **4.B Members Database** | **[x]** | **32/32** | Real database integration COMPLETE |
+| **4.B.5 Persistence Tests** | [ ] | 0/21 | Round-trip validation PENDING |
 | **4.C Admin Auth** | [ ] | TBD | Session authentication PENDING |
-| **5. Playwright Tests (Admin)** | [~] | 35/35 | Tests exist; need auth updates |
+| **5. Playwright Tests (Admin)** | [~] | 32/32 | Real DB tests; need auth + persistence |
 | **6. Terminal API Regression** | [ ] | 0/6 | Verify no breakage |
 | **7. End-to-End Verification** | [ ] | 0/1 | Full stack test |
 
@@ -544,7 +545,124 @@ _None_
 
 ### Failures - Phase 4.B
 
-_Pending implementation_
+_None_
+
+---
+
+## Milestone 4.B.5: Database Persistence Tests (Completion)
+
+**Objective**: Add round-trip persistence tests to validate complete database lifecycle operations.
+
+**Rationale**: Current CRUD tests validate API responses and pre-seeded data retrieval, but don't verify that created/updated data actually persists to the database. Round-trip tests close this gap by creating → retrieving → updating → verifying the complete workflow.
+
+**Current Gap**: Tests use hardcoded member IDs (MOCK_MEMBER_ID_1, MOCK_MEMBER_ID_2) from seeder. They verify the API response but don't confirm the data survives a database round-trip.
+
+### Tasks - Persistence Validation
+
+#### 4.B.5.1: Create → Retrieve Round-Trip Tests
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.5.1.1 | Create new member via POST | Create with valid data, capture returned ID | [ ] |
+| 4.B.5.1.2 | Retrieve created member via GET | Fetch the newly created member using its ID | [ ] |
+| 4.B.5.1.3 | Verify all fields persisted | Assert all create request fields match retrieved data | [ ] |
+| 4.B.5.1.4 | Test with various field combinations | Create members with optional fields (phone, card_uid) in different combinations | [ ] |
+
+#### 4.B.5.2: Update → Retrieve Round-Trip Tests
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.5.2.1 | Update member via PATCH | Modify email, phone, preferred_language fields | [ ] |
+| 4.B.5.2.2 | Retrieve updated member via GET | Fetch member to verify update persisted | [ ] |
+| 4.B.5.2.3 | Verify unchanged fields preserved | Confirm non-updated fields remain unchanged | [ ] |
+| 4.B.5.2.4 | Test partial updates | Update single field, verify others untouched | [ ] |
+
+#### 4.B.5.3: Delete → Verify Gone Tests
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.5.3.1 | Delete member via DELETE | Delete a created member | [ ] |
+| 4.B.5.3.2 | Verify 404 on subsequent GET | Attempt to retrieve deleted member, expect 404 | [ ] |
+| 4.B.5.3.3 | Verify not in list | Fetch member list, deleted member should be absent | [ ] |
+
+#### 4.B.5.4: Filter & Pagination Persistence Tests
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.5.4.1 | Create multiple members with different languages | Create 5+ members with mixed language preferences | [ ] |
+| 4.B.5.4.2 | Verify language filter includes created members | Filter by created language, verify creation shows up | [ ] |
+| 4.B.5.4.3 | Verify active status filter works | Create inactive member, verify filter excludes it | [ ] |
+| 4.B.5.4.4 | Verify pagination counts match | Create known quantity, verify list pagination counts | [ ] |
+
+#### 4.B.5.5: GDPR Operation Persistence Tests
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.5.5.1 | Anonymize member and verify persistence | Anonymize → GET → verify PII cleared in database | [ ] |
+| 4.B.5.5.2 | Export member and verify data completeness | Export → verify response contains persisted data | [ ] |
+| 4.B.5.5.3 | Verify anonymized member not in list | Anonymized member should be excluded from active list | [ ] |
+
+#### 4.B.5.6: Concurrent Operations Tests
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.5.6.1 | Create multiple members in sequence | Verify all created members retrievable | [ ] |
+| 4.B.5.6.2 | Verify IDs are unique | All created members have different UUIDs | [ ] |
+| 4.B.5.6.3 | Update and create concurrently | Verify updates don't affect newly created members | [ ] |
+
+### Success Criteria - Phase 4.B.5
+
+- [ ] Create → Retrieve round-trip validates data persistence (4+ tests)
+- [ ] Update → Retrieve round-trip validates changes persist (4+ tests)
+- [ ] Delete → Verify Gone validates hard-delete (3+ tests)
+- [ ] Filter/Pagination persistence validated with created data (4+ tests)
+- [ ] GDPR operations validated with persisted data (3+ tests)
+- [ ] Concurrent operations validated (3+ tests)
+- [ ] All persistence tests pass (minimum 21 new tests)
+- [ ] Combined test count for Members module: 32 (current) + 21 (persistence) = 53 tests total
+
+### Test Coverage Areas
+
+**Example persistence test structure**:
+```typescript
+test('Create member round-trip persists to database', async ({ request }) => {
+  // 1. CREATE - Send POST request
+  const createRes = await request.post('/api/admin/members', {
+    data: { first_name: 'John', last_name: 'Doe', email: 'john@example.com', preferred_language: 'en' }
+  });
+  expect(createRes.status()).toBe(201);
+  const memberId = await createRes.json().id;
+
+  // 2. VERIFY CREATE - Retrieve via GET
+  const getRes = await request.get(`/api/admin/members/${memberId}`);
+  expect(getRes.status()).toBe(200);
+  const body = await getRes.json();
+
+  // 3. VALIDATE PERSISTENCE - Assert all fields match
+  expect(body.first_name).toBe('John');
+  expect(body.last_name).toBe('Doe');
+  expect(body.email).toBe('john@example.com');
+  expect(body.preferred_language).toBe('en');
+  expect(body.is_active).toBe(true);
+
+  // 4. UPDATE - PATCH the member
+  const updateRes = await request.patch(`/api/admin/members/${memberId}`, {
+    data: { preferred_language: 'fr', phone: '+41791234567' }
+  });
+  expect(updateRes.status()).toBe(200);
+
+  // 5. VERIFY UPDATE - Retrieve and confirm changes persisted
+  const verifyRes = await request.get(`/api/admin/members/${memberId}`);
+  const updated = await verifyRes.json();
+  expect(updated.preferred_language).toBe('fr');
+  expect(updated.phone).toBe('+41791234567');
+  expect(updated.first_name).toBe('John'); // Unchanged
+});
+```
+
+### Failures - Phase 4.B.5
+
+_Not yet started_
 
 ---
 

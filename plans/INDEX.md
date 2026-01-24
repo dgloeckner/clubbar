@@ -34,6 +34,7 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
   - **✅ Milestone 3**: ADR-0018 Restructuring (6/6 tasks) — **COMPLETE**
   - **✅ Milestone 4.A**: Members Admin API (7/7 endpoints) — **STRUCTURE COMPLETE** (35 tests)
   - **✅ Milestone 4.B**: Members Database Integration (18/18 tasks) — **COMPLETE** (32 tests verified)
+  - **→ Milestone 4.B.5**: Database Persistence Tests (0/21 tasks) — **PENDING** (round-trip validation)
   - **→ Milestone 4.C**: Admin Session Auth (0/31 tasks) — **PENDING** (Pattern 013)
   - **→ Milestone 5**: Admin API Tests — Dependent on 4.C completion
   - **→ Milestone 6**: Terminal API Regression Tests — Dependent on 4.C completion
@@ -83,7 +84,7 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 | Plan | Status | Progress | Tests | Link |
 |------|--------|----------|-------|------|
-| Phase 1: Backend Foundation | In Progress | 17/21 (81%) | **75/78 Tests** (32 API real DB + 40 Terminal + 3 Health) | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
+| Phase 1: Backend Foundation | In Progress | 17/22 (77%) | **75/99 Tests** (32 API real DB + 21 persistence pending + 40 Terminal + 3 Health) | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
 | Phase 2: Admin Panel | Not Started | - | - | TBD |
 | Phase 3: Terminal App | Not Started | - | - | TBD |
 | Phase 4: Advanced Features | Not Started | - | - | TBD |
@@ -104,6 +105,7 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 | **3. ADR-0018 Restructuring** | **✅ 6/6** | **✅ 40/40** | **✅ COMPLETE** |
 | **4.A Admin API Structure** | **✅ 7/7** | **✅ 35/35** | **✅ STRUCTURE COMPLETE** |
 | **4.B Database Integration** | **✅ 18/18** | **✅ 32/32** | **✅ COMPLETE** (real DB) |
+| **4.B.5 Persistence Tests** | **⏳ 0/21** | **❌ 0/21** | **→ PENDING** (round-trip) |
 | **4.C Session Auth** | **⏳ 0/31** | **❌ 0/10** | **→ PENDING** |
 | **5. Admin Tests** | **[~]** | **✅ 32/32** | **[~] Running with real DB; Need Auth** |
 | **6. Terminal API Regression** | **N/A** | **✅ 40/40** | **✅ Verified (no regression)** |
@@ -112,11 +114,12 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 **Current Status**: ✅ 75/78 tests passing (Health 3 + Terminal API 40 + Admin API 32 with real database)
 **Next Steps**: Implement Pattern 013 (Admin Session Authentication) for Milestone 4.C
 
-**Next Step**: Complete Milestone 4.C (Admin Session Authentication):
-1. **Milestone 4.C** (Admin Authentication) — Implement Pattern 013 (session-based auth), secure /api/admin/* routes
-2. **Milestone 5** (Update Tests) — Add session auth to admin tests after 4.C is complete
-3. **Milestone 6** (Terminal API Regression) — Re-verify terminal tests don't regress after auth middleware
-4. **Milestone 7** (End-to-End) — Final full-stack verification with all tests together
+**Next Steps**: Complete Members Module fully:
+1. **Milestone 4.B.5** (Database Persistence Tests) — Add 21+ round-trip tests validating create→retrieve→update→delete cycles
+2. **Milestone 4.C** (Admin Authentication) — Implement Pattern 013 (session-based auth), secure /api/admin/* routes
+3. **Milestone 5** (Update Tests) — Add session auth to admin tests after 4.C is complete
+4. **Milestone 6** (Terminal API Regression) — Re-verify terminal tests don't regress after auth middleware
+5. **Milestone 7** (End-to-End) — Final full-stack verification with all tests together
 
 **Completed** ✅:
 - Admin endpoints return real data from database (not mocks)
