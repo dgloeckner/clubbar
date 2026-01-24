@@ -17,14 +17,14 @@ _None yet_
 - **Goal**: Secure, modular backend with pattern-compliant endpoints and verified API tests
 - **Status**: In Progress
 - **Progress**:
-  - Infrastructure & Terminal API: ✅ Complete (35 tests passing)
-  - Security Audit (ADR-0015): → Starting (18 checks)
-  - Modular Restructuring & Admin API: → To Follow
+  - Infrastructure & Terminal API: ✅ Complete (40 tests passing)
+  - Security Audit (ADR-0015): 🟢 Pattern 012 Implemented (1/18 checks)
+  - Modular Restructuring & Admin API: → Ready to start after audit or proceed directly
 - **Key Milestones**:
   - **✅ Milestone 1**: Docker Infrastructure (3/3)
   - **✅ Milestone 1.5**: Health Controller Refactoring (3/3 tests)
   - **✅ Milestone 2**: Sync Controller Refactoring (32/32 tests)
-  - **→ Milestone 2.5**: Security Audit & Compliance (0/18 checks) — **NEW** — Verify patterns 012-015 + ADRs 0016-0017
+  - **🟢 Milestone 2.5**: Security Audit & Compliance (1/18 checks) — **PATTERN 012 COMPLETE**
   - **→ Milestone 3**: ADR-0018 Restructuring (0/6 tasks) — Modular directory structure, BaseService/BaseRepository
   - **→ Milestone 4**: Members Admin Module (0/23 tasks) — First full module implementation
   - **→ Milestone 5**: Admin API Tests (0/23 tests) — Members module test coverage

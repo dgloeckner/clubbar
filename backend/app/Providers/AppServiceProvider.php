@@ -17,6 +17,10 @@ class AppServiceProvider extends ServiceProvider
         // Register services as singletons
         // Pattern 008: Service Provider Bindings
 
+        // =====================================================================
+        // SHARED SERVICES & REPOSITORIES
+        // =====================================================================
+
         // Health check service
         $this->app->singleton(
             \App\Services\HealthCheckService::class,
@@ -38,6 +42,28 @@ class AppServiceProvider extends ServiceProvider
             \App\Services\TransactionService::class,
             function ($app) {
                 return new \App\Services\TransactionService();
+            }
+        );
+
+        // =====================================================================
+        // MEMBERS MODULE (Pattern 009: Module Structure)
+        // =====================================================================
+
+        // Members Repository - Data access abstraction (Pattern 011)
+        $this->app->singleton(
+            \App\Http\Modules\Members\Repositories\MembersRepository::class,
+            function ($app) {
+                return new \App\Http\Modules\Members\Repositories\MembersRepository();
+            }
+        );
+
+        // Members Service - Business logic layer (Pattern 010)
+        $this->app->singleton(
+            \App\Http\Modules\Members\Services\MembersService::class,
+            function ($app) {
+                return new \App\Http\Modules\Members\Services\MembersService(
+                    $app->make(\App\Http\Modules\Members\Repositories\MembersRepository::class)
+                );
             }
         );
     }
