@@ -73,6 +73,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **One feature at a time** — complete and test before moving to the next
 - **Validate against use cases** before marking work complete
 
+### Implementation Plans
+- **Plans are stored in `plans/`** — each plan is a markdown file with clear milestones
+- **Actionable items with testable results** — every task must have a verifiable outcome
+- **Progress evaluated by tests** — success is determined by passing tests, not subjective assessment
+- **Clear success/failure tracking**:
+  - `[ ]` — Not started
+  - `[~]` — In progress
+  - `[x]` — Passed (test verified)
+  - `[!]` — Failed (documented with reason)
+- **Document remaining failures** — failed items include error details and next steps
+- **Git commits for completed items** — when a task is marked `[x]` (passed):
+  - Create a git commit referencing the plan name, task number, and **specific achievement**
+  - Commit message format: `[Plan Name] [Milestone/Task]: Clear description of what passed`
+  - **Examples**:
+    - `Phase 1 Milestone 1.1: Composer dependencies installed and vendor/autoload.php verified`
+    - `Phase 1 Milestone 2.2: GET /api/sync/members returns valid member array with correct schema`
+    - `Phase 1 Milestone 3.1: health.spec.ts test suite passes (5/5 checks)`
+  - **What to include**: The specific check result, test output, or verification that confirms success
+  - **Purpose**: Commit history becomes a detailed record of what was achieved; useful for debugging or resuming mid-milestone
+- **INDEX.md for plan tracking** — `plans/INDEX.md` must be maintained with:
+  - **Completed plans** — list of finished plans with link and completion date
+  - **Current plan** — the plan currently in progress (link and status summary)
+  - **Future plans** — roadmap of planned work (brief descriptions)
+  - **Purpose**: When Claude is asked to continue work, INDEX.md provides quick context on project status and which plan to resume
+
 ---
 
 ### Directory Purposes
@@ -85,6 +110,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `backend/` | Backend technology decisions and architecture |
 | `docker/` | Docker Compose configuration for local development |
 | `docs/` | Entity-Relationship Models and data documentation |
+| `e2etests/` | Playwright API and E2E tests |
+| `plans/` | Implementation plans with testable milestones |
 | `prototypes/` | Interactive UI prototypes (React JSX + standalone HTML) |
 | `terminal/` | Terminal App technology decisions and architecture |
 | `use-cases/` | Functional requirements organized by domain |
@@ -175,6 +202,49 @@ See the **Repository Index** section at the top of this file for the complete di
 4. **Test before submitting**: Run test suites; add new tests for features
 5. **Commit message format**: Clear, descriptive, referencing issue if applicable
 6. **Create a pull request**: Link to issues, describe what changed and why
+
+### Development Environment
+
+- **Build tools installed locally**: For testing and development, all build tools (Composer, npm, Node.js) are installed on the local machine
+- **Mount build results into containers**: Build artifacts are mounted into Docker containers rather than building inside containers
+- **Faster dev cycle**: This approach enables faster iteration since you don't need to rebuild containers for code changes
+- **No docker compose build needed**: Backend uses standard PHP image with mounted code; no custom image build required
+
+#### Initial Setup
+
+```bash
+# 1. Install backend dependencies (host machine)
+cd backend && composer install && cd ..
+
+# 2. Start containers (no build needed - uses standard PHP image with mounted code)
+docker compose up -d
+
+# 3. Verify backend health
+curl http://localhost:8080/api/health
+```
+
+#### Updating After Changes
+
+```bash
+# After PHP dependency changes (composer.json/composer.lock)
+cd backend && composer install && cd ..
+
+# After docker-compose.yml changes
+docker compose down && docker compose up -d
+
+# NO docker compose build needed for backend - code is mounted!
+```
+
+#### Running Tests
+
+```bash
+# Run E2E tests (after setup is complete)
+cd e2etests
+npm install
+npx playwright test
+```
+
+> **Note**: Frontend setup (Admin Panel + Terminal) will be added here once implemented.
 
 ### Code Standards
 

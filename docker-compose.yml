@@ -26,24 +26,49 @@ services:
       retries: 5
 
   # =============================================================================
-  # Backend - PHP 8.3 + Laravel
+  # Backend - PHP 8.3 + Apache (serversideup/php image, code mounted)
+  # Setup: cd backend && composer install && cd ..
+  # Start:  UID=$(id -u) GID=$(id -g) docker compose up -d
+  # Docs:   backend/DOCKER_SETUP.md, backend/FILE_PERMISSIONS.md
   # =============================================================================
   backend:
     build:
       context: .
-      dockerfile: docker/backend.Dockerfile
+      dockerfile: backend/Dockerfile.dev
+      args:
+        USER_ID: ${UID:-1000}
+        GROUP_ID: ${GID:-1000}
+      target: development
     container_name: ruderbar-backend
     restart: unless-stopped
     environment:
+      # Apache Configuration
+      APACHE_DOCUMENT_ROOT: /var/www/html/public
+      SSL_MODE: "off"
+
+      # PHP Configuration
+      PHP_MEMORY_LIMIT: "256M"
+      PHP_MAX_EXECUTION_TIME: "99"
+      PHP_UPLOAD_MAX_FILE_SIZE: "100M"
+      PHP_POST_MAX_SIZE: "100M"
+      PHP_OPCACHE_ENABLE: "0"  # Disabled for development
+
+      # Laravel Configuration
       APP_ENV: local
       APP_DEBUG: true
-      APP_KEY: base64:your-app-key-here-generate-with-artisan
+      APP_KEY: base64:6i7N5vhbwJd1aAuAMK2e5UhDwaaBIJ04lkodIjrQmZ0=
+      APP_URL: http://localhost:8080
+
+      # Database Configuration
       DB_CONNECTION: mysql
       DB_HOST: database
       DB_PORT: 3306
       DB_DATABASE: ruderbar
       DB_USERNAME: ruderbar
       DB_PASSWORD: ruderbar
+
+      # Laravel Automations (disabled for Phase 1)
+      AUTORUN_ENABLED: "false"
     ports:
       - "8080:80"
     volumes:
@@ -86,6 +111,27 @@ services:
     depends_on:
       - backend
 
+  # =============================================================================
+  # E2E Tests - Playwright
+  # =============================================================================
+  e2etests:
+    image: mcr.microsoft.com/playwright:v1.49.0-noble
+    container_name: ruderbar-e2etests
+    working_dir: /app
+    profiles:
+      - test
+    environment:
+      API_URL: http://backend
+      ADMIN_URL: http://admin-frontend
+      TERMINAL_URL: http://terminal-frontend:5174
+    volumes:
+      - ./e2etests:/app
+      - e2etests_node_modules:/app/node_modules
+    depends_on:
+      - backend
+    command: sh -c "npm install && npx playwright test --project=api-tests"
+
 volumes:
   db_data:
   terminal_node_modules:
+  e2etests_node_modules:
