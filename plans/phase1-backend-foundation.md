@@ -10,7 +10,7 @@
 
 | Milestone | Status | Tests Passed |
 |-----------|--------|--------------|
-| 1. Docker Infrastructure | [ ] | 0/3 |
+| 1. Docker Infrastructure | [x] | 3/3 |
 | 2. Mock Controllers | [ ] | 0/6 |
 | 3. Playwright Tests | [ ] | 0/7 |
 | 4. End-to-End Verification | [ ] | 0/1 |
@@ -27,9 +27,9 @@
 
 | # | Task | Test Command | Expected Result | Status |
 |---|------|--------------|-----------------|--------|
-| 1.1 | Install backend dependencies (host) | `cd backend && composer install && ls vendor/autoload.php` | File exists | [ ] |
-| 1.2 | Start Docker containers | `docker compose up -d && docker compose ps` | All containers show "running" | [ ] |
-| 1.3 | Backend health check | `curl -s http://localhost:8080/api/health \| jq .status` | Returns `"ok"` | [ ] |
+| 1.1 | Install backend dependencies (host) | `cd backend && composer install && ls vendor/autoload.php` | File exists | [x] |
+| 1.2 | Start Docker containers | `docker compose up -d && docker compose ps` | All containers show "running" | [x] |
+| 1.3 | Backend health check | `curl -s http://localhost:8080/api/health \| jq .status` | Returns `"ok"` | [x] |
 
 ### Failures
 
@@ -172,7 +172,7 @@ npx playwright test --reporter=list
 ## Completion Criteria
 
 Phase 1 is complete when:
-- [ ] All Milestone 1 tasks: [x]
+- [x] All Milestone 1 tasks: [x]
 - [ ] All Milestone 2 tasks: [x]
 - [ ] All Milestone 3 tasks: [x]
 - [ ] All Milestone 4 tasks: [x]

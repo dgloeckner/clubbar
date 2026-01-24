@@ -32,18 +32,14 @@ services:
   # Docs:   backend/DOCKER_SETUP.md, backend/FILE_PERMISSIONS.md
   # =============================================================================
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile.dev
-      args:
-        USER_ID: ${UID:-1000}
-        GROUP_ID: ${GID:-1000}
-      target: development
+    image: webdevops/php-apache:8.3
     container_name: ruderbar-backend
     restart: unless-stopped
     environment:
+      PUID: ${UID:-1000}
+      PGID: ${GID:-1000}
       # Apache Configuration
-      APACHE_DOCUMENT_ROOT: /var/www/html/public
+      WEB_DOCUMENT_ROOT: /app/public
       SSL_MODE: "off"
 
       # PHP Configuration
@@ -72,7 +68,8 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./backend:/var/www/html
+      - ./backend:/app
+      - ./docker/apache-laravel.conf:/opt/docker/etc/httpd/vhost.common.d/01-laravel.conf:ro
     depends_on:
       database:
         condition: service_healthy

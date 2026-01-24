@@ -15,13 +15,13 @@ _None yet_
 ### Phase 1: Backend Foundation
 - **Link**: [phase1-backend-foundation.md](./phase1-backend-foundation.md)
 - **Goal**: Working backend with OAS-driven endpoints, mock data, and verified Playwright API tests
-- **Status**: Not Started
-- **Progress**: 0/17 tasks completed
+- **Status**: In Progress
+- **Progress**: 3/17 tasks completed
 - **Key Milestones**:
-  - Milestone 1: Docker Infrastructure (3 tasks)
-  - Milestone 2: Mock Controllers per OAS (6 tasks)
-  - Milestone 3: Playwright Test Suite (7 tasks)
-  - Milestone 4: End-to-End Verification (1 task)
+  - Milestone 1: Docker Infrastructure (3/3 tasks) ✓
+  - Milestone 2: Mock Controllers per OAS (0/6 tasks)
+  - Milestone 3: Playwright Test Suite (0/7 tasks)
+  - Milestone 4: End-to-End Verification (0/1 tasks)
 
 ---
 
@@ -67,7 +67,7 @@ _None yet_
 
 | Plan | Status | Progress | Link |
 |------|--------|----------|------|
-| Phase 1: Backend Foundation | Not Started | 0/17 | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
+| Phase 1: Backend Foundation | In Progress | 3/17 | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
 | Phase 2: Admin Panel | Not Started | - | TBD |
 | Phase 3: Terminal App | Not Started | - | TBD |
 | Phase 4: Advanced Features | Not Started | - | TBD |
