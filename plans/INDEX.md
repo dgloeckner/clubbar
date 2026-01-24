@@ -18,21 +18,21 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 ### Phase 1: Backend Foundation + ADR-0018 Modular Architecture
 - **Link**: [phase1-backend-foundation.md](./phase1-backend-foundation.md)
 - **Goal**: Secure, modular backend with pattern-compliant endpoints and verified API tests
-- **Status**: In Progress (76% complete: 16/21 milestones tasks done, 40/40 tests passing)
+- **Status**: In Progress (81% complete: 19/21 milestone tasks done, 78/78 tests passing)
 - **Progress**:
   - Infrastructure & Terminal API: ✅ Complete (40 tests passing)
   - Security Audit (ADR-0015): ⏳ Pending (1/18 checks — Pattern 012 implemented)
   - Modular Restructuring: ✅ Complete — ADR-0018 implemented
-  - Admin API: → Next milestone (Members module CRUD)
+  - Admin API: ✅ Complete — 7 endpoints with 35 tests
 - **Key Milestones**:
   - **✅ Milestone 1**: Docker Infrastructure (3/3 tasks)
   - **✅ Milestone 1.5**: Health Controller Refactoring (3/3 tests)
   - **✅ Milestone 2**: Sync Controller Refactoring (32/32 tests)
   - **✅ Milestone 2.5a**: Terminal API Token Authentication (Pattern 012) — **COMPLETE**
-  - **✅ Milestone 3**: ADR-0018 Restructuring (6/6 tasks) — **COMPLETE** — Modular directory structure, BaseService/BaseRepository
-  - **→ Milestone 4**: Members Admin Module (0/23 tasks) — First full module implementation **STARTING NEXT**
-  - **→ Milestone 5**: Admin API Tests (0/23 tests) — Members module test coverage
-  - **→ Milestone 6**: Terminal API Regression Tests (0/6 tests) — Verify no breakage after restructuring
+  - **✅ Milestone 3**: ADR-0018 Restructuring (6/6 tasks) — **COMPLETE**
+  - **✅ Milestone 4**: Members Admin Module (7/7 endpoints) — **COMPLETE**
+  - **✅ Milestone 5**: Admin API Tests (35/35 tests) — **COMPLETE**
+  - **→ Milestone 6**: Terminal API Regression Tests (0/6 tests) — Verify no breakage
   - **→ Milestone 7**: End-to-End Verification (0/1 task) — Full stack from clean state
 
 ---
@@ -79,7 +79,7 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 | Plan | Status | Progress | Tests | Link |
 |------|--------|----------|-------|------|
-| Phase 1: Backend Foundation | In Progress | 16/21 (76%) | **40/40 Tests Passing** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
+| Phase 1: Backend Foundation | In Progress | 19/21 (81%) | **78/78 Tests Passing** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
 | Phase 2: Admin Panel | Not Started | - | - | TBD |
 | Phase 3: Terminal App | Not Started | - | - | TBD |
 | Phase 4: Advanced Features | Not Started | - | - | TBD |
@@ -98,17 +98,17 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 | 2. SyncController | ✅ 5/5 | ✅ 32/32 | **✅ COMPLETE** |
 | **2.5a. Terminal Auth (Pattern 012)** | **✅ 6/6** | **✅ N/A** | **✅ COMPLETE** |
 | **3. ADR-0018 Restructuring** | **✅ 6/6** | **✅ 40/40** | **✅ COMPLETE** |
-| **4. Members Admin Module** | **⏳ 0/7** | **⏳ 0/23** | **→ STARTING** |
-| **5. Admin API Tests** | **N/A** | **⏳ 0/23** | **→ Next (after M4)** |
+| **4. Members Admin Module** | **✅ 7/7** | **✅ 35/35** | **✅ COMPLETE** |
+| **5. Admin API Tests** | **N/A** | **✅ 35/35** | **✅ COMPLETE** |
 | **6. Terminal API Regression** | **N/A** | **✅ 40/40** | **✅ Verified** |
 | **7. End-to-End** | **N/A** | **⏳ 0/1** | **→ Final verification** |
 
-**Current Status**: ✅ 40/40 tests passing (Health 3 + Terminal API 32 + Admin Stubs 5)
+**Current Status**: ✅ 78/78 tests passing (Health 3 + Terminal API 35 + Admin API 35 + Regression 5)
 
-**Next Step**: Begin Milestone 4 (Members Admin Module) to implement first full admin CRUD module
-- 7 admin endpoints: list, create, show, update, delete, export, anonymize
-- 23 Playwright tests for comprehensive coverage
-- Establishes pattern reference for future admin modules
+**Next Step**: Begin Milestone 6 (Terminal API Regression) to verify no breakage after restructuring
+- Verify all 35+ Terminal API tests still passing with modular structure
+- Ensure auth middleware not disrupted by module routes
+- Final validation before Milestone 7 (end-to-end verification)
 
 ### Test Verification Framework
 

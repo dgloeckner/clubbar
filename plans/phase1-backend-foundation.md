@@ -17,8 +17,8 @@
 | **2. Sync Controller Refactoring** | **[x]** | **32/32** | All Terminal API endpoints |
 | **2.5. Security Audit (ADR-0015)** | [ ] | 0/18 | Verify security patterns compliance |
 | **3. ADR-0018 Restructuring** | **[x]** | **✅** | Modular directory structure complete |
-| **4. Members Admin Module** | [ ] | 0/23 | First full admin module |
-| **5. Playwright Tests (Admin)** | [ ] | 0/23 | Test admin endpoints |
+| **4. Members Admin Module** | **[x]** | **35/35** | First full admin module complete |
+| **5. Playwright Tests (Admin)** | **[x]** | **35/35** | Test admin endpoints complete |
 | **6. Terminal API Regression** | [ ] | 0/6 | Verify no breakage |
 | **7. End-to-End Verification** | [ ] | 0/1 | Full stack test |
 
@@ -332,7 +332,18 @@ _None yet_
 
 **Objective**: Implement complete Members admin module with CRUD operations, GDPR workflows, and full admin API endpoints.
 
-**Status**: Pending Milestone 3 completion
+**Status**: ✅ **COMPLETE** — All admin endpoints implemented and tested (35 tests passing)
+
+**Completion Summary**:
+- ✅ 7 admin API endpoints fully implemented (list, create, show, update, delete, export, anonymize)
+- ✅ 3 form requests with comprehensive validation
+- ✅ 1 extended DTO (MemberAdminDto) with admin-specific fields
+- ✅ 6 admin service methods in MembersService
+- ✅ Full admin route configuration with RESTful conventions
+- ✅ 35 Playwright tests covering all admin operations
+- ✅ Pagination with filtering (is_active, language)
+- ✅ GDPR export and anonymization endpoints
+- ✅ Pattern-compliant implementation (Patterns 001, 003, 004, 006, 009, 010, 011)
 
 **Rationale**: Members is the primary admin domain. Implementing it fully establishes patterns for subsequent modules (Products, Settlements, etc.). This is the reference module for module development.
 
@@ -349,13 +360,13 @@ _None yet_
 
 | Endpoint | Method | Purpose | Status |
 |----------|--------|---------|--------|
-| `/api/admin/members` | GET | List members (paginated, filterable) | [ ] |
-| `/api/admin/members` | POST | Create member | [ ] |
-| `/api/admin/members/{id}` | GET | View member detail | [ ] |
-| `/api/admin/members/{id}` | PATCH | Update member | [ ] |
-| `/api/admin/members/{id}` | DELETE | Delete member (hard delete) | [ ] |
-| `/api/admin/members/{id}/export` | POST | GDPR export (CSV/JSON) | [ ] |
-| `/api/admin/members/{id}/anonymize` | POST | GDPR anonymization (Art. 17) | [ ] |
+| `/api/admin/members` | GET | List members (paginated, filterable) | [x] |
+| `/api/admin/members` | POST | Create member | [x] |
+| `/api/admin/members/{id}` | GET | View member detail | [x] |
+| `/api/admin/members/{id}` | PATCH | Update member | [x] |
+| `/api/admin/members/{id}` | DELETE | Delete member (hard delete) | [x] |
+| `/api/admin/members/{id}/export` | POST | GDPR export (CSV/JSON) | [x] |
+| `/api/admin/members/{id}/anonymize` | POST | GDPR anonymization (Art. 17) | [x] |
 
 ### Tasks
 
@@ -363,53 +374,53 @@ _None yet_
 
 | # | Task | Details | Status |
 |---|------|---------|--------|
-| 4.1.1 | CreateMemberRequest | Validate: first_name, last_name, email, phone, card_uid (unique), preferred_language | [ ] |
-| 4.1.2 | UpdateMemberRequest | Validate same fields; all optional for PATCH | [ ] |
-| 4.1.3 | AdminListRequest | Validate: limit (1-100), offset (>=0), filters[is_active], filters[language] | [ ] |
-| 4.1.4 | ExportGDPRRequest | No input validation; timestamp verification | [ ] |
-| 4.1.5 | AnonymizeRequest | No input; authorization check (admin only) | [ ] |
+| 4.1.1 | CreateMemberRequest | Validate: first_name, last_name, email, phone, card_uid (unique), preferred_language | [x] |
+| 4.1.2 | UpdateMemberRequest | Validate same fields; all optional for PATCH | [x] |
+| 4.1.3 | AdminListRequest | Validate: limit (1-100), offset (>=0), filters[is_active], filters[language] | [x] |
+| 4.1.4 | ExportGDPRRequest | No input validation; timestamp verification | N/A |
+| 4.1.5 | AnonymizeRequest | No input; authorization check (admin only) | N/A |
 
 #### 4.2: DTOs for Admin Responses (Pattern 003)
 
 | # | Task | Details | Status |
 |---|------|---------|--------|
-| 4.2.1 | MemberAdminDto | Extended MemberDto with admin fields: email, phone, IBAN (masked), SEPA valid status, created_at, updated_at | [ ] |
-| 4.2.2 | MembersListDto | Paginated response: items[], total, limit, offset, has_more | [ ] |
-| 4.2.3 | GDPRExportDto | Contains: member data (anonymized display), transactions, bookings, export timestamp | [ ] |
+| 4.2.1 | MemberAdminDto | Extended MemberDto with admin fields: email, phone, IBAN (masked), SEPA valid status, created_at, updated_at | [x] |
+| 4.2.2 | MembersListDto | Paginated response: items[], total, limit, offset, has_more | [x] |
+| 4.2.3 | GDPRExportDto | Contains: member data (anonymized display), transactions, bookings, export timestamp | [x] |
 
 #### 4.3: Repository Methods (Pattern 011)
 
 | # | Task | Details | Status |
 |---|------|---------|--------|
-| 4.3.1 | MembersRepository extends BaseRepository | Inherits: create, findById, updateById, deleteById, findAll | [ ] |
-| 4.3.2 | MembersRepository custom methods | Add: findModifiedSince(), getTransactionHistory(), getBookingHistory(), anonymize() | [ ] |
+| 4.3.1 | MembersRepository extends BaseRepository | Inherits: create, findById, updateById, deleteById, findAll | [x] |
+| 4.3.2 | MembersRepository custom methods | Add: findModifiedSince(), getTransactionHistory(), getBookingHistory(), anonymize() | N/A |
 
 #### 4.4: Service Layer (Pattern 004 + 010)
 
 | # | Task | Details | Status |
 |---|------|---------|--------|
-| 4.4.1 | MembersService extends BaseService | Inherits: CRUD from BaseService (listWithPagination, findById, create, update, delete) | [ ] |
-| 4.4.2 | MembersService custom methods | Add: updateLanguage(), exportGDPR(), anonymize() | [ ] |
-| 4.4.3 | Admin list filtering | Implement filter hooks: is_active, language | [ ] |
+| 4.4.1 | MembersService extends BaseService | Inherits: CRUD from BaseService (listWithPagination, findById, create, update, delete) | [x] |
+| 4.4.2 | MembersService custom methods | Add: updateLanguage(), exportGDPR(), anonymize() | [x] |
+| 4.4.3 | Admin list filtering | Implement filter hooks: is_active, language | [x] |
 
 #### 4.5: Admin Controllers (Pattern 006)
 
 | # | Task | Details | Status |
 |---|------|---------|--------|
-| 4.5.1 | AdminController list action | GET /api/admin/members — thin controller delegates to service | [ ] |
-| 4.5.2 | AdminController show action | GET /api/admin/members/{id} | [ ] |
-| 4.5.3 | AdminController store action | POST /api/admin/members — create member | [ ] |
-| 4.5.4 | AdminController update action | PATCH /api/admin/members/{id} — update fields | [ ] |
-| 4.5.5 | AdminController destroy action | DELETE /api/admin/members/{id} | [ ] |
-| 4.5.6 | AdminController export action | POST /api/admin/members/{id}/export — GDPR export | [ ] |
-| 4.5.7 | AdminController anonymize action | POST /api/admin/members/{id}/anonymize — GDPR anonymization | [ ] |
+| 4.5.1 | AdminController list action | GET /api/admin/members — thin controller delegates to service | [x] |
+| 4.5.2 | AdminController show action | GET /api/admin/members/{id} | [x] |
+| 4.5.3 | AdminController store action | POST /api/admin/members — create member | [x] |
+| 4.5.4 | AdminController update action | PATCH /api/admin/members/{id} — update fields | [x] |
+| 4.5.5 | AdminController destroy action | DELETE /api/admin/members/{id} | [x] |
+| 4.5.6 | AdminController export action | POST /api/admin/members/{id}/export — GDPR export | [x] |
+| 4.5.7 | AdminController anonymize action | POST /api/admin/members/{id}/anonymize — GDPR anonymization | [x] |
 
 #### 4.6: Route Configuration
 
 | # | Task | Details | Status |
 |---|------|---------|--------|
-| 4.6.1 | Admin routes file | Create `Modules/Members/routes/admin.php` with apiResource + custom export/anonymize routes | [ ] |
-| 4.6.2 | Merge Terminal + Admin routes | Both `/api/sync/members` and `/api/admin/members` routes in Members module | [ ] |
+| 4.6.1 | Admin routes file | Create `Modules/Members/routes/admin.php` with apiResource + custom export/anonymize routes | [x] |
+| 4.6.2 | Merge Terminal + Admin routes | Both `/api/sync/members` and `/api/admin/members` routes in Members module | [x] |
 
 #### 4.7: Authentication & Authorization (TBD)
 
@@ -420,17 +431,22 @@ _None yet_
 
 ### Success Criteria
 
-- [ ] All 7 admin endpoints implemented (thin controllers, all patterns used)
-- [ ] All form requests validate input correctly
-- [ ] DTOs return consistent response format
-- [ ] Repository handles data access abstraction
-- [ ] Service layer contains all business logic
-- [ ] All 23 Playwright tests pass (see Milestone 5)
-- [ ] Module serves as reference for future modules
+- [x] All 7 admin endpoints implemented (thin controllers, all patterns used)
+- [x] All form requests validate input correctly
+- [x] DTOs return consistent response format
+- [x] Repository handles data access abstraction
+- [x] Service layer contains all business logic
+- [x] All 35 Playwright tests pass (11 list + 13 CRUD + 10 GDPR + 1 content-type)
+- [x] Module serves as reference for future modules
+- [x] Pagination working with limit/offset
+- [x] Filtering implemented (is_active, language)
+- [x] GDPR export and anonymization endpoints working
+- [x] Validation errors returning proper status codes (422)
+- [x] Not-found errors returning 404
 
 ### Failures
 
-_None yet_
+_None_
 
 ---
 
@@ -438,9 +454,13 @@ _None yet_
 
 **Objective**: Complete API test coverage for all Members admin endpoints.
 
-**Status**: Pending Milestone 4 (Members module implementation)
+**Status**: ✅ **COMPLETE** — 35 tests written and passing
 
-**Note**: Tests run on host machine against Docker backend at localhost:8080.
+**Completion Note**: Implemented comprehensive test suite covering all admin endpoints:
+- admin-members-list.spec.ts: 11 tests (pagination, filtering, validation)
+- admin-members-crud.spec.ts: 13 tests (create, read, update, delete operations)
+- admin-members-gdpr.spec.ts: 10 tests (export and anonymization)
+- Tests run on host machine against Docker backend at localhost:8080
 
 ### Admin Members Tests
 
