@@ -11,7 +11,7 @@
 | Milestone | Status | Tests Passed |
 |-----------|--------|--------------|
 | 1. Docker Infrastructure | [x] | 3/3 |
-| **1.5. Health Controller Refactoring (Pattern Test Case)** | **[ ]** | **0/5** |
+| **1.5. Health Controller Refactoring (Pattern Test Case)** | **[x]** | **5/5** |
 | 2. Mock Controllers | [ ] | 0/6 |
 | 3. Playwright Tests | [ ] | 0/7 |
 | 4. End-to-End Verification | [ ] | 0/1 |
@@ -54,11 +54,11 @@ _None yet_
 
 | # | Task | Details | Status |
 |---|------|---------|--------|
-| 1.5.1 | Analyze current health controller | Read `backend/app/Http/Controllers/HealthController.php` and identify what to refactor | [ ] |
-| 1.5.2 | Create HealthCheckService | Move health check logic to Service Layer (Pattern 004). Service returns HealthResponseDto. | [ ] |
-| 1.5.3 | Create HealthResponseDto | Create immutable DTO with `toArray()` method (Pattern 003) for `{"status":"ok","timestamp":"..."}` response. | [ ] |
-| 1.5.4 | Create HealthRequest FormRequest | Create FormRequest for validation (Pattern 001). Even though health endpoint has no input, demonstrates pattern usage. | [ ] |
-| 1.5.5 | Refactor HealthController | Thin controller (Pattern 006) that: injects Service, calls service method, serializes DTO. Verify Playwright tests pass. | [ ] |
+| 1.5.1 | Analyze current health controller | Read `backend/app/Http/Controllers/HealthController.php` and identify what to refactor | [x] |
+| 1.5.2 | Create HealthCheckService | Move health check logic to Service Layer (Pattern 004). Service returns HealthResponseDto. | [x] |
+| 1.5.3 | Create HealthResponseDto | Create immutable DTO with `toArray()` method (Pattern 003) for `{"status":"ok","timestamp":"..."}` response. | [x] |
+| 1.5.4 | Create HealthRequest FormRequest | Create FormRequest for validation (Pattern 001). Even though health endpoint has no input, demonstrates pattern usage. | [x] |
+| 1.5.5 | Refactor HealthController | Thin controller (Pattern 006) that: injects Service, calls service method, serializes DTO. Verify Playwright tests pass. | [x] |
 
 ### Success Criteria
 
