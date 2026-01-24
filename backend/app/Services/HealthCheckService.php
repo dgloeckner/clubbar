@@ -21,7 +21,7 @@ final readonly class HealthCheckService
     {
         return new HealthResponseDto(
             status: 'ok',
-            timestamp: now(),
+            timestamp: new \DateTimeImmutable(),
         );
     }
 }

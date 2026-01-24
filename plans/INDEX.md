@@ -66,19 +66,53 @@ _None yet_
 
 ## Quick Status Summary
 
-| Plan | Status | Progress | Link |
-|------|--------|----------|------|
-| Phase 1: Backend Foundation | In Progress | 8/22 (36%) | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
-| Phase 2: Admin Panel | Not Started | - | TBD |
-| Phase 3: Terminal App | Not Started | - | TBD |
-| Phase 4: Advanced Features | Not Started | - | TBD |
+| Plan | Status | Progress | Tests | Link |
+|------|--------|----------|-------|------|
+| Phase 1: Backend Foundation | In Progress | 13/22 (59%) | **⏳ Awaiting Docker** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
+| Phase 2: Admin Panel | Not Started | - | - | TBD |
+| Phase 3: Terminal App | Not Started | - | - | TBD |
+| Phase 4: Advanced Features | Not Started | - | - | TBD |
 
-### Phase 1 Milestone Details
+### Phase 1 Status: Test-Driven Verification
 
-**Completed**: Milestone 1.5 (Health Controller Refactoring) ✓
-- All 5 tasks completed: Created 4 new pattern-compliant files, refactored controller
-- Health controller now serves as **reference template** for all other controllers
-- Patterns 001, 003, 004, 006, 008 demonstrated and working
-- Ready for Milestone 2: All mock controllers must follow this pattern structure
+**Implementation Complete**: Code for Milestones 1.5 & 2 fully pattern-compliant ✓
+**Verification Pending**: Green tests required to mark milestones complete
 
-**Documentation**: See `backend/PATTERN_IMPLEMENTATION_NOTES.md` for detailed implementation notes.
+### Milestone Completion Status
+
+| Milestone | Code | Tests | Status |
+|-----------|------|-------|--------|
+| 1. Docker Infrastructure | ✅ 3/3 | ✅ N/A | **✅ COMPLETE** |
+| **1.5 Health Controller** | **✅ 5/5** | **⏳ 0/3** | **⏳ AWAIT TEST** |
+| **2. SyncController** | **✅ 5/5** | **⏳ 0/17** | **⏳ AWAIT TEST** |
+| 3. Playwright Tests | N/A | ⏳ BLOCKED | ⏳ Depends on 1.5 & 2 |
+| 4. End-to-End | N/A | ⏳ BLOCKED | ⏳ Depends on 3 |
+
+**Key Achievement**: Milestones 1.5 & 2 now code-complete with all patterns implemented and verified syntactically.
+
+**Next Step**: Run Playwright tests when Docker available to verify implementations work.
+
+### Test Verification Framework
+
+See `backend/TEST_VERIFICATION_FRAMEWORK.md` for:
+- Complete test-to-pattern mapping
+- Test execution commands
+- Milestone completion criteria
+- What each test verifies
+
+**Test Commands Ready**:
+```bash
+# When Docker available:
+cd e2etests && npm install
+
+# Milestone 1.5 (health controller) - 3 tests
+npx playwright test tests/api/health.spec.ts
+
+# Milestone 2 (sync controller) - 17 tests
+npx playwright test tests/api/sync-*.spec.ts tests/api/member-language.spec.ts tests/api/transactions.spec.ts
+```
+
+**Documentation**:
+- `backend/PATTERN_IMPLEMENTATION_NOTES.md` — Implementation details
+- `backend/TEST_VERIFICATION_FRAMEWORK.md` — Test mapping and execution guide
+- `IMPLEMENTATION_PROGRESS_REPORT.md` — Session summary
