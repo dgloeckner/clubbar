@@ -95,16 +95,31 @@ class MembersRepository extends BaseRepository
     /**
      * Anonymize member (GDPR Art. 17 - Right to be forgotten).
      *
-     * Future method: will anonymize member data
-     * Used for GDPR anonymization workflow
+     * Clears personal information and marks as deleted.
+     * Used for GDPR anonymization workflow.
      *
      * @param string $memberId
      * @return bool Success
      */
     public function anonymize(string $memberId): bool
     {
-        // TODO: Implement anonymization (clear name, email, phone, IBAN, etc.)
-        // For now, return false as placeholder
-        return false;
+        $member = $this->findById($memberId);
+
+        if (!$member) {
+            return false;
+        }
+
+        // Clear personal information and mark as deleted
+        return $member->update([
+            'first_name' => 'DELETED',
+            'last_name' => 'DELETED',
+            'email' => 'deleted@example.com',
+            'phone' => null,
+            'iban' => null,
+            'mandate_reference' => null,
+            'card_uid' => null,
+            'is_active' => false,
+            'deleted_at' => now(),
+        ]);
     }
 }

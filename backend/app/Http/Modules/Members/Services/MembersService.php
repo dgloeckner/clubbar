@@ -47,45 +47,28 @@ class MembersService extends BaseService
      * Get members modified since timestamp (Terminal API).
      *
      * Returns delta sync result for /api/sync/members endpoint.
-     * Currently returns mock data; will use repository in M4.
+     * Queries database for active members modified since timestamp.
      *
      * @param int $since Unix timestamp (from query param)
      * @return SyncResultDto Contains members[], cursor, hasMore
      */
     public function syncSince(int $since): SyncResultDto
     {
-        // Mock data (same as current SyncService::syncMembers)
-        $members = [
-            new MemberDto(
-                id: '123e4567-e89b-12d3-a456-426614174000',
-                cardUid: '04:d2:3e:5a:10:80:80',
-                firstName: 'Max',
-                lastName: 'Mustermann',
-                preferredLanguage: 'de',
-                isActive: true,
-                isSepaValid: true,
-                deletedAt: null,
-                createdAt: new DateTimeImmutable('2024-06-15T10:00:00Z'),
-                updatedAt: new DateTimeImmutable('2025-01-20T14:23:45Z'),
-            ),
-            new MemberDto(
-                id: '223e4567-e89b-12d3-a456-426614174001',
-                cardUid: '04:d2:3e:5a:10:80:90',
-                firstName: 'Anna',
-                lastName: 'Schmidt',
-                preferredLanguage: 'en',
-                isActive: true,
-                isSepaValid: true,
-                deletedAt: null,
-                createdAt: new DateTimeImmutable('2024-07-01T12:30:00Z'),
-                updatedAt: new DateTimeImmutable('2025-01-21T10:00:00Z'),
-            ),
-        ];
+        // Query database for members modified since timestamp
+        $memberModels = $this->membersRepository->findModifiedSince($since);
+
+        // Transform models to DTOs
+        $members = $memberModels->map(fn($model) => $this->transform($model))->values();
+
+        // Get latest timestamp for cursor (for next sync)
+        $cursor = $memberModels->isNotEmpty()
+            ? $memberModels->last()->updated_at->format('Y-m-d\TH:i:s\Z')
+            : date('Y-m-d\TH:i:s\Z');
 
         return new SyncResultDto(
-            items: $members,
-            cursor: '2025-01-21T10:00:00Z',
-            hasMore: false,
+            items: $members->all(),
+            cursor: $cursor,
+            hasMore: false,  // TODO: Implement pagination if member count exceeds threshold
         );
     }
 
@@ -93,7 +76,7 @@ class MembersService extends BaseService
      * Update member's preferred language (Terminal API).
      *
      * Updates /api/sync/members/{memberId}/language endpoint.
-     * Currently returns mock member; will use repository in M4.
+     * Queries database and updates member language preference.
      *
      * @param string $memberId UUID of member
      * @param SupportedLanguage $language New language preference
@@ -101,36 +84,17 @@ class MembersService extends BaseService
      */
     public function updateLanguage(string $memberId, SupportedLanguage $language): MemberDto
     {
-        // Mock data: find member and return with updated language
-        // In M4, this will call: $this->membersRepository->updateById($memberId, ['preferred_language' => $language->value])
+        // Update member language in database
+        $member = $this->membersRepository->updateById($memberId, [
+            'preferred_language' => $language->value,
+        ]);
 
-        return match ($memberId) {
-            '123e4567-e89b-12d3-a456-426614174000' => new MemberDto(
-                id: $memberId,
-                cardUid: '04:d2:3e:5a:10:80:80',
-                firstName: 'Max',
-                lastName: 'Mustermann',
-                preferredLanguage: $language->value,
-                isActive: true,
-                isSepaValid: true,
-                deletedAt: null,
-                createdAt: new DateTimeImmutable('2024-06-15T10:00:00Z'),
-                updatedAt: new DateTimeImmutable(),
-            ),
-            '223e4567-e89b-12d3-a456-426614174001' => new MemberDto(
-                id: $memberId,
-                cardUid: '04:d2:3e:5a:10:80:90',
-                firstName: 'Anna',
-                lastName: 'Schmidt',
-                preferredLanguage: $language->value,
-                isActive: true,
-                isSepaValid: true,
-                deletedAt: null,
-                createdAt: new DateTimeImmutable('2024-07-01T12:30:00Z'),
-                updatedAt: new DateTimeImmutable(),
-            ),
-            default => throw new \Exception("Member not found: $memberId"),
-        };
+        if (!$member) {
+            throw new \Exception("Member not found: $memberId");
+        }
+
+        // Transform to DTO
+        return $this->transform($member);
     }
 
     /**
@@ -146,33 +110,40 @@ class MembersService extends BaseService
      */
     public function listMembers(int $limit, int $offset, array $filters = []): PaginatedResultDto
     {
-        // Mock data: return paginated mock members
-        // In M4, this will call: $this->membersRepository->query()->paginate(...)
+        // Build query with filters
+        $query = $this->membersRepository->query();
+        $query = $this->applyFilters($query, $filters);
 
-        $allMembers = [
-            $this->getMockMemberForAdmin('123e4567-e89b-12d3-a456-426614174000'),
-            $this->getMockMemberForAdmin('223e4567-e89b-12d3-a456-426614174001'),
-        ];
+        // Get total count before pagination
+        $total = $query->count();
 
-        // Apply filters
-        if (isset($filters['is_active'])) {
-            $allMembers = array_filter($allMembers, fn($m) => $m->isActive === $filters['is_active']);
-        }
+        // Apply pagination and fetch results
+        $memberModels = $query
+            ->orderBy('created_at', 'desc')
+            ->skip($offset)
+            ->take($limit)
+            ->get();
 
-        if (isset($filters['language'])) {
-            $allMembers = array_filter($allMembers, fn($m) => $m->preferredLanguage === $filters['language']);
-        }
-
-        // Apply pagination
-        $items = array_slice(
-            array_values($allMembers),
-            $offset,
-            $limit
-        );
+        // Transform models to admin DTOs
+        $items = $memberModels->map(fn($model) => new MemberAdminDto(
+            id: $model->id,
+            cardUid: $model->card_uid,
+            firstName: $model->first_name,
+            lastName: $model->last_name,
+            email: $model->email,
+            phone: $model->phone,
+            preferredLanguage: $model->preferred_language,
+            isActive: $model->is_active,
+            isSepaValid: !empty($model->iban) && !empty($model->mandate_reference),
+            ibanMasked: $model->iban ? substr($model->iban, 0, 2) . '****' . substr($model->iban, -4) : null,
+            deletedAt: $model->deleted_at ? new DateTimeImmutable($model->deleted_at->format('c')) : null,
+            createdAt: new DateTimeImmutable($model->created_at->format('c')),
+            updatedAt: new DateTimeImmutable($model->updated_at->format('c')),
+        ))->all();
 
         return new PaginatedResultDto(
-            items: array_map(fn($m) => $m->toArray(), $items),
-            total: count($allMembers),
+            items: array_map(fn($dto) => $dto->toArray(), $items),
+            total: $total,
             limit: $limit,
             offset: $offset,
         );
@@ -188,14 +159,27 @@ class MembersService extends BaseService
      */
     public function getMember(string $memberId): MemberAdminDto
     {
-        // Mock data: return mock member with admin fields
-        // In M4, this will call: $this->membersRepository->findById($memberId)
+        $member = $this->membersRepository->findById($memberId);
 
-        return match ($memberId) {
-            '123e4567-e89b-12d3-a456-426614174000' => $this->getMockMemberForAdmin('123e4567-e89b-12d3-a456-426614174000'),
-            '223e4567-e89b-12d3-a456-426614174001' => $this->getMockMemberForAdmin('223e4567-e89b-12d3-a456-426614174001'),
-            default => throw new \Exception("Member not found: $memberId"),
-        };
+        if (!$member) {
+            throw new \Exception("Member not found: $memberId");
+        }
+
+        return new MemberAdminDto(
+            id: $member->id,
+            cardUid: $member->card_uid,
+            firstName: $member->first_name,
+            lastName: $member->last_name,
+            email: $member->email,
+            phone: $member->phone,
+            preferredLanguage: $member->preferred_language,
+            isActive: $member->is_active,
+            isSepaValid: !empty($member->iban) && !empty($member->mandate_reference),
+            ibanMasked: $member->iban ? substr($member->iban, 0, 2) . '****' . substr($member->iban, -4) : null,
+            deletedAt: $member->deleted_at ? new DateTimeImmutable($member->deleted_at->format('c')) : null,
+            createdAt: new DateTimeImmutable($member->created_at->format('c')),
+            updatedAt: new DateTimeImmutable($member->updated_at->format('c')),
+        );
     }
 
     /**
@@ -217,25 +201,32 @@ class MembersService extends BaseService
         ?string $cardUid,
         SupportedLanguage $language,
     ): MemberAdminDto {
-        // Mock data: return newly created member
-        // In M4, this will call: $this->membersRepository->create([...])
+        // Create member in database
+        $member = $this->membersRepository->create([
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'email' => $email,
+            'phone' => $phone,
+            'card_uid' => $cardUid,
+            'preferred_language' => $language->value,
+            'is_active' => true,
+        ]);
 
-        $id = 'new-id-' . uniqid();
-
+        // Transform to admin DTO
         return new MemberAdminDto(
-            id: $id,
-            cardUid: $cardUid,
-            firstName: $firstName,
-            lastName: $lastName,
-            email: $email,
-            phone: $phone,
-            preferredLanguage: $language->value,
-            isActive: true,
-            isSepaValid: false,
-            ibanMasked: null,
-            deletedAt: null,
-            createdAt: new DateTimeImmutable(),
-            updatedAt: new DateTimeImmutable(),
+            id: $member->id,
+            cardUid: $member->card_uid,
+            firstName: $member->first_name,
+            lastName: $member->last_name,
+            email: $member->email,
+            phone: $member->phone,
+            preferredLanguage: $member->preferred_language,
+            isActive: $member->is_active,
+            isSepaValid: !empty($member->iban) && !empty($member->mandate_reference),
+            ibanMasked: $member->iban ? substr($member->iban, 0, 2) . '****' . substr($member->iban, -4) : null,
+            deletedAt: $member->deleted_at ? new DateTimeImmutable($member->deleted_at->format('c')) : null,
+            createdAt: new DateTimeImmutable($member->created_at->format('c')),
+            updatedAt: new DateTimeImmutable($member->updated_at->format('c')),
         );
     }
 
@@ -243,30 +234,54 @@ class MembersService extends BaseService
      * Update an existing member (Admin API).
      *
      * @param string $memberId UUID of member
-     * @param array $updateData Fields to update
+     * @param array $updateData Fields to update (snake_case keys)
      * @return MemberAdminDto Updated member
      */
     public function updateMember(string $memberId, array $updateData): MemberAdminDto
     {
-        // Mock data: return updated member
-        // In M4, this will call: $this->membersRepository->updateById($memberId, $updateData)
+        // Map camelCase input to snake_case for database
+        $dbUpdateData = [];
+        if (isset($updateData['firstName'])) {
+            $dbUpdateData['first_name'] = $updateData['firstName'];
+        }
+        if (isset($updateData['lastName'])) {
+            $dbUpdateData['last_name'] = $updateData['lastName'];
+        }
+        if (isset($updateData['email'])) {
+            $dbUpdateData['email'] = $updateData['email'];
+        }
+        if (isset($updateData['phone'])) {
+            $dbUpdateData['phone'] = $updateData['phone'];
+        }
+        if (isset($updateData['cardUid'])) {
+            $dbUpdateData['card_uid'] = $updateData['cardUid'];
+        }
+        if (isset($updateData['preferredLanguage'])) {
+            $dbUpdateData['preferred_language'] = $updateData['preferredLanguage'];
+        }
 
-        $member = $this->getMember($memberId);
+        // Update in database
+        $member = $this->membersRepository->updateById($memberId, $dbUpdateData);
 
+        if (!$member) {
+            throw new \Exception("Member not found: $memberId");
+        }
+
+        // Transform to DTO
         return new MemberAdminDto(
             id: $member->id,
-            cardUid: $updateData['cardUid'] ?? $member->cardUid,
-            firstName: $updateData['firstName'] ?? $member->firstName,
-            lastName: $updateData['lastName'] ?? $member->lastName,
-            email: $updateData['email'] ?? $member->email,
-            phone: $updateData['phone'] ?? $member->phone,
-            preferredLanguage: $updateData['preferredLanguage'] ?? $member->preferredLanguage,
-            isActive: $member->isActive,
-            isSepaValid: $member->isSepaValid,
-            ibanMasked: $member->ibanMasked,
-            deletedAt: $member->deletedAt,
-            createdAt: $member->createdAt,
-            updatedAt: new DateTimeImmutable(),
+            cardUid: $member->card_uid,
+            firstName: $member->first_name,
+            lastName: $member->last_name,
+            email: $member->email,
+            phone: $member->phone,
+            preferredLanguage: $member->preferred_language,
+            isActive: $member->is_active,
+            isSepaValid: !empty($member->iban) && !empty($member->mandate_reference),
+            ibanMasked: $member->iban ? substr($member->iban, 0, 2) . '****' . substr($member->iban, -4) : null,
+            deletedAt: $member->deleted_at ? new DateTimeImmutable($member->deleted_at->format('c')) : null,
+            createdAt: new DateTimeImmutable($member->created_at->format('c')),
+            updatedAt: new DateTimeImmutable($member->updated_at->format('c')),
         );
     }
 
@@ -275,13 +290,17 @@ class MembersService extends BaseService
      *
      * @param string $memberId UUID of member
      * @return bool Success
+     * @throws \Exception When member not found
      */
     public function deleteMember(string $memberId): bool
     {
-        // Mock: verify member exists
-        $this->getMember($memberId);
-        // In M4, this will call: $this->membersRepository->deleteById($memberId)
-        return true;
+        $success = $this->membersRepository->deleteById($memberId);
+
+        if (!$success) {
+            throw new \Exception("Member not found: $memberId");
+        }
+
+        return $success;
     }
 
     /**
@@ -310,79 +329,38 @@ class MembersService extends BaseService
      */
     public function anonymizeMember(string $memberId): MemberAdminDto
     {
-        $member = $this->getMember($memberId);
+        // Call repository to anonymize (clears PII and marks as deleted)
+        $success = $this->membersRepository->anonymize($memberId);
 
-        // Mark as deleted (soft delete)
-        // In M4, this will call: $this->membersRepository->updateById($memberId, ['deleted_at' => now()])
+        if (!$success) {
+            throw new \Exception("Member not found: $memberId");
+        }
+
+        // Fetch updated member
+        $member = $this->membersRepository->findById($memberId);
 
         return new MemberAdminDto(
             id: $member->id,
-            cardUid: null,
-            firstName: 'DELETED',
-            lastName: 'DELETED',
-            email: 'deleted@example.com',
-            phone: null,
-            preferredLanguage: $member->preferredLanguage,
-            isActive: false,
+            cardUid: $member->card_uid,
+            firstName: $member->first_name,
+            lastName: $member->last_name,
+            email: $member->email,
+            phone: $member->phone,
+            preferredLanguage: $member->preferred_language,
+            isActive: $member->is_active,
             isSepaValid: false,
             ibanMasked: null,
-            deletedAt: new DateTimeImmutable(),
-            createdAt: $member->createdAt,
-            updatedAt: new DateTimeImmutable(),
+            deletedAt: $member->deleted_at ? new DateTimeImmutable($member->deleted_at->format('c')) : null,
+            createdAt: new DateTimeImmutable($member->created_at->format('c')),
+            updatedAt: new DateTimeImmutable($member->updated_at->format('c')),
         );
-    }
-
-    /**
-     * Helper: Get mock member for admin responses
-     *
-     * @param string $id
-     * @return MemberAdminDto
-     */
-    private function getMockMemberForAdmin(string $id): MemberAdminDto
-    {
-        return match ($id) {
-            '123e4567-e89b-12d3-a456-426614174000' => new MemberAdminDto(
-                id: $id,
-                cardUid: '04:d2:3e:5a:10:80:80',
-                firstName: 'Max',
-                lastName: 'Mustermann',
-                email: 'max@example.com',
-                phone: '+41791234567',
-                preferredLanguage: 'de',
-                isActive: true,
-                isSepaValid: true,
-                ibanMasked: 'DE89****8372',
-                deletedAt: null,
-                createdAt: new DateTimeImmutable('2024-06-15T10:00:00Z'),
-                updatedAt: new DateTimeImmutable('2025-01-20T14:23:45Z'),
-            ),
-            '223e4567-e89b-12d3-a456-426614174001' => new MemberAdminDto(
-                id: $id,
-                cardUid: '04:d2:3e:5a:10:80:90',
-                firstName: 'Anna',
-                lastName: 'Schmidt',
-                email: 'anna@example.com',
-                phone: '+41798765432',
-                preferredLanguage: 'en',
-                isActive: true,
-                isSepaValid: true,
-                ibanMasked: 'CH9300****3696',
-                deletedAt: null,
-                createdAt: new DateTimeImmutable('2024-07-01T12:30:00Z'),
-                updatedAt: new DateTimeImmutable('2025-01-21T10:00:00Z'),
-            ),
-            default => throw new \Exception("Member not found: $id"),
-        };
     }
 
     /**
      * Transform Model to MemberDto.
      *
      * Hook method from BaseService (Pattern 010).
-     * Called by listWithPagination() and other BaseService methods.
-     *
-     * In M4, this will be called when repository queries database.
-     * For now, not used (using mock data directly).
+     * Called by syncSince and other methods when transforming database models to DTOs.
      *
      * @param Model $entity Member model
      * @return MemberDto
@@ -396,7 +374,7 @@ class MembersService extends BaseService
             lastName: $entity->last_name,
             preferredLanguage: $entity->preferred_language,
             isActive: $entity->is_active,
-            isSepaValid: $entity->is_sepa_valid,
+            isSepaValid: !empty($entity->iban) && !empty($entity->mandate_reference),
             deletedAt: $entity->deleted_at ? new DateTimeImmutable($entity->deleted_at->format('c')) : null,
             createdAt: new DateTimeImmutable($entity->created_at->format('c')),
             updatedAt: new DateTimeImmutable($entity->updated_at->format('c')),

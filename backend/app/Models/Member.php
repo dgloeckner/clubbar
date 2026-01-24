@@ -61,9 +61,9 @@ class Member extends Model
         'phone',
         'preferred_language',
         'is_active',
-        'is_sepa_valid',
         'iban',
         'mandate_reference',
+        'mandate_signed_at',
         'deleted_at',
     ];
 
@@ -74,9 +74,9 @@ class Member extends Model
      */
     protected $casts = [
         'is_active' => 'boolean',
-        'is_sepa_valid' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'mandate_signed_at' => 'date',
         'deleted_at' => 'datetime',
     ];
 }
