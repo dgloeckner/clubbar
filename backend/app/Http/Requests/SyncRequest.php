@@ -39,4 +39,24 @@ final class SyncRequest extends FormRequest
         $since = $this->query('since', '1970-01-01T00:00:00Z');
         return new DateTimeImmutable($since);
     }
+
+    /**
+     * Handle a failed validation attempt.
+     * Return JSON error response instead of redirecting.
+     *
+     * @param \Illuminate\Contracts\Validation\Validator $validator
+     * @return void
+     */
+    protected function failedValidation(\Illuminate\Contracts\Validation\Validator $validator): void
+    {
+        throw new \Illuminate\Http\Exceptions\HttpResponseException(
+            response()->json(
+                [
+                    'error' => 'invalid_request',
+                    'messages' => $validator->errors(),
+                ],
+                400
+            )
+        );
+    }
 }

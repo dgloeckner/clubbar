@@ -16,6 +16,11 @@ use Illuminate\Support\Facades\Route;
 // Health check (no auth required)
 Route::get('/health', [HealthController::class, 'health']);
 
+// Test POST route
+Route::post('/test', function () {
+    return response()->json(['message' => 'POST works!'], 200);
+});
+
 // Sync endpoints (TODO: add auth middleware when Sanctum is configured)
 Route::prefix('sync')->group(function () {
     Route::get('/members', [SyncController::class, 'members']);

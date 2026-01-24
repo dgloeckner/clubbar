@@ -1,0 +1,189 @@
+
+Running 32 tests using 1 worker
+
+  ✓   1 [api-tests] › tests/api/member-language.spec.ts:13:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language updates language successfully (859ms)
+  ✓   2 [api-tests] › tests/api/member-language.spec.ts:29:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language accepts different languages (820ms)
+  ✘   3 [api-tests] › tests/api/member-language.spec.ts:44:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language rejects invalid language code (272ms)
+  ✓   4 [api-tests] › tests/api/member-language.spec.ts:56:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language rejects missing language (628ms)
+  ✘   5 [api-tests] › tests/api/member-language.spec.ts:67:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language returns 404 for invalid UUID (585ms)
+  ✓   6 [api-tests] › tests/api/member-language.spec.ts:78:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language returns JSON content type (631ms)
+  ✓   7 [api-tests] › tests/api/member-language.spec.ts:87:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language returns valid ISO 8601 timestamp (264ms)
+  ✓   8 [api-tests] › tests/api/sync-categories.spec.ts:11:7 › Sync Categories Endpoint › GET /api/sync/categories returns category delta response (300ms)
+  ✓   9 [api-tests] › tests/api/sync-categories.spec.ts:29:7 › Sync Categories Endpoint › GET /api/sync/categories returns valid category objects (279ms)
+  ✓  10 [api-tests] › tests/api/sync-categories.spec.ts:49:7 › Sync Categories Endpoint › GET /api/sync/categories returns multilingual names (267ms)
+  ✓  11 [api-tests] › tests/api/sync-categories.spec.ts:67:7 › Sync Categories Endpoint › GET /api/sync/categories count matches categories array length (266ms)
+  ✓  12 [api-tests] › tests/api/sync-categories.spec.ts:76:7 › Sync Categories Endpoint › GET /api/sync/categories returns JSON content type (270ms)
+  ✓  13 [api-tests] › tests/api/sync-members.spec.ts:11:7 › Sync Members Endpoint › GET /api/sync/members returns member delta response (271ms)
+  ✓  14 [api-tests] › tests/api/sync-members.spec.ts:29:7 › Sync Members Endpoint › GET /api/sync/members returns valid member objects (196ms)
+  ✓  15 [api-tests] › tests/api/sync-members.spec.ts:51:7 › Sync Members Endpoint › GET /api/sync/members count matches members array length (263ms)
+  ✓  16 [api-tests] › tests/api/sync-members.spec.ts:60:7 › Sync Members Endpoint › GET /api/sync/members returns JSON content type (202ms)
+  ✓  17 [api-tests] › tests/api/sync-products.spec.ts:11:7 › Sync Products Endpoint › GET /api/sync/products returns product delta response (268ms)
+  ✓  18 [api-tests] › tests/api/sync-products.spec.ts:29:7 › Sync Products Endpoint › GET /api/sync/products returns valid product objects (193ms)
+  ✓  19 [api-tests] › tests/api/sync-products.spec.ts:51:7 › Sync Products Endpoint › GET /api/sync/products returns multilingual names and descriptions (278ms)
+  ✓  20 [api-tests] › tests/api/sync-products.spec.ts:74:7 › Sync Products Endpoint › GET /api/sync/products returns valid price in cents (265ms)
+  ✓  21 [api-tests] › tests/api/sync-products.spec.ts:88:7 › Sync Products Endpoint › GET /api/sync/products count matches products array length (262ms)
+  ✓  22 [api-tests] › tests/api/sync-products.spec.ts:97:7 › Sync Products Endpoint › GET /api/sync/products returns JSON content type (261ms)
+  ✘  23 [api-tests] › tests/api/transactions.spec.ts:26:7 › Transactions Upload Endpoint › POST /api/sync/transactions accepts single transaction (284ms)
+  ✘  24 [api-tests] › tests/api/transactions.spec.ts:47:7 › Transactions Upload Endpoint › POST /api/sync/transactions accepts batch of transactions (631ms)
+  ✘  25 [api-tests] › tests/api/transactions.spec.ts:68:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects empty transactions array (627ms)
+  ✘  26 [api-tests] › tests/api/transactions.spec.ts:79:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects missing transactions field (630ms)
+  ✘  27 [api-tests] › tests/api/transactions.spec.ts:90:7 › Transactions Upload Endpoint › POST /api/sync/transactions validates required transaction fields (666ms)
+  ✓  28 [api-tests] › tests/api/transactions.spec.ts:108:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects negative amount_cents (646ms)
+  ✓  29 [api-tests] › tests/api/transactions.spec.ts:121:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects zero amount_cents (266ms)
+  ✓  30 [api-tests] › tests/api/transactions.spec.ts:134:7 › Transactions Upload Endpoint › POST /api/sync/transactions returns JSON content type (269ms)
+  ✘  31 [api-tests] › tests/api/transactions.spec.ts:145:7 › Transactions Upload Endpoint › POST /api/sync/transactions accepts max batch size (291ms)
+  ✘  32 [api-tests] › tests/api/transactions.spec.ts:159:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects batch exceeding max size (653ms)
+
+
+  1) [api-tests] › tests/api/member-language.spec.ts:44:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language rejects invalid language code 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoContain[2m([22m[32mexpected[39m[2m) // indexOf[22m
+
+    [1mMatcher error[22m: [31mreceived[39m value must not be null nor undefined
+
+    Received has value: [31mundefined[39m
+
+      51 |     const body = await response.json();
+      52 |     expect(body.error).toBe('invalid_request');
+    > 53 |     expect(body.message).toContain('xx');
+         |                          ^
+      54 |   });
+      55 |
+      56 |   test('PATCH /api/sync/members/{memberId}/language rejects missing language', async ({ request }) => {
+        at /Users/dg/dev/frgs-vereinsbar/e2etests/tests/api/member-language.spec.ts:53:26
+
+  2) [api-tests] › tests/api/member-language.spec.ts:67:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language returns 404 for invalid UUID 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m404[39m
+    Received: [31m200[39m
+
+      70 |     });
+      71 |
+    > 72 |     expect(response.status()).toBe(404);
+         |                               ^
+      73 |
+      74 |     const body = await response.json();
+      75 |     expect(body.error).toBe('not_found');
+        at /Users/dg/dev/frgs-vereinsbar/e2etests/tests/api/member-language.spec.ts:72:31
+
+  3) [api-tests] › tests/api/transactions.spec.ts:26:7 › Transactions Upload Endpoint › POST /api/sync/transactions accepts single transaction 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeTruthy[2m()[22m
+
+    Received: [31mfalse[39m
+
+      31 |     });
+      32 |
+    > 33 |     expect(response.ok()).toBeTruthy();
+         |                           ^
+      34 |     expect(response.status()).toBe(200);
+      35 |
+      36 |     const body = await response.json();
+        at /Users/dg/dev/frgs-vereinsbar/e2etests/tests/api/transactions.spec.ts:33:27
+
+  4) [api-tests] › tests/api/transactions.spec.ts:47:7 › Transactions Upload Endpoint › POST /api/sync/transactions accepts batch of transactions 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeTruthy[2m()[22m
+
+    Received: [31mfalse[39m
+
+      56 |     });
+      57 |
+    > 58 |     expect(response.ok()).toBeTruthy();
+         |                           ^
+      59 |
+      60 |     const body = await response.json();
+      61 |     expect(body.accepted_ids.length).toBe(3);
+        at /Users/dg/dev/frgs-vereinsbar/e2etests/tests/api/transactions.spec.ts:58:27
+
+  5) [api-tests] › tests/api/transactions.spec.ts:68:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects empty transactions array 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m400[39m
+    Received: [31m422[39m
+
+      71 |     });
+      72 |
+    > 73 |     expect(response.status()).toBe(400);
+         |                               ^
+      74 |
+      75 |     const body = await response.json();
+      76 |     expect(body.error).toBe('invalid_request');
+        at /Users/dg/dev/frgs-vereinsbar/e2etests/tests/api/transactions.spec.ts:73:31
+
+  6) [api-tests] › tests/api/transactions.spec.ts:79:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects missing transactions field 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m400[39m
+    Received: [31m422[39m
+
+      82 |     });
+      83 |
+    > 84 |     expect(response.status()).toBe(400);
+         |                               ^
+      85 |
+      86 |     const body = await response.json();
+      87 |     expect(body.error).toBe('invalid_request');
+        at /Users/dg/dev/frgs-vereinsbar/e2etests/tests/api/transactions.spec.ts:84:31
+
+  7) [api-tests] › tests/api/transactions.spec.ts:90:7 › Transactions Upload Endpoint › POST /api/sync/transactions validates required transaction fields 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeDefined[2m()[22m
+
+    Received: [31mundefined[39m
+
+      102 |     const body = await response.json();
+      103 |     expect(body.error).toBe('validation_failed');
+    > 104 |     expect(body.details).toBeDefined();
+          |                          ^
+      105 |     expect(body.details.length).toBeGreaterThan(0);
+      106 |   });
+      107 |
+        at /Users/dg/dev/frgs-vereinsbar/e2etests/tests/api/transactions.spec.ts:104:26
+
+  8) [api-tests] › tests/api/transactions.spec.ts:145:7 › Transactions Upload Endpoint › POST /api/sync/transactions accepts max batch size 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeTruthy[2m()[22m
+
+    Received: [31mfalse[39m
+
+      151 |     });
+      152 |
+    > 153 |     expect(response.ok()).toBeTruthy();
+          |                           ^
+      154 |
+      155 |     const body = await response.json();
+      156 |     expect(body.accepted_ids.length).toBe(100);
+        at /Users/dg/dev/frgs-vereinsbar/e2etests/tests/api/transactions.spec.ts:153:27
+
+  9) [api-tests] › tests/api/transactions.spec.ts:159:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects batch exceeding max size 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m400[39m
+    Received: [31m422[39m
+
+      165 |     });
+      166 |
+    > 167 |     expect(response.status()).toBe(400);
+          |                               ^
+      168 |
+      169 |     const body = await response.json();
+      170 |     expect(body.error).toBe('invalid_request');
+        at /Users/dg/dev/frgs-vereinsbar/e2etests/tests/api/transactions.spec.ts:167:31
+
+  9 failed
+    [api-tests] › tests/api/member-language.spec.ts:44:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language rejects invalid language code 
+    [api-tests] › tests/api/member-language.spec.ts:67:7 › Member Language Update Endpoint › PATCH /api/sync/members/{memberId}/language returns 404 for invalid UUID 
+    [api-tests] › tests/api/transactions.spec.ts:26:7 › Transactions Upload Endpoint › POST /api/sync/transactions accepts single transaction 
+    [api-tests] › tests/api/transactions.spec.ts:47:7 › Transactions Upload Endpoint › POST /api/sync/transactions accepts batch of transactions 
+    [api-tests] › tests/api/transactions.spec.ts:68:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects empty transactions array 
+    [api-tests] › tests/api/transactions.spec.ts:79:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects missing transactions field 
+    [api-tests] › tests/api/transactions.spec.ts:90:7 › Transactions Upload Endpoint › POST /api/sync/transactions validates required transaction fields 
+    [api-tests] › tests/api/transactions.spec.ts:145:7 › Transactions Upload Endpoint › POST /api/sync/transactions accepts max batch size 
+    [api-tests] › tests/api/transactions.spec.ts:159:7 › Transactions Upload Endpoint › POST /api/sync/transactions rejects batch exceeding max size 
+  23 passed (18.4s)

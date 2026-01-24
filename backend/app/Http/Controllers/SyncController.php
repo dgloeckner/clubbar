@@ -81,6 +81,14 @@ final class SyncController extends Controller
      */
     public function updateLanguage(UpdateLanguageRequest $request, string $memberId): JsonResponse
     {
+        // Validate UUID format
+        if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $memberId)) {
+            return response()->json([
+                'error' => 'not_found',
+                'message' => 'Member not found',
+            ], 404);
+        }
+
         $member = $this->syncService->updateMemberLanguage(
             $memberId,
             $request->preferredLanguage()
