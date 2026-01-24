@@ -17,8 +17,10 @@
 | **2. Sync Controller Refactoring** | **[x]** | **32/32** | All Terminal API endpoints |
 | **2.5. Security Audit (ADR-0015)** | [ ] | 0/18 | Verify security patterns compliance |
 | **3. ADR-0018 Restructuring** | **[x]** | **✅** | Modular directory structure complete |
-| **4. Members Admin Module** | **[x]** | **35/35** | First full admin module complete |
-| **5. Playwright Tests (Admin)** | **[x]** | **35/35** | Test admin endpoints complete |
+| **4.A Members Admin API** | **[x]** | **35/35** | API structure + tests COMPLETE |
+| **4.B Members Database** | [ ] | TBD | Database integration PENDING |
+| **4.C Admin Auth** | [ ] | TBD | Session authentication PENDING |
+| **5. Playwright Tests (Admin)** | [~] | 35/35 | Tests exist; need auth updates |
 | **6. Terminal API Regression** | [ ] | 0/6 | Verify no breakage |
 | **7. End-to-End Verification** | [ ] | 0/1 | Full stack test |
 
@@ -330,20 +332,33 @@ _None yet_
 
 ## Milestone 4: Members Admin Module (First Full Module)
 
-**Objective**: Implement complete Members admin module with CRUD operations, GDPR workflows, and full admin API endpoints.
+**Objective**: Implement complete Members admin module with CRUD operations, GDPR workflows, database integration, and admin session authentication.
 
-**Status**: ✅ **COMPLETE** — All admin endpoints implemented and tested (35 tests passing)
+**Status**: ⏳ **IN PROGRESS** — API structure implemented; database & authentication layers pending
 
-**Completion Summary**:
-- ✅ 7 admin API endpoints fully implemented (list, create, show, update, delete, export, anonymize)
-- ✅ 3 form requests with comprehensive validation
-- ✅ 1 extended DTO (MemberAdminDto) with admin-specific fields
-- ✅ 6 admin service methods in MembersService
-- ✅ Full admin route configuration with RESTful conventions
-- ✅ 35 Playwright tests covering all admin operations
-- ✅ Pagination with filtering (is_active, language)
-- ✅ GDPR export and anonymization endpoints
-- ✅ Pattern-compliant implementation (Patterns 001, 003, 004, 006, 009, 010, 011)
+**Current Progress**:
+- ✅ **Phase 4.A: API Structure (COMPLETE)**
+  - 7 admin API endpoints (list, create, show, update, delete, export, anonymize)
+  - 3 form requests with comprehensive validation
+  - 1 extended DTO (MemberAdminDto) with admin-specific fields
+  - 6 service methods in MembersService
+  - 35 Playwright tests covering all admin operations
+  - Pattern-compliant implementation (Patterns 001, 003, 004, 006, 009, 010, 011)
+
+**Missing Critical Components**:
+- ❌ **Phase 4.B: Database Integration** — Service uses mock data; needs:
+  - Members table migration (extract from ERM-master.md)
+  - Repository implementation with actual database queries
+  - Service integration with repository for all CRUD operations
+  - Database schema for: id, card_uid, names, email, phone, language, IBAN, SEPA, active flag, soft-delete
+
+- ❌ **Phase 4.C: Admin Session Authentication** — Routes are unprotected; needs:
+  - admin_users table migration with email, password, is_active
+  - AdminUser model with password hashing (Pattern 013)
+  - LoginRequest and AuthService classes
+  - AuthController with POST /api/auth/login and POST /api/auth/logout
+  - auth.session middleware to protect /api/admin/* routes
+  - Tests for authentication flow
 
 **Rationale**: Members is the primary admin domain. Implementing it fully establishes patterns for subsequent modules (Products, Settlements, etc.). This is the reference module for module development.
 
@@ -368,9 +383,9 @@ _None yet_
 | `/api/admin/members/{id}/export` | POST | GDPR export (CSV/JSON) | [x] |
 | `/api/admin/members/{id}/anonymize` | POST | GDPR anonymization (Art. 17) | [x] |
 
-### Tasks
+### Tasks - Phase 4.A: API Structure ✅ COMPLETE
 
-#### 4.1: Form Requests & Validation (Pattern 001)
+#### 4.A.1: Form Requests & Validation (Pattern 001)
 
 | # | Task | Details | Status |
 |---|------|---------|--------|
@@ -444,9 +459,195 @@ _None yet_
 - [x] Validation errors returning proper status codes (422)
 - [x] Not-found errors returning 404
 
-### Failures
+### Failures - Phase 4.A
 
 _None_
+
+---
+
+## Milestone 4.B: Members Database Integration
+
+**Objective**: Integrate Members module with database. Implement repository methods to query/persist member data instead of returning mocks.
+
+**Dependencies**: Phase 4.A (API structure) complete
+
+**Patterns to Implement**:
+- Pattern 005: Repository Interface (already in BaseRepository)
+- Pattern 011: Shared Base Repository (extend with Members queries)
+
+### Tasks
+
+#### 4.B.1: Database Migration
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.1.1 | Create Members table migration | Create `database/migrations/*_create_members_table.php` with schema from ERM-master.md | [ ] |
+| 4.B.1.2 | Schema includes all required fields | id (UUID), card_uid (unique), names, email, phone, language, IBAN, mandate, active, deleted_at, timestamps | [ ] |
+| 4.B.1.3 | Add appropriate indexes | UUID primary key, unique on card_uid + mandate_reference, index on is_active + created_at | [ ] |
+| 4.B.1.4 | Test migration up and down | Run migration and verify table structure | [ ] |
+
+#### 4.B.2: Update Member Model
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.2.1 | Verify model attributes | Ensure all ERM fields mapped in fillable array | [ ] |
+| 4.B.2.2 | Add field casts | Cast booleans, dates, JSON fields appropriately | [ ] |
+| 4.B.2.3 | Add accessor methods | Methods for formatted display (e.g., full_name from first/last) | [ ] |
+
+#### 4.B.3: Implement Repository Methods
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.3.1 | findModifiedSince(timestamp) | Return members modified after timestamp (for delta sync) | [ ] |
+| 4.B.3.2 | findByCardUid(cardUid) | Find member by RFID card UID for transactions | [ ] |
+| 4.B.3.3 | getTransactionHistory(memberId) | Query transactions for member (for export) | [ ] |
+| 4.B.3.4 | getBookingHistory(memberId) | Query booking records for member (for export) | [ ] |
+| 4.B.3.5 | softDelete(memberId) | Soft-delete member (GDPR anonymization) | [ ] |
+| 4.B.3.6 | queryWithFilters(filters) | Support is_active and language filters | [ ] |
+
+#### 4.B.4: Update Service Layer
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.4.1 | Replace mock syncSince() | Use repository->findModifiedSince() instead of hardcoded data | [ ] |
+| 4.B.4.2 | Replace mock updateLanguage() | Query repository and update via ORM | [ ] |
+| 4.B.4.3 | Replace mock listMembers() | Use repository->query() with pagination | [ ] |
+| 4.B.4.4 | Replace mock getMember() | Use repository->findById() | [ ] |
+| 4.B.4.5 | Replace mock createMember() | Use repository->create() | [ ] |
+| 4.B.4.6 | Replace mock updateMember() | Use repository->updateById() | [ ] |
+| 4.B.4.7 | Replace mock deleteMember() | Use repository->deleteById() | [ ] |
+| 4.B.4.8 | Implement real exportMember() | Query history via repository methods | [ ] |
+| 4.B.4.9 | Implement real anonymizeMember() | Call repository->softDelete() and clear PII | [ ] |
+
+#### 4.B.5: Database Tests
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.B.5.1 | Update admin-members-list tests | Verify real data from database (not mocks) | [ ] |
+| 4.B.5.2 | Update admin-members-crud tests | Create/read/update/delete real records | [ ] |
+| 4.B.5.3 | Test filtering & pagination | Verify database queries honor filters | [ ] |
+| 4.B.5.4 | Test GDPR operations | Export and anonymization with real data | [ ] |
+| 4.B.5.5 | Test soft-delete behavior | Verify deleted_at set correctly | [ ] |
+
+### Success Criteria - Phase 4.B
+
+- [ ] Members table exists in database with all ERM fields
+- [ ] Migration tested up/down successfully
+- [ ] All repository methods query database (no hardcoded mock data)
+- [ ] Service methods use repository for all operations
+- [ ] Pagination with limit/offset works with real data
+- [ ] Filtering (is_active, language) works with database queries
+- [ ] GDPR export includes real transaction/booking history
+- [ ] Soft-delete (anonymization) sets deleted_at timestamp
+- [ ] All 35 admin tests pass with real database data
+- [ ] No mock data in production endpoints
+
+### Failures - Phase 4.B
+
+_Pending implementation_
+
+---
+
+## Milestone 4.C: Admin Session Authentication
+
+**Objective**: Implement Pattern 013 (Admin Session Authentication) to secure admin endpoints.
+
+**Dependencies**: Phase 4.A (API structure) complete
+
+**Patterns to Implement**:
+- Pattern 001: Form Requests (LoginRequest)
+- Pattern 013: Admin Session Authentication (Pattern exists; implement here)
+
+### Tasks
+
+#### 4.C.1: Admin User Model & Migration
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.C.1.1 | Create admin_users table migration | Fields: id, email (unique), password (hashed), is_active, created_at, updated_at | [ ] |
+| 4.C.1.2 | Create AdminUser model | Extend Authenticatable, implement isActive() method | [ ] |
+| 4.C.1.3 | Implement password hashing | Add setPasswordAttribute() mutator with bcrypt cost 12 | [ ] |
+| 4.C.1.4 | Seed initial admin user | Create admin_users seeder for development | [ ] |
+
+#### 4.C.2: Authentication Service & Requests
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.C.2.1 | Create LoginRequest | Validate email + password format | [ ] |
+| 4.C.2.2 | Create AuthService | Implement authenticate(email, password) method | [ ] |
+| 4.C.2.3 | Password verification | Use Hash::check() for bcrypt comparison | [ ] |
+| 4.C.2.4 | Active user check | Verify is_active flag before allowing login | [ ] |
+
+#### 4.C.3: Auth Controller
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.C.3.1 | Create AuthController | Thin controller following Pattern 006 | [ ] |
+| 4.C.3.2 | POST /api/auth/login | Validate credentials, regenerate session, set secure cookie | [ ] |
+| 4.C.3.3 | POST /api/auth/logout | Destroy session, clear cookie | [ ] |
+| 4.C.3.4 | GET /api/auth/profile | Return current user info (from session) | [ ] |
+| 4.C.3.5 | Error handling | Return 401 for invalid credentials, 403 for inactive users | [ ] |
+
+#### 4.C.4: Session Middleware
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.C.4.1 | Create auth.session middleware | Check session contains user_id; verify user still active | [ ] |
+| 4.C.4.2 | Session regeneration on login | Call session_regenerate_id(true) to prevent fixation | [ ] |
+| 4.C.4.3 | Session cookie configuration | Set HttpOnly, Secure, SameSite=Lax attributes | [ ] |
+| 4.C.4.4 | Idle timeout | Configure session expiry on inactivity | [ ] |
+| 4.C.4.5 | Absolute timeout | Configure absolute session lifetime (24 hours) | [ ] |
+
+#### 4.C.5: Route Protection
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.C.5.1 | Register auth.session middleware | Add to app/Http/Kernel.php routeMiddleware | [ ] |
+| 4.C.5.2 | Apply to /api/admin routes | Wrap Members admin routes with auth.session | [ ] |
+| 4.C.5.3 | Auth routes are public | Login/logout endpoints accessible without session | [ ] |
+| 4.C.5.4 | Verify unauth requests get 401 | Test accessing admin endpoint without session | [ ] |
+
+#### 4.C.6: Authentication Tests
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.C.6.1 | POST /api/auth/login success | Valid credentials create session | [ ] |
+| 4.C.6.2 | POST /api/auth/login invalid email | Return 401 with generic error message | [ ] |
+| 4.C.6.3 | POST /api/auth/login invalid password | Return 401 with generic error message | [ ] |
+| 4.C.6.4 | POST /api/auth/login inactive user | Return 403 (account inactive) | [ ] |
+| 4.C.6.5 | GET /api/admin/members without session | Return 401 Unauthorized | [ ] |
+| 4.C.6.6 | GET /api/admin/members with session | Return 200 with member list | [ ] |
+| 4.C.6.7 | POST /api/auth/logout destroys session | Session no longer valid after logout | [ ] |
+| 4.C.6.8 | GET /api/auth/profile returns user | Logged-in user can retrieve their info | [ ] |
+| 4.C.6.9 | Session expiry on timeout | Session expires after inactivity period | [ ] |
+| 4.C.6.10 | Password hashing verified | Passwords stored as bcrypt hashes | [ ] |
+
+#### 4.C.7: Update Admin Tests
+
+| Task | Details | Status |
+|------|---------|--------|
+| 4.C.7.1 | Update admin-members tests | All tests send auth session cookie | [ ] |
+| 4.C.7.2 | Verify 401 without auth | Tests confirm unauth requests rejected | [ ] |
+| 4.C.7.3 | Login before admin tests | Test suite creates session before each test | [ ] |
+
+### Success Criteria - Phase 4.C
+
+- [ ] AdminUser model created with password hashing
+- [ ] admin_users table migrated with required fields
+- [ ] LoginRequest validates email + password format
+- [ ] AuthService authenticates with bcrypt comparison
+- [ ] AuthController login endpoint creates secure session
+- [ ] Session middleware protects /api/admin/* routes
+- [ ] Unauth requests to /api/admin return 401
+- [ ] POST /api/auth/logout destroys session
+- [ ] All 10 authentication tests pass
+- [ ] Admin tests updated to use session authentication
+- [ ] No plaintext passwords in database
+- [ ] Secure cookie attributes (HttpOnly, Secure, SameSite) configured
+
+### Failures - Phase 4.C
+
+_Pending implementation_
 
 ---
 
