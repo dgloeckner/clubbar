@@ -12,17 +12,24 @@ _None yet_
 
 ## Current Plan
 
-### Phase 1: Backend Foundation
+### Phase 1: Backend Foundation + ADR-0018 + Security Audit
 - **Link**: [phase1-backend-foundation.md](./phase1-backend-foundation.md)
-- **Goal**: Working backend with pattern-compliant controllers, OAS-driven endpoints, mock data, and verified Playwright API tests
+- **Goal**: Secure, modular backend with pattern-compliant endpoints and verified API tests
 - **Status**: In Progress
-- **Progress**: 8/22 tasks completed (36%)
+- **Progress**:
+  - Infrastructure & Terminal API: ✅ Complete (35 tests passing)
+  - Security Audit (ADR-0015): → Starting (18 checks)
+  - Modular Restructuring & Admin API: → To Follow
 - **Key Milestones**:
-  - Milestone 1: Docker Infrastructure (3/3 tasks) ✓
-  - **Milestone 1.5: Health Controller Refactoring (5/5 tasks) ✓** — Pattern implementation reference template complete
-  - Milestone 2: Mock Controllers per OAS (0/6 tasks) — Must follow patterns from 1.5 template
-  - Milestone 3: Playwright Test Suite (0/7 tasks)
-  - Milestone 4: End-to-End Verification (0/1 tasks)
+  - **✅ Milestone 1**: Docker Infrastructure (3/3)
+  - **✅ Milestone 1.5**: Health Controller Refactoring (3/3 tests)
+  - **✅ Milestone 2**: Sync Controller Refactoring (32/32 tests)
+  - **→ Milestone 2.5**: Security Audit & Compliance (0/18 checks) — **NEW** — Verify patterns 012-015 + ADRs 0016-0017
+  - **→ Milestone 3**: ADR-0018 Restructuring (0/6 tasks) — Modular directory structure, BaseService/BaseRepository
+  - **→ Milestone 4**: Members Admin Module (0/23 tasks) — First full module implementation
+  - **→ Milestone 5**: Admin API Tests (0/23 tests) — Members module test coverage
+  - **→ Milestone 6**: Terminal API Regression (0/6 tests) — Verify no breakage after restructuring
+  - **→ Milestone 7**: End-to-End Verification (0/1 task) — Full stack from clean state
 
 ---
 
@@ -83,14 +90,23 @@ _None yet_
 | Milestone | Code | Tests | Status |
 |-----------|------|-------|--------|
 | 1. Docker Infrastructure | ✅ 3/3 | ✅ N/A | **✅ COMPLETE** |
-| **1.5 Health Controller** | **✅ 5/5** | **⏳ 0/3** | **⏳ AWAIT TEST** |
-| **2. SyncController** | **✅ 5/5** | **⏳ 0/17** | **⏳ AWAIT TEST** |
-| 3. Playwright Tests | N/A | ⏳ BLOCKED | ⏳ Depends on 1.5 & 2 |
-| 4. End-to-End | N/A | ⏳ BLOCKED | ⏳ Depends on 3 |
+| 1.5. Health Controller | ✅ 5/5 | ✅ 3/3 | **✅ COMPLETE** |
+| 2. SyncController | ✅ 5/5 | ✅ 32/32 | **✅ COMPLETE** |
+| **2.5. Security Audit** | **⏳ Review** | **⏳ 0/18** | **→ STARTING** |
+| **3. ADR-0018 Restructuring** | **⏳ 0/6** | **N/A** | **→ BLOCKED on M2.5** |
+| **4. Members Admin Module** | **⏳ 0/7** | **⏳ 0/23** | **→ BLOCKED on M3** |
+| **5. Admin API Tests** | **N/A** | **⏳ 0/23** | **→ BLOCKED on M4** |
+| **6. Terminal API Regression** | **N/A** | **→ 35/35** | **→ BLOCKED on M3** |
+| **7. End-to-End** | **N/A** | **⏳ 0/1** | **→ BLOCKED on M5-6** |
 
-**Key Achievement**: Milestones 1.5 & 2 now code-complete with all patterns implemented and verified syntactically.
+**Terminal API Status**: ✅ 35/35 tests passing (Health + Sync endpoints)
 
-**Next Step**: Run Playwright tests when Docker available to verify implementations work.
+**Security Audit**: ⏳ Ready to start
+- 18 checks covering auth (012-013), identification (014), authorization (015)
+- Verifies ADR-0015, ADR-0016, ADR-0017 compliance
+- Blocks M3 start until P0 findings resolved
+
+**Next Step**: Start Milestone 2.5 (Security Audit) to verify all security patterns before restructuring
 
 ### Test Verification Framework
 

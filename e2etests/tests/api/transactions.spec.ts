@@ -8,6 +8,9 @@ import { randomUUID } from 'crypto';
  * Batch uploads purchase transactions from terminal to backend.
  */
 
+const validToken = process.env.TEST_TERMINAL_TOKEN;
+const authHeaders = validToken ? { 'Authorization': `Bearer ${validToken}` } : {};
+
 test.describe('Transactions Upload Endpoint', () => {
   const validMemberId = '123e4567-e89b-12d3-a456-426614174000';
   const validProductId = '987f6543-e21a-11d3-b456-426614174999';
@@ -27,6 +30,7 @@ test.describe('Transactions Upload Endpoint', () => {
     const transaction = createValidTransaction();
 
     const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
       data: { transactions: [transaction] },
     });
 
@@ -52,6 +56,7 @@ test.describe('Transactions Upload Endpoint', () => {
     ];
 
     const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
       data: { transactions },
     });
 
@@ -67,6 +72,7 @@ test.describe('Transactions Upload Endpoint', () => {
 
   test('POST /api/sync/transactions rejects empty transactions array', async ({ request }) => {
     const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
       data: { transactions: [] },
     });
 
@@ -78,6 +84,7 @@ test.describe('Transactions Upload Endpoint', () => {
 
   test('POST /api/sync/transactions rejects missing transactions field', async ({ request }) => {
     const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
       data: {},
     });
 
@@ -94,6 +101,7 @@ test.describe('Transactions Upload Endpoint', () => {
     };
 
     const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
       data: { transactions: [incompleteTransaction] },
     });
 
@@ -109,6 +117,7 @@ test.describe('Transactions Upload Endpoint', () => {
     const transaction = createValidTransaction({ amount_cents: -100 });
 
     const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
       data: { transactions: [transaction] },
     });
 
@@ -122,6 +131,7 @@ test.describe('Transactions Upload Endpoint', () => {
     const transaction = createValidTransaction({ amount_cents: 0 });
 
     const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
       data: { transactions: [transaction] },
     });
 
@@ -135,6 +145,7 @@ test.describe('Transactions Upload Endpoint', () => {
     const transaction = createValidTransaction();
 
     const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
       data: { transactions: [transaction] },
     });
 
@@ -147,6 +158,7 @@ test.describe('Transactions Upload Endpoint', () => {
     const transactions = Array.from({ length: 100 }, () => createValidTransaction());
 
     const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
       data: { transactions },
     });
 
@@ -161,6 +173,7 @@ test.describe('Transactions Upload Endpoint', () => {
     const transactions = Array.from({ length: 101 }, () => createValidTransaction());
 
     const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
       data: { transactions },
     });
 

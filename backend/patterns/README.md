@@ -76,29 +76,94 @@ All backend code must follow these patterns. Reference them when implementing fe
 
 ---
 
+### Modularity & Organization
+
+**[Pattern 009: Module Structure & Organization (ADR-0018)](./pattern-009-module-structure-adr-0018.md)**
+- Feature-based module organization
+- Terminal + Admin API coexistence in one module
+- Route aggregation across modules
+- **When**: Implementing any new feature module
+
+**[Pattern 010: Shared Base Service Layer](./pattern-010-shared-base-service.md)**
+- Extract common CRUD patterns to base service
+- Module-specific services extend base class
+- Hooks for filtering, transformation, domain logic
+- **When**: Creating module services with standard CRUD
+
+**[Pattern 011: Shared Base Repository](./pattern-011-shared-base-repository.md)**
+- Extract common data access to base repository
+- Module-specific repositories extend base class
+- Domain-specific query methods in extensions
+- **When**: Creating module repositories
+
+---
+
+### Security & Authentication (ADR-0015)
+
+**[Pattern 012: Terminal API Token Authentication](./pattern-012-terminal-api-token-authentication.md)**
+- Device-level authentication via Bearer tokens
+- 256-bit cryptographically secure tokens
+- Bcrypt hashing; no plaintext storage
+- Token generation, validation, rotation, revocation
+- **Key Principle**: Terminals authenticate as **devices**, not users
+- **When**: Terminal API endpoints (`/api/sync/*`)
+
+**[Pattern 013: Admin Session Authentication](./pattern-013-admin-session-authentication.md)**
+- Traditional session-based admin authentication
+- Secure HTTP-only cookies with SameSite attribute
+- Session regeneration to prevent fixation attacks
+- Idle timeout (2 hours) + absolute timeout (24 hours)
+- **Key Principle**: Admins authenticate as **users** with passwords
+- **When**: Admin API endpoints (`/api/admin/*`)
+
+**[Pattern 014: RFID Member Identification](./pattern-014-rfid-member-identification.md)**
+- RFID card UID identifies members for transactions
+- **CRITICAL**: This is **identification, NOT authentication**
+- Card UID is visible (not secret) and non-revocable per card
+- Used for transaction linking and audit trails
+- **Key Principle**: Members **never authenticate**; they are **identified** by RFID
+- **When**: Transaction processing, member lookup
+
+**[Pattern 015: Authorization & Access Control](./pattern-015-authorization-access-control.md)**
+- Middleware for endpoint-level access control
+- Terminal Bearer token → `/api/sync/*` access
+- Admin session → `/api/admin/*` access
+- Prevent auth method confusion
+- Resource ownership checks (optional)
+- Rate limiting by auth type
+- **When**: Protecting endpoints; controlling access
+
+---
+
 ## How Patterns Work Together
 
 ### Typical Request Flow
 
-1. **HTTP Request arrives** → Routed to controller
-2. **FormRequest validates** (Pattern 001) → Typed accessors extract data
-3. **Controller receives validated data** (thin, Pattern 006) → Calls service
-4. **Service executes business logic** (Pattern 004) → Uses repositories
-5. **Repository queries data** (Pattern 005) → Returns domain objects
-6. **Service transforms to DTO** (Pattern 003) → Uses type-safe enums (Pattern 002)
-7. **Controller serializes DTO** → JSON response
-8. **Exception Handler catches errors** (Pattern 007) → Formats response
-9. **Service Provider injected dependencies** (Pattern 008) → Resolved at runtime
+1. **HTTP Request arrives** → Authenticated? (Patterns 012-013)
+2. **Authentication Middleware** (Pattern 012 or 013) → Validates credentials
+3. **Authorization Middleware** (Pattern 015) → Checks endpoint access
+4. **FormRequest validates** (Pattern 001) → Typed accessors extract data
+5. **Controller receives validated data** (thin, Pattern 006) → Calls service
+6. **Service executes business logic** (Pattern 004) → Uses repositories
+7. **Repository queries data** (Pattern 005) → Returns domain objects
+8. **Service transforms to DTO** (Pattern 003) → Uses type-safe enums (Pattern 002)
+9. **Controller serializes DTO** → JSON response
+10. **Exception Handler catches errors** (Pattern 007) → Formats response
+11. **Service Provider injected dependencies** (Pattern 008) → Resolved at runtime
 
 ### Data Flow Diagram
 
 ```
-User Request
+HTTP Request
     ↓
 Router
     ↓
+[012/013: Authentication] → Bearer token OR Session
+    ↓
+[015: Authorization] → Check endpoint access
+    ↓
 [006: Thin Controller]
-    ↓ (injects)
+    ↓ (injects via)
 [008: Service Provider] → Resolves dependencies
     ↓
 [001: FormRequest] → Validates input
@@ -106,15 +171,23 @@ Router
 [004: Service Layer] → Business logic
     ↓ (depends on)
 [005: Repository] → Data access
-    ↓ (returns DTOs)
+    ↓ (optionally via)
+[010/011: Shared Base Classes] → Common CRUD patterns
+    ↓ (returns)
 [003: DTOs] (containing [002: Enums])
     ↓
 Controller → Serializes to JSON
     ↓
-[007: Exception Handler] → Formats errors
+[007: Exception Handler] → Catches & formats errors
     ↓
-JSON Response
+JSON Response + [014: RFID Identification] for member transactions
 ```
+
+**Security Layers** (Patterns 012-015):
+- **012**: Terminal devices authenticate with Bearer tokens
+- **013**: Admin users authenticate with sessions
+- **014**: Members identified by RFID (not authenticated)
+- **015**: Authorization middleware enforces endpoint access rules
 
 ---
 

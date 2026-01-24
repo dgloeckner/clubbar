@@ -7,9 +7,13 @@ import { test, expect } from '@playwright/test';
  * Returns categories modified since the `since` timestamp (delta sync).
  */
 
+const validToken = process.env.TEST_TERMINAL_TOKEN;
+const authHeaders = validToken ? { 'Authorization': `Bearer ${validToken}` } : {};
+
 test.describe('Sync Categories Endpoint', () => {
   test('GET /api/sync/categories returns category delta response', async ({ request }) => {
     const response = await request.get('/api/sync/categories', {
+      headers: authHeaders,
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -28,6 +32,7 @@ test.describe('Sync Categories Endpoint', () => {
 
   test('GET /api/sync/categories returns valid category objects', async ({ request }) => {
     const response = await request.get('/api/sync/categories', {
+      headers: authHeaders,
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -48,6 +53,7 @@ test.describe('Sync Categories Endpoint', () => {
 
   test('GET /api/sync/categories returns multilingual names', async ({ request }) => {
     const response = await request.get('/api/sync/categories', {
+      headers: authHeaders,
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -66,6 +72,7 @@ test.describe('Sync Categories Endpoint', () => {
 
   test('GET /api/sync/categories count matches categories array length', async ({ request }) => {
     const response = await request.get('/api/sync/categories', {
+      headers: authHeaders,
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -75,6 +82,7 @@ test.describe('Sync Categories Endpoint', () => {
 
   test('GET /api/sync/categories returns JSON content type', async ({ request }) => {
     const response = await request.get('/api/sync/categories', {
+      headers: authHeaders,
       params: { since: '1970-01-01T00:00:00Z' },
     });
 

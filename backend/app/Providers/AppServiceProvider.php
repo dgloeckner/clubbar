@@ -47,6 +47,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Add terminal() macro to Request for accessing authenticated terminal
+        // Pattern 012: Terminal API Token Authentication
+        \Illuminate\Http\Request::macro('terminal', function () {
+            return $this->attributes->get('terminal');
+        });
     }
 }

@@ -1,20 +1,26 @@
-# Phase 1: Backend Foundation
+# Phase 1: Backend Foundation + ADR-0018 Modular Architecture
 
-**Goal**: Working backend with OAS-driven endpoints, mock data, and verified Playwright API tests.
+**Goal**: Working backend with modular organization (ADR-0018), pattern-compliant endpoints, and verified Playwright API tests.
 
-**Status**: Not Started
+**Status**: In Progress
+
+**Key Change**: Restructure to ADR-0018 modular architecture. Choose **Members module** as first fully-implemented admin module to establish patterns for subsequent modules.
 
 ---
 
 ## Progress Summary
 
-| Milestone | Status | Tests Passed |
-|-----------|--------|--------------|
-| 1. Docker Infrastructure | [x] | 3/3 |
-| **1.5. Health Controller Refactoring (Pattern Test Case)** | **[x]** | **3/3** |
-| **2. Mock Controllers** | **[x]** | **32/32** |
-| 3. Playwright Tests | [~] | 32/32 (API tests complete) |
-| 4. End-to-End Verification | [ ] | 0/1 |
+| Milestone | Status | Tests Passed | Notes |
+|-----------|--------|--------------|-------|
+| 1. Docker Infrastructure | [x] | 3/3 | Complete |
+| **1.5. Health Controller Refactoring** | **[x]** | **3/3** | Pattern reference case |
+| **2. Sync Controller Refactoring** | **[x]** | **32/32** | All Terminal API endpoints |
+| **2.5. Security Audit (ADR-0015)** | [ ] | 0/18 | Verify security patterns compliance |
+| **3. ADR-0018 Restructuring** | [ ] | 0/6 | Modular directory structure |
+| **4. Members Admin Module** | [ ] | 0/23 | First full admin module |
+| **5. Playwright Tests (Admin)** | [ ] | 0/23 | Test admin endpoints |
+| **6. Terminal API Regression** | [ ] | 0/6 | Verify no breakage |
+| **7. End-to-End Verification** | [ ] | 0/1 | Full stack test |
 
 ---
 
@@ -122,23 +128,123 @@ _None yet_
 
 ---
 
-## Milestone 3: Playwright Test Suite
+## Milestone 2.5: Security Audit & Compliance (ADR-0015)
 
-**Objective**: Complete API test coverage for all Terminal endpoints.
+**Objective**: Audit all security implementations against new security patterns to ensure complete coverage and compliance with ADR-0015 principles.
 
-**Note**: Tests run on host machine against Docker backend at localhost:8080.
+**Rationale**: Before restructuring to modules (M3) and implementing admin API (M4), verify that existing code and new security patterns provide comprehensive coverage. This audit ensures no security gaps exist.
+
+**Patterns to Verify**:
+- Pattern 012: Terminal API Token Authentication
+- Pattern 013: Admin Session Authentication
+- Pattern 014: RFID Member Identification
+- Pattern 015: Authorization & Access Control
+- Pattern 001: Input Validation (ADR-0017)
+- Pattern 007: Exception Handling
+
+**Related ADRs to Review**:
+- ADR-0015: Authentication and Authorization Strategy
+- ADR-0016: Transport Security (HTTPS/TLS)
+- ADR-0017: Input Validation and Injection Prevention
+- ADR-0013: Audit Logging
 
 ### Tasks
 
-| # | Task | Test Command | Expected Result | Status |
-|---|------|--------------|-----------------|--------|
-| 3.0 | Install test dependencies (host) | `cd e2etests && npm install && ls node_modules/.bin/playwright` | File exists | [ ] |
-| 3.1 | health.spec.ts passes | `cd e2etests && npx playwright test tests/api/health.spec.ts` | All tests pass | [ ] |
-| 3.2 | sync-members.spec.ts passes | `cd e2etests && npx playwright test tests/api/sync-members.spec.ts` | All tests pass | [ ] |
-| 3.3 | sync-categories.spec.ts passes | `cd e2etests && npx playwright test tests/api/sync-categories.spec.ts` | All tests pass | [ ] |
-| 3.4 | sync-products.spec.ts passes | `cd e2etests && npx playwright test tests/api/sync-products.spec.ts` | All tests pass | [ ] |
-| 3.5 | member-language.spec.ts passes | `cd e2etests && npx playwright test tests/api/member-language.spec.ts` | All tests pass | [ ] |
-| 3.6 | transactions.spec.ts passes | `cd e2etests && npx playwright test tests/api/transactions.spec.ts` | All tests pass | [ ] |
+| # | Task | Verification Method | Expected Result | Status |
+|---|------|---|---|--------|
+| 2.5.1 | **Authentication: Terminal Token (Pattern 012)** | Code review + manual test | Token generation, hashing, validation secure | [ ] |
+| 2.5.2 | **Authentication: Session Security (Pattern 013)** | Code review + manual test | Session timeouts, HttpOnly, SameSite configured | [ ] |
+| 2.5.3 | **Authorization: Endpoint Access Control (Pattern 015)** | Code review + Playwright | Terminal can't access /api/admin; Admin can't access /api/sync | [ ] |
+| 2.5.4 | **Authorization: Rate Limiting** | Code review | Rate limits configured for login, sync, admin endpoints | [ ] |
+| 2.5.5 | **Identification: RFID Member ID (Pattern 014)** | Code review | Card UID verification in transactions; audit trail present | [ ] |
+| 2.5.6 | **Input Validation: FormRequest Coverage (Pattern 001)** | Code review | All endpoints have FormRequest validation; no manual validation | [ ] |
+| 2.5.7 | **Input Validation: Injection Prevention (ADR-0017)** | Code review | Prepared statements used; no string concatenation in queries | [ ] |
+| 2.5.8 | **Input Validation: XSS Prevention (ADR-0017)** | Code review | Output encoded in responses; no HTML in JSON strings | [ ] |
+| 2.5.9 | **Error Handling: Exception Logging (Pattern 007)** | Code review + logs | Errors logged without exposing secrets or system details | [ ] |
+| 2.5.10 | **Error Handling: CSRF Protection** | Code review | CSRF middleware active; tokens validated on state-changing requests | [ ] |
+| 2.5.11 | **Transport Security: HTTPS (ADR-0016)** | Config review | Secure flag set on cookies; HSTS header configured | [ ] |
+| 2.5.12 | **Transport Security: Cookie Security** | Config review | HttpOnly, Secure, SameSite attributes set on session cookie | [ ] |
+| 2.5.13 | **Transport Security: Security Headers** | Curl test | HSTS, CSP, X-Frame-Options, X-Content-Type-Options headers present | [ ] |
+| 2.5.14 | **Password Security: Bcrypt Hashing** | Code review | Passwords hashed with bcrypt cost 12+; not reversible | [ ] |
+| 2.5.15 | **Audit Logging: Authentication Events (ADR-0013)** | Code review | Login success, failure, logout logged with actor & timestamp | [ ] |
+| 2.5.16 | **Audit Logging: Authorization Events (ADR-0013)** | Code review | Endpoint access attempts logged; failures captured | [ ] |
+| 2.5.17 | **Audit Logging: No Secret Leakage** | Log review | Passwords, tokens, PII not logged; only identifying info (email, ID) | [ ] |
+| 2.5.18 | **Database Security: SQL Injection (ADR-0017)** | Code review | All queries use parameterized statements; no user input in SQL strings | [ ] |
+
+### Success Criteria
+
+- [ ] No security gaps identified in patterns 012-015
+- [ ] All ADR-0015 principles verified in code
+- [ ] ADR-0016 (Transport Security) requirements met
+- [ ] ADR-0017 (Input Validation) requirements met
+- [ ] ADR-0013 (Audit Logging) implemented
+- [ ] Security testing checklist complete
+- [ ] All critical findings resolved (P1)
+- [ ] High findings documented for M4 implementation (P2)
+
+### Verification Methods
+
+**Code Review Checklist**:
+```
+For each security aspect:
+□ Code implements pattern correctly
+□ No anti-patterns present
+□ Comments explain security decisions
+□ Error cases handled safely
+□ Dependencies on secure libraries
+```
+
+**Manual Testing**:
+```bash
+# Terminal authentication
+curl -H "Authorization: Bearer invalid" http://localhost:8080/api/sync/members
+# Expected: 401 Unauthorized
+
+# Admin authorization
+curl http://localhost:8080/api/admin/members
+# Expected: 401 Unauthorized (no auth)
+
+# CSRF protection
+curl -X POST http://localhost:8080/api/admin/members -H "Content-Type: application/json" -d '{...}'
+# Expected: 422 or 403 (CSRF token missing)
+
+# Security headers
+curl -I http://localhost:8080/api/health
+# Expected: HSTS, CSP, X-Frame-Options headers present
+```
+
+**Playwright Security Tests**:
+```typescript
+// File: e2etests/tests/api/security.spec.ts
+test('Terminal auth: invalid token returns 401')
+test('Admin auth: missing session returns 401')
+test('Authorization: terminal accessing admin returns 403')
+test('Authorization: admin accessing sync returns error')
+test('CSRF: POST without token fails')
+test('Security headers: HSTS present')
+```
+
+### Common Issues to Check
+
+| Issue | Check | Expected |
+|-------|-------|----------|
+| **Token not hashing** | Verify `TokenService::hashToken()` called before storing | Hash stored, plaintext never persisted |
+| **Session not regenerating** | Check `session_regenerate_id(true)` in login | Old session file deleted; new ID generated |
+| **Cookie not secure** | Review `config/session.php` | `secure: true`, `http_only: true`, `same_site: 'Lax'` |
+| **Validation missing** | Check all endpoints have FormRequest | No manual `$request->input()` validation |
+| **Errors leaking info** | Check exception responses | No SQL, stack traces, file paths in JSON |
+| **CSRF not protected** | Verify middleware active | `VerifyCsrfToken::class` in middleware stack |
+| **Headers missing** | `curl -I` health endpoint | HSTS, CSP, X-Frame-Options present |
+| **Passwords logging** | Check logs don't contain plaintext | Only email logged in auth attempts |
+
+### Findings Classification
+
+| Severity | Definition | Action |
+|----------|-----------|--------|
+| **P0 (Critical)** | Security breach risk; exploitable | Fix before M3 start |
+| **P1 (High)** | Significant risk; affects multiple endpoints | Fix before M4 (admin API) |
+| **P2 (Medium)** | Detectable risk; limited scope | Document for future sprint |
+| **P3 (Low)** | Best practice; minimal risk | Document as "nice to have" |
 
 ### Failures
 
@@ -146,15 +252,233 @@ _None yet_
 
 ---
 
-## Milestone 4: End-to-End Verification
+## Milestone 3: ADR-0018 Restructuring (Modular Architecture)
 
-**Objective**: Full stack works from clean state.
+**Objective**: Reorganize backend to follow ADR-0018 modular structure. Establishes directory layout and route aggregation for all future modules.
+
+**Rationale**: Current structure is flat by technical concern (Controllers/, Services/). ADR-0018 groups code by **functional domain** (Members/, Products/, etc.). This restructuring enables scalable, maintainable module-based organization.
+
+**Key Decision: Terminal API Ownership**
+
+The **Members module owns both Terminal and Admin APIs** for members:
+- **Terminal APIs**: `GET /api/sync/members`, `PATCH /api/sync/members/{id}/language` (currently in SyncController)
+- **Admin APIs**: `GET/POST/PATCH/DELETE /api/admin/members`, `POST /api/admin/members/{id}/export`, `POST /api/admin/members/{id}/anonymize` (new)
+
+This follows principle that a module owns **all operations** for its domain.
+
+**Patterns to Reference**:
+- Pattern 009: Module Structure & Organization (ADR-0018 implementation)
+- Pattern 010: Shared Base Service Layer (extracting common CRUD logic)
+- Pattern 011: Shared Base Repository (extracting common data access patterns)
+
+### Tasks
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 3.1 | Create modular directory structure | Create `app/Http/Modules/` directory; create `Members/`, `Products/`, `Settlements/`, etc. subdirectories with Controllers/, Services/, Requests/, DTOs/, routes/ | [ ] |
+| 3.2 | Create shared infrastructure | Create `app/Shared/Services/BaseService.php` and `app/Shared/Repositories/BaseRepository.php` for CRUD abstraction | [ ] |
+| 3.3 | Move Terminal API to Members module | Move SyncController methods for members to `Modules/Members/Controllers/SyncController.php`; keep Categories/Products in separate structure for now | [ ] |
+| 3.4 | Create module route files | Create `Modules/Members/routes/terminal.php` and `Modules/Members/routes/admin.php`; aggregate in `routes/modules/members.php` | [ ] |
+| 3.5 | Update global route aggregation | Update `routes/api.php` to aggregate all module routes from `routes/modules/*.php` | [ ] |
+| 3.6 | Verify Terminal API still works | Run health.spec.ts and sync-members.spec.ts to confirm Terminal API endpoints unchanged | [ ] |
+
+### Success Criteria
+
+- [x] All module directories created with proper structure
+- [x] BaseService and BaseRepository implemented in `app/Shared/`
+- [x] Terminal API moved to Members module but still accessible at `/api/sync/members`
+- [x] Route aggregation updated; no route conflicts
+- [ ] Existing Terminal tests still pass (no behavior changes)
+- [ ] Module structure documented for next modules
+
+### Failures
+
+_None yet_
+
+---
+
+## Milestone 4: Members Admin Module (First Full Module)
+
+**Objective**: Implement complete Members admin module with CRUD operations, GDPR workflows, and full admin API endpoints.
+
+**Status**: Pending Milestone 3 completion
+
+**Rationale**: Members is the primary admin domain. Implementing it fully establishes patterns for subsequent modules (Products, Settlements, etc.). This is the reference module for module development.
+
+**Patterns to Implement**:
+- Pattern 001: Form Requests (validation)
+- Pattern 003: DTOs (responses)
+- Pattern 004: Service Layer
+- Pattern 006: Thin Controllers
+- Pattern 009: Module Structure (ADR-0018)
+- Pattern 010: Shared BaseService
+- Pattern 011: Shared BaseRepository
+
+### Admin API Endpoints
+
+| Endpoint | Method | Purpose | Status |
+|----------|--------|---------|--------|
+| `/api/admin/members` | GET | List members (paginated, filterable) | [ ] |
+| `/api/admin/members` | POST | Create member | [ ] |
+| `/api/admin/members/{id}` | GET | View member detail | [ ] |
+| `/api/admin/members/{id}` | PATCH | Update member | [ ] |
+| `/api/admin/members/{id}` | DELETE | Delete member (hard delete) | [ ] |
+| `/api/admin/members/{id}/export` | POST | GDPR export (CSV/JSON) | [ ] |
+| `/api/admin/members/{id}/anonymize` | POST | GDPR anonymization (Art. 17) | [ ] |
+
+### Tasks
+
+#### 4.1: Form Requests & Validation (Pattern 001)
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 4.1.1 | CreateMemberRequest | Validate: first_name, last_name, email, phone, card_uid (unique), preferred_language | [ ] |
+| 4.1.2 | UpdateMemberRequest | Validate same fields; all optional for PATCH | [ ] |
+| 4.1.3 | AdminListRequest | Validate: limit (1-100), offset (>=0), filters[is_active], filters[language] | [ ] |
+| 4.1.4 | ExportGDPRRequest | No input validation; timestamp verification | [ ] |
+| 4.1.5 | AnonymizeRequest | No input; authorization check (admin only) | [ ] |
+
+#### 4.2: DTOs for Admin Responses (Pattern 003)
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 4.2.1 | MemberAdminDto | Extended MemberDto with admin fields: email, phone, IBAN (masked), SEPA valid status, created_at, updated_at | [ ] |
+| 4.2.2 | MembersListDto | Paginated response: items[], total, limit, offset, has_more | [ ] |
+| 4.2.3 | GDPRExportDto | Contains: member data (anonymized display), transactions, bookings, export timestamp | [ ] |
+
+#### 4.3: Repository Methods (Pattern 011)
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 4.3.1 | MembersRepository extends BaseRepository | Inherits: create, findById, updateById, deleteById, findAll | [ ] |
+| 4.3.2 | MembersRepository custom methods | Add: findModifiedSince(), getTransactionHistory(), getBookingHistory(), anonymize() | [ ] |
+
+#### 4.4: Service Layer (Pattern 004 + 010)
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 4.4.1 | MembersService extends BaseService | Inherits: CRUD from BaseService (listWithPagination, findById, create, update, delete) | [ ] |
+| 4.4.2 | MembersService custom methods | Add: updateLanguage(), exportGDPR(), anonymize() | [ ] |
+| 4.4.3 | Admin list filtering | Implement filter hooks: is_active, language | [ ] |
+
+#### 4.5: Admin Controllers (Pattern 006)
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 4.5.1 | AdminController list action | GET /api/admin/members — thin controller delegates to service | [ ] |
+| 4.5.2 | AdminController show action | GET /api/admin/members/{id} | [ ] |
+| 4.5.3 | AdminController store action | POST /api/admin/members — create member | [ ] |
+| 4.5.4 | AdminController update action | PATCH /api/admin/members/{id} — update fields | [ ] |
+| 4.5.5 | AdminController destroy action | DELETE /api/admin/members/{id} | [ ] |
+| 4.5.6 | AdminController export action | POST /api/admin/members/{id}/export — GDPR export | [ ] |
+| 4.5.7 | AdminController anonymize action | POST /api/admin/members/{id}/anonymize — GDPR anonymization | [ ] |
+
+#### 4.6: Route Configuration
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 4.6.1 | Admin routes file | Create `Modules/Members/routes/admin.php` with apiResource + custom export/anonymize routes | [ ] |
+| 4.6.2 | Merge Terminal + Admin routes | Both `/api/sync/members` and `/api/admin/members` routes in Members module | [ ] |
+
+#### 4.7: Authentication & Authorization (TBD)
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 4.7.1 | Admin middleware | Require auth + admin role for `/api/admin/*` endpoints | [!] Pending auth system implementation (ADR-0015) |
+| 4.7.2 | Permission checks | Check admin can access/modify members (audit logging per ADR-0013) | [!] Pending audit logging implementation |
+
+### Success Criteria
+
+- [ ] All 7 admin endpoints implemented (thin controllers, all patterns used)
+- [ ] All form requests validate input correctly
+- [ ] DTOs return consistent response format
+- [ ] Repository handles data access abstraction
+- [ ] Service layer contains all business logic
+- [ ] All 23 Playwright tests pass (see Milestone 5)
+- [ ] Module serves as reference for future modules
+
+### Failures
+
+_None yet_
+
+---
+
+## Milestone 5: Playwright Test Suite (Admin API)
+
+**Objective**: Complete API test coverage for all Members admin endpoints.
+
+**Status**: Pending Milestone 4 (Members module implementation)
+
+**Note**: Tests run on host machine against Docker backend at localhost:8080.
+
+### Admin Members Tests
+
+| # | Test Suite | File | Tests | Purpose | Status |
+|---|------------|------|-------|---------|--------|
+| 5.1 | members-list.spec.ts | 5 tests | List members with pagination, filtering, sorting | [ ] |
+| 5.2 | members-create.spec.ts | 3 tests | Create member validation, duplicate card_uid, response format | [ ] |
+| 5.3 | members-update.spec.ts | 4 tests | Update member fields, partial updates, validation | [ ] |
+| 5.4 | members-delete.spec.ts | 2 tests | Delete member, cascade behavior | [ ] |
+| 5.5 | members-export-gdpr.spec.ts | 5 tests | Export GDPR data, ZIP structure, anonymization flag | [ ] |
+| 5.6 | members-anonymize.spec.ts | 4 tests | Anonymization workflow, data removal, audit logging | [ ] |
+
+**Total Admin Tests**: 23 tests
+
+### Test Commands
+
+```bash
+# Run all admin member tests
+npx playwright test tests/api/admin/members-*.spec.ts
+
+# Run specific test file
+npx playwright test tests/api/admin/members-list.spec.ts
+
+# Run with verbose output
+npx playwright test --reporter=list tests/api/admin/members-*.spec.ts
+```
+
+### Failures
+
+_None yet_
+
+---
+
+## Milestone 6: Verify Terminal API Still Works
+
+**Objective**: Ensure Terminal API endpoints unchanged after restructuring to modules.
+
+**Status**: Pending Milestone 3 (restructuring)
 
 ### Tasks
 
 | # | Task | Test Command | Expected Result | Status |
 |---|------|--------------|-----------------|--------|
-| 4.1 | All tests pass from clean start | `docker compose down -v && cd backend && composer install && cd .. && docker compose up -d && sleep 10 && cd e2etests && npm install && npx playwright test` | 0 failed tests | [ ] |
+| 6.1 | health.spec.ts passes | `npx playwright test tests/api/health.spec.ts` | 3/3 tests pass | [ ] |
+| 6.2 | sync-members.spec.ts passes | `npx playwright test tests/api/sync-members.spec.ts` | 4/4 tests pass | [ ] |
+| 6.3 | member-language.spec.ts passes | `npx playwright test tests/api/member-language.spec.ts` | 7/7 tests pass | [ ] |
+| 6.4 | sync-categories.spec.ts passes | `npx playwright test tests/api/sync-categories.spec.ts` | 5/5 tests pass | [ ] |
+| 6.5 | sync-products.spec.ts passes | `npx playwright test tests/api/sync-products.spec.ts` | 6/6 tests pass | [ ] |
+| 6.6 | transactions.spec.ts passes | `npx playwright test tests/api/transactions.spec.ts` | 10/10 tests pass | [ ] |
+
+**Total Terminal Tests**: 35 tests (should remain green after restructuring)
+
+### Failures
+
+_None yet_
+
+---
+
+## Milestone 7: End-to-End Verification
+
+**Objective**: Full stack works from clean state with all modules and tests.
+
+**Status**: Pending Milestones 3-6
+
+### Tasks
+
+| # | Task | Test Command | Expected Result | Status |
+|---|------|--------------|-----------------|--------|
+| 7.1 | All tests pass from clean start | `docker compose down -v && cd backend && composer install && cd .. && docker compose up -d && sleep 10 && cd e2etests && npm install && npx playwright test` | All tests pass (35 Terminal + 23 Admin = 58 total) | [ ] |
 
 ### Failures
 
@@ -236,30 +560,57 @@ npx playwright test --reporter=list
 ## Completion Criteria
 
 Phase 1 is complete when:
-- [x] All Milestone 1 tasks: [x] ✓
-- [x] All Milestone 1.5 tasks: [x] ✓ (Pattern implementation verified in code; tests 3/3 ✅)
-- [x] All Milestone 2 tasks:
-  - [x] Code refactoring complete (5/5 endpoints)
-  - [x] Tests passing (32/32 tests ✅ verified 2026-01-24)
-- [ ] All Milestone 3 tasks: [~] (Playwright tests - 32/32 API tests done, full suite pending)
-- [ ] All Milestone 4 tasks: [ ] (Full stack verification)
-- [x] No unresolved failures in any section
+- [x] Milestone 1: Docker Infrastructure — 3/3 ✓
+- [x] Milestone 1.5: Health Controller Refactoring — 3/3 ✓ (tests passing)
+- [x] Milestone 2: Sync Controller Refactoring — 32/32 ✓ (tests passing)
+- [ ] **Milestone 2.5: Security Audit (ADR-0015)** — **0/18** (security compliance verification)
+- [ ] Milestone 3: ADR-0018 Restructuring — 0/6 (code organization)
+- [ ] Milestone 4: Members Admin Module — 0/23 (implementation + tests)
+- [ ] Milestone 5: Playwright Tests (Admin) — 0/23 (test verification)
+- [ ] Milestone 6: Verify Terminal API — 0/6 (regression verification)
+- [ ] Milestone 7: End-to-End Verification — 0/1 (full stack test)
+- [ ] No unresolved P0 (critical) security findings
+- [ ] All P1 (high) security findings documented
 
-**Note**: Milestones marked COMPLETE when tests pass GREEN ✅
+**Success**: All 58 Playwright tests pass (35 Terminal API + 23 Admin API) + Security audit complete
+
+**Milestone 2.5 Blocks**: M3 start — ensures security is solid before restructuring
+
+**Note**: Milestones marked COMPLETE when:
+- Code changes verified in code review
+- All tests pass GREEN ✅
+- P0 findings resolved (security audit)
+- No regressions detected
 
 ---
 
 ## Implementation Notes
 
-**Pattern-First Approach**: All controllers must implement the 8 patterns from `backend/patterns/` before mock implementation. Health controller refactoring (Milestone 1.5) establishes the pattern-compliant structure that all other controllers will follow.
+**Pattern-First Approach**: All controllers must implement patterns from `backend/patterns/` before implementation. Health controller refactoring (Milestone 1.5) establishes the pattern-compliant structure.
 
-**Dependency Chain for Milestone 2**:
-- SyncController: Depends on Patterns 001-008 (all patterns) ✅ COMPLETE
-- 5 endpoints refactored: members, categories, products, language, transactions ✅ COMPLETE
+**Security-First Approach**: After implementing endpoints (M1-M2), audit all security aspects against ADR-0015 patterns (M2.5) before restructuring and implementing admin features (M3-M4).
+
+**Dependency Chain**:
+
+**Milestone 1-2** (Terminal API): Implement and test
+- SyncController: Depends on Patterns 001-008 ✅ COMPLETE
+- 5 endpoints implemented: members, categories, products, language, transactions ✅ COMPLETE
+
+**Milestone 2.5** (Security Audit): Verify before restructuring
+- Audit against Patterns 012-015 (authentication, authorization)
+- Verify ADR-0015, ADR-0016, ADR-0017 compliance
+- Blocks M3 start until P0 findings resolved
+
+**Milestone 3-7** (Modular Architecture + Admin API): Restructure and expand
+- Restructure to ADR-0018 modules (M3)
+- Implement Members admin module (M4)
+- Test admin endpoints (M5-M7)
 
 Each controller implements:
 1. Typed FormRequest (Pattern 001) ✅
-2. Service Layer (Pattern 004) with business logic ✅
+2. Service Layer (Pattern 004) ✅
+3. Authentication/Authorization (Patterns 012-015) — Verified in M2.5
+4. Error handling (Pattern 007) ✅
 3. DTOs (Pattern 003) with type-safe fields ✅
 4. Enums (Pattern 002) for domain values ✅
 5. Thin controller (Pattern 006) ✅

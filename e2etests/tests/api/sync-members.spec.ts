@@ -7,9 +7,13 @@ import { test, expect } from '@playwright/test';
  * Returns members modified since the `since` timestamp (delta sync).
  */
 
+const validToken = process.env.TEST_TERMINAL_TOKEN;
+const authHeaders = validToken ? { 'Authorization': `Bearer ${validToken}` } : {};
+
 test.describe('Sync Members Endpoint', () => {
   test('GET /api/sync/members returns member delta response', async ({ request }) => {
     const response = await request.get('/api/sync/members', {
+      headers: authHeaders,
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -28,6 +32,7 @@ test.describe('Sync Members Endpoint', () => {
 
   test('GET /api/sync/members returns valid member objects', async ({ request }) => {
     const response = await request.get('/api/sync/members', {
+      headers: authHeaders,
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -50,6 +55,7 @@ test.describe('Sync Members Endpoint', () => {
 
   test('GET /api/sync/members count matches members array length', async ({ request }) => {
     const response = await request.get('/api/sync/members', {
+      headers: authHeaders,
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -59,6 +65,7 @@ test.describe('Sync Members Endpoint', () => {
 
   test('GET /api/sync/members returns JSON content type', async ({ request }) => {
     const response = await request.get('/api/sync/members', {
+      headers: authHeaders,
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
