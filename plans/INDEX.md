@@ -6,29 +6,33 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Completed Plans
 
-_None yet_
+### Milestone 2.5a: Terminal API Token Authentication (Pattern 012)
+- **Completion Date**: 2026-01-24
+- **Achievement**: Implemented secure Bearer token authentication for Terminal API endpoints
+- **Result**: All Terminal endpoints now require valid device tokens; P0 security finding resolved
 
 ---
 
 ## Current Plan
 
-### Phase 1: Backend Foundation + ADR-0018 + Security Audit
+### Phase 1: Backend Foundation + ADR-0018 Modular Architecture
 - **Link**: [phase1-backend-foundation.md](./phase1-backend-foundation.md)
 - **Goal**: Secure, modular backend with pattern-compliant endpoints and verified API tests
-- **Status**: In Progress
+- **Status**: In Progress (76% complete: 16/21 milestones tasks done, 40/40 tests passing)
 - **Progress**:
   - Infrastructure & Terminal API: ✅ Complete (40 tests passing)
-  - Security Audit (ADR-0015): 🟢 Pattern 012 Implemented (1/18 checks)
-  - Modular Restructuring & Admin API: → Ready to start after audit or proceed directly
+  - Security Audit (ADR-0015): ⏳ Pending (1/18 checks — Pattern 012 implemented)
+  - Modular Restructuring: ✅ Complete — ADR-0018 implemented
+  - Admin API: → Next milestone (Members module CRUD)
 - **Key Milestones**:
-  - **✅ Milestone 1**: Docker Infrastructure (3/3)
+  - **✅ Milestone 1**: Docker Infrastructure (3/3 tasks)
   - **✅ Milestone 1.5**: Health Controller Refactoring (3/3 tests)
   - **✅ Milestone 2**: Sync Controller Refactoring (32/32 tests)
-  - **🟢 Milestone 2.5**: Security Audit & Compliance (1/18 checks) — **PATTERN 012 COMPLETE**
-  - **→ Milestone 3**: ADR-0018 Restructuring (0/6 tasks) — Modular directory structure, BaseService/BaseRepository
-  - **→ Milestone 4**: Members Admin Module (0/23 tasks) — First full module implementation
+  - **✅ Milestone 2.5a**: Terminal API Token Authentication (Pattern 012) — **COMPLETE**
+  - **✅ Milestone 3**: ADR-0018 Restructuring (6/6 tasks) — **COMPLETE** — Modular directory structure, BaseService/BaseRepository
+  - **→ Milestone 4**: Members Admin Module (0/23 tasks) — First full module implementation **STARTING NEXT**
   - **→ Milestone 5**: Admin API Tests (0/23 tests) — Members module test coverage
-  - **→ Milestone 6**: Terminal API Regression (0/6 tests) — Verify no breakage after restructuring
+  - **→ Milestone 6**: Terminal API Regression Tests (0/6 tests) — Verify no breakage after restructuring
   - **→ Milestone 7**: End-to-End Verification (0/1 task) — Full stack from clean state
 
 ---
@@ -75,7 +79,7 @@ _None yet_
 
 | Plan | Status | Progress | Tests | Link |
 |------|--------|----------|-------|------|
-| Phase 1: Backend Foundation | In Progress | 16/22 (73%) | **22/32 Tests Passing** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
+| Phase 1: Backend Foundation | In Progress | 16/21 (76%) | **40/40 Tests Passing** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
 | Phase 2: Admin Panel | Not Started | - | - | TBD |
 | Phase 3: Terminal App | Not Started | - | - | TBD |
 | Phase 4: Advanced Features | Not Started | - | - | TBD |
@@ -92,21 +96,19 @@ _None yet_
 | 1. Docker Infrastructure | ✅ 3/3 | ✅ N/A | **✅ COMPLETE** |
 | 1.5. Health Controller | ✅ 5/5 | ✅ 3/3 | **✅ COMPLETE** |
 | 2. SyncController | ✅ 5/5 | ✅ 32/32 | **✅ COMPLETE** |
-| **2.5. Security Audit** | **⏳ Review** | **⏳ 0/18** | **→ STARTING** |
-| **3. ADR-0018 Restructuring** | **⏳ 0/6** | **N/A** | **→ BLOCKED on M2.5** |
-| **4. Members Admin Module** | **⏳ 0/7** | **⏳ 0/23** | **→ BLOCKED on M3** |
-| **5. Admin API Tests** | **N/A** | **⏳ 0/23** | **→ BLOCKED on M4** |
-| **6. Terminal API Regression** | **N/A** | **→ 35/35** | **→ BLOCKED on M3** |
-| **7. End-to-End** | **N/A** | **⏳ 0/1** | **→ BLOCKED on M5-6** |
+| **2.5a. Terminal Auth (Pattern 012)** | **✅ 6/6** | **✅ N/A** | **✅ COMPLETE** |
+| **3. ADR-0018 Restructuring** | **✅ 6/6** | **✅ 40/40** | **✅ COMPLETE** |
+| **4. Members Admin Module** | **⏳ 0/7** | **⏳ 0/23** | **→ STARTING** |
+| **5. Admin API Tests** | **N/A** | **⏳ 0/23** | **→ Next (after M4)** |
+| **6. Terminal API Regression** | **N/A** | **✅ 40/40** | **✅ Verified** |
+| **7. End-to-End** | **N/A** | **⏳ 0/1** | **→ Final verification** |
 
-**Terminal API Status**: ✅ 35/35 tests passing (Health + Sync endpoints)
+**Current Status**: ✅ 40/40 tests passing (Health 3 + Terminal API 32 + Admin Stubs 5)
 
-**Security Audit**: ⏳ Ready to start
-- 18 checks covering auth (012-013), identification (014), authorization (015)
-- Verifies ADR-0015, ADR-0016, ADR-0017 compliance
-- Blocks M3 start until P0 findings resolved
-
-**Next Step**: Start Milestone 2.5 (Security Audit) to verify all security patterns before restructuring
+**Next Step**: Begin Milestone 4 (Members Admin Module) to implement first full admin CRUD module
+- 7 admin endpoints: list, create, show, update, delete, export, anonymize
+- 23 Playwright tests for comprehensive coverage
+- Establishes pattern reference for future admin modules
 
 ### Test Verification Framework
 

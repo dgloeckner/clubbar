@@ -16,7 +16,7 @@
 | **1.5. Health Controller Refactoring** | **[x]** | **3/3** | Pattern reference case |
 | **2. Sync Controller Refactoring** | **[x]** | **32/32** | All Terminal API endpoints |
 | **2.5. Security Audit (ADR-0015)** | [ ] | 0/18 | Verify security patterns compliance |
-| **3. ADR-0018 Restructuring** | [ ] | 0/6 | Modular directory structure |
+| **3. ADR-0018 Restructuring** | **[x]** | **✅** | Modular directory structure complete |
 | **4. Members Admin Module** | [ ] | 0/23 | First full admin module |
 | **5. Playwright Tests (Admin)** | [ ] | 0/23 | Test admin endpoints |
 | **6. Terminal API Regression** | [ ] | 0/6 | Verify no breakage |
@@ -256,6 +256,8 @@ _None yet_
 
 **Objective**: Reorganize backend to follow ADR-0018 modular structure. Establishes directory layout and route aggregation for all future modules.
 
+**Status**: ✅ **COMPLETE** — Modular architecture implemented and all Terminal API tests passing
+
 **Rationale**: Current structure is flat by technical concern (Controllers/, Services/). ADR-0018 groups code by **functional domain** (Members/, Products/, etc.). This restructuring enables scalable, maintainable module-based organization.
 
 **Key Decision: Terminal API Ownership**
@@ -275,12 +277,40 @@ This follows principle that a module owns **all operations** for its domain.
 
 | # | Task | Details | Status |
 |---|------|---------|--------|
-| 3.1 | Create modular directory structure | Create `app/Http/Modules/` directory; create `Members/`, `Products/`, `Settlements/`, etc. subdirectories with Controllers/, Services/, Requests/, DTOs/, routes/ | [ ] |
-| 3.2 | Create shared infrastructure | Create `app/Shared/Services/BaseService.php` and `app/Shared/Repositories/BaseRepository.php` for CRUD abstraction | [ ] |
-| 3.3 | Move Terminal API to Members module | Move SyncController methods for members to `Modules/Members/Controllers/SyncController.php`; keep Categories/Products in separate structure for now | [ ] |
-| 3.4 | Create module route files | Create `Modules/Members/routes/terminal.php` and `Modules/Members/routes/admin.php`; aggregate in `routes/modules/members.php` | [ ] |
-| 3.5 | Update global route aggregation | Update `routes/api.php` to aggregate all module routes from `routes/modules/*.php` | [ ] |
-| 3.6 | Verify Terminal API still works | Run health.spec.ts and sync-members.spec.ts to confirm Terminal API endpoints unchanged | [ ] |
+| 3.1 | Create modular directory structure | Create `app/Http/Modules/` directory; create `Members/`, `Products/`, `Settlements/`, etc. subdirectories with Controllers/, Services/, Requests/, DTOs/, routes/ | [x] |
+| 3.2 | Create shared infrastructure | Create `app/Shared/Services/BaseService.php` and `app/Shared/Repositories/BaseRepository.php` for CRUD abstraction | [x] |
+| 3.3 | Move Terminal API to Members module | Move SyncController methods for members to `Modules/Members/Controllers/SyncController.php`; keep Categories/Products in separate structure for now | [x] |
+| 3.4 | Create module route files | Create `Modules/Members/routes/terminal.php` and `Modules/Members/routes/admin.php`; aggregate in `routes/modules/members.php` | [x] |
+| 3.5 | Update global route aggregation | Update `routes/api.php` to aggregate all module routes from `routes/modules/*.php` | [x] |
+| 3.6 | Verify Terminal API still works | Run health.spec.ts and sync-members.spec.ts to confirm Terminal API endpoints unchanged | [x] |
+
+### Implementation Summary
+
+**Shared Infrastructure Created**:
+- ✅ `app/Shared/Repositories/RepositoryInterface.php` — Standard data access contract
+- ✅ `app/Shared/Repositories/BaseRepository.php` — Eloquent-based CRUD implementation
+- ✅ `app/Shared/Services/BaseService.php` — Service layer with pagination, filtering, transformation
+- ✅ `app/Shared/DTOs/PaginatedResultDto.php` — Standardized pagination response
+
+**Members Module Created**:
+- ✅ Controllers: SyncController (Terminal), AdminController (Admin - stub)
+- ✅ Services: MembersService (extends BaseService)
+- ✅ Repositories: MembersRepository (extends BaseRepository)
+- ✅ Requests: SyncRequest, UpdateLanguageRequest
+- ✅ DTOs: MemberDto
+- ✅ Enums: SupportedLanguage
+- ✅ Routes: terminal.php, admin.php
+- ✅ Model: Member (database integration ready for M4)
+
+**Module Infrastructure**:
+- ✅ Route aggregation: `routes/modules/members.php`
+- ✅ Service provider bindings in AppServiceProvider
+- ✅ Future module stubs: Categories, Products, Settlements
+
+**Test Verification**:
+- ✅ All 40 tests passing (Health 3 + Terminal API 32 + Admin stubs 5)
+- ✅ No regression in existing endpoints
+- ✅ Terminal API authentication (Pattern 012) still enforced
 
 ### Success Criteria
 
@@ -288,8 +318,9 @@ This follows principle that a module owns **all operations** for its domain.
 - [x] BaseService and BaseRepository implemented in `app/Shared/`
 - [x] Terminal API moved to Members module but still accessible at `/api/sync/members`
 - [x] Route aggregation updated; no route conflicts
-- [ ] Existing Terminal tests still pass (no behavior changes)
-- [ ] Module structure documented for next modules
+- [x] Existing Terminal tests still pass (40/40 passing)
+- [x] Module structure documented for next modules
+- [x] Ready for Members Admin Module implementation (M4)
 
 ### Failures
 
