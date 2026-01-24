@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/auth.fixture';
 
 /**
  * Admin Members CRUD endpoint tests
@@ -16,8 +16,8 @@ const MOCK_MEMBER_ID_2 = '223e4567-e89b-12d3-a456-426614174001';
 
 test.describe('Admin Members CRUD Endpoints', () => {
   // POST - Create Member
-  test('POST /api/admin/members creates new member with valid data', async ({ request }) => {
-    const response = await request.post('/api/admin/members', {
+  test('POST /api/admin/members creates new member with valid data', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'Test',
         last_name: 'Member',
@@ -43,8 +43,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.updated_at).toBeDefined();
   });
 
-  test('POST /api/admin/members validates required fields', async ({ request }) => {
-    const response = await request.post('/api/admin/members', {
+  test('POST /api/admin/members validates required fields', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'Test',
         // missing last_name and email
@@ -62,8 +62,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.messages.email).toBeDefined();
   });
 
-  test('POST /api/admin/members validates email format', async ({ request }) => {
-    const response = await request.post('/api/admin/members', {
+  test('POST /api/admin/members validates email format', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'Test',
         last_name: 'Member',
@@ -78,8 +78,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.messages.email).toBeDefined();
   });
 
-  test('POST /api/admin/members validates language enum', async ({ request }) => {
-    const response = await request.post('/api/admin/members', {
+  test('POST /api/admin/members validates language enum', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'Test',
         last_name: 'Member',
@@ -94,8 +94,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.messages.preferred_language).toBeDefined();
   });
 
-  test('POST /api/admin/members allows optional phone field', async ({ request }) => {
-    const response = await request.post('/api/admin/members', {
+  test('POST /api/admin/members allows optional phone field', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'Test',
         last_name: 'Member',
@@ -112,8 +112,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
   });
 
   // GET Single - Show Member
-  test('GET /api/admin/members/{id} returns member details', async ({ request }) => {
-    const response = await request.get(`/api/admin/members/${MOCK_MEMBER_ID_1}`);
+  test('GET /api/admin/members/{id} returns member details', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get(`/api/admin/members/${MOCK_MEMBER_ID_1}`);
 
     expect(response.ok()).toBeTruthy();
     expect(response.status()).toBe(200);
@@ -127,8 +127,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.preferred_language).toBe('de');
   });
 
-  test('GET /api/admin/members/{id} returns 404 for non-existent member', async ({ request }) => {
-    const response = await request.get('/api/admin/members/nonexistent-id');
+  test('GET /api/admin/members/{id} returns 404 for non-existent member', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/members/nonexistent-id');
 
     expect(response.status()).toBe(404);
 
@@ -139,8 +139,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
   });
 
   // PATCH - Update Member
-  test('PATCH /api/admin/members/{id} updates member fields', async ({ request }) => {
-    const updateResponse = await request.patch(`/api/admin/members/${MOCK_MEMBER_ID_1}`, {
+  test('PATCH /api/admin/members/{id} updates member fields', async ({ authenticatedRequest }) => {
+    const updateResponse = await authenticatedRequest.patch(`/api/admin/members/${MOCK_MEMBER_ID_1}`, {
       data: {
         preferred_language: 'fr',
         phone: '+41798765432',
@@ -160,8 +160,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.email).toBe('max@example.com');
   });
 
-  test('PATCH /api/admin/members/{id} returns 404 for non-existent member', async ({ request }) => {
-    const response = await request.patch('/api/admin/members/nonexistent-id', {
+  test('PATCH /api/admin/members/{id} returns 404 for non-existent member', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.patch('/api/admin/members/nonexistent-id', {
       data: {
         phone: '+41791234567',
       },
@@ -173,8 +173,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.error).toBe('not_found');
   });
 
-  test('PATCH /api/admin/members/{id} validates language if provided', async ({ request }) => {
-    const response = await request.patch(`/api/admin/members/${MOCK_MEMBER_ID_1}`, {
+  test('PATCH /api/admin/members/{id} validates language if provided', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.patch(`/api/admin/members/${MOCK_MEMBER_ID_1}`, {
       data: {
         preferred_language: 'xx',
       },
@@ -187,8 +187,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
   });
 
   // DELETE - Delete Member
-  test('DELETE /api/admin/members/{id} deletes member', async ({ request }) => {
-    const deleteResponse = await request.delete(`/api/admin/members/${MOCK_MEMBER_ID_2}`);
+  test('DELETE /api/admin/members/{id} deletes member', async ({ authenticatedRequest }) => {
+    const deleteResponse = await authenticatedRequest.delete(`/api/admin/members/${MOCK_MEMBER_ID_2}`);
 
     expect(deleteResponse.ok()).toBeTruthy();
     expect(deleteResponse.status()).toBe(200);
@@ -197,8 +197,8 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.message).toContain('deleted');
   });
 
-  test('DELETE /api/admin/members/{id} returns 404 for non-existent member', async ({ request }) => {
-    const response = await request.delete('/api/admin/members/nonexistent-id');
+  test('DELETE /api/admin/members/{id} returns 404 for non-existent member', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.delete('/api/admin/members/nonexistent-id');
 
     expect(response.status()).toBe(404);
 
@@ -206,7 +206,7 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.error).toBe('not_found');
   });
 
-  test('All CRUD endpoints return JSON content type', async ({ request }) => {
+  test('All CRUD endpoints return JSON content type', async ({ authenticatedRequest }) => {
     const data = {
       first_name: 'Test',
       last_name: 'Member',
@@ -214,18 +214,18 @@ test.describe('Admin Members CRUD Endpoints', () => {
       preferred_language: 'en',
     };
 
-    const createResponse = await request.post('/api/admin/members', { data });
+    const createResponse = await authenticatedRequest.post('/api/admin/members', { data });
     expect(createResponse.headers()['content-type']).toContain('application/json');
 
-    const getResponse = await request.get(`/api/admin/members/${MOCK_MEMBER_ID_1}`);
+    const getResponse = await authenticatedRequest.get(`/api/admin/members/${MOCK_MEMBER_ID_1}`);
     expect(getResponse.headers()['content-type']).toContain('application/json');
 
-    const patchResponse = await request.patch(`/api/admin/members/${MOCK_MEMBER_ID_1}`, {
+    const patchResponse = await authenticatedRequest.patch(`/api/admin/members/${MOCK_MEMBER_ID_1}`, {
       data: { phone: '+41791111111' },
     });
     expect(patchResponse.headers()['content-type']).toContain('application/json');
 
-    const deleteResponse = await request.delete(`/api/admin/members/${MOCK_MEMBER_ID_1}`);
+    const deleteResponse = await authenticatedRequest.delete(`/api/admin/members/${MOCK_MEMBER_ID_1}`);
     expect(deleteResponse.headers()['content-type']).toContain('application/json');
   });
 });

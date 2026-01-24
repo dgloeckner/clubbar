@@ -28,21 +28,24 @@ Route::post('/test', function () {
 // Routes are organized by module. Each module owns its endpoints.
 // Pattern 009: Module Structure
 
-// Members module routes (Terminal API: /api/sync/members, Admin API: /api/admin/members)
-require base_path('routes/modules/members.php');
+// Module routes grouped with 'api' middleware (sessions, CORS, rate limiting)
+Route::middleware('api')->group(function () {
+    // Members module routes (Terminal API: /api/sync/members, Admin API: /api/admin/members)
+    require base_path('routes/modules/members.php');
 
-// Categories module routes (TODO: Migrate from flat structure in future)
-// require base_path('routes/modules/categories.php');
+    // Categories module routes (TODO: Migrate from flat structure in future)
+    // require base_path('routes/modules/categories.php');
 
-// Products module routes (TODO: Migrate from flat structure in future)
-// require base_path('routes/modules/products.php');
+    // Products module routes (TODO: Migrate from flat structure in future)
+    // require base_path('routes/modules/products.php');
 
-// Temporary: Keep original categories/products endpoints in flat structure
-// (Migration to modules scheduled for future milestones)
-Route::prefix('sync')
-    ->middleware([AuthenticateTerminalToken::class])
-    ->group(function () {
-        Route::get('/categories', [SyncController::class, 'categories']);
-        Route::get('/products', [SyncController::class, 'products']);
-        Route::post('/transactions', [SyncController::class, 'transactions']);
-    });
+    // Temporary: Keep original categories/products endpoints in flat structure
+    // (Migration to modules scheduled for future milestones)
+    Route::prefix('sync')
+        ->middleware([AuthenticateTerminalToken::class])
+        ->group(function () {
+            Route::get('/categories', [SyncController::class, 'categories']);
+            Route::get('/products', [SyncController::class, 'products']);
+            Route::post('/transactions', [SyncController::class, 'transactions']);
+        });
+});

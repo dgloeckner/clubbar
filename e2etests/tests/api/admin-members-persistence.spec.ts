@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/auth.fixture';
 
 /**
  * Admin Members Database Persistence Tests
@@ -20,9 +20,9 @@ test.describe('Admin Members Database Persistence', () => {
   // CREATE → RETRIEVE ROUND-TRIP TESTS
   // ============================================================================
 
-  test('Create member persists all fields to database', async ({ request }) => {
+  test('Create member persists all fields to database', async ({ authenticatedRequest }) => {
     // 1. CREATE - Send POST request with all fields
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'Persistence',
         last_name: 'Test',
@@ -37,7 +37,7 @@ test.describe('Admin Members Database Persistence', () => {
     const memberId = createdBody.id;
 
     // 2. RETRIEVE - Fetch the newly created member
-    const getRes = await request.get(`/api/admin/members/${memberId}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     expect(getRes.status()).toBe(200);
     const retrievedBody = await getRes.json();
 
@@ -53,8 +53,8 @@ test.describe('Admin Members Database Persistence', () => {
     expect(retrievedBody.updated_at).toBeDefined();
   });
 
-  test('Create member without optional phone persists correctly', async ({ request }) => {
-    const createRes = await request.post('/api/admin/members', {
+  test('Create member without optional phone persists correctly', async ({ authenticatedRequest }) => {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'NoPhone',
         last_name: 'Member',
@@ -67,7 +67,7 @@ test.describe('Admin Members Database Persistence', () => {
     expect(createRes.status()).toBe(201);
     const memberId = (await createRes.json()).id;
 
-    const getRes = await request.get(`/api/admin/members/${memberId}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     const body = await getRes.json();
 
     expect(body.first_name).toBe('NoPhone');
@@ -75,9 +75,9 @@ test.describe('Admin Members Database Persistence', () => {
     expect(body.preferred_language).toBe('de');
   });
 
-  test('Create multiple members generates unique IDs', async ({ request }) => {
+  test('Create multiple members generates unique IDs', async ({ authenticatedRequest }) => {
     // Create first member
-    const res1 = await request.post('/api/admin/members', {
+    const res1 = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'First',
         last_name: 'Member',
@@ -88,7 +88,7 @@ test.describe('Admin Members Database Persistence', () => {
     const id1 = (await res1.json()).id;
 
     // Create second member
-    const res2 = await request.post('/api/admin/members', {
+    const res2 = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'Second',
         last_name: 'Member',
@@ -102,8 +102,8 @@ test.describe('Admin Members Database Persistence', () => {
     expect(id1).not.toBe(id2);
 
     // Both must be retrievable
-    const get1 = await request.get(`/api/admin/members/${id1}`);
-    const get2 = await request.get(`/api/admin/members/${id2}`);
+    const get1 = await authenticatedRequest.get(`/api/admin/members/${id1}`);
+    const get2 = await authenticatedRequest.get(`/api/admin/members/${id2}`);
     expect(get1.status()).toBe(200);
     expect(get2.status()).toBe(200);
 
@@ -114,9 +114,9 @@ test.describe('Admin Members Database Persistence', () => {
     expect(body2.first_name).toBe('Second');
   });
 
-  test('Created member appears in list', async ({ request }) => {
+  test('Created member appears in list', async ({ authenticatedRequest }) => {
     // Create a new member
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'ListTest',
         last_name: 'Member',
@@ -127,7 +127,7 @@ test.describe('Admin Members Database Persistence', () => {
     const memberId = (await createRes.json()).id;
 
     // Fetch full list
-    const listRes = await request.get('/api/admin/members?limit=100');
+    const listRes = await authenticatedRequest.get('/api/admin/members?limit=100');
     const listBody = await listRes.json();
 
     // The created member should be in the list
@@ -141,9 +141,9 @@ test.describe('Admin Members Database Persistence', () => {
   // UPDATE → RETRIEVE ROUND-TRIP TESTS
   // ============================================================================
 
-  test('Update member persists changes to database', async ({ request }) => {
+  test('Update member persists changes to database', async ({ authenticatedRequest }) => {
     // 1. CREATE - Create initial member
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'UpdateTest',
         last_name: 'Original',
@@ -155,7 +155,7 @@ test.describe('Admin Members Database Persistence', () => {
     const memberId = (await createRes.json()).id;
 
     // 2. UPDATE - Change multiple fields
-    const updateRes = await request.patch(`/api/admin/members/${memberId}`, {
+    const updateRes = await authenticatedRequest.patch(`/api/admin/members/${memberId}`, {
       data: {
         last_name: 'Updated',
         phone: '+41799999999',
@@ -166,7 +166,7 @@ test.describe('Admin Members Database Persistence', () => {
     expect(updateRes.status()).toBe(200);
 
     // 3. RETRIEVE - Fetch updated member
-    const getRes = await request.get(`/api/admin/members/${memberId}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     const body = await getRes.json();
 
     // 4. VALIDATE PERSISTENCE - Changes should be in database
@@ -178,9 +178,9 @@ test.describe('Admin Members Database Persistence', () => {
     expect(body.email).toBe('update@example.com');
   });
 
-  test('Update single field preserves other fields', async ({ request }) => {
+  test('Update single field preserves other fields', async ({ authenticatedRequest }) => {
     // Create member
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'SingleField',
         last_name: 'Test',
@@ -192,12 +192,12 @@ test.describe('Admin Members Database Persistence', () => {
     const memberId = (await createRes.json()).id;
 
     // Update only phone
-    await request.patch(`/api/admin/members/${memberId}`, {
+    await authenticatedRequest.patch(`/api/admin/members/${memberId}`, {
       data: { phone: '+41789999999' },
     });
 
     // Verify phone changed but others preserved
-    const getRes = await request.get(`/api/admin/members/${memberId}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     const body = await getRes.json();
 
     expect(body.phone).toBe('+41789999999');
@@ -207,9 +207,9 @@ test.describe('Admin Members Database Persistence', () => {
     expect(body.preferred_language).toBe('en');
   });
 
-  test('Updated member reflected in list', async ({ request }) => {
+  test('Updated member reflected in list', async ({ authenticatedRequest }) => {
     // Create member
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'ListUpdateTest',
         last_name: 'Original',
@@ -220,21 +220,21 @@ test.describe('Admin Members Database Persistence', () => {
     const memberId = (await createRes.json()).id;
 
     // Update member
-    await request.patch(`/api/admin/members/${memberId}`, {
+    await authenticatedRequest.patch(`/api/admin/members/${memberId}`, {
       data: { last_name: 'Updated' },
     });
 
     // Check list
-    const listRes = await request.get('/api/admin/members?limit=100');
+    const listRes = await authenticatedRequest.get('/api/admin/members?limit=100');
     const listBody = await listRes.json();
 
     const found = listBody.items.find((m: any) => m.id === memberId);
     expect(found.last_name).toBe('Updated');
   });
 
-  test('Update changes updated_at timestamp', async ({ request }) => {
+  test('Update changes updated_at timestamp', async ({ authenticatedRequest }) => {
     // Create member
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'TimestampTest',
         last_name: 'Member',
@@ -249,7 +249,7 @@ test.describe('Admin Members Database Persistence', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Update member
-    const updateRes = await request.patch(`/api/admin/members/${memberId}`, {
+    const updateRes = await authenticatedRequest.patch(`/api/admin/members/${memberId}`, {
       data: { phone: '+41789999999' },
     });
     const updatedBody = await updateRes.json();
@@ -263,9 +263,9 @@ test.describe('Admin Members Database Persistence', () => {
   // DELETE → VERIFY GONE TESTS
   // ============================================================================
 
-  test('Deleted member returns 404 on subsequent GET', async ({ request }) => {
+  test('Deleted member returns 404 on subsequent GET', async ({ authenticatedRequest }) => {
     // Create member
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'DeleteTest',
         last_name: 'Member',
@@ -276,17 +276,17 @@ test.describe('Admin Members Database Persistence', () => {
     const memberId = (await createRes.json()).id;
 
     // Delete member
-    const deleteRes = await request.delete(`/api/admin/members/${memberId}`);
+    const deleteRes = await authenticatedRequest.delete(`/api/admin/members/${memberId}`);
     expect(deleteRes.status()).toBe(200);
 
     // Attempt to retrieve deleted member
-    const getRes = await request.get(`/api/admin/members/${memberId}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     expect(getRes.status()).toBe(404);
   });
 
-  test('Deleted member not in list', async ({ request }) => {
+  test('Deleted member not in list', async ({ authenticatedRequest }) => {
     // Create member
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'DeleteListTest',
         last_name: 'Member',
@@ -297,24 +297,24 @@ test.describe('Admin Members Database Persistence', () => {
     const memberId = (await createRes.json()).id;
 
     // Verify in list before delete
-    let listRes = await request.get('/api/admin/members?limit=100');
+    let listRes = await authenticatedRequest.get('/api/admin/members?limit=100');
     let listBody = await listRes.json();
     let found = listBody.items.find((m: any) => m.id === memberId);
     expect(found).toBeDefined();
 
     // Delete member
-    await request.delete(`/api/admin/members/${memberId}`);
+    await authenticatedRequest.delete(`/api/admin/members/${memberId}`);
 
     // Verify not in list after delete
-    listRes = await request.get('/api/admin/members?limit=100');
+    listRes = await authenticatedRequest.get('/api/admin/members?limit=100');
     listBody = await listRes.json();
     found = listBody.items.find((m: any) => m.id === memberId);
     expect(found).toBeUndefined();
   });
 
-  test('Delete does not affect other members', async ({ request }) => {
+  test('Delete does not affect other members', async ({ authenticatedRequest }) => {
     // Create two members
-    const res1 = await request.post('/api/admin/members', {
+    const res1 = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'DeleteIsolation1',
         last_name: 'Keep',
@@ -324,7 +324,7 @@ test.describe('Admin Members Database Persistence', () => {
     });
     const id1 = (await res1.json()).id;
 
-    const res2 = await request.post('/api/admin/members', {
+    const res2 = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'DeleteIsolation2',
         last_name: 'Delete',
@@ -335,10 +335,10 @@ test.describe('Admin Members Database Persistence', () => {
     const id2 = (await res2.json()).id;
 
     // Delete second member
-    await request.delete(`/api/admin/members/${id2}`);
+    await authenticatedRequest.delete(`/api/admin/members/${id2}`);
 
     // First member should still exist
-    const getRes = await request.get(`/api/admin/members/${id1}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${id1}`);
     expect(getRes.status()).toBe(200);
     const body = await getRes.json();
     expect(body.first_name).toBe('DeleteIsolation1');
@@ -348,9 +348,9 @@ test.describe('Admin Members Database Persistence', () => {
   // FILTER & PAGINATION PERSISTENCE TESTS
   // ============================================================================
 
-  test('Created members filtered by language preference', async ({ request }) => {
+  test('Created members filtered by language preference', async ({ authenticatedRequest }) => {
     // Create members with different languages
-    const res1 = await request.post('/api/admin/members', {
+    const res1 = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'FilterDE',
         last_name: 'Member',
@@ -359,7 +359,7 @@ test.describe('Admin Members Database Persistence', () => {
       },
     });
 
-    const res2 = await request.post('/api/admin/members', {
+    const res2 = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'FilterFR',
         last_name: 'Member',
@@ -372,7 +372,7 @@ test.describe('Admin Members Database Persistence', () => {
     const id2 = (await res2.json()).id;
 
     // Filter by German
-    const listRes = await request.get('/api/admin/members?filters[language]=de&limit=100');
+    const listRes = await authenticatedRequest.get('/api/admin/members?filters[language]=de&limit=100');
     const listBody = await listRes.json();
 
     // German member should be in filtered list
@@ -386,11 +386,11 @@ test.describe('Admin Members Database Persistence', () => {
     }
   });
 
-  test('Created members included in pagination', async ({ request }) => {
+  test('Created members included in pagination', async ({ authenticatedRequest }) => {
     // Create several members
     const ids = [];
     for (let i = 0; i < 3; i++) {
-      const res = await request.post('/api/admin/members', {
+      const res = await authenticatedRequest.post('/api/admin/members', {
         data: {
           first_name: `PaginationTest${i}`,
           last_name: 'Member',
@@ -402,7 +402,7 @@ test.describe('Admin Members Database Persistence', () => {
     }
 
     // Fetch with limit
-    const listRes = await request.get('/api/admin/members?limit=100');
+    const listRes = await authenticatedRequest.get('/api/admin/members?limit=100');
     const listBody = await listRes.json();
 
     // All created members should be in list
@@ -419,9 +419,9 @@ test.describe('Admin Members Database Persistence', () => {
   // GDPR OPERATIONS PERSISTENCE TESTS
   // ============================================================================
 
-  test('Anonymized member persists PII deletion to database', async ({ request }) => {
+  test('Anonymized member persists PII deletion to database', async ({ authenticatedRequest }) => {
     // Create member with PII
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'GDPRTest',
         last_name: 'Member',
@@ -433,11 +433,11 @@ test.describe('Admin Members Database Persistence', () => {
     const memberId = (await createRes.json()).id;
 
     // Anonymize
-    const anonRes = await request.post(`/api/admin/members/${memberId}/anonymize`);
+    const anonRes = await authenticatedRequest.post(`/api/admin/members/${memberId}/anonymize`);
     expect(anonRes.status()).toBe(200);
 
     // Retrieve and verify PII cleared
-    const getRes = await request.get(`/api/admin/members/${memberId}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     const body = await getRes.json();
 
     expect(body.first_name).toBe('DELETED');
@@ -448,9 +448,9 @@ test.describe('Admin Members Database Persistence', () => {
     expect(body.deleted_at).toBeDefined();
   });
 
-  test('Exported member data matches database', async ({ request }) => {
+  test('Exported member data matches database', async ({ authenticatedRequest }) => {
     // Create member with full data
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'ExportTest',
         last_name: 'Member',
@@ -462,12 +462,12 @@ test.describe('Admin Members Database Persistence', () => {
     const memberId = (await createRes.json()).id;
 
     // Export member
-    const exportRes = await request.post(`/api/admin/members/${memberId}/export`);
+    const exportRes = await authenticatedRequest.post(`/api/admin/members/${memberId}/export`);
     expect(exportRes.status()).toBe(200);
     const exportBody = await exportRes.json();
 
     // Retrieve directly from database
-    const getRes = await request.get(`/api/admin/members/${memberId}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     const getBody = await getRes.json();
 
     // Exported data should match database
@@ -481,11 +481,11 @@ test.describe('Admin Members Database Persistence', () => {
   // CONCURRENT OPERATIONS TESTS
   // ============================================================================
 
-  test('Multiple concurrent creates result in distinct database records', async ({ request }) => {
+  test('Multiple concurrent creates result in distinct database records', async ({ authenticatedRequest }) => {
     // Create 5 members in sequence
     const ids = [];
     for (let i = 0; i < 5; i++) {
-      const res = await request.post('/api/admin/members', {
+      const res = await authenticatedRequest.post('/api/admin/members', {
         data: {
           first_name: `Concurrent${i}`,
           last_name: 'Member',
@@ -502,14 +502,14 @@ test.describe('Admin Members Database Persistence', () => {
 
     // All should be retrievable
     for (const id of ids) {
-      const getRes = await request.get(`/api/admin/members/${id}`);
+      const getRes = await authenticatedRequest.get(`/api/admin/members/${id}`);
       expect(getRes.status()).toBe(200);
     }
   });
 
-  test('Update and create operations are independent', async ({ request }) => {
+  test('Update and create operations are independent', async ({ authenticatedRequest }) => {
     // Create first member
-    const res1 = await request.post('/api/admin/members', {
+    const res1 = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'Independent1',
         last_name: 'Original',
@@ -520,7 +520,7 @@ test.describe('Admin Members Database Persistence', () => {
     const id1 = (await res1.json()).id;
 
     // Create second member
-    const res2 = await request.post('/api/admin/members', {
+    const res2 = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'Independent2',
         last_name: 'Original',
@@ -531,20 +531,20 @@ test.describe('Admin Members Database Persistence', () => {
     const id2 = (await res2.json()).id;
 
     // Update first member
-    await request.patch(`/api/admin/members/${id1}`, {
+    await authenticatedRequest.patch(`/api/admin/members/${id1}`, {
       data: { last_name: 'Updated' },
     });
 
     // Verify second member is unaffected
-    const getRes = await request.get(`/api/admin/members/${id2}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${id2}`);
     const body = await getRes.json();
     expect(body.last_name).toBe('Original');
   });
 
-  test('Maximum length names persist correctly', async ({ request }) => {
+  test('Maximum length names persist correctly', async ({ authenticatedRequest }) => {
     const longString = 'A'.repeat(100);
 
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: longString,
         last_name: 'LongTest',
@@ -554,17 +554,17 @@ test.describe('Admin Members Database Persistence', () => {
     });
     const memberId = (await createRes.json()).id;
 
-    const getRes = await request.get(`/api/admin/members/${memberId}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     const body = await getRes.json();
 
     expect(body.first_name).toBe(longString);
     expect(body.first_name.length).toBe(100);
   });
 
-  test('Special characters in email persist correctly', async ({ request }) => {
+  test('Special characters in email persist correctly', async ({ authenticatedRequest }) => {
     const specialEmail = 'test+special.email+tag@example.com';
 
-    const createRes = await request.post('/api/admin/members', {
+    const createRes = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: 'SpecialChar',
         last_name: 'Email',
@@ -574,17 +574,17 @@ test.describe('Admin Members Database Persistence', () => {
     });
     const memberId = (await createRes.json()).id;
 
-    const getRes = await request.get(`/api/admin/members/${memberId}`);
+    const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     const body = await getRes.json();
 
     expect(body.email).toBe(specialEmail);
   });
 
-  test('Phone number formats persist correctly', async ({ request }) => {
+  test('Phone number formats persist correctly', async ({ authenticatedRequest }) => {
     const phoneNumbers = ['+41791234567', '0041791234567', '0791234567'];
 
     for (const phone of phoneNumbers) {
-      const createRes = await request.post('/api/admin/members', {
+      const createRes = await authenticatedRequest.post('/api/admin/members', {
         data: {
           first_name: 'PhoneTest',
           last_name: 'Member',
@@ -595,7 +595,7 @@ test.describe('Admin Members Database Persistence', () => {
       });
       const memberId = (await createRes.json()).id;
 
-      const getRes = await request.get(`/api/admin/members/${memberId}`);
+      const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
       const body = await getRes.json();
 
       expect(body.phone).toBe(phone);

@@ -22,13 +22,18 @@ use Illuminate\Support\Facades\Route;
  * - POST /api/admin/members/{id}/anonymize - GDPR anonymize
  *
  * Authentication: Pattern 013 (Admin Session Authentication)
- * - TODO: Add session auth middleware when admin authentication is implemented
- * - For now, admin routes are public (for testing purposes)
+ * - All routes require admin session authentication (auth.admin middleware)
+ * - Session is established via POST /api/auth/login endpoint
  */
 
 // Admin API endpoints
-// TODO: Add middleware(['auth.session', 'admin']) when Pattern 013 implemented
 Route::prefix('admin')
+    ->middleware([
+        \App\Http\Middleware\EncryptCookies::class,
+        \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+        \Illuminate\Session\Middleware\StartSession::class,
+        \App\Http\Middleware\AuthenticateAdminSession::class,
+    ])
     ->group(function () {
         // RESTful resource routes for CRUD operations
         Route::apiResource('members', AdminController::class, [
