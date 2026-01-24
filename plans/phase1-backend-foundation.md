@@ -12,7 +12,7 @@
 |-----------|--------|--------------|
 | 1. Docker Infrastructure | [x] | 3/3 |
 | **1.5. Health Controller Refactoring (Pattern Test Case)** | **[x]** | **3/3** |
-| 2. Mock Controllers | [ ] | 0/17 |
+| 2. Mock Controllers | [~] | 19/32 (59% - GET: 15/15, PATCH: 4/7, POST: 0/10) |
 | 3. Playwright Tests | [ ] | 0/7 |
 | 4. End-to-End Verification | [ ] | 0/1 |
 
@@ -343,3 +343,90 @@ docker compose down -v && docker compose up -d && sleep 10 && npx playwright tes
 | `⏳` | Blocked (waiting for Docker or previous milestone) |
 
 Milestone is only marked `[x]` COMPLETE when tests pass GREEN.
+
+---
+
+## Test Execution Results (January 24, 2026)
+
+### Milestone 1.5: Health Controller ✅ VERIFIED
+**Status**: All 3/3 tests passing
+- ✅ GET /api/health returns ok status
+- ✅ GET /api/health returns valid ISO 8601 timestamp
+- ✅ GET /api/health returns JSON content type
+
+**Commit**: f551ed4 — [TEST] Milestone 1.5: health.spec.ts (3/3 tests passing) ✅
+
+### Milestone 2: SyncController — IN PROGRESS
+**Overall**: 19/32 tests passing (59%)
+
+#### GET Endpoints: ✅ 15/15 PASSING
+**sync-members.spec.ts**: 4/4 ✅
+- Returns member delta response
+- Returns valid member objects
+- Count matches array length
+- Returns JSON content type
+
+**sync-categories.spec.ts**: 5/5 ✅
+- Returns category delta response
+- Returns valid category objects
+- Returns multilingual names
+- Count matches array length
+- Returns JSON content type
+
+**sync-products.spec.ts**: 5/5 ✅
+- Returns product delta response
+- Returns valid product objects
+- Returns multilingual names and descriptions
+- Count matches array length
+- Returns valid price in cents
+- Returns JSON content type
+
+#### PATCH Endpoint: 4/7 PASSING
+**member-language.spec.ts**: 4/7
+- ✅ Updates language successfully
+- ✅ Accepts different languages (de, en, fr)
+- ✅ Returns JSON content type
+- ✅ Returns valid ISO 8601 timestamp
+- ❌ Rejects invalid language code (expects 400, validation incomplete)
+- ❌ Rejects missing language (expects 400, validation incomplete)
+- ❌ Returns 404 for invalid UUID (needs error handling)
+
+#### POST Endpoint: 0/10 FAILING
+**transactions.spec.ts**: 0/10
+- ❌ All POST tests failing due to CSRF middleware redirects
+- **Issue**: POST requests returning 302 redirects to '/' (CSRF token missing)
+- **Root Cause**: VerifyCsrfToken middleware exception pattern not matching 'api*' routes
+- **Status**: Requires middleware configuration fix
+
+### Known Issues & Blockers
+
+**Issue 1**: CSRF Protection on POST Requests
+- **Problem**: POST /api/sync/transactions returns 302 redirect
+- **Cause**: VerifyCsrfToken middleware redirecting stateless requests
+- **Solution**: Need to properly exclude api/* routes from CSRF or use token-based auth
+- **Status**: Requires debugging middleware exception patterns in Laravel
+
+**Issue 2**: Validation Error Handling (PATCH)
+- **Problem**: Invalid requests should return 400/422 with JSON error details
+- **Cause**: Test expectations don't match current FormRequest error responses
+- **Solution**: Configure FormRequest to return JSON error responses for API
+- **Status**: Requires error handler configuration
+
+### Architecture Patterns Verified
+✅ All 15 GET endpoint tests confirm:
+- Pattern 001: FormRequest validation (SyncRequest works correctly)
+- Pattern 003: DTO serialization (MemberDto, CategoryDto, ProductDto)
+- Pattern 004: Service layer execution (SyncService returns correct data)
+- Pattern 006: Thin controller delegation
+- Pattern 008: Service Provider dependency injection
+
+### Next Actions Required
+1. **Fix CSRF/Middleware**: Resolve POST request 302 redirects
+   - Debug middleware exception pattern matching
+   - May need to use API token auth instead of CSRF
+2. **Add Validation Error Handling**: Return JSON errors for invalid requests
+   - Configure FormRequest to respond with JSON
+   - Update tests or error handling as needed
+3. **Complete POST Tests**: Get all 10 transaction tests passing
+4. **Mark Milestone 2 [x] Complete**: When all 32 tests pass
+

@@ -183,7 +183,7 @@ final readonly class SyncService
             isSepaValid: false,
             deletedAt: null,
             createdAt: new DateTimeImmutable('2024-01-01T00:00:00Z'),
-            updatedAt: now(),
+            updatedAt: new DateTimeImmutable(),
         );
     }
 }

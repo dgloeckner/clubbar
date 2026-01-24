@@ -9,6 +9,7 @@ services:
     image: mariadb:10.11
     container_name: ruderbar-db
     restart: unless-stopped
+    platform: linux/arm64
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: ruderbar
@@ -33,6 +34,7 @@ services:
   # =============================================================================
   backend:
     image: webdevops/php-apache:8.3
+    platform: linux/amd64
     container_name: ruderbar-backend
     restart: unless-stopped
     environment:
