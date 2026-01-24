@@ -11,6 +11,7 @@
 | Milestone | Status | Tests Passed |
 |-----------|--------|--------------|
 | 1. Docker Infrastructure | [x] | 3/3 |
+| **1.5. Health Controller Refactoring (Pattern Test Case)** | **[ ]** | **0/5** |
 | 2. Mock Controllers | [ ] | 0/6 |
 | 3. Playwright Tests | [ ] | 0/7 |
 | 4. End-to-End Verification | [ ] | 0/1 |
@@ -30,6 +31,43 @@
 | 1.1 | Install backend dependencies (host) | `cd backend && composer install && ls vendor/autoload.php` | File exists | [x] |
 | 1.2 | Start Docker containers | `docker compose up -d && docker compose ps` | All containers show "running" | [x] |
 | 1.3 | Backend health check | `curl -s http://localhost:8080/api/health \| jq .status` | Returns `"ok"` | [x] |
+
+### Failures
+
+_None yet_
+
+---
+
+## Milestone 1.5: Health Controller Refactoring (Pattern Test Case)
+
+**Objective**: Refactor existing health controller to follow backend patterns. Serves as reference implementation for other controllers.
+
+**Rationale**: Establish pattern compliance before implementing mock controllers. Health endpoint is simple enough to serve as clear example without boilerplate complexity.
+
+**Patterns to Implement**:
+- Pattern 001: Form Request (validation layer)
+- Pattern 003: DTO (response data)
+- Pattern 004: Service Layer (business logic)
+- Pattern 006: Thin Controller (HTTP routing only)
+
+### Tasks
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 1.5.1 | Analyze current health controller | Read `backend/app/Http/Controllers/HealthController.php` and identify what to refactor | [ ] |
+| 1.5.2 | Create HealthCheckService | Move health check logic to Service Layer (Pattern 004). Service returns HealthResponseDto. | [ ] |
+| 1.5.3 | Create HealthResponseDto | Create immutable DTO with `toArray()` method (Pattern 003) for `{"status":"ok","timestamp":"..."}` response. | [ ] |
+| 1.5.4 | Create HealthRequest FormRequest | Create FormRequest for validation (Pattern 001). Even though health endpoint has no input, demonstrates pattern usage. | [ ] |
+| 1.5.5 | Refactor HealthController | Thin controller (Pattern 006) that: injects Service, calls service method, serializes DTO. Verify Playwright tests pass. | [ ] |
+
+### Success Criteria
+
+- [x] Health controller is thin (no business logic, <10 lines)
+- [x] All logic in HealthCheckService
+- [x] Response uses HealthResponseDto with `toArray()`
+- [x] health.spec.ts passes (Playwright tests)
+- [x] Controller follows all 4 patterns correctly
+- [x] Code serves as reference for other controllers
 
 ### Failures
 
@@ -172,8 +210,29 @@ npx playwright test --reporter=list
 ## Completion Criteria
 
 Phase 1 is complete when:
-- [x] All Milestone 1 tasks: [x]
-- [ ] All Milestone 2 tasks: [x]
-- [ ] All Milestone 3 tasks: [x]
-- [ ] All Milestone 4 tasks: [x]
+- [x] All Milestone 1 tasks: [x] ✓
+- [ ] All Milestone 1.5 tasks: [x] (Pattern implementation test case)
+- [ ] All Milestone 2 tasks: [x] (All controllers follow patterns)
+- [ ] All Milestone 3 tasks: [x] (Playwright tests pass)
+- [ ] All Milestone 4 tasks: [x] (Full stack verification)
 - [ ] No unresolved failures in any section
+
+---
+
+## Implementation Notes
+
+**Pattern-First Approach**: All controllers must implement the 8 patterns from `backend/patterns/` before mock implementation. Health controller refactoring (Milestone 1.5) establishes the pattern-compliant structure that all other controllers will follow.
+
+**Dependency Chain for Milestone 2**:
+- SyncController: Depends on Patterns 001-008 (all patterns)
+- MembersController: Depends on Patterns 001-008
+- ProductsController: Depends on Patterns 001-008
+- TransactionsController: Depends on Patterns 001-008
+
+Each controller in Milestone 2 must:
+1. Have typed FormRequest (Pattern 001)
+2. Use Service Layer (Pattern 004) with Repositories (Pattern 005)
+3. Return DTOs (Pattern 003) with Enums (Pattern 002)
+4. Follow thin controller pattern (Pattern 006)
+5. Be wired via Service Provider (Pattern 008)
+6. Use centralized Exception Handler (Pattern 007) automatically

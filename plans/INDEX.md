@@ -14,12 +14,13 @@ _None yet_
 
 ### Phase 1: Backend Foundation
 - **Link**: [phase1-backend-foundation.md](./phase1-backend-foundation.md)
-- **Goal**: Working backend with OAS-driven endpoints, mock data, and verified Playwright API tests
+- **Goal**: Working backend with pattern-compliant controllers, OAS-driven endpoints, mock data, and verified Playwright API tests
 - **Status**: In Progress
-- **Progress**: 3/17 tasks completed
+- **Progress**: 3/22 tasks completed
 - **Key Milestones**:
   - Milestone 1: Docker Infrastructure (3/3 tasks) ✓
-  - Milestone 2: Mock Controllers per OAS (0/6 tasks)
+  - **Milestone 1.5: Health Controller Refactoring (0/5 tasks) — Pattern implementation test case**
+  - Milestone 2: Mock Controllers per OAS (0/6 tasks) — Must follow patterns from 1.5
   - Milestone 3: Playwright Test Suite (0/7 tasks)
   - Milestone 4: End-to-End Verification (0/1 tasks)
 
@@ -67,7 +68,11 @@ _None yet_
 
 | Plan | Status | Progress | Link |
 |------|--------|----------|------|
-| Phase 1: Backend Foundation | In Progress | 3/17 | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
+| Phase 1: Backend Foundation | In Progress | 3/22 | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
 | Phase 2: Admin Panel | Not Started | - | TBD |
 | Phase 3: Terminal App | Not Started | - | TBD |
 | Phase 4: Advanced Features | Not Started | - | TBD |
+
+### Phase 1 Milestone Details
+
+**Recent Addition**: Milestone 1.5 (Health Controller Refactoring) inserted as **critical blocker** before Milestone 2. All controllers must follow the 8 patterns from `backend/patterns/` before mock implementation begins. Health controller refactoring proves the patterns work and establishes the template for other controllers.

@@ -9,6 +9,7 @@
 | **ORM** | Eloquent | DB mapping, Migrations, Relationships |
 | **API Spec** | OpenAPI 3.0 | API documentation, Code generation |
 | **Code Gen** | openapi-generator | Controller stubs, Request validation |
+| **Code Patterns** | DTOs, Enums, Services, Repositories | Type-safe data transfer, business logic isolation (see `backend/patterns/`) |
 | **Auth** | Laravel Sanctum | Token-based authentication |
 | **Logging** | Monolog | Structured logging, Audit trail |
 | **SEPA Export** | digitick/sepa-xml | pain.008 XML generation |
@@ -23,11 +24,15 @@
 |-------|----------------|
 | **OpenAPI Spec** | API contract (Single Source of Truth) |
 | **Routes** | URL → Controller mapping |
-| **Controllers** | Request/Response handling |
-| **Requests** | Validation (generated from OAS) |
-| **Services** | Business logic |
-| **Repositories** | DB queries (optional, direct Eloquent OK) |
-| **Models** | Eloquent entities |
+| **Controllers** | Request/Response routing (thin, no business logic) |
+| **FormRequests** | Input validation with typed accessors (Pattern 001) |
+| **Services** | Business logic, orchestration (Pattern 004) |
+| **Repositories** | Data access abstraction (Pattern 005) |
+| **Models** | Eloquent entities (immutable-safe) |
+| **DTOs** | Type-safe response data (Pattern 003) |
+| **Enums** | Type-safe domain values (Pattern 002) |
+| **Exceptions** | Centralized error handling (Pattern 007) |
+| **Service Providers** | DI configuration and bindings (Pattern 008) |
 | **Exports** | SEPA XML/CSV generation |
 
 ---
@@ -133,3 +138,41 @@ openapi-generator-cli generate \
 | **Docker** | Optional, single container sufficient |
 
 Minimum server requirements: PHP 8.3, Composer, SQLite or MySQL.
+
+---
+
+## Code Patterns
+
+Backend architecture uses proven patterns to maintain code quality, consistency, and testability across modules. Reference `backend/patterns/` for detailed implementation guides:
+
+| Pattern | Purpose | ADR Link |
+|---------|---------|----------|
+| **Form Requests** | Declarative input validation with type-safe accessors | ADR-0017 (Input Validation) |
+| **Enums** | Type-safe domain values (languages, transaction types, statuses) | ADR-0018 (Modularity) |
+| **DTOs** | Type-safe response data transfer with consistent formatting | ADR-0018 (Type-Safe Responses) |
+| **Service Layer** | Business logic isolated from HTTP; reusable across consumers | ADR-0018 (Clean Separation) |
+| **Repository Interface** | Abstract data access to enable testing and implementation swapping | ADR-0018 (Independence) |
+| **Thin Controllers** | Controllers route HTTP → Service → Response (no business logic) | ADR-0018 (Clean Separation) |
+| **Exception Handler** | Centralized error responses and logging | ADR-0018 (Shared Infrastructure) |
+| **Service Provider** | Dependency injection and lifecycle management | ADR-0018 (Dependency Inversion) |
+
+**Key architectural flow:**
+```
+HTTP Request
+  ↓
+FormRequest (validation)
+  ↓
+Controller (thin, routing only)
+  ↓
+Service (business logic)
+  ↓
+Repository (data access)
+  ↓
+DTO (type-safe response)
+  ↓
+JSON Response
+```
+
+All code must follow these patterns to maintain consistency with ADR-0018 (Modular Admin Interface Architecture). Patterns apply across all backend modules: members, products, transactions, settlements, etc.
+
+---

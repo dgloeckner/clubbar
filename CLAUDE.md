@@ -67,11 +67,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Admin UI supports language switching** — UI strings in JSON locale files
 - **API is language-agnostic** — always returns all translations; frontend selects appropriate language
 
+### Code Patterns (Backend)
+
+Reference backend code patterns in `backend/patterns/` directory:
+- **Pattern 001**: Form Requests for Input Validation — declarative validation with typed accessors
+- **Pattern 002**: Enum for Type-Safe Domain Values — type-safe constants for languages, transaction types, statuses
+- **Pattern 003**: Data Transfer Objects (DTOs) — immutable response objects with consistent formatting
+- **Pattern 004**: Service Layer — business logic isolated from HTTP, reusable across consumers
+- **Pattern 005**: Repository Interface — abstract data access to enable testing and flexibility
+- **Pattern 006**: Thin Controllers — controllers route HTTP requests to services (no business logic)
+- **Pattern 007**: Centralized Exception Handling — consistent error response format and logging
+- **Pattern 008**: Service Provider Bindings — dependency injection configuration and lifecycle management
+
+**Important**: All backend work must follow these patterns for consistency with ADR-0018 (Modular Architecture) and to maintain code quality across modules.
+
 ### Development Approach
 - **Prefer a planned approach with milestones** over tackling all issues at once
 - **Break work into phases** — plan before implementing
 - **One feature at a time** — complete and test before moving to the next
 - **Validate against use cases** before marking work complete
+- **Follow backend patterns** — reference `backend/patterns/` directory for consistent implementation
 
 ### Implementation Plans
 - **Plans are stored in `plans/`** — each plan is a markdown file with clear milestones
@@ -108,6 +123,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `adr/` | Architecture Decision Records (22 ADRs documenting key decisions) |
 | `api/` | OpenAPI 3.0 specifications for Admin and Terminal APIs |
 | `backend/` | Backend technology decisions and architecture |
+| `backend/patterns/` | **Code patterns and architectural patterns for backend quality** |
 | `docker/` | Docker Compose configuration for local development |
 | `docs/` | Entity-Relationship Models and data documentation |
 | `e2etests/` | Playwright API and E2E tests |
