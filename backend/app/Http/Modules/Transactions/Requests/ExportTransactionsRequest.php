@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Modules\Members\Requests;
+namespace App\Http\Modules\Transactions\Requests;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -104,5 +104,47 @@ class ExportTransactionsRequest extends FormRequest
             'product_id' => $this->query('product_id'),
             'type' => $this->query('type', 'all'),
         ];
+    }
+
+    /**
+     * Get typed accessor methods for individual parameters.
+     *
+     * @return string Start date (YYYY-MM-DD)
+     */
+    public function fromDate(): string
+    {
+        return (string) $this->query('from_date');
+    }
+
+    /**
+     * @return string End date (YYYY-MM-DD)
+     */
+    public function toDate(): string
+    {
+        return (string) $this->query('to_date');
+    }
+
+    /**
+     * @return ?string Member UUID or null
+     */
+    public function memberId(): ?string
+    {
+        return $this->query('member_id');
+    }
+
+    /**
+     * @return ?string Product UUID or null
+     */
+    public function productId(): ?string
+    {
+        return $this->query('product_id');
+    }
+
+    /**
+     * @return string Transaction type (purchase|correction|all)
+     */
+    public function type(): string
+    {
+        return (string) $this->query('type', 'all');
     }
 }

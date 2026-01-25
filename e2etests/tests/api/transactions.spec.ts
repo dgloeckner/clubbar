@@ -31,7 +31,7 @@ test.describe('Transactions Upload Endpoint', () => {
     });
 
     expect(response.ok()).toBeTruthy();
-    expect(response.status()).toBe(200);
+    expect(response.status()).toBe(201);
 
     const body = await response.json();
 

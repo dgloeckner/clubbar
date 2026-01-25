@@ -4,9 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SyncRequest;
 use App\Http\Requests\UpdateLanguageRequest;
-use App\Http\Requests\UploadTransactionsRequest;
 use App\Services\SyncService;
-use App\Services\TransactionService;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -15,15 +13,17 @@ use Illuminate\Http\JsonResponse;
  * Thin controller for Terminal API sync endpoints.
  * Implements Pattern 006: Thin Controllers with all patterns integrated.
  *
- * All business logic delegated to Service Layer (SyncService, TransactionService).
+ * All business logic delegated to Service Layer (SyncService).
  * All responses use DTOs for type safety.
  * All input validation via FormRequest.
+ *
+ * Note: Transaction endpoints have been moved to Transactions module.
+ * See: App\Http\Modules\Transactions\Controllers\SyncController
  */
 final class SyncController extends Controller
 {
     public function __construct(
         private readonly SyncService $syncService,
-        private readonly TransactionService $transactionService,
     ) {}
 
     /**
@@ -101,76 +101,4 @@ final class SyncController extends Controller
         ]);
     }
 
-    /**
-     * POST /api/sync/transactions - Batch upload transactions
-     *
-     * Accepts batch of up to 100 transactions from offline terminals.
-     * Implements Pattern 001 (UploadTransactionsRequest), Pattern 004 (TransactionService).
-     * Implements ADR-0023: Terminal Balance State Management
-     *
-     * Response includes member_balances object with current balance per member.
-     *
-     * @param UploadTransactionsRequest $request
-     * @return JsonResponse
-     */
-    public function transactions(UploadTransactionsRequest $request): JsonResponse
-    {
-        $result = $this->transactionService->processBatch(
-            $request->validated('transactions')
-        );
-
-        return response()->json($result->toArray());
-    }
-
-    /**
-     * GET /api/terminal/transactions/{memberId} - Fetch transaction history
-     *
-     * Returns recent transaction history for a member.
-     * Implements ADR-0024: Transaction History Retrieval (online-only, no cache).
-     *
-     * Query Parameters:
-     * - limit: Max transactions to return (default 50, max 100)
-     * - offset: Pagination offset (default 0)
-     * - since: Transactions after this timestamp (ISO 8601)
-     *
-     * @param \Illuminate\Http\Request $request
-     * @param string $memberId Member UUID
-     * @return JsonResponse Transaction list or 404 if member not found
-     */
-    public function transactionHistory(\Illuminate\Http\Request $request, string $memberId): JsonResponse
-    {
-        try {
-            // Get pagination parameters from request
-            $limit = min((int) $request->query('limit', 50), 100);
-            $offset = max((int) $request->query('offset', 0), 0);
-            $since = $request->query('since');
-
-            $result = $this->transactionService->getRecentTransactions(
-                $memberId,
-                $limit,
-                $offset,
-                $since
-            );
-
-            return response()->json($result);
-        } catch (\Exception $e) {
-            \Log::error('TransactionHistory error: ' . $e->getMessage(), [
-                'member_id' => $memberId,
-                'exception' => get_class($e),
-                'code' => $e->getCode(),
-            ]);
-
-            if ($e->getCode() === 404) {
-                return response()->json([
-                    'error' => 'not_found',
-                    'message' => 'Member not found',
-                ], 404);
-            }
-
-            return response()->json([
-                'error' => 'server_error',
-                'message' => 'Unable to fetch transaction history: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
 }

@@ -39,18 +39,6 @@ Route::middleware('api')->group(function () {
     // Products module routes (Categories and Products: Terminal Sync + Admin CRUD)
     require base_path('routes/modules/products.php');
 
-    // Temporary: Keep transaction endpoints in flat structure
-    // (Transactions will be migrated to Products module in future if needed)
-    Route::prefix('sync')
-        ->middleware([AuthenticateTerminalToken::class])
-        ->group(function () {
-            Route::post('/transactions', [SyncController::class, 'transactions']);
-        });
-
-    // Terminal API: Transaction History (Milestone 2.A - ADR-0024)
-    Route::prefix('terminal')
-        ->middleware([AuthenticateTerminalToken::class])
-        ->group(function () {
-            Route::get('/transactions/{memberId}', [SyncController::class, 'transactionHistory']);
-        });
+    // Transactions module routes (Terminal Sync + Admin Management)
+    require base_path('routes/modules/transactions.php');
 });

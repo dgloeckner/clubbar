@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Modules\Members\Requests;
+namespace App\Http\Modules\Transactions\Requests;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -78,5 +78,23 @@ class CreateCorrectionRequest extends FormRequest
                 'errors' => $validator->errors(),
             ], 422)
         );
+    }
+
+    /**
+     * Get typed accessor methods for validated data.
+     *
+     * @return int Amount in cents
+     */
+    public function amountCents(): int
+    {
+        return (int) $this->validated('amount_cents');
+    }
+
+    /**
+     * @return string Reason for correction
+     */
+    public function reason(): string
+    {
+        return (string) $this->validated('reason');
     }
 }

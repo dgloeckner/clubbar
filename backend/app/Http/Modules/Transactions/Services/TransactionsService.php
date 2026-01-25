@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Services;
+namespace App\Http\Modules\Transactions\Services;
 
-use App\DTOs\TransactionBatchResultDto;
+use App\Http\Modules\Transactions\DTOs\TransactionBatchResultDto;
 use Illuminate\Support\Facades\DB;
 
 /**
- * TransactionService
+ * TransactionsService
  *
  * Handles batch transaction processing and balance calculation.
  * Validates and processes transaction uploads from terminals.
@@ -22,8 +22,18 @@ use Illuminate\Support\Facades\DB;
  * - Balance calculated per-member after batch processing
  * - Returns member_balances in response for terminal sync
  */
-final readonly class TransactionService
+final readonly class TransactionsService
 {
+    /**
+     * Initialize service with repository dependency.
+     * Will be injected by Service Provider (Pattern 008).
+     *
+     * @param TransactionsRepository $repository
+     */
+    public function __construct(
+        private readonly TransactionsRepository $repository,
+    ) {}
+
     /**
      * Process batch of transactions
      *

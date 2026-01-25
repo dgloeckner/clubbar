@@ -68,13 +68,28 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Future Plans
 
-### Phase 2.A Terminal UI & Integration (After Backend Core Modules Complete)
+### Transactions Module Refactoring (📍 PRIORITY — Architecture Compliance)
+- **Link**: [transactions-module-refactor.md](./transactions-module-refactor.md)
+- **Goal**: Refactor WIP Transactions module to follow ADR-0018 modular architecture and backend patterns
+- **Status**: Planning Phase — Ready to Implement
+- **Scope**: 6 phases (13-18 days)
+  - Phase 1: Module structure + controllers (3-4 days)
+  - Phase 2: Services + repositories (2-3 days)
+  - Phase 3: Requests + DTOs (2 days)
+  - Phase 4: Routing + integration (2 days)
+  - Phase 5: Testing (3-4 days)
+  - Phase 6: Cleanup + documentation (1-2 days)
+- **Why Priority**: Must complete before Phase 2.B Terminal UI; ensures architecture consistency
+- **Current State**: Transactions code scattered across SyncController, Members module, app/Services/ (violates ADR-0018)
+- **Target State**: Dedicated Transactions module with proper separation of Terminal/Admin endpoints
+
+### Phase 2.A Terminal UI & Integration (After Transactions Refactoring Complete)
 - **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
 - **Milestones**:
   - E: Terminal UI - Transaction History Screen
   - G: Integration Tests
 - **Blocks**: Phase 2.B Terminal features
-- **Why deferred**: Backend API must be complete before building terminal UI
+- **Why deferred**: Backend module structure must be clean before building terminal UI
 
 ### Phase 2.B: Terminal Core Features (After Phase 2.A Complete)
 - **Description**: RFID scanning, product selection, offline purchases

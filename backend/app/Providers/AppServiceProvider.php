@@ -45,13 +45,6 @@ class AppServiceProvider extends ServiceProvider
             }
         );
 
-        // Transaction service (batch transaction processing)
-        $this->app->singleton(
-            \App\Services\TransactionService::class,
-            function ($app) {
-                return new \App\Services\TransactionService();
-            }
-        );
 
         // =====================================================================
         // MEMBERS MODULE (Pattern 009: Module Structure)
@@ -138,6 +131,28 @@ class AppServiceProvider extends ServiceProvider
             function ($app) {
                 return new \App\Http\Modules\AuditLog\Services\AuditLogService(
                     $app->make(\App\Http\Modules\AuditLog\Repositories\AuditLogRepository::class)
+                );
+            }
+        );
+
+        // =====================================================================
+        // TRANSACTIONS MODULE (Pattern 009: Module Structure)
+        // =====================================================================
+
+        // Transactions Repository - Data access abstraction (Pattern 011)
+        $this->app->singleton(
+            \App\Http\Modules\Transactions\Services\TransactionsRepository::class,
+            function ($app) {
+                return new \App\Http\Modules\Transactions\Services\TransactionsRepository();
+            }
+        );
+
+        // Transactions Service - Business logic layer (Pattern 010)
+        $this->app->singleton(
+            \App\Http\Modules\Transactions\Services\TransactionsService::class,
+            function ($app) {
+                return new \App\Http\Modules\Transactions\Services\TransactionsService(
+                    $app->make(\App\Http\Modules\Transactions\Services\TransactionsRepository::class)
                 );
             }
         );

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Modules\Transactions\Requests;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -13,6 +13,7 @@ use Illuminate\Http\Exceptions\HttpResponseException;
  * Validates transaction array structure and batch size limits.
  *
  * Implements Pattern 001: Form Requests
+ * Implements ADR-0023: Terminal Balance State Management
  */
 final class UploadTransactionsRequest extends FormRequest
 {

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\DTOs;
+namespace App\Http\Modules\Transactions\DTOs;
 
 /**
  * TransactionBatchResultDto
