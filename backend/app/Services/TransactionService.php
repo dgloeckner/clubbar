@@ -194,9 +194,15 @@ final readonly class TransactionService
             // Get member name
             $member = DB::table('members')
                 ->where('id', $tx->member_id)
-                ->select('full_name')
+                ->select('first_name', 'last_name')
                 ->first();
-            $memberName = $member ? $member->full_name : 'Unknown Member';
+            $memberName = 'Unknown Member';
+            if ($member) {
+                $memberName = trim("{$member->first_name} {$member->last_name}");
+                if (empty($memberName)) {
+                    $memberName = 'Unknown Member';
+                }
+            }
 
             // Get product name (if product_id is set)
             $productName = '';
