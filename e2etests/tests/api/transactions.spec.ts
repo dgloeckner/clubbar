@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
 import { randomUUID } from 'crypto';
+import { test, expect } from '../../fixtures/auth.fixture';
 
 /**
  * Transactions Upload endpoint tests
@@ -483,5 +483,322 @@ test.describe('Transaction History Endpoint', () => {
 
     // Should return at most 50 transactions (default limit)
     expect(body.transactions.length).toBeLessThanOrEqual(50);
+  });
+});
+
+/**
+ * Milestone 3: Manual Corrections (UC-A21)
+ *
+ * Tests for admin endpoint to record manual transaction corrections.
+ * POST /api/admin/members/{memberId}/transactions/correct
+ */
+test.describe('Manual Corrections Endpoint', () => {
+  const testMemberId = '123e4567-e89b-12d3-a456-426614174000';
+
+  test('POST /api/admin/members/{id}/transactions/correct creates correction transaction', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+      data: {
+        amount_cents: -350,
+        reason: 'Refund for duplicate charge',
+      },
+    });
+
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+
+    // Verify response structure
+    expect(body.id).toBeDefined();
+    expect(body.member_id).toBe(testMemberId);
+    expect(body.amount_cents).toBe(-350);
+    expect(body.transaction_type).toBe('correction');
+    expect(body.notes).toBe('Refund for duplicate charge');
+    expect(body.created_by_admin_id).toBeDefined();
+    expect(body.created_at).toBeDefined();
+  });
+
+  test('POST /api/admin/members/{id}/transactions/correct accepts positive amount', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+      data: {
+        amount_cents: 500,
+        reason: 'Manual charge for damaged item',
+      },
+    });
+
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+
+    expect(body.amount_cents).toBe(500);
+    expect(body.transaction_type).toBe('correction');
+  });
+
+  test('POST /api/admin/members/{id}/transactions/correct rejects zero amount', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+      data: {
+        amount_cents: 0,
+        reason: 'Invalid zero amount',
+      },
+    });
+
+    expect(response.status()).toBe(422);
+
+    const body = await response.json();
+    expect(body.message).toBeDefined();
+    expect(body.errors).toBeDefined();
+  });
+
+  test('POST /api/admin/members/{id}/transactions/correct rejects missing reason', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+      data: {
+        amount_cents: -350,
+        // missing reason
+      },
+    });
+
+    expect(response.status()).toBe(422);
+
+    const body = await response.json();
+    expect(body.errors).toBeDefined();
+    expect(body.errors.reason).toBeDefined();
+  });
+
+  test('POST /api/admin/members/{id}/transactions/correct returns 404 for unknown member', async ({ authenticatedRequest }) => {
+    const unknownMemberId = '00000000-0000-0000-0000-000000000000';
+
+    const response = await authenticatedRequest.post(`/api/admin/members/${unknownMemberId}/transactions/correct`, {
+      data: {
+        amount_cents: -350,
+        reason: 'Test correction',
+      },
+    });
+
+    expect(response.status()).toBe(404);
+
+    const body = await response.json();
+    expect(body.error).toBe('not_found');
+  });
+
+  test('POST /api/admin/members/{id}/transactions/correct rejects reason exceeding 255 chars', async ({ authenticatedRequest }) => {
+    const longReason = 'A'.repeat(256);
+
+    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+      data: {
+        amount_cents: -350,
+        reason: longReason,
+      },
+    });
+
+    expect(response.status()).toBe(422);
+
+    const body = await response.json();
+    expect(body.errors.reason).toBeDefined();
+  });
+
+  test('POST /api/admin/members/{id}/transactions/correct creates transaction appearing in history', async ({ authenticatedRequest, request }) => {
+    // Record a correction
+    const correctionResponse = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+      data: {
+        amount_cents: -250,
+        reason: 'Test correction for history verification',
+      },
+    });
+
+    expect(correctionResponse.status()).toBe(201);
+
+    const correction = await correctionResponse.json();
+
+    // Fetch transaction history
+    const historyResponse = await request.get(`/api/terminal/transactions/${testMemberId}?limit=1`, {
+      headers: authHeaders,
+    });
+
+    expect(historyResponse.ok()).toBeTruthy();
+
+    const history = await historyResponse.json();
+
+    // Verify correction appears in history (most recent)
+    const found = history.transactions.find((tx: any) => tx.id === correction.id);
+    expect(found).toBeDefined();
+    expect(found?.type).toBe('correction');
+    expect(found?.amount_cents).toBe(-250);
+  });
+
+  test('POST /api/admin/members/{id}/transactions/correct updates member balance', async ({ authenticatedRequest, request }) => {
+    const testMemberId2 = '223e4567-e89b-12d3-a456-426614174001';
+
+    // Record a correction
+    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId2}/transactions/correct`, {
+      data: {
+        amount_cents: 1000,
+        reason: 'Balance adjustment test',
+      },
+    });
+
+    expect(response.status()).toBe(201);
+
+    const correction = await response.json();
+
+    // Fetch transaction history to verify balance includes correction
+    const historyResponse = await request.get(`/api/terminal/transactions/${testMemberId2}?limit=100`, {
+      headers: authHeaders,
+    });
+
+    expect(historyResponse.ok()).toBeTruthy();
+
+    const history = await historyResponse.json();
+
+    // Verify correction is in transactions
+    const found = history.transactions.find((tx: any) => tx.id === correction.id);
+    expect(found).toBeDefined();
+    expect(found?.amount_cents).toBe(1000);
+  });
+});
+
+/**
+ * Milestone 3: Transaction Export (UC-A22)
+ *
+ * Tests for admin endpoint to export transactions as CSV.
+ * GET /api/admin/transactions/export?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD
+ */
+test.describe('Transaction Export Endpoint', () => {
+  const fromDate = '2026-01-01';
+  const toDate = '2026-01-31';
+  const testMemberId = '123e4567-e89b-12d3-a456-426614174000';
+  const testProductId = '987f6543-e21a-11d3-b456-426614174999';
+
+  test('GET /api/admin/transactions/export returns CSV data', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/transactions/export', {
+      params: {
+        from_date: fromDate,
+        to_date: toDate,
+      },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    // Verify CSV content type
+    const contentType = response.headers()['content-type'];
+    expect(contentType).toContain('text/csv');
+
+    // Verify content disposition header for download
+    const disposition = response.headers()['content-disposition'];
+    expect(disposition).toContain('attachment');
+    expect(disposition).toContain('.csv');
+
+    const text = await response.text();
+    expect(text).toBeDefined();
+    expect(text.length).toBeGreaterThan(0);
+  });
+
+  test('GET /api/admin/transactions/export returns valid CSV with headers', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/transactions/export', {
+      params: {
+        from_date: fromDate,
+        to_date: toDate,
+      },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const csv = await response.text();
+
+    // Verify CSV headers
+    expect(csv).toContain('date;member_name;product;type;amount');
+  });
+
+  test('GET /api/admin/transactions/export respects date range', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/transactions/export', {
+      params: {
+        from_date: '2026-12-01',
+        to_date: '2026-12-31',
+      },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const csv = await response.text();
+
+    // CSV should have headers even if no transactions in range
+    expect(csv).toContain('date;member_name;product;type;amount');
+  });
+
+  test('GET /api/admin/transactions/export filters by member_id', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/transactions/export', {
+      params: {
+        from_date: fromDate,
+        to_date: toDate,
+        member_id: testMemberId,
+      },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const csv = await response.text();
+
+    // Verify CSV headers present
+    expect(csv).toContain('date;member_name;product;type;amount');
+  });
+
+  test('GET /api/admin/transactions/export filters by transaction type', async ({ authenticatedRequest }) => {
+    // Export only corrections
+    const response = await authenticatedRequest.get('/api/admin/transactions/export', {
+      params: {
+        from_date: fromDate,
+        to_date: toDate,
+        type: 'correction',
+      },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const csv = await response.text();
+
+    // Verify CSV format
+    expect(csv).toContain('date;member_name;product;type;amount');
+  });
+
+  test('GET /api/admin/transactions/export rejects invalid date format', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/transactions/export', {
+      params: {
+        from_date: '01-01-2026',  // Wrong format
+        to_date: toDate,
+      },
+    });
+
+    expect(response.status()).toBe(422);
+
+    const body = await response.json();
+    expect(body.errors).toBeDefined();
+    expect(body.errors.from_date).toBeDefined();
+  });
+
+  test('GET /api/admin/transactions/export rejects to_date before from_date', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/transactions/export', {
+      params: {
+        from_date: '2026-01-31',
+        to_date: '2026-01-01',  // Before from_date
+      },
+    });
+
+    expect(response.status()).toBe(422);
+
+    const body = await response.json();
+    expect(body.errors).toBeDefined();
+    expect(body.errors.to_date).toBeDefined();
+  });
+
+  test('GET /api/admin/transactions/export returns CSV filename with date range', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/transactions/export', {
+      params: {
+        from_date: '2026-01-15',
+        to_date: '2026-01-25',
+      },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const disposition = response.headers()['content-disposition'];
+    expect(disposition).toContain('transactions-2026-01-15-to-2026-01-25.csv');
   });
 });

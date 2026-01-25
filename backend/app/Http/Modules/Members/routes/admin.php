@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Route;
  * - DELETE /api/admin/members/{id} - Delete member
  * - POST /api/admin/members/{id}/export - GDPR export
  * - POST /api/admin/members/{id}/anonymize - GDPR anonymize
+ * - POST /api/admin/members/{id}/transactions/correct - Record correction (UC-A21)
+ * - GET /api/admin/transactions/export - Export transactions as CSV (UC-A22)
  *
  * Authentication: Pattern 013 (Admin Session Authentication)
  * - All routes require admin session authentication (auth.admin middleware)
@@ -43,4 +45,8 @@ Route::prefix('admin')
         // GDPR special operations
         Route::post('/members/{memberId}/export', [AdminController::class, 'export']);
         Route::post('/members/{memberId}/anonymize', [AdminController::class, 'anonymize']);
+
+        // Transaction operations
+        Route::post('/members/{memberId}/transactions/correct', [AdminController::class, 'recordCorrection']);
+        Route::get('/transactions/export', [AdminController::class, 'exportTransactions']);
     });

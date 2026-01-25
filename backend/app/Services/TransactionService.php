@@ -89,6 +89,161 @@ final readonly class TransactionService
     }
 
     /**
+     * Record manual correction transaction.
+     *
+     * Creates a correction transaction (manual booking by admin).
+     * Implements UC-A21: Manual Booking
+     * Implements ADR-0004: Immutable Transaction Storage
+     *
+     * @param string $memberId Member UUID
+     * @param int $amountCents Amount in cents (positive=charge, negative=credit)
+     * @param string $reason Description/reason for correction (max 255 chars)
+     * @param ?string $adminId Admin user UUID (nullable)
+     * @return array Created transaction record
+     * @throws \Exception If member not found
+     */
+    public function recordCorrection(
+        string $memberId,
+        int $amountCents,
+        string $reason,
+        ?string $adminId = null
+    ): array {
+        // Verify member exists
+        $memberExists = DB::table('members')
+            ->where('id', $memberId)
+            ->exists();
+
+        if (!$memberExists) {
+            throw new \Exception("Member not found: $memberId", 404);
+        }
+
+        // Create correction transaction
+        $transactionId = \Illuminate\Support\Str::uuid()->toString();
+        DB::table('transactions')->insert([
+            'id' => $transactionId,
+            'member_id' => $memberId,
+            'product_id' => null,
+            'amount_cents' => $amountCents,
+            'transaction_type' => 'correction',
+            'notes' => $reason,
+            'related_transaction_id' => null,
+            'created_by_terminal_id' => null,
+            'created_by_admin_id' => $adminId,
+            'created_at' => now(),
+        ]);
+
+        // Return created transaction
+        return [
+            'id' => $transactionId,
+            'member_id' => $memberId,
+            'amount_cents' => $amountCents,
+            'transaction_type' => 'correction',
+            'notes' => $reason,
+            'created_by_admin_id' => $adminId,
+            'created_at' => now()->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Export transactions as CSV.
+     *
+     * Generates CSV with transactions filtered by date range and optional filters.
+     * Implements UC-A22: Export Transactions
+     *
+     * @param string $fromDate Start date (Y-m-d format)
+     * @param string $toDate End date (Y-m-d format)
+     * @param ?string $memberId Filter by member (optional)
+     * @param ?string $productId Filter by product (optional)
+     * @param string $type Filter by type: purchase|correction|all (default: all)
+     * @return array Array with csv_content and filename
+     */
+    public function exportTransactions(
+        string $fromDate,
+        string $toDate,
+        ?string $memberId = null,
+        ?string $productId = null,
+        string $type = 'all'
+    ): array {
+        // Build query
+        $query = DB::table('transactions')
+            ->whereBetween('created_at', [
+                $fromDate . ' 00:00:00',
+                $toDate . ' 23:59:59',
+            ]);
+
+        // Apply filters
+        if ($memberId) {
+            $query->where('member_id', $memberId);
+        }
+        if ($productId) {
+            $query->where('product_id', $productId);
+        }
+        if ($type !== 'all') {
+            $query->where('transaction_type', $type);
+        }
+
+        // Order by created_at DESC
+        $transactions = $query
+            ->orderByDesc('created_at')
+            ->get();
+
+        // Generate CSV content
+        $csv = "date;member_name;product;type;amount\n";
+
+        foreach ($transactions as $tx) {
+            // Get member name
+            $member = DB::table('members')
+                ->where('id', $tx->member_id)
+                ->select('full_name')
+                ->first();
+            $memberName = $member ? $member->full_name : 'Unknown Member';
+
+            // Get product name (if product_id is set)
+            $productName = '';
+            if ($tx->product_id) {
+                $product = DB::table('products')
+                    ->where('id', $tx->product_id)
+                    ->select('names')
+                    ->first();
+
+                if ($product) {
+                    $names = json_decode($product->names, true);
+                    $productName = reset($names) ?? 'Unknown Product';
+                } else {
+                    $productName = 'Product (Deleted)';
+                }
+            }
+
+            // Convert amount_cents to EUR decimal
+            $amountEur = number_format($tx->amount_cents / 100, 2, '.', '');
+
+            // CSV line
+            $line = sprintf(
+                "%s;%s;%s;%s;%s\n",
+                $tx->created_at,
+                $memberName,
+                $productName,
+                $tx->transaction_type,
+                $amountEur
+            );
+
+            $csv .= $line;
+        }
+
+        // Generate filename
+        $filename = sprintf(
+            'transactions-%s-to-%s.csv',
+            $fromDate,
+            $toDate
+        );
+
+        return [
+            'csv_content' => $csv,
+            'filename' => $filename,
+        ];
+    }
+
+    /**
      * Get recent transactions for a member
      *
      * Retrieves transaction history for display on terminal.

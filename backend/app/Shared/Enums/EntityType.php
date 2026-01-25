@@ -12,6 +12,7 @@ namespace App\Shared\Enums;
  * - MEMBER: Member records (names, contact, SEPA, preferences)
  * - CATEGORY: Product categories (organization, ordering)
  * - PRODUCT: Product catalog (names, prices, descriptions)
+ * - TRANSACTION: Member transactions (purchases, corrections)
  * - ADMIN_USER: Administrator accounts (emails, roles, permissions)
  * - TERMINAL: POS terminals (device config, API tokens, assignments)
  * - SETTLEMENT: Financial settlements (creation, cancellation, export)
@@ -22,6 +23,7 @@ enum EntityType: string
     case MEMBER = 'member';
     case CATEGORY = 'category';
     case PRODUCT = 'product';
+    case TRANSACTION = 'transaction';
     case ADMIN_USER = 'admin_user';
     case TERMINAL = 'terminal';
     case SETTLEMENT = 'settlement';

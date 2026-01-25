@@ -4,9 +4,15 @@ namespace App\Http\Modules\Members\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Modules\Members\Requests\AdminListRequest;
+use App\Http\Modules\Members\Requests\CreateCorrectionRequest;
 use App\Http\Modules\Members\Requests\CreateMemberRequest;
+use App\Http\Modules\Members\Requests\ExportTransactionsRequest;
 use App\Http\Modules\Members\Requests\UpdateMemberRequest;
 use App\Http\Modules\Members\Services\MembersService;
+use App\Services\TransactionService;
+use App\Shared\Enums\AuditAction;
+use App\Shared\Enums\EntityType;
+use App\Shared\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -39,9 +45,13 @@ class AdminController extends Controller
      * Service is bound in AppServiceProvider.
      *
      * @param MembersService $membersService
+     * @param TransactionService $transactionService
+     * @param AuditService $auditService
      */
     public function __construct(
         private readonly MembersService $membersService,
+        private readonly TransactionService $transactionService,
+        private readonly AuditService $auditService,
     ) {}
 
     /**
@@ -237,6 +247,118 @@ class AdminController extends Controller
             return response()->json(
                 ['error' => 'not_found', 'message' => "Member not found: $memberId"],
                 404
+            );
+        }
+    }
+
+    /**
+     * Record Manual Correction Transaction
+     *
+     * Creates a manual booking (correction transaction) for accounting adjustments.
+     * Implements UC-A21: Manual Booking
+     *
+     * POST /api/admin/members/{memberId}/transactions/correct
+     *
+     * @param string $memberId Member UUID
+     * @param CreateCorrectionRequest $request Validated request
+     * @return JsonResponse
+     */
+    public function recordCorrection(
+        string $memberId,
+        CreateCorrectionRequest $request
+    ): JsonResponse {
+        try {
+            $validated = $request->validated();
+
+            // Get admin ID from authenticated user
+            $adminId = auth()->id();
+
+            // Delegate to service (Pattern 004: Service Layer)
+            $transaction = $this->transactionService->recordCorrection(
+                memberId: $memberId,
+                amountCents: $validated['amount_cents'],
+                reason: $validated['reason'],
+                adminId: $adminId
+            );
+
+            // Log audit entry
+            $this->auditService->log(
+                action: AuditAction::CREATE,
+                entityType: EntityType::TRANSACTION,
+                entityId: $transaction['id'],
+                newValues: [
+                    'member_id' => $memberId,
+                    'amount_cents' => $validated['amount_cents'],
+                    'reason' => $validated['reason'],
+                ]
+            );
+
+            return response()->json($transaction, 201);
+        } catch (\Exception $e) {
+            if ($e->getCode() === 404) {
+                return response()->json(
+                    ['error' => 'not_found', 'message' => $e->getMessage()],
+                    404
+                );
+            }
+
+            return response()->json(
+                ['error' => 'server_error', 'message' => $e->getMessage()],
+                500
+            );
+        }
+    }
+
+    /**
+     * Export Transactions as CSV
+     *
+     * Generates and downloads a CSV file of transactions within a date range.
+     * Implements UC-A22: Export Transactions
+     *
+     * GET /api/admin/transactions/export?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD
+     *
+     * @param ExportTransactionsRequest $request Validated request
+     * @return Response CSV file download
+     */
+    public function exportTransactions(ExportTransactionsRequest $request)
+    {
+        try {
+            $filters = $request->getFilters();
+
+            // Delegate to service (Pattern 004: Service Layer)
+            $export = $this->transactionService->exportTransactions(
+                fromDate: $filters['from_date'],
+                toDate: $filters['to_date'],
+                memberId: $filters['member_id'],
+                productId: $filters['product_id'],
+                type: $filters['type']
+            );
+
+            // Log audit entry
+            $this->auditService->log(
+                action: AuditAction::EXPORT,
+                entityType: EntityType::TRANSACTION,
+                entityId: 'batch',
+                newValues: [
+                    'from_date' => $filters['from_date'],
+                    'to_date' => $filters['to_date'],
+                    'member_id' => $filters['member_id'],
+                    'product_id' => $filters['product_id'],
+                    'type' => $filters['type'],
+                ]
+            );
+
+            // Return CSV as file download
+            return response($export['csv_content'])
+                ->header('Content-Type', 'text/csv; charset=utf-8')
+                ->header('Content-Disposition', 'attachment; filename="' . $export['filename'] . '"')
+                ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                ->header('Pragma', 'no-cache')
+                ->header('Expires', '0');
+        } catch (\Exception $e) {
+            return response()->json(
+                ['error' => 'server_error', 'message' => $e->getMessage()],
+                500
             );
         }
     }
