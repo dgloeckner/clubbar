@@ -50,7 +50,7 @@ class AdminUser extends Model
      */
     protected $fillable = [
         'email',
-        'password_hash',
+        'password',
         'display_name',
         'locale',
         'is_active',

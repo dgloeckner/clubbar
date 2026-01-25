@@ -41,4 +41,7 @@ Route::middleware('api')->group(function () {
 
     // Transactions module routes (Terminal Sync + Admin Management)
     require base_path('routes/modules/transactions.php');
+
+    // Admin Users module routes (Admin user CRUD and password management)
+    require base_path('routes/modules/admin-users.php');
 });

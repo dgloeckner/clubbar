@@ -32,5 +32,7 @@ Route::prefix('auth')
         Route::middleware([\App\Http\Middleware\AuthenticateAdminSession::class])->group(function () {
             Route::post('/logout', [AuthController::class, 'logout']);
             Route::get('/profile', [AuthController::class, 'profile']);
+            // Password management - moved to AdminUsers module
+            Route::patch('/change-password', [\App\Http\Modules\AdminUsers\Controllers\AdminController::class, 'changePassword']);
         });
     });

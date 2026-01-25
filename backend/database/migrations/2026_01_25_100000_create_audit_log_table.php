@@ -44,7 +44,7 @@ return new class extends Migration
             $table->bigIncrements('id');
 
             // Foreign key: Admin who performed action (nullable for system/failed actions)
-            $table->binary('admin_user_id', 16)->nullable()->index();
+            $table->string('admin_user_id', 36)->nullable()->index();
 
             // Action type: create, update, delete, anonymize, login, logout, etc.
             $table->enum('action', [

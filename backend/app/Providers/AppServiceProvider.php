@@ -156,6 +156,29 @@ class AppServiceProvider extends ServiceProvider
                 );
             }
         );
+
+        // =====================================================================
+        // ADMIN USERS MODULE (Pattern 009: Module Structure)
+        // =====================================================================
+
+        // Admin Users Repository - Data access abstraction (Pattern 011)
+        $this->app->singleton(
+            \App\Http\Modules\AdminUsers\Repositories\AdminUsersRepository::class,
+            function ($app) {
+                return new \App\Http\Modules\AdminUsers\Repositories\AdminUsersRepository();
+            }
+        );
+
+        // Admin Users Service - Business logic layer (Pattern 010)
+        $this->app->singleton(
+            \App\Http\Modules\AdminUsers\Services\AdminUsersService::class,
+            function ($app) {
+                return new \App\Http\Modules\AdminUsers\Services\AdminUsersService(
+                    $app->make(\App\Http\Modules\AdminUsers\Repositories\AdminUsersRepository::class),
+                    $app->make(\App\Shared\Services\AuditService::class)
+                );
+            }
+        );
     }
 
     /**
