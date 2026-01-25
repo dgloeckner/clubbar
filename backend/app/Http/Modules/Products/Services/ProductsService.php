@@ -142,9 +142,8 @@ class ProductsService extends BaseService
         return new PaginatedResultDto(
             items: $productDtos,
             total: $total,
-            perPage: $perPage,
-            currentPage: $page,
-            lastPage: ceil($total / $perPage),
+            limit: $perPage,
+            offset: ($page - 1) * $perPage,
         );
     }
 
