@@ -2,7 +2,9 @@
 
 namespace App\Http\Modules\Products\Requests;
 
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
  * UpdateCategoryRequest
@@ -56,5 +58,23 @@ class UpdateCategoryRequest extends FormRequest
             'display_order.integer' => 'Display order must be a number',
             'display_order.min' => 'Display order must be greater than 0',
         ];
+    }
+
+    /**
+     * Handle a failed validation attempt.
+     *
+     * Returns JSON error response instead of redirect.
+     *
+     * @param Validator $validator
+     * @throws HttpResponseException
+     */
+    protected function failedValidation(Validator $validator): void
+    {
+        throw new HttpResponseException(
+            response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => $validator->errors(),
+            ], 422)
+        );
     }
 }

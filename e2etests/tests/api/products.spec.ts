@@ -85,32 +85,39 @@ test.describe('Products API - List', () => {
     expect(response.status()).toBe(200);
 
     const body = await response.json();
-    expect(body.products).toBeDefined();
-    expect(Array.isArray(body.products)).toBeTruthy();
-    expect(body.pagination).toBeDefined();
+    expect(body.items).toBeDefined();
+    expect(Array.isArray(body.items)).toBeTruthy();
+    expect(body.total).toBeDefined();
+    expect(body.limit).toBeDefined();
+    expect(body.offset).toBeDefined();
+    expect(body.has_more).toBeDefined();
   });
 
   test('GET /api/admin/products includes pagination info', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get('/api/admin/products');
     const body = await response.json();
 
-    expect(body.pagination.total).toBeDefined();
-    expect(body.pagination.per_page).toBeDefined();
-    expect(body.pagination.current_page).toBeDefined();
-    expect(body.pagination.last_page).toBeDefined();
+    expect(body.total).toBeDefined();
+    expect(typeof body.total).toBe('number');
+    expect(body.limit).toBeDefined();
+    expect(typeof body.limit).toBe('number');
+    expect(body.offset).toBeDefined();
+    expect(typeof body.offset).toBe('number');
+    expect(body.has_more).toBeDefined();
+    expect(typeof body.has_more).toBe('boolean');
   });
 
   test('GET /api/admin/products returns product fields', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get('/api/admin/products');
     const body = await response.json();
 
-    if (body.products.length > 0) {
-      const product = body.products[0];
+    if (body.items.length > 0) {
+      const product = body.items[0];
       expect(product.id).toBeDefined();
       expect(product.names).toBeDefined();
-      expect(product.price_cents).toBeDefined();
-      expect(product.category_id).toBeDefined();
-      expect(product.is_active).toBeDefined();
+      expect(product.priceCents).toBeDefined();
+      expect(product.categoryId).toBeDefined();
+      expect(product.isActive).toBeDefined();
     }
   });
 
@@ -118,21 +125,23 @@ test.describe('Products API - List', () => {
     const response = await authenticatedRequest.get('/api/admin/products?page=1');
     const body = await response.json();
 
-    expect(body.pagination.current_page).toBe(1);
+    expect(response.ok()).toBeTruthy();
+    expect(body.offset).toBe(0); // page 1 = offset 0
   });
 
   test('GET /api/admin/products supports per_page parameter', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get('/api/admin/products?per_page=10');
     const body = await response.json();
 
-    expect(body.pagination.per_page).toBe(10);
+    expect(response.ok()).toBeTruthy();
+    expect(body.limit).toBe(10);
   });
 
   test('GET /api/admin/products limits per_page to maximum 100', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get('/api/admin/products?per_page=500');
     const body = await response.json();
 
-    expect(body.pagination.per_page).toBeLessThanOrEqual(100);
+    expect(body.limit).toBeLessThanOrEqual(100);
   });
 
   test('GET /api/admin/products supports status filter', async ({ authenticatedRequest }) => {

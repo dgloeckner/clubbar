@@ -119,7 +119,10 @@ class AdminController extends Controller
     public function deleteCategory(string $categoryId): JsonResponse
     {
         try {
-            $this->categoriesService->deleteCategory($categoryId);
+            $deleted = $this->categoriesService->deleteCategory($categoryId);
+            if (!$deleted) {
+                return response()->json(['error' => 'not_found', 'message' => "Category {$categoryId} not found"], 404);
+            }
             return response()->json(null, 204);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => 'has_products', 'message' => $e->getMessage()], 400);

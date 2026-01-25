@@ -2,7 +2,9 @@
 
 namespace App\Http\Modules\Products\Requests;
 
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
  * CreateProductRequest
@@ -73,5 +75,23 @@ class CreateProductRequest extends FormRequest
             'category_id.uuid' => 'Category ID must be a valid UUID',
             'category_id.exists' => 'Selected category does not exist',
         ];
+    }
+
+    /**
+     * Handle a failed validation attempt.
+     *
+     * Returns JSON error response instead of redirect.
+     *
+     * @param Validator $validator
+     * @throws HttpResponseException
+     */
+    protected function failedValidation(Validator $validator): void
+    {
+        throw new HttpResponseException(
+            response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => $validator->errors(),
+            ], 422)
+        );
     }
 }

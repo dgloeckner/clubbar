@@ -2,7 +2,9 @@
 
 namespace App\Http\Modules\Products\Requests;
 
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
  * ListProductsRequest
@@ -40,7 +42,7 @@ class ListProductsRequest extends FormRequest
     {
         return [
             'page' => 'nullable|integer|min:1',
-            'per_page' => 'nullable|integer|min:1|max:100',
+            'per_page' => 'nullable|integer|min:1',
             'status' => 'nullable|string|in:all,active,inactive',
             'category_id' => 'nullable|uuid|exists:categories,id',
             'search' => 'nullable|string|max:100',
@@ -61,7 +63,6 @@ class ListProductsRequest extends FormRequest
             'page.min' => 'Page must be 1 or greater',
             'per_page.integer' => 'Results per page must be a number',
             'per_page.min' => 'Results per page must be 1 or greater',
-            'per_page.max' => 'Results per page cannot exceed 100',
             'status.in' => 'Status must be one of: all, active, inactive',
             'category_id.uuid' => 'Category ID must be a valid UUID',
             'category_id.exists' => 'Category does not exist',
@@ -109,5 +110,23 @@ class ListProductsRequest extends FormRequest
             'sort' => $this->query('sort', 'category'),
             'order' => $this->query('order', 'asc'),
         ];
+    }
+
+    /**
+     * Handle a failed validation attempt.
+     *
+     * Returns JSON error response instead of redirect.
+     *
+     * @param Validator $validator
+     * @throws HttpResponseException
+     */
+    protected function failedValidation(Validator $validator): void
+    {
+        throw new HttpResponseException(
+            response()->json([
+                'message' => 'The given data was invalid.',
+                'errors' => $validator->errors(),
+            ], 422)
+        );
     }
 }
