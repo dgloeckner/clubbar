@@ -76,7 +76,8 @@ final readonly class TransactionService
                 ->where('member_id', $memberId)
                 ->sum('amount_cents');
 
-            $memberBalances[$memberId] = $balance;
+            // Cast to int (DB returns as string in JSON)
+            $memberBalances[$memberId] = (int) $balance;
         }
 
         return new TransactionBatchResultDto(
