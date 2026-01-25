@@ -36,19 +36,14 @@ Route::middleware('api')->group(function () {
     // Audit Log module routes (Admin API: /api/admin/audit-log)
     require base_path('routes/modules/audit-log.php');
 
-    // Categories module routes (TODO: Migrate from flat structure in future)
-    // require base_path('routes/modules/categories.php');
+    // Products module routes (Categories and Products: Terminal Sync + Admin CRUD)
+    require base_path('routes/modules/products.php');
 
-    // Products module routes (TODO: Migrate from flat structure in future)
-    // require base_path('routes/modules/products.php');
-
-    // Temporary: Keep original categories/products endpoints in flat structure
-    // (Migration to modules scheduled for future milestones)
+    // Temporary: Keep transaction endpoints in flat structure
+    // (Transactions will be migrated to Products module in future if needed)
     Route::prefix('sync')
         ->middleware([AuthenticateTerminalToken::class])
         ->group(function () {
-            Route::get('/categories', [SyncController::class, 'categories']);
-            Route::get('/products', [SyncController::class, 'products']);
             Route::post('/transactions', [SyncController::class, 'transactions']);
         });
 

@@ -54,6 +54,7 @@ class MembersRepository extends BaseRepository
     public function findModifiedSince(int $sinceTimestamp): Collection
     {
         return $this->query()
+            // FIXME: must transport now inactive members to terminals!!
             ->where('is_active', true)
             ->where('updated_at', '>=', date('Y-m-d H:i:s', $sinceTimestamp))
             ->orderBy('updated_at', 'asc')

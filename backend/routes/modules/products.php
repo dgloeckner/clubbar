@@ -1,16 +1,20 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
+
 /**
- * Products Module Routes (Stub)
+ * Products Module Routes
  *
- * Placeholder for Products module routes.
- * Pattern 009: Module Structure (ADR-0018)
+ * Includes all product and category management endpoints.
+ * This file is included by routes/api.php.
  *
- * Products module will be migrated from flat SyncController
- * in a future milestone following same patterns as Members module.
+ * Includes:
+ * - admin.php: Admin API endpoints (category and product CRUD)
+ * - terminal.php: Terminal API endpoints (delta sync)
+ *
+ * Implements Pattern 009: Module Structure (ADR-0018)
  */
 
-// TODO: Implement Products module routes in future milestone
-// When ready, uncomment and implement:
-// require base_path('app/Http/Modules/Products/routes/terminal.php');
-// require base_path('app/Http/Modules/Products/routes/admin.php');
+// Include module-specific route files
+require base_path('app/Http/Modules/Products/routes/admin.php');
+require base_path('app/Http/Modules/Products/routes/terminal.php');

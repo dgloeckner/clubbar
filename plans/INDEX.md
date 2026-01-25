@@ -20,30 +20,47 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Phase 2.A: Terminal Balance & Transaction History
-- **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
-- **Goal**: Implement member balance state management and on-demand transaction history retrieval
-- **Status**: Milestones A-D Complete; Implementation Phase (E-G) Pending
-- **Progress** (Completed):
-  - ✅ Milestone A: Architecture & Design (ADRs 0023/0024, Use Cases, API spec)
-  - ✅ Milestone B: Backend API Implementation (sync extension + transaction history endpoint)
-  - ✅ Milestone C: Terminal SQLite Schema (6 tables, TypeScript interfaces, indexes)
-  - ✅ Milestone D: Terminal Sync Logic (atomic updates, error handling, offline support)
-  - ⏳ Milestone E: Terminal UI - Transaction History (pending)
-  - ⏳ Milestone F: API Tests (pending)
-  - ⏳ Milestone G: Integration Tests (pending)
-- **Key Milestones Completed**:
-  - **✅ Phase 1**: Complete backend foundation with 112/112 tests passing
-  - **✅ Milestone 2.A.A**: Architecture documented per ADRs 0023 & 0024
-  - **✅ Milestone 2.A.B**: Backend API — POST /sync/transactions extended with member_balances; GET /api/terminal/transactions/{memberId} implemented
-  - **✅ Milestone 2.A.C**: Terminal Schema — terminal/database/schema.ts with initializeDatabase(), 6 tables, TypeScript interfaces
-  - **✅ Milestone 2.A.D**: Sync Logic — terminal/services/syncService.ts with atomic transaction wrapper, error handling, offline balance lookup
+### Phase 3: Backend Products Module
+- **Link**: [phase3-backend-products-module.md](./phase3-backend-products-module.md)
+- **Goal**: Implement complete backend API for product and category management (Admin + Terminal sync)
+- **Status**: Planning Complete; Ready for Implementation
+- **Progress** (12 Milestones):
+  - [x] Milestone A: Architecture & Planning (design complete)
+  - [ ] Milestone B: Database Migrations (categories table, FK updates)
+  - [ ] Milestone C: Models & Repositories (Product, Category models + repos)
+  - [ ] Milestone D: Services (ProductsService, CategoriesService)
+  - [ ] Milestone E: Request Validation (form requests)
+  - [ ] Milestone F: Admin API - Categories (CRUD)
+  - [ ] Milestone G: Admin API - Products (CRUD)
+  - [ ] Milestone H: Terminal Sync - Products (delta sync)
+  - [ ] Milestone I: Terminal Sync - Categories (delta sync)
+  - [ ] Milestone J: Tests - Categories (25+ tests)
+  - [ ] Milestone K: Tests - Products (40+ tests)
+  - [ ] Milestone L: Integration & Cleanup (routing, docs)
+- **Use Cases**:
+  - UC-A40: List Products
+  - UC-A41: Create Product
+  - UC-A42: Edit Product
+  - UC-A43: Deactivate Product
+  - UC-A44: Manage Categories
+- **Key Principles**:
+  - Modular Architecture (ADR-0018)
+  - Multilingual Support (ADR-0002)
+  - Immutable Design (ADR-0004)
+  - Pattern-Compliant (001-008, 016)
 
 ---
 
 ## Future Plans
 
-### Phase 2.B: Terminal Core Features (After 2.A)
+### Phase 2.A: Terminal Balance & Transaction History (Deferred after Phase 3)
+- **Current Status**: 5/7 milestones complete (API tests passing, UI pending)
+- **Remaining**:
+  - Milestone E: Terminal UI - Transaction History Screen
+  - Milestone G: Integration Tests
+- **Will Resume After**: Phase 3 Products module complete
+
+### Phase 2.B: Terminal Core Features (After 2.A Complete)
 - **Description**: RFID scanning, product selection, offline purchases
 - **Planned Scope**:
   - RFID/NFC card identification
@@ -52,16 +69,16 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
   - Offline transaction queuing
   - Integration with balance display from Phase 2.A
 
-### Phase 3: Admin Panel Frontend
+### Phase 4: Admin Panel Frontend
 - **Description**: React SPA for member/product management, accounting workflows
 - **Planned Scope**:
   - Authentication and role-based access
-  - Member management CRUD
-  - Product management with i18n support
+  - Member management CRUD (use Phase 1 endpoints)
+  - Product management (use Phase 3 endpoints)
   - Settlement workflows
   - Compliance/GDPR workflows
 
-### Phase 4: Advanced Features
+### Phase 5: Advanced Features
 - **Description**: SEPA payments, advanced settlement, analytics
 - **Planned Scope**:
   - SEPA XML generation for bank transfers
@@ -85,10 +102,11 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 | Plan | Status | Progress | Tests | Link |
 |------|--------|----------|-------|------|
 | Phase 1: Backend Foundation | **✅ Complete** | **23/23 (100%)** | **✅ 112/112 Tests Passing** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
-| **Phase 2.A: Terminal Balance & Transactions** | **In Progress** | **4/7 (57%)** | API Tests Ready | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
+| Phase 2.A: Terminal Balance & Transactions | Deferred | 5/7 (71%) | ✅ 25/25 Passing | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
+| **Phase 3: Backend Products Module** | **In Progress** | **0/12 (0%)** | Ready for Tests | [phase3-backend-products-module.md](./phase3-backend-products-module.md) |
 | Phase 2.B: Terminal Core Features | Not Started | - | - | TBD |
-| Phase 3: Admin Panel | Not Started | - | - | TBD |
-| Phase 4: Advanced Features | Not Started | - | - | TBD |
+| Phase 4: Admin Panel Frontend | Not Started | - | - | TBD |
+| Phase 5: Advanced Features | Not Started | - | - | TBD |
 
 ### Phase 1 Status: Test-Driven Verification
 

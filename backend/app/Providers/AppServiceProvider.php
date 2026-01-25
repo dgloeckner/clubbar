@@ -77,6 +77,50 @@ class AppServiceProvider extends ServiceProvider
         );
 
         // =====================================================================
+        // PRODUCTS MODULE (Pattern 009: Module Structure)
+        // =====================================================================
+
+        // Products Repository - Data access abstraction (Pattern 011)
+        $this->app->singleton(
+            \App\Http\Modules\Products\Repositories\ProductsRepository::class,
+            function ($app) {
+                return new \App\Http\Modules\Products\Repositories\ProductsRepository();
+            }
+        );
+
+        // Categories Repository - Data access abstraction (Pattern 011)
+        $this->app->singleton(
+            \App\Http\Modules\Products\Repositories\CategoriesRepository::class,
+            function ($app) {
+                return new \App\Http\Modules\Products\Repositories\CategoriesRepository();
+            }
+        );
+
+        // Products Service - Business logic layer (Pattern 010)
+        $this->app->singleton(
+            \App\Http\Modules\Products\Services\ProductsService::class,
+            function ($app) {
+                return new \App\Http\Modules\Products\Services\ProductsService(
+                    $app->make(\App\Http\Modules\Products\Repositories\ProductsRepository::class),
+                    $app->make(\App\Http\Modules\Products\Repositories\CategoriesRepository::class),
+                    $app->make(\App\Shared\Services\AuditService::class)
+                );
+            }
+        );
+
+        // Categories Service - Business logic layer (Pattern 010)
+        $this->app->singleton(
+            \App\Http\Modules\Products\Services\CategoriesService::class,
+            function ($app) {
+                return new \App\Http\Modules\Products\Services\CategoriesService(
+                    $app->make(\App\Http\Modules\Products\Repositories\CategoriesRepository::class),
+                    $app->make(\App\Http\Modules\Products\Repositories\ProductsRepository::class),
+                    $app->make(\App\Shared\Services\AuditService::class)
+                );
+            }
+        );
+
+        // =====================================================================
         // AUDIT LOG MODULE (Pattern 009: Module Structure)
         // =====================================================================
 
