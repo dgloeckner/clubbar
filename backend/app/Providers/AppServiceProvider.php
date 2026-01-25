@@ -21,6 +21,14 @@ class AppServiceProvider extends ServiceProvider
         // SHARED SERVICES & REPOSITORIES
         // =====================================================================
 
+        // Audit Service - Cross-cutting concern for audit logging (Pattern 016)
+        $this->app->singleton(
+            \App\Shared\Services\AuditService::class,
+            function ($app) {
+                return new \App\Shared\Services\AuditService();
+            }
+        );
+
         // Health check service
         $this->app->singleton(
             \App\Services\HealthCheckService::class,
@@ -62,7 +70,30 @@ class AppServiceProvider extends ServiceProvider
             \App\Http\Modules\Members\Services\MembersService::class,
             function ($app) {
                 return new \App\Http\Modules\Members\Services\MembersService(
-                    $app->make(\App\Http\Modules\Members\Repositories\MembersRepository::class)
+                    $app->make(\App\Http\Modules\Members\Repositories\MembersRepository::class),
+                    $app->make(\App\Shared\Services\AuditService::class)
+                );
+            }
+        );
+
+        // =====================================================================
+        // AUDIT LOG MODULE (Pattern 009: Module Structure)
+        // =====================================================================
+
+        // Audit Log Repository - Data access abstraction (Pattern 011)
+        $this->app->singleton(
+            \App\Http\Modules\AuditLog\Repositories\AuditLogRepository::class,
+            function ($app) {
+                return new \App\Http\Modules\AuditLog\Repositories\AuditLogRepository();
+            }
+        );
+
+        // Audit Log Service - Business logic layer (Pattern 010)
+        $this->app->singleton(
+            \App\Http\Modules\AuditLog\Services\AuditLogService::class,
+            function ($app) {
+                return new \App\Http\Modules\AuditLog\Services\AuditLogService(
+                    $app->make(\App\Http\Modules\AuditLog\Repositories\AuditLogRepository::class)
                 );
             }
         );

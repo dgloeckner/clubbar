@@ -33,6 +33,9 @@ Route::middleware('api')->group(function () {
     // Members module routes (Terminal API: /api/sync/members, Admin API: /api/admin/members)
     require base_path('routes/modules/members.php');
 
+    // Audit Log module routes (Admin API: /api/admin/audit-log)
+    require base_path('routes/modules/audit-log.php');
+
     // Categories module routes (TODO: Migrate from flat structure in future)
     // require base_path('routes/modules/categories.php');
 

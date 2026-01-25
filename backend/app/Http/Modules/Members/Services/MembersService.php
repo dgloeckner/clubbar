@@ -8,6 +8,9 @@ use App\Http\Modules\Members\DTOs\MemberDto;
 use App\Http\Modules\Members\Enums\SupportedLanguage;
 use App\Http\Modules\Members\Repositories\MembersRepository;
 use App\Shared\DTOs\PaginatedResultDto;
+use App\Shared\Enums\AuditAction;
+use App\Shared\Enums\EntityType;
+use App\Shared\Services\AuditService;
 use App\Shared\Services\BaseService;
 use DateTimeImmutable;
 use Illuminate\Database\Eloquent\Model;
@@ -17,28 +20,28 @@ use Illuminate\Database\Eloquent\Model;
  *
  * Handles member-specific operations:
  * - Terminal API: delta sync, language updates
- * - Admin API: CRUD operations (future)
- * - GDPR: export and anonymization (future)
+ * - Admin API: CRUD operations with audit logging
+ * - GDPR: export and anonymization with audit logging
  *
  * Extends BaseService (Pattern 010) for standard CRUD operations.
  * Implements Pattern 004: Service Layer with business logic isolation.
- *
- * Current State (Phase 3):
- * - Returns mock data (same as previous SyncService)
- * - Repository created but not integrated
- * - Ready for database integration in Milestone 4
+ * Integrates Pattern 016 (Audit Logging) for all master data changes.
  */
 class MembersService extends BaseService
 {
     /**
-     * Initialize service with Members repository.
+     * Initialize service with Members repository and Audit service.
      *
-     * Repository is injected by service provider (Pattern 008).
+     * Dependencies injected by service provider (Pattern 008):
+     * - MembersRepository: Data access layer (Pattern 011)
+     * - AuditService: Cross-cutting concern for audit logging (Pattern 016)
      *
      * @param MembersRepository $membersRepository
+     * @param AuditService $auditService
      */
     public function __construct(
         private readonly MembersRepository $membersRepository,
+        private readonly AuditService $auditService,
     ) {
         parent::__construct($membersRepository);
     }
@@ -185,6 +188,8 @@ class MembersService extends BaseService
     /**
      * Create a new member (Admin API).
      *
+     * Logs creation to audit_log with admin context.
+     *
      * @param string $firstName
      * @param string $lastName
      * @param string $email
@@ -212,6 +217,24 @@ class MembersService extends BaseService
             'is_active' => true,
         ]);
 
+        // Log member creation (Pattern 016: Audit Logging)
+        $this->auditService->log(
+            action: AuditAction::CREATE,
+            entityType: EntityType::MEMBER,
+            entityId: $member->id,
+            oldValues: null,
+            newValues: [
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'email' => $email,
+                'phone' => $phone,
+                'card_uid' => $cardUid,
+                'preferred_language' => $language->value,
+                'is_active' => true,
+            ],
+            adminUserId: $this->getCurrentAdminUserId(),
+        );
+
         // Transform to admin DTO
         return new MemberAdminDto(
             id: $member->id,
@@ -233,12 +256,22 @@ class MembersService extends BaseService
     /**
      * Update an existing member (Admin API).
      *
+     * Logs only changed fields to audit_log for clarity.
+     * Compares before/after state to capture deltas.
+     *
      * @param string $memberId UUID of member
      * @param array $updateData Fields to update (snake_case keys)
      * @return MemberAdminDto Updated member
      */
     public function updateMember(string $memberId, array $updateData): MemberAdminDto
     {
+        // Fetch current state (before update)
+        $oldMember = $this->membersRepository->findById($memberId);
+
+        if (!$oldMember) {
+            throw new \Exception("Member not found: $memberId");
+        }
+
         // Map camelCase input to snake_case for database
         $dbUpdateData = [];
         if (isset($updateData['firstName'])) {
@@ -263,8 +296,17 @@ class MembersService extends BaseService
         // Update in database
         $member = $this->membersRepository->updateById($memberId, $dbUpdateData);
 
-        if (!$member) {
-            throw new \Exception("Member not found: $memberId");
+        // Detect and log only changed fields (Pattern 016: Audit Logging)
+        $changedFields = $this->detectChanges($oldMember, $member);
+        if (!empty($changedFields['old'])) {
+            $this->auditService->log(
+                action: AuditAction::UPDATE,
+                entityType: EntityType::MEMBER,
+                entityId: $member->id,
+                oldValues: $changedFields['old'],
+                newValues: $changedFields['new'],
+                adminUserId: $this->getCurrentAdminUserId(),
+            );
         }
 
         // Transform to DTO
@@ -288,17 +330,42 @@ class MembersService extends BaseService
     /**
      * Delete a member (Admin API).
      *
+     * Logs deletion to audit_log with member state before deletion.
+     *
      * @param string $memberId UUID of member
      * @return bool Success
      * @throws \Exception When member not found
      */
     public function deleteMember(string $memberId): bool
     {
+        // Fetch member state (before deletion)
+        $member = $this->membersRepository->findById($memberId);
+
+        if (!$member) {
+            throw new \Exception("Member not found: $memberId");
+        }
+
+        // Perform deletion
         $success = $this->membersRepository->deleteById($memberId);
 
         if (!$success) {
             throw new \Exception("Member not found: $memberId");
         }
+
+        // Log member deletion (Pattern 016: Audit Logging)
+        $this->auditService->log(
+            action: AuditAction::DELETE,
+            entityType: EntityType::MEMBER,
+            entityId: $memberId,
+            oldValues: [
+                'first_name' => $member->first_name,
+                'last_name' => $member->last_name,
+                'email' => $member->email,
+                'is_active' => $member->is_active,
+            ],
+            newValues: null,
+            adminUserId: $this->getCurrentAdminUserId(),
+        );
 
         return $success;
     }
@@ -324,11 +391,21 @@ class MembersService extends BaseService
     /**
      * Anonymize member data (GDPR Art. 17).
      *
+     * Logs anonymization to audit_log with old values masked.
+     * Per ADR-0013: IBAN never logged in full; masked as [MASKED] for privacy.
+     *
      * @param string $memberId UUID of member
      * @return MemberAdminDto Anonymized member
      */
     public function anonymizeMember(string $memberId): MemberAdminDto
     {
+        // Fetch member state (before anonymization)
+        $oldMember = $this->membersRepository->findById($memberId);
+
+        if (!$oldMember) {
+            throw new \Exception("Member not found: $memberId");
+        }
+
         // Call repository to anonymize (clears PII and marks as deleted)
         $success = $this->membersRepository->anonymize($memberId);
 
@@ -338,6 +415,28 @@ class MembersService extends BaseService
 
         // Fetch updated member
         $member = $this->membersRepository->findById($memberId);
+
+        // Log anonymization (Pattern 016: Audit Logging)
+        // Per ADR-0013: IBAN masked as [MASKED] for GDPR privacy
+        $this->auditService->log(
+            action: AuditAction::ANONYMIZE,
+            entityType: EntityType::MEMBER,
+            entityId: $memberId,
+            oldValues: [
+                'first_name' => $oldMember->first_name,
+                'last_name' => $oldMember->last_name,
+                'email' => $oldMember->email,
+                'iban' => '[MASKED]',  // Never log full IBAN, per ADR-0013
+            ],
+            newValues: [
+                'first_name' => null,
+                'last_name' => null,
+                'email' => null,
+                'card_uid' => $member->card_uid,
+                'deleted_at' => $member->deleted_at?->format('Y-m-d\TH:i:s\Z'),
+            ],
+            adminUserId: $this->getCurrentAdminUserId(),
+        );
 
         return new MemberAdminDto(
             id: $member->id,
@@ -406,5 +505,56 @@ class MembersService extends BaseService
         }
 
         return $query;
+    }
+
+    /**
+     * Detect which fields changed between two member states
+     *
+     * Used by updateMember() to log only changed fields to audit_log.
+     * Returns old and new values only for fields that differ.
+     *
+     * Pattern 016: Audit Logging - Improves readability by showing deltas
+     *
+     * @param Model $oldModel State before update
+     * @param Model $newModel State after update
+     * @return array ['old' => [...changed fields...], 'new' => [...changed fields...]]
+     */
+    private function detectChanges(Model $oldModel, Model $newModel): array
+    {
+        $oldData = $oldModel->getAttributes();
+        $newData = $newModel->getAttributes();
+
+        $oldValues = [];
+        $newValues = [];
+
+        foreach ($newData as $key => $newValue) {
+            $oldValue = $oldData[$key] ?? null;
+
+            // Only include fields that actually changed
+            if ($oldValue !== $newValue) {
+                $oldValues[$key] = $oldValue;
+                $newValues[$key] = $newValue;
+            }
+        }
+
+        return [
+            'old' => $oldValues,
+            'new' => $newValues,
+        ];
+    }
+
+    /**
+     * Get current admin user ID from request context
+     *
+     * Returns the UUID of the authenticated admin user performing the action.
+     * Nullable for system actions or failed login attempts (per Pattern 013).
+     *
+     * Pattern 016: Audit Logging - Links audit entries to admin who performed action
+     *
+     * @return string|null UUID of current admin, or null if no authenticated user
+     */
+    private function getCurrentAdminUserId(): ?string
+    {
+        return request()->user()?->id;
     }
 }

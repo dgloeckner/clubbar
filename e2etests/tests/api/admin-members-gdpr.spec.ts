@@ -149,7 +149,19 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('GDPR export and anonymize operations are atomic', async ({ authenticatedRequest }) => {
-    const memberId = '123e4567-e89b-12d3-a456-426614174000';
+    // Create a dedicated test member for this test to avoid interfering with other tests
+    const createResponse = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'AtomicTest',
+        last_name: 'Member',
+        email: 'atomic@test.com',
+        preferred_language: 'en',
+      },
+    });
+
+    expect(createResponse.ok()).toBeTruthy();
+    const createdMember = await createResponse.json();
+    const memberId = createdMember.id;
 
     // Export first
     const exportResponse = await authenticatedRequest.post(`/api/admin/members/${memberId}/export`);
@@ -158,8 +170,8 @@ test.describe('Admin Members GDPR Endpoints', () => {
     const exportData = await exportResponse.json();
 
     // Verify export includes member data before anonymization
-    expect(exportData.member.first_name).toBe('Max');
-    expect(exportData.member.email).toBe('max@example.com');
+    expect(exportData.member.first_name).toBe('AtomicTest');
+    expect(exportData.member.email).toBe('atomic@test.com');
 
     // Then anonymize
     const anonResponse = await authenticatedRequest.post(`/api/admin/members/${memberId}/anonymize`);

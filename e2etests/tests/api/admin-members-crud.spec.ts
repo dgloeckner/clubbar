@@ -113,18 +113,32 @@ test.describe('Admin Members CRUD Endpoints', () => {
 
   // GET Single - Show Member
   test('GET /api/admin/members/{id} returns member details', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.get(`/api/admin/members/${MOCK_MEMBER_ID_1}`);
+    // Create test member to avoid relying on seeded data that might be modified
+    const createResponse = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'GetTest',
+        last_name: 'Member',
+        email: 'gettest@example.com',
+        preferred_language: 'en',
+      },
+    });
+
+    expect(createResponse.ok()).toBeTruthy();
+    const createdMember = await createResponse.json();
+
+    // Now retrieve it
+    const response = await authenticatedRequest.get(`/api/admin/members/${createdMember.id}`);
 
     expect(response.ok()).toBeTruthy();
     expect(response.status()).toBe(200);
 
     const body = await response.json();
 
-    expect(body.id).toBe(MOCK_MEMBER_ID_1);
-    expect(body.first_name).toBe('Max');
-    expect(body.last_name).toBe('Mustermann');
-    expect(body.email).toBe('max@example.com');
-    expect(body.preferred_language).toBe('de');
+    expect(body.id).toBe(createdMember.id);
+    expect(body.first_name).toBe('GetTest');
+    expect(body.last_name).toBe('Member');
+    expect(body.email).toBe('gettest@example.com');
+    expect(body.preferred_language).toBe('en');
   });
 
   test('GET /api/admin/members/{id} returns 404 for non-existent member', async ({ authenticatedRequest }) => {
@@ -140,7 +154,21 @@ test.describe('Admin Members CRUD Endpoints', () => {
 
   // PATCH - Update Member
   test('PATCH /api/admin/members/{id} updates member fields', async ({ authenticatedRequest }) => {
-    const updateResponse = await authenticatedRequest.patch(`/api/admin/members/${MOCK_MEMBER_ID_1}`, {
+    // Create test member to avoid relying on seeded data that might be modified
+    const createResponse = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'PatchTest',
+        last_name: 'Member',
+        email: 'patchtest@example.com',
+        preferred_language: 'en',
+      },
+    });
+
+    expect(createResponse.ok()).toBeTruthy();
+    const createdMember = await createResponse.json();
+
+    // Now update it
+    const updateResponse = await authenticatedRequest.patch(`/api/admin/members/${createdMember.id}`, {
       data: {
         preferred_language: 'fr',
         phone: '+41798765432',
@@ -152,12 +180,12 @@ test.describe('Admin Members CRUD Endpoints', () => {
 
     const body = await updateResponse.json();
 
-    expect(body.id).toBe(MOCK_MEMBER_ID_1);
+    expect(body.id).toBe(createdMember.id);
     expect(body.preferred_language).toBe('fr');
     expect(body.phone).toBe('+41798765432');
     // Unchanged fields should remain
-    expect(body.first_name).toBe('Max');
-    expect(body.email).toBe('max@example.com');
+    expect(body.first_name).toBe('PatchTest');
+    expect(body.email).toBe('patchtest@example.com');
   });
 
   test('PATCH /api/admin/members/{id} returns 404 for non-existent member', async ({ authenticatedRequest }) => {
@@ -174,7 +202,21 @@ test.describe('Admin Members CRUD Endpoints', () => {
   });
 
   test('PATCH /api/admin/members/{id} validates language if provided', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.patch(`/api/admin/members/${MOCK_MEMBER_ID_1}`, {
+    // Create test member to avoid relying on seeded data
+    const createResponse = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'LanguageTest',
+        last_name: 'Member',
+        email: 'langtest@example.com',
+        preferred_language: 'en',
+      },
+    });
+
+    expect(createResponse.ok()).toBeTruthy();
+    const createdMember = await createResponse.json();
+
+    // Try to update with invalid language
+    const response = await authenticatedRequest.patch(`/api/admin/members/${createdMember.id}`, {
       data: {
         preferred_language: 'xx',
       },
