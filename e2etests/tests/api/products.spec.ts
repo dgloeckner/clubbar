@@ -8,16 +8,14 @@ import { randomUUID } from 'crypto';
  * Tests the product catalog management endpoints.
  * Covers CRUD operations for admin API and delta sync for terminal API.
  *
- * Admin Endpoints: Uses auth.fixture for authenticated requests (admin session)
- * Terminal Endpoints: Uses TEST_TERMINAL_TOKEN environment variable
+ * Admin Endpoints: Uses authenticatedRequest from auth.fixture (admin session)
+ * Terminal Endpoints: Uses authenticatedTerminalRequest from auth.fixture (bearer token)
  *
  * Uses E2E Pattern 001: Test Data Isolation
  * - Each test creates unique test data
  * - Tests are independent and can run in parallel
  * - No shared or mutated state between tests
  */
-
-const TERMINAL_TOKEN = process.env.TEST_TERMINAL_TOKEN;
 
 // Helper to create valid product data
 function createValidProduct(categoryId: string, overrides = {}) {
@@ -47,33 +45,6 @@ async function createCategory(authenticatedRequest) {
     },
   });
   return await response.json();
-}
-
-// Helper for making authenticated terminal API requests
-async function terminalRequest(context: APIRequestContext, method: string, path: string, options?: any) {
-  if (!TERMINAL_TOKEN) {
-    throw new Error('TEST_TERMINAL_TOKEN not set');
-  }
-
-  const headers = {
-    ...options?.headers,
-    'Authorization': `Bearer ${TERMINAL_TOKEN}`,
-  };
-
-  const requestOptions = { ...options, headers };
-
-  switch (method) {
-    case 'GET':
-      return context.get(path, requestOptions);
-    case 'POST':
-      return context.post(path, requestOptions);
-    case 'PATCH':
-      return context.patch(path, requestOptions);
-    case 'DELETE':
-      return context.delete(path, requestOptions);
-    default:
-      throw new Error(`Unknown method: ${method}`);
-  }
 }
 
 // Test: List Products
@@ -438,12 +409,8 @@ test.describe('Products API - Toggle Status', () => {
 
 // Test: Terminal Sync
 test.describe('Products API - Terminal Sync', () => {
-  test('GET /api/sync/products returns product list', async ({ request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
-
-    const response = await terminalRequest(request, 'GET', '/api/sync/products');
+  test('GET /api/sync/products returns product list', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get('/api/sync/products');
 
     expect(response.ok()).toBeTruthy();
 
@@ -455,10 +422,7 @@ test.describe('Products API - Terminal Sync', () => {
     expect(body.has_more).toBeDefined();
   });
 
-  test('GET /api/sync/products returns only active products', async ({ authenticatedRequest, request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
+  test('GET /api/sync/products returns only active products', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
 
     const category = await createCategory(authenticatedRequest);
 
@@ -480,7 +444,7 @@ test.describe('Products API - Terminal Sync', () => {
       data: { is_active: false },
     });
 
-    const response = await terminalRequest(request, 'GET', '/api/sync/products');
+    const response = await authenticatedTerminalRequest.get('/api/sync/products');
     const body = await response.json();
 
     // All returned products should be active
@@ -489,10 +453,7 @@ test.describe('Products API - Terminal Sync', () => {
     }
   });
 
-  test('GET /api/sync/products returns only products from active categories', async ({ authenticatedRequest, request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
+  test('GET /api/sync/products returns only products from active categories', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
 
     const activeCategory = await createCategory(authenticatedRequest);
 
@@ -508,7 +469,7 @@ test.describe('Products API - Terminal Sync', () => {
       })
     ).json();
 
-    const response = await terminalRequest(request, 'GET', '/api/sync/products');
+    const response = await authenticatedTerminalRequest.get('/api/sync/products');
     const body = await response.json();
 
     // Check that product from inactive category is not returned
@@ -516,36 +477,25 @@ test.describe('Products API - Terminal Sync', () => {
     expect(productIds).not.toContain(productInInactiveCategory.id);
   });
 
-  test('GET /api/sync/products respects since parameter', async ({ request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
-
+  test('GET /api/sync/products respects since parameter', async ({ authenticatedTerminalRequest }) => {
     const oldTimestamp = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
 
-    const response = await terminalRequest(request, 'GET', `/api/sync/products?since=${oldTimestamp}`);
+    const response = await authenticatedTerminalRequest.get(`/api/sync/products?since=${oldTimestamp}`);
 
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.products).toBeDefined();
   });
 
-  test('GET /api/sync/products returns cursor for pagination', async ({ request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
-
-    const response = await terminalRequest(request, 'GET', '/api/sync/products');
+  test('GET /api/sync/products returns cursor for pagination', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get('/api/sync/products');
     const body = await response.json();
 
     expect(body.cursor).toBeDefined();
     expect(typeof body.cursor).toBe('string');
   });
 
-  test('GET /api/sync/products returns product names in all languages', async ({ authenticatedRequest, request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
+  test('GET /api/sync/products returns product names in all languages', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
 
     const category = await createCategory(authenticatedRequest);
 
@@ -559,7 +509,7 @@ test.describe('Products API - Terminal Sync', () => {
       }),
     });
 
-    const response = await terminalRequest(request, 'GET', '/api/sync/products');
+    const response = await authenticatedTerminalRequest.get('/api/sync/products');
     const body = await response.json();
 
     if (body.products.length > 0) {
@@ -569,10 +519,7 @@ test.describe('Products API - Terminal Sync', () => {
     }
   });
 
-  test('GET /api/sync/products includes category_id', async ({ authenticatedRequest, request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
+  test('GET /api/sync/products includes category_id', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
 
     const category = await createCategory(authenticatedRequest);
 
@@ -580,7 +527,7 @@ test.describe('Products API - Terminal Sync', () => {
       data: createValidProduct(category.id),
     });
 
-    const response = await terminalRequest(request, 'GET', '/api/sync/products');
+    const response = await authenticatedTerminalRequest.get('/api/sync/products');
     const body = await response.json();
 
     if (body.products.length > 0) {

@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/auth.fixture';
+import { TEST_CREDENTIALS } from '../../config/test-credentials';
 
 /**
  * Terminal API Authentication Tests
@@ -11,7 +12,6 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Terminal API Authentication', () => {
   const testMembersEndpoint = '/api/sync/members';
-  const validToken = process.env.TEST_TERMINAL_TOKEN;
 
   test('GET /api/sync/members without Authorization header returns 401', async ({ request }) => {
     const response = await request.get(testMembersEndpoint, {
@@ -45,13 +45,8 @@ test.describe('Terminal API Authentication', () => {
     expect(body.error).toBe('invalid_terminal_token');
   });
 
-  test('GET /api/sync/members with valid token returns 200', async ({ request }) => {
-    if (!validToken) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
-
-    const response = await request.get(testMembersEndpoint, {
-      headers: { 'Authorization': `Bearer ${validToken}` },
+  test('GET /api/sync/members with valid token returns 200', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get(testMembersEndpoint, {
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -60,13 +55,8 @@ test.describe('Terminal API Authentication', () => {
     expect(body.members).toBeDefined();
   });
 
-  test('GET /api/sync/members with valid token has correct content type', async ({ request }) => {
-    if (!validToken) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
-
-    const response = await request.get(testMembersEndpoint, {
-      headers: { 'Authorization': `Bearer ${validToken}` },
+  test('GET /api/sync/members with valid token has correct content type', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get(testMembersEndpoint, {
       params: { since: '1970-01-01T00:00:00Z' },
     });
 

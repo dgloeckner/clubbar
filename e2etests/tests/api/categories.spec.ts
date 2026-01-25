@@ -8,16 +8,14 @@ import { randomUUID } from 'crypto';
  * Tests the product categories management endpoints.
  * Covers CRUD operations for admin API and delta sync for terminal API.
  *
- * Admin Endpoints: Uses auth.fixture for authenticated requests (admin session)
- * Terminal Endpoints: Uses TEST_TERMINAL_TOKEN environment variable
+ * Admin Endpoints: Uses authenticatedRequest from auth.fixture (admin session)
+ * Terminal Endpoints: Uses authenticatedTerminalRequest from auth.fixture (bearer token)
  *
  * Uses E2E Pattern 001: Test Data Isolation
  * - Each test creates unique test data
  * - Tests are independent and can run in parallel
  * - No shared or mutated state between tests
  */
-
-const TERMINAL_TOKEN = process.env.TEST_TERMINAL_TOKEN;
 
 // Helper to create valid category data
 function createValidCategory(overrides = {}) {
@@ -28,33 +26,6 @@ function createValidCategory(overrides = {}) {
     },
     ...overrides,
   };
-}
-
-// Helper for making authenticated terminal API requests
-async function terminalRequest(context: APIRequestContext, method: string, path: string, options?: any) {
-  if (!TERMINAL_TOKEN) {
-    throw new Error('TEST_TERMINAL_TOKEN not set');
-  }
-
-  const headers = {
-    ...options?.headers,
-    'Authorization': `Bearer ${TERMINAL_TOKEN}`,
-  };
-
-  const requestOptions = { ...options, headers };
-
-  switch (method) {
-    case 'GET':
-      return context.get(path, requestOptions);
-    case 'POST':
-      return context.post(path, requestOptions);
-    case 'PATCH':
-      return context.patch(path, requestOptions);
-    case 'DELETE':
-      return context.delete(path, requestOptions);
-    default:
-      throw new Error(`Unknown method: ${method}`);
-  }
 }
 
 // Test: List Categories
@@ -339,12 +310,8 @@ test.describe('Categories API - Delete', () => {
 
 // Test: Terminal Sync
 test.describe('Categories API - Terminal Sync', () => {
-  test('GET /api/sync/categories returns category list', async ({ request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
-
-    const response = await terminalRequest(request, 'GET', '/api/sync/categories');
+  test('GET /api/sync/categories returns category list', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get('/api/sync/categories');
 
     expect(response.ok()).toBeTruthy();
 
@@ -356,11 +323,7 @@ test.describe('Categories API - Terminal Sync', () => {
     expect(body.has_more).toBeDefined();
   });
 
-  test('GET /api/sync/categories returns only active categories', async ({ authenticatedRequest, request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
-
+  test('GET /api/sync/categories returns only active categories', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     // Create and deactivate a category
     const createResponse = await authenticatedRequest.post('/api/admin/categories', {
       data: createValidCategory(),
@@ -371,7 +334,7 @@ test.describe('Categories API - Terminal Sync', () => {
       data: { is_active: false },
     });
 
-    const response = await terminalRequest(request, 'GET', '/api/sync/categories');
+    const response = await authenticatedTerminalRequest.get('/api/sync/categories');
     const body = await response.json();
 
     // All returned categories should be active
@@ -380,26 +343,18 @@ test.describe('Categories API - Terminal Sync', () => {
     }
   });
 
-  test('GET /api/sync/categories respects since parameter', async ({ request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
-
+  test('GET /api/sync/categories respects since parameter', async ({ authenticatedTerminalRequest }) => {
     const oldTimestamp = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
 
-    const response = await terminalRequest(request, 'GET', `/api/sync/categories?since=${oldTimestamp}`);
+    const response = await authenticatedTerminalRequest.get(`/api/sync/categories?since=${oldTimestamp}`);
 
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.categories).toBeDefined();
   });
 
-  test('GET /api/sync/categories returns cursor for pagination', async ({ request }) => {
-    if (!TERMINAL_TOKEN) {
-      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
-    }
-
-    const response = await terminalRequest(request, 'GET', '/api/sync/categories');
+  test('GET /api/sync/categories returns cursor for pagination', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get('/api/sync/categories');
     const body = await response.json();
 
     expect(body.cursor).toBeDefined();

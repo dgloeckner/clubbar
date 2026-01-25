@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/auth.fixture';
 
 /**
  * Member Language Update endpoint tests
@@ -7,15 +7,11 @@ import { test, expect } from '@playwright/test';
  * Updates a member's preferred language setting.
  */
 
-const validToken = process.env.TEST_TERMINAL_TOKEN;
-const authHeaders = validToken ? { 'Authorization': `Bearer ${validToken}` } : {};
-
 test.describe('Member Language Update Endpoint', () => {
   const validMemberId = '123e4567-e89b-12d3-a456-426614174000';
 
-  test('PATCH /api/sync/members/{memberId}/language updates language successfully', async ({ request }) => {
-    const response = await request.patch(`/api/sync/members/${validMemberId}/language`, {
-      headers: authHeaders,
+  test('PATCH /api/sync/members/{memberId}/language updates language successfully', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
       data: { preferred_language: 'de' },
     });
 
@@ -30,12 +26,11 @@ test.describe('Member Language Update Endpoint', () => {
     expect(body.updated_at).toBeDefined();
   });
 
-  test('PATCH /api/sync/members/{memberId}/language accepts different languages', async ({ request }) => {
+  test('PATCH /api/sync/members/{memberId}/language accepts different languages', async ({ authenticatedTerminalRequest }) => {
     const languages = ['de', 'en', 'fr'];
 
     for (const lang of languages) {
-      const response = await request.patch(`/api/sync/members/${validMemberId}/language`, {
-        headers: authHeaders,
+      const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
         data: { preferred_language: lang },
       });
 
@@ -46,9 +41,8 @@ test.describe('Member Language Update Endpoint', () => {
     }
   });
 
-  test('PATCH /api/sync/members/{memberId}/language rejects invalid language code', async ({ request }) => {
-    const response = await request.patch(`/api/sync/members/${validMemberId}/language`, {
-      headers: authHeaders,
+  test('PATCH /api/sync/members/{memberId}/language rejects invalid language code', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
       data: { preferred_language: 'xx' },
     });
 
@@ -59,9 +53,8 @@ test.describe('Member Language Update Endpoint', () => {
     expect(body.message).toContain('xx');
   });
 
-  test('PATCH /api/sync/members/{memberId}/language rejects missing language', async ({ request }) => {
-    const response = await request.patch(`/api/sync/members/${validMemberId}/language`, {
-      headers: authHeaders,
+  test('PATCH /api/sync/members/{memberId}/language rejects missing language', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
       data: {},
     });
 
@@ -71,9 +64,8 @@ test.describe('Member Language Update Endpoint', () => {
     expect(body.error).toBe('invalid_request');
   });
 
-  test('PATCH /api/sync/members/{memberId}/language returns 404 for invalid UUID', async ({ request }) => {
-    const response = await request.patch('/api/sync/members/invalid-uuid/language', {
-      headers: authHeaders,
+  test('PATCH /api/sync/members/{memberId}/language returns 404 for invalid UUID', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.patch('/api/sync/members/invalid-uuid/language', {
       data: { preferred_language: 'de' },
     });
 
@@ -83,9 +75,8 @@ test.describe('Member Language Update Endpoint', () => {
     expect(body.error).toBe('not_found');
   });
 
-  test('PATCH /api/sync/members/{memberId}/language returns JSON content type', async ({ request }) => {
-    const response = await request.patch(`/api/sync/members/${validMemberId}/language`, {
-      headers: authHeaders,
+  test('PATCH /api/sync/members/{memberId}/language returns JSON content type', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
       data: { preferred_language: 'en' },
     });
 
@@ -93,9 +84,8 @@ test.describe('Member Language Update Endpoint', () => {
     expect(contentType).toContain('application/json');
   });
 
-  test('PATCH /api/sync/members/{memberId}/language returns valid ISO 8601 timestamp', async ({ request }) => {
-    const response = await request.patch(`/api/sync/members/${validMemberId}/language`, {
-      headers: authHeaders,
+  test('PATCH /api/sync/members/{memberId}/language returns valid ISO 8601 timestamp', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
       data: { preferred_language: 'de' },
     });
 
