@@ -412,6 +412,9 @@ UPDATE transactions SET deleted_at = NOW() WHERE id IN (...);
 - [ADR-0001: Monetary Values as Integer Cents](./0001-monetary-values-as-integer-cents.md) - Transaction amounts stored as integer cents
 - [ADR-0002: Product Internationalization](./0002-product-internationalization.md) - Products in transactions
 - [ADR-0003: GZIP Compression](./0003-gzip-compression-http.md) - Transaction sync payloads compressed
+- [ADR-0012: Eventual Consistency and Frontend Caching](./0012-eventual-consistency-frontend-caching.md) - Terminal caches transactions locally; syncs periodically
+- [ADR-0023: Terminal Balance State Management](./0023-terminal-balance-state-management.md) - Balance calculated from immutable transaction log
+- [ADR-0024: Transaction History Retrieval in Terminal](./0024-transaction-history-retrieval-terminal.md) - Terminal retrieves transaction history on-demand from backend
 
 ---
 

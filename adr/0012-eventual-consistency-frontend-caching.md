@@ -63,11 +63,13 @@ flowchart LR
 | Members | Backend → Terminal | Read-only | id, card_uid, first_name, last_name, preferred_language, is_active, deleted_at |
 | Products | Backend → Terminal | Read-only | id, names (JSON), prices_cents, category, is_active |
 | Transactions | Terminal → Backend | Write queue | id, member_id, product_id, amount_cents, created_at, synced (flag) |
+| Member Balances | Backend → Terminal | Read-only | member_id, balance_cents, last_updated_at |
 
 **Not cached on terminal** (sensitive data remains backend-only):
 - IBAN, BIC, mandate_reference
 - Full contact details
 - Audit logs
+- Complete transaction history (fetched on-demand via [ADR-0024](./0024-transaction-history-retrieval-terminal.md))
 
 ### Synchronization Cycle
 
@@ -77,7 +79,7 @@ sequenceDiagram
     participant B as Backend
     participant DB as MariaDB
 
-    Note over T: Sync cycle starts (every 60s)
+    Note over T: Sync cycle starts (every 30-60s)
 
     T->>T: 1. Connectivity check
     alt No connection
@@ -99,13 +101,19 @@ sequenceDiagram
         T->>T: 4. SELECT * FROM transactions WHERE synced = false
         T->>B: POST /sync/transactions (batch, max 100)
         B->>DB: INSERT IGNORE (deduplicate by UUID)
-        DB-->>B: Accepted UUIDs
-        B-->>T: Confirmation
-        T->>T: UPDATE transactions SET synced = true
+        DB-->>B: Accepted UUIDs + member balances
+        B-->>T: Response with accepted_ids + member_balances
 
-        T->>T: 5. Persist new sync timestamp
+        T->>T: 5. BEGIN TRANSACTION (atomic update)
+        T->>T: UPDATE transactions SET synced = true
+        T->>T: UPDATE members_balance with new balances
+        T->>T: COMMIT (all or nothing)
+
+        T->>T: 6. Persist new sync timestamp
     end
 ```
+
+**See [ADR-0023: Terminal Balance State Management](./0023-terminal-balance-state-management.md) for details on step 5 balance update.**
 
 ### Conflict Avoidance Strategy
 
@@ -236,6 +244,8 @@ Query backend for every operation; no local storage.
 
 - [ADR-0004: Immutable Transaction Storage](./0004-immutable-transaction-storage.md) - Append-only pattern enables conflict-free sync
 - [ADR-0003: GZIP Compression for HTTP](./0003-gzip-compression-http.md) - Reduces sync payload sizes by ~85%
+- [ADR-0023: Terminal Balance State Management](./0023-terminal-balance-state-management.md) - Member balances cached locally and updated during sync
+- [ADR-0024: Transaction History Retrieval in Terminal](./0024-transaction-history-retrieval-terminal.md) - On-demand transaction history fetching (separate from sync cycle)
 
 ---
 
