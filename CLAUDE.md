@@ -150,6 +150,11 @@ Reference backend code patterns in `backend/patterns/` directory:
    - Single-worker execution shows actual errors vs resource contention
 
 ### Implementation Plans
+
+**Implementation plans in `plans/` directory are the single source of truth for project status and progress. Do NOT create separate summary or status documents.**
+
+#### Core Principles
+
 - **Plans are stored in `plans/`** — each plan is a markdown file with clear milestones
 - **Actionable items with testable results** — every task must have a verifiable outcome
 - **Progress evaluated by tests** — success is determined by passing tests, not subjective assessment
@@ -173,6 +178,23 @@ Reference backend code patterns in `backend/patterns/` directory:
   - **Current plan** — the plan currently in progress (link and status summary)
   - **Future plans** — roadmap of planned work (brief descriptions)
   - **Purpose**: When Claude is asked to continue work, INDEX.md provides quick context on project status and which plan to resume
+
+#### Single Source of Truth
+
+- **Plan file contains everything**: milestones, tasks, status, success criteria, references, test commands
+- **INDEX.md provides navigation**: shows which plan is current (don't duplicate status here)
+- **Avoid separate documents**: Never create `*-SUMMARY.md`, `*-STATUS.md`, `*-PROGRESS.md`, or similar
+- **Update the plan itself**: As work progresses, update the plan file; don't create parallel documents
+- **Why**: Multiple status documents create inconsistency, duplication, and confusion about which is current
+
+#### When Adding Features
+
+1. Create ADRs in `adr/` for architectural decisions
+2. Create use cases in `use-cases/` for functional requirements
+3. **Extend the implementation plan** in `plans/` to add new milestones/tasks
+4. Update `plans/INDEX.md` to reflect current plan status
+5. **Do NOT create** summary documents for the feature
+6. Add missing implementation patterns for backend, frontends (e.g. `backend/patterns`) in their respective directories, when missing.
 
 ---
 

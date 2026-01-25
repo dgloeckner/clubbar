@@ -250,9 +250,87 @@ test('Security headers: HSTS present')
 | **P2 (Medium)** | Detectable risk; limited scope | Document for future sprint |
 | **P3 (Low)** | Best practice; minimal risk | Document as "nice to have" |
 
-### Failures
+### Audit Status & Findings (Completed 2026-01-24)
 
-_None yet_
+**Security Audit Report**: Consolidated from `SECURITY-AUDIT-REPORT-M2.5.md`
+
+**Summary**:
+- **Total Checks**: 18
+- **Status**: ❌ **CRITICAL FINDINGS IDENTIFIED**
+- **P0 (Critical)**: 1 — Terminal API publicly accessible (BLOCKS M3)
+- **P1 (High)**: 6 — Admin auth (✅ DONE), RFID ID (ready), Auth middleware (ready), Audit logging, Rate limiting
+- **P2 (Medium)**: 8 — Transport security, cookie config, error handling
+- **P3 (Low)**: 3 — Minor improvements and documentation
+
+#### Critical Finding (P0) — BLOCKS M3
+
+**🚨 Terminal API Publicly Accessible Without Authentication**
+- **Location**: `backend/routes/api.php:24-31`
+- **Issue**: All 5 sync endpoints accessible without token (`TODO: add auth middleware` comment)
+- **Impact**: Member data, products, transactions exposed; no audit trail of access
+- **Requires**: Pattern 012 (Terminal Token Authentication) before M3 restructuring
+- **Status**: ✅ Pattern documented (19 KB), ❌ Code not implemented
+
+**What Pattern 012 Provides**:
+- TokenService: 64-char hex tokens with bcrypt hashing
+- AuthenticateTerminalToken middleware: Bearer token validation
+- Terminal model: Store device tokens securely
+- Token rotation + revocation endpoints
+
+**Implementation Effort**: 2-3 hours. Existing tests will need to provide Bearer token.
+
+#### High Priority (P1) — Blocks M4 (Now Mitigated)
+
+| Finding | Current Status | Mitigation |
+|---------|---|---|
+| Admin session auth (Pattern 013) | ✅ **IMPLEMENTED** (M4.C complete) | 17/17 tests passing |
+| RFID member identification (Pattern 014) | ✅ **READY** | Schema in place; service methods ready |
+| Authorization/access control (Pattern 015) | ✅ **READY** | Middleware infrastructure prepared |
+| Rate limiting | ⚠️ PENDING | Should be added to admin/sync routes |
+| Audit logging | ⚠️ PENDING | Logger service ready; needs integration |
+| Session timeout/cookie config | ✅ **CONFIGURED** | HttpOnly, Secure, SameSite set |
+
+**Note**: M4 successfully implemented despite P1 blockers not being fully resolved. Recommend Pattern 012 implementation as priority for future security hardening.
+
+#### Medium Priority (P2) — Before M5 Completion
+
+| Finding | Category | Status |
+|---------|----------|--------|
+| Security headers (HSTS, CSP, X-Frame-Options) | Transport | ⚠️ Framework defaults assumed |
+| Cookie security attributes verification | Transport | ✅ Configured in session.php |
+| Error response format consistency | Error Handling | ⚠️ Mostly consistent, needs review |
+| CSRF configuration for API routes | Security | ✅ Stateless auth (Bearer) bypasses CSRF |
+| Input validation coverage | Validation | ✅ **WELL IMPLEMENTED** on all endpoints |
+
+#### Low Priority (P3) — Future Optimization
+
+- Additional validation rules for future admin endpoints
+- Performance optimization for auth checks
+- Comprehensive security headers CSP policy
+
+### Pattern References
+
+Complete pattern documentation available in `backend/patterns/`:
+- **Pattern 012**: Terminal API Token Authentication (19 KB, documented but not implemented)
+- **Pattern 013**: Admin Session Authentication (23 KB, ✅ fully implemented in M4.C)
+- **Pattern 014**: RFID Member Identification (21 KB, ready for integration)
+- **Pattern 015**: Authorization & Access Control (20 KB, infrastructure prepared)
+
+Supporting guides:
+- **`SECURITY-PATTERNS-IMPLEMENTATION-GUIDE.md`**: Step-by-step implementation for all 4 patterns
+- **`SECURITY-PATTERNS-SUMMARY.md`**: Overview of 4 patterns and their integration
+
+Related ADRs:
+- **ADR-0015**: Authentication and Authorization Strategy (foundational)
+- **ADR-0016**: Transport Security (HTTPS/TLS)
+- **ADR-0017**: Input Validation and Injection Prevention
+- **ADR-0013**: Audit Logging
+
+### Failures - M2.5
+
+**P0 Critical**: Terminal API lacks token authentication middleware (documented but not implemented)
+
+**Recommendation**: Implement Pattern 012 before starting Milestone 3 (ADR-0018 restructuring) to ensure secure architecture from the start.
 
 ---
 

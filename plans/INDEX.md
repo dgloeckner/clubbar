@@ -6,6 +6,11 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Completed Plans
 
+### Phase 1: Backend Foundation + ADR-0018 Modular Architecture
+- **Completion Date**: 2026-01-25
+- **Achievement**: Implemented modular backend with pattern-compliant endpoints and verified all API tests
+- **Result**: 112/112 tests passing; secure, maintainable backend foundation with Members module fully implemented
+
 ### Milestone 2.5a: Terminal API Token Authentication (Pattern 012)
 - **Completion Date**: 2026-01-24
 - **Achievement**: Implemented secure Bearer token authentication for Terminal API endpoints
@@ -15,11 +20,11 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Phase 1: Backend Foundation + ADR-0018 Modular Architecture
-- **Link**: [phase1-backend-foundation.md](./phase1-backend-foundation.md)
-- **Goal**: Secure, modular backend with pattern-compliant endpoints and verified API tests
-- **Status**: In Progress (Milestone 4.C complete; Pending GDPR endpoint completion & terminal regression tests)
-- **Progress**:
+### Phase 2.A: Terminal Balance & Transaction History
+- **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
+- **Goal**: Implement member balance state management and on-demand transaction history retrieval
+- **Status**: Architecture Complete; Implementation Pending
+- **Progress** (Completed):
   - Infrastructure & Terminal API: ✅ Complete (40 tests passing)
   - Security Audit (ADR-0015): ⏳ Pending (1/18 checks — Pattern 012 implemented)
   - Modular Restructuring: ✅ Complete — ADR-0018 implemented
@@ -27,7 +32,9 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
   - Admin Database Integration: ✅ COMPLETE — Real database queries implemented; 32 tests verified
   - Admin Database Persistence: ✅ COMPLETE — Round-trip tests; 20/20 tests passing
   - Admin Session Authentication: ✅ COMPLETE — Pattern 013 implemented; 63/72 tests passing (auth fixture)
-- **Key Milestones**:
+  - GDPR Endpoints: ✅ COMPLETE (11/11 tests passing)
+  - All Tests: ✅ COMPLETE (112/112 tests passing)
+- **Key Milestones** (All Completed):
   - **✅ Milestone 1**: Docker Infrastructure (3/3 tasks)
   - **✅ Milestone 1.5**: Health Controller Refactoring (3/3 tests)
   - **✅ Milestone 2**: Sync Controller Refactoring (32/32 tests)
@@ -46,7 +53,16 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Future Plans
 
-### Phase 2: Admin Panel Frontend
+### Phase 2.B: Terminal Core Features (After 2.A)
+- **Description**: RFID scanning, product selection, offline purchases
+- **Planned Scope**:
+  - RFID/NFC card identification
+  - Product display with categories
+  - Shopping cart and checkout
+  - Offline transaction queuing
+  - Integration with balance display from Phase 2.A
+
+### Phase 3: Admin Panel Frontend
 - **Description**: React SPA for member/product management, accounting workflows
 - **Planned Scope**:
   - Authentication and role-based access
@@ -55,21 +71,13 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
   - Settlement workflows
   - Compliance/GDPR workflows
 
-### Phase 3: Terminal App (Electron)
-- **Description**: Offline-capable POS system with RFID/NFC identification
-- **Planned Scope**:
-  - Offline transaction processing
-  - Member identification (RFID/NFC)
-  - Product selection and checkout
-  - Sync with backend when connected
-
 ### Phase 4: Advanced Features
 - **Description**: SEPA payments, advanced settlement, analytics
 - **Planned Scope**:
   - SEPA XML generation for bank transfers
   - Advanced settlement calculations
   - Analytics and reporting
-  - Audit logging
+  - Audit logging refinements
 
 ---
 
@@ -86,9 +94,10 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 | Plan | Status | Progress | Tests | Link |
 |------|--------|----------|-------|------|
-| Phase 1: Backend Foundation | **Complete** | **23/23 (100%)** | **✅ 112/112 Tests Passing** (Admin 72 + Terminal 32 + Health 3 + Auth 5) | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
-| Phase 2: Admin Panel | Not Started | - | - | TBD |
-| Phase 3: Terminal App | Not Started | - | - | TBD |
+| Phase 1: Backend Foundation | **✅ Complete** | **23/23 (100%)** | **✅ 112/112 Tests Passing** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
+| **Phase 2.A: Terminal Balance & Transactions** | **In Progress** | **1/7 (14%)** | Architecture ✅ | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
+| Phase 2.B: Terminal Core Features | Not Started | - | - | TBD |
+| Phase 3: Admin Panel | Not Started | - | - | TBD |
 | Phase 4: Advanced Features | Not Started | - | - | TBD |
 
 ### Phase 1 Status: Test-Driven Verification
