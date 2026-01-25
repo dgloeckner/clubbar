@@ -32,18 +32,18 @@
 
 | Milestone | Status | Description |
 |-----------|--------|-------------|
-| **A. Architecture & Planning** | [ ] | Design database schema, API structure, ADR alignment |
-| **B. Database Migrations** | [ ] | Create categories table, update products table with FK |
-| **C. Models & Repositories** | [ ] | Product, Category models; ProductsRepository, CategoriesRepository |
-| **D. Services** | [ ] | ProductsService, CategoriesService with business logic |
-| **E. Request Validation** | [ ] | Form requests for create/update/list operations |
-| **F. Admin API: Categories** | [ ] | CRUD operations for categories |
-| **G. Admin API: Products** | [ ] | CRUD operations for products |
-| **H. Terminal Sync: Products** | [ ] | GET /api/sync/products endpoint for terminal |
-| **I. Terminal Sync: Categories** | [ ] | GET /api/sync/categories endpoint for terminal |
-| **J. Tests: Categories** | [ ] | API tests for category endpoints |
-| **K. Tests: Products** | [ ] | API tests for product endpoints |
-| **L. Integration & Cleanup** | [ ] | Module registration, routing, documentation |
+| **A. Architecture & Planning** | [x] | Design database schema, API structure, ADR alignment |
+| **B. Database Migrations** | [x] | Create categories table, update products table with FK |
+| **C. Models & Repositories** | [x] | Product, Category models; ProductsRepository, CategoriesRepository |
+| **D. Services** | [x] | ProductsService, CategoriesService with business logic |
+| **E. Request Validation** | [x] | Form requests for create/update/list operations |
+| **F. Admin API: Categories** | [x] | CRUD operations for categories (controllers + routing) |
+| **G. Admin API: Products** | [x] | CRUD operations for products (controllers + routing) |
+| **H. Terminal Sync: Products** | [x] | GET /api/sync/products endpoint for terminal |
+| **I. Terminal Sync: Categories** | [x] | GET /api/sync/categories endpoint for terminal |
+| **J. Tests: Categories** | [~] | 20 API tests created and ready for execution |
+| **K. Tests: Products** | [~] | 40+ API tests created, authentication fixture integration needed |
+| **L. Integration & Cleanup** | [x] | Module registration, service provider bindings, routes configured |
 
 ---
 
