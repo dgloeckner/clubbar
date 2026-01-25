@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
-import { test as baseTest, expect } from '@playwright/test';
-import { test } from '../../fixtures/auth.fixture';
+import { test, expect } from '../../fixtures/auth.fixture';
 
 /**
  * Transactions Upload endpoint tests
@@ -9,10 +8,7 @@ import { test } from '../../fixtures/auth.fixture';
  * Batch uploads purchase transactions from terminal to backend.
  */
 
-const validToken = process.env.TEST_TERMINAL_TOKEN;
-const authHeaders = validToken ? { 'Authorization': `Bearer ${validToken}` } : {};
-
-baseTest.describe('Transactions Upload Endpoint', () => {
+test.describe('Transactions Upload Endpoint', () => {
   const validMemberId = '123e4567-e89b-12d3-a456-426614174000';
   const validProductId = '987f6543-e21a-11d3-b456-426614174999';
 
@@ -27,11 +23,10 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     };
   }
 
-  baseTest('POST /api/sync/transactions accepts single transaction', async ({ request }) => {
+  test('POST /api/sync/transactions accepts single transaction', async ({ authenticatedTerminalRequest }) => {
     const transaction = createValidTransaction();
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
     });
 
@@ -49,15 +44,14 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(body.rejected.errors).toEqual([]);
   });
 
-  baseTest('POST /api/sync/transactions accepts batch of transactions', async ({ request }) => {
+  test('POST /api/sync/transactions accepts batch of transactions', async ({ authenticatedTerminalRequest }) => {
     const transactions = [
       createValidTransaction(),
       createValidTransaction({ amount_cents: 500 }),
       createValidTransaction({ amount_cents: 280 }),
     ];
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions },
     });
 
@@ -71,9 +65,8 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     }
   });
 
-  baseTest('POST /api/sync/transactions rejects empty transactions array', async ({ request }) => {
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+  test('POST /api/sync/transactions rejects empty transactions array', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [] },
     });
 
@@ -83,9 +76,8 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(body.error).toBe('invalid_request');
   });
 
-  baseTest('POST /api/sync/transactions rejects missing transactions field', async ({ request }) => {
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+  test('POST /api/sync/transactions rejects missing transactions field', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: {},
     });
 
@@ -95,14 +87,13 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(body.error).toBe('invalid_request');
   });
 
-  baseTest('POST /api/sync/transactions validates required transaction fields', async ({ request }) => {
+  test('POST /api/sync/transactions validates required transaction fields', async ({ authenticatedTerminalRequest }) => {
     const incompleteTransaction = {
       id: randomUUID(),
       // missing member_id, product_id, amount_cents, created_at
     };
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [incompleteTransaction] },
     });
 
@@ -114,11 +105,10 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(body.details.length).toBeGreaterThan(0);
   });
 
-  baseTest('POST /api/sync/transactions rejects negative amount_cents', async ({ request }) => {
+  test('POST /api/sync/transactions rejects negative amount_cents', async ({ authenticatedTerminalRequest }) => {
     const transaction = createValidTransaction({ amount_cents: -100 });
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
     });
 
@@ -128,11 +118,10 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(body.error).toBe('validation_failed');
   });
 
-  baseTest('POST /api/sync/transactions rejects zero amount_cents', async ({ request }) => {
+  test('POST /api/sync/transactions rejects zero amount_cents', async ({ authenticatedTerminalRequest }) => {
     const transaction = createValidTransaction({ amount_cents: 0 });
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
     });
 
@@ -142,11 +131,10 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(body.error).toBe('validation_failed');
   });
 
-  baseTest('POST /api/sync/transactions returns JSON content type', async ({ request }) => {
+  test('POST /api/sync/transactions returns JSON content type', async ({ authenticatedTerminalRequest }) => {
     const transaction = createValidTransaction();
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
     });
 
@@ -154,12 +142,11 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(contentType).toContain('application/json');
   });
 
-  baseTest('POST /api/sync/transactions accepts max batch size', async ({ request }) => {
+  test('POST /api/sync/transactions accepts max batch size', async ({ authenticatedTerminalRequest }) => {
     // Create batch of 100 transactions (max allowed)
     const transactions = Array.from({ length: 100 }, () => createValidTransaction());
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions },
     });
 
@@ -169,12 +156,11 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(body.accepted_ids.length).toBe(100);
   });
 
-  baseTest('POST /api/sync/transactions rejects batch exceeding max size', async ({ request }) => {
+  test('POST /api/sync/transactions rejects batch exceeding max size', async ({ authenticatedTerminalRequest }) => {
     // Create batch of 101 transactions (exceeds max)
     const transactions = Array.from({ length: 101 }, () => createValidTransaction());
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions },
     });
 
@@ -191,11 +177,10 @@ baseTest.describe('Transactions Upload Endpoint', () => {
    * Tests for ADR-0023: Terminal Balance State Management
    * POST /sync/transactions response includes member_balances object
    */
-  baseTest('POST /api/sync/transactions includes member_balances in response', async ({ request }) => {
+  test('POST /api/sync/transactions includes member_balances in response', async ({ authenticatedTerminalRequest }) => {
     const transaction = createValidTransaction();
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
     });
 
@@ -208,7 +193,7 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(typeof body.member_balances).toBe('object');
   });
 
-  baseTest('POST /api/sync/transactions calculates correct balance for member', async ({ request }) => {
+  test('POST /api/sync/transactions calculates correct balance for member', async ({ authenticatedTerminalRequest }) => {
     // Use existing member to avoid FK constraint issues
     // Use unique transaction ID to ensure idempotency
     const testMemberId = '323e4567-e89b-12d3-a456-426614174002';
@@ -217,8 +202,7 @@ baseTest.describe('Transactions Upload Endpoint', () => {
       amount_cents: 123 // Unique amount to distinguish from other tests
     });
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
     });
 
@@ -231,7 +215,7 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(body.member_balances[testMemberId]).toBeGreaterThanOrEqual(123);
   });
 
-  baseTest('POST /api/sync/transactions calculates cumulative balance for multiple transactions', async ({ request }) => {
+  test('POST /api/sync/transactions calculates cumulative balance for multiple transactions', async ({ authenticatedTerminalRequest }) => {
     // Use existing members to avoid FK constraint issues (Pattern 001: Test isolation via unique transaction IDs)
     const testMemberId = '423e4567-e89b-12d3-a456-426614174003'; // Susan Johnson
     const amountIncrease = 350 + 500 + 200; // Expected increase from this batch
@@ -242,8 +226,7 @@ baseTest.describe('Transactions Upload Endpoint', () => {
       createValidTransaction({ member_id: testMemberId, amount_cents: 200 }), // additional purchase
     ];
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions },
     });
 
@@ -256,7 +239,7 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(typeof body.member_balances[testMemberId]).toBe('number');
   });
 
-  baseTest('POST /api/sync/transactions calculates separate balances for multiple members', async ({ request }) => {
+  test('POST /api/sync/transactions calculates separate balances for multiple members', async ({ authenticatedTerminalRequest }) => {
     // Use existing members from database (Pattern 001: Test isolation via unique transaction IDs)
     const memberId1 = '323e4567-e89b-12d3-a456-426614174002'; // Peter Müller
     const memberId2 = '423e4567-e89b-12d3-a456-426614174003'; // Susan Johnson
@@ -270,8 +253,7 @@ baseTest.describe('Transactions Upload Endpoint', () => {
       createValidTransaction({ member_id: memberId1, amount_cents: 200 }),
     ];
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions },
     });
 
@@ -292,12 +274,11 @@ baseTest.describe('Transactions Upload Endpoint', () => {
     expect(typeof body.member_balances[memberId2]).toBe('number');
   });
 
-  baseTest('POST /api/sync/transactions returns zero balance for empty transaction', async ({ request }) => {
+  test('POST /api/sync/transactions returns zero balance for empty transaction', async ({ authenticatedTerminalRequest }) => {
     // Note: This might be rejected by validation, but if allowed, balance should be 0
     const transaction = createValidTransaction({ amount_cents: 0 });
 
-    const response = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
     });
 
@@ -312,14 +293,12 @@ baseTest.describe('Transactions Upload Endpoint', () => {
  * Tests for ADR-0024: Transaction History Retrieval in Terminal
  * GET /api/terminal/transactions/{member_id} endpoint
  */
-baseTest.describe('Transaction History Endpoint', () => {
+test.describe('Transaction History Endpoint', () => {
   const memberId = '123e4567-e89b-12d3-a456-426614174000';
   const productId = '987f6543-e21a-11d3-b456-426614174999';
 
-  baseTest('GET /api/terminal/transactions/{member_id} returns transaction list', async ({ request }) => {
-    const response = await request.get(`/api/terminal/transactions/${memberId}`, {
-      headers: authHeaders,
-    });
+  test('GET /api/terminal/transactions/{member_id} returns transaction list', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -333,10 +312,8 @@ baseTest.describe('Transaction History Endpoint', () => {
     expect(Array.isArray(body.transactions)).toBeTruthy();
   });
 
-  baseTest('GET /api/terminal/transactions/{member_id} returns transactions in descending order', async ({ request }) => {
-    const response = await request.get(`/api/terminal/transactions/${memberId}?limit=10`, {
-      headers: authHeaders,
-    });
+  test('GET /api/terminal/transactions/{member_id} returns transactions in descending order', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=10`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -352,10 +329,8 @@ baseTest.describe('Transaction History Endpoint', () => {
     }
   });
 
-  baseTest('GET /api/terminal/transactions/{member_id} respects limit parameter', async ({ request }) => {
-    const response = await request.get(`/api/terminal/transactions/${memberId}?limit=5`, {
-      headers: authHeaders,
-    });
+  test('GET /api/terminal/transactions/{member_id} respects limit parameter', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=5`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -365,10 +340,8 @@ baseTest.describe('Transaction History Endpoint', () => {
     expect(body.transactions.length).toBeLessThanOrEqual(5);
   });
 
-  baseTest('GET /api/terminal/transactions/{member_id} supports offset parameter', async ({ request }) => {
-    const response = await request.get(`/api/terminal/transactions/${memberId}?limit=10&offset=5`, {
-      headers: authHeaders,
-    });
+  test('GET /api/terminal/transactions/{member_id} supports offset parameter', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=10&offset=5`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -379,12 +352,10 @@ baseTest.describe('Transaction History Endpoint', () => {
     expect(Array.isArray(body.transactions)).toBeTruthy();
   });
 
-  baseTest('GET /api/terminal/transactions/{member_id} returns 404 for unknown member', async ({ request }) => {
+  test('GET /api/terminal/transactions/{member_id} returns 404 for unknown member', async ({ authenticatedTerminalRequest }) => {
     const unknownMemberId = '00000000-0000-0000-0000-000000000000';
 
-    const response = await request.get(`/api/terminal/transactions/${unknownMemberId}`, {
-      headers: authHeaders,
-    });
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${unknownMemberId}`);
 
     expect(response.status()).toBe(404);
 
@@ -392,17 +363,15 @@ baseTest.describe('Transaction History Endpoint', () => {
     expect(body.error).toBeDefined();
   });
 
-  baseTest('GET /api/terminal/transactions/{member_id} returns 401 without authorization', async ({ request }) => {
+  test('GET /api/terminal/transactions/{member_id} returns 401 without authorization', async ({ request }) => {
     // Make request without Bearer token
     const response = await request.get(`/api/terminal/transactions/${memberId}`);
 
     expect(response.status()).toBe(401);
   });
 
-  baseTest('GET /api/terminal/transactions/{member_id} returns correct transaction fields', async ({ request }) => {
-    const response = await request.get(`/api/terminal/transactions/${memberId}?limit=1`, {
-      headers: authHeaders,
-    });
+  test('GET /api/terminal/transactions/{member_id} returns correct transaction fields', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=1`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -423,11 +392,10 @@ baseTest.describe('Transaction History Endpoint', () => {
     }
   });
 
-  baseTest('GET /api/terminal/transactions/{member_id} returns product_name in member language', async ({ request }) => {
+  test('GET /api/terminal/transactions/{member_id} returns product_name in member language', async ({ authenticatedTerminalRequest }) => {
     // This test verifies product names are translated
     // First, create a transaction with a product
-    const postResponse = await request.post('/api/sync/transactions', {
-      headers: authHeaders,
+    const postResponse = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: {
         transactions: [{
           id: randomUUID(),
@@ -442,9 +410,7 @@ baseTest.describe('Transaction History Endpoint', () => {
     expect(postResponse.ok()).toBeTruthy();
 
     // Now fetch transaction history
-    const getResponse = await request.get(`/api/terminal/transactions/${memberId}?limit=1`, {
-      headers: authHeaders,
-    });
+    const getResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=1`);
 
     expect(getResponse.ok()).toBeTruthy();
 
@@ -458,10 +424,8 @@ baseTest.describe('Transaction History Endpoint', () => {
     }
   });
 
-  baseTest('GET /api/terminal/transactions/{member_id} handles missing product gracefully', async ({ request }) => {
-    const response = await request.get(`/api/terminal/transactions/${memberId}?limit=50`, {
-      headers: authHeaders,
-    });
+  test('GET /api/terminal/transactions/{member_id} handles missing product gracefully', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=50`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -473,10 +437,8 @@ baseTest.describe('Transaction History Endpoint', () => {
     }
   });
 
-  baseTest('GET /api/terminal/transactions/{member_id} returns default limit of 50 if not specified', async ({ request }) => {
-    const response = await request.get(`/api/terminal/transactions/${memberId}`, {
-      headers: authHeaders,
-    });
+  test('GET /api/terminal/transactions/{member_id} returns default limit of 50 if not specified', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -596,7 +558,7 @@ test.describe('Manual Corrections Endpoint', () => {
     expect(body.errors.reason).toBeDefined();
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct creates transaction appearing in history', async ({ authenticatedRequest, request }) => {
+  test('POST /api/admin/members/{id}/transactions/correct creates transaction appearing in history', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     // Record a correction
     const correctionResponse = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
       data: {
@@ -612,16 +574,8 @@ test.describe('Manual Corrections Endpoint', () => {
     // Add small delay to ensure transaction is persisted
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Fetch transaction history (with terminal auth headers)
-    const historyResponse = await request.get(`/api/terminal/transactions/${testMemberId}?limit=1`, {
-      headers: authHeaders,
-    });
-
-    // If no bearer token, skip this assertion (still record the correction was created)
-    if (!authHeaders['Authorization']) {
-      expect(true).toBeTruthy(); // Test passed if correction was created
-      return;
-    }
+    // Fetch transaction history (with terminal auth)
+    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${testMemberId}?limit=1`);
 
     expect(historyResponse.ok()).toBeTruthy();
 
@@ -634,7 +588,7 @@ test.describe('Manual Corrections Endpoint', () => {
     expect(found?.amount_cents).toBe(-250);
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct updates member balance', async ({ authenticatedRequest, request }) => {
+  test('POST /api/admin/members/{id}/transactions/correct updates member balance', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const testMemberId2 = '223e4567-e89b-12d3-a456-426614174001';
 
     // Record a correction
@@ -653,15 +607,7 @@ test.describe('Manual Corrections Endpoint', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     // Fetch transaction history to verify balance includes correction
-    const historyResponse = await request.get(`/api/terminal/transactions/${testMemberId2}?limit=100`, {
-      headers: authHeaders,
-    });
-
-    // If no bearer token, skip history verification (still record the correction was created)
-    if (!authHeaders['Authorization']) {
-      expect(true).toBeTruthy(); // Test passed if correction was created
-      return;
-    }
+    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${testMemberId2}?limit=100`);
 
     expect(historyResponse.ok()).toBeTruthy();
 

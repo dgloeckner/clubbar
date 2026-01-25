@@ -3,16 +3,23 @@ import { test as base, APIRequestContext } from "@playwright/test";
 const API_BASE = "http://localhost:8080/api";
 const ADMIN_EMAIL = "admin@example.com";
 const ADMIN_PASSWORD = "password123";
+const TERMINAL_TOKEN = process.env.TEST_TERMINAL_TOKEN || "";
 
 /**
- * Authenticated Request Fixture
+ * Authenticated Request Fixtures
  *
- * Provides a wrapper around APIRequestContext that automatically adds
- * admin session cookies to all requests.
+ * Provides two wrapper types for authenticated API requests:
+ * 1. authenticatedRequest: Admin API with session cookies
+ * 2. authenticatedTerminalRequest: Terminal API with bearer token
  *
  * Usage in tests:
  *   test('my test', async ({ authenticatedRequest }) => {
  *     const response = await authenticatedRequest.get('/api/admin/members');
+ *     // ... assertions
+ *   });
+ *
+ *   test('my test', async ({ authenticatedTerminalRequest }) => {
+ *     const response = await authenticatedTerminalRequest.get('/api/terminal/transactions/member-id');
  *     // ... assertions
  *   });
  */
@@ -20,10 +27,13 @@ interface AuthFixtures {
   authenticatedRequest: APIRequestContext & {
     cookieString: string;
   };
+  authenticatedTerminalRequest: APIRequestContext & {
+    token: string;
+  };
 }
 
 /**
- * Wrapper that adds cookies to all requests
+ * Wrapper that adds session cookies to all requests (for admin API)
  */
 class AuthenticatedRequestContext {
   constructor(
@@ -86,6 +96,70 @@ class AuthenticatedRequestContext {
     });
 }
 
+/**
+ * Wrapper that adds bearer token to all requests (for terminal API)
+ */
+class TerminalRequestContext {
+  constructor(
+    private request: APIRequestContext,
+    private token: string
+  ) {}
+
+  get = (url: string, options?: any) =>
+    this.request.get(url, {
+      ...options,
+      headers: {
+        ...options?.headers,
+        Authorization: `Bearer ${this.token}`,
+      },
+    });
+
+  post = (url: string, options?: any) =>
+    this.request.post(url, {
+      ...options,
+      headers: {
+        ...options?.headers,
+        Authorization: `Bearer ${this.token}`,
+      },
+    });
+
+  patch = (url: string, options?: any) =>
+    this.request.patch(url, {
+      ...options,
+      headers: {
+        ...options?.headers,
+        Authorization: `Bearer ${this.token}`,
+      },
+    });
+
+  delete = (url: string, options?: any) =>
+    this.request.delete(url, {
+      ...options,
+      headers: {
+        ...options?.headers,
+        Authorization: `Bearer ${this.token}`,
+      },
+    });
+
+  put = (url: string, options?: any) =>
+    this.request.put(url, {
+      ...options,
+      headers: {
+        ...options?.headers,
+        Authorization: `Bearer ${this.token}`,
+      },
+    });
+
+  head = (url: string, options?: any) =>
+    this.request.head(url, {
+      ...options,
+      headers: {
+        ...options?.headers,
+        Authorization: `Bearer ${this.token}`,
+      },
+    });
+}
+
 export const test = base.extend<AuthFixtures>({
   authenticatedRequest: async ({ request }, use) => {
     // Login and get session cookie
@@ -114,6 +188,18 @@ export const test = base.extend<AuthFixtures>({
 
     // Provide the authenticated request to the test
     await use(authenticatedRequest);
+  },
+
+  authenticatedTerminalRequest: async ({ request }, use) => {
+    // Create terminal request wrapper with bearer token
+    const terminalRequest = new TerminalRequestContext(
+      request,
+      TERMINAL_TOKEN
+    ) as any;
+    terminalRequest.token = TERMINAL_TOKEN;
+
+    // Provide the authenticated terminal request to the test
+    await use(terminalRequest);
   },
 });
 
