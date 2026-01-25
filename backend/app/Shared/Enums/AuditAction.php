@@ -12,6 +12,9 @@ namespace App\Shared\Enums;
  * - CREATE: New record created (old_values: null, new_values: all fields)
  * - UPDATE: Record modified (old_values: changed fields, new_values: changed fields)
  * - DELETE: Record hard-deleted (old_values: all fields, new_values: null)
+ * - ACTIVATE: Record activated (old_values: {is_active: false}, new_values: {is_active: true})
+ * - DEACTIVATE: Record deactivated (old_values: {is_active: true}, new_values: {is_active: false})
+ * - REORDER: Items reordered (old_values: null, new_values: {new_order})
  * - ANONYMIZE: GDPR anonymization (old_values: PII masked, new_values: anonymized state)
  * - LOGIN: Admin login successful (old_values: null, new_values: null)
  * - LOGOUT: Admin logout (old_values: null, new_values: null)
@@ -26,6 +29,9 @@ enum AuditAction: string
     case CREATE = 'create';
     case UPDATE = 'update';
     case DELETE = 'delete';
+    case ACTIVATE = 'activate';
+    case DEACTIVATE = 'deactivate';
+    case REORDER = 'reorder';
     case ANONYMIZE = 'anonymize';
     case LOGIN = 'login';
     case LOGOUT = 'logout';

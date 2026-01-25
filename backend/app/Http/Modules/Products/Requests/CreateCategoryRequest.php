@@ -56,14 +56,4 @@ class CreateCategoryRequest extends FormRequest
             'names.*.max' => 'Name cannot exceed 100 characters',
         ];
     }
-
-    /**
-     * Get the validated input as a typed array.
-     *
-     * @return array Validated data with typed accessors
-     */
-    public function validated(): array
-    {
-        return parent::validated();
-    }
 }

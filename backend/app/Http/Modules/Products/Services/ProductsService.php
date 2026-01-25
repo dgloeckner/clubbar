@@ -94,11 +94,24 @@ class ProductsService extends BaseService
         int $page = 1,
         int $perPage = 20,
         array $filters = [],
-        string $sortBy = 'category',
+        string $sortBy = 'name',
         string $sortOrder = 'asc',
     ): PaginatedResultDto {
-        // Start with filtered query
-        $query = $this->productsRepository->withCategory()->filter($filters);
+        // Start with query that loads category relationship
+        $query = $this->productsRepository->query()->with('category');
+
+        // Apply filters
+        if (isset($filters['status']) && $filters['status'] !== 'all') {
+            $query->where('products.is_active', $filters['status'] === 'active');
+        }
+        if (isset($filters['category_id'])) {
+            $query->where('products.category_id', $filters['category_id']);
+        }
+        if (isset($filters['search'])) {
+            $query->where(function ($q) use ($filters) {
+                $q->whereRaw("JSON_SEARCH(names, 'one', ?) IS NOT NULL", ["%{$filters['search']}%"]);
+            });
+        }
 
         // Count total before pagination
         $total = $query->count();
@@ -167,7 +180,7 @@ class ProductsService extends BaseService
             action: AuditAction::CREATE,
             entityType: EntityType::PRODUCT,
             entityId: $model->id,
-            changes: [
+            newValues: [
                 'names' => $model->names,
                 'descriptions' => $model->descriptions,
                 'price_cents' => $model->price_cents,
@@ -238,11 +251,20 @@ class ProductsService extends BaseService
 
         // Log audit entry
         if (!empty($changes)) {
+            // Construct oldValues and newValues from changes
+            $oldValues = [];
+            $newValues = [];
+            foreach ($changes as $field => $change) {
+                $oldValues[$field] = $change['old'];
+                $newValues[$field] = $change['new'];
+            }
+
             $this->auditService->log(
                 action: AuditAction::UPDATE,
                 entityType: EntityType::PRODUCT,
                 entityId: $model->id,
-                changes: $changes,
+                oldValues: $oldValues,
+                newValues: $newValues,
             );
         }
 
@@ -276,12 +298,8 @@ class ProductsService extends BaseService
             action: $isActive ? AuditAction::ACTIVATE : AuditAction::DEACTIVATE,
             entityType: EntityType::PRODUCT,
             entityId: $model->id,
-            changes: [
-                'is_active' => [
-                    'old' => $oldStatus,
-                    'new' => $isActive,
-                ],
-            ],
+            oldValues: ['is_active' => $oldStatus],
+            newValues: ['is_active' => $isActive],
         );
 
         return $this->transform($model);

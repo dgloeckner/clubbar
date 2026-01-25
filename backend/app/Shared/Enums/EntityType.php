@@ -10,6 +10,7 @@ namespace App\Shared\Enums;
  *
  * Entity Types:
  * - MEMBER: Member records (names, contact, SEPA, preferences)
+ * - CATEGORY: Product categories (organization, ordering)
  * - PRODUCT: Product catalog (names, prices, descriptions)
  * - ADMIN_USER: Administrator accounts (emails, roles, permissions)
  * - TERMINAL: POS terminals (device config, API tokens, assignments)
@@ -19,6 +20,7 @@ namespace App\Shared\Enums;
 enum EntityType: string
 {
     case MEMBER = 'member';
+    case CATEGORY = 'category';
     case PRODUCT = 'product';
     case ADMIN_USER = 'admin_user';
     case TERMINAL = 'terminal';

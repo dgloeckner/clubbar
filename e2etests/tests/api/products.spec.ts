@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/auth.fixture';
+import { APIRequestContext } from '@playwright/test';
 import { randomUUID } from 'crypto';
 
 /**
@@ -7,11 +8,16 @@ import { randomUUID } from 'crypto';
  * Tests the product catalog management endpoints.
  * Covers CRUD operations for admin API and delta sync for terminal API.
  *
+ * Admin Endpoints: Uses auth.fixture for authenticated requests (admin session)
+ * Terminal Endpoints: Uses TEST_TERMINAL_TOKEN environment variable
+ *
  * Uses E2E Pattern 001: Test Data Isolation
  * - Each test creates unique test data
  * - Tests are independent and can run in parallel
  * - No shared or mutated state between tests
  */
+
+const TERMINAL_TOKEN = process.env.TEST_TERMINAL_TOKEN;
 
 // Helper to create valid product data
 function createValidProduct(categoryId: string, overrides = {}) {
@@ -31,8 +37,8 @@ function createValidProduct(categoryId: string, overrides = {}) {
 }
 
 // Helper to create category first
-async function createCategory(request) {
-  const response = await request.post('/api/admin/categories', {
+async function createCategory(authenticatedRequest) {
+  const response = await authenticatedRequest.post('/api/admin/categories', {
     data: {
       names: {
         de: `Kategorie ${randomUUID().substring(0, 8)}`,
@@ -43,10 +49,37 @@ async function createCategory(request) {
   return await response.json();
 }
 
+// Helper for making authenticated terminal API requests
+async function terminalRequest(context: APIRequestContext, method: string, path: string, options?: any) {
+  if (!TERMINAL_TOKEN) {
+    throw new Error('TEST_TERMINAL_TOKEN not set');
+  }
+
+  const headers = {
+    ...options?.headers,
+    'Authorization': `Bearer ${TERMINAL_TOKEN}`,
+  };
+
+  const requestOptions = { ...options, headers };
+
+  switch (method) {
+    case 'GET':
+      return context.get(path, requestOptions);
+    case 'POST':
+      return context.post(path, requestOptions);
+    case 'PATCH':
+      return context.patch(path, requestOptions);
+    case 'DELETE':
+      return context.delete(path, requestOptions);
+    default:
+      throw new Error(`Unknown method: ${method}`);
+  }
+}
+
 // Test: List Products
 test.describe('Products API - List', () => {
-  test('GET /api/admin/products returns product list', async ({ request }) => {
-    const response = await request.get('/api/admin/products');
+  test('GET /api/admin/products returns product list', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/products');
 
     expect(response.ok()).toBeTruthy();
     expect(response.status()).toBe(200);
@@ -57,8 +90,8 @@ test.describe('Products API - List', () => {
     expect(body.pagination).toBeDefined();
   });
 
-  test('GET /api/admin/products includes pagination info', async ({ request }) => {
-    const response = await request.get('/api/admin/products');
+  test('GET /api/admin/products includes pagination info', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/products');
     const body = await response.json();
 
     expect(body.pagination.total).toBeDefined();
@@ -67,8 +100,8 @@ test.describe('Products API - List', () => {
     expect(body.pagination.last_page).toBeDefined();
   });
 
-  test('GET /api/admin/products returns product fields', async ({ request }) => {
-    const response = await request.get('/api/admin/products');
+  test('GET /api/admin/products returns product fields', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/products');
     const body = await response.json();
 
     if (body.products.length > 0) {
@@ -81,55 +114,55 @@ test.describe('Products API - List', () => {
     }
   });
 
-  test('GET /api/admin/products supports page parameter', async ({ request }) => {
-    const response = await request.get('/api/admin/products?page=1');
+  test('GET /api/admin/products supports page parameter', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/products?page=1');
     const body = await response.json();
 
     expect(body.pagination.current_page).toBe(1);
   });
 
-  test('GET /api/admin/products supports per_page parameter', async ({ request }) => {
-    const response = await request.get('/api/admin/products?per_page=10');
+  test('GET /api/admin/products supports per_page parameter', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/products?per_page=10');
     const body = await response.json();
 
     expect(body.pagination.per_page).toBe(10);
   });
 
-  test('GET /api/admin/products limits per_page to maximum 100', async ({ request }) => {
-    const response = await request.get('/api/admin/products?per_page=500');
+  test('GET /api/admin/products limits per_page to maximum 100', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/products?per_page=500');
     const body = await response.json();
 
     expect(body.pagination.per_page).toBeLessThanOrEqual(100);
   });
 
-  test('GET /api/admin/products supports status filter', async ({ request }) => {
-    const response = await request.get('/api/admin/products?status=active');
+  test('GET /api/admin/products supports status filter', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/products?status=active');
     expect(response.ok()).toBeTruthy();
   });
 
-  test('GET /api/admin/products rejects invalid status filter', async ({ request }) => {
-    const response = await request.get('/api/admin/products?status=invalid');
+  test('GET /api/admin/products rejects invalid status filter', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/products?status=invalid');
     expect(response.status()).toBe(422);
   });
 
-  test('GET /api/admin/products supports sort parameter', async ({ request }) => {
-    const response = await request.get('/api/admin/products?sort=name');
+  test('GET /api/admin/products supports sort parameter', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/products?sort=name');
     expect(response.ok()).toBeTruthy();
   });
 
-  test('GET /api/admin/products supports order parameter', async ({ request }) => {
-    const response = await request.get('/api/admin/products?order=desc');
+  test('GET /api/admin/products supports order parameter', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get('/api/admin/products?order=desc');
     expect(response.ok()).toBeTruthy();
   });
 });
 
 // Test: Create Product
 test.describe('Products API - Create', () => {
-  test('POST /api/admin/products creates valid product', async ({ request }) => {
-    const category = await createCategory(request);
+  test('POST /api/admin/products creates valid product', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
     const productData = createValidProduct(category.id);
 
-    const response = await request.post('/api/admin/products', {
+    const response = await authenticatedRequest.post('/api/admin/products', {
       data: productData,
     });
 
@@ -143,10 +176,10 @@ test.describe('Products API - Create', () => {
     expect(body.is_active).toBe(true);
   });
 
-  test('POST /api/admin/products new product is active by default', async ({ request }) => {
-    const category = await createCategory(request);
+  test('POST /api/admin/products new product is active by default', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
 
-    const response = await request.post('/api/admin/products', {
+    const response = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
 
@@ -154,10 +187,10 @@ test.describe('Products API - Create', () => {
     expect(body.is_active).toBe(true);
   });
 
-  test('POST /api/admin/products creates with minimal data', async ({ request }) => {
-    const category = await createCategory(request);
+  test('POST /api/admin/products creates with minimal data', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
 
-    const response = await request.post('/api/admin/products', {
+    const response = await authenticatedRequest.post('/api/admin/products', {
       data: {
         names: { de: 'Minimal Product' },
         price_cents: 100,
@@ -168,10 +201,10 @@ test.describe('Products API - Create', () => {
     expect(response.status()).toBe(201);
   });
 
-  test('POST /api/admin/products rejects missing name', async ({ request }) => {
-    const category = await createCategory(request);
+  test('POST /api/admin/products rejects missing name', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
 
-    const response = await request.post('/api/admin/products', {
+    const response = await authenticatedRequest.post('/api/admin/products', {
       data: {
         names: {},
         price_cents: 100,
@@ -182,53 +215,53 @@ test.describe('Products API - Create', () => {
     expect(response.status()).toBe(422);
   });
 
-  test('POST /api/admin/products rejects zero price', async ({ request }) => {
-    const category = await createCategory(request);
+  test('POST /api/admin/products rejects zero price', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
 
-    const response = await request.post('/api/admin/products', {
+    const response = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id, { price_cents: 0 }),
     });
 
     expect(response.status()).toBe(422);
   });
 
-  test('POST /api/admin/products rejects negative price', async ({ request }) => {
-    const category = await createCategory(request);
+  test('POST /api/admin/products rejects negative price', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
 
-    const response = await request.post('/api/admin/products', {
+    const response = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id, { price_cents: -100 }),
     });
 
     expect(response.status()).toBe(422);
   });
 
-  test('POST /api/admin/products rejects invalid category_id', async ({ request }) => {
-    const response = await request.post('/api/admin/products', {
+  test('POST /api/admin/products rejects invalid category_id', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(randomUUID()),
     });
 
     expect(response.status()).toBe(422);
   });
 
-  test('POST /api/admin/products rejects inactive category', async ({ request }) => {
-    const category = await createCategory(request);
+  test('POST /api/admin/products rejects inactive category', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
 
     // Deactivate category
-    await request.patch(`/api/admin/categories/${category.id}/status`, {
+    await authenticatedRequest.patch(`/api/admin/categories/${category.id}/status`, {
       data: { is_active: false },
     });
 
-    const response = await request.post('/api/admin/products', {
+    const response = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
 
     expect(response.status()).toBe(400);
   });
 
-  test('POST /api/admin/products stores descriptions', async ({ request }) => {
-    const category = await createCategory(request);
+  test('POST /api/admin/products stores descriptions', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
 
-    const response = await request.post('/api/admin/products', {
+    const response = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
 
@@ -240,14 +273,14 @@ test.describe('Products API - Create', () => {
 
 // Test: Update Product
 test.describe('Products API - Update', () => {
-  test('PATCH /api/admin/products/{id} updates name', async ({ request }) => {
-    const category = await createCategory(request);
-    const createResponse = await request.post('/api/admin/products', {
+  test('PATCH /api/admin/products/{id} updates name', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
     const product = await createResponse.json();
 
-    const response = await request.patch(`/api/admin/products/${product.id}`, {
+    const response = await authenticatedRequest.patch(`/api/admin/products/${product.id}`, {
       data: {
         names: {
           de: 'Neuer Name',
@@ -261,14 +294,14 @@ test.describe('Products API - Update', () => {
     expect(body.names.de).toBe('Neuer Name');
   });
 
-  test('PATCH /api/admin/products/{id} updates price', async ({ request }) => {
-    const category = await createCategory(request);
-    const createResponse = await request.post('/api/admin/products', {
+  test('PATCH /api/admin/products/{id} updates price', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
     const product = await createResponse.json();
 
-    const response = await request.patch(`/api/admin/products/${product.id}`, {
+    const response = await authenticatedRequest.patch(`/api/admin/products/${product.id}`, {
       data: { price_cents: 450 },
     });
 
@@ -276,16 +309,16 @@ test.describe('Products API - Update', () => {
     expect(body.price_cents).toBe(450);
   });
 
-  test('PATCH /api/admin/products/{id} updates category', async ({ request }) => {
-    const category1 = await createCategory(request);
-    const category2 = await createCategory(request);
+  test('PATCH /api/admin/products/{id} updates category', async ({ authenticatedRequest }) => {
+    const category1 = await createCategory(authenticatedRequest);
+    const category2 = await createCategory(authenticatedRequest);
 
-    const createResponse = await request.post('/api/admin/products', {
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category1.id),
     });
     const product = await createResponse.json();
 
-    const response = await request.patch(`/api/admin/products/${product.id}`, {
+    const response = await authenticatedRequest.patch(`/api/admin/products/${product.id}`, {
       data: { category_id: category2.id },
     });
 
@@ -293,15 +326,15 @@ test.describe('Products API - Update', () => {
     expect(body.category_id).toBe(category2.id);
   });
 
-  test('PATCH /api/admin/products/{id} preserves created_at', async ({ request }) => {
-    const category = await createCategory(request);
-    const createResponse = await request.post('/api/admin/products', {
+  test('PATCH /api/admin/products/{id} preserves created_at', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
     const product = await createResponse.json();
     const originalCreatedAt = product.created_at;
 
-    const response = await request.patch(`/api/admin/products/${product.id}`, {
+    const response = await authenticatedRequest.patch(`/api/admin/products/${product.id}`, {
       data: { names: { de: 'Updated' } },
     });
 
@@ -309,36 +342,36 @@ test.describe('Products API - Update', () => {
     expect(body.created_at).toBe(originalCreatedAt);
   });
 
-  test('PATCH /api/admin/products/{id} returns 404 for non-existent product', async ({ request }) => {
-    const response = await request.patch(`/api/admin/products/${randomUUID()}`, {
+  test('PATCH /api/admin/products/{id} returns 404 for non-existent product', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.patch(`/api/admin/products/${randomUUID()}`, {
       data: { names: { de: 'Updated' } },
     });
 
     expect(response.status()).toBe(404);
   });
 
-  test('PATCH /api/admin/products/{id} rejects zero price', async ({ request }) => {
-    const category = await createCategory(request);
-    const createResponse = await request.post('/api/admin/products', {
+  test('PATCH /api/admin/products/{id} rejects zero price', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
     const product = await createResponse.json();
 
-    const response = await request.patch(`/api/admin/products/${product.id}`, {
+    const response = await authenticatedRequest.patch(`/api/admin/products/${product.id}`, {
       data: { price_cents: 0 },
     });
 
     expect(response.status()).toBe(422);
   });
 
-  test('PATCH /api/admin/products/{id} rejects invalid category', async ({ request }) => {
-    const category = await createCategory(request);
-    const createResponse = await request.post('/api/admin/products', {
+  test('PATCH /api/admin/products/{id} rejects invalid category', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
     const product = await createResponse.json();
 
-    const response = await request.patch(`/api/admin/products/${product.id}`, {
+    const response = await authenticatedRequest.patch(`/api/admin/products/${product.id}`, {
       data: { category_id: randomUUID() },
     });
 
@@ -348,14 +381,14 @@ test.describe('Products API - Update', () => {
 
 // Test: Toggle Status
 test.describe('Products API - Toggle Status', () => {
-  test('PATCH /api/admin/products/{id}/status deactivates product', async ({ request }) => {
-    const category = await createCategory(request);
-    const createResponse = await request.post('/api/admin/products', {
+  test('PATCH /api/admin/products/{id}/status deactivates product', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
     const product = await createResponse.json();
 
-    const response = await request.patch(`/api/admin/products/${product.id}/status`, {
+    const response = await authenticatedRequest.patch(`/api/admin/products/${product.id}/status`, {
       data: { is_active: false },
     });
 
@@ -364,20 +397,20 @@ test.describe('Products API - Toggle Status', () => {
     expect(body.is_active).toBe(false);
   });
 
-  test('PATCH /api/admin/products/{id}/status activates product', async ({ request }) => {
-    const category = await createCategory(request);
-    const createResponse = await request.post('/api/admin/products', {
+  test('PATCH /api/admin/products/{id}/status activates product', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
     const product = await createResponse.json();
 
     // Deactivate first
-    await request.patch(`/api/admin/products/${product.id}/status`, {
+    await authenticatedRequest.patch(`/api/admin/products/${product.id}/status`, {
       data: { is_active: false },
     });
 
     // Then reactivate
-    const response = await request.patch(`/api/admin/products/${product.id}/status`, {
+    const response = await authenticatedRequest.patch(`/api/admin/products/${product.id}/status`, {
       data: { is_active: true },
     });
 
@@ -385,8 +418,8 @@ test.describe('Products API - Toggle Status', () => {
     expect(body.is_active).toBe(true);
   });
 
-  test('PATCH /api/admin/products/{id}/status returns 404 for non-existent product', async ({ request }) => {
-    const response = await request.patch(`/api/admin/products/${randomUUID()}/status`, {
+  test('PATCH /api/admin/products/{id}/status returns 404 for non-existent product', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.patch(`/api/admin/products/${randomUUID()}/status`, {
       data: { is_active: false },
     });
 
@@ -397,7 +430,11 @@ test.describe('Products API - Toggle Status', () => {
 // Test: Terminal Sync
 test.describe('Products API - Terminal Sync', () => {
   test('GET /api/sync/products returns product list', async ({ request }) => {
-    const response = await request.get('/api/sync/products');
+    if (!TERMINAL_TOKEN) {
+      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
+    }
+
+    const response = await terminalRequest(request, 'GET', '/api/sync/products');
 
     expect(response.ok()).toBeTruthy();
 
@@ -409,28 +446,32 @@ test.describe('Products API - Terminal Sync', () => {
     expect(body.has_more).toBeDefined();
   });
 
-  test('GET /api/sync/products returns only active products', async ({ request }) => {
-    const category = await createCategory(request);
+  test('GET /api/sync/products returns only active products', async ({ authenticatedRequest, request }) => {
+    if (!TERMINAL_TOKEN) {
+      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
+    }
+
+    const category = await createCategory(authenticatedRequest);
 
     // Create active product
     const activeProduct = await (
-      await request.post('/api/admin/products', {
+      await authenticatedRequest.post('/api/admin/products', {
         data: createValidProduct(category.id),
       })
     ).json();
 
     // Create and deactivate a product
     const inactiveProduct = await (
-      await request.post('/api/admin/products', {
+      await authenticatedRequest.post('/api/admin/products', {
         data: createValidProduct(category.id),
       })
     ).json();
 
-    await request.patch(`/api/admin/products/${inactiveProduct.id}/status`, {
+    await authenticatedRequest.patch(`/api/admin/products/${inactiveProduct.id}/status`, {
       data: { is_active: false },
     });
 
-    const response = await request.get('/api/sync/products');
+    const response = await terminalRequest(request, 'GET', '/api/sync/products');
     const body = await response.json();
 
     // All returned products should be active
@@ -439,22 +480,26 @@ test.describe('Products API - Terminal Sync', () => {
     }
   });
 
-  test('GET /api/sync/products returns only products from active categories', async ({ request }) => {
-    const activeCategory = await createCategory(request);
+  test('GET /api/sync/products returns only products from active categories', async ({ authenticatedRequest, request }) => {
+    if (!TERMINAL_TOKEN) {
+      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
+    }
 
-    const inactiveCategory = await createCategory(request);
-    await request.patch(`/api/admin/categories/${inactiveCategory.id}/status`, {
+    const activeCategory = await createCategory(authenticatedRequest);
+
+    const inactiveCategory = await createCategory(authenticatedRequest);
+    await authenticatedRequest.patch(`/api/admin/categories/${inactiveCategory.id}/status`, {
       data: { is_active: false },
     });
 
     // Create product in inactive category
     const productInInactiveCategory = await (
-      await request.post('/api/admin/products', {
+      await authenticatedRequest.post('/api/admin/products', {
         data: createValidProduct(inactiveCategory.id),
       })
     ).json();
 
-    const response = await request.get('/api/sync/products');
+    const response = await terminalRequest(request, 'GET', '/api/sync/products');
     const body = await response.json();
 
     // Check that product from inactive category is not returned
@@ -463,9 +508,13 @@ test.describe('Products API - Terminal Sync', () => {
   });
 
   test('GET /api/sync/products respects since parameter', async ({ request }) => {
+    if (!TERMINAL_TOKEN) {
+      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
+    }
+
     const oldTimestamp = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
 
-    const response = await request.get(`/api/sync/products?since=${oldTimestamp}`);
+    const response = await terminalRequest(request, 'GET', `/api/sync/products?since=${oldTimestamp}`);
 
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
@@ -473,17 +522,25 @@ test.describe('Products API - Terminal Sync', () => {
   });
 
   test('GET /api/sync/products returns cursor for pagination', async ({ request }) => {
-    const response = await request.get('/api/sync/products');
+    if (!TERMINAL_TOKEN) {
+      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
+    }
+
+    const response = await terminalRequest(request, 'GET', '/api/sync/products');
     const body = await response.json();
 
     expect(body.cursor).toBeDefined();
     expect(typeof body.cursor).toBe('string');
   });
 
-  test('GET /api/sync/products returns product names in all languages', async ({ request }) => {
-    const category = await createCategory(request);
+  test('GET /api/sync/products returns product names in all languages', async ({ authenticatedRequest, request }) => {
+    if (!TERMINAL_TOKEN) {
+      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
+    }
 
-    await request.post('/api/admin/products', {
+    const category = await createCategory(authenticatedRequest);
+
+    await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id, {
         names: {
           de: 'Deutsch',
@@ -493,7 +550,7 @@ test.describe('Products API - Terminal Sync', () => {
       }),
     });
 
-    const response = await request.get('/api/sync/products');
+    const response = await terminalRequest(request, 'GET', '/api/sync/products');
     const body = await response.json();
 
     if (body.products.length > 0) {
@@ -503,14 +560,18 @@ test.describe('Products API - Terminal Sync', () => {
     }
   });
 
-  test('GET /api/sync/products includes category_id', async ({ request }) => {
-    const category = await createCategory(request);
+  test('GET /api/sync/products includes category_id', async ({ authenticatedRequest, request }) => {
+    if (!TERMINAL_TOKEN) {
+      test.skip(true, 'TEST_TERMINAL_TOKEN not set');
+    }
 
-    await request.post('/api/admin/products', {
+    const category = await createCategory(authenticatedRequest);
+
+    await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
 
-    const response = await request.get('/api/sync/products');
+    const response = await terminalRequest(request, 'GET', '/api/sync/products');
     const body = await response.json();
 
     if (body.products.length > 0) {

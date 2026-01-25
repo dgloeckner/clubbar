@@ -124,7 +124,7 @@ class CategoriesService extends BaseService
             action: AuditAction::CREATE,
             entityType: EntityType::CATEGORY,
             entityId: $model->id,
-            changes: [
+            newValues: [
                 'names' => $model->names,
                 'display_order' => $model->display_order,
                 'is_active' => $model->is_active,
@@ -174,11 +174,20 @@ class CategoriesService extends BaseService
 
         // Log audit entry
         if (!empty($changes)) {
+            // Construct oldValues and newValues from changes
+            $oldValues = [];
+            $newValues = [];
+            foreach ($changes as $field => $change) {
+                $oldValues[$field] = $change['old'];
+                $newValues[$field] = $change['new'];
+            }
+
             $this->auditService->log(
                 action: AuditAction::UPDATE,
                 entityType: EntityType::CATEGORY,
                 entityId: $model->id,
-                changes: $changes,
+                oldValues: $oldValues,
+                newValues: $newValues,
             );
         }
 
@@ -212,12 +221,8 @@ class CategoriesService extends BaseService
             action: $isActive ? AuditAction::ACTIVATE : AuditAction::DEACTIVATE,
             entityType: EntityType::CATEGORY,
             entityId: $model->id,
-            changes: [
-                'is_active' => [
-                    'old' => $oldStatus,
-                    'new' => $isActive,
-                ],
-            ],
+            oldValues: ['is_active' => $oldStatus],
+            newValues: ['is_active' => $isActive],
         );
 
         return $this->transform($model);
@@ -250,9 +255,10 @@ class CategoriesService extends BaseService
             action: AuditAction::DELETE,
             entityType: EntityType::CATEGORY,
             entityId: $model->id,
-            changes: [
+            oldValues: [
                 'names' => $model->names,
                 'display_order' => $model->display_order,
+                'is_active' => $model->is_active,
             ],
         );
 
@@ -277,7 +283,7 @@ class CategoriesService extends BaseService
             action: AuditAction::REORDER,
             entityType: EntityType::CATEGORY,
             entityId: 'batch',
-            changes: [
+            newValues: [
                 'new_order' => $categoryIds,
             ],
         );
