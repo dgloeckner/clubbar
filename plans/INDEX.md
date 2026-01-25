@@ -58,12 +58,25 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Phase 2.A: Terminal Balance & Transaction History
+### Backend Core Modules (Next Priority)
+- **Focus**: Complete remaining backend modules before terminal UI
+- **What's remaining**:
+  - Settlement system (payments, SEPA generation)
+  - Advanced transaction handling (corrections, reversals)
+  - Admin operations (reporting, compliance workflows)
+  - Any other core backend modules identified in use cases
+- **Why**: Ensures stable, complete backend API before building terminal UI
+
+### Phase 2.A: Terminal Balance & Transaction History (Paused)
 - **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
-- **Status**: In Progress — 5/7 milestones complete (API tests passing, UI pending)
-- **Remaining**:
-  - Milestone E: Terminal UI - Transaction History Screen
-  - Milestone G: Integration Tests
+- **Status**: Backend Complete (5/7 milestones) — Terminal UI Deferred
+- **Complete**:
+  - Milestone A-D: Architecture, backend API, schema, sync logic ✅
+  - Milestone F: API tests (25/25 passing) ✅
+- **Deferred**:
+  - Milestone E: Terminal UI - Transaction History Screen (deferred)
+  - Milestone G: Integration Tests (blocked, depends on E)
+- **Resume After**: All backend core modules complete
 
 ---
 
@@ -111,8 +124,9 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 | Plan | Status | Progress | Tests | Link |
 |------|--------|----------|-------|------|
 | Phase 1: Backend Foundation | **✅ Complete** | **23/23 (100%)** | **✅ 112/112 Tests Passing** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
-| **Phase 2.A: Terminal Balance & Transactions** | **In Progress** | **5/7 (71%)** | ✅ 25/25 Passing | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
 | Phase 3: Backend Products Module | **✅ Complete** | **12/12 (100%)** | **✅ 50/50 Tests Passing** | [phase3-backend-products-module.md](./phase3-backend-products-module.md) |
+| **Phase 2.A: Terminal Balance & Transactions** | **Backend ✅, UI Deferred** | **5/7 (71%)** | ✅ 25/25 API Tests Passing | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
+| **Backend Core Modules** | **📍 NEXT PRIORITY** | TBD | - | To be planned |
 | Phase 2.B: Terminal Core Features | Not Started | - | - | TBD |
 | Phase 4: Admin Panel Frontend | Not Started | - | - | TBD |
 | Phase 5: Advanced Features | Not Started | - | - | TBD |

@@ -2,7 +2,7 @@
 
 **Goal**: Implement member balance state management and on-demand transaction history retrieval on terminal, with API extensions for balance sync updates.
 
-**Status**: Architecture Complete; Implementation Pending
+**Status**: Backend Complete (Milestones A-F); Terminal UI Deferred — Backend Core Modules Priority
 
 **Key Decision**: Transaction history is **online-only** with no offline fallback (see ADR-0024)
 
@@ -31,9 +31,9 @@ This phase implements two key ADRs:
 | **B. Backend API Implementation** | [x] | Extended sync endpoint, implemented transaction history endpoint |
 | **C. Terminal SQLite Schema** | [x] | Complete schema file with all 6 tables and TypeScript interfaces |
 | **D. Terminal Sync Logic** | [x] | Atomic balance update with transaction wrapper and error handling |
-| **E. Terminal UI: Transaction History** | [ ] | Build transaction history screen and API client |
-| **F. API Tests** | [ ] | Playwright tests for new endpoints and balance updates |
-| **G. Integration Tests** | [ ] | End-to-end: sync → balance update → UI display |
+| **F. API Tests** | [x] | Playwright tests for new endpoints and balance updates (25/25 passing) |
+| **E. Terminal UI: Transaction History** | [⊘] | **DEFERRED** — Backend core modules prioritized; resume after core modules complete |
+| **G. Integration Tests** | [⊘] | **BLOCKED** — Depends on Milestone E; deferred with Terminal UI |
 
 ---
 
@@ -275,9 +275,13 @@ transaction(); // Executes atomically or rolls back entirely
 
 ## Milestone E: Terminal UI - Transaction History
 
+**Status**: ⊘ **DEFERRED** — Backend core modules prioritized
+
 **Objective**: Build UI screen for viewing transaction history and integrate with balance display.
 
-**Requirements**:
+**Note**: This milestone is deferred pending completion of remaining backend core modules (Phase 2.B, Phase 4, Phase 5). Backend API (Milestones A-F) complete; terminal UI will be implemented after core backend features.
+
+**Requirements** (for when resumed):
 - Transaction list screen (separate from balance detail)
 - Accessible from balance detail screen
 - Show last 50 transactions by default
@@ -433,7 +437,11 @@ npx playwright test tests/api/balance.spec.ts tests/api/transactions.spec.ts
 
 ## Milestone G: Integration Tests
 
+**Status**: ⊘ **BLOCKED** — Depends on Milestone E (Terminal UI)
+
 **Objective**: End-to-end testing of full flow: transaction upload → balance update → UI display.
+
+**Note**: This milestone is blocked pending completion of Milestone E. Integration tests will be implemented after terminal UI screen is complete.
 
 ### Tasks
 
@@ -477,33 +485,43 @@ npx playwright test tests/api/balance.spec.ts tests/api/transactions.spec.ts
 
 ## Implementation Order
 
-**Recommended sequence** (dependencies matter):
+**Completed sequence**:
 
 1. **Milestone A** ✅ (completed — architecture)
-2. **Milestone B** (backend changes are independent)
-3. **Milestone C** (terminal schema — needed before D)
-4. **Milestone D** (sync logic — depends on B and C)
-5. **Milestone E** (UI — can start after B for mock API)
-6. **Milestone F** (tests — write alongside implementation)
-7. **Milestone G** (integration — last, after all pieces working)
+2. **Milestone B** ✅ (completed — backend changes)
+3. **Milestone C** ✅ (completed — terminal schema)
+4. **Milestone D** ✅ (completed — sync logic)
+5. **Milestone F** ✅ (completed — API tests, 25/25 passing)
+
+**Deferred pending backend core modules**:
+
+6. **Milestone E** (⊘ DEFERRED — Terminal UI, resume after core backend modules)
+7. **Milestone G** (⊘ BLOCKED — Integration tests, depends on E)
 
 ---
 
-## Success Criteria (Overall)
+## Success Criteria (Current Status)
 
-✅ **Phase 2.A Complete When**:
+✅ **Phase 2.A Backend Complete**:
 
-- [ ] ADR-0023 & ADR-0024 implemented (no "TODO" comments)
-- [ ] Backend returns `member_balances` in sync response
-- [ ] Backend implements GET /api/terminal/transactions endpoint
-- [ ] Terminal creates `members_balance` table correctly
-- [ ] Sync updates balance atomically (test: network failure = rollback)
-- [ ] Terminal displays balance from SQLite (works offline)
-- [ ] Terminal fetches transaction history (online-only, no cache)
-- [ ] Shows error if offline when requesting history
-- [ ] All Playwright tests passing (F.1 through G.8)
-- [ ] No console errors or warnings
-- [ ] Documentation updated to reflect implementation
+- [x] ADR-0023 & ADR-0024 implemented (documented)
+- [x] Backend returns `member_balances` in sync response
+- [x] Backend implements GET /api/terminal/transactions endpoint
+- [x] Terminal creates `members_balance` table correctly
+- [x] Sync updates balance atomically (tested)
+- [x] All Playwright API tests passing (25/25 — Milestone F)
+- [x] Documentation complete (ADRs, use cases, schema)
+
+⊘ **Phase 2.A Terminal UI & Integration Deferred**:
+
+- [ ] Terminal fetches transaction history (Milestone E — deferred)
+- [ ] Terminal UI displays transaction history (Milestone E — deferred)
+- [ ] Integration tests (Milestone G — blocked, depends on E)
+
+**Resume Phase 2.A When**:
+- All remaining backend core modules implemented and tested
+- Backend architecture stable
+- Ready to build terminal UI features
 
 ---
 
