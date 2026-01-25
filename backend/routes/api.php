@@ -51,4 +51,11 @@ Route::middleware('api')->group(function () {
             Route::get('/products', [SyncController::class, 'products']);
             Route::post('/transactions', [SyncController::class, 'transactions']);
         });
+
+    // Terminal API: Transaction History (Milestone 2.A - ADR-0024)
+    Route::prefix('terminal')
+        ->middleware([AuthenticateTerminalToken::class])
+        ->group(function () {
+            Route::get('/transactions/{memberId}', [SyncController::class, 'transactionHistory']);
+        });
 });

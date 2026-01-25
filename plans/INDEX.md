@@ -23,31 +23,21 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 ### Phase 2.A: Terminal Balance & Transaction History
 - **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
 - **Goal**: Implement member balance state management and on-demand transaction history retrieval
-- **Status**: Architecture Complete; Implementation Pending
+- **Status**: Milestones A-D Complete; Implementation Phase (E-G) Pending
 - **Progress** (Completed):
-  - Infrastructure & Terminal API: ✅ Complete (40 tests passing)
-  - Security Audit (ADR-0015): ⏳ Pending (1/18 checks — Pattern 012 implemented)
-  - Modular Restructuring: ✅ Complete — ADR-0018 implemented
-  - Admin API Structure: ✅ Complete — 7 endpoints with 35 tests
-  - Admin Database Integration: ✅ COMPLETE — Real database queries implemented; 32 tests verified
-  - Admin Database Persistence: ✅ COMPLETE — Round-trip tests; 20/20 tests passing
-  - Admin Session Authentication: ✅ COMPLETE — Pattern 013 implemented; 63/72 tests passing (auth fixture)
-  - GDPR Endpoints: ✅ COMPLETE (11/11 tests passing)
-  - All Tests: ✅ COMPLETE (112/112 tests passing)
-- **Key Milestones** (All Completed):
-  - **✅ Milestone 1**: Docker Infrastructure (3/3 tasks)
-  - **✅ Milestone 1.5**: Health Controller Refactoring (3/3 tests)
-  - **✅ Milestone 2**: Sync Controller Refactoring (32/32 tests)
-  - **✅ Milestone 2.5a**: Terminal API Token Authentication (Pattern 012) — **COMPLETE**
-  - **✅ Milestone 3**: ADR-0018 Restructuring (6/6 tasks) — **COMPLETE**
-  - **✅ Milestone 4.A**: Members Admin API (7/7 endpoints) — **COMPLETE** (35 tests)
-  - **✅ Milestone 4.B**: Members Database Integration (18/18 tasks) — **COMPLETE** (32 tests verified)
-  - **✅ Milestone 4.B.5**: Database Persistence Tests (20/20 tests) — **COMPLETE** (round-trip validation)
-  - **✅ Milestone 4.C**: Admin Session Auth — **COMPLETE** (Pattern 013, auth fixture, 63/72 tests)
-  - **✅ Milestone 4.C.Post**: GDPR Endpoint Completion — **COMPLETE** (all 11 tests passing)
-  - **✅ Milestone 5**: Admin API Tests — **COMPLETE** (72/72 tests passing)
-  - **✅ Milestone 6**: Terminal API Regression Tests — **VERIFIED** (32/32 tests; no regression from auth middleware)
-  - **✅ Milestone 7**: End-to-End Verification — **COMPLETE** (112/112 tests from clean state)
+  - ✅ Milestone A: Architecture & Design (ADRs 0023/0024, Use Cases, API spec)
+  - ✅ Milestone B: Backend API Implementation (sync extension + transaction history endpoint)
+  - ✅ Milestone C: Terminal SQLite Schema (6 tables, TypeScript interfaces, indexes)
+  - ✅ Milestone D: Terminal Sync Logic (atomic updates, error handling, offline support)
+  - ⏳ Milestone E: Terminal UI - Transaction History (pending)
+  - ⏳ Milestone F: API Tests (pending)
+  - ⏳ Milestone G: Integration Tests (pending)
+- **Key Milestones Completed**:
+  - **✅ Phase 1**: Complete backend foundation with 112/112 tests passing
+  - **✅ Milestone 2.A.A**: Architecture documented per ADRs 0023 & 0024
+  - **✅ Milestone 2.A.B**: Backend API — POST /sync/transactions extended with member_balances; GET /api/terminal/transactions/{memberId} implemented
+  - **✅ Milestone 2.A.C**: Terminal Schema — terminal/database/schema.ts with initializeDatabase(), 6 tables, TypeScript interfaces
+  - **✅ Milestone 2.A.D**: Sync Logic — terminal/services/syncService.ts with atomic transaction wrapper, error handling, offline balance lookup
 
 ---
 
@@ -95,7 +85,7 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 | Plan | Status | Progress | Tests | Link |
 |------|--------|----------|-------|------|
 | Phase 1: Backend Foundation | **✅ Complete** | **23/23 (100%)** | **✅ 112/112 Tests Passing** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
-| **Phase 2.A: Terminal Balance & Transactions** | **In Progress** | **1/7 (14%)** | Architecture ✅ | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
+| **Phase 2.A: Terminal Balance & Transactions** | **In Progress** | **4/7 (57%)** | API Tests Ready | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
 | Phase 2.B: Terminal Core Features | Not Started | - | - | TBD |
 | Phase 3: Admin Panel | Not Started | - | - | TBD |
 | Phase 4: Advanced Features | Not Started | - | - | TBD |

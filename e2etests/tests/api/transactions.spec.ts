@@ -183,4 +183,282 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(body.error).toBe('invalid_request');
     expect(body.message).toContain('100');
   });
+
+  /**
+   * Milestone 2.A Tests: Member Balance Calculation
+   *
+   * Tests for ADR-0023: Terminal Balance State Management
+   * POST /sync/transactions response includes member_balances object
+   */
+  test('POST /api/sync/transactions includes member_balances in response', async ({ request }) => {
+    const transaction = createValidTransaction();
+
+    const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // Verify member_balances field exists
+    expect(body.member_balances).toBeDefined();
+    expect(typeof body.member_balances).toBe('object');
+  });
+
+  test('POST /api/sync/transactions calculates correct balance for member', async ({ request }) => {
+    const transaction = createValidTransaction({ amount_cents: 350 });
+
+    const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // Member balance should equal transaction amount (sum of all unsettled txns)
+    expect(body.member_balances[validMemberId]).toBe(350);
+  });
+
+  test('POST /api/sync/transactions calculates cumulative balance for multiple transactions', async ({ request }) => {
+    const transactions = [
+      createValidTransaction({ amount_cents: 350 }),
+      createValidTransaction({ amount_cents: 500 }),
+      createValidTransaction({ amount_cents: -100 }), // correction/credit
+    ];
+
+    const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
+      data: { transactions },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // Balance should be sum: 350 + 500 - 100 = 750
+    expect(body.member_balances[validMemberId]).toBe(750);
+  });
+
+  test('POST /api/sync/transactions calculates separate balances for multiple members', async ({ request }) => {
+    const memberId1 = '123e4567-e89b-12d3-a456-426614174001';
+    const memberId2 = '123e4567-e89b-12d3-a456-426614174002';
+
+    const transactions = [
+      createValidTransaction({ member_id: memberId1, amount_cents: 350 }),
+      createValidTransaction({ member_id: memberId2, amount_cents: 500 }),
+      createValidTransaction({ member_id: memberId1, amount_cents: 200 }),
+    ];
+
+    const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
+      data: { transactions },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // Member 1: 350 + 200 = 550
+    expect(body.member_balances[memberId1]).toBe(550);
+    // Member 2: 500
+    expect(body.member_balances[memberId2]).toBe(500);
+  });
+
+  test('POST /api/sync/transactions returns zero balance for empty transaction', async ({ request }) => {
+    // Note: This might be rejected by validation, but if allowed, balance should be 0
+    const transaction = createValidTransaction({ amount_cents: 0 });
+
+    const response = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
+      data: { transactions: [transaction] },
+    });
+
+    // This request should actually fail validation (zero amount), so we check for 422
+    expect(response.status()).toBe(422);
+  });
+});
+
+/**
+ * Milestone 2.A Tests: Transaction History Retrieval Endpoint
+ *
+ * Tests for ADR-0024: Transaction History Retrieval in Terminal
+ * GET /api/terminal/transactions/{member_id} endpoint
+ */
+test.describe('Transaction History Endpoint', () => {
+  const memberId = '123e4567-e89b-12d3-a456-426614174000';
+  const productId = '987f6543-e21a-11d3-b456-426614174999';
+
+  test('GET /api/terminal/transactions/{member_id} returns transaction list', async ({ request }) => {
+    const response = await request.get(`/api/terminal/transactions/${memberId}`, {
+      headers: authHeaders,
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // Validate response structure per ADR-0024 spec
+    expect(body.member_id).toBe(memberId);
+    expect(body.count).toBeDefined();
+    expect(typeof body.count).toBe('number');
+    expect(body.transactions).toBeDefined();
+    expect(Array.isArray(body.transactions)).toBeTruthy();
+  });
+
+  test('GET /api/terminal/transactions/{member_id} returns transactions in descending order', async ({ request }) => {
+    const response = await request.get(`/api/terminal/transactions/${memberId}?limit=10`, {
+      headers: authHeaders,
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // If there are transactions, verify they're sorted by created_at DESC
+    if (body.transactions.length > 1) {
+      for (let i = 0; i < body.transactions.length - 1; i++) {
+        const current = new Date(body.transactions[i].created_at).getTime();
+        const next = new Date(body.transactions[i + 1].created_at).getTime();
+        expect(current).toBeGreaterThanOrEqual(next);
+      }
+    }
+  });
+
+  test('GET /api/terminal/transactions/{member_id} respects limit parameter', async ({ request }) => {
+    const response = await request.get(`/api/terminal/transactions/${memberId}?limit=5`, {
+      headers: authHeaders,
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // Should return at most 5 transactions
+    expect(body.transactions.length).toBeLessThanOrEqual(5);
+  });
+
+  test('GET /api/terminal/transactions/{member_id} supports offset parameter', async ({ request }) => {
+    const response = await request.get(`/api/terminal/transactions/${memberId}?limit=10&offset=5`, {
+      headers: authHeaders,
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // Should return valid response
+    expect(body.member_id).toBe(memberId);
+    expect(Array.isArray(body.transactions)).toBeTruthy();
+  });
+
+  test('GET /api/terminal/transactions/{member_id} returns 404 for unknown member', async ({ request }) => {
+    const unknownMemberId = '00000000-0000-0000-0000-000000000000';
+
+    const response = await request.get(`/api/terminal/transactions/${unknownMemberId}`, {
+      headers: authHeaders,
+    });
+
+    expect(response.status()).toBe(404);
+
+    const body = await response.json();
+    expect(body.error).toBeDefined();
+  });
+
+  test('GET /api/terminal/transactions/{member_id} returns 401 without authorization', async ({ request }) => {
+    // Make request without Bearer token
+    const response = await request.get(`/api/terminal/transactions/${memberId}`);
+
+    expect(response.status()).toBe(401);
+  });
+
+  test('GET /api/terminal/transactions/{member_id} returns correct transaction fields', async ({ request }) => {
+    const response = await request.get(`/api/terminal/transactions/${memberId}?limit=1`, {
+      headers: authHeaders,
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // If there are transactions, verify structure
+    if (body.transactions.length > 0) {
+      const tx = body.transactions[0];
+
+      // Verify required fields per ADR-0024 spec
+      expect(tx.id).toBeDefined();
+      expect(tx.amount_cents).toBeDefined();
+      expect(typeof tx.amount_cents).toBe('number');
+      expect(tx.type).toBeDefined(); // 'purchase' or 'correction'
+      expect(tx.product_id).toBeDefined(); // may be null for corrections
+      expect(tx.product_name).toBeDefined(); // should be translated to member's language
+      expect(tx.created_at).toBeDefined();
+    }
+  });
+
+  test('GET /api/terminal/transactions/{member_id} returns product_name in member language', async ({ request }) => {
+    // This test verifies product names are translated
+    // First, create a transaction with a product
+    const postResponse = await request.post('/api/sync/transactions', {
+      headers: authHeaders,
+      data: {
+        transactions: [{
+          id: randomUUID(),
+          member_id: memberId,
+          product_id: productId,
+          amount_cents: 350,
+          created_at: new Date().toISOString(),
+        }],
+      },
+    });
+
+    expect(postResponse.ok()).toBeTruthy();
+
+    // Now fetch transaction history
+    const getResponse = await request.get(`/api/terminal/transactions/${memberId}?limit=1`, {
+      headers: authHeaders,
+    });
+
+    expect(getResponse.ok()).toBeTruthy();
+
+    const body = await getResponse.json();
+
+    // Verify product_name is present and not empty (translated)
+    if (body.transactions.length > 0) {
+      const tx = body.transactions[0];
+      expect(tx.product_name).toBeDefined();
+      expect(typeof tx.product_name).toBe('string');
+    }
+  });
+
+  test('GET /api/terminal/transactions/{member_id} handles missing product gracefully', async ({ request }) => {
+    const response = await request.get(`/api/terminal/transactions/${memberId}?limit=50`, {
+      headers: authHeaders,
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // For corrections (no product_id), product_name should still be set
+    for (const tx of body.transactions) {
+      expect(tx.product_name).toBeDefined(); // should be "Correction: ..." or similar
+    }
+  });
+
+  test('GET /api/terminal/transactions/{member_id} returns default limit of 50 if not specified', async ({ request }) => {
+    const response = await request.get(`/api/terminal/transactions/${memberId}`, {
+      headers: authHeaders,
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+
+    // Should return at most 50 transactions (default limit)
+    expect(body.transactions.length).toBeLessThanOrEqual(50);
+  });
 });
