@@ -154,12 +154,70 @@ Reference E2E testing patterns in `e2etests/patterns/` directory:
    - PHP code changes require process restart
    - Always restart after editing service/controller code
 
-6. **Test Execution Order Matters**
-   - Run tests serially (`--workers=1`) when debugging
-   - Parallel tests can exhaust resources and cause false timeouts
-   - Single-worker execution shows actual errors vs resource contention
+6. **Playwright Test Execution (Default: 4 Workers)**
+   ```bash
+   cd e2etests
 
-7. **Re-Run Single Failing Tests Quickly (Playwright --grep)**
+   # Default: Run tests with 4 workers (parallel execution for speed)
+   npm test
+   # Equivalent to:
+   npm test -- --workers=4
+
+   # Run with explicit worker count
+   npm test -- --workers=4
+   npm test -- --workers=2
+   ```
+   - **Default**: 4 workers balance speed and stability for most test suites
+   - **When to use 4 workers**: Normal test runs, CI/CD pipelines, regression testing
+   - **Why parallel**: Reduces execution time from 90+ seconds to 20-30 seconds
+   - **Test isolation required**: Tests must follow E2E Testing Patterns (001-004) for safe parallel execution
+
+7. **Debugging Parallel Test Failures (Serial: 1 Worker)**
+   ```bash
+   # Only revert to 1 worker when debugging parallelism issues
+   npm test -- --workers=1
+
+   # Use serial execution to:
+   # - Rule out resource contention causing false timeouts
+   # - Check if test passes without parallelism (indicates isolation issue)
+   # - Verify actual error vs resource exhaustion
+   ```
+   - **When to use 1 worker**: Only when tests fail intermittently in parallel mode
+   - **Diagnosis workflow**:
+     1) Test fails in parallel (4 workers) → 2) Run with 1 worker
+     2) If passes with 1 worker → parallelism issue (check test isolation, database state)
+     3) If fails with 1 worker → real bug in code/test logic
+   - **After fixing**: Return to 4 workers (default) to ensure fix is stable under parallelism
+
+8. **JSON Test Reporter & Result Parsing**
+   ```bash
+   # Run tests with JSON output for parsing
+   npm test -- --reporter=json > test-results.json
+
+   # Parse results to find root causes
+   cat test-results.json | jq '.suites[].tests[] | select(.status=="fail") | {title, error}'
+
+   # Count test results by status
+   cat test-results.json | jq '.stats'
+
+   # Find slow tests
+   cat test-results.json | jq '.suites[].tests[] | select(.duration > 5000) | {title, duration}'
+   ```
+   - **Use case**: CI/CD pipelines, automated root cause analysis, performance tracking
+   - **JSON structure**: Contains tests, failures, error messages, durations, and annotations
+   - **Parsing tips**:
+     - `select(.status=="fail")` — Find all failed tests
+     - `select(.duration > 5000)` — Find tests taking >5 seconds (potential timeouts)
+     - `.error.message` — Extract error message from each failure
+     - `.annotations[]` — Check for Playwright-specific issues (network, server, etc.)
+   - **Root cause patterns**:
+     - `timeout` → Server slow or test resource contention; try 1 worker
+     - `connection refused` → Backend not running or restarted during test
+     - `404 not found` → API route missing or wrong parameter
+     - `422 validation error` → Invalid test data in request
+     - `database constraint` → Test data isolation issue; check Pattern 001
+
+9. **Re-Run Single Failing Tests Quickly (Playwright --grep)**
    ```bash
    # Run only one test by name (exact match)
    cd e2etests && npm test -- --grep "GET /api/admin/categories returns category list"
@@ -167,14 +225,21 @@ Reference E2E testing patterns in `e2etests/patterns/` directory:
    # Run tests matching a pattern (partial match)
    npm test -- --grep "Categories API"
 
-   # Combine with serial execution for debugging
+   # Run specific tests with parallel execution (default 4 workers)
+   npm test -- --grep "Create Product" --workers=4
+
+   # Serial execution for isolated debugging
    npm test -- --grep "rejects empty names" --workers=1
+
+   # JSON output for single test failure analysis
+   npm test -- --grep "test name" --reporter=json | jq '.suites[].tests[].error'
    ```
    - **Use case**: After fixing a bug, quickly re-run the specific test without waiting for the full suite
-   - **Time saving**: 30-second test vs 90+ seconds for full suite
+   - **Time saving**: 30-second test vs 20+ seconds for full suite (4 workers default)
    - **Pattern matching**: Use partial test names to run related tests (e.g., all validation tests)
    - **Iteration workflow**: 1) Make code change → 2) Restart PHP → 3) `npm test -- --grep "test name"` → Repeat
    - **Validation before full run**: Once the grep test passes, run the full suite to ensure no regressions
+   - **Debugging**: If single test passes but suite fails, run full suite with 1 worker to isolate parallelism issues
 
 ### Implementation Plans
 
@@ -368,8 +433,31 @@ docker compose down && docker compose up -d
 # Run E2E tests (after setup is complete)
 cd e2etests
 npm install
-npx playwright test
+
+# Default: Run tests with 4 workers (parallel execution)
+npm test
+
+# Run specific test file
+npm test -- tests/api/health.spec.ts
+
+# Run tests matching a pattern
+npm test -- --grep "Products API"
+
+# Run serially (1 worker) for debugging
+npm test -- --workers=1
+
+# Run with JSON reporter for parsing results
+npm test -- --reporter=json > test-results.json
+
+# Parse results to find failures
+cat test-results.json | jq '.suites[].tests[] | select(.status=="fail")'
 ```
+
+**Test Execution Strategy**:
+- **Default (4 workers)**: Fast parallel execution; use for normal runs
+- **Serial (1 worker)**: Only for debugging parallelism issues
+- **JSON reporter**: Use in CI/CD to parse and analyze results
+- **grep pattern**: Quick iteration on specific tests during development
 
 > **Note**: Frontend setup (Admin Panel + Terminal) will be added here once implemented.
 
@@ -378,6 +466,9 @@ npx playwright test
 - **PHP**: PSR-12 style, no external dependencies beyond Composer basics; prepared statements for all DB queries
 - **React/TypeScript**: ESLint + Prettier configured; no console.logs in production code
 - **Tests**: Jest/Vitest for React, PHPUnit for PHP, Playwright for E2E; minimum 80% coverage for new functions
+  - **Playwright tests**: Must follow E2E Testing Patterns (001-004) for safe parallel execution with 4 workers
+  - Patterns ensure test isolation, no shared state, database-agnostic assertions, and proper authentication handling
+  - Tests that violate patterns will fail intermittently in parallel mode; use `--workers=1` to identify isolation issues
 - **Database changes**: Always include migration script; no direct schema edits
 - **Security**: No hardcoded credentials, API keys, or sensitive data in code/logs
 
