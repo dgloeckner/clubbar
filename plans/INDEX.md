@@ -58,14 +58,19 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Backend Core Modules (Next Priority)
-- **Focus**: Complete remaining backend modules before terminal UI
-- **What's remaining**:
-  - Settlement system (payments, SEPA generation)
-  - Advanced transaction handling (corrections, reversals)
-  - Admin operations (reporting, compliance workflows)
-  - Any other core backend modules identified in use cases
+### Backend Core Modules (📍 NEXT PRIORITY)
+- **Link**: [backend-core-modules.md](./backend-core-modules.md)
+- **Goal**: Complete all core backend modules for production-ready POS system
+- **Status**: Planning & Prioritization
+- **5 Core Modules**:
+  1. **Module 1: Settlement System** (P0) — SEPA, payments, accounting
+  2. **Module 2: Advanced Transactions** (P0) — Reversals, corrections, manual bookings
+  3. **Module 3: Admin/User Management** (P0) — Admin CRUD, roles, password management
+  4. **Module 4: Reporting & Analytics** (P1) — Dashboard, reports, audit logs
+  5. **Module 5: Card Management** (P1) — Card blocking, unassigned cards
 - **Why**: Ensures stable, complete backend API before building terminal UI
+- **Tests Required**: 100+ API tests across all modules
+- **Resume Phase 2.A After**: All 5 modules complete and tested
 
 ### Phase 2.A: Terminal Balance & Transaction History (Paused)
 - **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
@@ -82,7 +87,15 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Future Plans
 
-### Phase 2.B: Terminal Core Features (After 2.A Complete)
+### Phase 2.A Terminal UI & Integration (After Backend Core Modules Complete)
+- **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
+- **Milestones**:
+  - E: Terminal UI - Transaction History Screen
+  - G: Integration Tests
+- **Blocks**: Phase 2.B Terminal features
+- **Why deferred**: Backend API must be complete before building terminal UI
+
+### Phase 2.B: Terminal Core Features (After Phase 2.A Complete)
 - **Description**: RFID scanning, product selection, offline purchases
 - **Planned Scope**:
   - RFID/NFC card identification
