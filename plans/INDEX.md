@@ -26,6 +26,11 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 - **Achievement**: Refactored WIP Transactions module to follow ADR-0018 modular architecture and all backend patterns
 - **Result**: 41/41 transaction tests passing; 211/215 total tests (no regressions); 100% architecture compliant; production-ready module serving as template for future modules
 
+### Module 6: Admin-Users
+- **Completion Date**: 2026-01-25
+- **Achievement**: Complete admin user management with CRUD operations, password management, and business rule enforcement
+- **Result**: 20/20 E2E tests passing; all backend patterns implemented; session authentication; audit logging; production-ready
+
 ---
 
 ## Current Plan
@@ -33,8 +38,8 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 ### Backend Core Modules (📍 NEXT PRIORITY)
 - **Link**: [backend-core-modules.md](./backend-core-modules.md)
 - **Goal**: Complete all 9 core backend modules for production-ready POS system
-- **Status**: Architecture Foundation Complete; Transactions Module Refactored ✅
-- **9 Core Modules** (3 complete, 1 refactored, 5 remaining):
+- **Status**: Architecture Foundation Complete; Transactions Module Refactored; Module 6 Admin-Users Complete ✅
+- **9 Core Modules** (4 complete, 5 remaining):
 
   | Module | Status | Key Operations |
   |--------|--------|-----------------|
@@ -43,12 +48,20 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
   | **3. transactions** | ✅ Refactored (2026-01-25) | Modular structure, all endpoints working |
   | **4. settlements** | ❌ TODO | Create, preview, export CSV/SEPA |
   | **5. terminals** | ❌ TODO | Register, token generation, status |
-  | **6. admin-users** | ⏸️ TODO | CRUD, password reset, activation |
+  | **6. admin-users** | ✅ Done (2026-01-25) | CRUD, password reset, activation |
   | **7. audit-log** | ✅ Done (Phase 1) | List, filter, detail (read-only) |
   | **8. sepa-config** | ❌ TODO | Setup wizard, configuration |
   | **9. dashboard** | ❌ TODO | Statistics, quick actions, sync status |
 
-- **Recent Completion**: Transactions Module Refactoring
+- **Recent Completion**: Module 6: Admin-Users (2026-01-25)
+  - Complete CRUD operations (list, create, read, update, deactivate, reactivate)
+  - Password management: auto-generated 16-char passwords, complexity validation
+  - Business rules: self-deactivation prevention, minimum 1 active admin
+  - Audit logging with password masking
+  - 20/20 E2E tests passing, all patterns implemented
+  - Production-ready implementation
+
+- **Previous Completion**: Transactions Module Refactoring
   - Moved scattered code to dedicated module
   - Implemented ADR-0018 modular architecture
   - All backend patterns (001-016) compliant
@@ -56,13 +69,13 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
   - Serves as template for remaining modules
 
 - **Implementation Order (Updated)**:
-  1. Module 6: Admin-Users (5-7 days)
+  1. ✅ Module 6: Admin-Users (COMPLETE 2026-01-25)
   2. Module 8: SEPA-Config (5-7 days)
   3. Module 4: Settlements (10-15 days — core, depends on Transactions)
   4. Module 5: Terminals (5-7 days)
   5. Module 9: Dashboard (7-10 days)
-- **Tests Required**: 120+ new API tests for remaining 5 modules
-- **Resume Phase 2.A After**: All 5 remaining modules complete (3/9 already done)
+- **Tests Required**: 80+ new API tests for remaining 4 modules
+- **Resume Phase 2.A After**: All 5 remaining modules complete (4/9 already done)
 
 ### Phase 2.A: Terminal Balance & Transaction History (Paused)
 - **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
@@ -146,7 +159,7 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 | Phase 1: Backend Foundation | **✅ Complete** | **23/23 (100%)** | **✅ 112/112** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
 | Phase 3: Backend Products | **✅ Complete** | **12/12 (100%)** | **✅ 50/50** | [phase3-backend-products-module.md](./phase3-backend-products-module.md) |
 | Phase 2.A Backend | **✅ Complete** | **5/7 (100% backend)** | **✅ 25/25** | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
-| **Backend Core Modules** | **📍 NEXT** | **3/9 done (33%)** | — | [backend-core-modules.md](./backend-core-modules.md) |
+| **Backend Core Modules** | **📍 NEXT** | **4/9 done (44%)** | **✅ 20/20** | [backend-core-modules.md](./backend-core-modules.md) |
 | Phase 2.A Terminal UI | ⊘ Deferred | — | — | phase2-terminal-balance-transactions.md |
 | Phase 2.B: Terminal Features | Not Started | — | — | TBD |
 | Phase 4: Admin Panel | Not Started | — | — | TBD |
