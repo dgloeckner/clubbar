@@ -159,6 +159,23 @@ Reference E2E testing patterns in `e2etests/patterns/` directory:
    - Parallel tests can exhaust resources and cause false timeouts
    - Single-worker execution shows actual errors vs resource contention
 
+7. **Re-Run Single Failing Tests Quickly (Playwright --grep)**
+   ```bash
+   # Run only one test by name (exact match)
+   cd e2etests && npm test -- --grep "GET /api/admin/categories returns category list"
+
+   # Run tests matching a pattern (partial match)
+   npm test -- --grep "Categories API"
+
+   # Combine with serial execution for debugging
+   npm test -- --grep "rejects empty names" --workers=1
+   ```
+   - **Use case**: After fixing a bug, quickly re-run the specific test without waiting for the full suite
+   - **Time saving**: 30-second test vs 90+ seconds for full suite
+   - **Pattern matching**: Use partial test names to run related tests (e.g., all validation tests)
+   - **Iteration workflow**: 1) Make code change → 2) Restart PHP → 3) `npm test -- --grep "test name"` → Repeat
+   - **Validation before full run**: Once the grep test passes, run the full suite to ensure no regressions
+
 ### Implementation Plans
 
 **Implementation plans in `plans/` directory are the single source of truth for project status and progress. Do NOT create separate summary or status documents.**
