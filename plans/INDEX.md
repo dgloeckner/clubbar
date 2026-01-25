@@ -25,52 +25,33 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Phase 3: Backend Products Module
-- **Link**: [phase3-backend-products-module.md](./phase3-backend-products-module.md)
-- **Goal**: Implement complete backend API for product and category management (Admin + Terminal sync)
-- **Status**: ✅ **COMPLETE** — All 50 tests passing (Categories: 20/20, Products: 30/30)
-- **Progress** (12 Milestones):
-  - [x] Milestone A: Architecture & Planning (design complete)
-  - [x] Milestone B: Database Migrations (categories table, FK updates) - All migrations passed
-  - [x] Milestone C: Models & Repositories (Product, Category models + repos) - Complete
-  - [x] Milestone D: Services (ProductsService, CategoriesService) - Complete with audit logging
-  - [x] Milestone E: Request Validation (form requests) - All 5 form request classes created with JSON error handling
-  - [x] Milestone F: Admin API - Categories (CRUD + endpoints) - 6 endpoints implemented
-  - [x] Milestone G: Admin API - Products (CRUD + endpoints) - 5 endpoints implemented
-  - [x] Milestone H: Terminal Sync - Products (delta sync endpoint) - Implemented with filters
-  - [x] Milestone I: Terminal Sync - Categories (delta sync endpoint) - Implemented with ordering
-  - [x] Milestone J: Tests - Categories (20/20 tests passing)
-  - [x] Milestone K: Tests - Products (30/30 tests passing)
-  - [x] Milestone L: Integration & Cleanup (routing configured, service provider bound)
-- **Use Cases**:
-  - UC-A40: List Products
-  - UC-A41: Create Product
-  - UC-A42: Edit Product
-  - UC-A43: Deactivate Product
-  - UC-A44: Manage Categories
-- **Key Principles**:
-  - Modular Architecture (ADR-0018)
-  - Multilingual Support (ADR-0002)
-  - Immutable Design (ADR-0004)
-  - Pattern-Compliant (001-008, 016)
-
----
-
-## Current Plan
-
 ### Backend Core Modules (📍 NEXT PRIORITY)
 - **Link**: [backend-core-modules.md](./backend-core-modules.md)
-- **Goal**: Complete all core backend modules for production-ready POS system
-- **Status**: Planning & Prioritization
-- **5 Core Modules**:
-  1. **Module 1: Settlement System** (P0) — SEPA, payments, accounting
-  2. **Module 2: Advanced Transactions** (P0) — Reversals, corrections, manual bookings
-  3. **Module 3: Admin/User Management** (P0) — Admin CRUD, roles, password management
-  4. **Module 4: Reporting & Analytics** (P1) — Dashboard, reports, audit logs
-  5. **Module 5: Card Management** (P1) — Card blocking, unassigned cards
-- **Why**: Ensures stable, complete backend API before building terminal UI
-- **Tests Required**: 100+ API tests across all modules
-- **Resume Phase 2.A After**: All 5 modules complete and tested
+- **Goal**: Complete all 9 core backend modules for production-ready POS system
+- **Status**: Gap Analysis Complete — Ready to Implement
+- **9 Core Modules** (3 complete, 6 remaining):
+
+  | Module | Status | Key Operations |
+  |--------|--------|-----------------|
+  | **1. members** | ✅ Done (Phase 1) | CRUD, GDPR, balance view |
+  | **2. products** | ✅ Done (Phase 3) | CRUD, toggle, category filter |
+  | **3. transactions** | ⏸️ Enhance | List, filter, corrections |
+  | **4. settlements** | ❌ TODO | Create, preview, export CSV/SEPA |
+  | **5. terminals** | ❌ TODO | Register, token generation, status |
+  | **6. admin-users** | ⏸️ Enhance | CRUD, password reset, activation |
+  | **7. audit-log** | ✅ Done (Phase 1) | List, filter, detail (read-only) |
+  | **8. sepa-config** | ❌ TODO | Setup wizard, configuration |
+  | **9. dashboard** | ❌ TODO | Statistics, quick actions, sync status |
+
+- **Implementation Order**:
+  1. Module 6: Admin-Users (5-7 days)
+  2. Module 8: SEPA-Config (5-7 days)
+  3. Module 3: Transactions enhancements (2-3 days)
+  4. Module 4: Settlements (10-15 days — core)
+  5. Module 5: Terminals (5-7 days)
+  6. Module 9: Dashboard (7-10 days)
+- **Tests Required**: 120+ new API tests
+- **Resume Phase 2.A After**: All 6 remaining modules complete
 
 ### Phase 2.A: Terminal Balance & Transaction History (Paused)
 - **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
@@ -136,13 +117,14 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 | Plan | Status | Progress | Tests | Link |
 |------|--------|----------|-------|------|
-| Phase 1: Backend Foundation | **✅ Complete** | **23/23 (100%)** | **✅ 112/112 Tests Passing** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
-| Phase 3: Backend Products Module | **✅ Complete** | **12/12 (100%)** | **✅ 50/50 Tests Passing** | [phase3-backend-products-module.md](./phase3-backend-products-module.md) |
-| **Phase 2.A: Terminal Balance & Transactions** | **Backend ✅, UI Deferred** | **5/7 (71%)** | ✅ 25/25 API Tests Passing | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
-| **Backend Core Modules** | **📍 NEXT PRIORITY** | TBD | - | To be planned |
-| Phase 2.B: Terminal Core Features | Not Started | - | - | TBD |
-| Phase 4: Admin Panel Frontend | Not Started | - | - | TBD |
-| Phase 5: Advanced Features | Not Started | - | - | TBD |
+| Phase 1: Backend Foundation | **✅ Complete** | **23/23 (100%)** | **✅ 112/112** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
+| Phase 3: Backend Products | **✅ Complete** | **12/12 (100%)** | **✅ 50/50** | [phase3-backend-products-module.md](./phase3-backend-products-module.md) |
+| Phase 2.A Backend | **✅ Complete** | **5/7 (100% backend)** | **✅ 25/25** | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
+| **Backend Core Modules** | **📍 NEXT** | **3/9 done (33%)** | — | [backend-core-modules.md](./backend-core-modules.md) |
+| Phase 2.A Terminal UI | ⊘ Deferred | — | — | phase2-terminal-balance-transactions.md |
+| Phase 2.B: Terminal Features | Not Started | — | — | TBD |
+| Phase 4: Admin Panel | Not Started | — | — | TBD |
+| Phase 5: Advanced | Not Started | — | — | TBD |
 
 ### Phase 1 Status: Test-Driven Verification
 

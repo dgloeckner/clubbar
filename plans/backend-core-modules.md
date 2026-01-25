@@ -1,83 +1,124 @@
 # Backend Core Modules Implementation Plan
 
-**Goal**: Complete all core backend modules required for a production-ready POS system before building terminal UI.
+**Goal**: Implement all 9 core backend modules for a complete production-ready POS system.
 
-**Status**: Planning & Prioritization
+**Status**: Inventory & Gap Analysis
 
-**Timeline**: Sequential implementation of 5 core modules + completion of 3 cross-cutting concerns
+**Timeline**: Sequential implementation of remaining core modules
 
 ---
 
-## Overview
+## Core Modules Inventory
 
-After completing Phase 1 (Members), Phase 3 (Products), and Phase 2.A Backend (Balance tracking), the following core backend modules remain to complete the system:
+| # | Module | Description | Status |
+|---|--------|-------------|--------|
+| 1 | **members** | Member management (CRUD, GDPR, balance view) | ✅ **COMPLETE** (Phase 1) |
+| 2 | **products** | Product catalog (CRUD, toggle, category filter) | ✅ **COMPLETE** (Phase 3) |
+| 3 | **transactions** | Transaction journal (list, filter, corrections) | ⏸️ **PARTIAL** (list/filter done, corrections needed) |
+| 4 | **settlements** | Periodic billing (create, preview, export CSV/SEPA, revoke) | ❌ **NOT STARTED** |
+| 5 | **terminals** | Terminal devices (register, token generation, status) | ❌ **NOT STARTED** |
+| 6 | **admin-users** | Admin accounts (CRUD, password reset, activation) | ⏸️ **PARTIAL** (login done, full CRUD needed) |
+| 7 | **audit-log** | Activity history (list, filter, detail, read-only) | ✅ **COMPLETE** (Phase 1) |
+| 8 | **sepa-config** | SEPA settings (setup wizard, configuration) | ❌ **NOT STARTED** |
+| 9 | **dashboard** | Overview (statistics, quick actions, sync status) | ❌ **NOT STARTED** |
 
-| Module | Purpose | Priority | Estimated Scope |
-|--------|---------|----------|------------------|
-| **Settlement System** | Payment processing, SEPA generation, member accounting | **P0** | Large (Models, APIs, Services, Tests) |
-| **Advanced Transactions** | Corrections, reversals, manual bookings, exports | **P0** | Medium (extend existing) |
-| **Admin/User Management** | Admin CRUD, roles, password management, organization settings | **P0** | Medium (Models, APIs, Tests) |
-| **Reporting & Analytics** | Dashboard, reports, audit logs, member ranking | **P1** | Large (Services, APIs, Tests) |
-| **Card Management** | Unassigned cards, card blocking, card lifecycle | **P1** | Small (extend Members) |
-| **GDPR/Data Protection** | Right to access, erasure, rectification, audit trails | **P1** | Medium (extend existing) |
+### Remaining Work Summary
+
+**Must Complete**:
+- Module 4: **settlements** (Large)
+- Module 5: **terminals** (Medium)
+- Module 6: **admin-users** (Medium - enhancement)
+- Module 8: **sepa-config** (Medium)
+- Module 9: **dashboard** (Large)
+
+**Should Complete**:
+- Module 3: **transactions** (Small - enhancements for corrections)
 
 ---
 
 ## Dependencies & Prerequisites
 
-### Must Be Complete First
+### Already Complete
 
-✅ **Phase 1: Backend Foundation**
-- Members module with RFID cards
-- Authentication (session-based admin, bearer-token terminal)
-- GDPR endpoints (export, anonymize)
+✅ **Module 1: members** (Phase 1)
+- Member CRUD, RFID cards
+- GDPR export/anonymization
+- Balance view
+
+✅ **Module 2: products** (Phase 3)
+- Product CRUD, categories
+- Activation toggle
+- Category filtering
+
+✅ **Module 7: audit-log** (Phase 1)
 - Audit logging infrastructure
+- Activity history
 
-✅ **Phase 3: Backend Products Module**
-- Products and categories
-- Product management APIs
-- Terminal sync endpoints
-
-✅ **Phase 2.A Backend: Balance Tracking**
-- Member balance state management
+✅ **Phase 2.A Backend**
+- Balance tracking
 - Transaction history API
-- Balance updates on sync
 
-### External Dependencies
+### External Infrastructure
 
-- Laravel framework (Phase 1) ✅
-- Database migrations framework ✅
-- Bearer token authentication (Phase 1) ✅
-- Audit logging service (Phase 1) ✅
-- PHPUnit/Playwright test framework ✅
+- Laravel framework ✅
+- Database migrations ✅
+- Bearer token authentication ✅
+- Session authentication ✅
+- PHPUnit/Playwright testing ✅
 
 ---
 
-## Module 1: Settlement System (P0 — Priority)
+## Module 3: Transactions (Partial — Enhancement)
 
-### Objective
+**Status**: ⏸️ Phase 2.A Backend implemented list/filter; needs corrections
 
-Implement complete settlement workflow for accounting and payments. Enables:
-- Admin to create settlements (accounting periods)
-- Calculate member balances and amounts due
-- Generate SEPA XML for bank transfers
-- Track payment status and history
+### Key Operations
 
-### Scope
+- List transactions (with filters)
+- Filter by member, date range, type
+- Record corrections/reversals
+- Export transactions
 
-**Milestones**:
+### Remaining Work
 
-| # | Milestone | Scope | Status |
-|---|-----------|-------|--------|
-| 1.A | Architecture & ADRs | Settlement workflow, SEPA strategy | [ ] |
-| 1.B | Database Schema | settlements, settlement_members, sepa_mandates tables | [ ] |
-| 1.C | Models & Repositories | Settlement, SettlementMember, SepaMandatemodels | [ ] |
-| 1.D | Service Layer | SettlementService (create, calculate, finalize) | [ ] |
-| 1.E | SEPA Generation | SEPA XML export with validation | [ ] |
-| 1.F | Admin APIs | POST/GET endpoints for settlement CRUD | [ ] |
-| 1.G | CSV Export | CSV download for reconciliation | [ ] |
-| 1.H | Member IBAN Management | Admin API to manage member bank accounts | [ ] |
-| 1.I | API Tests | Playwright tests for all settlement endpoints | [ ] |
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 3.A | Correction Booking | POST endpoint to record manual corrections | [ ] |
+| 3.B | Reversal Records | Track reversed/corrected transactions | [ ] |
+| 3.C | Export Endpoint | CSV export of transactions | [ ] |
+| 3.D | API Tests | Tests for corrections and exports | [ ] |
+
+### Related Use Cases
+
+- UC-A21: Manual Booking
+- UC-A22: Export Transactions
+
+---
+
+## Module 4: Settlements (New — Large)
+
+**Status**: ❌ NOT STARTED
+
+### Key Operations
+
+- Create settlement (accounting period)
+- Preview settlement (before finalizing)
+- Export CSV (reconciliation)
+- Export SEPA XML (bank transfers)
+- Revoke settlement
+
+### Required Implementation
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 4.A | Architecture | Settlement workflow design | [ ] |
+| 4.B | Database Schema | settlements, settlement_members tables | [ ] |
+| 4.C | Models & Repos | Settlement model and repository | [ ] |
+| 4.D | Service Layer | SettlementService (create, calculate, export) | [ ] |
+| 4.E | CSV Export | Settlement export as CSV | [ ] |
+| 4.F | SEPA XML Export | SEPA XML generation with validation | [ ] |
+| 4.G | Admin APIs | POST/GET/DELETE endpoints | [ ] |
+| 4.H | API Tests | 25+ tests for settlement operations | [ ] |
 
 ### Related Use Cases
 
@@ -87,152 +128,130 @@ Implement complete settlement workflow for accounting and payments. Enables:
 - UC-A33: Settlement History
 - UC-A34: Settlement Details
 - UC-A35: Manual Settlement
-- UC-SEPA-01 through UC-SEPA-09: SEPA configuration and workflows
-
-### Success Criteria
-
-- [ ] Settlement creation calculates correct balances per member
-- [ ] SEPA XML generation valid (validates against XSD)
-- [ ] CSV export includes all required fields
-- [ ] All settlement workflows tested (create, preview, finalize, export)
-- [ ] 30+ API tests passing
 
 ---
 
-## Module 2: Advanced Transactions (P0 — Priority)
+## Module 5: Terminals (New — Medium)
 
-### Objective
+**Status**: ❌ NOT STARTED
 
-Extend transaction system to support corrections, reversals, and advanced operations.
+### Key Operations
 
-### Scope
+- Register new terminal device
+- Generate API token for terminal
+- Monitor terminal status/activity
+- Update terminal sync cursor
 
-**Milestones**:
+### Required Implementation
 
-| # | Milestone | Scope | Status |
-|---|-----------|-------|--------|
-| 2.A | Architecture | Reversal/correction strategy, API design | [ ] |
-| 2.B | Reversal API | POST endpoint to create reversal transactions | [ ] |
-| 2.C | Manual Booking | Admin ability to book product to member tab | [ ] |
-| 2.D | Transaction Export | CSV export with all transaction details | [ ] |
-| 2.E | API Tests | Tests for reversals, manual bookings, exports | [ ] |
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 5.A | Architecture | Terminal device model, token lifecycle | [ ] |
+| 5.B | Database Schema | terminals table with device info | [ ] |
+| 5.C | Models & Repos | Terminal model and repository | [ ] |
+| 5.D | Service Layer | TerminalService (register, token generation) | [ ] |
+| 5.E | Admin API | POST register, GET list, GET status | [ ] |
+| 5.F | Token Management | Secure token generation and validation | [ ] |
+| 5.G | API Tests | 15+ tests for terminal operations | [ ] |
 
 ### Related Use Cases
 
-- UC-A21: Manual Booking
-- UC-A22: Export Transactions
-
-### Success Criteria
-
-- [ ] Reversals create correct negative transactions
-- [ ] Manual bookings support all fields (product, amount, reason)
-- [ ] Exports include all necessary details
-- [ ] 15+ API tests passing
+- Terminal registration and management
+- Device token lifecycle
 
 ---
 
-## Module 3: Admin/User Management (P0 — Priority)
+## Module 6: Admin-Users (Partial — Enhancement)
 
-### Objective
+**Status**: ⏸️ Phase 1 implemented login; needs full CRUD
 
-Complete admin user lifecycle: creation, password management, role management.
+### Key Operations
 
-### Scope
+- Create admin user
+- List admin users
+- Update admin user (name, email, role)
+- Reset admin password
+- Activate/deactivate admin
 
-**Milestones**:
+### Remaining Work
 
-| # | Milestone | Scope | Status |
-|---|-----------|-------|--------|
-| 3.A | Architecture | Admin roles/permissions design | [ ] |
-| 3.B | Database Schema | admin_roles, admin_permissions tables | [ ] |
-| 3.C | Admin Model | Update User model with role support | [ ] |
-| 3.D | Password Management | Reset endpoint, secure reset flow | [ ] |
-| 3.E | Admin CRUD | Create, list, update, deactivate admins | [ ] |
-| 3.F | Organization Settings | Edit org details (name, address, SEPA config) | [ ] |
-| 3.G | API Tests | Tests for all admin operations | [ ] |
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 6.A | Admin CRUD | POST create, GET list, PATCH update, DELETE deactivate | [ ] |
+| 6.B | Password Reset | Secure reset link, token validation | [ ] |
+| 6.C | Role Management | Admin roles/permissions design | [ ] |
+| 6.D | Database Schema | Extend users table with role/status fields | [ ] |
+| 6.E | API Tests | 20+ tests for admin operations | [ ] |
 
 ### Related Use Cases
 
-- UC-A60: Edit Organization
 - UC-A61: Manage Admins
 - UC-A62: Create Admin
 - UC-A63: Reset Admin Password
 
-### Success Criteria
-
-- [ ] Admin creation with secure password setup
-- [ ] Password reset works with token validation
-- [ ] Org settings editable by authorized admins
-- [ ] 20+ API tests passing
-
 ---
 
-## Module 4: Reporting & Analytics (P1 — Medium Priority)
+## Module 8: SEPA-Config (New — Medium)
 
-### Objective
+**Status**: ❌ NOT STARTED
 
-Provide admin dashboard and reports for business insights.
+### Key Operations
 
-### Scope
+- Setup SEPA configuration (creditor ID, org name, etc.)
+- Edit SEPA configuration
+- Manage member IBANs
+- Validate SEPA mandates
 
-**Milestones**:
+### Required Implementation
 
-| # | Milestone | Scope | Status |
-|---|-----------|-------|--------|
-| 4.A | Architecture | Dashboard metrics, query optimization | [ ] |
-| 4.B | Dashboard API | GET /api/admin/dashboard with key metrics | [ ] |
-| 4.C | Member Ranking | Top spenders, inactive members | [ ] |
-| 4.D | Terminal Activity | Transaction volume, peak times | [ ] |
-| 4.E | Reports Generation | Customizable report queries | [ ] |
-| 4.F | Audit Log API | Query audit trail with filters | [ ] |
-| 4.G | API Tests | Tests for all report endpoints | [ ] |
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 8.A | Architecture | SEPA settings model and validation | [ ] |
+| 8.B | Database Schema | sepa_config, member_ibans tables | [ ] |
+| 8.C | Models & Repos | SepaConfig, MemberIban models | [ ] |
+| 8.D | Service Layer | SepaConfigService (setup, validate) | [ ] |
+| 8.E | Admin API | Setup wizard, configuration edit | [ ] |
+| 8.F | Member IBAN API | Admin can set/update member IBANs | [ ] |
+| 8.G | API Tests | 15+ tests for SEPA configuration | [ ] |
 
 ### Related Use Cases
 
-- UC-A50: Reports
+- UC-SEPA-01: SEPA Config Setup
+- UC-SEPA-02: Config Update
+- UC-SEPA-03: Member IBAN
+- UC-SEPA-04: Mandate Reference
+
+---
+
+## Module 9: Dashboard (New — Large)
+
+**Status**: ❌ NOT STARTED
+
+### Key Operations
+
+- Display overview statistics (members, transactions, balance)
+- Show quick actions (create settlement, view recent activity)
+- Display sync status across terminals
+- Show recent transactions/activity
+
+### Required Implementation
+
+| # | Task | Details | Status |
+|---|------|---------|--------|
+| 9.A | Architecture | Dashboard metrics and data models | [ ] |
+| 9.B | Service Layer | DashboardService (aggregate metrics, optimize queries) | [ ] |
+| 9.C | API Endpoint | GET /api/admin/dashboard with all metrics | [ ] |
+| 9.D | Member Ranking | Top spenders, active/inactive members | [ ] |
+| 9.E | Terminal Activity | Terminal sync status, recent activity | [ ] |
+| 9.F | Audit Summary | Recent admin actions | [ ] |
+| 9.G | API Tests | 20+ tests for dashboard endpoints | [ ] |
+
+### Related Use Cases
+
+- UC-A80: Dashboard
 - UC-A51: Member Ranking
 - UC-A52: Terminal Activity
-- UC-A80: Dashboard
-- UC-A81: Audit Log
-
-### Success Criteria
-
-- [ ] Dashboard returns metrics in <500ms
-- [ ] Member ranking queries efficient (indexed)
-- [ ] Audit log queryable by date, user, action
-- [ ] 20+ API tests passing
-
----
-
-## Module 5: Card Management & Blocking (P1 — Lower Priority)
-
-### Objective
-
-Track unassigned RFID cards and enable card blocking for lost/stolen cards.
-
-### Scope
-
-**Milestones**:
-
-| # | Milestone | Scope | Status |
-|---|-----------|-------|--------|
-| 5.A | Architecture | Card blocking strategy | [ ] |
-| 5.B | Database Schema | Extend cards table with blocked_at, reason | [ ] |
-| 5.C | Card Blocking API | POST endpoint to block card | [ ] |
-| 5.D | Unassigned Cards List | GET endpoint to list unassigned cards | [ ] |
-| 5.E | Terminal Integration | Terminal blocks banned cards on sync | [ ] |
-| 5.F | API Tests | Tests for blocking, unassigned card list | [ ] |
-
-### Related Use Cases
-
-- UC-A70: Unassigned Cards
-- UC-A71: Block Card
-
-### Success Criteria
-
-- [ ] Blocked cards rejected by terminal
-- [ ] Unassigned cards tracked and queryable
-- [ ] 10+ API tests passing
+- UC-A50: Reports (general)
 
 ---
 
@@ -240,7 +259,7 @@ Track unassigned RFID cards and enable card blocking for lost/stolen cards.
 
 ### 1. Pattern Compliance
 
-All modules must follow backend patterns:
+All modules must follow backend patterns (Patterns 001-016):
 - **Pattern 001**: Form Requests for validation
 - **Pattern 002**: Enums for type-safe values
 - **Pattern 003**: DTOs for responses
@@ -254,11 +273,11 @@ All modules must follow backend patterns:
 ### 2. Testing Strategy (ADR-0022)
 
 Each module must include:
-- Unit tests (PHPUnit) for services and repositories
+- Unit tests (PHPUnit) for services/repositories
 - API tests (Playwright) for all endpoints
 - Validation tests (required/optional fields)
 - Error scenarios (4xx, 5xx responses)
-- Authorization tests (authenticated/unauthenticated)
+- Authorization tests
 
 **Target**: 80%+ code coverage per module
 
@@ -266,64 +285,80 @@ Each module must include:
 
 Every data mutation must log via AuditService:
 - CREATE operations
-- UPDATE operations with old/new values
+- UPDATE operations (with old/new values)
 - DELETE operations (or deactivations)
-- Special actions (settlements, exports, payments)
+- Special actions (settlements, exports, SEPA)
 
 ### 4. Documentation
 
 Each module needs:
-- ADR for architectural decisions
-- Updated ERMs for new tables
+- ADR for key architectural decisions
+- Updated ERM diagrams for new tables
 - Updated OpenAPI specs for new endpoints
 - Use case fulfillment checklist
 
 ---
 
-## Implementation Order
+## Implementation Order (Dependency-Aware)
 
-**Recommended sequence** (dependency-aware):
+**Phase 1 — Foundation**:
+1. **Module 6: Admin-Users** (enhancement)
+   - Needed for: Authorization in other modules
+   - Dependencies: None (builds on Phase 1)
+   - Unblocks: Modules 4, 8, 9
 
-1. **Module 3: Admin/User Management**
-   - Required for: Settings, authorization, admin dashboard
-   - No dependencies on other new modules
-   - Unblocks: Modules 4, 5
+2. **Module 8: SEPA-Config**
+   - Needed for: Module 4 (settlement configuration)
+   - Dependencies: Module 6
+   - Unblocks: Module 4
 
-2. **Module 2: Advanced Transactions**
-   - Extends existing transaction system
-   - Required for: Module 1 (settlement calculations)
-   - Unblocks: Module 1
+**Phase 2 — Core Business Logic**:
+3. **Module 3: Transactions** (enhancement)
+   - Needed for: Module 4 (settlement calculations)
+   - Dependencies: None (extends Phase 2.A)
+   - Unblocks: Module 4
 
-3. **Module 1: Settlement System**
-   - Largest module; most business-critical
-   - Depends on: Module 2, Module 3
-   - Final core functionality
+4. **Module 4: Settlements** (large)
+   - Core business functionality
+   - Dependencies: Modules 3, 6, 8
+   - Unblocks: All complete systems
 
-4. **Module 5: Card Management**
-   - Independent from others
-   - Can run in parallel with Module 1
-   - Lower priority
+**Phase 3 — Operations**:
+5. **Module 5: Terminals** (medium)
+   - Device management and token lifecycle
+   - Dependencies: Module 6
+   - Can run in parallel with other phases
 
-5. **Module 4: Reporting & Analytics**
-   - Can start once Modules 1, 3 complete
-   - Provides read-only queries, no conflicts
-   - Builds on existing audit log
+6. **Module 9: Dashboard** (large)
+   - Read-only aggregation queries
+   - Dependencies: Modules 3, 4, 5, 6
+   - Final piece
 
 ---
 
 ## Success Criteria (Overall)
 
-All modules complete when:
+**9-Core-Modules Complete When**:
 
-- [ ] All 5 modules implemented and tested
-- [ ] 100+ API tests passing across all modules
+- [x] Module 1: members — Complete ✅ (Phase 1)
+- [x] Module 2: products — Complete ✅ (Phase 3)
+- [x] Module 7: audit-log — Complete ✅ (Phase 1)
+- [ ] Module 3: transactions — Enhancements (2-3 days)
+- [ ] Module 4: settlements — Full implementation (10-15 days)
+- [ ] Module 5: terminals — Full implementation (5-7 days)
+- [ ] Module 6: admin-users — Full CRUD (5-7 days)
+- [ ] Module 8: sepa-config — Full implementation (5-7 days)
+- [ ] Module 9: dashboard — Full implementation (7-10 days)
+
+**Overall Completion Criteria**:
+- [ ] All 6 remaining modules implemented and tested
+- [ ] 120+ new API tests passing across modules
 - [ ] All patterns followed consistently
-- [ ] ADRs written for architectural decisions
 - [ ] Database migrations for all schema changes
 - [ ] OpenAPI specs updated for all endpoints
-- [ ] No console errors or warnings in tests
-- [ ] Code review checklist passed
-- [ ] Ready for Phase 2.A Terminal UI resumption
+- [ ] ADRs written for architectural decisions
+- [ ] No console errors/warnings in tests
+- [ ] Ready for Phase 2.A Terminal UI
 
 ---
 
@@ -332,10 +367,11 @@ All modules complete when:
 | Risk | Impact | Mitigation |
 |------|--------|-----------|
 | Settlement calculations incorrect | High | Extensive calculation tests; peer review |
-| SEPA XML validation failures | High | XSD validation; test with real bank |
-| Performance issues with large datasets | Medium | Query optimization; database indexes; caching |
-| Incomplete pattern compliance | Medium | Automated linter; peer review checklist |
-| Missing test coverage | Medium | Coverage reports; enforce 80% minimum |
+| SEPA XML validation failures | High | XSD validation; test against bank specs |
+| Token expiration/lifecycle issues | High | Clear token lifecycle; comprehensive tests |
+| Dashboard performance issues | Medium | Query optimization; caching strategy |
+| Pattern compliance gaps | Medium | Automated checks; code review |
+| Test coverage gaps | Medium | Coverage reports; minimum 80% enforced |
 
 ---
 
