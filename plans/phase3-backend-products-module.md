@@ -41,8 +41,8 @@
 | **G. Admin API: Products** | [x] | CRUD operations for products (controllers + routing) |
 | **H. Terminal Sync: Products** | [x] | GET /api/sync/products endpoint for terminal |
 | **I. Terminal Sync: Categories** | [x] | GET /api/sync/categories endpoint for terminal |
-| **J. Tests: Categories** | [~] | 20 API tests created and ready for execution |
-| **K. Tests: Products** | [~] | 40+ API tests created, authentication fixture integration needed |
+| **J. Tests: Categories** | [~] | 20 API tests: 14 passing, 6 failing (validation error handling) |
+| **K. Tests: Products** | [~] | 40+ API tests: 20 passing, 8 failing (validation error handling) |
 | **L. Integration & Cleanup** | [x] | Module registration, service provider bindings, routes configured |
 
 ---
@@ -612,7 +612,7 @@ Response 400: If deactivating product in active category (warning only)
 
 **Objective**: Write comprehensive API tests for category endpoints.
 
-**Status**: [ ] PENDING
+**Status**: [~] IN PROGRESS (14/20 tests passing)
 
 ### Tasks
 
@@ -682,7 +682,7 @@ Response 400: If deactivating product in active category (warning only)
 
 **Objective**: Write comprehensive API tests for product endpoints.
 
-**Status**: [ ] PENDING
+**Status**: [~] IN PROGRESS (20/40+ tests passing)
 
 ### Tasks
 
