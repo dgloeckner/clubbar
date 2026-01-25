@@ -81,6 +81,16 @@ Reference backend code patterns in `backend/patterns/` directory:
 
 **Important**: All backend work must follow these patterns for consistency with ADR-0018 (Modular Architecture) and to maintain code quality across modules.
 
+### E2E Testing Patterns
+
+Reference E2E testing patterns in `e2etests/patterns/` directory:
+- **Pattern 001**: Test Data Isolation — create unique test data per test, avoid shared/mutated state
+- **Pattern 002**: Authentication Isolation — properly isolate session-based and bearer token authentication
+- **Pattern 003**: Database-Agnostic Assertions — search for specific data by ID instead of assuming position
+- **Pattern 004**: Parallel Execution Safety — design tests for safe concurrent execution
+
+**Important**: All E2E tests must follow these patterns for reliability, parallel execution safety, and consistent test behavior. See `e2etests/patterns/README.md` for detailed guidance and examples.
+
 ### Development Approach
 - **Prefer a planned approach with milestones** over tackling all issues at once
 - **Break work into phases** — plan before implementing
@@ -210,6 +220,7 @@ Reference backend code patterns in `backend/patterns/` directory:
 | `docker/` | Docker Compose configuration for local development |
 | `docs/` | Entity-Relationship Models and data documentation |
 | `e2etests/` | Playwright API and E2E tests |
+| `e2etests/patterns/` | **E2E testing patterns for robust, isolated, parallel-safe tests** |
 | `plans/` | Implementation plans with testable milestones |
 | `prototypes/` | Interactive UI prototypes (React JSX + standalone HTML) |
 | `terminal/` | Terminal App technology decisions and architecture |
