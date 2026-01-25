@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/auth.fixture';
 
 /**
  * Sync Products endpoint tests
@@ -7,13 +7,9 @@ import { test, expect } from '@playwright/test';
  * Returns products modified since the `since` timestamp (delta sync).
  */
 
-const validToken = process.env.TEST_TERMINAL_TOKEN;
-const authHeaders = validToken ? { 'Authorization': `Bearer ${validToken}` } : {};
-
 test.describe('Sync Products Endpoint', () => {
-  test('GET /api/sync/products returns product delta response', async ({ request }) => {
-    const response = await request.get('/api/sync/products', {
-      headers: authHeaders,
+  test('GET /api/sync/products returns product delta response', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get('/api/sync/products', {
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -30,9 +26,8 @@ test.describe('Sync Products Endpoint', () => {
     expect(typeof body.has_more).toBe('boolean');
   });
 
-  test('GET /api/sync/products returns valid product objects', async ({ request }) => {
-    const response = await request.get('/api/sync/products', {
-      headers: authHeaders,
+  test('GET /api/sync/products returns valid product objects', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get('/api/sync/products', {
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -53,9 +48,8 @@ test.describe('Sync Products Endpoint', () => {
     expect(product.updated_at).toBeDefined();
   });
 
-  test('GET /api/sync/products returns multilingual names and descriptions', async ({ request }) => {
-    const response = await request.get('/api/sync/products', {
-      headers: authHeaders,
+  test('GET /api/sync/products returns multilingual names and descriptions', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get('/api/sync/products', {
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -77,9 +71,8 @@ test.describe('Sync Products Endpoint', () => {
     }
   });
 
-  test('GET /api/sync/products returns valid price in cents', async ({ request }) => {
-    const response = await request.get('/api/sync/products', {
-      headers: authHeaders,
+  test('GET /api/sync/products returns valid price in cents', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get('/api/sync/products', {
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -92,9 +85,8 @@ test.describe('Sync Products Endpoint', () => {
     }
   });
 
-  test('GET /api/sync/products count matches products array length', async ({ request }) => {
-    const response = await request.get('/api/sync/products', {
-      headers: authHeaders,
+  test('GET /api/sync/products count matches products array length', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get('/api/sync/products', {
       params: { since: '1970-01-01T00:00:00Z' },
     });
 
@@ -102,9 +94,8 @@ test.describe('Sync Products Endpoint', () => {
     expect(body.count).toBe(body.products.length);
   });
 
-  test('GET /api/sync/products returns JSON content type', async ({ request }) => {
-    const response = await request.get('/api/sync/products', {
-      headers: authHeaders,
+  test('GET /api/sync/products returns JSON content type', async ({ authenticatedTerminalRequest }) => {
+    const response = await authenticatedTerminalRequest.get('/api/sync/products', {
       params: { since: '1970-01-01T00:00:00Z' },
     });
 

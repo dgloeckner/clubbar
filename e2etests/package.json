@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "E2E and API tests for Ruderbar POS system",
   "scripts": {
-    "test": "playwright test",
+    "test": "playwright test --workers 4",
     "test:api": "playwright test --project=api-tests",
     "test:admin": "playwright test --project=admin-chromium",
     "test:terminal": "playwright test --project=terminal-touch",
