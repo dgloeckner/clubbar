@@ -21,6 +21,11 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 - **Achievement**: Complete product and category management API (Admin + Terminal sync) with full test coverage
 - **Result**: 50/50 tests passing (Categories: 20/20, Products: 30/30); JSON validation error handling; immutable design; audit logging
 
+### Transactions Module Refactoring
+- **Completion Date**: 2026-01-25
+- **Achievement**: Refactored WIP Transactions module to follow ADR-0018 modular architecture and all backend patterns
+- **Result**: 41/41 transaction tests passing; 211/215 total tests (no regressions); 100% architecture compliant; production-ready module serving as template for future modules
+
 ---
 
 ## Current Plan
@@ -28,30 +33,36 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 ### Backend Core Modules (📍 NEXT PRIORITY)
 - **Link**: [backend-core-modules.md](./backend-core-modules.md)
 - **Goal**: Complete all 9 core backend modules for production-ready POS system
-- **Status**: Gap Analysis Complete — Ready to Implement
-- **9 Core Modules** (3 complete, 6 remaining):
+- **Status**: Architecture Foundation Complete; Transactions Module Refactored ✅
+- **9 Core Modules** (3 complete, 1 refactored, 5 remaining):
 
   | Module | Status | Key Operations |
   |--------|--------|-----------------|
   | **1. members** | ✅ Done (Phase 1) | CRUD, GDPR, balance view |
   | **2. products** | ✅ Done (Phase 3) | CRUD, toggle, category filter |
-  | **3. transactions** | ⏸️ Enhance | List, filter, corrections |
+  | **3. transactions** | ✅ Refactored (2026-01-25) | Modular structure, all endpoints working |
   | **4. settlements** | ❌ TODO | Create, preview, export CSV/SEPA |
   | **5. terminals** | ❌ TODO | Register, token generation, status |
-  | **6. admin-users** | ⏸️ Enhance | CRUD, password reset, activation |
+  | **6. admin-users** | ⏸️ TODO | CRUD, password reset, activation |
   | **7. audit-log** | ✅ Done (Phase 1) | List, filter, detail (read-only) |
   | **8. sepa-config** | ❌ TODO | Setup wizard, configuration |
   | **9. dashboard** | ❌ TODO | Statistics, quick actions, sync status |
 
-- **Implementation Order**:
+- **Recent Completion**: Transactions Module Refactoring
+  - Moved scattered code to dedicated module
+  - Implemented ADR-0018 modular architecture
+  - All backend patterns (001-016) compliant
+  - 41/41 tests passing, zero regressions
+  - Serves as template for remaining modules
+
+- **Implementation Order (Updated)**:
   1. Module 6: Admin-Users (5-7 days)
   2. Module 8: SEPA-Config (5-7 days)
-  3. Module 3: Transactions enhancements (2-3 days)
-  4. Module 4: Settlements (10-15 days — core)
-  5. Module 5: Terminals (5-7 days)
-  6. Module 9: Dashboard (7-10 days)
-- **Tests Required**: 120+ new API tests
-- **Resume Phase 2.A After**: All 6 remaining modules complete
+  3. Module 4: Settlements (10-15 days — core, depends on Transactions)
+  4. Module 5: Terminals (5-7 days)
+  5. Module 9: Dashboard (7-10 days)
+- **Tests Required**: 120+ new API tests for remaining 5 modules
+- **Resume Phase 2.A After**: All 5 remaining modules complete (3/9 already done)
 
 ### Phase 2.A: Terminal Balance & Transaction History (Paused)
 - **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
