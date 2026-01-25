@@ -1,9 +1,7 @@
 import { test as base, APIRequestContext } from "@playwright/test";
+import { TEST_CREDENTIALS } from "../config/test-credentials";
 
 const API_BASE = "http://localhost:8080/api";
-const ADMIN_EMAIL = "admin@example.com";
-const ADMIN_PASSWORD = "password123";
-const TERMINAL_TOKEN = process.env.TEST_TERMINAL_TOKEN || "";
 
 /**
  * Authenticated Request Fixtures
@@ -165,8 +163,8 @@ export const test = base.extend<AuthFixtures>({
     // Login and get session cookie
     const loginResponse = await request.post(`${API_BASE}/auth/login`, {
       data: {
-        email: ADMIN_EMAIL,
-        password: ADMIN_PASSWORD,
+        email: TEST_CREDENTIALS.admin.email,
+        password: TEST_CREDENTIALS.admin.password,
       },
     });
 
@@ -194,9 +192,9 @@ export const test = base.extend<AuthFixtures>({
     // Create terminal request wrapper with bearer token
     const terminalRequest = new TerminalRequestContext(
       request,
-      TERMINAL_TOKEN
+      TEST_CREDENTIALS.terminal.token
     ) as any;
-    terminalRequest.token = TERMINAL_TOKEN;
+    terminalRequest.token = TEST_CREDENTIALS.terminal.token;
 
     // Provide the authenticated terminal request to the test
     await use(terminalRequest);

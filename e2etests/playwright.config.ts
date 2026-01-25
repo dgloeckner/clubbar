@@ -1,9 +1,4 @@
 import { defineConfig, devices } from '@playwright/test';
-import dotenv from 'dotenv';
-import path from 'path';
-
-// Load environment variables from .env.local
-dotenv.config({ path: path.join(__dirname, '.env.local') });
 
 /**
  * Ruderbar E2E Test Configuration
@@ -12,6 +7,9 @@ dotenv.config({ path: path.join(__dirname, '.env.local') });
  * - api-tests: Backend API testing (no browser)
  * - admin-chromium: Admin Panel UI tests
  * - terminal-touch: Terminal App touch tests
+ *
+ * Note: Tests use hardcoded credentials from config/test-credentials.ts
+ * No environment variables needed - credentials are deterministic and reproducible
  *
  * @see https://playwright.dev/docs/test-configuration
  */
