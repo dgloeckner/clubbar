@@ -19,6 +19,78 @@
 
 ---
 
+### Responsive Implementation Approach
+
+**CSS-in-JS Strategy** (using template literals or styled-components):
+
+1. **Define Breakpoints as Constants**:
+```typescript
+const breakpoints = {
+  desktop: '1024px',   // 1024px+
+  tablet: '768px',     // 769-1024px
+  mobile: '481px',     // 481-768px
+  smallMobile: '480px' // ≤480px
+};
+```
+
+2. **Use Media Queries in Component Styles**:
+```typescript
+const headerStyles = {
+  default: {
+    flexDirection: 'row',
+    height: 64,
+    // ...
+  },
+  '@media (max-width: 768px)': {
+    flexDirection: 'column',
+    height: 'auto',
+    // ...
+  }
+};
+```
+
+3. **Conditional Rendering for Hidden Elements**:
+```typescript
+// Hide user badge on mobile
+{window.innerWidth > 768 && <AdminBadge />}
+
+// Show table wrapper scroll on mobile
+<div className={isMobile ? 'table-wrapper' : ''}>
+  <table>...</table>
+</div>
+```
+
+4. **Responsive Grid Components**:
+```typescript
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+```
+
+5. **Tailwind CSS Alternative** (if using Tailwind):
+```jsx
+<div className="grid grid-cols-3 md:grid-cols-2 sm:grid-cols-1 gap-4">
+  {/* Stats cards */}
+</div>
+```
+
+**Testing Responsive Behavior**:
+- Playwright tests include viewport configuration
+- Test at all breakpoints: 1440px (desktop), 1024px (tablet), 768px (mobile), 375px (small)
+- Verify layout shifts correctly at breakpoints
+- Verify touch interactions work on mobile
+
+---
+
 ## ⚡ NEXT IMMEDIATE TASK: UI Implementation from frgs-admin-6.html
 
 **Reference**: New prototype `prototypes/frgs-admin-6.html` with updated features
@@ -53,15 +125,39 @@
    - Cards have subtle background color
 
 **Implementation Order**:
-1. Create LoadingIndicator component
+1. Create LoadingIndicator component (responsive: same at all breakpoints)
 2. Create Icon components (8 total)
-3. Update Header with tab nav + icons
-4. Add user badge and logout button
-5. Add stats to Members page
+3. Update Header with tab nav + icons (with responsive behavior)
+4. Add user badge and logout button (hidden on mobile < 768px)
+5. Add stats to Members page (3 cols → 2 cols → 1 col responsive grid)
 6. Wire up loading state across API calls
-7. E2E test each feature
+7. E2E test each feature at all breakpoints
 
-**Expected Output**: Phase 2 core pages match frgs-admin-6.html exactly
+**Responsive Requirements**:
+- **Desktop (1024px+)**: Full layout as designed
+- **Tablet (769-1024px)**:
+  - Stats: 2 columns
+  - Nav tabs: Icons only (hide labels)
+  - Tab gaps: minimal (2px)
+- **Mobile (481-768px)**:
+  - Header: Vertical stack, auto height
+  - Stats: 1 column
+  - Nav tabs: Full width, horizontally scrollable
+  - User badge: HIDDEN
+  - Tables: Horizontally scrollable
+  - Padding: 16px (reduced from 24px)
+- **Small Mobile (≤480px)**:
+  - Nav tabs: Icons only
+  - Logout text: HIDDEN (icon only)
+  - Table cells: Compact padding
+  - Stat cards: Vertical stack, centered
+
+**Viewport Testing Sizes**:
+- Desktop: 1440px
+- Tablet: 1024px, 768px
+- Mobile: 481px, 375px (small)
+
+**Expected Output**: Phase 2 core pages match frgs-admin-6.html exactly with full responsive support
 
 ---
 
@@ -143,6 +239,116 @@ Monospace: For RFID, IBAN, amounts
 - Gaps: 4, 8, 12, 16, 20, 24, 32px
 - Padding: 12, 16, 20, 24px
 - Border radius: 8-20px (cards use 16px)
+
+---
+
+### Responsive Design Strategy
+
+**Breakpoints** (from frgs-admin-6.html):
+```
+Desktop:      1024px+ (full layout)
+Tablet:       769px - 1024px (reduced columns)
+Mobile:       481px - 768px (single column, scrollable)
+Small Mobile: ≤480px (minimal, compact)
+```
+
+#### Desktop (1024px+)
+- **Stats Grid**: 3 columns
+- **Nav Tabs**: Full labels visible + icons
+- **Header**: Horizontal layout (fixed height)
+- **Tables**: Full width, scrollable only if needed
+- **User Badge**: Visible
+- **Logout Button**: Icon + text visible
+
+#### Tablet (769px - 1024px)
+- **Stats Grid**: 2 columns (from 3)
+- **Nav Tabs**: Icons only (no labels via `display: none` on span)
+- **Tab Padding**: Reduced (8px 10px)
+- **Tab Font**: Smaller (13px)
+- **Gap**: Minimal (2px)
+- **Overall**: More compact, icons become primary
+
+#### Mobile (481px - 768px)
+- **Header Layout**: Stacked vertically (flex-direction: column, auto height)
+- **Header Padding**: Reduced (12px 16px)
+- **Nav Tabs**:
+  - Full width with horizontal scroll (overflow-x: auto)
+  - Touch-friendly scrolling (-webkit-overflow-scrolling: touch)
+  - Flex-shrink: 0 (prevents collapse)
+  - Labels back visible
+- **Stats Grid**: 1 column (from 2)
+- **Main Content Padding**: 16px (reduced from 24px)
+- **Stat Cards**: Reduced padding (16px)
+- **Stat Icons**: Smaller (44px, from larger)
+- **Stat Values**: Smaller font (22px)
+- **Card Border Radius**: 12px (from 16px)
+- **Tables**: Horizontally scrollable (min-width: 700px forces scroll)
+- **Modals**: Adjusted margins/padding, fit within viewport
+- **User Badge**: HIDDEN (display: none)
+- **Search Bar**: Full width
+- **Toolbar**: Stacked vertically (flex-direction: column)
+- **Action Buttons**: Wrappable (flex-wrap: wrap)
+
+#### Small Mobile (≤480px)
+- **Header Title**: Smaller font (16px)
+- **Nav Tabs**: Extra compact padding (6px 8px)
+- **Tab Icons**: Smaller (16px, from 20px)
+- **Tab Labels**: HIDDEN (display: none)
+- **Logout Button**: Icon only, HIDDEN text (display: none on span)
+- **Logout Padding**: Compact (8px)
+- **Table Cells**: Minimal padding (10px 8px), smaller font (12px)
+- **Stat Cards**: Vertical flex-direction, centered text
+
+#### Touch Optimization
+- **Scrollable Content**: All areas with overflow use `-webkit-overflow-scrolling: touch` for momentum scrolling
+- **Touch Targets**: Button padding ensures >= 44px clickable area
+- **Tap-Friendly**: Spacing between interactive elements
+
+#### Progressive Enhancement
+1. **Desktop First**: Full feature set, multi-column layouts
+2. **Tablet**: Reduce visual noise, icons become primary navigation
+3. **Mobile**: Essential information only, vertical stacking, horizontal scrolling for tables
+4. **Small Mobile**: Minimum viable UI, text hidden except when essential
+
+#### Responsive Component Strategy
+
+**Stats Grid**:
+```
+Desktop:  grid-template-columns: repeat(3, 1fr)
+Tablet:   grid-template-columns: repeat(2, 1fr)
+Mobile:   grid-template-columns: 1fr
+```
+
+**Nav Tabs Labels**:
+```
+Desktop:  display: inline    (visible)
+Tablet:   display: none      (icons only)
+Mobile:   display: inline    (visible again for clarity)
+Small:    display: none      (icons only, compact)
+```
+
+**Header Layout**:
+```
+Desktop:  flex-direction: row, height: 64px
+Mobile:   flex-direction: column, height: auto
+```
+
+**Tables**:
+```
+Desktop:  Normal width
+Mobile:   Horizontally scrollable container
+          Table min-width: 700px (forces scroll)
+          -webkit-overflow-scrolling: touch
+```
+
+**Badges & Labels**:
+```
+Desktop:  Visible
+Tablet:   Visible (some reduced)
+Mobile:   Hidden to save space (@1024px and @480px)
+```
+
+---
 
 **Shadows**:
 ```
