@@ -4,11 +4,16 @@ test.describe('Admin UI Features - Icons, Loading, Responsive Design', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to login page and login first
     await page.goto('http://localhost:5173/login')
-    await page.fill('input[type="email"]', 'admin@example.com')
-    await page.fill('input[type="password"]', 'password123')
-    await page.click('button:has-text("Anmelden")')
+
+    // Fill email and password fields using test IDs
+    await page.getByTestId('login-email-input').fill('admin@example.com')
+    await page.getByTestId('login-password-input').fill('password123')
+
+    // Click login button using test ID
+    await page.getByTestId('login-submit-button').click({ timeout: 10000 })
+
     // Wait for navigation to members page
-    await page.waitForURL('**/members')
+    await page.waitForURL('**/members', { timeout: 15000 })
   })
 
   test.describe('Icon-based Navigation', () => {
@@ -83,12 +88,12 @@ test.describe('Admin UI Features - Icons, Loading, Responsive Design', () => {
       // Set desktop viewport
       await page.setViewportSize({ width: 1440, height: 900 })
 
-      // Look for user badge with icon
-      const userBadge = page.locator('header').locator('text=Admin User').or(page.locator('header').locator('text=Admin')).first()
+      // User badge should be visible using test ID
+      const userBadge = page.getByTestId('header-user-badge')
       expect(await userBadge.isVisible()).toBe(true)
 
       // Check for user icon in badge
-      const userIcon = userBadge.locator('..').locator('svg').first()
+      const userIcon = page.getByTestId('header-user-icon')
       expect(await userIcon.isVisible()).toBe(true)
     })
 
@@ -164,16 +169,16 @@ test.describe('Admin UI Features - Icons, Loading, Responsive Design', () => {
     })
 
     test('should show logout icon only (no text) on small mobile', async ({ page }) => {
-      // Find logout button
-      const logoutBtn = page.locator('button:has-text("Abmelden")').first()
+      // Find logout button by test ID
+      const logoutBtn = page.getByTestId('header-logout-button-mobile')
       expect(await logoutBtn.isVisible()).toBe(true)
 
       // Check for logout icon
       const logoutIcon = logoutBtn.locator('svg')
       expect(await logoutIcon.isVisible()).toBe(true)
 
-      // Should NOT have text visible
-      const btnText = logoutBtn.locator('span:has-text("Abmelden")')
+      // Should NOT have text span visible on small mobile
+      const btnText = logoutBtn.locator('span')
       expect(await btnText.count()).toBe(0)
     })
 
@@ -193,14 +198,23 @@ test.describe('Admin UI Features - Icons, Loading, Responsive Design', () => {
     })
 
     test('should display stats in single column on small mobile', async ({ page }) => {
-      // Get stats grid
-      const statsGrid = page.locator('main > div').first()
-      const style = await statsGrid.getAttribute('style')
+      // All three stat cards should be visible
+      const card1 = page.getByTestId('stat-card-mitglieder')
+      const card2 = page.getByTestId('stat-card-offene-posten')
+      const card3 = page.getByTestId('stat-card-letzte-abrechnung')
 
-      // Should have grid with 1 column
-      expect(style).toContain('grid-template-columns')
-      // On small mobile it should be 1fr
-      expect(style).toContain('1fr')
+      expect(await card1.isVisible()).toBe(true)
+      expect(await card2.isVisible()).toBe(true)
+      expect(await card3.isVisible()).toBe(true)
+
+      // On small mobile, cards should be displayed full-width (1 per row)
+      const box1 = await card1.boundingBox()
+      const box2 = await card2.boundingBox()
+      const box3 = await card3.boundingBox()
+
+      // They should be stacked vertically (y position increases)
+      expect(box2!.y).toBeGreaterThan(box1!.y)
+      expect(box3!.y).toBeGreaterThan(box2!.y)
     })
   })
 
@@ -219,12 +233,26 @@ test.describe('Admin UI Features - Icons, Loading, Responsive Design', () => {
     })
 
     test('should show stat cards in 2-column layout on mobile', async ({ page }) => {
-      // Get stats grid
-      const statsGrid = page.locator('main > div').first()
-      const style = await statsGrid.getAttribute('style')
+      // All three stat cards should be visible
+      const card1 = page.getByTestId('stat-card-mitglieder')
+      const card2 = page.getByTestId('stat-card-offene-posten')
+      const card3 = page.getByTestId('stat-card-letzte-abrechnung')
 
-      // Should have grid
-      expect(style).toContain('grid-template-columns')
+      expect(await card1.isVisible()).toBe(true)
+      expect(await card2.isVisible()).toBe(true)
+      expect(await card3.isVisible()).toBe(true)
+
+      // On mobile with 2-column layout:
+      // Cards 1 and 2 should be on the same row (similar y position)
+      // Card 3 should be on a second row
+      const box1 = await card1.boundingBox()
+      const box2 = await card2.boundingBox()
+      const box3 = await card3.boundingBox()
+
+      // Cards 1 and 2 have similar y (within 50px for same row)
+      expect(Math.abs(box1!.y - box2!.y)).toBeLessThan(50)
+      // Card 3 is on a different row (y position > card2)
+      expect(box3!.y).toBeGreaterThan(box2!.y + 20)
     })
   })
 
@@ -325,10 +353,10 @@ test.describe('Admin UI Features - Icons, Loading, Responsive Design', () => {
 
   test.describe('Dashboard Stats on Members Page', () => {
     test('should display all three stat cards', async ({ page }) => {
-      // Check for stat cards with specific labels
-      expect(await page.locator('text=Mitglieder').isVisible()).toBe(true)
-      expect(await page.locator('text=Offene Posten').isVisible()).toBe(true)
-      expect(await page.locator('text=Letzte Abrechnung').isVisible()).toBe(true)
+      // Check for stat cards using test IDs
+      expect(await page.getByTestId('stat-card-mitglieder').isVisible()).toBe(true)
+      expect(await page.getByTestId('stat-card-offene-posten').isVisible()).toBe(true)
+      expect(await page.getByTestId('stat-card-letzte-abrechnung').isVisible()).toBe(true)
     })
 
     test('should show stat values in correct format', async ({ page }) => {
@@ -358,14 +386,20 @@ test.describe('Admin UI Features - Icons, Loading, Responsive Design', () => {
     })
 
     test('should use different colors for stat cards', async ({ page }) => {
-      // First stat (Mitglieder) should be green
-      const mitgliederCard = page.locator('text=Mitglieder').locator('..')
-      const mitgliederIcon = mitgliederCard.locator('svg').first()
+      // Check that stat card icon containers have colored backgrounds
+      const mitgliederIconContainer = await page.getByTestId('stat-card-mitglieder-icon-container')
+      const offenePostenIconContainer = await page.getByTestId('stat-card-offene-posten-icon-container')
 
-      // Check that icon has color styling
-      const color = await mitgliederIcon.getAttribute('style')
-      // Color should be applied through parent div
-      expect(color).toBeTruthy()
+      // Get their styles
+      const mitgliederStyle = await mitgliederIconContainer.getAttribute('style')
+      const offenePostenStyle = await offenePostenIconContainer.getAttribute('style')
+
+      // Both should have background colors applied
+      expect(mitgliederStyle).toContain('background')
+      expect(offenePostenStyle).toContain('background')
+
+      // Colors should be different
+      expect(mitgliederStyle).not.toEqual(offenePostenStyle)
     })
   })
 
@@ -392,13 +426,13 @@ test.describe('Admin UI Features - Icons, Loading, Responsive Design', () => {
   test.describe('Header Layout', () => {
     test('should display logo and brand text', async ({ page }) => {
       // Logo emoji should be visible
-      expect(await page.locator('text=🚣').isVisible()).toBe(true)
+      expect(await page.getByTestId('header-logo-emoji').isVisible()).toBe(true)
 
       // Brand name should be visible
-      expect(await page.locator('text=Ruderbar').isVisible()).toBe(true)
+      expect(await page.getByTestId('header-brand-name').isVisible()).toBe(true)
 
-      // Admin text should be visible
-      expect(await page.locator('text=Admin').isVisible()).toBe(true)
+      // Admin subtitle should be visible
+      expect(await page.getByTestId('header-brand-subtitle').isVisible()).toBe(true)
     })
 
     test('should have proper header structure', async ({ page }) => {

@@ -98,6 +98,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         >
           <Link
             to="/"
+            data-testid="header-logo-link"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -106,6 +107,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             }}
           >
             <div
+              data-testid="header-logo-emoji"
               style={{
                 fontSize: theme.typography.fontSize['2xl'],
                 fontWeight: theme.typography.fontWeight.bold,
@@ -116,6 +118,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             </div>
             <div>
               <h1
+                data-testid="header-brand-name"
                 style={{
                   margin: 0,
                   fontSize: theme.typography.fontSize.lg,
@@ -126,6 +129,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 Ruderbar
               </h1>
               <p
+                data-testid="header-brand-subtitle"
                 style={{
                   margin: 0,
                   fontSize: theme.typography.fontSize.xs,
@@ -140,6 +144,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           {/* User Badge on mobile - show logout icon next to logo */}
           {isMobile && (
             <button
+              data-testid="header-logout-button-mobile"
               onClick={handleLogout}
               style={{
                 display: 'flex',
@@ -228,6 +233,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             {/* User Badge - hide on tablet smaller than 768px */}
             {!isTablet && (
               <div
+                data-testid="header-user-badge"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -241,13 +247,14 @@ export function MainLayout({ children }: MainLayoutProps) {
                   whiteSpace: 'nowrap',
                 }}
               >
-                <UserIcon size={20} />
+                <UserIcon size={20} data-testid="header-user-icon" />
                 {displayName || 'Admin'}
               </div>
             )}
 
             {/* Logout Button */}
             <button
+              data-testid="header-logout-button"
               onClick={handleLogout}
               style={{
                 display: 'flex',

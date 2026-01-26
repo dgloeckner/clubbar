@@ -106,6 +106,7 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
           )}
 
           <Input
+            data-testid="login-email-input"
             label="Email"
             type="email"
             value={email}
@@ -121,6 +122,7 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
           />
 
           <Input
+            data-testid="login-password-input"
             label="Password"
             type="password"
             value={password}
@@ -135,7 +137,13 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
             disabled={loading}
           />
 
-          <Button type="submit" disabled={loading} loading={loading} style={{ width: '100%' }}>
+          <Button
+            type="submit"
+            disabled={loading}
+            loading={loading}
+            style={{ width: '100%' }}
+            data-testid="login-submit-button"
+          >
             {loading ? 'Logging in...' : 'Login'}
           </Button>
         </form>

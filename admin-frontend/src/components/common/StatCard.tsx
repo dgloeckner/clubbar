@@ -27,8 +27,12 @@ export function StatCard({ icon, label, value, color = 'blue' }: StatCardProps) 
   const selectedColor = colorMap[color]
   const selectedBgColor = bgColorMap[color]
 
+  // Convert label to kebab-case for test ID
+  const testId = `stat-card-${label.toLowerCase().replace(/\s+/g, '-')}`
+
   return (
     <div
+      data-testid={testId}
       style={{
         background: theme.colors.bg.card,
         border: `1px solid ${theme.colors.border.light}`,
@@ -40,6 +44,7 @@ export function StatCard({ icon, label, value, color = 'blue' }: StatCardProps) 
       }}
     >
       <div
+        data-testid={`${testId}-icon-container`}
         style={{
           width: '52px',
           height: '52px',
@@ -56,6 +61,7 @@ export function StatCard({ icon, label, value, color = 'blue' }: StatCardProps) 
       </div>
       <div>
         <div
+          data-testid={`${testId}-label`}
           style={{
             fontSize: theme.typography.fontSize.sm,
             color: theme.colors.text.secondary,
@@ -65,6 +71,7 @@ export function StatCard({ icon, label, value, color = 'blue' }: StatCardProps) 
           {label}
         </div>
         <div
+          data-testid={`${testId}-value`}
           style={{
             fontSize: '28px',
             fontWeight: theme.typography.fontWeight.bold,
