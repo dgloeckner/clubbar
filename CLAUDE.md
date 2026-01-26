@@ -83,13 +83,19 @@ Reference backend code patterns in `backend/patterns/` directory:
 
 ### E2E Testing Patterns
 
-Reference E2E testing patterns in `e2etests/patterns/` directory:
+Reference E2E testing patterns in `e2etests/patterns/` directory (see **`README.md`** for complete index):
 - **Pattern 001**: Test Data Isolation — create unique test data per test, avoid shared/mutated state
 - **Pattern 002**: Authentication Isolation — properly isolate session-based and bearer token authentication
 - **Pattern 003**: Database-Agnostic Assertions — search for specific data by ID instead of assuming position
 - **Pattern 004**: Parallel Execution Safety — design tests for safe concurrent execution
+- **Pattern 005**: Using Test IDs (data-testid) — use semantic test IDs for reliable, maintainable UI selectors
+- **Pattern 006**: Page Object Model — encapsulate page interactions in reusable classes, private locators, public methods
+- **Pattern 007**: Page Object Fixtures — inject ready-to-use page objects with Playwright fixtures to eliminate boilerplate
+- **Pattern 008**: Playwright Assertions & Auto-Waiting — use `expect()` instead of try-catch visibility checks for clear error messages
 
-**Important**: All E2E tests must follow these patterns for reliability, parallel execution safety, and consistent test behavior. See `e2etests/patterns/README.md` for detailed guidance and examples.
+**Critical**: Pattern 008 fixes a common anti-pattern. Never use `try-catch` for visibility checks. Always use `await expect(locator).toBeVisible()` — Playwright's error messages are far superior and help debug failures immediately.
+
+**Important**: All E2E tests must follow these patterns for reliability, parallel execution safety, and consistent test behavior. **Start here**: `e2etests/patterns/README.md` provides the complete index, quick start guide, and real-world examples. Then reference specific patterns as needed.
 
 ### Admin Frontend Patterns
 

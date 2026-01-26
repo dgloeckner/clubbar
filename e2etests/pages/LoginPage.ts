@@ -41,31 +41,15 @@ export class LoginPage extends BasePage {
   }
 
   /**
-   * Check if login page is loaded
-   */
-  async isLoaded(): Promise<boolean> {
-    return await this.isElementVisible(this.heading())
-  }
-
-  /**
    * Get error message text if displayed
+   * Returns null if error not visible
    */
   async getErrorMessage(): Promise<string | null> {
-    return await this.getElementText(this.errorMessage())
-  }
-
-  /**
-   * Check if error message is visible
-   */
-  async isErrorVisible(): Promise<boolean> {
-    return await this.isElementVisible(this.errorMessage())
-  }
-
-  /**
-   * Check if login button is enabled (for testing disabled state)
-   */
-  async isLoginButtonEnabled(): Promise<boolean> {
-    return !(await this.loginBtn().isDisabled())
+    try {
+      return await this.errorMessage().textContent()
+    } catch {
+      return null
+    }
   }
 
   /**

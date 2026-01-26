@@ -22,16 +22,11 @@ export abstract class BasePage {
     await this.page.waitForLoadState('domcontentloaded')
   }
 
-  /**
-   * Check if a locator is visible without throwing
-   */
-  async isElementVisible(locator: Locator): Promise<boolean> {
-    try {
-      return await locator.isVisible({ timeout: 1000 })
-    } catch {
-      return false
-    }
-  }
+  // Note: Do NOT add isElementVisible() helper method
+  // Instead, use Playwright's expect() API directly in tests:
+  //   await expect(locator).toBeVisible()
+  // This follows Pattern 008: Playwright Assertions & Auto-Waiting
+  // See: e2etests/patterns/008-playwright-assertions.md
 
   /**
    * Get text content from a locator
