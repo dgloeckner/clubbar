@@ -40,10 +40,27 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Backend Core Modules (📍 NEXT PRIORITY)
+### Phase 4: Admin Panel Frontend (📍 NEXT PRIORITY)
+- **Link**: [phase4-admin-frontend.md](./phase4-admin-frontend.md)
+- **Goal**: Build React admin UI for member/product/settlement management with prototype-exact design
+- **Status**: Planning Complete (prototype analysis + implementation roadmap); Ready for Phase 1 implementation
+- **Phase 1**: Project setup & infrastructure (React 18, TypeScript, Vite, Tailwind CSS)
+- **Design Reference**: [PROTOTYPE_ANALYSIS.md](./PROTOTYPE_ANALYSIS.md) - Complete design system specification
+- **Phases Planned** (5 phases, ~8-12 weeks total):
+  1. Project Setup & Infrastructure (1-2 weeks) - Now starting
+  2. Core Pages (2-3 weeks) - Members, Products, Journal CRUD
+  3. Advanced Features (1-2 weeks) - Settlements, Settlement Exports
+  4. E2E Testing (1 week) - Playwright test suite for all pages
+  5. Refinement & Deployment (1-2 weeks) - Polish, performance, production deployment
+
+---
+
+## Completed Plans
+
+### Backend Core Modules ✅ **COMPLETE**
 - **Link**: [backend-core-modules.md](./backend-core-modules.md)
 - **Goal**: Complete all 9 core backend modules for production-ready POS system
-- **Status**: Architecture Foundation Complete; Transactions Module Refactored; Module 6 Admin-Users Complete; Module 4 Settlements Complete; Module 5 Terminals Complete ✅
+- **Status**: ✅ **ALL 9 MODULES COMPLETE** (2026-01-26)
 - **9 Core Modules** (9 complete, 0 remaining) ✅:
 
   | Module | Status | Key Operations |
@@ -79,13 +96,18 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
   - 20/20 E2E tests passing, all patterns implemented
   - Production-ready implementation
 
-- **Implementation Order (Updated)**:
-  1. ✅ Module 6: Admin-Users (COMPLETE 2026-01-25)
-  2. ✅ Module 4: Settlements (COMPLETE 2026-01-26)
-  3. ✅ Module 5: Terminals (COMPLETE 2026-01-26)
-  4. Module 9: Dashboard (7-10 days)
-- **Tests Required**: 25+ new API tests for remaining 1 module
-- **Resume Phase 2.A After**: All core modules complete (5/9 already done)
+- **All 9 Modules Complete**:
+  1. ✅ Module 1: members (Phase 1)
+  2. ✅ Module 2: products (Phase 3)
+  3. ✅ Module 3: transactions (Phase 2.A refactored)
+  4. ✅ Module 4: settlements (2026-01-26)
+  5. ✅ Module 5: terminals (2026-01-26)
+  6. ✅ Module 6: admin-users (2026-01-25)
+  7. ✅ Module 7: audit-log (Phase 1)
+  8. ✅ Module 8: sepa-config (2026-01-26)
+  9. ✅ Module 9: dashboard (2026-01-26)
+- **Total Tests**: 120+ E2E tests across all modules
+- **Backend Status**: ✅ **PRODUCTION-READY** — Ready for Phase 2.A Terminal UI and Phase 4 Admin Frontend
 
 ### Phase 2.A: Terminal Balance & Transaction History (Paused)
 - **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
@@ -169,10 +191,10 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 | Phase 1: Backend Foundation | **✅ Complete** | **23/23 (100%)** | **✅ 112/112** | [phase1-backend-foundation.md](./phase1-backend-foundation.md) |
 | Phase 3: Backend Products | **✅ Complete** | **12/12 (100%)** | **✅ 50/50** | [phase3-backend-products-module.md](./phase3-backend-products-module.md) |
 | Phase 2.A Backend | **✅ Complete** | **5/7 (100% backend)** | **✅ 25/25** | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
-| **Backend Core Modules** | **📍 NEXT** | **6/9 done (67%)** | **✅ 37/37** | [backend-core-modules.md](./backend-core-modules.md) |
+| Backend Core Modules | **✅ Complete** | **9/9 done (100%)** | **✅ 120+** | [backend-core-modules.md](./backend-core-modules.md) |
+| **Phase 4: Admin Panel Frontend** | **📍 NEXT** | **Planning done (0/5 phases)** | — | [phase4-admin-frontend.md](./phase4-admin-frontend.md) |
 | Phase 2.A Terminal UI | ⊘ Deferred | — | — | phase2-terminal-balance-transactions.md |
 | Phase 2.B: Terminal Features | Not Started | — | — | TBD |
-| Phase 4: Admin Panel | Not Started | — | — | TBD |
 | Phase 5: Advanced | Not Started | — | — | TBD |
 
 ### Phase 1 Status: Test-Driven Verification
