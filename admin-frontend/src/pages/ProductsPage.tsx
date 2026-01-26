@@ -59,7 +59,7 @@ export function ProductsPage() {
           search: searchTerm || undefined,
         },
       })
-      setProducts(response.data || [])
+      setProducts(response.data?.data || [])
     } catch (err: any) {
       setError(err.message || 'Failed to load products')
       setProducts([])

@@ -3,7 +3,6 @@
  * Dashboard with metrics and analytics
  */
 
-import React from 'react'
 import { Card } from '../components/common/Card'
 import { theme } from '../styles/design-system'
 

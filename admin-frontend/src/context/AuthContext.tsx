@@ -3,7 +3,7 @@
  * Provides global auth state and methods to all components
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { AuthState, LoginCredentials } from '../types'
 import { login as loginService, logout as logoutService, getCurrentSession, isAuthenticated } from '../services/auth'
 

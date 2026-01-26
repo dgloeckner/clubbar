@@ -3,7 +3,7 @@
  * Handles all member-related API calls
  */
 
-import { api } from './api'
+import { get, post, patch } from './api'
 
 export interface Member {
   id: string
@@ -52,16 +52,16 @@ export async function getMembers(
     params.is_active = filter.is_active
   }
 
-  const response = await api.get('/admin/members', { params })
-  return response.data
+  const response = await get<MembersResponse>('/admin/members', { params })
+  return response.data || { items: [], total: 0, page: 1, per_page: perPage }
 }
 
 /**
  * Get a single member by ID
  */
 export async function getMember(id: string): Promise<Member> {
-  const response = await api.get(`/admin/members/${id}`)
-  return response.data
+  const response = await get<Member>(`/admin/members/${id}`)
+  return response.data as Member
 }
 
 /**
@@ -78,24 +78,24 @@ export async function createMember(data: {
   postal_code?: string
   country?: string
 }): Promise<Member> {
-  const response = await api.post('/admin/members', data)
-  return response.data
+  const response = await post<Member>('/admin/members', data)
+  return response.data as Member
 }
 
 /**
  * Update an existing member
  */
 export async function updateMember(id: string, data: Partial<Member>): Promise<Member> {
-  const response = await api.patch(`/admin/members/${id}`, data)
-  return response.data
+  const response = await patch<Member>(`/admin/members/${id}`, data)
+  return response.data as Member
 }
 
 /**
  * Deactivate a member (soft delete)
  */
 export async function deactivateMember(id: string): Promise<Member> {
-  const response = await api.patch(`/admin/members/${id}`, { is_active: false })
-  return response.data
+  const response = await patch<Member>(`/admin/members/${id}`, { is_active: false })
+  return response.data as Member
 }
 
 /**
@@ -106,7 +106,7 @@ export async function getMemberTransactions(
   page: number = 1,
   perPage: number = 50
 ): Promise<any> {
-  const response = await api.get(`/admin/members/${memberId}/transactions`, {
+  const response = await get<any>(`/admin/members/${memberId}/transactions`, {
     params: { page, per_page: perPage },
   })
   return response.data
