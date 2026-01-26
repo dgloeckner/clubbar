@@ -3,6 +3,10 @@
  *
  * Encapsulates all interactions with the members management page.
  * Implements E2E Testing Pattern 006: Page Object Model
+ * Implements E2E Testing Pattern 008: Playwright Assertions (no visibility helpers)
+ *
+ * Key principle: Expose semantic user actions, return values tests need.
+ * Tests use expect() directly for visibility checks.
  */
 
 import { Page } from '@playwright/test'
@@ -43,8 +47,7 @@ export class MembersPage extends BasePage {
 
   /**
    * Get member count from stat card
-   * Note: Do NOT return boolean for "is visible"
-   * Tests should use expect() directly (Pattern 008)
+   * Pattern 008: Return value tests need (string, not boolean)
    */
   async getMemberCount(): Promise<string> {
     const valueElement = this.statCardMitglieder().locator(':scope >> nth=1')
@@ -61,9 +64,10 @@ export class MembersPage extends BasePage {
 
   /**
    * Get number of member rows in table
+   * Pattern 008: Return value tests need (number, not boolean)
    */
   async getMemberRowCount(): Promise<number> {
-    return await this.getElementCount(this.tableRows())
+    return await this.tableRows().count()
   }
 
   /**
@@ -86,15 +90,16 @@ export class MembersPage extends BasePage {
    * Get current search value
    */
   async getSearchValue(): Promise<string> {
-    return await this.searchInput().inputValue()
+    return await this.searchInput().inputValue() || ''
   }
 
   /**
    * Open create member modal
+   * Pattern 008: Test uses await expect(modal).toBeVisible() instead of helper
    */
   async openCreateModal() {
     await this.createBtn().click()
-    await this.waitForElement(this.modal(), 5000)
+    // Let test verify with: await expect(modal).toBeVisible()
   }
 
   /**
@@ -108,18 +113,20 @@ export class MembersPage extends BasePage {
 
   /**
    * Submit member form
+   * Pattern 008: Test uses await expect(modal).toBeHidden() instead of helper
    */
   async submitMemberForm() {
     await this.saveBtn().click()
-    await this.waitForElementHidden(this.modal(), 5000)
+    // Let test verify with: await expect(modal).toBeHidden()
   }
 
   /**
    * Cancel member form
+   * Pattern 008: Test uses await expect(modal).toBeHidden() instead of helper
    */
   async cancelMemberForm() {
     await this.cancelBtn().click()
-    await this.waitForElementHidden(this.modal(), 5000)
+    // Let test verify with: await expect(modal).toBeHidden()
   }
 
   /**
@@ -133,16 +140,18 @@ export class MembersPage extends BasePage {
 
   /**
    * Open edit modal for first member in table
+   * Pattern 008: Test uses await expect(modal).toBeVisible() instead of helper
    */
   async openEditModalForFirstMember() {
     const firstRow = this.tableRows().first()
     const editBtn = firstRow.locator('button:has-text("Edit"), button:has-text("Bearbeiten")')
     await editBtn.click()
-    await this.waitForElement(this.modal(), 5000)
+    // Let test verify with: await expect(modal).toBeVisible()
   }
 
   /**
    * Get email address of member in specific row
+   * Pattern 008: Return value tests need (string, not boolean)
    */
   async getMemberEmailInRow(rowIndex: number): Promise<string | null> {
     const rows = this.tableRows()
@@ -150,12 +159,18 @@ export class MembersPage extends BasePage {
     const cells = row.locator('td')
     // Email is typically in the second column
     const emailCell = cells.nth(1)
-    return await this.getElementText(emailCell)
+    try {
+      return await emailCell.textContent()
+    } catch {
+      return null
+    }
   }
 
-  // Note: Do NOT add isModalVisible() or isModalHidden() helper methods
-  // Instead, use Playwright's expect() API directly in tests:
-  //   await expect(modal).toBeVisible()
-  //   await expect(modal).toBeHidden()
-  // This follows Pattern 008: Playwright Assertions & Auto-Waiting
+  // *** DO NOT ADD ***
+  // The following methods would violate Pattern 008:
+  // - isLoaded() - Use: await expect(page.locator('h1')).toBeVisible()
+  // - isTableVisible() - Use: await expect(table).toBeVisible()
+  // - isModalVisible() - Use: await expect(modal).toBeVisible()
+  // - isModalHidden() - Use: await expect(modal).toBeHidden()
+  // See: e2etests/patterns/008-playwright-assertions.md
 }

@@ -2,10 +2,14 @@
  * Base Page Object
  *
  * Provides common functionality for all page objects.
- * Implements E2E Testing Pattern 005: Page Object Model
+ * Implements E2E Testing Pattern 006: Page Object Model
+ * Implements E2E Testing Pattern 008: Playwright Assertions (no visibility helpers)
+ *
+ * Key principle: Only provide semantic actions and value getters.
+ * All visibility/state assertions happen in tests using expect() API.
  */
 
-import { Page, Locator } from '@playwright/test'
+import { Page } from '@playwright/test'
 
 export abstract class BasePage {
   protected page: Page
@@ -22,46 +26,8 @@ export abstract class BasePage {
     await this.page.waitForLoadState('domcontentloaded')
   }
 
-  // Note: Do NOT add isElementVisible() helper method
-  // Instead, use Playwright's expect() API directly in tests:
-  //   await expect(locator).toBeVisible()
-  // This follows Pattern 008: Playwright Assertions & Auto-Waiting
-  // See: e2etests/patterns/008-playwright-assertions.md
-
   /**
-   * Get text content from a locator
-   */
-  async getElementText(locator: Locator): Promise<string | null> {
-    try {
-      return await locator.textContent()
-    } catch {
-      return null
-    }
-  }
-
-  /**
-   * Wait for an element to be visible
-   */
-  async waitForElement(locator: Locator, timeout = 5000) {
-    await locator.waitFor({ state: 'visible', timeout })
-  }
-
-  /**
-   * Wait for element to be hidden
-   */
-  async waitForElementHidden(locator: Locator, timeout = 5000) {
-    await locator.waitFor({ state: 'hidden', timeout })
-  }
-
-  /**
-   * Get count of matching elements
-   */
-  async getElementCount(locator: Locator): Promise<number> {
-    return await locator.count()
-  }
-
-  /**
-   * Debounced wait (useful after typing/filtering)
+   * Debounced wait (useful after typing/filtering to allow API debounce)
    */
   async waitForDebounce(ms = 500) {
     await this.page.waitForTimeout(ms)
@@ -80,4 +46,16 @@ export abstract class BasePage {
   async getPageTitle(): Promise<string> {
     return await this.page.title()
   }
+
+  // *** PATTERN 008: NO VISIBILITY HELPERS ***
+  // Do NOT add these methods - they violate Pattern 008:
+  // - isElementVisible() → Use: await expect(locator).toBeVisible() in tests
+  // - waitForElement() → Use: await expect(locator).toBeVisible() in tests
+  // - waitForElementHidden() → Use: await expect(locator).toBeHidden() in tests
+  // - getElementCount() → Use: await locator.count() in tests or page objects
+  // - getElementText() → Use: await locator.textContent() in tests or page objects
+  //
+  // See: e2etests/patterns/008-playwright-assertions.md
+  // Why: These helpers swallow errors and provide silent failures.
+  // Solution: Use Playwright's built-in expect() API with auto-waiting and clear error messages.
 }

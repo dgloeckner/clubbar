@@ -2,7 +2,11 @@
  * Products Page Object
  *
  * Encapsulates all interactions with the products page.
- * Implements E2E Testing Pattern 005: Page Object Model
+ * Implements E2E Testing Pattern 006: Page Object Model
+ * Implements E2E Testing Pattern 008: Playwright Assertions (no visibility helpers)
+ *
+ * Key principle: Expose semantic user actions, return values tests need.
+ * Tests use expect() directly for visibility checks.
  */
 
 import { Page } from '@playwright/test'
@@ -43,35 +47,11 @@ export class ProductsPage extends BasePage {
   }
 
   /**
-   * Check if products page is loaded
-   */
-  async isLoaded(): Promise<boolean> {
-    // Page is loaded if heading is visible
-    const headingVisible = await this.isElementVisible(this.heading())
-    // And either table or no-products message is visible
-    const contentVisible = await this.isTableVisible() || await this.isNoProductsMessageVisible()
-    return headingVisible && contentVisible
-  }
-
-  /**
    * Get count of product rows in table
+   * Pattern 008: Return value tests actually use (number, not boolean)
    */
   async getProductCount(): Promise<number> {
-    return await this.getElementCount(this.tableRows())
-  }
-
-  /**
-   * Check if products table is visible
-   */
-  async isTableVisible(): Promise<boolean> {
-    return await this.isElementVisible(this.table())
-  }
-
-  /**
-   * Check if "no products" message is shown
-   */
-  async isNoProductsMessageVisible(): Promise<boolean> {
-    return await this.isElementVisible(this.noProductsMessage())
+    return await this.tableRows().count()
   }
 
   /**
@@ -104,17 +84,11 @@ export class ProductsPage extends BasePage {
 
   /**
    * Open create product modal
+   * Pattern 008: Use expect().toBeVisible() in test instead of isCreateModalOpen()
    */
   async openCreateModal() {
     await this.createBtn().click()
-    await this.waitForElement(this.modalHeading(), 5000)
-  }
-
-  /**
-   * Check if create modal is open
-   */
-  async isCreateModalOpen(): Promise<boolean> {
-    return await this.isElementVisible(this.modalHeading())
+    // Let test use: await expect(modalHeading).toBeVisible()
   }
 
   /**
@@ -148,10 +122,11 @@ export class ProductsPage extends BasePage {
 
   /**
    * Cancel create modal without submitting
+   * Pattern 008: Test uses await expect(modal).toBeHidden() instead of this check
    */
   async cancelCreateModal() {
     await this.cancelBtn().click()
-    await this.waitForElementHidden(this.modal(), 5000)
+    // Let test use: await expect(modal).toBeHidden()
   }
 
   /**
@@ -166,16 +141,14 @@ export class ProductsPage extends BasePage {
 
   /**
    * Get error message text if any
+   * Pattern 008: Return value tests need, not boolean
    */
   async getErrorMessage(): Promise<string | null> {
-    return await this.getElementText(this.errorMessage())
-  }
-
-  /**
-   * Check if error message is visible
-   */
-  async isErrorVisible(): Promise<boolean> {
-    return await this.isElementVisible(this.errorMessage())
+    try {
+      return await this.errorMessage().textContent()
+    } catch {
+      return null
+    }
   }
 
   /**
@@ -184,4 +157,12 @@ export class ProductsPage extends BasePage {
   async isOnProductsPage(): Promise<boolean> {
     return this.getCurrentUrl().includes('/products')
   }
+
+  // *** DO NOT ADD ***
+  // The following methods would violate Pattern 008:
+  // - isLoaded() - Use: await expect(page.locator('h1')).toBeVisible()
+  // - isTableVisible() - Use: await expect(table).toBeVisible()
+  // - isNoProductsMessageVisible() - Use: await expect(noProductsMsg).toBeVisible()
+  // - isCreateModalOpen() - Use: await expect(modal).toBeVisible()
+  // - isErrorVisible() - Use: await expect(error).toBeVisible()
 }
