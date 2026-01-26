@@ -40,18 +40,55 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Phase 4: Admin Panel Frontend (📍 NEXT PRIORITY)
-- **Link**: [phase4-admin-frontend.md](./phase4-admin-frontend.md)
-- **Goal**: Build React admin UI for member/product/settlement management with prototype-exact design
-- **Status**: Planning Complete (prototype analysis + implementation roadmap); Ready for Phase 1 implementation
-- **Phase 1**: Project setup & infrastructure (React 18, TypeScript, Vite, Tailwind CSS)
-- **Design Reference**: [PROTOTYPE_ANALYSIS.md](./PROTOTYPE_ANALYSIS.md) - Complete design system specification
-- **Phases Planned** (5 phases, ~8-12 weeks total):
-  1. Project Setup & Infrastructure (1-2 weeks) - Now starting
-  2. Core Pages (2-3 weeks) - Members, Products, Journal CRUD
-  3. Advanced Features (1-2 weeks) - Settlements, Settlement Exports
-  4. E2E Testing (1 week) - Playwright test suite for all pages
-  5. Refinement & Deployment (1-2 weeks) - Polish, performance, production deployment
+### Phase 4: Admin Panel Frontend (📍 READY FOR IMPLEMENTATION)
+
+**🎉 TDD + Playwright MCP Integration Complete!**
+**🎨 UI Prototype Updated to frgs-admin-6.html** ← New features to implement
+
+**Entry Point**: [PHASE2_GETTING_STARTED.md](./PHASE2_GETTING_STARTED.md) ← **Start here to begin implementation**
+
+**Summary**: [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md) ← Overview of all updates
+
+**⚡ IMMEDIATE NEXT TASK**: See [phase4-admin-frontend.md](./phase4-admin-frontend.md#-next-immediate-task-ui-implementation-from-frgs-admin-6html) for:
+- Loading indicator implementation
+- Icon-based navigation tabs
+- User badge + logout button
+- Dashboard stats on Members page
+
+### Phase 4: Admin Panel Frontend
+- **Main Plan**: [phase4-admin-frontend.md](./phase4-admin-frontend.md) - Full implementation roadmap with TDD + Playwright MCP
+- **Goal**: Build React admin UI for 43 admin use cases using Test-Driven Development with visual debugging
+- **Status**: Ready to begin Phase 2 implementation (use case audit complete, all APIs ready)
+- **Backend Readiness**: ✅ 100% — All 43 use cases mapped to implemented APIs
+- **Supporting Documents**:
+  - **[PHASE2_TDD_CHECKLIST.md](./PHASE2_TDD_CHECKLIST.md)** ← **Start here for implementation**
+    - 6-phase TDD cycle per milestone (Red → Green → Blue → ✓)
+    - Playwright MCP visual verification commands
+    - Quick reference for common tasks
+    - Example test templates
+  - **[USE_CASE_AUDIT.md](./USE_CASE_AUDIT.md)** - Complete mapping of all 43 use cases to backend APIs
+  - **[PHASE2_API_MAPPING.md](./PHASE2_API_MAPPING.md)** - Endpoint mapping for Phase 2 pages
+  - **[PROTOTYPE_ANALYSIS.md](./PROTOTYPE_ANALYSIS.md)** - Design system specification
+
+- **TDD Workflow** (for each page):
+  1. 🔴 **Red**: Write E2E tests (should fail)
+  2. 🟢 **Green**: Implement React component (tests pass)
+  3. 🔵 **Blue**: Visual verification with Playwright MCP (compare with prototype)
+  4. ✅ **Verify**: Run tests with 1 worker (serial) and 4 workers (parallel)
+  5. 💾 **Commit**: Record test results and visual verification
+
+- **5-Phase Roadmap** (~8-10 weeks total):
+  - **Phase 1** (✅ Complete): Project setup, design system, auth infrastructure
+  - **Phase 2** (→ Next): Core pages (Members, Products, Journal, Settlements, Statistics) - 25 use cases - 4-6 weeks
+    - Milestone 2.1: Members page (7 E2E tests)
+    - Milestone 2.2: Products page (5 E2E tests)
+    - Milestone 2.3: Journal page (4 E2E tests)
+    - Milestone 2.4: Settlements page (6 E2E tests)
+    - Milestone 2.5: Statistics page (4 E2E tests)
+  - **Phase 3A** (Planned): Settings & Compliance (Organization, Admin Users, Audit Log, SEPA) - 2-3 weeks
+  - **Phase 3B** (Planned): RFID Card Management (dedicated page) - 1-2 weeks
+  - **Phase 4** (Planned): Member CSV Import wizard - 3-5 days
+  - **Phase 5** (TBD): Advanced features (terminal management UI, transaction corrections)
 
 ---
 
@@ -192,7 +229,7 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 | Phase 3: Backend Products | **✅ Complete** | **12/12 (100%)** | **✅ 50/50** | [phase3-backend-products-module.md](./phase3-backend-products-module.md) |
 | Phase 2.A Backend | **✅ Complete** | **5/7 (100% backend)** | **✅ 25/25** | [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md) |
 | Backend Core Modules | **✅ Complete** | **9/9 done (100%)** | **✅ 120+** | [backend-core-modules.md](./backend-core-modules.md) |
-| **Phase 4: Admin Panel Frontend** | **📍 NEXT** | **Planning done (0/5 phases)** | — | [phase4-admin-frontend.md](./phase4-admin-frontend.md) |
+| **Phase 4: Admin Frontend - Phase 2** | **📍 NEXT** | **Ready to implement** | — | **START HERE**: [PHASE2_GETTING_STARTED.md](./PHASE2_GETTING_STARTED.md) |
 | Phase 2.A Terminal UI | ⊘ Deferred | — | — | phase2-terminal-balance-transactions.md |
 | Phase 2.B: Terminal Features | Not Started | — | — | TBD |
 | Phase 5: Advanced | Not Started | — | — | TBD |
