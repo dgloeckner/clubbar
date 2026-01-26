@@ -2,7 +2,7 @@
 
 **Goal**: Implement all 9 core backend modules for a complete production-ready POS system.
 
-**Status**: 4/9 Core Modules Complete (44%)
+**Status**: 9/9 Core Modules Complete (100%) ✅ **BACKEND CORE COMPLETE**
 
 **Timeline**: Sequential implementation of remaining core modules
 
@@ -14,13 +14,13 @@
 |---|--------|-------------|--------|
 | 1 | **members** | Member management (CRUD, GDPR, balance view) | ✅ **COMPLETE** (Phase 1) |
 | 2 | **products** | Product catalog (CRUD, toggle, category filter) | ✅ **COMPLETE** (Phase 3) |
-| 3 | **transactions** | Transaction journal (list, filter, corrections) | ⏸️ **PARTIAL** (list/filter done, corrections needed) |
-| 4 | **settlements** | Periodic billing (create, preview, export CSV/SEPA, revoke) | ❌ **NOT STARTED** |
-| 5 | **terminals** | Terminal devices (register, token generation, status) | ❌ **NOT STARTED** |
+| 3 | **transactions** | Transaction journal (list, filter, corrections) | ✅ **COMPLETE** (Phase 2.A & refactored) |
+| 4 | **settlements** | Periodic billing (create, preview, export CSV/SEPA, revoke) | ✅ **COMPLETE** (2026-01-26) |
+| 5 | **terminals** | Terminal devices (register, token generation, status) | ✅ **COMPLETE** (2026-01-26) |
 | 6 | **admin-users** | Admin accounts (CRUD, password reset, activation) | ✅ **COMPLETE** (2026-01-25) |
 | 7 | **audit-log** | Activity history (list, filter, detail, read-only) | ✅ **COMPLETE** (Phase 1) |
-| 8 | **sepa-config** | SEPA settings (setup wizard, configuration) | ❌ **NOT STARTED** |
-| 9 | **dashboard** | Overview (statistics, quick actions, sync status) | ❌ **NOT STARTED** |
+| 8 | **sepa-config** | SEPA settings (setup wizard, configuration) | ✅ **COMPLETE** (2026-01-26) |
+| 9 | **dashboard** | Overview (statistics, quick actions, sync status) | ✅ **COMPLETE** (2026-01-26) |
 
 ### Remaining Work Summary
 

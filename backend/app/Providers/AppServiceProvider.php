@@ -179,6 +179,41 @@ class AppServiceProvider extends ServiceProvider
                 );
             }
         );
+
+        // =====================================================================
+        // TERMINALS MODULE (Pattern 009: Module Structure)
+        // =====================================================================
+
+        // Terminals Repository - Data access abstraction (Pattern 011)
+        $this->app->singleton(
+            \App\Http\Modules\Terminals\Repositories\TerminalsRepository::class,
+            function ($app) {
+                return new \App\Http\Modules\Terminals\Repositories\TerminalsRepository();
+            }
+        );
+
+        // Terminals Service - Business logic layer (Pattern 010)
+        $this->app->singleton(
+            \App\Http\Modules\Terminals\Services\TerminalsService::class,
+            function ($app) {
+                return new \App\Http\Modules\Terminals\Services\TerminalsService(
+                    $app->make(\App\Http\Modules\Terminals\Repositories\TerminalsRepository::class),
+                    $app->make(\App\Shared\Services\AuditService::class)
+                );
+            }
+        );
+
+        // =====================================================================
+        // DASHBOARD MODULE (Pattern 009: Module Structure)
+        // =====================================================================
+
+        // Dashboard Service - Business logic layer (Pattern 010, read-only variant)
+        $this->app->singleton(
+            \App\Http\Modules\Dashboard\Services\DashboardService::class,
+            function ($app) {
+                return new \App\Http\Modules\Dashboard\Services\DashboardService();
+            }
+        );
     }
 
     /**

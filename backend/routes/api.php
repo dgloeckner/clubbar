@@ -47,4 +47,10 @@ Route::middleware('api')->group(function () {
 
     // Settlements module routes (SEPA + Manual settlements with export)
     require base_path('routes/modules/settlements.php');
+
+    // Terminals module routes (Terminal device management and API token rotation)
+    require base_path('routes/modules/terminals.php');
+
+    // Dashboard module routes (Admin overview with aggregated metrics)
+    require base_path('routes/modules/dashboard.php');
 });

@@ -2316,6 +2316,43 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /admin/dashboard:
+    get:
+      summary: Get Dashboard Metrics
+      operationId: getDashboardMetrics
+      description: |
+        Retrieve aggregated dashboard metrics and system overview.
+        Combines metrics from members, transactions, terminals, and settlements modules.
+
+        Implements UC-A80: Dashboard
+
+        **Response Data**:
+        - metrics: Business metrics (member counts, balance, revenue, terminals)
+        - recent_transactions: Last 10 transactions with member and product details
+        - terminal_status: All terminals with connectivity information
+        - system_status: High-level system indicators
+        - alerts: SEPA compliance alerts
+
+        **Performance Notes**:
+        - Point-in-time snapshot (not real-time streaming)
+        - Optimized with database aggregations
+        - Typical response time: < 500ms
+      tags:
+        - Dashboard
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Dashboard metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Database error while aggregating metrics
+
 # ==============================================================================
 # COMPONENTS
 # ==============================================================================
@@ -3498,3 +3535,129 @@ components:
               type: integer
             pending_transaction_count:
               type: integer
+
+    DashboardResponse:
+      type: object
+      description: Complete dashboard response with aggregated metrics and system data
+      properties:
+        metrics:
+          type: object
+          description: Business metrics aggregated from all modules
+          properties:
+            active_members:
+              type: integer
+              description: Count of active members
+            inactive_members:
+              type: integer
+              description: Count of inactive members
+            outstanding_balance_cents:
+              type: integer
+              description: Total unsettled transaction balance in cents
+            todays_revenue_cents:
+              type: integer
+              description: Sum of transactions created today in cents
+            terminal_count:
+              type: integer
+              description: Total number of terminals (active and inactive)
+            active_terminals:
+              type: integer
+              description: Count of active terminals
+            settled_members:
+              type: integer
+              description: Number of unique members with settled transactions
+            sepa_issue_count:
+              type: integer
+              description: Count of members with incomplete SEPA data
+        recent_transactions:
+          type: array
+          description: Last 10 transactions ordered by creation time
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              member_id:
+                type: string
+                format: uuid
+              member_name:
+                type: string
+                description: Display name (first + last name or card_uid)
+              type:
+                type: string
+                enum: [purchase, correction]
+              amount_cents:
+                type: integer
+              product_name:
+                type: string
+                description: Product name or manual entry description
+              timestamp:
+                type: string
+                format: date-time
+                description: ISO 8601 transaction creation time
+        terminal_status:
+          type: array
+          description: Status of all terminals with connectivity information
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              is_active:
+                type: boolean
+              last_sync_at:
+                type: string
+                format: date-time
+                nullable: true
+              status:
+                type: string
+                enum: [online, offline, disabled]
+                description: |
+                  - online: synced within 24 hours
+                  - offline: no sync or synced > 24 hours ago
+                  - disabled: terminal is inactive
+        system_status:
+          type: object
+          description: High-level system status indicators
+          properties:
+            last_settlement_date:
+              type: string
+              format: date-time
+              nullable: true
+              description: Last settlement creation timestamp
+            pending_settlement_count:
+              type: integer
+              description: Count of non-cancelled settlements
+            total_members:
+              type: integer
+              description: Total member count (active + inactive)
+            total_transactions:
+              type: integer
+              description: Total transaction count
+            database_health:
+              type: string
+              enum: [ok]
+              description: Database connectivity status
+        alerts:
+          type: object
+          description: Admin alerts requiring attention
+          properties:
+            sepa_issues:
+              type: object
+              properties:
+                count:
+                  type: integer
+                  description: Number of members with incomplete SEPA data
+                severity:
+                  type: string
+                  enum: [none, warning, error]
+                  description: |
+                    - none: 0 members with issues
+                    - warning: 1-5 members with issues
+                    - error: 6+ members with issues
+                message:
+                  type: string
+                  description: Human-readable alert message
