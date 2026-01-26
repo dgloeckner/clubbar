@@ -91,6 +91,17 @@ Reference E2E testing patterns in `e2etests/patterns/` directory:
 
 **Important**: All E2E tests must follow these patterns for reliability, parallel execution safety, and consistent test behavior. See `e2etests/patterns/README.md` for detailed guidance and examples.
 
+### Admin Frontend Patterns
+
+Reference admin frontend patterns in `admin-frontend/patterns/` directory:
+- **Test IDs Pattern**: Establish reliable, semantic selectors for E2E tests using `data-testid` attributes
+  - Naming conventions (kebab-case, semantic hierarchy)
+  - Implementation examples for common components (pages, forms, tables, modals)
+  - Best practices for adding test IDs during development
+  - Playwright tips and custom locators
+
+**Important**: When building pages and components in the admin frontend, follow the test IDs pattern to ensure E2E tests are reliable and maintainable. See `admin-frontend/patterns/test-ids.md` for comprehensive guide and examples.
+
 ### Development Approach
 - **Prefer a planned approach with milestones** over tackling all issues at once
 - **Break work into phases** — plan before implementing
@@ -427,6 +438,7 @@ cat results.json | jq '.suites[].tests[] | select(.status=="fail")'
 | Directory | Purpose |
 |-----------|---------|
 | `admin-frontend/` | Admin Panel technology decisions and architecture |
+| `admin-frontend/patterns/` | **Design patterns and best practices for admin frontend development** |
 | `adr/` | Architecture Decision Records (22 ADRs documenting key decisions) |
 | `api/` | OpenAPI 3.0 specifications for Admin and Terminal APIs |
 | `backend/` | Backend technology decisions and architecture |
