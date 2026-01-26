@@ -7,18 +7,15 @@ import { get, post, patch } from './api'
 
 export interface Member {
   id: string
-  email: string
+  email?: string
   first_name: string
   last_name: string
+  iban: string
+  mandate_signed_at: string
   preferred_language: string
   is_active: boolean
   balance_cents: number
   card_uid?: string
-  phone?: string
-  street?: string
-  city?: string
-  postal_code?: string
-  country?: string
   created_at: string
   updated_at: string
 }
@@ -66,17 +63,15 @@ export async function getMember(id: string): Promise<Member> {
 
 /**
  * Create a new member
+ * Required fields per UC-A11: first_name, last_name, iban, mandate_signed_at, preferred_language
  */
 export async function createMember(data: {
-  email: string
   first_name: string
   last_name: string
-  preferred_language?: string
-  phone?: string
-  street?: string
-  city?: string
-  postal_code?: string
-  country?: string
+  iban: string
+  mandate_signed_at: string
+  preferred_language: string
+  email?: string
 }): Promise<Member> {
   const response = await post<Member>('/admin/members', data)
   return response.data as Member

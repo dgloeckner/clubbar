@@ -45,10 +45,12 @@ export class MembersPage extends BasePage {
   private readonly formModal = () => this.page.getByTestId('members-form-modal')
   private readonly formModalContent = () => this.page.getByTestId('members-form-modal-content')
   private readonly formTitle = () => this.page.getByTestId('members-form-title')
-  private readonly emailInput = () => this.page.getByTestId('members-form-email-input')
   private readonly firstNameInput = () => this.page.getByTestId('members-form-first-name-input')
   private readonly lastNameInput = () => this.page.getByTestId('members-form-last-name-input')
-  private readonly phoneInput = () => this.page.getByTestId('members-form-phone-input')
+  private readonly emailInput = () => this.page.getByTestId('members-form-email-input')
+  private readonly ibanInput = () => this.page.getByTestId('members-form-iban-input')
+  private readonly mandateDateInput = () => this.page.getByTestId('members-form-mandate-date-input')
+  private readonly languageSelect = () => this.page.getByTestId('members-form-language-select')
   private readonly formSubmitBtn = () => this.page.getByTestId('members-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('members-form-cancel-button')
 
@@ -171,12 +173,23 @@ export class MembersPage extends BasePage {
     await this.createBtn().click()
   }
 
-  async fillMemberForm(email: string, firstName: string, lastName: string, phone?: string) {
-    await this.emailInput().fill(email)
+  async fillMemberForm(
+    firstName: string,
+    lastName: string,
+    iban: string,
+    mandateDate: string,
+    email?: string,
+    language?: string
+  ) {
     await this.firstNameInput().fill(firstName)
     await this.lastNameInput().fill(lastName)
-    if (phone) {
-      await this.phoneInput().fill(phone)
+    if (email) {
+      await this.emailInput().fill(email)
+    }
+    await this.ibanInput().fill(iban.toUpperCase())
+    await this.mandateDateInput().fill(mandateDate)
+    if (language) {
+      await this.languageSelect().selectOption(language)
     }
   }
 
@@ -188,10 +201,10 @@ export class MembersPage extends BasePage {
     await this.formCancelBtn().click()
   }
 
-  async createMember(email: string, firstName: string, lastName: string, phone?: string) {
+  async createMember(firstName: string, lastName: string, iban: string, mandateDate: string, email?: string, language?: string) {
     await this.openCreateModal()
     await this.expectFormModalVisible()
-    await this.fillMemberForm(email, firstName, lastName, phone)
+    await this.fillMemberForm(firstName, lastName, iban, mandateDate, email, language)
     await this.submitForm()
   }
 
@@ -200,10 +213,10 @@ export class MembersPage extends BasePage {
     await editBtn.click()
   }
 
-  async editMember(memberId: string, email: string, firstName: string, lastName: string, phone?: string) {
+  async editMember(memberId: string, firstName: string, lastName: string, iban: string, mandateDate: string, email?: string, language?: string) {
     await this.openEditModalForMember(memberId)
     await this.expectFormModalVisible()
-    await this.fillMemberForm(email, firstName, lastName, phone)
+    await this.fillMemberForm(firstName, lastName, iban, mandateDate, email, language)
     await this.submitForm()
   }
 
@@ -246,10 +259,6 @@ export class MembersPage extends BasePage {
    * FORM FIELD HELPERS
    */
 
-  async getFormEmailValue(): Promise<string> {
-    return await this.emailInput().inputValue() || ''
-  }
-
   async getFormFirstNameValue(): Promise<string> {
     return await this.firstNameInput().inputValue() || ''
   }
@@ -258,8 +267,20 @@ export class MembersPage extends BasePage {
     return await this.lastNameInput().inputValue() || ''
   }
 
-  async getFormPhoneValue(): Promise<string> {
-    return await this.phoneInput().inputValue() || ''
+  async getFormEmailValue(): Promise<string> {
+    return await this.emailInput().inputValue() || ''
+  }
+
+  async getFormIbanValue(): Promise<string> {
+    return await this.ibanInput().inputValue() || ''
+  }
+
+  async getFormMandateDateValue(): Promise<string> {
+    return await this.mandateDateInput().inputValue() || ''
+  }
+
+  async getFormLanguageValue(): Promise<string> {
+    return await this.languageSelect().inputValue() || 'de'
   }
 
   /**

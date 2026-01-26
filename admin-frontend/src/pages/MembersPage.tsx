@@ -27,10 +27,12 @@ export function MembersPage() {
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [formData, setFormData] = useState({
-    email: '',
     first_name: '',
     last_name: '',
-    phone: '',
+    email: '',
+    iban: '',
+    mandate_signed_at: '',
+    preferred_language: 'de',
   })
 
   // Load members
@@ -81,7 +83,7 @@ export function MembersPage() {
       // Reset form
       setShowModal(false)
       setEditingMember(null)
-      setFormData({ email: '', first_name: '', last_name: '', phone: '' })
+      setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_signed_at: '', preferred_language: 'de' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save member')
     } finally {
@@ -112,10 +114,12 @@ export function MembersPage() {
   const handleEdit = (member: Member) => {
     setEditingMember(member)
     setFormData({
-      email: member.email,
       first_name: member.first_name,
       last_name: member.last_name,
-      phone: member.phone || '',
+      email: member.email || '',
+      iban: member.iban || '',
+      mandate_signed_at: member.mandate_signed_at || '',
+      preferred_language: member.preferred_language || 'de',
     })
     setShowModal(true)
   }
@@ -188,7 +192,7 @@ export function MembersPage() {
             data-testid="members-create-button"
             onClick={() => {
               setEditingMember(null)
-              setFormData({ email: '', first_name: '', last_name: '', phone: '' })
+              setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_signed_at: '', preferred_language: 'de' })
               setShowModal(true)
             }}
             style={{
@@ -359,29 +363,7 @@ export function MembersPage() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  Email
-                </label>
-                <input
-                  data-testid="members-form-email-input"
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  First Name
+                  First Name *
                 </label>
                 <input
                   data-testid="members-form-first-name-input"
@@ -389,6 +371,8 @@ export function MembersPage() {
                   required
                   value={formData.first_name}
                   onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                  placeholder="Max"
+                  maxLength={100}
                   style={{
                     width: '100%',
                     padding: `${theme.spacing.md} ${theme.spacing.lg}`,
@@ -403,7 +387,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  Last Name
+                  Last Name *
                 </label>
                 <input
                   data-testid="members-form-last-name-input"
@@ -411,6 +395,8 @@ export function MembersPage() {
                   required
                   value={formData.last_name}
                   onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                  placeholder="Mustermann"
+                  maxLength={100}
                   style={{
                     width: '100%',
                     padding: `${theme.spacing.md} ${theme.spacing.lg}`,
@@ -425,13 +411,14 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  Phone (optional)
+                  Email
                 </label>
                 <input
-                  data-testid="members-form-phone-input"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  data-testid="members-form-email-input"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="max@example.com"
                   style={{
                     width: '100%',
                     padding: `${theme.spacing.md} ${theme.spacing.lg}`,
@@ -442,6 +429,79 @@ export function MembersPage() {
                     boxSizing: 'border-box',
                   }}
                 />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                  IBAN *
+                </label>
+                <input
+                  data-testid="members-form-iban-input"
+                  type="text"
+                  required
+                  value={formData.iban}
+                  onChange={(e) => setFormData({ ...formData, iban: e.target.value.toUpperCase() })}
+                  placeholder="DE89370400440532013000"
+                  minLength={15}
+                  maxLength={34}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                    fontFamily: 'monospace',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                  Mandate Date (SEPA) *
+                </label>
+                <input
+                  data-testid="members-form-mandate-date-input"
+                  type="date"
+                  required
+                  value={formData.mandate_signed_at}
+                  onChange={(e) => setFormData({ ...formData, mandate_signed_at: e.target.value })}
+                  max={new Date().toISOString().split('T')[0]}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                  Language *
+                </label>
+                <select
+                  data-testid="members-form-language-select"
+                  required
+                  value={formData.preferred_language}
+                  onChange={(e) => setFormData({ ...formData, preferred_language: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value="de">Deutsch</option>
+                  <option value="en">English</option>
+                </select>
               </div>
 
               <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end', marginTop: theme.spacing.lg }}>
