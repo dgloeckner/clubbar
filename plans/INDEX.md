@@ -38,22 +38,35 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 ### Backend Core Modules (📍 NEXT PRIORITY)
 - **Link**: [backend-core-modules.md](./backend-core-modules.md)
 - **Goal**: Complete all 9 core backend modules for production-ready POS system
-- **Status**: Architecture Foundation Complete; Transactions Module Refactored; Module 6 Admin-Users Complete ✅
-- **9 Core Modules** (4 complete, 5 remaining):
+- **Status**: Architecture Foundation Complete; Transactions Module Refactored; Module 6 Admin-Users Complete; Module 4 Settlements Complete ✅
+- **9 Core Modules** (5 complete, 4 remaining):
 
   | Module | Status | Key Operations |
   |--------|--------|-----------------|
   | **1. members** | ✅ Done (Phase 1) | CRUD, GDPR, balance view |
   | **2. products** | ✅ Done (Phase 3) | CRUD, toggle, category filter |
   | **3. transactions** | ✅ Refactored (2026-01-25) | Modular structure, all endpoints working |
-  | **4. settlements** | ❌ TODO | Create, preview, export CSV/SEPA |
+  | **4. settlements** | ✅ Done (2026-01-26) | Create, preview, export CSV/SEPA, SEPA config |
   | **5. terminals** | ❌ TODO | Register, token generation, status |
   | **6. admin-users** | ✅ Done (2026-01-25) | CRUD, password reset, activation |
   | **7. audit-log** | ✅ Done (Phase 1) | List, filter, detail (read-only) |
-  | **8. sepa-config** | ❌ TODO | Setup wizard, configuration |
+  | **8. sepa-config** | ✅ Done (2026-01-26) | SEPA creditor config, immutable fields |
   | **9. dashboard** | ❌ TODO | Statistics, quick actions, sync status |
 
-- **Recent Completion**: Module 6: Admin-Users (2026-01-25)
+- **Recent Completion**: Module 4: Settlements (2026-01-26)
+  - 7 phases complete: migrations, models, services, controllers, routes, E2E tests, documentation
+  - SEPA Direct Debit + Manual settlements with pain.008.001.02 XML export
+  - Settlement preview, creation, cancellation, CSV/SEPA export
+  - SEPA configuration with creditor immutability enforcement
+  - 24/24 E2E tests passing (all patterns implemented, parallel-safe)
+  - digitick/sepa-xml library installed and integrated
+  - Balance calculation, transaction marking/unmarking
+  - Execution date validation (7-day minimum from settlement date)
+  - IBAN checksum validation (mod-97)
+  - Complete audit logging integration
+  - Production-ready implementation
+
+- **Previous Completion**: Module 6: Admin-Users (2026-01-25)
   - Complete CRUD operations (list, create, read, update, deactivate, reactivate)
   - Password management: auto-generated 16-char passwords, complexity validation
   - Business rules: self-deactivation prevention, minimum 1 active admin
@@ -61,21 +74,13 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
   - 20/20 E2E tests passing, all patterns implemented
   - Production-ready implementation
 
-- **Previous Completion**: Transactions Module Refactoring
-  - Moved scattered code to dedicated module
-  - Implemented ADR-0018 modular architecture
-  - All backend patterns (001-016) compliant
-  - 41/41 tests passing, zero regressions
-  - Serves as template for remaining modules
-
 - **Implementation Order (Updated)**:
   1. ✅ Module 6: Admin-Users (COMPLETE 2026-01-25)
-  2. Module 8: SEPA-Config (5-7 days)
-  3. Module 4: Settlements (10-15 days — core, depends on Transactions)
-  4. Module 5: Terminals (5-7 days)
-  5. Module 9: Dashboard (7-10 days)
-- **Tests Required**: 80+ new API tests for remaining 4 modules
-- **Resume Phase 2.A After**: All 5 remaining modules complete (4/9 already done)
+  2. ✅ Module 4: Settlements (COMPLETE 2026-01-26)
+  3. Module 5: Terminals (5-7 days)
+  4. Module 9: Dashboard (7-10 days)
+- **Tests Required**: 50+ new API tests for remaining 2 modules
+- **Resume Phase 2.A After**: All core modules complete (5/9 already done)
 
 ### Phase 2.A: Terminal Balance & Transaction History (Paused)
 - **Link**: [phase2-terminal-balance-transactions.md](./phase2-terminal-balance-transactions.md)
