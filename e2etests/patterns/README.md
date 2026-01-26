@@ -14,8 +14,9 @@ This directory contains established patterns for writing robust, reliable E2E te
 | [Pattern 002: Authentication Isolation](pattern-002-authentication-isolation.md) | Properly authenticate different API types | Mixed auth concerns → Failed requests |
 | [Pattern 003: Database-Agnostic Assertions](pattern-003-database-agnostic-assertions.md) | Search for specific data in results | Position-based assertions → Flaky tests |
 | [Pattern 004: Parallel Execution Safety](pattern-004-parallel-execution-safety.md) | Design tests for safe parallel execution | Race conditions → Intermittent failures |
-| [Pattern 005: Page Object Model](005-page-object-model.md) | Encapsulate page interactions in reusable classes | Scattered locators → Unmaintainable tests |
-| [Pattern 006: Page Object Fixtures](006-page-object-fixtures.md) | Inject ready-to-use page objects with Playwright fixtures | Manual page object initialization → Boilerplate |
+| [Pattern 005: Using Test IDs (data-testid)](005-test-ids.md) | Use semantic test IDs for reliable selectors | Brittle CSS selectors → Flaky UI tests |
+| [Pattern 006: Page Object Model](005-page-object-model.md) | Encapsulate page interactions in reusable classes | Scattered locators → Unmaintainable tests |
+| [Pattern 007: Page Object Fixtures](006-page-object-fixtures.md) | Inject ready-to-use page objects with Playwright fixtures | Manual page object initialization → Boilerplate |
 
 ---
 
@@ -23,7 +24,17 @@ This directory contains established patterns for writing robust, reliable E2E te
 
 ### For New E2E Tests
 
-1. **Use Pattern 006**: Use fixtures to inject page objects
+1. **Use Pattern 005**: Use test IDs for reliable selectors
+   ```typescript
+   // In components: add data-testid attributes
+   <button data-testid="members-create-button">Create</button>
+
+   // In tests: use getByTestId()
+   const btn = page.getByTestId('members-create-button')
+   await btn.click()
+   ```
+
+2. **Use Pattern 007**: Use fixtures to inject page objects
    ```typescript
    import { test, expect } from '../fixtures/pageObjects'
 
@@ -33,7 +44,7 @@ This directory contains established patterns for writing robust, reliable E2E te
    })
    ```
 
-2. **Use Pattern 005**: Create page objects for UI tests (foundation for Pattern 006)
+3. **Use Pattern 006**: Create page objects for UI tests (foundation for Pattern 007)
    ```typescript
    import { LoginPage, ProductsPage } from 'pages'
 
@@ -42,7 +53,7 @@ This directory contains established patterns for writing robust, reliable E2E te
    const productsPage = new ProductsPage(page)
    ```
 
-2. **Use Pattern 001**: Create your own test data
+4. **Use Pattern 001**: Create your own test data
    ```typescript
    // Don't use hardcoded IDs
    const member = await createTestMember({ email: `test-${Date.now()}@ex.com` });
@@ -163,6 +174,12 @@ test('member appears in list', async ({ authenticatedRequest }) => {
 ## Pattern Dependencies
 
 ```
+Pattern 005 (Test IDs)
+    ↓
+Pattern 006 (Page Object Model)
+    ↓
+Pattern 007 (Page Object Fixtures)
+
 Pattern 001 (Data Isolation)
     ↓
 Pattern 003 (Agnostic Assertions)
@@ -174,7 +191,10 @@ Pattern 002 (Auth Isolation)
 Pattern 001 (Data Isolation)
 ```
 
-- **Pattern 001** is the foundation - everything else depends on it
+- **Pattern 005** is foundational for UI tests - provides reliable selectors
+- **Pattern 006** uses test IDs to find and interact with elements
+- **Pattern 007** injects ready-to-use page objects with test IDs
+- **Pattern 001** is foundational for API tests - everything else depends on it
 - **Pattern 002** ensures proper auth without mixing concerns
 - **Pattern 003** is the consequence of Pattern 001 - once data is isolated, assertions must search by ID
 - **Pattern 004** is the verification - tests designed with 1-3 work in parallel
@@ -183,20 +203,29 @@ Pattern 001 (Data Isolation)
 
 ## When to Use Each Pattern
 
-### Pattern 006: Page Object Fixtures
-**Use when**: Using page objects from Pattern 005 in your tests
+### Pattern 005: Using Test IDs
+**Use when**: Writing UI E2E tests with Playwright
+- Add `data-testid` attributes to all interactive UI elements
+- Use `page.getByTestId()` in all E2E tests
+- Enables reliable selectors that survive CSS/structure changes
+- Works together with page objects and fixtures
+- Refer to `admin-frontend/patterns/test-ids.md` for component-side implementation
+
+### Pattern 007: Page Object Fixtures
+**Use when**: Using page objects from Pattern 006 in your tests
 - Always use fixtures to inject page objects instead of manual instantiation
 - Eliminates ~10 lines of boilerplate per test file
 - Enables composite fixtures (login + navigation in one fixture)
 - Makes tests cleaner and more focused on behavior
 
-### Pattern 005: Page Object Model
+### Pattern 006: Page Object Model
 **Use when**: Writing UI E2E tests that interact with pages
 - Login, navigation, form submission tests
 - Any test that clicks buttons, fills inputs, or asserts on elements
 - Tests for admin panel or user-facing features
 - Reduces locator duplication across multiple tests
-- Use Pattern 006 to inject these page objects cleanly via fixtures
+- Use Pattern 007 to inject these page objects cleanly via fixtures
+- Use test IDs (Pattern 005) for reliable element selection
 
 ### Pattern 001: Test Data Isolation
 **Use when**: Writing any API test that creates, reads, or modifies data
@@ -262,7 +291,10 @@ time npx playwright test
 
 | Mistake | Pattern | Fix |
 |---------|---------|-----|
-| Using hardcoded test IDs | 001 | Use `Date.now()` or `randomUUID()` |
+| Using CSS selectors (.class, #id, [attr]) | 005 | Use `getByTestId()` instead |
+| Components missing data-testid | 005 | Add `data-testid` to all interactive elements |
+| Brittle selectors (nth-child, >>>) | 005 | Use `data-testid` for stable selectors |
+| Using hardcoded data IDs | 001 | Use `Date.now()` or `randomUUID()` |
 | Assuming data position | 003 | Use `.find(m => m.id === testId)` |
 | Sharing test data | 001 | Create unique data per test |
 | Position-based assertions | 003 | Search for specific records |
@@ -314,8 +346,9 @@ Patterns should be:
 ## Questions?
 
 Refer to the specific pattern for detailed guidance:
-- "How do I eliminate page object boilerplate?" → [Pattern 006](006-page-object-fixtures.md)
-- "How do I organize page interactions?" → [Pattern 005](005-page-object-model.md)
+- "How do I select elements reliably?" → [Pattern 005](005-test-ids.md)
+- "How do I eliminate page object boilerplate?" → [Pattern 007](006-page-object-fixtures.md)
+- "How do I organize page interactions?" → [Pattern 006](005-page-object-model.md)
 - "How do I isolate test data?" → [Pattern 001](pattern-001-test-data-isolation.md)
 - "How do I authenticate?" → [Pattern 002](pattern-002-authentication-isolation.md)
 - "How do I assert on lists?" → [Pattern 003](pattern-003-database-agnostic-assertions.md)
