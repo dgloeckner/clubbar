@@ -14,6 +14,8 @@ This directory contains established patterns for writing robust, reliable E2E te
 | [Pattern 002: Authentication Isolation](pattern-002-authentication-isolation.md) | Properly authenticate different API types | Mixed auth concerns → Failed requests |
 | [Pattern 003: Database-Agnostic Assertions](pattern-003-database-agnostic-assertions.md) | Search for specific data in results | Position-based assertions → Flaky tests |
 | [Pattern 004: Parallel Execution Safety](pattern-004-parallel-execution-safety.md) | Design tests for safe parallel execution | Race conditions → Intermittent failures |
+| [Pattern 005: Page Object Model](005-page-object-model.md) | Encapsulate page interactions in reusable classes | Scattered locators → Unmaintainable tests |
+| [Pattern 006: Page Object Fixtures](006-page-object-fixtures.md) | Inject ready-to-use page objects with Playwright fixtures | Manual page object initialization → Boilerplate |
 
 ---
 
@@ -21,13 +23,32 @@ This directory contains established patterns for writing robust, reliable E2E te
 
 ### For New E2E Tests
 
-1. **Use Pattern 001**: Create your own test data
+1. **Use Pattern 006**: Use fixtures to inject page objects
+   ```typescript
+   import { test, expect } from '../fixtures/pageObjects'
+
+   test('create product', async ({ authenticatedProductsPage }) => {
+     // Fixture provides logged-in, navigated page object
+     await authenticatedProductsPage.createProduct('Coffee', '3.50')
+   })
+   ```
+
+2. **Use Pattern 005**: Create page objects for UI tests (foundation for Pattern 006)
+   ```typescript
+   import { LoginPage, ProductsPage } from 'pages'
+
+   // Page objects are created once and reused via fixtures
+   const loginPage = new LoginPage(page)
+   const productsPage = new ProductsPage(page)
+   ```
+
+2. **Use Pattern 001**: Create your own test data
    ```typescript
    // Don't use hardcoded IDs
    const member = await createTestMember({ email: `test-${Date.now()}@ex.com` });
    ```
 
-2. **Use Pattern 002**: Use correct authentication
+3. **Use Pattern 002**: Use correct authentication
    ```typescript
    // Admin tests: use authenticatedRequest fixture
    test('admin test', async ({ authenticatedRequest }) => { ... });
@@ -38,14 +59,14 @@ This directory contains established patterns for writing robust, reliable E2E te
    });
    ```
 
-3. **Use Pattern 003**: Search by ID, not position
+4. **Use Pattern 003**: Search by ID, not position
    ```typescript
    // Don't assume position
    const item = body.items.find(m => m.id === memberId);
    expect(item).toBeDefined();
    ```
 
-4. **Use Pattern 004**: Make sure tests work in parallel
+5. **Use Pattern 004**: Make sure tests work in parallel
    ```bash
    npx playwright test --workers=6
    ```
@@ -161,6 +182,21 @@ Pattern 001 (Data Isolation)
 ---
 
 ## When to Use Each Pattern
+
+### Pattern 006: Page Object Fixtures
+**Use when**: Using page objects from Pattern 005 in your tests
+- Always use fixtures to inject page objects instead of manual instantiation
+- Eliminates ~10 lines of boilerplate per test file
+- Enables composite fixtures (login + navigation in one fixture)
+- Makes tests cleaner and more focused on behavior
+
+### Pattern 005: Page Object Model
+**Use when**: Writing UI E2E tests that interact with pages
+- Login, navigation, form submission tests
+- Any test that clicks buttons, fills inputs, or asserts on elements
+- Tests for admin panel or user-facing features
+- Reduces locator duplication across multiple tests
+- Use Pattern 006 to inject these page objects cleanly via fixtures
 
 ### Pattern 001: Test Data Isolation
 **Use when**: Writing any API test that creates, reads, or modifies data
@@ -278,6 +314,8 @@ Patterns should be:
 ## Questions?
 
 Refer to the specific pattern for detailed guidance:
+- "How do I eliminate page object boilerplate?" → [Pattern 006](006-page-object-fixtures.md)
+- "How do I organize page interactions?" → [Pattern 005](005-page-object-model.md)
 - "How do I isolate test data?" → [Pattern 001](pattern-001-test-data-isolation.md)
 - "How do I authenticate?" → [Pattern 002](pattern-002-authentication-isolation.md)
 - "How do I assert on lists?" → [Pattern 003](pattern-003-database-agnostic-assertions.md)
