@@ -6,6 +6,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { LoadingProvider } from './context/LoadingContext'
 import { theme } from './styles/design-system'
 
 // Pages
@@ -129,16 +130,18 @@ export default function App() {
   return (
     <Router>
       <AuthProvider>
-        <div
-          style={{
-            backgroundColor: theme.colors.bg.primary,
-            color: theme.colors.text.primary,
-            fontFamily: theme.typography.fontFamily.base,
-            minHeight: '100vh',
-          }}
-        >
-          <AppRoutes />
-        </div>
+        <LoadingProvider>
+          <div
+            style={{
+              backgroundColor: theme.colors.bg.primary,
+              color: theme.colors.text.primary,
+              fontFamily: theme.typography.fontFamily.base,
+              minHeight: '100vh',
+            }}
+          >
+            <AppRoutes />
+          </div>
+        </LoadingProvider>
       </AuthProvider>
     </Router>
   )

@@ -1,0 +1,27 @@
+export { UsersIcon } from './UsersIcon'
+export { PackageIcon } from './PackageIcon'
+export { BookIcon } from './BookIcon'
+export { ReceiptIcon } from './ReceiptIcon'
+export { ChartIcon } from './ChartIcon'
+export { UserIcon } from './UserIcon'
+export { LogoutIcon } from './LogoutIcon'
+export { PlusIcon } from './PlusIcon'
+export { BankIcon } from './BankIcon'
+export { EditIcon } from './EditIcon'
+export { TrashIcon } from './TrashIcon'
+export { EyeIcon } from './EyeIcon'
+export { DownloadIcon } from './DownloadIcon'
+export { CloseIcon } from './CloseIcon'
+export { SearchIcon } from './SearchIcon'
+export { CalendarIcon } from './CalendarIcon'
+export { CorrectionIcon } from './CorrectionIcon'
+export { CheckCircleIcon } from './CheckCircleIcon'
+export { ChevronLeftIcon } from './ChevronLeftIcon'
+export { ChevronRightIcon } from './ChevronRightIcon'
+export { HomeIcon } from './HomeIcon'
+export { UndoIcon } from './UndoIcon'
+export { ToggleIcon } from './ToggleIcon'
+
+export interface IconProps extends React.SVGProps<SVGSVGElement> {
+  size?: number
+}
