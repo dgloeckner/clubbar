@@ -12,24 +12,28 @@ import { LoginCredentials, AuthResponse } from '../types'
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
   try {
     const response = await post<{
-      admin_id: string
-      email: string
-      display_name: string
-      locale: string
-    }>('/admin/auth/login', credentials)
+      message: string
+      admin: {
+        id: string
+        email: string
+        display_name: string
+        locale: string
+      }
+    }>('/auth/login', credentials)
 
-    if (response.data) {
+    // Backend returns { message, admin: { id, email, display_name, locale } }
+    if (response.admin) {
       // Store session info
-      localStorage.setItem('admin_id', response.data.admin_id)
-      localStorage.setItem('email', response.data.email)
-      localStorage.setItem('display_name', response.data.display_name)
-      localStorage.setItem('locale', response.data.locale)
+      localStorage.setItem('admin_id', response.admin.id)
+      localStorage.setItem('email', response.admin.email)
+      localStorage.setItem('display_name', response.admin.display_name)
+      localStorage.setItem('locale', response.admin.locale)
     }
 
     return {
       success: true,
       message: 'Login successful',
-      data: response.data,
+      data: response.admin,
     }
   } catch (error: any) {
     const message = error.response?.data?.message || 'Login failed'
@@ -46,7 +50,7 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
 export async function logout(): Promise<void> {
   try {
     // Call logout endpoint
-    await post('/admin/auth/logout', {})
+    await post('/auth/logout', {})
   } catch (error) {
     console.error('Logout error:', error)
   } finally {

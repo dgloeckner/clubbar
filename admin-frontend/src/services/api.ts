@@ -35,10 +35,19 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    // Handle 401 Unauthorized - redirect to login
+    // Handle 401 Unauthorized - clear auth and redirect to login
     if (error.response?.status === 401) {
+      // Clear all auth data
       localStorage.removeItem('auth_token')
-      window.location.href = '/login'
+      localStorage.removeItem('admin_id')
+      localStorage.removeItem('email')
+      localStorage.removeItem('display_name')
+      localStorage.removeItem('locale')
+
+      // Redirect to login
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
     }
 
     // Handle 403 Forbidden

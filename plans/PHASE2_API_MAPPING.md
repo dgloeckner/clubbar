@@ -821,3 +821,121 @@ Response: TerminalActivityReport
 - Document multilingual product handling
 - Test with German locale (de-DE) for formatting
 
+---
+
+## Phase 2 Scope vs Deferred Use Cases
+
+**See [USE_CASE_AUDIT.md](./USE_CASE_AUDIT.md) for complete mapping of all 43 use cases to backend APIs.**
+
+### ✅ Phase 2 Use Cases (In Scope - 25 UC)
+
+These use cases are implemented by the 5 core pages:
+
+**Members Page**:
+- ✅ UC-A10: List Members
+- ✅ UC-A11: Create Member
+- ✅ UC-A12: Edit Member
+- ✅ UC-A15: Deactivate Member
+
+**Products Page**:
+- ✅ UC-A40: List Products
+- ✅ UC-A41: Create Product
+- ✅ UC-A42: Edit Product
+- ✅ UC-A43: Deactivate Product
+- ✅ UC-A44: Manage Categories
+
+**Journal Page** (Member-centric):
+- ✅ UC-A20: View Tab (member's transaction history + balance)
+
+**Settlements Page**:
+- ✅ UC-A30: Create Settlement (SEPA + Manual)
+- ✅ UC-A31: Download SEPA XML
+- ✅ UC-A32: Download CSV
+- ✅ UC-A33: Settlement History
+- ✅ UC-A34: Settlement Details
+- ✅ UC-A35: Manual Settlement
+
+**Statistics Page**:
+- ✅ UC-A50: Reports (Revenue, Consumption, Transactions)
+- ✅ UC-A51: Member Ranking
+- ✅ UC-A52: Terminal Activity
+- ✅ UC-A80: Dashboard Overview
+
+**Authentication** (Phase 1, carried forward):
+- ✅ UC-A01: Login
+- ✅ UC-A02: Logout
+- ✅ UC-A03: Change Password
+
+**Total Phase 2**: 25 use cases ✅
+
+---
+
+### 🔄 Phase 3+ Use Cases (Deferred - 18 UC)
+
+#### Phase 3A: Settings & Compliance (5 pages, 8 UC)
+
+- 🔄 UC-A60: Edit Organization (SEPA Config page)
+- 🔄 UC-A61: Manage Admin Users (Admin Users list page)
+- 🔄 UC-A62: Create Admin User (Create admin modal)
+- 🔄 UC-A63: Reset Admin Password (Reset action)
+- 🔄 UC-A81: Audit Log (Audit log page)
+- 🔄 UC-A82: SEPA Validation Report (SEPA Issues page)
+
+#### Phase 3B: RFID Card Management (1 page, 4 UC)
+
+- 🔄 UC-A13: Assign RFID Card (from member or cards page)
+- 🔄 UC-A14: Remove RFID Card (from member detail)
+- 🔄 UC-A70: Unassigned Cards (Cards management page)
+- 🔄 UC-A71: Block Card (Cards page action)
+
+#### Phase 4: Member Import (1 page, 1 UC)
+
+- 🔄 UC-A16: Import Members (CSV import page)
+
+#### Phase 5+: Transaction Corrections (3 UC)
+
+- ⏸️ UC-A21: Manual Booking (transaction corrections)
+- ⏸️ UC-A22: Export Transactions (standalone export - low priority)
+
+#### TBD: Terminal Management (7 UC - Backend Complete)
+
+- ⏸️ UC-A50-A55: Terminal CRUD + Token Rotation (backend module complete, UI TBD)
+
+**Total Deferred**: 18+ use cases
+
+---
+
+### Rationale for Phase 2 Scope
+
+**Why these 5 pages for Phase 2?**
+
+1. **Core POS Workflow**: Members, Products, Settlements, Statistics are the primary admin tasks
+2. **API Completeness**: All required backend APIs implemented and tested
+3. **Prototype Alignment**: Prototype focuses on these 5 pages; other pages require new design
+4. **High Value**: 60% of use case volume in single implementation sprint
+5. **Foundation Building**: Establishes patterns for form handling, tables, filtering that apply to later phases
+
+**Why defer RFID, Settings, Import to Phase 3+?**
+
+1. **Secondary Workflows**: Not part of daily transaction processing
+2. **Complex Interactions**: RFID needs unknown cards sync; Settings need multi-section forms; Import needs preview UX
+3. **Lower Frequency**: Used by admins occasionally, not transaction-on-transaction
+4. **Reduces Phase 2 Risk**: Focus on core 5 pages ensures delivery on timeline
+5. **Better for Team**: Settings/RFID can be handled by different team members once Phase 2 patterns established
+
+**When to start Phase 3?**
+
+- After Phase 2 Pages 1-3 (Members, Products, Statistics) are production-ready
+- This provides 3-4 weeks head start for Settings design while Phase 2 is polished
+- RFID phase can follow immediately after Cards page design is ready
+
+---
+
+## Backend API Status: 100% Ready ✅
+
+All backend APIs required for Phase 2, Phase 3, and Phase 4 are **already implemented** and tested with E2E tests.
+
+No backend work needed before starting Phase 2 implementation.
+
+See [USE_CASE_AUDIT.md](./USE_CASE_AUDIT.md) for complete API endpoint inventory.
+
