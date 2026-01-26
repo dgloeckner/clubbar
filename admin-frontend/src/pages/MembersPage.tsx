@@ -129,9 +129,10 @@ export function MembersPage() {
         : '1fr'
 
   return (
-    <div>
+    <div data-testid="members-page">
       {/* Stats Grid */}
       <div
+        data-testid="members-stats-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: gridColumns,
@@ -164,6 +165,7 @@ export function MembersPage() {
         {/* Search bar and create button */}
         <div style={{ padding: theme.spacing.lg, borderBottom: `1px solid ${theme.colors.border.light}`, display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
           <input
+            data-testid="members-search-input"
             type="text"
             placeholder="Search members..."
             value={search}
@@ -183,6 +185,7 @@ export function MembersPage() {
             }}
           />
           <button
+            data-testid="members-create-button"
             onClick={() => {
               setEditingMember(null)
               setFormData({ email: '', first_name: '', last_name: '', phone: '' })
@@ -211,6 +214,7 @@ export function MembersPage() {
         {/* Table */}
         {error && (
           <div
+            data-testid="members-error-message"
             style={{
               padding: theme.spacing.lg,
               background: `${theme.colors.semantic.danger}20`,
@@ -224,16 +228,17 @@ export function MembersPage() {
         )}
 
         {loading ? (
-          <div style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+          <div data-testid="members-loading" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
             Loading members...
           </div>
         ) : members.length === 0 ? (
-          <div style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+          <div data-testid="members-empty-state" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
             No members found
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table
+              data-testid="members-table"
               style={{
                 width: '100%',
                 borderCollapse: 'collapse',
@@ -257,20 +262,30 @@ export function MembersPage() {
                 {members.map((member) => (
                   <tr
                     key={member.id}
+                    data-testid={`members-table-row-${member.id}`}
                     style={{
                       borderBottom: `1px solid ${theme.colors.border.light}`,
                       background: member.is_active ? 'transparent' : `${theme.colors.semantic.danger}05`,
                     }}
                   >
                     <td style={{ padding: theme.spacing.md }}>
-                      {member.first_name} {member.last_name}
+                      <span data-testid={`members-table-cell-name-${member.id}`}>
+                        {member.first_name} {member.last_name}
+                      </span>
                     </td>
-                    <td style={{ padding: theme.spacing.md }}>{member.email}</td>
+                    <td style={{ padding: theme.spacing.md }}>
+                      <span data-testid={`members-table-cell-email-${member.id}`}>
+                        {member.email}
+                      </span>
+                    </td>
                     <td style={{ padding: theme.spacing.md, textAlign: 'right' }}>
-                      {formatPrice(member.balance_cents)}
+                      <span data-testid={`members-table-cell-balance-${member.id}`}>
+                        {formatPrice(member.balance_cents)}
+                      </span>
                     </td>
                     <td style={{ padding: theme.spacing.md, textAlign: 'center' }}>
                       <button
+                        data-testid={`members-table-action-edit-${member.id}`}
                         onClick={() => handleEdit(member)}
                         style={{
                           background: 'transparent',
@@ -284,6 +299,7 @@ export function MembersPage() {
                         <EditIcon size={18} />
                       </button>
                       <button
+                        data-testid={`members-table-action-delete-${member.id}`}
                         onClick={() => setDeleteConfirm(member.id)}
                         style={{
                           background: 'transparent',
@@ -309,6 +325,7 @@ export function MembersPage() {
       {/* Create/Edit Modal */}
       {showModal && (
         <div
+          data-testid="members-form-modal"
           style={{
             position: 'fixed',
             top: 0,
@@ -324,6 +341,7 @@ export function MembersPage() {
           onClick={() => setShowModal(false)}
         >
           <div
+            data-testid="members-form-modal-content"
             style={{
               background: theme.colors.bg.secondary,
               borderRadius: theme.borderRadius.lg,
@@ -334,7 +352,7 @@ export function MembersPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
+            <h2 data-testid="members-form-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
               {editingMember ? 'Edit Member' : 'New Member'}
             </h2>
 
@@ -344,6 +362,7 @@ export function MembersPage() {
                   Email
                 </label>
                 <input
+                  data-testid="members-form-email-input"
                   type="email"
                   required
                   value={formData.email}
@@ -365,6 +384,7 @@ export function MembersPage() {
                   First Name
                 </label>
                 <input
+                  data-testid="members-form-first-name-input"
                   type="text"
                   required
                   value={formData.first_name}
@@ -386,6 +406,7 @@ export function MembersPage() {
                   Last Name
                 </label>
                 <input
+                  data-testid="members-form-last-name-input"
                   type="text"
                   required
                   value={formData.last_name}
@@ -407,6 +428,7 @@ export function MembersPage() {
                   Phone (optional)
                 </label>
                 <input
+                  data-testid="members-form-phone-input"
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -424,6 +446,7 @@ export function MembersPage() {
 
               <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end', marginTop: theme.spacing.lg }}>
                 <button
+                  data-testid="members-form-cancel-button"
                   type="button"
                   onClick={() => setShowModal(false)}
                   style={{
@@ -440,6 +463,7 @@ export function MembersPage() {
                   Cancel
                 </button>
                 <button
+                  data-testid="members-form-submit-button"
                   type="submit"
                   style={{
                     padding: `${theme.spacing.md} ${theme.spacing.lg}`,
@@ -463,6 +487,7 @@ export function MembersPage() {
       {/* Delete Confirmation Dialog */}
       {deleteConfirm && (
         <div
+          data-testid="members-delete-confirm-modal"
           style={{
             position: 'fixed',
             top: 0,
@@ -478,6 +503,7 @@ export function MembersPage() {
           onClick={() => setDeleteConfirm(null)}
         >
           <div
+            data-testid="members-delete-confirm-content"
             style={{
               background: theme.colors.bg.secondary,
               borderRadius: theme.borderRadius.lg,
@@ -488,15 +514,16 @@ export function MembersPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.lg }}>
+            <h2 data-testid="members-delete-confirm-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.lg }}>
               Confirm Delete
             </h2>
-            <p style={{ color: theme.colors.text.secondary, marginBottom: theme.spacing.lg }}>
+            <p data-testid="members-delete-confirm-message" style={{ color: theme.colors.text.secondary, marginBottom: theme.spacing.lg }}>
               Are you sure you want to deactivate this member? This action cannot be undone.
             </p>
 
             <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end' }}>
               <button
+                data-testid="members-delete-confirm-cancel"
                 onClick={() => setDeleteConfirm(null)}
                 style={{
                   padding: `${theme.spacing.md} ${theme.spacing.lg}`,
@@ -512,6 +539,7 @@ export function MembersPage() {
                 Cancel
               </button>
               <button
+                data-testid="members-delete-confirm-ok"
                 onClick={() => handleDelete(deleteConfirm)}
                 style={{
                   padding: `${theme.spacing.md} ${theme.spacing.lg}`,

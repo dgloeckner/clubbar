@@ -31,13 +31,21 @@ export class LoginPage extends BasePage {
    * Perform login with email and password
    * Waits for page navigation after login
    */
-  async login(email: string, password: string) {
+  async login(email: string, password: string, waitForLogin: boolean = false) {
     await this.emailInput().fill(email)
     await this.passwordInput().fill(password)
     await this.loginBtn().click()
+    if (waitForLogin) {
+      await this.page.waitForURL('**/members', { timeout: 5000 })
+      // Verify authentication succeeded
+      const adminId = await this.page.evaluate(() => {
+        return localStorage.getItem('admin_id')
+      })
 
-    // Wait for navigation (client-side routing)
-    await this.page.waitForTimeout(1500)
+      if (!adminId) {
+        throw new Error('Admin login failed - no admin_id in localStorage')
+      }
+    }
   }
 
   /**

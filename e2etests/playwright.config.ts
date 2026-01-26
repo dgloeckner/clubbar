@@ -27,6 +27,18 @@ export default defineConfig({
   },
 
   projects: [
+    // Setup project: Authenticate before running tests
+    // This runs once and saves storage state for test projects
+    {
+      name: 'setup auth',
+      testMatch: 'auth.setup.ts',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: process.env.ADMIN_URL || 'http://localhost:5173',
+      },
+    },
+
+
     // API Tests - No browser, pure HTTP testing
     {
       name: 'api-tests',
@@ -40,9 +52,11 @@ export default defineConfig({
     {
       name: 'admin-chromium',
       testDir: './tests/admin',
+      dependencies: ['setup auth'],
       use: {
         ...devices['Desktop Chrome'],
         baseURL: process.env.ADMIN_URL || 'http://localhost:5173',
+        storageState: 'playwright/.auth/admin.json',
       },
     },
 

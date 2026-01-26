@@ -1,0 +1,37 @@
+{
+  "cookies": [
+    {
+      "name": "ruderbar_session",
+      "value": "eyJpdiI6IkR0ank3bUpKZGFpWUJNcUFYR1FrNEE9PSIsInZhbHVlIjoiMzBHTDNtblgyT3NkWVoyUERrZXo1V2QrOXV5SUJCMkx5cFNBZjVCTlJVak1sdU92TjFLL3F3K09iRUkxMHZacTZmYjBEdmFZc2xqd1g2WEtVRE1LTE82RDQyNFoyRTZhSnNyV0FwWERJOGxFY012OWhtZEhPNytpM0FuZlV4VUsiLCJtYWMiOiI4MzQ5ODFjYWMzMDMzMzlmM2ZjMzg3MDBhNDUzZDMxMzdhZDhkZWQxNWY2ODc0ODFkZjRhYjNmNGJmNDJiMmNkIiwidGFnIjoiIn0%3D",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1769473934.968693,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:5173",
+      "localStorage": [
+        {
+          "name": "admin_id",
+          "value": "33e4567-e89b-12d3-a456-426614174000"
+        },
+        {
+          "name": "email",
+          "value": "admin@example.com"
+        },
+        {
+          "name": "locale",
+          "value": "de"
+        },
+        {
+          "name": "display_name",
+          "value": "Admin User"
+        }
+      ]
+    }
+  ]
+}

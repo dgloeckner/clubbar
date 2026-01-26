@@ -2,147 +2,178 @@
  * Products Page Object
  *
  * Encapsulates all interactions with the products page.
+ * Implements E2E Testing Pattern 005: Using Test IDs (data-testid)
  * Implements E2E Testing Pattern 006: Page Object Model
  * Implements E2E Testing Pattern 008: Playwright Assertions (no visibility helpers)
  *
- * Key principle: Expose semantic user actions, return values tests need.
- * Tests use expect() directly for visibility checks.
+ * **CRITICAL PATTERN PRINCIPLES:**
+ * 1. Page object provides HIGH-LEVEL SEMANTIC METHODS (not raw locators)
+ * 2. Tests use page object methods, NOT page.locator() or page.getByTestId()
+ * 3. All locators are PRIVATE and hidden from tests
+ * 4. Page object handles data-testid selection internally
+ *
+ * BAD (tests shouldn't do this):
+ *   const table = page.locator('table, [role="table"]')
+ *   const modal = page.getByTestId('products-form-modal')
+ *
+ * GOOD (tests call page object methods):
+ *   await productsPage.expectTableVisible()
+ *   await productsPage.expectFormModalVisible()
  */
 
-import { Page } from '@playwright/test'
+import { Page, expect } from '@playwright/test'
 import { BasePage } from './BasePage'
 
 export class ProductsPage extends BasePage {
-  // Main page locators
-  private readonly heading = () => this.page.locator('h1:has-text("Products")')
-  private readonly searchInput = () => this.page.locator('input[placeholder*="Search"]')
-  private readonly createBtn = () => this.page.locator('button:has-text("Create Product")')
-  private readonly table = () => this.page.locator('table, [role="table"]')
-  private readonly tableRows = () => this.page.locator('tbody tr, [role="row"]')
-  private readonly noProductsMessage = () => this.page.locator('text=/no products found/i')
-  private readonly errorMessage = () => this.page.locator('[class*="error"], text=/failed|error/i')
+  // Main page locators (PRIVATE - hidden from tests)
+  private readonly table = () => this.page.getByTestId('products-table')
+  private readonly tableRows = () => this.page.locator('[data-testid^="products-table-row-"]')
+  private readonly searchInput = () => this.page.getByTestId('products-search-input')
+  private readonly createBtn = () => this.page.getByTestId('products-create-button')
+  private readonly emptyState = () => this.page.getByTestId('products-empty-state')
+  private readonly errorMessage = () => this.page.getByTestId('products-error-message')
 
-  // Modal locators
-  private readonly modal = () => this.page.locator('[role="dialog"], [class*="modal"]')
-  private readonly modalHeading = () => this.page.locator('h2:has-text("Create Product"), [role="dialog"] h2')
-  private readonly productNameInput = () => this.page.locator('input[placeholder*="Product name"]')
-  private readonly priceInput = () => this.page.locator('input[type="number"], input[placeholder*="Price"]')
-  private readonly cancelBtn = () => this.page.locator('button:has-text("Cancel")')
-  private readonly createSubmitBtn = () => this.page.getByRole('button', { name: /^Create$/ }).last()
+  // Modal locators (PRIVATE)
+  private readonly formModal = () => this.page.getByTestId('products-form-modal')
+  private readonly formModalContent = () => this.page.getByTestId('products-form-modal-content')
+  private readonly formTitle = () => this.page.getByTestId('products-form-title')
+  private readonly nameInput = () => this.page.getByTestId('products-form-name-input')
+  private readonly priceInput = () => this.page.getByTestId('products-form-price-input')
+  private readonly formSubmitBtn = () => this.page.getByTestId('products-form-submit-button')
+  private readonly formCancelBtn = () => this.page.getByTestId('products-form-cancel-button')
+  private readonly formError = () => this.page.getByTestId('products-form-error')
 
   constructor(page: Page) {
     super(page)
   }
 
   /**
-   * Navigate to products page and wait for products to load
+   * Navigate to products page
    */
   async navigate() {
     await super.navigate('http://localhost:5173/products')
-    // Wait for page to finish loading (either shows table or no products message)
-    await Promise.race([
-      this.table().waitFor({ state: 'visible', timeout: 10000 }).catch(() => null),
-      this.noProductsMessage().waitFor({ state: 'visible', timeout: 10000 }).catch(() => null),
-    ])
   }
 
   /**
-   * Get count of product rows in table
-   * Pattern 008: Return value tests actually use (number, not boolean)
+   * VISIBILITY EXPECTATIONS (Pattern 008: Use expect() for assertions)
    */
+
+  async expectPageVisible() {
+    await expect(this.page.getByTestId('products-page')).toBeVisible()
+  }
+
+  async expectTableVisible() {
+    await expect(this.table()).toBeVisible()
+  }
+
+  async expectTableHidden() {
+    await expect(this.table()).not.toBeVisible()
+  }
+
+  async expectFormModalVisible() {
+    await expect(this.formModal()).toBeVisible()
+  }
+
+  async expectFormModalHidden() {
+    await expect(this.formModal()).not.toBeVisible()
+  }
+
+  async expectEmptyStateVisible() {
+    await expect(this.emptyState()).toBeVisible()
+  }
+
+  async expectErrorMessageVisible() {
+    await expect(this.errorMessage()).toBeVisible()
+  }
+
+  async expectProductRowVisible(productId: string) {
+    await expect(this.page.getByTestId(`products-table-row-${productId}`)).toBeVisible()
+  }
+
+  /**
+   * TABLE INTERACTIONS (Pattern 006: Semantic actions)
+   */
+
   async getProductCount(): Promise<number> {
     return await this.tableRows().count()
   }
 
-  /**
-   * Get current search input value
-   */
-  async getSearchValue(): Promise<string | null> {
-    try {
-      return await this.searchInput().inputValue()
-    } catch {
-      return null
-    }
+  async getProductNameInRow(productId: string): Promise<string> {
+    const name = await this.page
+      .getByTestId(`products-table-cell-name-${productId}`)
+      .textContent()
+    return name || ''
+  }
+
+  async getProductPriceInRow(productId: string): Promise<string> {
+    const price = await this.page
+      .getByTestId(`products-table-cell-price-${productId}`)
+      .textContent()
+    return price || ''
   }
 
   /**
-   * Search/filter products by term
-   * Includes debounce wait for API call
+   * SEARCH & FILTER (Pattern 006: Semantic actions)
    */
+
   async search(term: string) {
     await this.searchInput().fill(term)
     await this.waitForDebounce(500)
   }
 
-  /**
-   * Clear search input
-   */
   async clearSearch() {
     await this.searchInput().clear()
     await this.waitForDebounce(500)
   }
 
+  async getSearchValue(): Promise<string> {
+    return await this.searchInput().inputValue() || ''
+  }
+
   /**
-   * Open create product modal
-   * Pattern 008: Use expect().toBeVisible() in test instead of isCreateModalOpen()
+   * FORM MODAL INTERACTIONS (Pattern 006: Semantic actions)
    */
+
   async openCreateModal() {
     await this.createBtn().click()
-    // Let test use: await expect(modalHeading).toBeVisible()
   }
 
-  /**
-   * Fill product form fields
-   */
   async fillProductForm(name: string, price: string) {
-    await this.productNameInput().fill(name)
+    await this.nameInput().fill(name)
     await this.priceInput().fill(price)
   }
 
-  /**
-   * Fill only product name
-   */
-  async fillProductName(name: string) {
-    await this.productNameInput().fill(name)
+  async submitForm() {
+    await this.formSubmitBtn().click()
   }
 
-  /**
-   * Fill only price
-   */
-  async fillPrice(price: string) {
-    await this.priceInput().fill(price)
+  async cancelForm() {
+    await this.formCancelBtn().click()
   }
 
-  /**
-   * Submit product creation form
-   */
-  async submitProductForm() {
-    await this.createSubmitBtn().click()
-  }
-
-  /**
-   * Cancel create modal without submitting
-   * Pattern 008: Test uses await expect(modal).toBeHidden() instead of this check
-   */
-  async cancelCreateModal() {
-    await this.cancelBtn().click()
-    // Let test use: await expect(modal).toBeHidden()
-  }
-
-  /**
-   * Create product in single action
-   * Opens modal, fills form, and submits
-   */
   async createProduct(name: string, price: string) {
     await this.openCreateModal()
+    await this.expectFormModalVisible()
     await this.fillProductForm(name, price)
-    await this.submitProductForm()
+    await this.submitForm()
   }
 
   /**
-   * Get error message text if any
-   * Pattern 008: Return value tests need, not boolean
+   * FORM FIELD HELPERS
    */
+
+  async getFormNameValue(): Promise<string> {
+    return await this.nameInput().inputValue() || ''
+  }
+
+  async getFormPriceValue(): Promise<string> {
+    return await this.priceInput().inputValue() || ''
+  }
+
+  /**
+   * ERROR HANDLING
+   */
+
   async getErrorMessage(): Promise<string | null> {
     try {
       return await this.errorMessage().textContent()
@@ -151,18 +182,19 @@ export class ProductsPage extends BasePage {
     }
   }
 
+  async getFormErrorMessage(): Promise<string | null> {
+    try {
+      return await this.formError().textContent()
+    } catch {
+      return null
+    }
+  }
+
   /**
-   * Get current page URL
+   * PAGE STATE VERIFICATION
    */
+
   async isOnProductsPage(): Promise<boolean> {
     return this.getCurrentUrl().includes('/products')
   }
-
-  // *** DO NOT ADD ***
-  // The following methods would violate Pattern 008:
-  // - isLoaded() - Use: await expect(page.locator('h1')).toBeVisible()
-  // - isTableVisible() - Use: await expect(table).toBeVisible()
-  // - isNoProductsMessageVisible() - Use: await expect(noProductsMsg).toBeVisible()
-  // - isCreateModalOpen() - Use: await expect(modal).toBeVisible()
-  // - isErrorVisible() - Use: await expect(error).toBeVisible()
 }

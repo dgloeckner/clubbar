@@ -2,14 +2,26 @@
  * Members Page Object
  *
  * Encapsulates all interactions with the members management page.
+ * Implements E2E Testing Pattern 005: Using Test IDs (data-testid)
  * Implements E2E Testing Pattern 006: Page Object Model
  * Implements E2E Testing Pattern 008: Playwright Assertions (no visibility helpers)
  *
- * Key principle: Expose semantic user actions, return values tests need.
- * Tests use expect() directly for visibility checks.
+ * **CRITICAL PATTERN PRINCIPLES:**
+ * 1. Page object provides HIGH-LEVEL SEMANTIC METHODS (not raw locators)
+ * 2. Tests use page object methods, NOT page.locator() or page.getByTestId()
+ * 3. All locators are PRIVATE and hidden from tests
+ * 4. Page object handles data-testid selection internally
+ *
+ * BAD (tests shouldn't do this):
+ *   const modal = page.locator('[role="dialog"]')
+ *   const table = page.getByTestId('members-table')
+ *
+ * GOOD (tests call page object methods):
+ *   await membersPage.expectFormModalVisible()
+ *   await membersPage.expectTableVisible()
  */
 
-import { Page } from '@playwright/test'
+import { Page, expect } from '@playwright/test'
 import { BasePage } from './BasePage'
 
 export class MembersPage extends BasePage {
@@ -19,20 +31,31 @@ export class MembersPage extends BasePage {
   private readonly statCardLetzteAbrechnung = () => this.page.getByTestId('stat-card-letzte-abrechnung')
 
   // Search and filter
-  private readonly searchInput = () => this.page.locator('input[placeholder*="Search"], input[placeholder*="search"]')
-  private readonly createBtn = () => this.page.locator('button:has-text("Create"), button:has-text("Hinzufügen"), button:has-text("Add")')
+  private readonly searchInput = () => this.page.getByTestId('members-search-input')
+  private readonly createBtn = () => this.page.getByTestId('members-create-button')
 
   // Table elements
-  private readonly table = () => this.page.locator('table, [role="table"]')
-  private readonly tableRows = () => this.page.locator('tbody tr, [role="row"]').filter({ hasNot: this.page.locator('th') })
+  private readonly table = () => this.page.getByTestId('members-table')
+  private readonly tableRows = () => this.page.locator('[data-testid^="members-table-row-"]')
+  private readonly emptyState = () => this.page.getByTestId('members-empty-state')
+  private readonly loadingIndicator = () => this.page.getByTestId('members-loading')
+  private readonly errorMessage = () => this.page.getByTestId('members-error-message')
 
   // Modal elements
-  private readonly modal = () => this.page.locator('[role="dialog"]').first()
-  private readonly emailInput = () => this.modal().locator('input[type="email"]').first()
-  private readonly firstNameInput = () => this.modal().locator('input[placeholder*="First"], input[placeholder*="Vorname"]')
-  private readonly lastNameInput = () => this.modal().locator('input[placeholder*="Last"], input[placeholder*="Nachname"]')
-  private readonly saveBtn = () => this.modal().locator('button:has-text("Save"), button:has-text("Speichern"), button:has-text("Create")').first()
-  private readonly cancelBtn = () => this.modal().locator('button:has-text("Cancel"), button:has-text("Abbrechen")')
+  private readonly formModal = () => this.page.getByTestId('members-form-modal')
+  private readonly formModalContent = () => this.page.getByTestId('members-form-modal-content')
+  private readonly formTitle = () => this.page.getByTestId('members-form-title')
+  private readonly emailInput = () => this.page.getByTestId('members-form-email-input')
+  private readonly firstNameInput = () => this.page.getByTestId('members-form-first-name-input')
+  private readonly lastNameInput = () => this.page.getByTestId('members-form-last-name-input')
+  private readonly phoneInput = () => this.page.getByTestId('members-form-phone-input')
+  private readonly formSubmitBtn = () => this.page.getByTestId('members-form-submit-button')
+  private readonly formCancelBtn = () => this.page.getByTestId('members-form-cancel-button')
+
+  // Delete confirmation modal
+  private readonly deleteConfirmModal = () => this.page.getByTestId('members-delete-confirm-modal')
+  private readonly deleteConfirmOkBtn = () => this.page.getByTestId('members-delete-confirm-ok')
+  private readonly deleteConfirmCancelBtn = () => this.page.getByTestId('members-delete-confirm-cancel')
 
   constructor(page: Page) {
     super(page)
@@ -46,131 +69,217 @@ export class MembersPage extends BasePage {
   }
 
   /**
-   * Get member count from stat card
-   * Pattern 008: Return value tests need (string, not boolean)
+   * VISIBILITY EXPECTATIONS (Pattern 008: Use expect() for assertions)
    */
-  async getMemberCount(): Promise<string> {
-    const valueElement = this.statCardMitglieder().locator(':scope >> nth=1')
-    return await valueElement.textContent() || '0'
+
+  async expectPageVisible() {
+    await expect(this.page.getByTestId('members-page')).toBeVisible()
+  }
+
+  async expectTableVisible() {
+    await expect(this.table()).toBeVisible()
+  }
+
+  async expectTableHidden() {
+    await expect(this.table()).not.toBeVisible()
+  }
+
+  async expectFormModalVisible() {
+    await expect(this.formModal()).toBeVisible()
+  }
+
+  async expectFormModalHidden() {
+    await expect(this.formModal()).not.toBeVisible()
+  }
+
+  async expectDeleteConfirmModalVisible() {
+    await expect(this.deleteConfirmModal()).toBeVisible()
+  }
+
+  async expectDeleteConfirmModalHidden() {
+    await expect(this.deleteConfirmModal()).not.toBeVisible()
+  }
+
+  async expectEmptyStateVisible() {
+    await expect(this.emptyState()).toBeVisible()
+  }
+
+  async expectErrorMessageVisible() {
+    await expect(this.errorMessage()).toBeVisible()
+  }
+
+  async expectMemberRowVisible(memberId: string) {
+    await expect(this.page.getByTestId(`members-table-row-${memberId}`)).toBeVisible()
+  }
+
+  async expectMemberRowHidden(memberId: string) {
+    await expect(this.page.getByTestId(`members-table-row-${memberId}`)).not.toBeVisible()
   }
 
   /**
-   * Get open balance from stat card
+   * TABLE INTERACTIONS (Pattern 006: Semantic actions)
    */
-  async getOpenBalance(): Promise<string> {
-    const valueElement = this.statCardOffenePosten().locator(':scope >> nth=1')
-    return await valueElement.textContent() || '0,00 €'
-  }
 
-  /**
-   * Get number of member rows in table
-   * Pattern 008: Return value tests need (number, not boolean)
-   */
   async getMemberRowCount(): Promise<number> {
     return await this.tableRows().count()
   }
 
-  /**
-   * Search for members by email
-   */
-  async search(email: string) {
-    await this.searchInput().fill(email)
-    await this.waitForDebounce(500)
+  async getMemberEmailInRow(memberId: string): Promise<string> {
+    const email = await this.page
+      .getByTestId(`members-table-cell-email-${memberId}`)
+      .textContent()
+    return email || ''
+  }
+
+  async getMemberNameInRow(memberId: string): Promise<string> {
+    const name = await this.page
+      .getByTestId(`members-table-cell-name-${memberId}`)
+      .textContent()
+    return name || ''
+  }
+
+  async getMemberBalanceInRow(memberId: string): Promise<string> {
+    const balance = await this.page
+      .getByTestId(`members-table-cell-balance-${memberId}`)
+      .textContent()
+    return balance || ''
   }
 
   /**
-   * Clear search filter
+   * SEARCH & FILTER (Pattern 006: Semantic actions)
    */
+
+  async search(query: string) {
+    await this.searchInput().fill(query)
+    await this.waitForDebounce(500)
+  }
+
   async clearSearch() {
     await this.searchInput().clear()
     await this.waitForDebounce(500)
   }
 
-  /**
-   * Get current search value
-   */
   async getSearchValue(): Promise<string> {
     return await this.searchInput().inputValue() || ''
   }
 
   /**
-   * Open create member modal
-   * Pattern 008: Test uses await expect(modal).toBeVisible() instead of helper
+   * FORM MODAL INTERACTIONS (Pattern 006: Semantic actions)
    */
+
   async openCreateModal() {
     await this.createBtn().click()
-    // Let test verify with: await expect(modal).toBeVisible()
   }
 
-  /**
-   * Fill member form fields
-   */
-  async fillMemberForm(email: string, firstName: string, lastName: string) {
+  async fillMemberForm(email: string, firstName: string, lastName: string, phone?: string) {
     await this.emailInput().fill(email)
     await this.firstNameInput().fill(firstName)
     await this.lastNameInput().fill(lastName)
+    if (phone) {
+      await this.phoneInput().fill(phone)
+    }
   }
 
-  /**
-   * Submit member form
-   * Pattern 008: Test uses await expect(modal).toBeHidden() instead of helper
-   */
-  async submitMemberForm() {
-    await this.saveBtn().click()
-    // Let test verify with: await expect(modal).toBeHidden()
+  async submitForm() {
+    await this.formSubmitBtn().click()
   }
 
-  /**
-   * Cancel member form
-   * Pattern 008: Test uses await expect(modal).toBeHidden() instead of helper
-   */
-  async cancelMemberForm() {
-    await this.cancelBtn().click()
-    // Let test verify with: await expect(modal).toBeHidden()
+  async cancelForm() {
+    await this.formCancelBtn().click()
   }
 
-  /**
-   * Create a new member (open form, fill, submit)
-   */
-  async createMember(email: string, firstName: string, lastName: string) {
+  async createMember(email: string, firstName: string, lastName: string, phone?: string) {
     await this.openCreateModal()
-    await this.fillMemberForm(email, firstName, lastName)
-    await this.submitMemberForm()
+    await this.expectFormModalVisible()
+    await this.fillMemberForm(email, firstName, lastName, phone)
+    await this.submitForm()
   }
 
-  /**
-   * Open edit modal for first member in table
-   * Pattern 008: Test uses await expect(modal).toBeVisible() instead of helper
-   */
-  async openEditModalForFirstMember() {
-    const firstRow = this.tableRows().first()
-    const editBtn = firstRow.locator('button:has-text("Edit"), button:has-text("Bearbeiten")')
+  async openEditModalForMember(memberId: string) {
+    const editBtn = this.page.getByTestId(`members-table-action-edit-${memberId}`)
     await editBtn.click()
-    // Let test verify with: await expect(modal).toBeVisible()
+  }
+
+  async editMember(memberId: string, email: string, firstName: string, lastName: string, phone?: string) {
+    await this.openEditModalForMember(memberId)
+    await this.expectFormModalVisible()
+    await this.fillMemberForm(email, firstName, lastName, phone)
+    await this.submitForm()
   }
 
   /**
-   * Get email address of member in specific row
-   * Pattern 008: Return value tests need (string, not boolean)
+   * DELETE INTERACTIONS (Pattern 006: Semantic actions)
    */
-  async getMemberEmailInRow(rowIndex: number): Promise<string | null> {
-    const rows = this.tableRows()
-    const row = rows.nth(rowIndex)
-    const cells = row.locator('td')
-    // Email is typically in the second column
-    const emailCell = cells.nth(1)
+
+  async openDeleteConfirmForMember(memberId: string) {
+    const deleteBtn = this.page.getByTestId(`members-table-action-delete-${memberId}`)
+    await deleteBtn.click()
+  }
+
+  async confirmDelete() {
+    await this.deleteConfirmOkBtn().click()
+  }
+
+  async cancelDelete() {
+    await this.deleteConfirmCancelBtn().click()
+  }
+
+  async deleteMember(memberId: string) {
+    await this.openDeleteConfirmForMember(memberId)
+    await this.expectDeleteConfirmModalVisible()
+    await this.confirmDelete()
+  }
+
+  /**
+   * ERROR HANDLING
+   */
+
+  async getErrorMessage(): Promise<string | null> {
     try {
-      return await emailCell.textContent()
+      return await this.errorMessage().textContent()
     } catch {
       return null
     }
   }
 
-  // *** DO NOT ADD ***
-  // The following methods would violate Pattern 008:
-  // - isLoaded() - Use: await expect(page.locator('h1')).toBeVisible()
-  // - isTableVisible() - Use: await expect(table).toBeVisible()
-  // - isModalVisible() - Use: await expect(modal).toBeVisible()
-  // - isModalHidden() - Use: await expect(modal).toBeHidden()
-  // See: e2etests/patterns/008-playwright-assertions.md
+  /**
+   * FORM FIELD HELPERS
+   */
+
+  async getFormEmailValue(): Promise<string> {
+    return await this.emailInput().inputValue() || ''
+  }
+
+  async getFormFirstNameValue(): Promise<string> {
+    return await this.firstNameInput().inputValue() || ''
+  }
+
+  async getFormLastNameValue(): Promise<string> {
+    return await this.lastNameInput().inputValue() || ''
+  }
+
+  async getFormPhoneValue(): Promise<string> {
+    return await this.phoneInput().inputValue() || ''
+  }
+
+  /**
+   * STAT CARDS (Pattern 006: Semantic queries)
+   */
+
+  async getMemberCount(): Promise<string> {
+    const text = await this.statCardMitglieder().textContent()
+    // Extract the number from the stat card
+    const match = text?.match(/\d+/)
+    return match ? match[0] : '0'
+  }
+
+  async getOpenBalance(): Promise<string> {
+    const text = await this.statCardOffenePosten().textContent()
+    return text || '0,00 €'
+  }
+
+  async getLastSettlementDate(): Promise<string> {
+    const text = await this.statCardLetzteAbrechnung().textContent()
+    return text || ''
+  }
 }

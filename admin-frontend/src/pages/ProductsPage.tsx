@@ -113,11 +113,12 @@ export function ProductsPage() {
   }
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div data-testid="products-page" style={{ padding: '20px' }}>
       <h1>Products</h1>
 
       <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
         <input
+          data-testid="products-search-input"
           type="text"
           placeholder="Search products..."
           value={searchTerm}
@@ -130,6 +131,7 @@ export function ProductsPage() {
           }}
         />
         <button
+          data-testid="products-create-button"
           onClick={() => setShowModal(true)}
           style={{
             padding: '8px 16px',
@@ -146,6 +148,7 @@ export function ProductsPage() {
 
       {error && (
         <div
+          data-testid="products-error-message"
           style={{
             marginBottom: '10px',
             padding: '10px',
@@ -160,6 +163,7 @@ export function ProductsPage() {
 
       <div style={{ overflowX: 'auto' }}>
         <table
+          data-testid="products-table"
           style={{
             width: '100%',
             borderCollapse: 'collapse',
@@ -220,21 +224,29 @@ export function ProductsPage() {
             {products.map((product) => (
               <tr
                 key={product.id}
+                data-testid={`products-table-row-${product.id}`}
                 style={{
                   borderBottom: '1px solid #2d3748',
                 }}
               >
                 <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
-                  {product.names.de || product.names.en || 'Unnamed Product'}
+                  <span data-testid={`products-table-cell-name-${product.id}`}>
+                    {product.names.de || product.names.en || 'Unnamed Product'}
+                  </span>
                 </td>
                 <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
-                  €{(product.price_cents / 100).toFixed(2)}
+                  <span data-testid={`products-table-cell-price-${product.id}`}>
+                    €{(product.price_cents / 100).toFixed(2)}
+                  </span>
                 </td>
                 <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
-                  {product.category_id.substring(0, 8)}...
+                  <span data-testid={`products-table-cell-category-${product.id}`}>
+                    {product.category_id.substring(0, 8)}...
+                  </span>
                 </td>
                 <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
                   <span
+                    data-testid={`products-table-cell-status-${product.id}`}
                     style={{
                       padding: '4px 8px',
                       borderRadius: '4px',
@@ -254,6 +266,7 @@ export function ProductsPage() {
 
       {products.length === 0 && !loading && (
         <div
+          data-testid="products-empty-state"
           style={{
             textAlign: 'center',
             padding: '40px',
@@ -266,6 +279,7 @@ export function ProductsPage() {
 
       {showModal && (
         <div
+          data-testid="products-form-modal"
           style={{
             position: 'fixed',
             top: 0,
@@ -281,6 +295,7 @@ export function ProductsPage() {
           onClick={() => setShowModal(false)}
         >
           <div
+            data-testid="products-form-modal-content"
             style={{
               backgroundColor: '#1a2744',
               padding: '24px',
@@ -291,10 +306,11 @@ export function ProductsPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ marginTop: 0, marginBottom: '16px', color: '#e2e8f0' }}>Create Product</h2>
+            <h2 data-testid="products-form-title" style={{ marginTop: 0, marginBottom: '16px', color: '#e2e8f0' }}>Create Product</h2>
 
             {formError && (
               <div
+                data-testid="products-form-error"
                 style={{
                   marginBottom: '12px',
                   padding: '8px',
@@ -322,6 +338,7 @@ export function ProductsPage() {
                   Product Name
                 </label>
                 <input
+                  data-testid="products-form-name-input"
                   type="text"
                   placeholder="Product name"
                   value={formData.name}
@@ -352,6 +369,7 @@ export function ProductsPage() {
                   Price (€)
                 </label>
                 <input
+                  data-testid="products-form-price-input"
                   type="number"
                   step="0.01"
                   placeholder="10.50"
@@ -372,6 +390,7 @@ export function ProductsPage() {
 
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button
+                  data-testid="products-form-cancel-button"
                   type="button"
                   onClick={() => setShowModal(false)}
                   style={{
@@ -386,6 +405,7 @@ export function ProductsPage() {
                   Cancel
                 </button>
                 <button
+                  data-testid="products-form-submit-button"
                   type="submit"
                   style={{
                     padding: '8px 16px',

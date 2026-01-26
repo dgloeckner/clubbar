@@ -408,6 +408,7 @@ test('login error', async ({ page }) => {
 
 Before committing E2E tests, verify:
 
+- [ ] **🚨 NO ARBITRARY `waitForTimeout()` CALLS** - Every `.waitForTimeout()` must have an explicit expectation immediately after
 - [ ] No page objects expose `isVisible()` or `isElementVisible()` helper methods
 - [ ] All visibility/state checks use `await expect(locator).toBeVisible()`
 - [ ] No try-catch wrapped `isVisible()` calls in test code
@@ -417,18 +418,76 @@ Before committing E2E tests, verify:
 - [ ] Custom waits only used when Playwright's auto-waiting insufficient
 - [ ] Tests use `expect()` for assertions, not custom helper methods
 - [ ] Error messages are descriptive (use Playwright's built-in messages)
+- [ ] Every navigation has URL expectation: `await page.waitForURL()` or `await expect(page).toHaveURL()`
+- [ ] Every state change has element expectation: `await expect(locator).toBeVisible()`
+
+---
+
+## ⚠️ CRITICAL RULE: NO `waitForTimeout()` Without Expectations
+
+**This is the most common anti-pattern and MUST NOT appear in tests:**
+
+```typescript
+// ❌ ABSOLUTELY FORBIDDEN: Arbitrary timeout without expectations
+await page.waitForTimeout(2000)  // ← What are we waiting for? Does nothing!
+await page.waitForTimeout(1500)  // ← No verification that anything happened
+await loginBtn.click()
+await page.waitForTimeout(1000)  // ← Is the page loading? Did something break?
+```
+
+**Why This is Critical:**
+
+1. **Flaky Tests**: If the page loads in 500ms, test waits 1500ms unnecessarily (slow)
+2. **Hidden Bugs**: If navigation fails, arbitrary timeout hides the problem
+3. **Test Fragility**: Times out in CI, passes locally - unreliable
+4. **No Feedback**: Timeout ends silently; tests can't tell if something actually happened
+5. **Unmaintainable**: Next developer doesn't know WHY the wait is there
+
+**EVERY `waitForTimeout()` must be replaced with an explicit expectation:**
+
+```typescript
+// ❌ WRONG
+await loginPage.login('user@example.com', 'password123')
+await page.waitForTimeout(2000)  // ← What?
+
+// ✅ CORRECT: Wait for actual navigation
+await loginPage.login('user@example.com', 'password123')
+await page.waitForURL('**/members', { timeout: 5000 })  // ← Verify it happened
+
+// ✅ CORRECT: Wait for element to appear
+await loginBtn.click()
+await expect(page.locator('[data-testid="success-message"]')).toBeVisible()
+
+// ✅ CORRECT: Wait for response from server
+await expect(page).toHaveURL('**/dashboard')  // ← Confirm URL changed
+```
+
+**Real Example from auth.setup.ts:**
+
+Before (Anti-Pattern):
+```typescript
+await loginPage.login('admin@example.com', 'password123')
+await page.waitForTimeout(2000)  // ← Arbitrary wait, might hide login failure
+```
+
+After (Correct):
+```typescript
+await loginPage.login('admin@example.com', 'password123')
+await page.waitForURL('**/members', { timeout: 5000 })  // ← Verify redirect happened
+```
 
 ---
 
 ## When to Use Manual Waits (Rare Cases)
 
-**Manual waits should only appear in these cases:**
+**Manual waits ONLY appear in these specific cases:**
 
-1. **Waiting for a specific millisecond delay** (e.g., debounce)
+1. **Waiting for a specific millisecond delay** (e.g., debounce, animation)
    ```typescript
    // ✅ OK: Explicit delay for debounce
    await loginPage.search('query')
-   await page.waitForTimeout(500)  // ← Documented debounce time
+   await page.waitForTimeout(500)  // ← Documented debounce time, with comment explaining why
+   await expect(page.locator('[data-testid="results"]')).toBeVisible()  // ← Then verify
    ```
 
 2. **Waiting for external system** (API, WebSocket, etc.)

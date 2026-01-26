@@ -1,12 +1,25 @@
-import { test, expect } from '../fixtures/pageObjects'
+import { test, expect } from '../../fixtures/pageObjects'
 
 /**
  * Admin Frontend - Products Page E2E Tests
  *
  * Tests the admin panel Products page CRUD operations.
+ * Implements E2E Testing Pattern 005: Using Test IDs (data-testid)
  * Implements E2E Testing Pattern 006: Page Object Model
  * Implements E2E Testing Pattern 007: Page Object Fixtures
  * Implements E2E Testing Pattern 008: Playwright Assertions (expect API)
+ *
+ * **CRITICAL: Tests use PAGE OBJECT METHODS, NOT raw locators**
+ *
+ * ✅ CORRECT:
+ *   await productsPage.expectTableVisible()
+ *   await productsPage.getProductCount()
+ *   await productsPage.createProduct('Test', '5.99')
+ *
+ * ❌ WRONG (don't do this):
+ *   const table = page.locator('table, [role="table"]')
+ *   const modal = page.locator('[role="dialog"], [class*="modal"]')
+ *   const input = page.getByTestId('products-search-input')
  *
  * Covers:
  * - Login flow
@@ -23,120 +36,149 @@ import { test, expect } from '../fixtures/pageObjects'
  */
 
 test.describe('Admin Frontend - Products Page', () => {
-  // No manual initialization needed - fixtures provide page objects
-  // with admin already logged in and navigated to products page
+  /**
+   * UC-A06: List Products
+   */
+  test.describe('UC-A06: List Products', () => {
+    test('should display products page', async ({ authenticatedProductsPage }) => {
+      // Pattern 006: Use page object methods, not raw locators
+      await authenticatedProductsPage.expectPageVisible()
+      await authenticatedProductsPage.expectTableVisible()
+    })
 
-  test('should display products page', async ({ authenticatedProductsPage, page }) => {
-    // Pattern 008: Use expect() instead of isLoaded()/isTableVisible()
-    const heading = page.locator('h1:has-text("Products")')
-    const table = page.locator('table, [role="table"]')
+    test('should display products table', async ({ authenticatedProductsPage }) => {
+      // Pattern 006: High-level semantic methods
+      await authenticatedProductsPage.expectTableVisible()
+      const count = await authenticatedProductsPage.getProductCount()
+      expect(count).toBeGreaterThanOrEqual(0)
+    })
 
-    await expect(heading).toBeVisible()
-    await expect(table).toBeVisible()
-  })
+    test('should display products (or empty state)', async ({ authenticatedProductsPage }) => {
+      // Pattern 003: Database-agnostic - works whether products exist or not
+      const count = await authenticatedProductsPage.getProductCount()
 
-  test('should display products table with columns', async ({ authenticatedProductsPage, page }) => {
-    // Pattern 008: Use expect() directly for visibility checks
-    const table = page.locator('table, [role="table"]')
-    await expect(table).toBeVisible()
-
-    // Assert page is on products route
-    expect(authenticatedProductsPage.isOnProductsPage()).toBe(true)
-  })
-
-  test('should open create product modal', async ({ authenticatedProductsPage, page }) => {
-    // Open modal
-    await authenticatedProductsPage.openCreateModal()
-
-    // Pattern 008: Use expect() to assert modal visibility
-    const modal = page.locator('[role="dialog"], [class*="modal"]')
-    await expect(modal).toBeVisible()
-  })
-
-  test('should cancel create modal without submitting', async ({ authenticatedProductsPage, page }) => {
-    // Open and cancel
-    await authenticatedProductsPage.openCreateModal()
-
-    // Pattern 008: Use expect() instead of isCreateModalOpen()
-    const modal = page.locator('[role="dialog"], [class*="modal"]')
-    await expect(modal).toBeVisible()
-
-    await authenticatedProductsPage.cancelCreateModal()
-
-    // Assert modal is closed
-    await expect(modal).toBeHidden()
-  })
-
-  test('should fill and submit product form', async ({ authenticatedProductsPage }) => {
-    const productName = `Test Product ${Date.now()}`
-    const productPrice = '5.99'
-
-    // Create product
-    await authenticatedProductsPage.openCreateModal()
-    await authenticatedProductsPage.fillProductForm(productName, productPrice)
-    await authenticatedProductsPage.submitProductForm()
-
-    // Wait a moment for form processing
-    await test.step('wait for form processing', async () => {
-      await authenticatedProductsPage.waitForDebounce(1000)
+      if (count === 0) {
+        await authenticatedProductsPage.expectEmptyStateVisible()
+      } else {
+        await authenticatedProductsPage.expectTableVisible()
+        expect(count).toBeGreaterThan(0)
+      }
     })
   })
 
-  test('should search products', async ({ authenticatedProductsPage }) => {
-    // Perform search
-    const searchTerm = 'test' + Date.now()
-    await authenticatedProductsPage.search(searchTerm)
+  /**
+   * UC-A07: Create Product
+   */
+  test.describe('UC-A07: Create Product', () => {
+    test('should open create product modal', async ({ authenticatedProductsPage }) => {
+      // Pattern 006: Use page object methods
+      await authenticatedProductsPage.openCreateModal()
+      await authenticatedProductsPage.expectFormModalVisible()
+    })
 
-    // Assert search value is set
-    const searchValue = await authenticatedProductsPage.getSearchValue()
-    expect(searchValue).toBe(searchTerm)
+    test('should cancel create modal without submitting', async ({ authenticatedProductsPage }) => {
+      // Pattern 006: Semantic actions through page object
+      await authenticatedProductsPage.openCreateModal()
+      await authenticatedProductsPage.expectFormModalVisible()
+
+      await authenticatedProductsPage.cancelForm()
+      await authenticatedProductsPage.expectFormModalHidden()
+    })
+
+    test('should fill and submit product form', async ({ authenticatedProductsPage }) => {
+      const productName = `Test Product ${Date.now()}`
+      const productPrice = '5.99'
+
+      // Pattern 001: Create unique test data per test
+      await authenticatedProductsPage.createProduct(productName, productPrice)
+
+      // Pattern 008: Wait for form to close and verify
+      await authenticatedProductsPage.expectFormModalHidden()
+    })
+
+    test('should display form with empty fields for create', async ({ authenticatedProductsPage }) => {
+      // Pattern 006: Page object provides field getters
+      await authenticatedProductsPage.openCreateModal()
+
+      const name = await authenticatedProductsPage.getFormNameValue()
+      const price = await authenticatedProductsPage.getFormPriceValue()
+
+      expect(name).toBe('')
+      expect(price).toBe('')
+    })
   })
 
-  test('should clear search filter', async ({ authenticatedProductsPage }) => {
-    // Set and clear search
-    await authenticatedProductsPage.search('test search')
-    await authenticatedProductsPage.clearSearch()
+  /**
+   * UC-A08: Search & Filter Products
+   */
+  test.describe('UC-A08: Search & Filter Products', () => {
+    test('should search products', async ({ authenticatedProductsPage }) => {
+      const searchTerm = `test-${Date.now()}`
 
-    // Assert search is empty
-    const searchValue = await authenticatedProductsPage.getSearchValue()
-    expect(searchValue).toBe('')
+      // Pattern 006: High-level search method
+      await authenticatedProductsPage.search(searchTerm)
+
+      // Pattern 006: Verify search value through page object
+      const value = await authenticatedProductsPage.getSearchValue()
+      expect(value).toBe(searchTerm)
+    })
+
+    test('should clear search filter', async ({ authenticatedProductsPage }) => {
+      // Pattern 006: High-level filter methods
+      await authenticatedProductsPage.search('test search')
+      const valueWithSearch = await authenticatedProductsPage.getSearchValue()
+      expect(valueWithSearch).toBe('test search')
+
+      await authenticatedProductsPage.clearSearch()
+      const valueAfterClear = await authenticatedProductsPage.getSearchValue()
+      expect(valueAfterClear).toBe('')
+    })
   })
 
-  test('should display create button', async ({ authenticatedProductsPage, page }) => {
-    // Assert button is visible by checking modal can open
-    await authenticatedProductsPage.openCreateModal()
+  /**
+   * Modal Interactions (General)
+   */
+  test.describe('Modal Interactions', () => {
+    test('should close modal when clicking cancel', async ({ authenticatedProductsPage }) => {
+      // Pattern 006: High-level modal methods
+      await authenticatedProductsPage.openCreateModal()
+      await authenticatedProductsPage.expectFormModalVisible()
 
-    // Pattern 008: Use expect() instead of isCreateModalOpen()
-    const modal = page.locator('[role="dialog"], [class*="modal"]')
-    await expect(modal).toBeVisible()
+      await authenticatedProductsPage.cancelForm()
+      await authenticatedProductsPage.expectFormModalHidden()
+    })
+
+    test('should fill all form fields', async ({ authenticatedProductsPage }) => {
+      const testData = {
+        name: `Coffee ${Date.now()}`,
+        price: '3.50',
+      }
+
+      await authenticatedProductsPage.openCreateModal()
+
+      // Pattern 006: Fill form through page object
+      await authenticatedProductsPage.fillProductForm(testData.name, testData.price)
+
+      // Pattern 006: Verify field values through page object
+      expect(await authenticatedProductsPage.getFormNameValue()).toContain(testData.name)
+      expect(await authenticatedProductsPage.getFormPriceValue()).toContain(testData.price)
+    })
   })
 
-  test('should submit product form (may show validation error)', async ({ authenticatedProductsPage, page }) => {
-    const productName = `Coffee ${Date.now()}`
-    const productPrice = '3.50'
+  /**
+   * Page State Verification
+   */
+  test.describe('Page State Verification', () => {
+    test('should verify page is on products route', async ({ page, authenticatedProductsPage }) => {
+      // Pattern 006: Verify we're on the right page
+      await authenticatedProductsPage.expectPageVisible()
+      expect(page.url()).toContain('/products')
+    })
 
-    // Open modal and fill form
-    await authenticatedProductsPage.openCreateModal()
-
-    // Pattern 008: Use expect() to verify modal is visible
-    const modal = page.locator('[role="dialog"], [class*="modal"]')
-    await expect(modal).toBeVisible()
-
-    // Fill and submit
-    await authenticatedProductsPage.fillProductForm(productName, productPrice)
-    await authenticatedProductsPage.submitProductForm()
-
-    // Wait for response (either success or validation error)
-    await authenticatedProductsPage.waitForDebounce(1000)
-
-    // Modal should either be open (validation error) or closed (success)
-    // Both scenarios are acceptable - we're just testing the form submission flow works
-    // Pattern 008: Check state with expect() instead of manual boolean check
-    try {
-      await expect(modal).toBeVisible({ timeout: 1000 })
-      // Modal still open = validation error occurred (acceptable)
-    } catch {
-      // Modal closed = success (also acceptable)
-    }
+    test('should display create button', async ({ authenticatedProductsPage }) => {
+      // Pattern 006: Create button should be clickable
+      await authenticatedProductsPage.openCreateModal()
+      await authenticatedProductsPage.expectFormModalVisible()
+    })
   })
 })

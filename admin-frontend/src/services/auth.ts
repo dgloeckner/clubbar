@@ -22,22 +22,22 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
     }>('/auth/login', credentials)
 
     // Backend returns { message, admin: { id, email, display_name, locale } }
-    if (response.data?.admin) {
+    if (response.admin) {
       // Store session info
-      localStorage.setItem('admin_id', response.data.admin.id)
-      localStorage.setItem('email', response.data.admin.email)
-      localStorage.setItem('display_name', response.data.admin.display_name)
-      localStorage.setItem('locale', response.data.admin.locale)
+      localStorage.setItem('admin_id', response.admin.id)
+      localStorage.setItem('email', response.admin.email)
+      localStorage.setItem('display_name', response.admin.display_name)
+      localStorage.setItem('locale', response.admin.locale)
     }
 
     return {
       success: true,
       message: 'Login successful',
-      data: response.data?.admin ? {
-        admin_id: response.data.admin.id,
-        email: response.data.admin.email,
-        display_name: response.data.admin.display_name,
-        locale: response.data.admin.locale,
+      data: response.admin ? {
+        admin_id: response.admin.id,
+        email: response.admin.email,
+        display_name: response.admin.display_name,
+        locale: response.admin.locale,
       } : undefined,
     }
   } catch (error: any) {

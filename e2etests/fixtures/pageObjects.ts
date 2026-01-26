@@ -1,33 +1,37 @@
 /**
  * Page Object Fixtures
  *
- * Provides ready-to-use page objects with authentication.
+ * Provides ready-to-use page objects.
  * Implements E2E Testing Pattern 007: Page Object Fixtures
  *
- * Usage in tests:
- *   import { test, expect } from '../fixtures/pageObjects.fixture'
+ * Authentication:
+ * - Uses Playwright's storage state (saved by auth.setup.ts)
+ * - Tests are already authenticated when they run
+ * - No login logic in fixtures (cleaner, faster, more reliable)
  *
- *   test('my test', async ({ loginPage, authenticatedMembersPage }) => {
- *     // authenticatedMembersPage fixture automatically:
- *     // - Clears localStorage
- *     // - Logs in
- *     // - Navigates to members page
- *     await authenticatedMembersPage.createMember('test@ex.com', 'First', 'Last')
+ * Usage in tests:
+ *   import { test, expect } from '../fixtures/pageObjects'
+ *
+ *   test('my test', async ({ authenticatedMembersPage }) => {
+ *     // Already authenticated, navigate to page
+ *     await authenticatedMembersPage.expectPageVisible()
  *   })
  */
 
 import { test as base, Page } from '@playwright/test'
-import { LoginPage, MembersPage } from '../pages'
+import { LoginPage, MembersPage, ProductsPage } from '../pages'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
   membersPage: MembersPage
   authenticatedMembersPage: MembersPage
+  productsPage: ProductsPage
+  authenticatedProductsPage: ProductsPage
 }
 
 /**
  * Fixture: loginPage
- * Provides LoginPage instance
+ * Provides LoginPage instance (for auth tests)
  */
 const loginPageFixture = async ({ page }: { page: Page }, use: (value: LoginPage) => Promise<void>) => {
   const loginPage = new LoginPage(page)
@@ -45,58 +49,50 @@ const membersPageFixture = async ({ page }: { page: Page }, use: (value: Members
 
 /**
  * Fixture: authenticatedMembersPage
- * Provides MembersPage with admin already logged in
  *
- * Setup:
- * 1. Clears localStorage to ensure clean state
- * 2. Logs in with test credentials
- * 3. Navigates to members page
- *
- * Test can immediately use page object methods
+ * Provides MembersPage with test already authenticated (via storage state).
+ * Simply navigates to the page and returns the page object.
+ * No login needed - auth was setup by auth.setup.ts
  */
 const authenticatedMembersPageFixture = async (
   { page }: { page: Page },
   use: (value: MembersPage) => Promise<void>
 ) => {
-  // Clear auth state
-  await page.goto('http://localhost:5173/')
-  await page.evaluate(() => {
-    localStorage.removeItem('admin_id')
-    localStorage.removeItem('email')
-    localStorage.removeItem('display_name')
-    localStorage.removeItem('locale')
-  })
+  // Navigate to members page
+  await page.goto('/members', { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(500)
 
-  // Clear localStorage to ensure clean login state
-  await page.evaluate(() => {
-    localStorage.removeItem('admin_id')
-    localStorage.removeItem('email')
-    localStorage.removeItem('display_name')
-    localStorage.removeItem('locale')
-  })
-
-  // Navigate and login
-  const loginPage = new LoginPage(page)
-  await loginPage.navigate()
-  await page.waitForLoadState('domcontentloaded')
-
-  // Fill and submit login form
-  await loginPage.fillEmail('admin@example.com')
-  await loginPage.fillPassword('password123')
-  await loginPage.clickLogin()
-
-  // Wait for login to complete (increased timeout)
-  await page.waitForTimeout(3000)
-
-  // Navigate to members page (handles redirect or manual navigation)
-  await page.goto('http://localhost:5173/members', { waitUntil: 'domcontentloaded' })
-  await page.waitForTimeout(1000)
-
-  // Create MembersPage instance
+  // Create and provide MembersPage
   const membersPage = new MembersPage(page)
-
-  // Provide authenticated page object to test
   await use(membersPage)
+}
+
+/**
+ * Fixture: productsPage
+ * Provides ProductsPage instance (unauthenticated)
+ */
+const productsPageFixture = async ({ page }: { page: Page }, use: (value: ProductsPage) => Promise<void>) => {
+  const productsPage = new ProductsPage(page)
+  await use(productsPage)
+}
+
+/**
+ * Fixture: authenticatedProductsPage
+ *
+ * Provides ProductsPage with test already authenticated (via storage state).
+ * Simply navigates to the page and returns the page object.
+ */
+const authenticatedProductsPageFixture = async (
+  { page }: { page: Page },
+  use: (value: ProductsPage) => Promise<void>
+) => {
+  // Navigate to products page
+  await page.goto('/products', { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(500)
+
+  // Create and provide ProductsPage
+  const productsPage = new ProductsPage(page)
+  await use(productsPage)
 }
 
 /**
@@ -106,6 +102,8 @@ export const test = base.extend<PageObjectFixtures>({
   loginPage: loginPageFixture,
   membersPage: membersPageFixture,
   authenticatedMembersPage: authenticatedMembersPageFixture,
+  productsPage: productsPageFixture,
+  authenticatedProductsPage: authenticatedProductsPageFixture,
 })
 
 // Re-export expect for convenience
