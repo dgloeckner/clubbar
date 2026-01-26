@@ -241,6 +241,138 @@ Reference E2E testing patterns in `e2etests/patterns/` directory:
    - **Validation before full run**: Once the grep test passes, run the full suite to ensure no regressions
    - **Debugging**: If single test passes but suite fails, run full suite with 1 worker to isolate parallelism issues
 
+### ⚠️ Test Verification Policy (CRITICAL)
+
+**This is a hard rule: Tests must be verified as PASSING before committing, unless the user explicitly approves committing red/failing tests.**
+
+#### Why This Matters
+- **Unverified tests are technical debt**: Tests that haven't run may contain syntax errors, fixture issues, or logic bugs
+- **Red tests hide problems**: A failing test committed to the repo obscures real bugs and confuses future developers
+- **Trust in the test suite**: The entire development process depends on tests being a reliable verification mechanism
+- **Prevents regressions**: Only verified passing tests can catch future bugs
+
+#### Before Every Commit
+
+**Always verify tests are passing using this workflow:**
+
+1. **Identify which tests to run**:
+   ```bash
+   # For new/modified E2E tests
+   cd e2etests && npm test -- tests/api/filename.spec.ts --workers=4
+
+   # For new/modified PHP tests
+   cd backend && php artisan test tests/Feature/FeatureName
+
+   # For entire test suite
+   cd e2etests && npm test -- --workers=4
+   ```
+
+2. **Verify all tests pass** (look for `passed` in output, not `failed`):
+   - All tests show ✓ or PASS status
+   - No red/failed test output
+   - No timeout errors (if timeout occurs, check backend health first)
+
+3. **Only then commit**:
+   ```bash
+   git add .
+   git commit -m "Feature description"
+   ```
+
+#### Specific Scenarios
+
+**Scenario 1: New E2E Tests Created**
+```bash
+# BEFORE committing new tests:
+cd e2etests
+npm test -- tests/api/settlements.spec.ts --workers=4
+
+# Expected output: All tests pass (e.g., "30 passed")
+# If any fail: Debug and fix BEFORE committing
+# If connection refused: Start backend first (docker compose up -d)
+# If timeout: Check backend logs and PHP processes
+```
+
+**Scenario 2: Modified Backend Code (Services, Controllers, Repositories)**
+```bash
+# After modifying code:
+docker compose exec backend supervisorctl restart php-fpm:php-fpmd
+sleep 2
+
+# Then run tests:
+cd e2etests
+npm test -- --grep "feature name" --workers=4
+
+# All tests for that feature must pass
+```
+
+**Scenario 3: Debugging a Failing Test**
+```bash
+# Run serially to isolate issues:
+cd e2etests
+npm test -- tests/api/filename.spec.ts --workers=1
+
+# Check Laravel logs:
+docker compose exec backend tail -100 /app/storage/logs/laravel.log
+
+# Fix the issue, restart PHP, try again
+# Once test passes with 1 worker, verify it passes with 4 workers:
+npm test -- tests/api/filename.spec.ts --workers=4
+```
+
+**Scenario 4: User Explicitly Approves Red Tests**
+```bash
+# If user says "it's ok to commit failing tests" or "commit as-is for investigation"
+# Then commit with a note in the message:
+git commit -m "Feature: WIP - tests currently failing, pending review
+
+Tests not yet passing - see #123 for context.
+User approved committing for debugging/investigation.
+
+[reference any issue or approval note]"
+```
+
+#### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| **Connection refused** | Backend not running: `docker compose up -d && sleep 3` |
+| **All tests timeout** | PHP process hung: `docker compose exec backend supervisorctl restart php-fpm:php-fpmd` |
+| **Tests pass with 1 worker, fail with 4** | Test isolation issue: Check Pattern 001 (unique data per test), verify no shared database state |
+| **Test syntax error** | Missing import or typo: Check error output carefully, fix code, retry |
+| **Fixture not found** | Fixture not created: Check `e2etests/fixtures/` for required setup, create if missing |
+
+#### Red Flags (STOP and Debug)
+
+These situations require investigation before committing:
+- ❌ Test creates but isn't executed before commit
+- ❌ Test passes locally but structure looks suspicious (e.g., empty test body)
+- ❌ Batch of tests created without running any
+- ❌ Commit message says "tests added" but they haven't been verified
+- ❌ Test timeouts or connection errors (indicates backend issue, not just test)
+
+#### Verification Commands Reference
+
+```bash
+# Health check (is backend running?)
+docker compose exec backend curl -s http://localhost/api/health | jq .
+
+# Run single test file (4 workers)
+cd e2etests && npm test -- tests/api/settlements.spec.ts --workers=4
+
+# Run single test by name
+cd e2etests && npm test -- --grep "test name here" --workers=4
+
+# Run serially for debugging
+cd e2etests && npm test -- tests/api/settlements.spec.ts --workers=1
+
+# Run with JSON reporter to parse results
+cd e2etests && npm test -- --reporter=json > results.json
+cat results.json | jq '.stats'
+
+# Check for test failures in JSON
+cat results.json | jq '.suites[].tests[] | select(.status=="fail")'
+```
+
 ### Implementation Plans
 
 **Implementation plans in `plans/` directory are the single source of truth for project status and progress. Do NOT create separate summary or status documents.**

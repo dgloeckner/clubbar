@@ -8,6 +8,7 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Services\AuditService;
 use App\Shared\Utils\IbanMasker;
+use Illuminate\Support\Arr;
 
 /**
  * SepaConfigService
@@ -103,7 +104,7 @@ final readonly class SepaConfigService
         }
 
         // Log changes to audit log
-        $newValues = array_merge($oldValues, array_only($attributes, array_keys($oldValues)));
+        $newValues = array_merge($oldValues, Arr::only($attributes, array_keys($oldValues)));
         $this->auditService->log(
             action: AuditAction::UPDATE,
             entityType: EntityType::SEPA_CONFIG,
