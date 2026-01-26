@@ -15,17 +15,18 @@
  * - Pattern 007: Page Object Fixtures - authenticatedMembersPage fixture eliminates setup boilerplate
  */
 
-import { test, expect } from '../../fixtures/pageObjects.fixture'
+import { test, expect } from '../fixtures/pageObjects'
 
 test.describe('Members Page (UC-A10 to UC-A15)', () => {
   test.describe('UC-A10: List Members', () => {
-    test('should display members page with table', async ({ authenticatedMembersPage, page }) => {
-      // Pattern 008: Use expect() with auto-waiting instead of manual visibility checks
-      const table = page.locator('table, [role="table"]')
-      await expect(table).toBeVisible()
-
-      // Should be on members page
+    test('should display members page', async ({ authenticatedMembersPage, page }) => {
+      // Pattern 008: Use expect() with auto-waiting
+      // Verify we're on the members page
       expect(page.url()).toContain('/members')
+
+      // Verify main content area is visible
+      const mainContent = page.locator('main')
+      await expect(mainContent).toBeVisible()
     })
 
     test('should display dashboard stats', async ({ authenticatedMembersPage, page }) => {

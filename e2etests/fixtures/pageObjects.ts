@@ -67,30 +67,33 @@ const authenticatedMembersPageFixture = async (
     localStorage.removeItem('locale')
   })
 
-  // Login
+  // Clear localStorage to ensure clean login state
+  await page.evaluate(() => {
+    localStorage.removeItem('admin_id')
+    localStorage.removeItem('email')
+    localStorage.removeItem('display_name')
+    localStorage.removeItem('locale')
+  })
+
+  // Navigate and login
   const loginPage = new LoginPage(page)
   await loginPage.navigate()
-  await page.waitForTimeout(500)
+  await page.waitForLoadState('domcontentloaded')
 
-  // Fill credentials
+  // Fill and submit login form
   await loginPage.fillEmail('admin@example.com')
   await loginPage.fillPassword('password123')
   await loginPage.clickLogin()
 
-  // Wait a bit for login to process
-  await page.waitForTimeout(2000)
+  // Wait for login to complete (increased timeout)
+  await page.waitForTimeout(3000)
 
-  // Navigate to members page (handles both successful login and already-logged-in cases)
+  // Navigate to members page (handles redirect or manual navigation)
+  await page.goto('http://localhost:5173/members', { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1000)
+
+  // Create MembersPage instance
   const membersPage = new MembersPage(page)
-  await membersPage.navigate()
-
-  // Wait for stats to load
-  try {
-    await page.waitForSelector('[data-testid="stat-card-mitglieder"]', { timeout: 10000 })
-  } catch (error) {
-    // If stats don't load, page might not have members yet - that's ok
-    await page.waitForLoadState('domcontentloaded')
-  }
 
   // Provide authenticated page object to test
   await use(membersPage)
