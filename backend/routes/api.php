@@ -44,4 +44,7 @@ Route::middleware('api')->group(function () {
 
     // Admin Users module routes (Admin user CRUD and password management)
     require base_path('routes/modules/admin-users.php');
+
+    // Settlements module routes (SEPA + Manual settlements with export)
+    require base_path('routes/modules/settlements.php');
 });
