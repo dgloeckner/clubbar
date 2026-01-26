@@ -161,7 +161,7 @@ export function ProductsPage() {
         </div>
       )}
 
-      <div style={{ overflowX: 'auto' }}>
+      <div data-testid="products-table-wrapper" style={{ overflowX: 'auto' }}>
         <table
           data-testid="products-table"
           style={{

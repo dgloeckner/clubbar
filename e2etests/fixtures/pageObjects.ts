@@ -60,7 +60,9 @@ const authenticatedMembersPageFixture = async (
 ) => {
   // Navigate to members page
   await page.goto('/members', { waitUntil: 'domcontentloaded' })
-  await page.waitForTimeout(500)
+
+  // Wait for page to load - members-page test ID indicates page is ready
+  await page.waitForSelector('[data-testid="members-page"]', { timeout: 5000 })
 
   // Create and provide MembersPage
   const membersPage = new MembersPage(page)
@@ -88,7 +90,9 @@ const authenticatedProductsPageFixture = async (
 ) => {
   // Navigate to products page
   await page.goto('/products', { waitUntil: 'domcontentloaded' })
-  await page.waitForTimeout(500)
+
+  // Wait for page to load - products-page test ID indicates page is ready
+  await page.waitForSelector('[data-testid="products-page"]', { timeout: 5000 })
 
   // Create and provide ProductsPage
   const productsPage = new ProductsPage(page)

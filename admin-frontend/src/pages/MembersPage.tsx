@@ -236,7 +236,7 @@ export function MembersPage() {
             No members found
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div data-testid="members-table-wrapper" style={{ overflowX: 'auto' }}>
             <table
               data-testid="members-table"
               style={{
