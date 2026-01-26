@@ -3,7 +3,7 @@
  * Provides header, navigation, and main content area for all pages
  */
 
-import React from 'react'
+import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { theme } from '../../styles/design-system'
 import { useAuth } from '../../context/AuthContext'
@@ -28,8 +28,17 @@ export function MainLayout({ children }: MainLayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const { displayName, logout } = useAuth()
-  const { isLoading } = useLoading()
+  const { isLoading, setIsLoading } = useLoading()
   const breakpoint = useBreakpoint()
+
+  // Trigger loading indicator on navigation
+  useEffect(() => {
+    setIsLoading(true)
+    const timer = setTimeout(() => {
+      setIsLoading(false)
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [location.pathname, setIsLoading])
 
   const handleLogout = async () => {
     await logout()
