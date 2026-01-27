@@ -126,8 +126,8 @@ class ProductsService extends BaseService
                 ->orderBy('products.names', 'asc'),
             'created_at' => $query->orderBy('products.created_at', $sortOrder),
             default => $query
-                ->orderBy('products.created_at', 'desc')
-                ->orderBy('products.id', 'asc'),
+                ->orderBy('products.category_id', 'asc')
+                ->orderBy('products.names', 'asc'),
         };
 
         // Apply pagination
