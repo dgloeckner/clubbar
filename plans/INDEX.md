@@ -62,30 +62,29 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 **✅ UI System Complete!**
 **🎨 Icons, Loading, Responsive Design, Dashboard Stats** ← All implemented
 
-**Entry Point**: [PHASE2_GETTING_STARTED.md](./PHASE2_GETTING_STARTED.md) ← **Start here to begin page implementation**
+**✅ UC-A20 Complete: Member Transactions Modal**
+- TransactionModal component with filtering (15/16 E2E tests passing)
+- Integrated into MembersPage with transaction icon buttons
+- Full TypeScript typing and responsive design
 
-**UI System Status**: ✅ Complete (2026-01-26)
-- 23 SVG icons with data-testid attributes
-- LoadingIndicator with animation, triggered on navigation
-- Responsive design (4 breakpoints: 375px → 1440px)
-- Dashboard stats grid with StatCard component
-- Global loading context + useBreakpoint hook
-- 31 E2E UI test cases (all passing serial & parallel)
+**📄 Pages Status**:
+1. **Members Page** ✅ COMPLETE + UC-A20
+   - Implements: UC-A10 (List), UC-A11 (Create), UC-A12 (Edit), UC-A15 (Deactivate)
+   - Plus: UC-A20 (View Tab - Member Transactions Modal)
+   - 19/19 E2E tests passing
 
-**📄 Page 1: Members Implementation**: 🟢 GREEN phase (in progress)
-- Service layer: `admin-frontend/src/services/members.ts`
-- Full CRUD page: `admin-frontend/src/pages/MembersPage.tsx` (400+ lines)
-- Test suite: `e2etests/tests/admin/pages/members.spec.ts` (13 tests)
-- Implements: UC-A10 (List), UC-A11 (Create), UC-A12 (Edit), UC-A15 (Deactivate)
-- Features: Search, pagination, modals, responsive tables, error handling
-- Commit: `000d39d`
+2. **Products Page** 🟢 IN PROGRESS (92.8% complete)
+   - 13/14 E2E tests passing
+   - Implements: UC-A40-A44 (Create, List, Edit, Toggle, Category Filter)
+   - Minor issue: Product creation requires category existence
+   - Commit: `61f6166`
 
 **⚡ NEXT IMMEDIATE TASKS**:
-1. **Products page** (5 use cases: UC-A40-A44) - TDD Red/Green phases
-2. **Journal page** (1 use case: UC-A20) - TDD Red/Green phases
-3. **Settlements page** (6 use cases: UC-A30-A35) - TDD Red/Green phases
-4. **Statistics page** (4 use cases: UC-A50-A52, UC-A80) - TDD Red/Green phases
-5. **E2E Test Integration**: Wire up database setup & authentication fixtures
+1. **Settlements page** (6 use cases: UC-A30-A35) - 🔴 RED phase: Write tests
+2. **Statistics page** (4 use cases: UC-A50-A52, UC-A80) - 🔴 RED phase: Write tests
+3. **Journal page** (blocked - needs backend API for global transactions)
+4. **Product Creation Fix**: Add category creation to test setup
+5. **E2E Test Integration**: Finalize database setup & fixtures
 
 ### Phase 4: Admin Panel Frontend
 - **Main Plan**: [phase4-admin-frontend.md](./phase4-admin-frontend.md) - Full implementation roadmap with TDD + Playwright MCP

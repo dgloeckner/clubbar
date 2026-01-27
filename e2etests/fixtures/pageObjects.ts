@@ -19,7 +19,7 @@
  */
 
 import { test as base, Page } from '@playwright/test'
-import { LoginPage, MembersPage, ProductsPage } from '../pages'
+import { LoginPage, MembersPage, ProductsPage, SettlementsPage } from '../pages'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
@@ -27,6 +27,8 @@ interface PageObjectFixtures {
   authenticatedMembersPage: MembersPage
   productsPage: ProductsPage
   authenticatedProductsPage: ProductsPage
+  settlementsPage: SettlementsPage
+  authenticatedSettlementsPage: SettlementsPage
 }
 
 /**
@@ -100,6 +102,36 @@ const authenticatedProductsPageFixture = async (
 }
 
 /**
+ * Fixture: settlementsPage
+ * Provides SettlementsPage instance (unauthenticated)
+ */
+const settlementsPageFixture = async ({ page }: { page: Page }, use: (value: SettlementsPage) => Promise<void>) => {
+  const settlementsPage = new SettlementsPage(page)
+  await use(settlementsPage)
+}
+
+/**
+ * Fixture: authenticatedSettlementsPage
+ *
+ * Provides SettlementsPage with test already authenticated (via storage state).
+ * Simply navigates to the page and returns the page object.
+ */
+const authenticatedSettlementsPageFixture = async (
+  { page }: { page: Page },
+  use: (value: SettlementsPage) => Promise<void>
+) => {
+  // Navigate to settlements page
+  await page.goto('/settlements', { waitUntil: 'domcontentloaded' })
+
+  // Wait for page to load - settlements-page test ID indicates page is ready
+  await page.waitForSelector('[data-testid="settlements-page"]', { timeout: 5000 })
+
+  // Create and provide SettlementsPage
+  const settlementsPage = new SettlementsPage(page)
+  await use(settlementsPage)
+}
+
+/**
  * Extend base test with custom fixtures
  */
 export const test = base.extend<PageObjectFixtures>({
@@ -108,6 +140,8 @@ export const test = base.extend<PageObjectFixtures>({
   authenticatedMembersPage: authenticatedMembersPageFixture,
   productsPage: productsPageFixture,
   authenticatedProductsPage: authenticatedProductsPageFixture,
+  settlementsPage: settlementsPageFixture,
+  authenticatedSettlementsPage: authenticatedSettlementsPageFixture,
 })
 
 // Re-export expect for convenience
