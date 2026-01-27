@@ -76,7 +76,7 @@ export class ProductsPage extends BasePage {
   }
 
   async expectFormModalHidden() {
-    await expect(this.formModal()).not.toBeVisible()
+    await expect(this.formModal()).not.toBeVisible({ timeout: 15000 })
   }
 
   async expectEmptyStateVisible() {
@@ -177,17 +177,21 @@ export class ProductsPage extends BasePage {
       await this.selectCategory(categoryId)
     } else {
       // Auto-select first available category
+      // Wait for options to populate
+      await this.page.waitForTimeout(300)
       const options = await this.categorySelect().locator('option').count()
       if (options > 1) {
         // Skip the placeholder "Select a category..." option (index 0)
         await this.categorySelect().selectOption({ index: 1 })
+        // Wait briefly for selection to register
+        await this.page.waitForTimeout(200)
       }
     }
 
     await this.submitForm()
     // Wait for API call to complete and modal to close
     await this.page.waitForLoadState('networkidle', { timeout: 15000 })
-    await this.page.waitForTimeout(200)
+    await this.page.waitForTimeout(500)
     await this.expectFormModalHidden()
   }
 

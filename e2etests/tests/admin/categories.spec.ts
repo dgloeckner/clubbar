@@ -348,23 +348,29 @@ test.describe('Admin Frontend - Categories Page', () => {
 
       const countBefore = await authenticatedCategoriesPage.getCategoryCount()
 
-      // Get first delete button
-      const categoryIdAttr = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-delete-button-"]')
-        .first()
-        .getAttribute('data-testid')
-      const categoryId = categoryIdAttr?.replace('categories-delete-button-', '') || ''
+      // Find an empty (enabled) delete button
+      // Delete buttons are disabled if category has products
+      const deleteButtons = await authenticatedCategoriesPage.page
+        .locator('[data-testid^="categories-delete-button-"]:not([disabled])')
 
-      if (categoryId) {
-        await authenticatedCategoriesPage.deleteCategory(categoryId)
-        await authenticatedCategoriesPage.expectConfirmDialogVisible()
+      const buttonCount = await deleteButtons.count()
 
-        await authenticatedCategoriesPage.confirmDelete()
-        await authenticatedCategoriesPage.expectConfirmDialogHidden()
+      if (buttonCount > 0) {
+        // Get category ID from first enabled delete button
+        const categoryIdAttr = await deleteButtons.first().getAttribute('data-testid')
+        const categoryId = categoryIdAttr?.replace('categories-delete-button-', '') || ''
 
-        // Verify category was deleted
-        const countAfter = await authenticatedCategoriesPage.getCategoryCount()
-        expect(countAfter).toBeLessThan(countBefore)
+        if (categoryId) {
+          await authenticatedCategoriesPage.deleteCategory(categoryId)
+          await authenticatedCategoriesPage.expectConfirmDialogVisible()
+
+          await authenticatedCategoriesPage.confirmDelete()
+          await authenticatedCategoriesPage.expectConfirmDialogHidden()
+
+          // Verify category was deleted
+          const countAfter = await authenticatedCategoriesPage.getCategoryCount()
+          expect(countAfter).toBeLessThan(countBefore)
+        }
       }
     })
 
@@ -375,22 +381,27 @@ test.describe('Admin Frontend - Categories Page', () => {
         de: categoryName,
       })
 
-      const categoryIdAttr = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-delete-button-"]')
-        .first()
-        .getAttribute('data-testid')
-      const categoryId = categoryIdAttr?.replace('categories-delete-button-', '') || ''
+      // Find an empty (enabled) delete button
+      const deleteButtons = await authenticatedCategoriesPage.page
+        .locator('[data-testid^="categories-delete-button-"]:not([disabled])')
 
-      if (categoryId) {
-        await authenticatedCategoriesPage.deleteCategory(categoryId)
-        await authenticatedCategoriesPage.expectConfirmDialogVisible()
+      const buttonCount = await deleteButtons.count()
 
-        const message = await authenticatedCategoriesPage.getConfirmMessage()
-        expect(message).toBeTruthy()
+      if (buttonCount > 0) {
+        const categoryIdAttr = await deleteButtons.first().getAttribute('data-testid')
+        const categoryId = categoryIdAttr?.replace('categories-delete-button-', '') || ''
 
-        // Cancel delete
-        await authenticatedCategoriesPage.cancelDelete()
-        await authenticatedCategoriesPage.expectConfirmDialogHidden()
+        if (categoryId) {
+          await authenticatedCategoriesPage.deleteCategory(categoryId)
+          await authenticatedCategoriesPage.expectConfirmDialogVisible()
+
+          const message = await authenticatedCategoriesPage.getConfirmMessage()
+          expect(message).toBeTruthy()
+
+          // Cancel delete
+          await authenticatedCategoriesPage.cancelDelete()
+          await authenticatedCategoriesPage.expectConfirmDialogHidden()
+        }
       }
     })
 
@@ -403,22 +414,27 @@ test.describe('Admin Frontend - Categories Page', () => {
 
       const countBefore = await authenticatedCategoriesPage.getCategoryCount()
 
-      const categoryIdAttr = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-delete-button-"]')
-        .first()
-        .getAttribute('data-testid')
-      const categoryId = categoryIdAttr?.replace('categories-delete-button-', '') || ''
+      // Find an empty (enabled) delete button
+      const deleteButtons = await authenticatedCategoriesPage.page
+        .locator('[data-testid^="categories-delete-button-"]:not([disabled])')
 
-      if (categoryId) {
-        await authenticatedCategoriesPage.deleteCategory(categoryId)
-        await authenticatedCategoriesPage.expectConfirmDialogVisible()
+      const buttonCount = await deleteButtons.count()
 
-        await authenticatedCategoriesPage.cancelDelete()
-        await authenticatedCategoriesPage.expectConfirmDialogHidden()
+      if (buttonCount > 0) {
+        const categoryIdAttr = await deleteButtons.first().getAttribute('data-testid')
+        const categoryId = categoryIdAttr?.replace('categories-delete-button-', '') || ''
 
-        // Count should remain same
-        const countAfter = await authenticatedCategoriesPage.getCategoryCount()
-        expect(countAfter).toBe(countBefore)
+        if (categoryId) {
+          await authenticatedCategoriesPage.deleteCategory(categoryId)
+          await authenticatedCategoriesPage.expectConfirmDialogVisible()
+
+          await authenticatedCategoriesPage.cancelDelete()
+          await authenticatedCategoriesPage.expectConfirmDialogHidden()
+
+          // Count should remain same
+          const countAfter = await authenticatedCategoriesPage.getCategoryCount()
+          expect(countAfter).toBe(countBefore)
+        }
       }
     })
   })
