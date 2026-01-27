@@ -104,7 +104,7 @@ export function ProductsPage() {
       if (response.items && response.items.length > 0) {
         console.log('First product:', response.items[0])
         console.log('First product names:', response.items[0].names)
-        console.log('First product categoryId:', response.items[0].categoryId)
+        console.log('First product category_id:', response.items[0].category_id)
       }
       setProducts(response.items || [])
     } catch (err: any) {
@@ -267,11 +267,11 @@ export function ProductsPage() {
     setConfirmDialog(null)
   }
 
-  function handleFormSubmit(e: React.FormEvent) {
+  async function handleFormSubmit(e: React.FormEvent) {
     if (modalMode === 'create') {
-      handleCreateProduct(e)
+      await handleCreateProduct(e)
     } else {
-      handleUpdateProduct(e)
+      await handleUpdateProduct(e)
     }
   }
 

@@ -123,9 +123,23 @@ export class ProductsPage extends BasePage {
     return productId
   }
 
+  async getProductIdByName(productName: string): Promise<string> {
+    const rows = await this.tableRows().all()
+    for (const row of rows) {
+      const text = await row.textContent()
+      if (text?.includes(productName)) {
+        const rowId = await row.getAttribute('data-testid')
+        const productId = rowId?.replace('products-table-row-', '') || ''
+        if (productId) return productId
+      }
+    }
+    throw new Error(`Product "${productName}" not found in table`)
+  }
+
   async getProductNameInRow(productId: string): Promise<string> {
     const name = await this.page
       .getByTestId(`products-table-cell-name-${productId}`)
+      .first()
       .textContent()
     return name || ''
   }
@@ -133,6 +147,7 @@ export class ProductsPage extends BasePage {
   async getProductPriceInRow(productId: string): Promise<string> {
     const price = await this.page
       .getByTestId(`products-table-cell-price-${productId}`)
+      .first()
       .textContent()
     return price || ''
   }
@@ -140,6 +155,7 @@ export class ProductsPage extends BasePage {
   async getProductCategoryInRow(productId: string): Promise<string> {
     const category = await this.page
       .getByTestId(`products-table-cell-category-${productId}`)
+      .first()
       .textContent()
     return category || ''
   }

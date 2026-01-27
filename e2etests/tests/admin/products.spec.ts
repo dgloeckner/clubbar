@@ -205,8 +205,8 @@ test.describe('Admin Frontend - Products Page', () => {
       await authenticatedProductsPage.createProduct(productName, productPrice)
       await authenticatedProductsPage.expectFormModalHidden()
 
-      // Get product ID from table
-      const productId = await authenticatedProductsPage.getFirstProductId()
+      // Get product ID from table by finding the created product
+      const productId = await authenticatedProductsPage.getProductIdByName(productName)
 
       // Click edit button using product ID
       await authenticatedProductsPage.clickEditButton(productId)
@@ -228,8 +228,8 @@ test.describe('Admin Frontend - Products Page', () => {
       await authenticatedProductsPage.createProduct(originalName, '5.00')
       await authenticatedProductsPage.expectFormModalHidden()
 
-      // Get product ID from table
-      const productId = await authenticatedProductsPage.getFirstProductId()
+      // Get product ID from table by finding the created product
+      const productId = await authenticatedProductsPage.getProductIdByName(originalName)
 
       // Edit the product
       const updatedName = `Updated ${Date.now()}`
@@ -250,8 +250,8 @@ test.describe('Admin Frontend - Products Page', () => {
       await authenticatedProductsPage.createProduct(productName, '3.00')
       await authenticatedProductsPage.expectFormModalHidden()
 
-      // Get product ID from table
-      const productId = await authenticatedProductsPage.getFirstProductId()
+      // Get product ID from table by finding the created product
+      const productId = await authenticatedProductsPage.getProductIdByName(productName)
 
       // Open edit modal and attempt changes
       await authenticatedProductsPage.clickEditButton(productId)
@@ -280,8 +280,8 @@ test.describe('Admin Frontend - Products Page', () => {
       await authenticatedProductsPage.createProduct(productName, '4.50')
       await authenticatedProductsPage.expectFormModalHidden()
 
-      // Get product ID from table
-      const productId = await authenticatedProductsPage.getFirstProductId()
+      // Get product ID from table by finding the created product
+      const productId = await authenticatedProductsPage.getProductIdByName(productName)
 
       // Verify initially active
       let status = await authenticatedProductsPage.getProductStatus(productId)
@@ -305,8 +305,8 @@ test.describe('Admin Frontend - Products Page', () => {
       await authenticatedProductsPage.createProduct(productName, '6.00')
       await authenticatedProductsPage.expectFormModalHidden()
 
-      // Get product ID from table
-      const productId = await authenticatedProductsPage.getFirstProductId()
+      // Get product ID from table by finding the created product
+      const productId = await authenticatedProductsPage.getProductIdByName(productName)
 
       // Deactivate product
       await authenticatedProductsPage.toggleProductStatus(productId, true)
@@ -336,8 +336,8 @@ test.describe('Admin Frontend - Products Page', () => {
       await authenticatedProductsPage.createProduct(productName, '8.00')
       await authenticatedProductsPage.expectFormModalHidden()
 
-      // Get product ID from table
-      const productId = await authenticatedProductsPage.getFirstProductId()
+      // Get product ID from table by finding the created product
+      const productId = await authenticatedProductsPage.getProductIdByName(productName)
 
       // Toggle status and cancel
       await authenticatedProductsPage.clickStatusToggle(productId)
@@ -358,8 +358,8 @@ test.describe('Admin Frontend - Products Page', () => {
       await authenticatedProductsPage.createProduct(productName, '10.00')
       await authenticatedProductsPage.expectFormModalHidden()
 
-      // Get product ID from table
-      const productId = await authenticatedProductsPage.getFirstProductId()
+      // Get product ID from table by finding the created product
+      const productId = await authenticatedProductsPage.getProductIdByName(productName)
 
       // Click delete button and confirm
       await authenticatedProductsPage.clickDeleteButton(productId)
