@@ -280,7 +280,41 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
      - `422 validation error` → Invalid test data in request
      - `database constraint` → Test data isolation issue; check Pattern 001
 
-9. **Re-Run Single Failing Tests Quickly (Playwright --grep)**
+9. **Debugging E2E API Integration Failures (Frontend → Backend)**
+
+   **When E2E tests fail during form submission (create/save operations):**
+
+   ```bash
+   # 1. Check backend is running and healthy
+   curl http://localhost:8080/api/health
+
+   # 2. Check recent PHP/API errors
+   docker compose exec backend tail -100 /app/storage/logs/laravel.log | grep -A 10 "ERROR\|Exception"
+
+   # 3. Check HTTP response codes from the API
+   docker compose logs backend | tail -50 | grep "POST\|PUT\|PATCH\|DELETE"
+
+   # 4. Manually test the API endpoint with test data
+   curl -X POST http://localhost:8080/api/admin/members \
+     -H "Content-Type: application/json" \
+     -d '{"first_name":"Test","last_name":"User","iban":"DE89370400440532013000","mandate_signed_at":"2024-12-15","preferred_language":"de"}'
+
+   # 5. Check browser console for JavaScript errors
+   # Open browser DevTools during test → Console tab → look for errors
+
+   # 6. Restart PHP if code was modified
+   docker compose exec backend supervisorctl restart php-fpm:php-fpmd
+   sleep 2
+   ```
+
+   **Common Issues:**
+   - ❌ `Target page closed` → API error caused app crash, check Laravel logs
+   - ❌ `Test timeout` → Backend not responding, check health endpoint
+   - ❌ `422 validation error` → API validation failed, check request format matches OpenAPI spec
+   - ❌ `401 Unauthorized` → Auth token expired or invalid, check auth.setup.ts
+   - ✅ Form closes + member in list = successful E2E flow
+
+10. **Re-Run Single Failing Tests Quickly (Playwright --grep)**
    ```bash
    # Run only one test by name (exact match)
    cd e2etests && npm test -- --grep "GET /api/admin/categories returns category list"

@@ -76,6 +76,8 @@ export class MembersPage extends BasePage {
 
   async expectPageVisible() {
     await expect(this.page.getByTestId('members-page')).toBeVisible()
+    // Wait for table or empty state to load
+    await this.page.locator('[data-testid="members-table"], [data-testid="members-empty-state"]').first().waitFor({ timeout: 5000 })
   }
 
   async expectTableVisible() {
@@ -123,6 +125,8 @@ export class MembersPage extends BasePage {
    */
 
   async getMemberRowCount(): Promise<number> {
+    // Wait for table or empty state to be visible first
+    await this.page.locator('[data-testid="members-table"], [data-testid="members-empty-state"]').first().waitFor({ timeout: 5000 })
     return await this.tableRows().count()
   }
 

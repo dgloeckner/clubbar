@@ -50,7 +50,19 @@ export async function getMembers(
   }
 
   const response = await get<MembersResponse>('/admin/members', { params })
-  return response.data || { items: [], total: 0, page: 1, per_page: perPage }
+
+  // Backend returns data directly, not wrapped in ApiResponse
+  // Check if response has items (unwrapped) or data property (wrapped)
+  if (response && typeof response === 'object') {
+    if ('items' in response && Array.isArray(response.items)) {
+      return response as MembersResponse
+    }
+    if ('data' in response && response.data) {
+      return response.data as MembersResponse
+    }
+  }
+
+  return { items: [], total: 0, page: 1, per_page: perPage }
 }
 
 /**
@@ -58,7 +70,18 @@ export async function getMembers(
  */
 export async function getMember(id: string): Promise<Member> {
   const response = await get<Member>(`/admin/members/${id}`)
-  return response.data as Member
+
+  // Backend returns member object directly
+  if (response && typeof response === 'object') {
+    if ('id' in response && 'first_name' in response) {
+      return response as Member
+    }
+    if ('data' in response && response.data) {
+      return response.data as Member
+    }
+  }
+
+  throw new Error('Invalid response from get member API')
 }
 
 /**
@@ -74,7 +97,18 @@ export async function createMember(data: {
   email?: string
 }): Promise<Member> {
   const response = await post<Member>('/admin/members', data)
-  return response.data as Member
+
+  // Backend returns member object directly, not wrapped in ApiResponse
+  if (response && typeof response === 'object') {
+    if ('id' in response && 'first_name' in response) {
+      return response as Member
+    }
+    if ('data' in response && response.data) {
+      return response.data as Member
+    }
+  }
+
+  throw new Error('Invalid response from member creation API')
 }
 
 /**
@@ -82,7 +116,18 @@ export async function createMember(data: {
  */
 export async function updateMember(id: string, data: Partial<Member>): Promise<Member> {
   const response = await patch<Member>(`/admin/members/${id}`, data)
-  return response.data as Member
+
+  // Backend returns member object directly
+  if (response && typeof response === 'object') {
+    if ('id' in response && 'first_name' in response) {
+      return response as Member
+    }
+    if ('data' in response && response.data) {
+      return response.data as Member
+    }
+  }
+
+  throw new Error('Invalid response from update member API')
 }
 
 /**
@@ -90,7 +135,18 @@ export async function updateMember(id: string, data: Partial<Member>): Promise<M
  */
 export async function deactivateMember(id: string): Promise<Member> {
   const response = await patch<Member>(`/admin/members/${id}`, { is_active: false })
-  return response.data as Member
+
+  // Backend returns member object directly
+  if (response && typeof response === 'object') {
+    if ('id' in response && 'first_name' in response) {
+      return response as Member
+    }
+    if ('data' in response && response.data) {
+      return response.data as Member
+    }
+  }
+
+  throw new Error('Invalid response from deactivate member API')
 }
 
 /**
@@ -104,5 +160,16 @@ export async function getMemberTransactions(
   const response = await get<any>(`/admin/members/${memberId}/transactions`, {
     params: { page, per_page: perPage },
   })
-  return response.data
+
+  // Backend returns data directly
+  if (response && typeof response === 'object') {
+    if ('items' in response) {
+      return response
+    }
+    if ('data' in response && response.data) {
+      return response.data
+    }
+  }
+
+  return { items: [], total: 0, page: 1, per_page: perPage }
 }
