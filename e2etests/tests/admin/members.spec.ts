@@ -130,22 +130,27 @@ test.describe('Admin Frontend - Members Page', () => {
       await authenticatedMembersPage.expectFormModalHidden()
     })
 
-    test('should accept all required member fields and optional email', async ({ authenticatedMembersPage }) => {
-      // Test that form accepts all required fields per UC-A11
+    test('should create member and persist in database without errors', async ({ authenticatedMembersPage, page }) => {
+      // CRITICAL: This is a true E2E test verifying end-to-end integration:
+      // Frontend form → API call → Backend processing → Database persistence → UI update
+      // Per CLAUDE.md: "E2E tests MUST verify complete end-to-end integration through entire stack"
+
       const testData = {
-        firstName: `User${Date.now()}`,
-        lastName: 'CreatedByTest',
+        firstName: `EE2E${Date.now()}`, // Prefix for easy identification in list
+        lastName: 'CreatedTest',
         iban: 'DE89370400440532013001',
         mandateDate: new Date().toISOString().split('T')[0],
-        email: `member-${Date.now()}@example.com`,
+        email: `e2e-${Date.now()}@example.com`,
         language: 'de',
       }
 
-      // Pattern 006: Open form and fill all fields
+      // 1. Get baseline state (Pattern 001: baseline for comparison)
+      const initialCount = await authenticatedMembersPage.getMemberRowCount()
+
+      // 2. User action: Create member via form
       await authenticatedMembersPage.openCreateModal()
       await authenticatedMembersPage.expectFormModalVisible()
 
-      // Fill form with all required SEPA fields from UC-A11
       await authenticatedMembersPage.fillMemberForm(
         testData.firstName,
         testData.lastName,
@@ -155,17 +160,37 @@ test.describe('Admin Frontend - Members Page', () => {
         testData.language
       )
 
-      // Pattern 008: Verify all fields filled correctly
-      expect(await authenticatedMembersPage.getFormFirstNameValue()).toBe(testData.firstName)
-      expect(await authenticatedMembersPage.getFormLastNameValue()).toBe(testData.lastName)
-      expect(await authenticatedMembersPage.getFormIbanValue()).toBe(testData.iban.toUpperCase())
-      expect(await authenticatedMembersPage.getFormMandateDateValue()).toBe(testData.mandateDate)
-      expect(await authenticatedMembersPage.getFormEmailValue()).toBe(testData.email)
-      expect(await authenticatedMembersPage.getFormLanguageValue()).toBe(testData.language)
+      // 3. Submit form (triggers API call to backend)
+      await authenticatedMembersPage.submitForm()
 
-      // Pattern 006: Cancel form to close cleanly
-      await authenticatedMembersPage.cancelForm()
+      // 4. Verify form closes (indicates API response received)
+      // Pattern 008: Use expect() with explicit waits, not arbitrary timeouts
       await authenticatedMembersPage.expectFormModalHidden()
+
+      // 5. Verify NO error message (backend accepted the request)
+      const errorMsg = await authenticatedMembersPage.getErrorMessage()
+      expect(errorMsg).toBeNull()
+
+      // 6. Wait for page/list to update after member creation
+      // Pattern 008: Wait for actual element, not arbitrary timeout
+      await page.waitForSelector('[data-testid^="members-table-row-"]', { timeout: 5000 })
+
+      // 7. Verify member appears in list (database write confirmed)
+      const memberName = await authenticatedMembersPage.getMemberFirstNameInTable(testData.firstName)
+      expect(memberName).toBeTruthy()
+      expect(memberName).toContain(testData.firstName)
+
+      // 8. Verify count increased (additional confirmation of database persistence)
+      const newCount = await authenticatedMembersPage.getMemberRowCount()
+      expect(newCount).toBeGreaterThan(initialCount)
+
+      // SUCCESS: Complete E2E flow verified
+      // ✅ Frontend form filled
+      // ✅ API call sent
+      // ✅ Backend processed
+      // ✅ Database saved
+      // ✅ No errors shown
+      // ✅ UI updated with new data
     })
 
     test('should fill member form with optional email field', async ({ authenticatedMembersPage }) => {

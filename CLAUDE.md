@@ -95,6 +95,52 @@ Reference E2E testing patterns in `e2etests/patterns/` directory (see **`README.
 
 **Critical**: Pattern 008 fixes a common anti-pattern. Never use `try-catch` for visibility checks. Always use `await expect(locator).toBeVisible()` — Playwright's error messages are far superior and help debug failures immediately.
 
+**CRITICAL: End-to-End Integration Requirement**
+
+**E2E tests MUST verify complete end-to-end integration through the entire stack (frontend → API → backend).**
+
+*Definition of E2E Test*: A test that verifies a complete user workflow from start to finish, including:
+1. **User action** via UI (e.g., fill form, click save)
+2. **API call** from frontend to backend (HTTP request)
+3. **Backend processing** (validation, database write, business logic)
+4. **Data persistence** (verify data saved in database)
+5. **UI feedback** (form closes, list updates, no errors shown)
+
+*Example (UC-A11: Create Member)*:
+- ❌ **NOT E2E**: Test that form fills correctly and closes (UI-only test)
+- ✅ **E2E**: Test creates member → verifies API succeeds → verifies member appears in list → verifies no errors → verifies database has new row
+
+*Implementation Checklist for Create/Save Features*:
+```typescript
+test('should create member and persist without errors', async ({ page, authenticatedMembersPage }) => {
+  const testData = { firstName: 'Test', lastName: 'User', iban: 'DE89...', ... }
+
+  // 1. Get baseline state
+  const initialCount = await authenticatedMembersPage.getMemberRowCount()
+
+  // 2. Perform user action
+  await authenticatedMembersPage.createMember(...)
+
+  // 3. Verify form closes (indicates API call likely succeeded)
+  await authenticatedMembersPage.expectFormModalHidden()
+
+  // 4. Verify NO error message shown
+  const errorMsg = await authenticatedMembersPage.getErrorMessage()
+  expect(errorMsg).toBeNull()
+
+  // 5. Verify data appears in UI (list updated)
+  const memberName = await authenticatedMembersPage.getMemberFirstNameInTable(testData.firstName)
+  expect(memberName).toContain(testData.firstName)
+
+  // 6. Verify count increased (database write confirmed)
+  const newCount = await authenticatedMembersPage.getMemberRowCount()
+  expect(newCount).toBe(initialCount + 1)
+
+  // Optional: Verify backend logs show success (if needed)
+  // docker compose exec backend tail -20 /app/storage/logs/laravel.log
+})
+```
+
 **Important**: All E2E tests must follow these patterns for reliability, parallel execution safety, and consistent test behavior. **Start here**: `e2etests/patterns/README.md` provides the complete index, quick start guide, and real-world examples. Then reference specific patterns as needed.
 
 ### Admin Frontend Patterns
@@ -616,9 +662,15 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail")'
 - **PHP**: PSR-12 style, no external dependencies beyond Composer basics; prepared statements for all DB queries
 - **React/TypeScript**: ESLint + Prettier configured; no console.logs in production code
 - **Tests**: Jest/Vitest for React, PHPUnit for PHP, Playwright for E2E; minimum 80% coverage for new functions
-  - **Playwright tests**: Must follow E2E Testing Patterns (001-004) for safe parallel execution with 4 workers
-  - Patterns ensure test isolation, no shared state, database-agnostic assertions, and proper authentication handling
-  - Tests that violate patterns will fail intermittently in parallel mode; use `--workers=1` to identify isolation issues
+  - **Playwright E2E Tests** (CRITICAL):
+    - Must follow E2E Testing Patterns (001-008) for safe parallel execution with 4 workers
+    - **MUST verify end-to-end integration** (frontend → API → backend → database)
+    - **For create/save operations**: Verify data actually persisted (count increased, item in list, no errors)
+    - **For delete/update operations**: Verify data actually changed/removed (list updated, count changed)
+    - **Example**: Creating a member must verify: form closes → no error → member appears in list → count increased
+    - Patterns ensure test isolation, no shared state, database-agnostic assertions, and proper authentication handling
+    - Tests that violate patterns will fail intermittently in parallel mode; use `--workers=1` to identify isolation issues
+  - **UI-only tests are NOT E2E**: Tests that only verify form fills/closes but don't confirm backend persistence are insufficient
 - **Database changes**: Always include migration script; no direct schema edits
 - **Security**: No hardcoded credentials, API keys, or sensitive data in code/logs
 
