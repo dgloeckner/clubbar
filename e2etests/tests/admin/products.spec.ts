@@ -100,6 +100,26 @@ test.describe('Admin Frontend - Products Page', () => {
       await authenticatedProductsPage.expectFormModalHidden()
     })
 
+    test('should successfully create and close product modal', async ({ authenticatedProductsPage }) => {
+      // Pattern 001: Create unique test product
+      const productName = `Created Product ${Date.now()}`
+      const productPrice = '12.99'
+
+      // Navigate to products page
+      await authenticatedProductsPage.navigate()
+      await authenticatedProductsPage.expectPageVisible()
+      await authenticatedProductsPage.expectTableVisible()
+
+      // Create product - verifies form fills, submits, and modal closes
+      await authenticatedProductsPage.createProduct(productName, productPrice)
+
+      // Verify modal closed after creation (indicates successful API call)
+      await authenticatedProductsPage.expectFormModalHidden()
+
+      // Verify we're back on the products page
+      await authenticatedProductsPage.expectTableVisible()
+    })
+
     test('should display form with empty fields for create', async ({ authenticatedProductsPage }) => {
       // Pattern 006: Page object provides field getters
       await authenticatedProductsPage.openCreateModal()
@@ -109,6 +129,35 @@ test.describe('Admin Frontend - Products Page', () => {
 
       expect(name).toBe('')
       expect(price).toBe('')
+    })
+
+    test('should create product with auto-selected category', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+      // Pattern 001: Create unique test data
+      const productName = `Categorized Product ${Date.now()}`
+      const productPrice = '8.50'
+
+      // First, create a category to ensure one exists
+      const categoryName = `Product Category ${Date.now()}`
+      await authenticatedCategoriesPage.navigate()
+      await authenticatedCategoriesPage.createCategory({
+        de: categoryName,
+      })
+
+      // Navigate to products
+      await authenticatedProductsPage.navigate()
+      await authenticatedProductsPage.expectPageVisible()
+
+      // Create product (auto-selects first available category)
+      await authenticatedProductsPage.createProduct(productName, productPrice)
+
+      // Verify product was created successfully
+      // (modal closed indicates successful API call and product was persisted)
+      await authenticatedProductsPage.expectFormModalHidden()
+      await authenticatedProductsPage.expectTableVisible()
+
+      // Verify the page is still on products and table is visible
+      const isOnPage = await authenticatedProductsPage.isOnProductsPage()
+      expect(isOnPage).toBe(true)
     })
   })
 

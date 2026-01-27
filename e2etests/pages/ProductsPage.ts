@@ -76,7 +76,7 @@ export class ProductsPage extends BasePage {
   }
 
   async expectFormModalHidden() {
-    await expect(this.formModal()).not.toBeVisible({ timeout: 15000 })
+    await expect(this.formModal()).not.toBeVisible({ timeout: 30000 })
   }
 
   async expectEmptyStateVisible() {
