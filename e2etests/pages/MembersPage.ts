@@ -59,6 +59,18 @@ export class MembersPage extends BasePage {
   private readonly deleteConfirmOkBtn = () => this.page.getByTestId('members-delete-confirm-ok')
   private readonly deleteConfirmCancelBtn = () => this.page.getByTestId('members-delete-confirm-cancel')
 
+  // Transaction modal (UC-A20)
+  private readonly transactionModalBackdrop = () => this.page.getByTestId('transaction-modal-backdrop')
+  private readonly transactionModal = () => this.page.getByTestId('transaction-modal')
+  private readonly transactionModalHeader = () => this.page.getByTestId('transaction-modal-header')
+  private readonly transactionModalCloseBtn = () => this.page.getByTestId('modal-close-button')
+  private readonly transactionTable = () => this.page.getByTestId('transaction-table')
+  private readonly transactionRows = () => this.page.locator('[data-testid="transaction-row"]')
+  private readonly transactionFilterAll = () => this.page.getByTestId('transaction-filter-all')
+  private readonly transactionFilterPurchase = () => this.page.getByTestId('transaction-filter-purchase')
+  private readonly transactionFilterCorrection = () => this.page.getByTestId('transaction-filter-correction')
+  private readonly transactionEmptyState = () => this.page.getByTestId('empty-transactions')
+
   constructor(page: Page) {
     super(page)
   }
@@ -351,5 +363,80 @@ export class MembersPage extends BasePage {
   async getLastSettlementDate(): Promise<string> {
     const text = await this.statCardLetzteAbrechnung().textContent()
     return text || ''
+  }
+
+  /**
+   * TRANSACTION MODAL INTERACTIONS (UC-A20: Pattern 006: Semantic actions)
+   */
+
+  async viewTransactionsForMember(memberId: string) {
+    const viewButton = this.page.getByTestId(`view-transactions-button-${memberId}`)
+    await viewButton.click()
+  }
+
+  async expectTransactionModalVisible() {
+    await expect(this.transactionModal()).toBeVisible({ timeout: 5000 })
+  }
+
+  async expectTransactionModalHidden() {
+    await expect(this.transactionModal()).not.toBeVisible()
+  }
+
+  async closeTransactionModal() {
+    await this.transactionModalCloseBtn().click()
+  }
+
+  async getTransactionRows() {
+    return this.transactionRows()
+  }
+
+  async getTransactionRowCount(): Promise<number> {
+    return await this.transactionRows().count()
+  }
+
+  async filterTransactionsByType(type: 'all' | 'purchase' | 'correction') {
+    if (type === 'all') {
+      await this.transactionFilterAll().click()
+    } else if (type === 'purchase') {
+      await this.transactionFilterPurchase().click()
+    } else {
+      await this.transactionFilterCorrection().click()
+    }
+  }
+
+  async getTransactionModalHeaderText(): Promise<string | null> {
+    return await this.transactionModalHeader().textContent()
+  }
+
+  async expectTransactionTableVisible() {
+    await expect(this.transactionTable()).toBeVisible()
+  }
+
+  async expectTransactionTableHidden() {
+    await expect(this.transactionTable()).not.toBeVisible()
+  }
+
+  async expectTransactionEmptyStateVisible() {
+    await expect(this.transactionEmptyState()).toBeVisible()
+  }
+
+  async getTransactionDate(rowIndex: number = 0): Promise<string> {
+    return await this.page.getByTestId('transaction-date').nth(rowIndex).textContent() || ''
+  }
+
+  async getTransactionType(rowIndex: number = 0): Promise<string> {
+    return await this.page.getByTestId('transaction-type').nth(rowIndex).textContent() || ''
+  }
+
+  async getTransactionDescription(rowIndex: number = 0): Promise<string> {
+    return await this.page.getByTestId('transaction-description').nth(rowIndex).textContent() || ''
+  }
+
+  async getTransactionAmount(rowIndex: number = 0): Promise<string> {
+    return await this.page.getByTestId('transaction-amount').nth(rowIndex).textContent() || ''
+  }
+
+  async getTransactionRunningTotal(rowIndex: number = 0): Promise<string> {
+    return await this.page.getByTestId('transaction-running-total').nth(rowIndex).textContent() || ''
   }
 }

@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 import { Card } from '../components/common/Card'
 import { StatCard } from '../components/common/StatCard'
+import { TransactionModal } from '../components/modals/TransactionModal'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useLoading } from '../context/LoadingContext'
@@ -26,6 +27,7 @@ export function MembersPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [selectedMemberForTransactions, setSelectedMemberForTransactions] = useState<Member | null>(null)
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -316,6 +318,21 @@ export function MembersPage() {
                         title="Delete"
                       >
                         <TrashIcon size={18} />
+                      </button>
+                      <button
+                        data-testid={`view-transactions-button-${member.id}`}
+                        onClick={() => setSelectedMemberForTransactions(member)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: theme.colors.semantic.primary,
+                          cursor: 'pointer',
+                          padding: theme.spacing.sm,
+                          marginLeft: theme.spacing.md,
+                        }}
+                        title="View Transactions"
+                      >
+                        📊
                       </button>
                     </td>
                   </tr>
@@ -617,6 +634,17 @@ export function MembersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Transaction Modal (UC-A20) */}
+      {selectedMemberForTransactions && (
+        <TransactionModal
+          isOpen={!!selectedMemberForTransactions}
+          memberId={selectedMemberForTransactions.id}
+          memberName={`${selectedMemberForTransactions.first_name} ${selectedMemberForTransactions.last_name}`}
+          currentBalance={selectedMemberForTransactions.balance_cents}
+          onClose={() => setSelectedMemberForTransactions(null)}
+        />
       )}
     </div>
   )
