@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * PlusIcon - Add/Create button icon
+ * Shows a plus sign (+)
+ */
 export function PlusIcon({ size = 20, ...props }: IconProps) {
   return (
     <svg
@@ -10,6 +13,8 @@ export function PlusIcon({ size = 20, ...props }: IconProps) {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       {...props}
     >
       <path d="M12 5v14" />

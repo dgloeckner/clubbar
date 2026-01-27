@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * BookIcon - Journal/Buchungsjournal navigation tab icon
+ * Shows an open book
+ */
 export function BookIcon({ size = 20, ...props }: IconProps) {
   return (
     <svg

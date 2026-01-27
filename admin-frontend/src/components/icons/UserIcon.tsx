@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * UserIcon - Single user icon for user badge
+ * Shows a single person
+ */
 export function UserIcon({ size = 20, ...props }: IconProps) {
   return (
     <svg

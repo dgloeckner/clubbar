@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * UsersIcon - Members navigation tab icon
+ * Shows two users (multiple people)
+ */
 export function UsersIcon({ size = 20, ...props }: IconProps) {
   return (
     <svg

@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * EditIcon - Edit button icon
+ * Shows a pencil/edit symbol
+ */
 export function EditIcon({ size = 18, ...props }: IconProps) {
   return (
     <svg

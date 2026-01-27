@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * ReceiptIcon - Settlements/Abrechnungen navigation tab icon
+ * Shows a receipt/document with lines
+ */
 export function ReceiptIcon({ size = 20, ...props }: IconProps) {
   return (
     <svg

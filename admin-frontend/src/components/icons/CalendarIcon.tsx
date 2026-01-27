@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * CalendarIcon - Calendar/date icon
+ * Shows a calendar grid
+ */
 export function CalendarIcon({ size = 20, ...props }: IconProps) {
   return (
     <svg

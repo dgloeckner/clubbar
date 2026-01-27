@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * LogoutIcon - Logout button icon (door exit)
+ * Shows a door with arrow pointing out
+ */
 export function LogoutIcon({ size = 20, ...props }: IconProps) {
   return (
     <svg

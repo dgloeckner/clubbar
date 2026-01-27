@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * BankIcon - Bank/balance icon
+ * Shows a bank building/columns
+ */
 export function BankIcon({ size = 20, ...props }: IconProps) {
   return (
     <svg
@@ -14,14 +17,7 @@ export function BankIcon({ size = 20, ...props }: IconProps) {
       strokeLinejoin="round"
       {...props}
     >
-      <path d="M3 21h18" />
-      <path d="M3 10h18" />
-      <path d="M5 6l7-3 7 3" />
-      <path d="M4 10v11" />
-      <path d="M20 10v11" />
-      <path d="M8 14v3" />
-      <path d="M12 14v3" />
-      <path d="M16 14v3" />
+      <path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3" />
     </svg>
   )
 }

@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * ChartIcon - Statistics/Statistik navigation tab icon
+ * Shows a bar chart with three bars
+ */
 export function ChartIcon({ size = 20, ...props }: IconProps) {
   return (
     <svg

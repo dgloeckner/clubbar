@@ -1,6 +1,9 @@
+import { IconProps } from './types'
 
-import { IconProps } from './index'
-
+/**
+ * PackageIcon - Products navigation tab icon
+ * Shows a package/box
+ */
 export function PackageIcon({ size = 20, ...props }: IconProps) {
   return (
     <svg
