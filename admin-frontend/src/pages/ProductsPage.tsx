@@ -113,9 +113,11 @@ export function ProductsPage() {
     }
 
     try {
+      const priceCents = Math.round(parseFloat(formData.price) * 100)
+
       await post('/admin/products', {
-        names: { de: formData.name },
-        price_cents: Math.round(parseFloat(formData.price) * 100),
+        names: { de: formData.name.trim() },
+        price_cents: priceCents,
         category_id: selectedCategory,
       })
       setFormData({ name: '', price: '' })
@@ -123,7 +125,9 @@ export function ProductsPage() {
       setShowModal(false)
       await loadProducts()
     } catch (err: any) {
-      setFormError(err.message || 'Failed to create product')
+      console.error('Product creation error:', err)
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to create product'
+      setFormError(errorMsg)
     }
   }
 

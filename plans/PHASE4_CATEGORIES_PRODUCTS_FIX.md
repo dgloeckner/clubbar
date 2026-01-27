@@ -5,14 +5,24 @@
 **Objective**: Implement a dedicated Categories management page and fix the Products page to properly integrate with categories.
 
 **Current Status**:
-- ✅ **PHASE 1 & 2 COMPLETE**: Categories Page - 27/27 E2E tests passing
+- ✅ **PHASE 1 & 2 COMPLETE**: Categories Page - 27/27 E2E tests passing ✅
   - CategoriesPage.tsx component implemented with full CRUD operations
   - CategoriesPage.ts page object with semantic methods
-  - Categories in navigation menu
+  - Categories navigation integrated
   - API response parsing fixed (response.categories)
-- ⏭️ **NEXT**: Phase 3 - Products-Categories Integration (14 product tests)
-- Products Page: 13/14 tests passing (product creation failing due to missing category)
-- Products use hardcoded/missing category_id - must be properly selected
+
+- ✅ **PHASE 3 IN PROGRESS**: Products-Categories Integration - 40/41 tests passing
+  - ProductsPage.tsx: Category dropdown (required field) added to form
+  - ProductsPage.ts: Enhanced page object with category selection methods
+  - Auto-select first category in product creation tests
+  - Category name display in product table (not UUID substring)
+  - Test isolation fixed for delete tests (only empty categories)
+  - Issue: Product creation validation fails with 400 Bad Request (investigating)
+
+**Tests Summary**:
+- Categories: 27/27 ✅ (CRUD + delete with proper isolation)
+- Products: 13/14 ✅ (1 creation test pending API validation fix)
+- Total: 40/41 passing when run together
 
 **Critical Dependencies**:
 - UC-A41 (Create Product): **Requires** category selection
