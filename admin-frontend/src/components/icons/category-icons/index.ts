@@ -1,0 +1,5 @@
+export { CategoryIcon } from './CategoryIcon'
+export { CategoryTagsIcon } from './CategoryTagsIcon'
+export { CategoryLayersIcon } from './CategoryLayersIcon'
+export { CategoryFolderIcon } from './CategoryFolderIcon'
+export { CategoryListIcon } from './CategoryListIcon'

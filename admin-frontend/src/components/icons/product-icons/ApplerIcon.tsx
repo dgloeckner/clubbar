@@ -1,0 +1,16 @@
+import { IconProps } from '../types'
+
+export function ApplerIcon({ size = 20, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M7 20L6 6c0-1 .5-2 2-2h8c1.5 0 2 1 2 2l-1 14c0 1-1 2-5 2s-5-1-5-2z" fill="#d97706" fillOpacity="0.4"/>
+      <line x1="7" y1="8" x2="10" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
+      <line x1="10" y1="8" x2="13" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
+      <line x1="13" y1="8" x2="16" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
+      <line x1="17" y1="8" x2="14" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
+      <line x1="14" y1="8" x2="11" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
+      <line x1="11" y1="8" x2="8" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
+      <circle cx="18" cy="5" r="2" fill="#dc2626"/>
+    </svg>
+  )
+}

@@ -1,0 +1,14 @@
+import { IconProps } from '../types'
+
+export function CategoryListIcon({ size = 20, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="4" cy="5" r="1.5" fill="currentColor"/>
+      <line x1="9" y1="5" x2="21" y2="5"/>
+      <circle cx="4" cy="12" r="1.5" fill="currentColor"/>
+      <line x1="9" y1="12" x2="18" y2="12"/>
+      <circle cx="4" cy="19" r="1.5" fill="currentColor"/>
+      <line x1="9" y1="19" x2="20" y2="19"/>
+    </svg>
+  )
+}

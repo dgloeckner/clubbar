@@ -1,0 +1,11 @@
+import { IconProps } from '../types'
+
+export function WeizenIcon({ size = 20, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M8 20c0 1 1 2 4 2s4-1 4-2l1-8c.5-4-1-6-2-8-.5-1-.5-2 0-3h-6c.5 1 .5 2 0 3-1 2-2.5 4-2 8z" fill="#f59e0b" fillOpacity="0.3"/>
+      <ellipse cx="12" cy="7" rx="3" ry="1.5" fill="#fef3c7"/>
+      <ellipse cx="12" cy="5.5" rx="2.5" ry="1.5" fill="white"/>
+    </svg>
+  )
+}
