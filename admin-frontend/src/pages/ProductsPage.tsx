@@ -17,15 +17,15 @@ import { get, post } from '../services/api'
 interface Product {
   id: string
   names: { [lang: string]: string }
-  descriptions?: { [lang: string]: string }
-  price_cents: number
-  category_id: string
-  is_active: boolean
-  created_at: string
+  descriptions?: any[]
+  priceCents: number
+  categoryId: string
+  isActive: boolean
+  createdAt: any
 }
 
 interface ApiResponse {
-  data: Product[]
+  items: Product[]
   pagination?: {
     page: number
     per_page: number
@@ -84,7 +84,7 @@ export function ProductsPage() {
           search: searchTerm || undefined,
         },
       })
-      setProducts(response.data?.data || [])
+      setProducts(response.items || [])
     } catch (err: any) {
       setError(err.message || 'Failed to load products')
       setProducts([])
@@ -276,13 +276,13 @@ export function ProductsPage() {
                 </td>
                 <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
                   <span data-testid={`products-table-cell-price-${product.id}`}>
-                    €{(product.price_cents / 100).toFixed(2)}
+                    €{(product.priceCents / 100).toFixed(2)}
                   </span>
                 </td>
                 <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
                   <span data-testid={`products-table-cell-category-${product.id}`}>
                     {(() => {
-                      const category = categories.find((c) => c.id === product.category_id)
+                      const category = categories.find((c) => c.id === product.categoryId)
                       return category ? category.names.de || category.names.en || 'Unknown' : 'Unknown'
                     })()}
                   </span>
@@ -293,12 +293,12 @@ export function ProductsPage() {
                     style={{
                       padding: '4px 8px',
                       borderRadius: '4px',
-                      backgroundColor: product.is_active ? '#dcfce7' : '#fee2e2',
-                      color: product.is_active ? '#166534' : '#991b1b',
+                      backgroundColor: product.isActive ? '#dcfce7' : '#fee2e2',
+                      color: product.isActive ? '#166534' : '#991b1b',
                       fontSize: '12px',
                     }}
                   >
-                    {product.is_active ? '✓ Active' : '✗ Inactive'}
+                    {product.isActive ? '✓ Active' : '✗ Inactive'}
                   </span>
                 </td>
               </tr>
