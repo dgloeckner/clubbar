@@ -36,12 +36,13 @@ interface ApiResponse {
 
 interface Category {
   id: string
-  name: string
+  names: { [lang: string]: string }
   is_active: boolean
+  display_order: number
 }
 
 interface CategoriesResponse {
-  data: Category[]
+  categories: Category[]
 }
 
 export function ProductsPage() {
@@ -51,6 +52,7 @@ export function ProductsPage() {
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [formData, setFormData] = useState({ name: '', price: '' })
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -63,7 +65,8 @@ export function ProductsPage() {
   async function loadCategories() {
     try {
       const response = await get<CategoriesResponse>('/admin/categories')
-      setCategories(response.data?.data || [])
+      const categoriesArray = response.categories || []
+      setCategories(categoriesArray)
     } catch (err: any) {
       // Silently fail - categories are optional
       setCategories([])
@@ -104,16 +107,19 @@ export function ProductsPage() {
       return
     }
 
-    try {
-      // Use first available category, or fallback to empty if none exist
-      const categoryId = categories.length > 0 ? categories[0].id : ''
+    if (!selectedCategory) {
+      setFormError('Category is required')
+      return
+    }
 
+    try {
       await post('/admin/products', {
         names: { de: formData.name },
         price_cents: Math.round(parseFloat(formData.price) * 100),
-        ...(categoryId && { category_id: categoryId }),
+        category_id: selectedCategory,
       })
       setFormData({ name: '', price: '' })
+      setSelectedCategory('')
       setShowModal(false)
       await loadProducts()
     } catch (err: any) {
@@ -157,7 +163,12 @@ export function ProductsPage() {
         />
         <button
           data-testid="products-create-button"
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            setFormData({ name: '', price: '' })
+            setSelectedCategory('')
+            setFormError(null)
+            setShowModal(true)
+          }}
           style={{
             padding: '8px 16px',
             backgroundColor: '#3b82f6',
@@ -266,7 +277,10 @@ export function ProductsPage() {
                 </td>
                 <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
                   <span data-testid={`products-table-cell-category-${product.id}`}>
-                    {product.category_id.substring(0, 8)}...
+                    {(() => {
+                      const category = categories.find((c) => c.id === product.category_id)
+                      return category ? category.names.de || category.names.en || 'Unknown' : 'Unknown'
+                    })()}
                   </span>
                 </td>
                 <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
@@ -379,6 +393,43 @@ export function ProductsPage() {
                   }}
                   required
                 />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '6px',
+                    color: '#e2e8f0',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                  }}
+                >
+                  Category *
+                </label>
+                <select
+                  data-testid="products-form-category-select"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid #2d3748',
+                    borderRadius: '4px',
+                    backgroundColor: '#0d1829',
+                    color: '#e2e8f0',
+                    boxSizing: 'border-box',
+                    cursor: 'pointer',
+                  }}
+                  required
+                >
+                  <option value="">Select a category...</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.names.de || cat.names.en || 'Unnamed'}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div style={{ marginBottom: '20px' }}>

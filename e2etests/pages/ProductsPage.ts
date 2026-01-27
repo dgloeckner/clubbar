@@ -38,6 +38,7 @@ export class ProductsPage extends BasePage {
   private readonly formModalContent = () => this.page.getByTestId('products-form-modal-content')
   private readonly formTitle = () => this.page.getByTestId('products-form-title')
   private readonly nameInput = () => this.page.getByTestId('products-form-name-input')
+  private readonly categorySelect = () => this.page.getByTestId('products-form-category-select')
   private readonly priceInput = () => this.page.getByTestId('products-form-price-input')
   private readonly formSubmitBtn = () => this.page.getByTestId('products-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('products-form-cancel-button')
@@ -112,6 +113,13 @@ export class ProductsPage extends BasePage {
     return price || ''
   }
 
+  async getProductCategoryInRow(productId: string): Promise<string> {
+    const category = await this.page
+      .getByTestId(`products-table-cell-category-${productId}`)
+      .textContent()
+    return category || ''
+  }
+
   /**
    * SEARCH & FILTER (Pattern 006: Semantic actions)
    */
@@ -143,6 +151,14 @@ export class ProductsPage extends BasePage {
     await this.priceInput().fill(price)
   }
 
+  async selectCategory(categoryId: string) {
+    await this.categorySelect().selectOption(categoryId)
+  }
+
+  async getSelectedCategory(): Promise<string> {
+    return await this.categorySelect().inputValue() || ''
+  }
+
   async submitForm() {
     await this.formSubmitBtn().click()
   }
@@ -151,13 +167,27 @@ export class ProductsPage extends BasePage {
     await this.formCancelBtn().click()
   }
 
-  async createProduct(name: string, price: string) {
+  async createProduct(name: string, price: string, categoryId?: string) {
     await this.openCreateModal()
     await this.expectFormModalVisible()
     await this.fillProductForm(name, price)
+
+    // Select category - either the provided one or first available
+    if (categoryId) {
+      await this.selectCategory(categoryId)
+    } else {
+      // Auto-select first available category
+      const options = await this.categorySelect().locator('option').count()
+      if (options > 1) {
+        // Skip the placeholder "Select a category..." option (index 0)
+        await this.categorySelect().selectOption({ index: 1 })
+      }
+    }
+
     await this.submitForm()
     // Wait for API call to complete and modal to close
-    await this.page.waitForLoadState('networkidle')
+    await this.page.waitForLoadState('networkidle', { timeout: 15000 })
+    await this.page.waitForTimeout(200)
     await this.expectFormModalHidden()
   }
 
