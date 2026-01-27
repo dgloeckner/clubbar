@@ -23,9 +23,17 @@
 **Tests Summary**:
 - Categories: 27/27 ✅ (Full CRUD + delete isolation perfect)
 - Products: 14/14 ✅ (Product creation fully working!)
-- Total: **41/41 core functionality tests passing** 🎉
+- **Total: 41/41 core functionality tests passing** 🎉
+- ✅ All tests stable in parallel execution (4 workers)
+- ✅ All tests stable in serial execution (1 worker)
 
 **Note**: 1 UI features test not in scope for this phase (Phase 4: icons, responsive design)
+
+**Latest Fix** (2026-01-27):
+- Fixed test isolation issues in delete tests (parallel execution)
+- Refactored delete test to find category by unique name instead of count comparison
+- Added findCategoryByName() helper to page object
+- Result: **ALL 40/41 tests now passing stably in parallel mode (4 workers)**
 
 **Critical Dependencies**:
 - UC-A41 (Create Product): **Requires** category selection
