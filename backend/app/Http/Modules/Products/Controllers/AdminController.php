@@ -26,7 +26,7 @@ use Illuminate\Http\JsonResponse;
  *
  * Endpoints:
  * - Categories: GET, POST, PATCH, DELETE
- * - Products: GET, POST, PATCH, DELETE status
+ * - Products: GET, POST, PATCH, DELETE, PATCH status
  */
 class AdminController extends Controller
 {
@@ -53,7 +53,12 @@ class AdminController extends Controller
     public function listCategories(): JsonResponse
     {
         $categories = $this->categoriesService->listCategories();
-        return response()->json(['categories' => $categories]);
+        // Convert DTOs/Models to arrays
+        $categoriesArray = array_map(
+            fn($cat) => is_object($cat) && method_exists($cat, 'toArray') ? $cat->toArray() : $cat,
+            $categories
+        );
+        return response()->json(['categories' => $categoriesArray]);
     }
 
     /**
@@ -235,6 +240,29 @@ class AdminController extends Controller
             $isActive = request()->boolean('is_active', true);
             $product = $this->productsService->toggleStatus($productId, $isActive);
             return response()->json($product->toArray());
+        } catch (\RuntimeException $e) {
+            return response()->json(['error' => 'not_found', 'message' => $e->getMessage()], 404);
+        }
+    }
+
+    /**
+     * DELETE /api/admin/products/{productId} - Delete Product
+     *
+     * Hard-deletes a product from the database.
+     * Logs deletion to audit trail.
+     * Deleted products cannot be recovered.
+     *
+     * @param string $productId
+     * @return JsonResponse
+     */
+    public function deleteProduct(string $productId): JsonResponse
+    {
+        try {
+            $deleted = $this->productsService->deleteProduct($productId);
+            if (!$deleted) {
+                return response()->json(['error' => 'not_found', 'message' => "Product {$productId} not found"], 404);
+            }
+            return response()->json(null, 204);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => 'not_found', 'message' => $e->getMessage()], 404);
         }

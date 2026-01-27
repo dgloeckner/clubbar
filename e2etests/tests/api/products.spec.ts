@@ -407,6 +407,90 @@ test.describe('Products API - Toggle Status', () => {
   });
 });
 
+// Test: Delete Product
+test.describe('Products API - Delete', () => {
+  test('DELETE /api/admin/products/{id} deletes product', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
+      data: createValidProduct(category.id),
+    });
+    const product = await createResponse.json();
+    const productId = product.id;
+
+    // Delete the product
+    const response = await authenticatedRequest.delete(`/api/admin/products/${productId}`);
+
+    // Expect 204 No Content
+    expect(response.status()).toBe(204);
+
+    // Verify product is deleted by trying to fetch it
+    // It should either 404 or not appear in the list
+    const listResponse = await authenticatedRequest.get('/api/admin/products');
+    const listBody = await listResponse.json();
+    const stillExists = listBody.items.some((p: any) => p.id === productId);
+    expect(stillExists).toBe(false);
+  });
+
+  test('DELETE /api/admin/products/{id} returns 404 for non-existent product', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.delete(`/api/admin/products/${randomUUID()}`);
+
+    expect(response.status()).toBe(404);
+  });
+
+  test('DELETE /api/admin/products/{id} prevents recovery', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
+      data: createValidProduct(category.id),
+    });
+    const product = await createResponse.json();
+    const productId = product.id;
+
+    // Get initial count
+    const beforeDelete = await authenticatedRequest.get('/api/admin/products?status=all');
+    const beforeBody = await beforeDelete.json();
+    const beforeCount = beforeBody.total;
+
+    // Delete the product
+    const deleteResponse = await authenticatedRequest.delete(`/api/admin/products/${productId}`);
+    expect(deleteResponse.status()).toBe(204);
+
+    // Verify product is gone from all products list
+    const afterDelete = await authenticatedRequest.get('/api/admin/products?status=all');
+    const afterBody = await afterDelete.json();
+    const afterCount = afterBody.total;
+
+    expect(afterCount).toBe(beforeCount - 1);
+
+    // Verify deleted product doesn't appear in list
+    const deletedProduct = afterBody.items.find((p: any) => p.id === productId);
+    expect(deletedProduct).toBeUndefined();
+  });
+
+  test('DELETE /api/admin/products/{id} is different from status toggle', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+
+    // Create product - for testing
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
+      data: createValidProduct(category.id),
+    });
+    const product = await createResponse.json();
+    const productId = product.id;
+
+    // Status toggle returns 200 OK with product data
+    const statusResponse = await authenticatedRequest.patch(`/api/admin/products/${productId}/status`, {
+      data: { is_active: false },
+    });
+    expect(statusResponse.status()).toBe(200); // Status toggle returns 200
+    const statusBody = await statusResponse.json();
+    expect(statusBody.is_active).toBe(false); // Returns updated product
+
+    // DELETE returns 204 No Content (different response)
+    const deleteResponse = await authenticatedRequest.delete(`/api/admin/products/${productId}`);
+    expect(deleteResponse.status()).toBe(204); // DELETE returns 204
+    // 204 means no content, don't parse body
+  });
+});
+
 // Test: Terminal Sync
 test.describe('Products API - Terminal Sync', () => {
   test('GET /api/sync/products returns product list', async ({ authenticatedTerminalRequest }) => {

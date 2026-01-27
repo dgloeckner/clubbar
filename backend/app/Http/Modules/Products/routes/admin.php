@@ -22,7 +22,8 @@ use Illuminate\Support\Facades\Route;
  * - GET /api/admin/products - List products
  * - POST /api/admin/products - Create product
  * - PATCH /api/admin/products/{id} - Update product
- * - PATCH /api/admin/products/{id}/status - Toggle status
+ * - PATCH /api/admin/products/{id}/status - Toggle status (active/inactive)
+ * - DELETE /api/admin/products/{id} - Delete product (hard delete, non-recoverable)
  *
  * Authentication: Pattern 013 (Admin Session Authentication)
  * - All routes require admin session authentication (auth.admin middleware)
@@ -49,4 +50,5 @@ Route::prefix('admin')
         Route::post('/products', [AdminController::class, 'storeProduct']);
         Route::patch('/products/{productId}', [AdminController::class, 'updateProduct']);
         Route::patch('/products/{productId}/status', [AdminController::class, 'toggleProductStatus']);
+        Route::delete('/products/{productId}', [AdminController::class, 'deleteProduct']);
     });

@@ -1,10 +1,61 @@
 /**
  * API Client Configuration & Interceptors
  * Handles all HTTP requests to the backend API
+ *
+ * Global loading state:
+ * - Tracks pending requests with counter
+ * - Emits loading state changes for UI
+ * - Used by loading indicator and tests for deterministic wait behavior
  */
 
 import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios'
 import { ApiResponse } from '../types'
+
+// Global pending request counter
+let pendingRequests = 0
+const loadingStateCallbacks: Array<(isLoading: boolean) => void> = []
+
+/**
+ * Subscribe to loading state changes
+ * Used by UI components to show/hide loading indicator
+ */
+export function onLoadingStateChange(callback: (isLoading: boolean) => void): () => void {
+  loadingStateCallbacks.push(callback)
+  // Return unsubscribe function
+  return () => {
+    const index = loadingStateCallbacks.indexOf(callback)
+    if (index > -1) {
+      loadingStateCallbacks.splice(index, 1)
+    }
+  }
+}
+
+/**
+ * Notify all subscribers of loading state change
+ */
+function notifyLoadingState() {
+  const isLoading = pendingRequests > 0
+  loadingStateCallbacks.forEach(cb => cb(isLoading))
+}
+
+/**
+ * Increment pending request counter and notify
+ */
+function incrementPending() {
+  const wasLoading = pendingRequests > 0
+  pendingRequests++
+  if (!wasLoading) {
+    notifyLoadingState()
+  }
+}
+
+/**
+ * Decrement pending request counter and notify
+ */
+function decrementPending() {
+  pendingRequests = Math.max(0, pendingRequests - 1)
+  notifyLoadingState()
+}
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -16,7 +67,7 @@ const apiClient: AxiosInstance = axios.create({
 })
 
 /**
- * Request interceptor - Add auth token if available
+ * Request interceptor - Add auth token and track pending requests
  */
 apiClient.interceptors.request.use(
   (config) => {
@@ -24,17 +75,26 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    incrementPending()
     return config
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    decrementPending()
+    return Promise.reject(error)
+  }
 )
 
 /**
- * Response interceptor - Handle errors globally
+ * Response interceptor - Handle errors globally and track pending requests
  */
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    decrementPending()
+    return response
+  },
   (error: AxiosError) => {
+    decrementPending()
+
     // Handle 401 Unauthorized - clear auth and redirect to login
     if (error.response?.status === 401) {
       // Clear all auth data

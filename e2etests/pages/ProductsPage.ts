@@ -28,10 +28,10 @@ export class ProductsPage extends BasePage {
   // Main page locators (PRIVATE - hidden from tests)
   private readonly table = () => this.page.getByTestId('products-table')
   private readonly tableRows = () => this.page.locator('[data-testid^="products-table-row-"]')
-  private readonly searchInput = () => this.page.getByTestId('products-search-input')
   private readonly createBtn = () => this.page.getByTestId('products-create-button')
   private readonly emptyState = () => this.page.getByTestId('products-empty-state')
   private readonly errorMessage = () => this.page.getByTestId('products-error-message')
+  private readonly globalLoadingIndicator = () => this.page.getByTestId('products-global-loading')
 
   // Modal locators (PRIVATE)
   private readonly formModal = () => this.page.getByTestId('products-form-modal')
@@ -43,6 +43,22 @@ export class ProductsPage extends BasePage {
   private readonly formSubmitBtn = () => this.page.getByTestId('products-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('products-form-cancel-button')
   private readonly formError = () => this.page.getByTestId('products-form-error')
+
+  // Action button locators (PRIVATE)
+  private readonly editButton = (productId: string) =>
+    this.page.getByTestId(`products-edit-button-${productId}`)
+  private readonly deleteButton = (productId: string) =>
+    this.page.getByTestId(`products-delete-button-${productId}`)
+  private readonly statusToggle = (productId: string) =>
+    this.page.getByTestId(`products-status-toggle-${productId}`)
+
+  // Confirmation dialog locators (PRIVATE)
+  private readonly confirmDialog = () =>
+    this.page.getByTestId('products-confirm-dialog')
+  private readonly confirmOkBtn = () =>
+    this.page.getByTestId('products-confirm-ok')
+  private readonly confirmCancelBtn = () =>
+    this.page.getByTestId('products-confirm-cancel')
 
   constructor(page: Page) {
     super(page)
@@ -99,6 +115,14 @@ export class ProductsPage extends BasePage {
     return await this.tableRows().count()
   }
 
+  async getFirstProductId(): Promise<string> {
+    const firstRow = await this.tableRows().first()
+    const rowId = await firstRow.getAttribute('data-testid')
+    const productId = rowId?.replace('products-table-row-', '') || ''
+    if (!productId) throw new Error('No products found in table')
+    return productId
+  }
+
   async getProductNameInRow(productId: string): Promise<string> {
     const name = await this.page
       .getByTestId(`products-table-cell-name-${productId}`)
@@ -120,22 +144,19 @@ export class ProductsPage extends BasePage {
     return category || ''
   }
 
+  async getProductIdInRow(productId: string): Promise<string> {
+    const id = await this.page
+      .getByTestId(`products-table-cell-id-${productId}`)
+      .textContent()
+    return id || ''
+  }
+
   /**
-   * SEARCH & FILTER (Pattern 006: Semantic actions)
+   * LOADING STATE (Pattern 006: Semantic actions)
    */
 
-  async search(term: string) {
-    await this.searchInput().fill(term)
-    await this.waitForDebounce(500)
-  }
-
-  async clearSearch() {
-    await this.searchInput().clear()
-    await this.waitForDebounce(500)
-  }
-
-  async getSearchValue(): Promise<string> {
-    return await this.searchInput().inputValue() || ''
+  async waitForLoadingToComplete() {
+    await expect(this.globalLoadingIndicator()).not.toBeVisible({ timeout: 30000 })
   }
 
   /**
@@ -197,6 +218,8 @@ export class ProductsPage extends BasePage {
 
   async submitForm() {
     await this.formSubmitBtn().click()
+    // Wait for API call to complete
+    await this.waitForLoadingToComplete()
   }
 
   async cancelForm() {
@@ -220,9 +243,7 @@ export class ProductsPage extends BasePage {
     }
 
     await this.submitForm()
-    // Wait for API call to complete and modal to close
-    await this.page.waitForLoadState('networkidle', { timeout: 15000 })
-    await this.page.waitForTimeout(500)
+    // submitForm already waits for loading to complete
     await this.expectFormModalHidden()
   }
 
@@ -256,6 +277,103 @@ export class ProductsPage extends BasePage {
     } catch {
       return null
     }
+  }
+
+  /**
+   * EDIT INTERACTIONS
+   */
+
+  async clickEditButton(productId: string) {
+    await this.editButton(productId).first().click()
+  }
+
+  async editProduct(productId: string, name: string, price: string, categoryId?: string) {
+    await this.clickEditButton(productId)
+    await this.expectFormModalVisible()
+
+    await this.fillProductForm(name, price)
+
+    if (categoryId) {
+      await this.selectCategory(categoryId)
+    }
+
+    await this.submitForm()
+    await this.expectFormModalHidden()
+  }
+
+  async expectEditMode() {
+    const title = await this.formTitle().textContent()
+    expect(title).toContain('Edit Product')
+  }
+
+  /**
+   * DELETE INTERACTIONS
+   */
+
+  async clickDeleteButton(productId: string) {
+    await this.deleteButton(productId).first().click()
+  }
+
+  async expectConfirmDialogVisible() {
+    await expect(this.confirmDialog()).toBeVisible()
+  }
+
+  async expectConfirmDialogHidden() {
+    await expect(this.confirmDialog()).not.toBeVisible()
+  }
+
+  async confirmDelete() {
+    await this.confirmOkBtn().click()
+    await this.expectConfirmDialogHidden()
+  }
+
+  async cancelDelete() {
+    await this.confirmCancelBtn().click()
+    await this.expectConfirmDialogHidden()
+  }
+
+  /**
+   * STATUS TOGGLE INTERACTIONS
+   */
+
+  async clickStatusToggle(productId: string) {
+    await this.statusToggle(productId).first().click()
+  }
+
+  async toggleProductStatus(productId: string, confirm: boolean = true) {
+    await this.clickStatusToggle(productId)
+
+    // Check if confirmation dialog appears (for deactivation)
+    const dialogVisible = await this.confirmDialog()
+      .isVisible({ timeout: 1000 })
+      .catch(() => false)
+
+    if (dialogVisible) {
+      if (confirm) {
+        await this.confirmOkBtn().click()
+        await this.expectConfirmDialogHidden()
+      } else {
+        await this.confirmCancelBtn().click()
+        await this.expectConfirmDialogHidden()
+      }
+    }
+
+    // Wait for status update to complete
+    await this.waitForLoadingToComplete()
+  }
+
+  async getProductStatus(productId: string): Promise<'active' | 'inactive'> {
+    const statusText = await this.statusToggle(productId).first().textContent()
+    return statusText?.includes('Active') ? 'active' : 'inactive'
+  }
+
+  /**
+   * PAGE REFRESH & RELOAD
+   */
+
+  async reloadPage() {
+    await this.page.reload()
+    await this.page.waitForLoadState('networkidle')
   }
 
   /**

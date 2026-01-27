@@ -139,10 +139,15 @@ export function CategoriesPage() {
   }
 
   async function handleStatusToggle(category: Category) {
+    const categoryName = Object.values(category.names)[0] || 'Category'
+    const message = category.is_active
+      ? `Deactivate "${categoryName}"? All ${category.product_count} products in this category will no longer be visible in the terminal.`
+      : `Activate "${categoryName}"? All ${category.product_count} products in this category will become visible in the terminal again.`
+
     setConfirmDialog({
       type: 'status',
       categoryId: category.id,
-      message: `${category.is_active ? 'Deactivate' : 'Activate'} "${Object.values(category.names)[0] || 'Category'}"?`,
+      message,
     })
   }
 
@@ -155,7 +160,7 @@ export function CategoriesPage() {
     setConfirmDialog({
       type: 'delete',
       categoryId: category.id,
-      message: `Delete "${Object.values(category.names)[0] || 'Category'}"? This cannot be undone.`,
+      message: `Delete "${Object.values(category.names)[0] || 'Category'}"? This will permanently remove the category from the database and cannot be undone.`,
     })
   }
 
@@ -610,18 +615,33 @@ export function CategoriesPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#e2e8f0' }}>Confirm Action</h3>
-            <p
-              data-testid="categories-confirm-message"
-              style={{
-                marginTop: 0,
-                marginBottom: '20px',
-                color: '#cbd5e1',
-                fontSize: '14px',
-              }}
-            >
-              {confirmDialog.message}
-            </p>
+            <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#e2e8f0' }}>
+              {confirmDialog.type === 'delete' ? 'Delete Category' : 'Confirm Action'}
+            </h3>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'flex-start' }}>
+              {confirmDialog.type === 'delete' && (
+                <div
+                  style={{
+                    fontSize: '24px',
+                    color: '#fbbf24',
+                    flexShrink: 0,
+                  }}
+                >
+                  ⚠️
+                </div>
+              )}
+              <p
+                data-testid="categories-confirm-message"
+                style={{
+                  marginTop: 0,
+                  marginBottom: '0',
+                  color: '#cbd5e1',
+                  fontSize: '14px',
+                }}
+              >
+                {confirmDialog.message}
+              </p>
+            </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button
                 data-testid="categories-confirm-cancel"

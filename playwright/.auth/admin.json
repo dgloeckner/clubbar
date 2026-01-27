@@ -2,10 +2,10 @@
   "cookies": [
     {
       "name": "ruderbar_session",
-      "value": "eyJpdiI6Imx0SlJ0SEFoY2xpWUltc3QvTVNBYlE9PSIsInZhbHVlIjoibHBuejhCME9xLzE4czk2cE8vL0NPZzAyT1VoeXgvWmpNVHVDQnJEVDZaZ25ydlU3OVFTb25aR3U2azkvVWh0U051Zys5c1hzcHlSL08yeGNEcGpWYUVRUnJGM01Dd3NsUzl0dWJWbThyVDA1czFsbEFYbkJnaFMzaU5GSS94SE4iLCJtYWMiOiIwMzU3MDYwNTMwODg4OWViOGQ3YmQ2YmI5ODAyZGQxMmEzMjc1ODE0MDcwY2U0OTJlNGEwNmFhODAwMjk3YzM5IiwidGFnIjoiIn0%3D",
+      "value": "eyJpdiI6InFGdk90VjVGLzR1YUJ0Z09TU2ViTVE9PSIsInZhbHVlIjoibllobkpwWmZvTFNTQ1daY3JLSmIxdldNODlYbVVJcDJpVmowVmpPZytFdHpaTmJIa0ZuMmlmODQ1Q1RTR01MVWIzZTlISmRMY0xieVdTNk1adzU3eE1OMzk1QURwSjJBK0RwMFlZbithYzk3S2dzTGdFdE5rZC9vN2RybVZQekMiLCJtYWMiOiIyNjQyZjYyYzYyNmFjOWQyNjU2ODNhNjg0M2FjNDkxMDVlOTE5MTFjZGZmNTIzZDllODYyOTg2MDM2ZjBiNDE2IiwidGFnIjoiIn0%3D",
       "domain": "localhost",
       "path": "/",
-      "expires": 1769474123.002057,
+      "expires": 1769554361.734809,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"

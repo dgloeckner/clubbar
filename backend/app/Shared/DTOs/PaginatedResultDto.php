@@ -56,8 +56,15 @@ readonly final class PaginatedResultDto
      */
     public function toArray(): array
     {
+        // Convert each item to array (handles both DTO and Eloquent Model objects)
+        $items = array_map(function ($item) {
+            return is_object($item) && method_exists($item, 'toArray')
+                ? $item->toArray()
+                : (is_array($item) ? $item : (array) $item);
+        }, $this->items);
+
         return [
-            'items' => $this->items,
+            'items' => $items,
             'total' => $this->total,
             'limit' => $this->limit,
             'offset' => $this->offset,

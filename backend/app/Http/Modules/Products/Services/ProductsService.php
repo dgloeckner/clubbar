@@ -109,7 +109,7 @@ class ProductsService extends BaseService
         }
         if (isset($filters['search'])) {
             $query->where(function ($q) use ($filters) {
-                $q->whereRaw("JSON_SEARCH(names, 'one', ?) IS NOT NULL", ["%{$filters['search']}%"]);
+                $q->whereRaw("JSON_SEARCH(products.names, 'one', ?) IS NOT NULL", ["%{$filters['search']}%"]);
             });
         }
 
@@ -268,6 +268,49 @@ class ProductsService extends BaseService
         }
 
         return $this->transform($model);
+    }
+
+    /**
+     * Delete product (permanent hard delete).
+     *
+     * Removes product from database and logs audit entry.
+     * Deleted products cannot be recovered.
+     *
+     * @param string $productId Product UUID
+     * @return bool True if deleted, false if not found
+     * @throws \RuntimeException If product not found
+     */
+    public function deleteProduct(string $productId): bool
+    {
+        $model = $this->productsRepository->findById($productId);
+
+        if (!$model) {
+            throw new \RuntimeException("Product {$productId} not found");
+        }
+
+        // Capture product data before deletion for audit
+        $productData = [
+            'names' => $model->names,
+            'descriptions' => $model->descriptions,
+            'price_cents' => $model->price_cents,
+            'category_id' => $model->category_id,
+            'is_active' => $model->is_active,
+        ];
+
+        // Delete product from database
+        $deleted = $this->productsRepository->deleteById($productId);
+
+        // Log audit entry if deletion was successful
+        if ($deleted) {
+            $this->auditService->log(
+                action: AuditAction::DELETE,
+                entityType: EntityType::PRODUCT,
+                entityId: $productId,
+                oldValues: $productData,
+            );
+        }
+
+        return $deleted;
     }
 
     /**
