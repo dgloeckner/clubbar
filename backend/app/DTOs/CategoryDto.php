@@ -21,6 +21,7 @@ final readonly class CategoryDto
         public bool $isActive,
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
+        public ?string $iconName = null,
     ) {}
 
     /**
@@ -35,6 +36,7 @@ final readonly class CategoryDto
             'names' => $this->names,
             'display_order' => $this->displayOrder,
             'is_active' => $this->isActive,
+            'icon_name' => $this->iconName,
             'created_at' => $this->createdAt->format('Y-m-d\TH:i:s\Z'),
             'updated_at' => $this->updatedAt->format('Y-m-d\TH:i:s\Z'),
         ];

@@ -17,6 +17,8 @@ import { useEffect, useState } from 'react'
 import { get, post, patch, del } from '../services/api'
 import { theme } from '../styles/design-system'
 import { EditIcon, TrashIcon, PlusIcon } from '../components/icons'
+import { IconSelect } from '../components/forms/IconSelect'
+import { getCategoryIcon } from '../components/icons/IconRegistry'
 
 interface Category {
   id: string
@@ -24,17 +26,8 @@ interface Category {
   display_order: number
   is_active: boolean
   product_count: number
+  icon_name?: string | null
   created_at: string
-}
-
-interface ApiResponse {
-  data: Category[]
-  pagination?: {
-    page: number
-    per_page: number
-    total: number
-    total_pages: number
-  }
 }
 
 export function CategoriesPage() {
@@ -46,6 +39,7 @@ export function CategoriesPage() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
   const [activeLanguage, setActiveLanguage] = useState('de')
   const [formData, setFormData] = useState<{ [lang: string]: string }>({ de: '', en: '' })
+  const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
     type: 'delete' | 'status'
@@ -83,6 +77,7 @@ export function CategoriesPage() {
     setModalMode('create')
     setSelectedCategory(null)
     setFormData({ de: '', en: '' })
+    setSelectedIcon(null)
     setActiveLanguage('de')
     setFormError(null)
     setShowModal(true)
@@ -92,6 +87,7 @@ export function CategoriesPage() {
     setModalMode('edit')
     setSelectedCategory(category)
     setFormData(category.names)
+    setSelectedIcon(category.icon_name || null)
     setActiveLanguage('de')
     setFormError(null)
     setShowModal(true)
@@ -117,11 +113,13 @@ export function CategoriesPage() {
       if (modalMode === 'create') {
         const result = await post('/admin/categories', {
           names: nonEmptyNames,
+          icon_name: selectedIcon,
         })
         console.log('Category created:', result)
       } else if (modalMode === 'edit' && selectedCategory) {
         const result = await patch(`/admin/categories/${selectedCategory.id}`, {
           names: nonEmptyNames,
+          icon_name: selectedIcon,
         })
         console.log('Category updated:', result)
       }
@@ -129,6 +127,7 @@ export function CategoriesPage() {
       // Close modal immediately
       setShowModal(false)
       setFormData({ de: '', en: '' })
+      setSelectedIcon(null)
 
       // Then reload categories
       await loadCategories()
@@ -346,7 +345,11 @@ export function CategoriesPage() {
                     </span>
                   </button>
                 </td>
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
+                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {(() => {
+                    const IconComponent = getCategoryIcon(category.icon_name)
+                    return <IconComponent size={20} data-testid={`categories-table-cell-icon-${category.id}`} />
+                  })()}
                   <span data-testid={`categories-table-cell-name-${category.id}`}>
                     {category.names.de || category.names.en || 'Unnamed'}
                   </span>
@@ -542,6 +545,14 @@ export function CategoriesPage() {
                 </div>
               </div>
             ))}
+
+            <IconSelect
+              value={selectedIcon}
+              onChange={setSelectedIcon}
+              iconType="category"
+              testId="categories-form-icon-select"
+              label="Icon (optional)"
+            />
 
             {/* Buttons */}
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>

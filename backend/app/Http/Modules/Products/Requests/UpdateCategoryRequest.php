@@ -39,6 +39,7 @@ class UpdateCategoryRequest extends FormRequest
             'names' => 'nullable|array|min:1',
             'names.*' => 'required_with:names|string|max:100',
             'display_order' => 'nullable|integer|min:1',
+            'icon_name' => 'nullable|string|max:50',
         ];
     }
 
@@ -57,6 +58,8 @@ class UpdateCategoryRequest extends FormRequest
             'names.*.max' => 'Name cannot exceed 100 characters',
             'display_order.integer' => 'Display order must be a number',
             'display_order.min' => 'Display order must be greater than 0',
+            'icon_name.string' => 'Icon name must be text',
+            'icon_name.max' => 'Icon name cannot exceed 50 characters',
         ];
     }
 

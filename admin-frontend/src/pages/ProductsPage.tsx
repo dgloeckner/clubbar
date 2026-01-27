@@ -6,7 +6,7 @@
  * - List products with pagination
  * - Search/filter products
  * - Create new product via modal
- * - Display product details (name, price, category, status)
+ * - Display product details (name, price, category, status, icon)
  *
  * Uses TDD with E2E tests in e2etests/tests/admin/products.spec.ts
  */
@@ -14,6 +14,8 @@
 import { useEffect, useState } from 'react'
 import { get, post, patch, del, onLoadingStateChange } from '../services/api'
 import { EditIcon, TrashIcon } from '../components/icons'
+import { IconSelect } from '../components/forms/IconSelect'
+import { getProductIcon } from '../components/icons/IconRegistry'
 
 interface Product {
   id: string
@@ -22,6 +24,7 @@ interface Product {
   price_cents: number
   category_id: string
   is_active: boolean
+  icon_name?: string | null
   created_at: string
   updated_at: string
 }
@@ -57,6 +60,7 @@ export function ProductsPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
   const [formData, setFormData] = useState({ name: '', price: '' })
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -146,6 +150,7 @@ export function ProductsPage() {
       price: (product.price_cents / 100).toFixed(2),
     })
     setSelectedCategory(product.category_id)
+    setSelectedIcon(product.icon_name || null)
     setFormError(null)
     setShowModal(true)
   }
@@ -175,6 +180,7 @@ export function ProductsPage() {
         names: { de: formData.name.trim() },
         price_cents: priceCents,
         category_id: selectedCategory,
+        icon_name: selectedIcon,
       }
       console.log('Creating product with:', productData)
 
@@ -183,6 +189,7 @@ export function ProductsPage() {
 
       setFormData({ name: '', price: '' })
       setSelectedCategory('')
+      setSelectedIcon(null)
       setModalMode('create')
       setEditingProduct(null)
       setShowModal(false)
@@ -224,10 +231,12 @@ export function ProductsPage() {
         names: { de: formData.name.trim() },
         price_cents: priceCents,
         category_id: selectedCategory,
+        icon_name: selectedIcon,
       })
 
       setFormData({ name: '', price: '' })
       setSelectedCategory('')
+      setSelectedIcon(null)
       setEditingProduct(null)
       setModalMode('create')
       setShowModal(false)
@@ -309,6 +318,7 @@ export function ProductsPage() {
     setShowModal(false)
     setFormData({ name: '', price: '' })
     setSelectedCategory('')
+    setSelectedIcon(null)
     setFormError(null)
     setEditingProduct(null)
     setModalMode('create')
@@ -498,7 +508,11 @@ export function ProductsPage() {
                     {product.id}
                   </span>
                 </td>
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
+                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {(() => {
+                    const IconComponent = getProductIcon(product.icon_name)
+                    return <IconComponent size={20} data-testid={`products-table-cell-icon-${product.id}`} />
+                  })()}
                   <span data-testid={`products-table-cell-name-${product.id}`}>
                     {product.names.de || product.names.en || 'Unnamed Product'}
                   </span>
@@ -735,6 +749,14 @@ export function ProductsPage() {
                   required
                 />
               </div>
+
+              <IconSelect
+                value={selectedIcon}
+                onChange={setSelectedIcon}
+                iconType="product"
+                testId="products-form-icon-select"
+                label="Icon (optional)"
+              />
 
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button

@@ -47,6 +47,7 @@ class CreateProductRequest extends FormRequest
             'descriptions.*' => 'nullable|string|max:1000',
             'price_cents' => 'required|integer|min:1',
             'category_id' => 'required|uuid|exists:categories,id',
+            'icon_name' => 'nullable|string|max:50',
         ];
     }
 
@@ -74,6 +75,8 @@ class CreateProductRequest extends FormRequest
             'category_id.required' => 'Category is required',
             'category_id.uuid' => 'Category ID must be a valid UUID',
             'category_id.exists' => 'Selected category does not exist',
+            'icon_name.string' => 'Icon name must be text',
+            'icon_name.max' => 'Icon name cannot exceed 50 characters',
         ];
     }
 

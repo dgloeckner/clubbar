@@ -19,6 +19,7 @@ import {
   UserIcon,
   LogoutIcon,
 } from '../icons'
+import { NavigationCategoryIcons } from '../icons/IconRegistry'
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -50,7 +51,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const navItems = [
     { label: 'Mitglieder', path: '/members', icon: <UsersIcon size={20} /> },
     { label: 'Produkte', path: '/products', icon: <PackageIcon size={20} /> },
-    { label: 'Kategorien', path: '/categories', icon: <PackageIcon size={20} /> },
+    { label: 'Kategorien', path: '/categories', icon: <NavigationCategoryIcons.CategoryIcon size={20} /> },
     {
       label: 'Buchungsjournal',
       path: '/journal',

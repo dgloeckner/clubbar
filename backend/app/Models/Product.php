@@ -69,6 +69,7 @@ class Product extends Model
         'descriptions',
         'price_cents',
         'is_active',
+        'icon_name',
     ];
 
     /**

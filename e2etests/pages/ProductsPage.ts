@@ -127,6 +127,9 @@ export class ProductsPage extends BasePage {
     // Wait a moment for table to be updated
     await this.page.waitForLoadState('networkidle')
 
+    // Add extra wait to ensure React state is updated
+    await this.page.waitForTimeout(500)
+
     const rows = await this.tableRows().all()
     for (const row of rows) {
       // Get the name cell text specifically (third column)

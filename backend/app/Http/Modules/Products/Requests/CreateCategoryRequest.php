@@ -39,6 +39,7 @@ class CreateCategoryRequest extends FormRequest
         return [
             'names' => 'required|array|min:1',
             'names.*' => 'required|string|max:100',
+            'icon_name' => 'nullable|string|max:50',
         ];
     }
 
@@ -56,6 +57,8 @@ class CreateCategoryRequest extends FormRequest
             'names.*.required' => 'Name in each language is required',
             'names.*.string' => 'Name must be a text string',
             'names.*.max' => 'Name cannot exceed 100 characters',
+            'icon_name.string' => 'Icon name must be text',
+            'icon_name.max' => 'Icon name cannot exceed 50 characters',
         ];
     }
 

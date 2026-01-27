@@ -29,6 +29,7 @@ erDiagram
         json names "Multilingual names"
         int display_order "Sort position"
         boolean is_active "Available"
+        varchar_50 icon_name "Icon name (nullable)"
         datetime created_at "Record creation"
         datetime updated_at "Last modification"
     }
@@ -40,6 +41,7 @@ erDiagram
         json descriptions "Multilingual descriptions"
         int price_cents "Price in cents"
         boolean is_active "Available for sale"
+        varchar_50 icon_name "Icon name (nullable)"
         datetime created_at "Record creation"
         datetime updated_at "Last modification"
     }
@@ -207,15 +209,19 @@ Product categories for organization.
 | names | JSON | NOT NULL | Multilingual names: `{"de": "Getränke", "en": "Beverages"}` |
 | display_order | INT | NOT NULL | Sort position (>= 0) |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Available (inactive categories hidden on terminal) |
+| icon_name | VARCHAR(50) | NULL | Icon component name (e.g., "CategoryIcon"; NULL for default) |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
 **Indexes:**
 - `display_order`
 - `is_active`
+- `icon_name`
 - `updated_at`
 
 **Deactivation**: Inactive categories are hidden on terminal. Products in inactive categories are also hidden (even if product itself is active).
+
+**Icon Display**: Terminal displays category icon based on `icon_name` field. If NULL, displays default CategoryIcon.
 
 ---
 
@@ -231,15 +237,19 @@ Product catalog with multilingual support.
 | descriptions | JSON | NULL | Multilingual descriptions |
 | price_cents | INT | NOT NULL | Price in cents (> 0; max 999999 = €9,999.99) |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Available for purchase |
+| icon_name | VARCHAR(50) | NULL | Icon component name (e.g., "PilsIcon"; NULL for default) |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
 **Indexes:**
 - `category_id`
 - `is_active`
+- `icon_name`
 - `updated_at`
 
 **Price Changes**: New price applies to new transactions only. Historical transactions retain original amount_cents.
+
+**Icon Display**: Terminal displays product icon based on `icon_name` field. If NULL, displays default PackageIcon.
 
 ---
 

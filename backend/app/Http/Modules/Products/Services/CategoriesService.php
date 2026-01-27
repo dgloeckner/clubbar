@@ -117,6 +117,7 @@ class CategoriesService extends BaseService
             'names' => $validated['names'],
             'display_order' => $displayOrder,
             'is_active' => true,
+            'icon_name' => $validated['icon_name'] ?? null,
         ]);
 
         // Log audit entry
@@ -128,6 +129,7 @@ class CategoriesService extends BaseService
                 'names' => $model->names,
                 'display_order' => $model->display_order,
                 'is_active' => $model->is_active,
+                'icon_name' => $model->icon_name,
             ],
         );
 
@@ -166,6 +168,13 @@ class CategoriesService extends BaseService
             $changes['display_order'] = [
                 'old' => $model->display_order,
                 'new' => $validated['display_order'],
+            ];
+        }
+
+        if (isset($validated['icon_name']) && $validated['icon_name'] !== ($model->icon_name ?? null)) {
+            $changes['icon_name'] = [
+                'old' => $model->icon_name,
+                'new' => $validated['icon_name'],
             ];
         }
 
@@ -259,6 +268,7 @@ class CategoriesService extends BaseService
                 'names' => $model->names,
                 'display_order' => $model->display_order,
                 'is_active' => $model->is_active,
+                'icon_name' => $model->icon_name,
             ],
         );
 
@@ -306,6 +316,7 @@ class CategoriesService extends BaseService
             isActive: $entity->is_active,
             createdAt: DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $entity->created_at->format('Y-m-d H:i:s')),
             updatedAt: DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $entity->updated_at->format('Y-m-d H:i:s')),
+            iconName: $entity->icon_name,
         );
     }
 }

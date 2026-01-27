@@ -172,6 +172,7 @@ class ProductsService extends BaseService
             'descriptions' => $validated['descriptions'] ?? null,
             'price_cents' => $validated['price_cents'],
             'is_active' => true,
+            'icon_name' => $validated['icon_name'] ?? null,
         ]);
 
         // Log audit entry
@@ -185,6 +186,7 @@ class ProductsService extends BaseService
                 'price_cents' => $model->price_cents,
                 'category_id' => $model->category_id,
                 'is_active' => $model->is_active,
+                'icon_name' => $model->icon_name,
             ],
         );
 
@@ -244,6 +246,12 @@ class ProductsService extends BaseService
                 'new' => $validated['category_id'],
             ];
         }
+        if (isset($validated['icon_name']) && $validated['icon_name'] !== ($model->icon_name ?? null)) {
+            $changes['icon_name'] = [
+                'old' => $model->icon_name,
+                'new' => $validated['icon_name'],
+            ];
+        }
 
         // Update model
         $model->update($validated);
@@ -295,6 +303,7 @@ class ProductsService extends BaseService
             'price_cents' => $model->price_cents,
             'category_id' => $model->category_id,
             'is_active' => $model->is_active,
+            'icon_name' => $model->icon_name,
         ];
 
         // Delete product from database
@@ -366,6 +375,7 @@ class ProductsService extends BaseService
             isActive: $entity->is_active,
             createdAt: DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $entity->created_at->format('Y-m-d H:i:s')),
             updatedAt: DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $entity->updated_at->format('Y-m-d H:i:s')),
+            iconName: $entity->icon_name,
         );
     }
 }

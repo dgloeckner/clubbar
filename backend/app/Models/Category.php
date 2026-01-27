@@ -64,6 +64,7 @@ class Category extends Model
         'names',
         'display_order',
         'is_active',
+        'icon_name',
     ];
 
     /**

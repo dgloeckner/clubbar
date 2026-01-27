@@ -42,6 +42,7 @@ class UpdateProductRequest extends FormRequest
             'descriptions.*' => 'nullable|string|max:1000',
             'price_cents' => 'nullable|integer|min:1',
             'category_id' => 'nullable|uuid',
+            'icon_name' => 'nullable|string|max:50',
         ];
     }
 
@@ -65,6 +66,8 @@ class UpdateProductRequest extends FormRequest
             'price_cents.integer' => 'Price must be a whole number (in cents)',
             'price_cents.min' => 'Price must be greater than 0',
             'category_id.uuid' => 'Category ID must be a valid UUID',
+            'icon_name.string' => 'Icon name must be text',
+            'icon_name.max' => 'Icon name cannot exceed 50 characters',
         ];
     }
 
