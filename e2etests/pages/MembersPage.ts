@@ -147,6 +147,51 @@ export class MembersPage extends BasePage {
     return balance || ''
   }
 
+  async getMemberFirstNameInTable(firstName: string): Promise<string | null> {
+    // Search for member by first name in the table
+    const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
+    const count = await nameLocators.count()
+
+    for (let i = 0; i < count; i++) {
+      const text = await nameLocators.nth(i).textContent()
+      if (text && text.includes(firstName)) {
+        return text
+      }
+    }
+
+    return null
+  }
+
+  async getMemberLastNameInTable(lastName: string): Promise<string | null> {
+    // Search for member by last name in the table
+    const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
+    const count = await nameLocators.count()
+
+    for (let i = 0; i < count; i++) {
+      const text = await nameLocators.nth(i).textContent()
+      if (text && text.includes(lastName)) {
+        return text
+      }
+    }
+
+    return null
+  }
+
+  async getMemberEmailInTable(email: string): Promise<string | null> {
+    // Search for member by email in the table
+    const emailLocators = this.page.locator('[data-testid^="members-table-cell-email-"]')
+    const count = await emailLocators.count()
+
+    for (let i = 0; i < count; i++) {
+      const text = await emailLocators.nth(i).textContent()
+      if (text && text.includes(email)) {
+        return text
+      }
+    }
+
+    return null
+  }
+
   /**
    * SEARCH & FILTER (Pattern 006: Semantic actions)
    */

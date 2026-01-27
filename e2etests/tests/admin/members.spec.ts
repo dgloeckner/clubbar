@@ -93,29 +93,101 @@ test.describe('Admin Frontend - Members Page', () => {
       await authenticatedMembersPage.expectFormModalHidden()
     })
 
-    test('should fill and submit member form', async ({ authenticatedMembersPage }) => {
-      const testEmail = `test-${Date.now()}@example.com`
-      const firstName = 'Test'
-      const lastName = 'Member'
+    test('should fill and submit member form with valid SEPA data', async ({ authenticatedMembersPage }) => {
+      const testData = {
+        firstName: 'Test',
+        lastName: 'Member',
+        iban: 'DE89370400440532013000', // Valid test IBAN
+        mandateDate: new Date().toISOString().split('T')[0], // Today's date
+        email: `test-${Date.now()}@example.com`,
+        language: 'de',
+      }
 
       // Pattern 001: Create unique test data per test
-      await authenticatedMembersPage.createMember(testEmail, firstName, lastName)
+      await authenticatedMembersPage.createMember(
+        testData.firstName,
+        testData.lastName,
+        testData.iban,
+        testData.mandateDate,
+        testData.email,
+        testData.language
+      )
 
       // Pattern 008: Wait for form to close and verify
       await authenticatedMembersPage.expectFormModalHidden()
     })
 
-    test('should display form with empty fields for create', async ({ authenticatedMembersPage }) => {
+    test('should create member and appear in list without errors', async ({ authenticatedMembersPage, page }) => {
+      // Pattern 001: Unique test data per test
+      const firstName = `User${Date.now()}`
+      const lastName = 'CreatedByTest'
+      const iban = 'DE89370400440532013001'
+      const mandateDate = new Date().toISOString().split('T')[0]
+      const email = `member-${Date.now()}@example.com`
+
+      // Get initial member count
+      const initialCount = await authenticatedMembersPage.getMemberRowCount()
+
+      // Create member
+      await authenticatedMembersPage.createMember(firstName, lastName, iban, mandateDate, email, 'de')
+
+      // Pattern 008: Wait for form to close
+      await authenticatedMembersPage.expectFormModalHidden()
+
+      // Verify no error message
+      const errorMsg = await authenticatedMembersPage.getErrorMessage()
+      expect(errorMsg).toBeNull()
+
+      // Wait a bit for list to refresh
+      await page.waitForTimeout(500)
+
+      // Verify member count increased
+      const newCount = await authenticatedMembersPage.getMemberRowCount()
+      expect(newCount).toBe(initialCount + 1)
+
+      // Verify member appears in table
+      const firstNameInTable = await authenticatedMembersPage.getMemberFirstNameInTable(firstName)
+      expect(firstNameInTable).toContain(firstName)
+    })
+
+    test('should create member with optional email field', async ({ authenticatedMembersPage }) => {
+      // Test creating member without email (optional field)
+      const firstName = `NoEmail${Date.now()}`
+      const lastName = 'TestUser'
+      const iban = 'DE89370400440532013002'
+      const mandateDate = new Date().toISOString().split('T')[0]
+
+      // Create without email
+      await authenticatedMembersPage.createMember(firstName, lastName, iban, mandateDate, undefined, 'de')
+
+      // Verify form closes without error
+      await authenticatedMembersPage.expectFormModalHidden()
+      const errorMsg = await authenticatedMembersPage.getErrorMessage()
+      expect(errorMsg).toBeNull()
+    })
+
+    test('should display form with empty required fields for create', async ({ authenticatedMembersPage }) => {
       // Pattern 006: Page object provides field getters
       await authenticatedMembersPage.openCreateModal()
 
-      const email = await authenticatedMembersPage.getFormEmailValue()
+      // Required fields should be empty
       const firstName = await authenticatedMembersPage.getFormFirstNameValue()
       const lastName = await authenticatedMembersPage.getFormLastNameValue()
+      const iban = await authenticatedMembersPage.getFormIbanValue()
+      const mandateDate = await authenticatedMembersPage.getFormMandateDateValue()
 
-      expect(email).toBe('')
       expect(firstName).toBe('')
       expect(lastName).toBe('')
+      expect(iban).toBe('')
+      expect(mandateDate).toBe('')
+
+      // Optional email should be empty
+      const email = await authenticatedMembersPage.getFormEmailValue()
+      expect(email).toBe('')
+
+      // Language should have default value
+      const language = await authenticatedMembersPage.getFormLanguageValue()
+      expect(language).toBe('de')
     })
   })
 
@@ -193,29 +265,35 @@ test.describe('Admin Frontend - Members Page', () => {
       await authenticatedMembersPage.expectFormModalHidden()
     })
 
-    test('should fill all form fields', async ({ authenticatedMembersPage }) => {
+    test('should fill all form fields including SEPA data', async ({ authenticatedMembersPage }) => {
       const testData = {
-        email: `member-${Date.now()}@example.com`,
         firstName: 'Max',
         lastName: 'Mustermann',
-        phone: '+41791234567',
+        iban: 'DE89370400440532013003',
+        mandateDate: '2024-12-15',
+        email: `member-${Date.now()}@example.com`,
+        language: 'en',
       }
 
       await authenticatedMembersPage.openCreateModal()
 
       // Pattern 006: Fill form through page object
       await authenticatedMembersPage.fillMemberForm(
-        testData.email,
         testData.firstName,
         testData.lastName,
-        testData.phone
+        testData.iban,
+        testData.mandateDate,
+        testData.email,
+        testData.language
       )
 
       // Pattern 006: Verify field values through page object
-      expect(await authenticatedMembersPage.getFormEmailValue()).toContain(testData.email)
-      expect(await authenticatedMembersPage.getFormFirstNameValue()).toContain(testData.firstName)
-      expect(await authenticatedMembersPage.getFormLastNameValue()).toContain(testData.lastName)
-      expect(await authenticatedMembersPage.getFormPhoneValue()).toContain(testData.phone)
+      expect(await authenticatedMembersPage.getFormFirstNameValue()).toBe(testData.firstName)
+      expect(await authenticatedMembersPage.getFormLastNameValue()).toBe(testData.lastName)
+      expect(await authenticatedMembersPage.getFormIbanValue()).toBe(testData.iban.toUpperCase())
+      expect(await authenticatedMembersPage.getFormMandateDateValue()).toBe(testData.mandateDate)
+      expect(await authenticatedMembersPage.getFormEmailValue()).toBe(testData.email)
+      expect(await authenticatedMembersPage.getFormLanguageValue()).toBe(testData.language)
     })
   })
 
