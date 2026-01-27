@@ -101,6 +101,28 @@ export const theme = {
 }
 
 /**
+ * Responsive Breakpoints (Phase 5)
+ * Used by useBreakpoint hook for responsive behavior
+ */
+export const breakpoints = {
+  smallMobile: 480,   // iPhone SE and smaller
+  mobile: 768,        // iPad portrait
+  tablet: 1024,       // iPad landscape
+  desktop: 1440,      // Large screens
+}
+
+/**
+ * Media Query Utilities (for styled-components or emotion)
+ * Usage: const Button = styled.button`${mediaQuery.mobile} { ... }`
+ */
+export const mediaQuery = {
+  smallMobile: `@media (max-width: ${breakpoints.smallMobile}px)`,
+  mobile: `@media (max-width: ${breakpoints.mobile}px)`,
+  tablet: `@media (max-width: ${breakpoints.tablet}px)`,
+  desktop: `@media (min-width: ${breakpoints.tablet + 1}px)`,
+}
+
+/**
  * Utility function to format prices (EUR with German locale)
  */
 export function formatPrice(centAmount: number, locale: string = 'de-DE'): string {
