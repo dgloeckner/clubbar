@@ -344,20 +344,3 @@ export const styles = {
     color: ${theme.colors.text.secondary};
   `,
 }
-
-/**
- * Responsive breakpoint utilities
- */
-export const breakpoints = {
-  smallMobile: 480,
-  mobile: 768,
-  tablet: 1024,
-  desktop: 1440,
-}
-
-export const mediaQuery = {
-  smallMobile: `@media (max-width: ${breakpoints.smallMobile}px)`,
-  mobile: `@media (max-width: ${breakpoints.mobile}px)`,
-  tablet: `@media (max-width: ${breakpoints.tablet}px)`,
-  desktop: `@media (min-width: ${breakpoints.tablet + 1}px)`,
-}

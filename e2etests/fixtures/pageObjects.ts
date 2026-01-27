@@ -19,7 +19,7 @@
  */
 
 import { test as base, Page } from '@playwright/test'
-import { LoginPage, MembersPage, ProductsPage } from '../pages'
+import { LoginPage, MembersPage, ProductsPage, JournalPage } from '../pages'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
@@ -27,6 +27,8 @@ interface PageObjectFixtures {
   authenticatedMembersPage: MembersPage
   productsPage: ProductsPage
   authenticatedProductsPage: ProductsPage
+  journalPage: JournalPage
+  authenticatedJournalPage: JournalPage
 }
 
 /**
@@ -100,6 +102,38 @@ const authenticatedProductsPageFixture = async (
 }
 
 /**
+ * Fixture: journalPage
+ * Provides JournalPage instance (unauthenticated)
+ */
+const journalPageFixture = async ({ page }: { page: Page }, use: (value: JournalPage) => Promise<void>) => {
+  const journalPage = new JournalPage(page)
+  await use(journalPage)
+}
+
+/**
+ * Fixture: authenticatedJournalPage
+ *
+ * Provides JournalPage with test already authenticated (via storage state).
+ * Simply navigates to the page and returns the page object.
+ */
+const authenticatedJournalPageFixture = async (
+  { page }: { page: Page },
+  use: (value: JournalPage) => Promise<void>
+) => {
+  // Navigate to journal page
+  await page.goto('/journal', { waitUntil: 'domcontentloaded' })
+
+  // Wait for journal page to load
+  await page.waitForSelector('text=Buchungsjournal', { timeout: 5000 }).catch(() => {
+    // Page might not have journal title yet during RED phase
+  })
+
+  // Create and provide JournalPage
+  const journalPage = new JournalPage(page)
+  await use(journalPage)
+}
+
+/**
  * Extend base test with custom fixtures
  */
 export const test = base.extend<PageObjectFixtures>({
@@ -108,6 +142,8 @@ export const test = base.extend<PageObjectFixtures>({
   authenticatedMembersPage: authenticatedMembersPageFixture,
   productsPage: productsPageFixture,
   authenticatedProductsPage: authenticatedProductsPageFixture,
+  journalPage: journalPageFixture,
+  authenticatedJournalPage: authenticatedJournalPageFixture,
 })
 
 // Re-export expect for convenience
