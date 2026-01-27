@@ -32,3 +32,10 @@ export { TrashIcon } from './TrashIcon'
 // Utility icons
 export { CalendarIcon } from './CalendarIcon'
 export { BankIcon } from './BankIcon'
+
+// Admin user icons (for future use in members, admin management, etc.)
+export { AdminUserIcon } from './admin-user-icons'
+export { AdminGearIcon } from './admin-user-icons'
+export { AdminCrownIcon } from './admin-user-icons'
+export { AdminStarIcon } from './admin-user-icons'
+export { AdminKeyIcon } from './admin-user-icons'
