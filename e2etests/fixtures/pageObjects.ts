@@ -19,7 +19,7 @@
  */
 
 import { test as base, Page } from '@playwright/test'
-import { LoginPage, MembersPage, ProductsPage, SettlementsPage } from '../pages'
+import { LoginPage, MembersPage, ProductsPage, SettlementsPage, StatisticsPage } from '../pages'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
@@ -29,6 +29,8 @@ interface PageObjectFixtures {
   authenticatedProductsPage: ProductsPage
   settlementsPage: SettlementsPage
   authenticatedSettlementsPage: SettlementsPage
+  statisticsPage: StatisticsPage
+  authenticatedStatisticsPage: StatisticsPage
 }
 
 /**
@@ -132,6 +134,36 @@ const authenticatedSettlementsPageFixture = async (
 }
 
 /**
+ * Fixture: statisticsPage
+ * Provides StatisticsPage instance (unauthenticated)
+ */
+const statisticsPageFixture = async ({ page }: { page: Page }, use: (value: StatisticsPage) => Promise<void>) => {
+  const statisticsPage = new StatisticsPage(page)
+  await use(statisticsPage)
+}
+
+/**
+ * Fixture: authenticatedStatisticsPage
+ *
+ * Provides StatisticsPage with test already authenticated (via storage state).
+ * Simply navigates to the page and returns the page object.
+ */
+const authenticatedStatisticsPageFixture = async (
+  { page }: { page: Page },
+  use: (value: StatisticsPage) => Promise<void>
+) => {
+  // Navigate to statistics page
+  await page.goto('/statistics', { waitUntil: 'domcontentloaded' })
+
+  // Wait for page to load - statistics-page test ID indicates page is ready
+  await page.waitForSelector('[data-testid="statistics-page"]', { timeout: 5000 })
+
+  // Create and provide StatisticsPage
+  const statisticsPage = new StatisticsPage(page)
+  await use(statisticsPage)
+}
+
+/**
  * Extend base test with custom fixtures
  */
 export const test = base.extend<PageObjectFixtures>({
@@ -142,6 +174,8 @@ export const test = base.extend<PageObjectFixtures>({
   authenticatedProductsPage: authenticatedProductsPageFixture,
   settlementsPage: settlementsPageFixture,
   authenticatedSettlementsPage: authenticatedSettlementsPageFixture,
+  statisticsPage: statisticsPageFixture,
+  authenticatedStatisticsPage: authenticatedStatisticsPageFixture,
 })
 
 // Re-export expect for convenience
