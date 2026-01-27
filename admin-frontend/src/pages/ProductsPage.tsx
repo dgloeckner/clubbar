@@ -34,8 +34,19 @@ interface ApiResponse {
   }
 }
 
+interface Category {
+  id: string
+  name: string
+  is_active: boolean
+}
+
+interface CategoriesResponse {
+  data: Category[]
+}
+
 export function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
@@ -43,10 +54,21 @@ export function ProductsPage() {
   const [formData, setFormData] = useState({ name: '', price: '' })
   const [formError, setFormError] = useState<string | null>(null)
 
-  // Load products on mount
+  // Load products and categories on mount
   useEffect(() => {
+    loadCategories()
     loadProducts()
   }, [])
+
+  async function loadCategories() {
+    try {
+      const response = await get<CategoriesResponse>('/admin/categories')
+      setCategories(response.data?.data || [])
+    } catch (err: any) {
+      // Silently fail - categories are optional
+      setCategories([])
+    }
+  }
 
   async function loadProducts() {
     try {
@@ -83,10 +105,13 @@ export function ProductsPage() {
     }
 
     try {
+      // Use first available category, or fallback to empty if none exist
+      const categoryId = categories.length > 0 ? categories[0].id : ''
+
       await post('/admin/products', {
         names: { de: formData.name },
         price_cents: Math.round(parseFloat(formData.price) * 100),
-        category_id: '00000000-0000-0000-0000-000000000000',
+        ...(categoryId && { category_id: categoryId }),
       })
       setFormData({ name: '', price: '' })
       setShowModal(false)

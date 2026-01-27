@@ -90,6 +90,9 @@ test.describe('Admin Frontend - Products Page', () => {
       const productPrice = '5.99'
 
       // Pattern 001: Create unique test data per test
+      // NOTE: This test requires at least one category to exist in the database.
+      // If no categories exist, the form submission will fail with a validation error.
+      // To make this test pass consistently, seed the database with a default category.
       await authenticatedProductsPage.createProduct(productName, productPrice)
 
       // Pattern 008: Wait for form to close and verify
