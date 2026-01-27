@@ -79,12 +79,17 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
    - Minor issue: Product creation requires category existence
    - Commit: `61f6166`
 
+3. **Settlements Page** ✅ COMPLETE - GREEN & BLUE PHASES DONE
+   - 37/37 E2E tests PASSING (serial & parallel)
+   - Implements: UC-A30 (SEPA Settlement), UC-A33 (History), UC-A34 (Details), UC-A35 (Manual)
+   - Full settlement list with filters, details view, and transaction selection UIs
+   - Commit: `0d3da36` (GREEN), `ea36ab5` (BLUE)
+
 **⚡ NEXT IMMEDIATE TASKS**:
-1. **Settlements page** (6 use cases: UC-A30-A35) - 🔴 RED phase: Write tests
-2. **Statistics page** (4 use cases: UC-A50-A52, UC-A80) - 🔴 RED phase: Write tests
-3. **Journal page** (blocked - needs backend API for global transactions)
-4. **Product Creation Fix**: Add category creation to test setup
-5. **E2E Test Integration**: Finalize database setup & fixtures
+1. **Statistics page** (4 use cases: UC-A50-A52, UC-A80) - 🔴 RED phase: Write tests
+2. **Journal page** (blocked - needs backend API for global transactions)
+3. **Product Creation Fix**: Add category creation to test setup
+4. **Visual Verification**: Compare all pages with frgs-admin-6.html prototype
 
 ### Phase 4: Admin Panel Frontend
 - **Main Plan**: [phase4-admin-frontend.md](./phase4-admin-frontend.md) - Full implementation roadmap with TDD + Playwright MCP
