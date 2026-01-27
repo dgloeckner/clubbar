@@ -85,14 +85,15 @@ test.describe('Admin Frontend - Products Page', () => {
       await authenticatedProductsPage.expectFormModalHidden()
     })
 
-    test('should fill and submit product form', async ({ authenticatedProductsPage }) => {
+    test('should fill and submit product form', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
       const productName = `Test Product ${Date.now()}`
       const productPrice = '5.99'
 
       // Pattern 001: Create unique test data per test
-      // NOTE: This test requires at least one category to exist in the database.
-      // If no categories exist, the form submission will fail with a validation error.
-      // To make this test pass consistently, seed the database with a default category.
+      // Navigate to products and use page object auto-select for any available active category
+      await authenticatedProductsPage.navigate()
+
+      // Create product - page object will auto-select first available category when modal opens
       await authenticatedProductsPage.createProduct(productName, productPrice)
 
       // Pattern 008: Wait for form to close and verify

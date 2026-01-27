@@ -159,6 +159,42 @@ export class ProductsPage extends BasePage {
     return await this.categorySelect().inputValue() || ''
   }
 
+  async getFirstActiveCategoryId(): Promise<string> {
+    // Get all options and find the last one (should be most recently created)
+    const options = await this.categorySelect().locator('option')
+    const count = await options.count()
+
+    if (count > 1) {
+      // Try to find a "Product Test Category" option (from current/recent tests)
+      // These are most likely to be active
+      let foundValue = ''
+
+      for (let i = count - 1; i > 0; i--) {
+        const option = options.nth(i)
+        const text = await option.textContent()
+        const value = await option.getAttribute('value')
+
+        // Look for test category names
+        if (text && text.includes('Product Test Category')) {
+          foundValue = value || ''
+          break
+        }
+      }
+
+      // If we found a test category, return it
+      if (foundValue) {
+        return foundValue
+      }
+
+      // Fallback: get the last non-placeholder option
+      const lastOption = options.nth(count - 1)
+      const value = await lastOption.getAttribute('value')
+      return value || ''
+    }
+
+    return ''
+  }
+
   async submitForm() {
     await this.formSubmitBtn().click()
   }
@@ -176,15 +212,10 @@ export class ProductsPage extends BasePage {
     if (categoryId) {
       await this.selectCategory(categoryId)
     } else {
-      // Auto-select first available category
-      // Wait for options to populate
-      await this.page.waitForTimeout(300)
-      const options = await this.categorySelect().locator('option').count()
-      if (options > 1) {
-        // Skip the placeholder "Select a category..." option (index 0)
-        await this.categorySelect().selectOption({ index: 1 })
-        // Wait briefly for selection to register
-        await this.page.waitForTimeout(200)
+      // Auto-select first available category (now that modal is open)
+      const autoSelectId = await this.getFirstActiveCategoryId()
+      if (autoSelectId) {
+        await this.selectCategory(autoSelectId)
       }
     }
 
