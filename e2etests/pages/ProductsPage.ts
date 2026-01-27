@@ -124,15 +124,29 @@ export class ProductsPage extends BasePage {
   }
 
   async getProductIdByName(productName: string): Promise<string> {
+    // Wait a moment for table to be updated
+    await this.page.waitForLoadState('networkidle')
+
     const rows = await this.tableRows().all()
     for (const row of rows) {
-      const text = await row.textContent()
-      if (text?.includes(productName)) {
+      // Get the name cell text specifically (third column)
+      const nameCell = row.locator('[data-testid*="products-table-cell-name-"]')
+      const nameText = await nameCell.textContent()
+      if (nameText?.trim().includes(productName)) {
         const rowId = await row.getAttribute('data-testid')
         const productId = rowId?.replace('products-table-row-', '') || ''
         if (productId) return productId
       }
     }
+
+    // If not found, log all products for debugging
+    console.log(`Product "${productName}" not found in table`)
+    const allRows = await this.tableRows().all()
+    for (let i = 0; i < allRows.length; i++) {
+      const text = await allRows[i].textContent()
+      console.log(`Row ${i}: ${text?.substring(0, 100)}...`)
+    }
+
     throw new Error(`Product "${productName}" not found in table`)
   }
 

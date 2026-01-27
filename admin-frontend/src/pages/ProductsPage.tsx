@@ -101,12 +101,19 @@ export function ProductsPage() {
         },
       })
       console.log('Products API response:', response)
-      if (response.items && response.items.length > 0) {
-        console.log('First product:', response.items[0])
-        console.log('First product names:', response.items[0].names)
-        console.log('First product category_id:', response.items[0].category_id)
+      const items = response.items || []
+      console.log(`Loaded ${items.length} products`)
+
+      if (items.length > 0) {
+        console.log('First product:', items[0])
+        console.log('First product names:', items[0].names)
+        console.log('First product category_id:', items[0].category_id)
+        console.log('First 5 product names:', items.slice(0, 5).map(p => p.names?.de || 'NO NAME'))
+      } else {
+        console.log('No products returned from API')
       }
-      setProducts(response.items || [])
+
+      setProducts(items)
     } catch (err: any) {
       setError(err.message || 'Failed to load products')
       setProducts([])
@@ -148,19 +155,26 @@ export function ProductsPage() {
 
     try {
       const priceCents = Math.round(parseFloat(formData.price) * 100)
-
-      await post('/admin/products', {
+      const productData = {
         names: { de: formData.name.trim() },
         price_cents: priceCents,
         category_id: selectedCategory,
-      })
+      }
+      console.log('Creating product with:', productData)
+
+      const response = await post('/admin/products', productData)
+      console.log('Product created successfully:', response)
+
       setFormData({ name: '', price: '' })
       setSelectedCategory('')
       setModalMode('create')
       setEditingProduct(null)
       setShowModal(false)
+      console.log('Form state reset, reloading products...')
+
       // Reload product list to show newly created product
       await loadProducts()
+      console.log('Products reloaded after creation')
     } catch (err: any) {
       console.error('Product creation error:', err)
       const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to create product'
