@@ -50,6 +50,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const navItems = [
     { label: 'Mitglieder', path: '/members', icon: <UsersIcon size={20} /> },
     { label: 'Produkte', path: '/products', icon: <PackageIcon size={20} /> },
+    { label: 'Kategorien', path: '/categories', icon: <PackageIcon size={20} /> },
     {
       label: 'Buchungsjournal',
       path: '/journal',

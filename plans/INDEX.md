@@ -57,53 +57,92 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Phase 4 Phase 2: Admin Frontend - Page Implementation (📍 IN PROGRESS)
+### 🔴 Phase 4 Phase 2b: Categories Section + Products-Categories Integration (📍 PRIORITY)
+
+**Plan**: [PHASE4_CATEGORIES_PRODUCTS_FIX.md](./PHASE4_CATEGORIES_PRODUCTS_FIX.md)
+
+**Critical Issue Identified**:
+- Products page missing **required** category selection in form
+- No dedicated Categories management page in navigation
+- Products currently created with hardcoded/missing category_id
+- Product tests failing due to missing categories
+
+**Scope** (3 pages → 4 pages):
+1. **Categories Page** (NEW) - UC-A44: Manage Categories
+   - List, Create, Edit, Activate/Deactivate, Delete categories
+   - Multilingual names (language tabs)
+   - Drag-to-reorder display order
+   - Delete validation (prevent delete if has products)
+
+2. **Products Page - INTEGRATION FIX**
+   - Add category dropdown (REQUIRED field)
+   - Display category column in list
+   - Add category filter
+   - Update sorting (category → name)
+   - Fix all tests to use real categories
+
+3. **Complete Missing Functionality**
+   - Ensure products MUST have category assigned
+   - Ensure category creation precedes product creation tests
+   - Verify category display and filtering
+
+**Implementation Phases**:
+- Phase 1: Write Categories E2E tests (20+ tests, RED) ✅ COMPLETE (27 tests created)
+- Phase 2: Implement CategoriesPage component (GREEN) 🔴 IN PROGRESS
+- Phase 3: Fix Products-Categories integration (GREEN) 📋 PENDING
+- Phase 4: Verification and full E2E suite (BLUE) 📋 PENDING
+
+**Test Status**:
+- Categories: 0/27 passing (tests created, component not yet implemented - RED phase expected)
+- Products: 13/14 passing (category integration pending)
+- **Phase 1 Deliverables**:
+  - ✅ e2etests/tests/admin/categories.spec.ts (27 comprehensive test cases)
+  - ✅ e2etests/pages/CategoriesPage.ts (page object with semantic methods)
+  - ✅ e2etests/fixtures/pageObjects.ts (CategoriesPage fixtures added)
+  - ✅ All tests properly use Page Object Model (Pattern 006)
+  - ✅ Tests use unique data isolation (Pattern 001)
+  - ✅ Database-agnostic assertions (Pattern 003)
+
+---
+
+### Phase 4 Phase 2: Admin Frontend - Page Implementation (CURRENT)
 
 **✅ UI System Complete!**
 **🎨 Icons, Loading, Responsive Design, Dashboard Stats** ← All implemented
 
 **✅ UC-A20 Complete: Member Transactions Modal**
-- TransactionModal component with filtering (15/16 E2E tests passing)
+- TransactionModal component with filtering
 - Integrated into MembersPage with transaction icon buttons
 - Full TypeScript typing and responsive design
 
 **📄 Pages Status**:
 1. **Members Page** ✅ COMPLETE + UC-A20
-   - Implements: UC-A10 (List), UC-A11 (Create), UC-A12 (Edit), UC-A15 (Deactivate)
-   - Plus: UC-A20 (View Tab - Member Transactions Modal)
+   - Implements: UC-A10 (List), UC-A11 (Create), UC-A12 (Edit), UC-A15 (Deactivate), UC-A20 (Transactions Modal)
    - 19/19 E2E tests passing
 
-2. **Products Page** 🟢 IN PROGRESS (92.8% complete)
+2. **Products Page** 🟡 INTEGRATION NEEDED (92.8% complete)
    - 13/14 E2E tests passing
-   - Implements: UC-A40-A44 (Create, List, Edit, Toggle, Category Filter)
-   - Minor issue: Product creation requires category existence
-   - Commit: `61f6166`
+   - Implements: UC-A40-A43
+   - **ISSUE**: Missing required category selection in form
+   - **FIX**: Add category dropdown, display column, filter (in PHASE4_CATEGORIES_PRODUCTS_FIX)
 
-3. **Settlements Page** ✅ COMPLETE - GREEN & BLUE PHASES DONE
-   - 37/37 E2E tests PASSING (serial & parallel)
-   - Implements: UC-A30 (SEPA Settlement), UC-A33 (History), UC-A34 (Details), UC-A35 (Manual)
-   - Full settlement list with filters, details view, and transaction selection UIs
-   - Commit: `0d3da36` (GREEN), `ea36ab5` (BLUE)
+3. **Settlements Page** ✅ COMPLETE
+   - 37/37 E2E tests PASSING
+   - Implements: UC-A30, UC-A33, UC-A34, UC-A35
 
-4. **Statistics Page** ✅ COMPLETE - RED & GREEN PHASES DONE
-   - 36/36 E2E tests PASSING (serial: 38.8s, parallel: 14.3s)
-   - Implements: UC-A80 (Dashboard), UC-A50 (Reports), UC-A51 (Member Ranking)
-   - Full dashboard with metrics, alerts, recent transactions, quick actions, system status
-   - Report and ranking UI skeletons ready for data integration
-   - Commit: `387b31a` (RED), `2b50d46` (GREEN)
+4. **Statistics Page** ✅ COMPLETE
+   - 36/36 E2E tests PASSING
+   - Implements: UC-A80, UC-A50, UC-A51
 
-**⚡ NEXT IMMEDIATE TASKS**:
-1. **Journal Page** - 🔴 RED phase: Write tests (blocked until backend API ready)
-2. **Product Creation Fix**: Add category creation to test setup (minor: 1 test failing)
-3. **Visual Verification**: Compare all pages with frgs-admin-6.html prototype
-4. **Blue Phase Completion**: Statistics page visual verification
+5. **Categories Page** ⏳ NOT STARTED (NEW - PRIORITY)
+   - Implements: UC-A44
+   - Required for products integration
 
-**Project Progress Summary**:
-- **Pages Complete**: 3/5 (Members, Products [92%], Settlements, Statistics)
-- **E2E Tests**: 93+ tests passing across all pages
-- **Use Cases Implemented**: ~30 of 43 admin use cases
-- **Architecture**: Full TDD implementation with page objects and semantic methods
-- **Code Quality**: 100% test coverage for implemented features, E2E patterns 001-008
+**Project Progress**:
+- **Pages**: 3/5 complete, 1 needing fix (products), 1 new (categories)
+- **E2E Tests**: 105+ passing (will be 140+ after categories)
+- **Use Cases**: ~30 of 43 implemented (will be ~36 after categories)
+- **Critical Issue**: Products-Categories integration missing
 
 ### Phase 4: Admin Panel Frontend
 - **Main Plan**: [phase4-admin-frontend.md](./phase4-admin-frontend.md) - Full implementation roadmap with TDD + Playwright MCP

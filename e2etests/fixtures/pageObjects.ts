@@ -19,7 +19,7 @@
  */
 
 import { test as base, Page } from '@playwright/test'
-import { LoginPage, MembersPage, ProductsPage, SettlementsPage, StatisticsPage } from '../pages'
+import { LoginPage, MembersPage, ProductsPage, SettlementsPage, StatisticsPage, CategoriesPage } from '../pages'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
@@ -31,6 +31,8 @@ interface PageObjectFixtures {
   authenticatedSettlementsPage: SettlementsPage
   statisticsPage: StatisticsPage
   authenticatedStatisticsPage: StatisticsPage
+  categoriesPage: CategoriesPage
+  authenticatedCategoriesPage: CategoriesPage
 }
 
 /**
@@ -164,6 +166,36 @@ const authenticatedStatisticsPageFixture = async (
 }
 
 /**
+ * Fixture: categoriesPage
+ * Provides CategoriesPage instance (unauthenticated)
+ */
+const categoriesPageFixture = async ({ page }: { page: Page }, use: (value: CategoriesPage) => Promise<void>) => {
+  const categoriesPage = new CategoriesPage(page)
+  await use(categoriesPage)
+}
+
+/**
+ * Fixture: authenticatedCategoriesPage
+ *
+ * Provides CategoriesPage with test already authenticated (via storage state).
+ * Simply navigates to the page and returns the page object.
+ */
+const authenticatedCategoriesPageFixture = async (
+  { page }: { page: Page },
+  use: (value: CategoriesPage) => Promise<void>
+) => {
+  // Navigate to categories page
+  await page.goto('/categories', { waitUntil: 'domcontentloaded' })
+
+  // Wait for page to load - categories-page test ID indicates page is ready
+  await page.waitForSelector('[data-testid="categories-page"]', { timeout: 5000 })
+
+  // Create and provide CategoriesPage
+  const categoriesPage = new CategoriesPage(page)
+  await use(categoriesPage)
+}
+
+/**
  * Extend base test with custom fixtures
  */
 export const test = base.extend<PageObjectFixtures>({
@@ -176,6 +208,8 @@ export const test = base.extend<PageObjectFixtures>({
   authenticatedSettlementsPage: authenticatedSettlementsPageFixture,
   statisticsPage: statisticsPageFixture,
   authenticatedStatisticsPage: authenticatedStatisticsPageFixture,
+  categoriesPage: categoriesPageFixture,
+  authenticatedCategoriesPage: authenticatedCategoriesPageFixture,
 })
 
 // Re-export expect for convenience
