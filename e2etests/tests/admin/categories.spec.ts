@@ -340,37 +340,31 @@ test.describe('Admin Frontend - Categories Page', () => {
    */
   test.describe('UC-A44: Delete Category', () => {
     test('should delete empty category', async ({ authenticatedCategoriesPage }) => {
-      // Create a category to delete
+      // Create a category to delete with unique name
       const categoryName = `Delete Test ${Date.now()}`
       await authenticatedCategoriesPage.createCategory({
         de: categoryName,
       })
 
-      const countBefore = await authenticatedCategoriesPage.getCategoryCount()
+      // Find the created category by its unique name
+      const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+      expect(categoryId).toBeTruthy()
 
-      // Find an empty (enabled) delete button
-      // Delete buttons are disabled if category has products
-      const deleteButtons = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-delete-button-"]:not([disabled])')
+      if (categoryId) {
+        // Verify the delete button is enabled (category is empty)
+        const deleteBtn = authenticatedCategoriesPage.page.getByTestId(`categories-delete-button-${categoryId}`)
+        await expect(deleteBtn).toBeEnabled()
 
-      const buttonCount = await deleteButtons.count()
+        // Delete the category
+        await authenticatedCategoriesPage.deleteCategory(categoryId)
+        await authenticatedCategoriesPage.expectConfirmDialogVisible()
 
-      if (buttonCount > 0) {
-        // Get category ID from first enabled delete button
-        const categoryIdAttr = await deleteButtons.first().getAttribute('data-testid')
-        const categoryId = categoryIdAttr?.replace('categories-delete-button-', '') || ''
+        await authenticatedCategoriesPage.confirmDelete()
+        await authenticatedCategoriesPage.expectConfirmDialogHidden()
 
-        if (categoryId) {
-          await authenticatedCategoriesPage.deleteCategory(categoryId)
-          await authenticatedCategoriesPage.expectConfirmDialogVisible()
-
-          await authenticatedCategoriesPage.confirmDelete()
-          await authenticatedCategoriesPage.expectConfirmDialogHidden()
-
-          // Verify category was deleted
-          const countAfter = await authenticatedCategoriesPage.getCategoryCount()
-          expect(countAfter).toBeLessThan(countBefore)
-        }
+        // Verify category was deleted - it should no longer be in the table
+        const categoryIdAfter = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+        expect(categoryIdAfter).toBeNull()
       }
     })
 

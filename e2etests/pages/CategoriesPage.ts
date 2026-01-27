@@ -83,8 +83,8 @@ export class CategoriesPage extends BasePage {
   }
 
   async expectFormModalHidden() {
-    // Wait up to 10 seconds for modal to close (includes API call time)
-    await expect(this.formModal()).not.toBeVisible({ timeout: 10000 })
+    // Wait up to 15 seconds for modal to close (includes API call time + parallel load)
+    await expect(this.formModal()).not.toBeVisible({ timeout: 15000 })
   }
 
   async expectEmptyStateVisible() {
@@ -112,6 +112,8 @@ export class CategoriesPage extends BasePage {
    */
 
   async getCategoryCount(): Promise<number> {
+    // Wait for any pending DOM updates (helps in parallel test scenarios)
+    await this.page.waitForTimeout(200)
     return await this.tableRows().count()
   }
 
@@ -141,6 +143,26 @@ export class CategoriesPage extends BasePage {
       .getByTestId(`categories-table-cell-order-${categoryId}`)
       .textContent()
     return parseInt(order || '0', 10)
+  }
+
+  async findCategoryByName(name: string): Promise<string | null> {
+    // Search through all visible rows to find a category with matching name
+    const rows = this.tableRows()
+    const rowCount = await rows.count()
+
+    for (let i = 0; i < rowCount; i++) {
+      const row = rows.nth(i)
+      const dataTestId = await row.getAttribute('data-testid')
+      if (dataTestId) {
+        const categoryId = dataTestId.replace('categories-table-row-', '')
+        const categoryName = await this.getCategoryName(categoryId)
+        if (categoryName === name) {
+          return categoryId
+        }
+      }
+    }
+
+    return null
   }
 
   /**
@@ -209,8 +231,13 @@ export class CategoriesPage extends BasePage {
 
     // After modal closes, wait for categories to actually load in the table
     // This ensures the GET /admin/categories request completes
-    await this.page.waitForLoadState('networkidle', { timeout: 10000 })
-    await this.page.waitForTimeout(300)
+    await this.page.waitForLoadState('networkidle', { timeout: 15000 })
+
+    // Wait for the table to have updated rows (checks DOM stability)
+    await this.page.waitForTimeout(500)
+
+    // Verify table is still visible and has updated
+    await expect(this.table()).toBeVisible()
   }
 
   async editCategory(categoryId: string, names: { [lang: string]: string }) {
