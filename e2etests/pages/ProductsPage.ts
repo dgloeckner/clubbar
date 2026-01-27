@@ -156,6 +156,9 @@ export class ProductsPage extends BasePage {
     await this.expectFormModalVisible()
     await this.fillProductForm(name, price)
     await this.submitForm()
+    // Wait for API call to complete and modal to close
+    await this.page.waitForLoadState('networkidle')
+    await this.expectFormModalHidden()
   }
 
   /**
