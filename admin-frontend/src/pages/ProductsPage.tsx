@@ -101,8 +101,24 @@ export function ProductsPage() {
         },
       })
       console.log('Products API response:', response)
-      const items = response.items || []
-      console.log(`Loaded ${items.length} products`)
+      let items = response.items || []
+      console.log(`Loaded ${items.length} products from API`)
+
+      // Deduplicate products by ID (fix for duplicate rows issue)
+      const seenIds = new Set<string>()
+      const uniqueItems = items.filter(product => {
+        if (seenIds.has(product.id)) {
+          console.warn(`Duplicate product detected: ${product.id}`)
+          return false
+        }
+        seenIds.add(product.id)
+        return true
+      })
+
+      if (uniqueItems.length < items.length) {
+        console.warn(`Filtered out ${items.length - uniqueItems.length} duplicate products`)
+        items = uniqueItems
+      }
 
       if (items.length > 0) {
         console.log('First product:', items[0])
