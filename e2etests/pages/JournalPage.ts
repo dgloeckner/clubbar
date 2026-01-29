@@ -26,7 +26,8 @@ export class JournalPage extends BasePage {
   private readonly searchInput = () => this.page.getByTestId('journal-search-input')
   private readonly periodPickerButton = (period: '1m' | '3m' | '6m' | '1y' | '2y' | 'all') =>
     this.page.getByTestId(`journal-period-picker-${period}`)
-  private readonly filterTypeSelect = () => this.page.getByTestId('journal-filter-type-trigger')
+  private readonly typeFilterButton = (type: 'all' | 'purchase' | 'correction') =>
+    this.page.getByTestId(`journal-type-filter-${type}`)
 
   // Table elements
   private readonly table = () => this.page.getByTestId('journal-table')
@@ -187,8 +188,7 @@ export class JournalPage extends BasePage {
   }
 
   async filterByType(type: 'all' | 'purchase' | 'correction') {
-    const selectElement = this.filterTypeSelect()
-    await selectElement.selectOption(type)
+    await this.typeFilterButton(type).click()
     // Wait for request
     await this.page.waitForLoadState('networkidle')
   }

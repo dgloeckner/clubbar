@@ -20,6 +20,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Card } from '../components/common/Card'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
+import { TypeFilter } from '../components/forms/TypeFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { onLoadingStateChange } from '../services/api'
 import {
@@ -141,8 +142,8 @@ export function JournalPage() {
     setCurrentPage(1)
   }
 
-  const handleFilterTypeChange = (type: string) => {
-    setFilterType(type as 'all' | 'purchase' | 'correction')
+  const handleFilterTypeChange = (type: 'all' | 'purchase' | 'correction') => {
+    setFilterType(type)
     setCurrentPage(1)
   }
 
@@ -214,44 +215,12 @@ export function JournalPage() {
             testId="journal-period-picker"
           />
 
-          {/* Type filter dropdown */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <label
-              htmlFor="journal-filter-type"
-              style={{
-                fontSize: 12,
-                color: tableColors.cellSecondaryText,
-                marginBottom: 4,
-              }}
-            >
-              Type
-            </label>
-            <select
-              id="journal-filter-type"
-              data-testid="journal-filter-type-trigger"
-              value={filterType}
-              onChange={(e) => handleFilterTypeChange(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                border: `1px solid ${tableColors.rowActiveBorder}`,
-                borderRadius: 6,
-                backgroundColor: 'rgba(15, 29, 50, 0.4)',
-                color: tableColors.cellText,
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              <option value="all" data-testid="journal-filter-type-option-all">
-                All Transactions
-              </option>
-              <option value="purchase" data-testid="journal-filter-type-option-purchase">
-                Purchases Only
-              </option>
-              <option value="correction" data-testid="journal-filter-type-option-correction">
-                Corrections Only
-              </option>
-            </select>
-          </div>
+          {/* Type filter (colored toggle pills) */}
+          <TypeFilter
+            value={filterType}
+            onTypeChange={handleFilterTypeChange}
+            testId="journal-type-filter"
+          />
         </div>
 
         {/* Loading state */}
