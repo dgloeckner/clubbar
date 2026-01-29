@@ -9,7 +9,7 @@ import { TransactionModal } from '../components/modals/TransactionModal'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useLoading } from '../context/LoadingContext'
-import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon } from '../components/icons'
+import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon, BookIcon } from '../components/icons'
 import { formatPrice, formatDate } from '../styles/design-system'
 import { getMembers, createMember, updateMember, deactivateMember, Member } from '../services/members'
 import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
@@ -449,7 +449,7 @@ export function MembersPage() {
                         }}
                         title="View Transactions"
                       >
-                        📊
+                        <BookIcon size={18} />
                       </button>
                     </TableCell>
                   </tr>
