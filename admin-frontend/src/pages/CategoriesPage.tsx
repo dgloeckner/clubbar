@@ -19,6 +19,15 @@ import { theme } from '../styles/design-system'
 import { EditIcon, TrashIcon, PlusIcon } from '../components/icons'
 import { IconSelect } from '../components/forms/IconSelect'
 import { getCategoryIcon } from '../components/icons/IconRegistry'
+import { IconCell } from '../components/tables/IconCell'
+import {
+  tableWrapperStyles,
+  tableElementStyles,
+  headerRowStyle,
+  headerCellBaseStyle,
+  tableColors,
+  tableSpacing,
+} from '../styles/tableTokens'
 
 interface Category {
   id: string
@@ -240,77 +249,26 @@ export function CategoriesPage() {
       </button>
 
       {/* Categories Table */}
-      <div data-testid="categories-table-wrapper" style={{ overflowX: 'auto' }}>
+      <div data-testid="categories-table-wrapper" style={tableWrapperStyles}>
         <table
           data-testid="categories-table"
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            backgroundColor: '#1a2744',
-            borderRadius: '4px',
-            overflow: 'hidden',
-          }}
+          style={tableElementStyles}
         >
           <thead>
-            <tr style={{ backgroundColor: '#0f1d32' }}>
-              <th
-                role="columnheader"
-                style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#e2e8f0',
-                }}
-              >
+            <tr style={headerRowStyle}>
+              <th role="columnheader" style={headerCellBaseStyle}>
                 Status
               </th>
-              <th
-                role="columnheader"
-                style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#e2e8f0',
-                }}
-              >
+              <th role="columnheader" style={headerCellBaseStyle}>
                 Name
               </th>
-              <th
-                role="columnheader"
-                style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#e2e8f0',
-                }}
-              >
+              <th role="columnheader" style={headerCellBaseStyle}>
                 Products
               </th>
-              <th
-                role="columnheader"
-                style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#e2e8f0',
-                }}
-              >
+              <th role="columnheader" style={headerCellBaseStyle}>
                 Order
               </th>
-              <th
-                role="columnheader"
-                style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#e2e8f0',
-                }}
-              >
+              <th role="columnheader" style={headerCellBaseStyle}>
                 Actions
               </th>
             </tr>
@@ -321,10 +279,10 @@ export function CategoriesPage() {
                 key={category.id}
                 data-testid={`categories-table-row-${category.id}`}
                 style={{
-                  borderBottom: '1px solid #2d3748',
+                  borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
                 }}
               >
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
+                <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                   <button
                     data-testid={`categories-status-toggle-${category.id}`}
                     onClick={() => handleStatusToggle(category)}
@@ -345,26 +303,23 @@ export function CategoriesPage() {
                     </span>
                   </button>
                 </td>
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {(() => {
-                    const IconComponent = getCategoryIcon(category.icon_name)
-                    return <IconComponent size={20} data-testid={`categories-table-cell-icon-${category.id}`} />
-                  })()}
-                  <span data-testid={`categories-table-cell-name-${category.id}`}>
-                    {category.names.de || category.names.en || 'Unnamed'}
-                  </span>
-                </td>
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
+                <IconCell
+                  icon={getCategoryIcon(category.icon_name)}
+                  label={category.names.de || category.names.en || 'Unnamed'}
+                  iconTestId={`categories-table-cell-icon-${category.id}`}
+                  labelTestId={`categories-table-cell-name-${category.id}`}
+                />
+                <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                   <span data-testid={`categories-table-cell-product-count-${category.id}`}>
                     {category.product_count}
                   </span>
                 </td>
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
+                <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                   <span data-testid={`categories-table-cell-order-${category.id}`}>
                     {category.display_order}
                   </span>
                 </td>
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
+                <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button
                       data-testid={`categories-edit-button-${category.id}`}
