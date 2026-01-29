@@ -13,15 +13,18 @@
 
 import { useEffect, useState } from 'react'
 import { get, post, patch, del, onLoadingStateChange } from '../services/api'
-import { EditIcon, TrashIcon } from '../components/icons'
 import { CategorySelect } from '../components/forms/CategorySelect'
 import { IconSelect } from '../components/forms/IconSelect'
-import { Toggle } from '../components/forms/Toggle'
 import { ProductPreview } from '../components/forms/ProductPreview'
 import { getProductIcon } from '../components/icons/IconRegistry'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { SearchAndSortToolbar } from '../components/tables/SearchAndSortToolbar'
+import { StatusToggleCell } from '../components/tables/StatusToggleCell'
+import { IconCell } from '../components/tables/IconCell'
+import { PriceCell } from '../components/tables/PriceCell'
+import { BadgeCell } from '../components/tables/BadgeCell'
+import { ActionButtons } from '../components/tables/ActionButtons'
 import {
   tableColors,
   tableSpacing,
@@ -31,7 +34,6 @@ import {
   headerCellBaseStyle,
   headerRowStyle,
   getRowStyle,
-  getButtonStyle,
 } from '../styles/tableTokens'
 
 interface Product {
@@ -53,54 +55,6 @@ interface Category {
   display_order: number
 }
 
-/**
- * Action buttons cell component with Edit/Delete buttons
- * Uses design tokens for consistent styling across tables
- */
-function ActionButtonCell({
-  product,
-  onEdit,
-  onDelete,
-}: {
-  product: Product
-  onEdit: (product: Product) => void
-  onDelete: (product: Product) => void
-}) {
-  const [primaryHovered, setPrimaryHovered] = useState(false)
-  const [dangerHovered, setDangerHovered] = useState(false)
-
-  return (
-    <td
-      data-testid={`products-table-cell-actions-${product.id}`}
-      style={{
-        padding: tableSpacing.cellPadding,
-        display: 'flex',
-        gap: tableSpacing.actionButtonGap,
-        justifyContent: 'center',
-      }}
-    >
-      <button
-        data-testid={`products-edit-button-${product.id}`}
-        onClick={() => onEdit(product)}
-        style={getButtonStyle('primary', primaryHovered)}
-        onMouseEnter={() => setPrimaryHovered(true)}
-        onMouseLeave={() => setPrimaryHovered(false)}
-      >
-        <EditIcon size={18} />
-      </button>
-
-      <button
-        data-testid={`products-delete-button-${product.id}`}
-        onClick={() => onDelete(product)}
-        style={getButtonStyle('danger', dangerHovered)}
-        onMouseEnter={() => setDangerHovered(true)}
-        onMouseLeave={() => setDangerHovered(false)}
-      >
-        <TrashIcon size={18} />
-      </button>
-    </td>
-  )
-}
 
 export function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -606,64 +560,34 @@ export function ProductsPage() {
                     : tableColors.rowInactiveBg
                 }}
               >
-                <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center' }}>
-                  <Toggle
-                    enabled={product.is_active}
-                    onChange={() => handleStatusToggle(product)}
-                    size="small"
-                    testId={`products-status-toggle-${product.id}`}
-                  />
-                </td>
-                <td
-                  style={{
-                    padding: tableSpacing.cellPadding,
-                    color: tableColors.cellText,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: tableSpacing.iconGap,
-                  }}
-                >
-                  {(() => {
-                    const IconComponent = getProductIcon(product.icon_name)
-                    return <IconComponent size={20} data-testid={`products-table-cell-icon-${product.id}`} />
+                <StatusToggleCell
+                  enabled={product.is_active}
+                  onChange={() => handleStatusToggle(product)}
+                  testId={`products-status-toggle-${product.id}`}
+                />
+                <IconCell
+                  icon={getProductIcon(product.icon_name)}
+                  label={product.names.de || product.names.en || 'Unnamed Product'}
+                  iconTestId={`products-table-cell-icon-${product.id}`}
+                  labelTestId={`products-table-cell-name-${product.id}`}
+                />
+                <PriceCell
+                  priceCents={product.price_cents}
+                  testId={`products-table-cell-price-${product.id}`}
+                />
+                <BadgeCell
+                  label={(() => {
+                    const category = categories.find((c) => c.id === product.category_id)
+                    return category ? category.names.de || category.names.en || 'Unknown' : 'Unknown'
                   })()}
-                  <span data-testid={`products-table-cell-name-${product.id}`} style={{ fontWeight: '500' }}>
-                    {product.names.de || product.names.en || 'Unnamed Product'}
-                  </span>
-                </td>
-                <td
-                  style={{
-                    padding: tableSpacing.cellPadding,
-                    color: tableColors.cellText,
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: '14px',
-                    fontWeight: '700',
-                  }}
-                >
-                  <span data-testid={`products-table-cell-price-${product.id}`}>
-                    €{(product.price_cents / 100).toFixed(2)}
-                  </span>
-                </td>
-                <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
-                  <span
-                    data-testid={`products-table-cell-category-${product.id}`}
-                    style={{
-                      display: 'inline-block',
-                      padding: `${tableSpacing.badgePaddingVertical} ${tableSpacing.badgePaddingHorizontal}`,
-                      backgroundColor: tableColors.badgeBg,
-                      color: tableColors.badgeText,
-                      borderRadius: tableColors.badgeRadius,
-                      fontSize: tableColors.badgeFontSize,
-                      fontWeight: tableColors.badgeFontWeight,
-                    }}
-                  >
-                    {(() => {
-                      const category = categories.find((c) => c.id === product.category_id)
-                      return category ? category.names.de || category.names.en || 'Unknown' : 'Unknown'
-                    })()}
-                  </span>
-                </td>
-                <ActionButtonCell product={product} onEdit={openEditModal} onDelete={handleDelete} />
+                  testId={`products-table-cell-category-${product.id}`}
+                />
+                <ActionButtons
+                  onEdit={() => openEditModal(product)}
+                  onDelete={() => handleDelete(product)}
+                  editTestId={`products-edit-button-${product.id}`}
+                  deleteTestId={`products-delete-button-${product.id}`}
+                />
               </tr>
             ))}
           </tbody>
