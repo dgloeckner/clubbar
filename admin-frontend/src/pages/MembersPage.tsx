@@ -12,6 +12,7 @@ import { useLoading } from '../context/LoadingContext'
 import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon, BookIcon } from '../components/icons'
 import { formatPrice, formatDate } from '../styles/design-system'
 import { getMembers, createMember, updateMember, deactivateMember, Member } from '../services/members'
+import { getDashboardMetrics } from '../services/dashboard'
 import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
@@ -36,6 +37,7 @@ export function MembersPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [totalMembers, setTotalMembers] = useState(0)
   const [totalBalance, setTotalBalance] = useState(0)
+  const [lastSettlementDate, setLastSettlementDate] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -92,6 +94,22 @@ export function MembersPage() {
     const timer = setTimeout(loadMembers, search ? 500 : 0) // Debounce search
     return () => clearTimeout(timer)
   }, [page, search, filterIsActive, sortKey, sortDirection, setIsLoading])
+
+  // Load dashboard metrics (last settlement date and outstanding balance)
+  useEffect(() => {
+    const loadDashboardMetrics = async () => {
+      try {
+        const dashboard = await getDashboardMetrics()
+        setTotalBalance(dashboard.metrics.outstanding_balance_cents)
+        setLastSettlementDate(dashboard.system_status.last_settlement_date)
+      } catch (err) {
+        // Silently fail - stats are not critical
+        console.warn('Failed to load dashboard metrics:', err)
+      }
+    }
+
+    loadDashboardMetrics()
+  }, [])
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -225,7 +243,7 @@ export function MembersPage() {
         <StatCard
           icon={<CalendarIcon />}
           label="Letzte Abrechnung"
-          value={formatDate(new Date().toISOString().split('T')[0])}
+          value={lastSettlementDate ? formatDate(lastSettlementDate.split('T')[0]) : '—'}
           color="blue"
         />
       </div>
