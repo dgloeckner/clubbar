@@ -13,6 +13,14 @@ import { useLoading } from '../context/LoadingContext'
 import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon } from '../components/icons'
 import { formatPrice, formatDate } from '../styles/design-system'
 import { getMembers, createMember, updateMember, deactivateMember, Member } from '../services/members'
+import {
+  tableWrapperStyles,
+  tableElementStyles,
+  headerRowStyle,
+  headerCellBaseStyle,
+  tableColors,
+  tableSpacing,
+} from '../styles/tableTokens'
 
 export function MembersPage() {
   const breakpoint = useBreakpoint()
@@ -242,26 +250,17 @@ export function MembersPage() {
             No members found
           </div>
         ) : (
-          <div data-testid="members-table-wrapper" style={{ overflowX: 'auto' }}>
+          <div data-testid="members-table-wrapper" style={tableWrapperStyles}>
             <table
               data-testid="members-table"
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                fontSize: theme.typography.fontSize.sm,
-              }}
+              style={tableElementStyles}
             >
               <thead>
-                <tr
-                  style={{
-                    borderBottom: `1px solid ${theme.colors.border.light}`,
-                    background: theme.colors.bg.input,
-                  }}
-                >
-                  <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Name</th>
-                  <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Email</th>
-                  <th style={{ padding: theme.spacing.md, textAlign: 'right', fontWeight: 600 }}>Balance</th>
-                  <th style={{ padding: theme.spacing.md, textAlign: 'center', fontWeight: 600 }}>Actions</th>
+                <tr style={headerRowStyle}>
+                  <th style={headerCellBaseStyle}>Name</th>
+                  <th style={headerCellBaseStyle}>Email</th>
+                  <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>Balance</th>
+                  <th style={{ ...headerCellBaseStyle, textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -270,26 +269,27 @@ export function MembersPage() {
                     key={member.id}
                     data-testid={`members-table-row-${member.id}`}
                     style={{
-                      borderBottom: `1px solid ${theme.colors.border.light}`,
+                      borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
                       background: member.is_active ? 'transparent' : `${theme.colors.semantic.danger}05`,
+                      opacity: member.is_active ? 1 : 0.6,
                     }}
                   >
-                    <td style={{ padding: theme.spacing.md }}>
+                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                       <span data-testid={`members-table-cell-name-${member.id}`}>
                         {member.first_name} {member.last_name}
                       </span>
                     </td>
-                    <td style={{ padding: theme.spacing.md }}>
+                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                       <span data-testid={`members-table-cell-email-${member.id}`}>
                         {member.email}
                       </span>
                     </td>
-                    <td style={{ padding: theme.spacing.md, textAlign: 'right' }}>
+                    <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right', color: tableColors.cellText }}>
                       <span data-testid={`members-table-cell-balance-${member.id}`}>
                         {formatPrice(member.balance_cents)}
                       </span>
                     </td>
-                    <td style={{ padding: theme.spacing.md, textAlign: 'center' }}>
+                    <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center' }}>
                       <button
                         data-testid={`members-table-action-edit-${member.id}`}
                         onClick={() => handleEdit(member)}
