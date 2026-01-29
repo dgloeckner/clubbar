@@ -19,6 +19,7 @@ import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { StatusFilter } from '../components/tables/StatusFilter'
 import { SortDropdown } from '../components/tables/SortDropdown'
 import { Toggle } from '../components/forms/Toggle'
+import { LanguageSelector } from '../components/forms/LanguageSelector'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -593,24 +594,12 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   Language *
                 </label>
-                <select
-                  data-testid="members-form-language-select"
+                <LanguageSelector
+                  value={formData.preferred_language as 'de' | 'en'}
+                  onChange={(language) => setFormData({ ...formData, preferred_language: language })}
+                  testId="members-form-language-select"
                   required
-                  value={formData.preferred_language}
-                  onChange={(e) => setFormData({ ...formData, preferred_language: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <option value="de">Deutsch</option>
-                  <option value="en">English</option>
-                </select>
+                />
               </div>
 
               <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end', marginTop: theme.spacing.lg }}>

@@ -262,7 +262,7 @@ export class MembersPage extends BasePage {
     await this.ibanInput().fill(iban.toUpperCase())
     await this.mandateDateInput().fill(mandateDate)
     if (language) {
-      await this.languageSelect().selectOption(language)
+      await this.selectLanguage(language)
     }
   }
 
@@ -352,8 +352,28 @@ export class MembersPage extends BasePage {
     return await this.mandateDateInput().inputValue() || ''
   }
 
+  async selectLanguage(language: string) {
+    // Click the trigger button to open dropdown
+    const trigger = this.page.getByTestId('members-form-language-select-trigger')
+    await expect(trigger).toBeVisible()
+    await trigger.click()
+
+    // Click the option in the dropdown
+    const option = this.page.getByTestId(`members-form-language-select-option-${language}`)
+    await expect(option).toBeVisible()
+    await option.click()
+
+    // Wait for React to process the change
+    await this.page.waitForTimeout(300)
+  }
+
   async getFormLanguageValue(): Promise<string> {
-    return await this.languageSelect().inputValue() || 'de'
+    // Read the trigger button text to determine selected language
+    const trigger = this.page.getByTestId('members-form-language-select-trigger')
+    const text = await trigger.textContent() || ''
+
+    if (text.includes('English')) return 'en'
+    return 'de'  // Default to German
   }
 
   /**
