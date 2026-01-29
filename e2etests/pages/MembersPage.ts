@@ -31,7 +31,7 @@ export class MembersPage extends BasePage {
   private readonly statCardLetzteAbrechnung = () => this.page.getByTestId('stat-card-letzte-abrechnung')
 
   // Search and filter
-  private readonly searchInput = () => this.page.getByTestId('members-search-input')
+  private readonly searchInput = () => this.page.getByTestId('members-search-toolbar').locator('input[type="text"]')
   private readonly createBtn = () => this.page.getByTestId('members-create-button')
 
   // Table elements
