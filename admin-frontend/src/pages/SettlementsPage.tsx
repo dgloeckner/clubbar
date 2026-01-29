@@ -14,6 +14,14 @@
 import { useEffect, useState } from 'react'
 import { get, post } from '../services/api'
 import { theme } from '../styles/design-system'
+import {
+  tableWrapperStyles,
+  tableElementStyles,
+  headerRowStyle,
+  headerCellBaseStyle,
+  tableColors,
+  tableSpacing,
+} from '../styles/tableTokens'
 
 // Settlement data types
 interface SettlementListItem {
@@ -254,51 +262,42 @@ export function SettlementsPage() {
 
           {/* Table */}
           {!loading && settlements.length > 0 && (
-            <table
-              data-testid="settlements-table"
-              style={{
-                width: '100%',
-                borderCollapse: 'collapse',
-                fontSize: theme.typography.fontSize.sm,
-              }}
-            >
-              <thead>
-                <tr
-                  style={{
-                    background: theme.colors.bg.secondary,
-                    borderBottom: `1px solid ${theme.colors.border.light}`,
-                  }}
-                >
-                  <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Created</th>
-                  <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Execution</th>
-                  <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Type</th>
-                  <th style={{ padding: theme.spacing.md, textAlign: 'right', fontWeight: 600 }}>Members</th>
-                  <th style={{ padding: theme.spacing.md, textAlign: 'right', fontWeight: 600 }}>Amount</th>
-                  <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Exported</th>
-                  <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Status</th>
-                  <th style={{ padding: theme.spacing.md, textAlign: 'center', fontWeight: 600 }}>Actions</th>
-                </tr>
-              </thead>
+            <div data-testid="settlements-table-wrapper" style={tableWrapperStyles}>
+              <table
+                data-testid="settlements-table"
+                style={tableElementStyles}
+              >
+                <thead>
+                  <tr style={headerRowStyle}>
+                    <th style={headerCellBaseStyle}>Created</th>
+                    <th style={headerCellBaseStyle}>Execution</th>
+                    <th style={headerCellBaseStyle}>Type</th>
+                    <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>Members</th>
+                    <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>Amount</th>
+                    <th style={headerCellBaseStyle}>Exported</th>
+                    <th style={headerCellBaseStyle}>Status</th>
+                    <th style={{ ...headerCellBaseStyle, textAlign: 'center' }}>Actions</th>
+                  </tr>
+                </thead>
               <tbody>
                 {settlements.map((settlement) => (
                   <tr
                     key={settlement.id}
                     data-testid={`settlement-row-${settlement.id}`}
                     style={{
-                      borderBottom: `1px solid ${theme.colors.border.light}`,
-                      ':hover': { background: theme.colors.bg.secondary },
+                      borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
                     }}
                   >
                     <td
                       data-testid="settlement-created"
-                      style={{ padding: theme.spacing.md, color: theme.colors.text.primary }}
+                      style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}
                     >
                       {formatDate(settlement.created_at)}
                     </td>
-                    <td style={{ padding: theme.spacing.md, color: theme.colors.text.primary }}>
+                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                       {settlement.execution_date ? formatDate(settlement.execution_date) : '—'}
                     </td>
-                    <td data-testid="settlement-type" style={{ padding: theme.spacing.md }}>
+                    <td data-testid="settlement-type" style={{ padding: tableSpacing.cellPadding }}>
                       <span
                         style={{
                           padding: '2px 8px',
@@ -312,16 +311,16 @@ export function SettlementsPage() {
                         {settlement.settlement_type.toUpperCase()}
                       </span>
                     </td>
-                    <td data-testid="settlement-member-count" style={{ padding: theme.spacing.md, textAlign: 'right' }}>
+                    <td data-testid="settlement-member-count" style={{ padding: tableSpacing.cellPadding, textAlign: 'right', color: tableColors.cellText }}>
                       {settlement.member_count}
                     </td>
-                    <td data-testid="settlement-total-amount" style={{ padding: theme.spacing.md, textAlign: 'right', fontWeight: 500 }}>
+                    <td data-testid="settlement-total-amount" style={{ padding: tableSpacing.cellPadding, textAlign: 'right', fontWeight: 500, color: tableColors.cellText }}>
                       {formatPrice(settlement.total_amount_cents)}
                     </td>
-                    <td data-testid="settlement-exported" style={{ padding: theme.spacing.md }}>
+                    <td data-testid="settlement-exported" style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                       {settlement.exported_at ? formatDate(settlement.exported_at) : 'No'}
                     </td>
-                    <td style={{ padding: theme.spacing.md }}>
+                    <td style={{ padding: tableSpacing.cellPadding }}>
                       {settlement.is_cancelled && (
                         <span
                           data-testid="settlement-cancelled"
@@ -370,7 +369,8 @@ export function SettlementsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           )}
         </div>
       </div>
@@ -468,11 +468,11 @@ export function SettlementsPage() {
                 }}
               >
                 <thead>
-                  <tr style={{ borderBottom: `1px solid ${theme.colors.border.light}` }}>
-                    <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Name</th>
-                    <th style={{ padding: theme.spacing.md, textAlign: 'right', fontWeight: 600 }}>Amount</th>
-                    <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>SEPA Status</th>
-                    <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Mandate Ref</th>
+                  <tr style={{ borderBottom: `1px solid ${tableColors.rowActiveBorder}` }}>
+                    <th style={{ padding: tableSpacing.cellPadding, textAlign: 'left', fontWeight: 600, color: tableColors.headerText }}>Name</th>
+                    <th style={{ padding: tableSpacing.cellPadding, textAlign: 'right', fontWeight: 600, color: tableColors.headerText }}>Amount</th>
+                    <th style={{ padding: tableSpacing.cellPadding, textAlign: 'left', fontWeight: 600, color: tableColors.headerText }}>SEPA Status</th>
+                    <th style={{ padding: tableSpacing.cellPadding, textAlign: 'left', fontWeight: 600, color: tableColors.headerText }}>Mandate Ref</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -480,30 +480,30 @@ export function SettlementsPage() {
                     <tr
                       key={member.member_id}
                       data-testid="settlement-member-row"
-                      style={{ borderBottom: `1px solid ${theme.colors.border.light}` }}
+                      style={{ borderBottom: `1px solid ${tableColors.rowActiveBorder}` }}
                     >
                       <td
                         data-testid="member-name"
-                        style={{ padding: theme.spacing.md, color: theme.colors.text.primary }}
+                        style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}
                       >
                         {member.member_name}
                       </td>
                       <td
                         data-testid="member-amount"
-                        style={{ padding: theme.spacing.md, textAlign: 'right', fontWeight: 500 }}
+                        style={{ padding: tableSpacing.cellPadding, textAlign: 'right', fontWeight: 500, color: tableColors.cellText }}
                       >
                         {formatPrice(member.amount_cents)}
                       </td>
                       <td
                         data-testid="member-sepa-status"
                         style={{
-                          padding: theme.spacing.md,
+                          padding: tableSpacing.cellPadding,
                           color: member.is_sepa_eligible ? '#16A34A' : '#DC2626',
                         }}
                       >
                         {member.is_sepa_eligible ? 'Valid' : 'Invalid'}
                       </td>
-                      <td style={{ padding: theme.spacing.md, color: theme.colors.text.secondary }}>
+                      <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellSecondaryText }}>
                         {member.mandate_reference ? member.mandate_reference : '—'}
                       </td>
                     </tr>
