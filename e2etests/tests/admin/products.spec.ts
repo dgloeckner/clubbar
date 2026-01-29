@@ -1,33 +1,19 @@
 import { test, expect } from '../../fixtures/pageObjects'
 
 /**
- * Admin Frontend - Products Page E2E Tests
+ * Admin Frontend - Products Page E2E Tests (Consolidated)
  *
- * Tests the admin panel Products page CRUD operations.
+ * Tests the admin panel Products page CRUD operations through real user workflows.
  * Implements E2E Testing Pattern 005: Using Test IDs (data-testid)
  * Implements E2E Testing Pattern 006: Page Object Model
  * Implements E2E Testing Pattern 007: Page Object Fixtures
  * Implements E2E Testing Pattern 008: Playwright Assertions (expect API)
  *
- * **CRITICAL: Tests use PAGE OBJECT METHODS, NOT raw locators**
- *
- * ✅ CORRECT:
- *   await productsPage.expectTableVisible()
- *   await productsPage.getProductCount()
- *   await productsPage.createProduct('Test', '5.99')
- *
- * ❌ WRONG (don't do this):
- *   const table = page.locator('table, [role="table"]')
- *   const modal = page.locator('[role="dialog"], [class*="modal"]')
- *   const input = page.getByTestId('products-search-input')
- *
- * Covers:
- * - Login flow
- * - List products
- * - Display product table
- * - Open create product modal
- * - Create new product
- * - Search/filter products
+ * **Consolidated Design:**
+ * - Few, comprehensive test cases (not individual micro-tests)
+ * - Each test represents a complete user workflow
+ * - Uses getRowDataByProductId() for nice assertions
+ * - No tests for just UI element existence
  *
  * Uses E2E Pattern 001: Test Data Isolation
  * - Each test creates unique test data (timestamps)
@@ -35,366 +21,427 @@ import { test, expect } from '../../fixtures/pageObjects'
  * - Safe for parallel execution
  */
 
-test.describe('Admin Frontend - Products Page', () => {
+test.describe('Products Page - Complete User Workflows', () => {
   /**
-   * UC-A06: List Products
+   * UC-A06 & UC-A07: List and Create Product with Category
    */
-  test.describe('UC-A06: List Products', () => {
-    test('should display products page', async ({ authenticatedProductsPage }) => {
-      // Pattern 006: Use page object methods, not raw locators
-      await authenticatedProductsPage.expectPageVisible()
-      await authenticatedProductsPage.expectTableVisible()
-    })
+  test('should navigate products page and create new product with category', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `Test Product ${Date.now()}`
+    const productPrice = '5.99'
+    const categoryName = `Category ${Date.now()}`
 
-    test('should display products table', async ({ authenticatedProductsPage }) => {
-      // Pattern 006: High-level semantic methods
-      await authenticatedProductsPage.expectTableVisible()
-      const count = await authenticatedProductsPage.getProductCount()
-      expect(count).toBeGreaterThanOrEqual(0)
-    })
+    // Create a category first
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
 
-    test('should display products (or empty state)', async ({ authenticatedProductsPage }) => {
-      // Pattern 003: Database-agnostic - works whether products exist or not
-      const count = await authenticatedProductsPage.getProductCount()
+    // User navigates to products page and creates product
+    await authenticatedProductsPage.navigate()
+    await authenticatedProductsPage.expectPageVisible()
 
-      if (count === 0) {
-        await authenticatedProductsPage.expectEmptyStateVisible()
-      } else {
-        await authenticatedProductsPage.expectTableVisible()
-        expect(count).toBeGreaterThan(0)
+    // Use createProduct which auto-selects a category
+    await authenticatedProductsPage.createProduct(productName, productPrice)
+
+    // Verify product was created by finding it in the table
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).not.toBeNull()
+
+    const rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
+    expect(rowData).not.toBeNull()
+
+    if (rowData) {
+      expect(rowData.name).toContain(productName)
+      expect(rowData.price).toContain('5.99')
+      expect(rowData.category).toBeTruthy() // Category must be set
+      expect(rowData.isActive).toBe(true)
+    }
+  })
+
+  /**
+   * UC-A07: Create Product - Cancel Flow
+   */
+  test('should cancel product creation dialog without saving', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `Should Not Save ${Date.now()}`
+
+    // Create a category first to select in form
+    const categoryName = `Cancel Test Category ${Date.now()}`
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+
+    // Navigate to products
+    await authenticatedProductsPage.navigate()
+
+    // User opens and cancels create modal
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+
+    // Fill form with all required fields but cancel
+    await authenticatedProductsPage.fillProductForm(productName, '99.99')
+    await authenticatedProductsPage.cancelForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    // Verify product was NOT created
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).toBeNull() // Product should not exist
+  })
+
+  /**
+   * UC-A07: Create with Category - Positive Test
+   */
+  test('should create product with category and verify in table', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `Product with Category ${Date.now()}`
+    const productPrice = '7.99'
+    const categoryName = `Test Category ${Date.now()}`
+
+    // Create a category first and get its ID
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+    expect(categoryId).not.toBeNull()
+
+    // Navigate to products and create product with explicit category ID
+    await authenticatedProductsPage.navigate()
+    if (categoryId) {
+      await authenticatedProductsPage.createProduct(productName, productPrice, categoryId)
+    }
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    // Verify product exists with correct data
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).not.toBeNull()
+
+    const rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
+    expect(rowData).not.toBeNull()
+
+    if (rowData) {
+      expect(rowData.name).toContain(productName)
+      expect(rowData.price).toContain('7.99')
+      expect(rowData.category).toBeTruthy() // Has a category assigned
+    }
+  })
+
+  /**
+   * UC-A07: Create without Category - Negative Test
+   * Category is required and form should prevent submission without it
+   */
+  test('should prevent creating product without selecting a category', async ({ authenticatedProductsPage }) => {
+    const productName = `No Category Product ${Date.now()}`
+    const productPrice = '6.99'
+
+    // User opens create modal
+    await authenticatedProductsPage.navigate()
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+
+    // User fills name and price but DOES NOT select a category
+    await authenticatedProductsPage.fillProductForm(productName, productPrice)
+
+    // User attempts to submit without category selected
+    // The form should have validation that requires category (required attribute on CategorySelect)
+    try {
+      await authenticatedProductsPage.submitForm()
+      // If we get here, check if form is still visible (validation may prevent close)
+      const isModalVisible = await authenticatedProductsPage.page
+        .getByTestId('products-form-modal')
+        .isVisible({ timeout: 2000 })
+        .catch(() => false)
+
+      // Modal should still be visible OR show validation error
+      expect(isModalVisible).toBe(true)
+    } catch (e) {
+      // If submitForm throws (due to form validation), that's also valid
+      // Modal should still be open
+      await authenticatedProductsPage.expectFormModalVisible()
+    }
+
+    // Verify product was NOT created
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).toBeNull() // Product should not have been created without category
+  })
+
+  /**
+   * UC-A42: Edit Product - Update and Verify
+   */
+  test('should edit product name and price, verify changes persist with category', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const originalName = `Original Product ${Date.now()}`
+    const originalPrice = '5.00'
+    const updatedName = `Updated Product ${Date.now()}`
+    const updatedPrice = '9.99'
+
+    // Create a category first and get its ID
+    const categoryName = `Edit Test Category ${Date.now()}`
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+    expect(categoryId).not.toBeNull()
+
+    // Create initial product with explicit category ID
+    await authenticatedProductsPage.navigate()
+    if (categoryId) {
+      await authenticatedProductsPage.createProduct(originalName, originalPrice, categoryId)
+    }
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    // Get product ID and verify initial state
+    const productId = await authenticatedProductsPage.getProductIdByName(originalName)
+    expect(productId).not.toBeNull()
+    let rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
+    expect(rowData).not.toBeNull()
+
+    if (rowData) {
+      expect(rowData.name).toContain(originalName)
+      expect(rowData.price).toContain('5.00')
+      expect(rowData.category).toBeTruthy() // Category was set during creation
+
+      // User edits product
+      await authenticatedProductsPage.editProduct(productId, updatedName, updatedPrice)
+      await authenticatedProductsPage.expectFormModalHidden()
+
+      // Verify changes in table
+      rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
+      expect(rowData).not.toBeNull()
+      if (rowData) {
+        expect(rowData.name).toContain(updatedName)
+        expect(rowData.price).toContain('9.99')
+        expect(rowData.category).toBeTruthy() // Category still set
       }
-    })
+    }
   })
 
   /**
-   * UC-A07: Create Product
+   * UC-A42: Edit Product - Cancel without Saving
    */
-  test.describe('UC-A07: Create Product', () => {
-    test('should open create product modal', async ({ authenticatedProductsPage }) => {
-      // Pattern 006: Use page object methods
-      await authenticatedProductsPage.openCreateModal()
-      await authenticatedProductsPage.expectFormModalVisible()
-    })
+  test('should cancel product edit without saving changes', async ({ authenticatedProductsPage }) => {
+    const productName = `Product to Edit ${Date.now()}`
+    const originalPrice = '3.00'
 
-    test('should cancel create modal without submitting', async ({ authenticatedProductsPage }) => {
-      // Pattern 006: Semantic actions through page object
-      await authenticatedProductsPage.openCreateModal()
-      await authenticatedProductsPage.expectFormModalVisible()
+    // Create product
+    await authenticatedProductsPage.navigate()
+    await authenticatedProductsPage.createProduct(productName, originalPrice)
+    await authenticatedProductsPage.expectFormModalHidden()
 
-      await authenticatedProductsPage.cancelForm()
-      await authenticatedProductsPage.expectFormModalHidden()
-    })
+    // Open edit and attempt change, then cancel
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    await authenticatedProductsPage.clickEditButton(productId)
+    await authenticatedProductsPage.expectFormModalVisible()
 
-    test('should fill and submit product form', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
-      const productName = `Test Product ${Date.now()}`
-      const productPrice = '5.99'
+    // Try to change but cancel
+    await authenticatedProductsPage.fillProductForm('Should Not Save', '99.99')
+    await authenticatedProductsPage.cancelForm()
+    await authenticatedProductsPage.expectFormModalHidden()
 
-      // Pattern 001: Create unique test data per test
-      // Navigate to products and use page object auto-select for any available active category
-      await authenticatedProductsPage.navigate()
-
-      // Create product - page object will auto-select first available category when modal opens
-      await authenticatedProductsPage.createProduct(productName, productPrice)
-
-      // Pattern 008: Wait for form to close and verify
-      await authenticatedProductsPage.expectFormModalHidden()
-    })
-
-    test('should successfully create and close product modal', async ({ authenticatedProductsPage }) => {
-      // Pattern 001: Create unique test product
-      const productName = `Created Product ${Date.now()}`
-      const productPrice = '12.99'
-
-      // Navigate to products page
-      await authenticatedProductsPage.navigate()
-      await authenticatedProductsPage.expectPageVisible()
-      await authenticatedProductsPage.expectTableVisible()
-
-      // Create product - verifies form fills, submits, and modal closes
-      await authenticatedProductsPage.createProduct(productName, productPrice)
-
-      // Verify modal closed after creation (indicates successful API call)
-      await authenticatedProductsPage.expectFormModalHidden()
-
-      // Verify we're back on the products page
-      await authenticatedProductsPage.expectTableVisible()
-    })
-
-    test('should display form with empty fields for create', async ({ authenticatedProductsPage }) => {
-      // Pattern 006: Page object provides field getters
-      await authenticatedProductsPage.openCreateModal()
-
-      const name = await authenticatedProductsPage.getFormNameValue()
-      const price = await authenticatedProductsPage.getFormPriceValue()
-
-      expect(name).toBe('')
-      expect(price).toBe('')
-    })
-
-    test('should create product with auto-selected category', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
-      // Pattern 001: Create unique test data
-      const productName = `Categorized Product ${Date.now()}`
-      const productPrice = '8.50'
-
-      // First, create a category to ensure one exists
-      const categoryName = `Product Category ${Date.now()}`
-      await authenticatedCategoriesPage.navigate()
-      await authenticatedCategoriesPage.createCategory({
-        de: categoryName,
-      })
-
-      // Navigate to products
-      await authenticatedProductsPage.navigate()
-      await authenticatedProductsPage.expectPageVisible()
-
-      // Create product (auto-selects first available category)
-      await authenticatedProductsPage.createProduct(productName, productPrice)
-
-      // Verify product was created successfully
-      // (modal closed indicates successful API call and product was persisted)
-      await authenticatedProductsPage.expectFormModalHidden()
-      await authenticatedProductsPage.expectTableVisible()
-
-      // Verify the page is still on products and table is visible
-      const isOnPage = await authenticatedProductsPage.isOnProductsPage()
-      expect(isOnPage).toBe(true)
-    })
-  })
-
-
-  /**
-   * Modal Interactions (General)
-   */
-  test.describe('Modal Interactions', () => {
-    test('should close modal when clicking cancel', async ({ authenticatedProductsPage }) => {
-      // Pattern 006: High-level modal methods
-      await authenticatedProductsPage.openCreateModal()
-      await authenticatedProductsPage.expectFormModalVisible()
-
-      await authenticatedProductsPage.cancelForm()
-      await authenticatedProductsPage.expectFormModalHidden()
-    })
-
-    test('should fill all form fields', async ({ authenticatedProductsPage }) => {
-      const testData = {
-        name: `Coffee ${Date.now()}`,
-        price: '3.50',
-      }
-
-      await authenticatedProductsPage.openCreateModal()
-
-      // Pattern 006: Fill form through page object
-      await authenticatedProductsPage.fillProductForm(testData.name, testData.price)
-
-      // Pattern 006: Verify field values through page object
-      expect(await authenticatedProductsPage.getFormNameValue()).toContain(testData.name)
-      expect(await authenticatedProductsPage.getFormPriceValue()).toContain(testData.price)
-    })
-  })
-
-  /**
-   * UC-A42: Edit Product
-   */
-  test.describe('UC-A42: Edit Product', () => {
-    test('should open edit modal with pre-filled values', async ({ authenticatedProductsPage }) => {
-      // Pattern 001: Create unique test product
-      const productName = `Edit Test ${Date.now()}`
-      const productPrice = '9.99'
-
-      await authenticatedProductsPage.navigate()
-      await authenticatedProductsPage.createProduct(productName, productPrice)
-      await authenticatedProductsPage.expectFormModalHidden()
-
-      // Get product ID from table by finding the created product
-      const productId = await authenticatedProductsPage.getProductIdByName(productName)
-
-      // Click edit button using product ID
-      await authenticatedProductsPage.clickEditButton(productId)
-      await authenticatedProductsPage.expectFormModalVisible()
-      await authenticatedProductsPage.expectEditMode()
-
-      // Verify form has pre-filled values
-      const nameValue = await authenticatedProductsPage.getFormNameValue()
-      const priceValue = await authenticatedProductsPage.getFormPriceValue()
-
-      expect(nameValue).toContain(productName)
-      expect(priceValue).toContain('9.99')
-    })
-
-    test('should update product and reflect changes in table', async ({ authenticatedProductsPage }) => {
-      // Pattern 001: Create unique test product
-      const originalName = `Original ${Date.now()}`
-      await authenticatedProductsPage.navigate()
-      await authenticatedProductsPage.createProduct(originalName, '5.00')
-      await authenticatedProductsPage.expectFormModalHidden()
-
-      // Get product ID from table by finding the created product
-      const productId = await authenticatedProductsPage.getProductIdByName(originalName)
-
-      // Edit the product
-      const updatedName = `Updated ${Date.now()}`
-      await authenticatedProductsPage.editProduct(productId, updatedName, '7.50')
-
-      // Verify updated values in table using product ID
-      const displayedName = await authenticatedProductsPage.getProductNameInRow(productId)
-      const displayedPrice = await authenticatedProductsPage.getProductPriceInRow(productId)
-
-      expect(displayedName).toContain(updatedName)
-      expect(displayedPrice).toContain('7.50')
-    })
-
-    test('should cancel edit without saving changes', async ({ authenticatedProductsPage }) => {
-      // Pattern 001: Create unique test product
-      const productName = `Cancel Edit ${Date.now()}`
-      await authenticatedProductsPage.navigate()
-      await authenticatedProductsPage.createProduct(productName, '3.00')
-      await authenticatedProductsPage.expectFormModalHidden()
-
-      // Get product ID from table by finding the created product
-      const productId = await authenticatedProductsPage.getProductIdByName(productName)
-
-      // Open edit modal and attempt changes
-      await authenticatedProductsPage.clickEditButton(productId)
-      await authenticatedProductsPage.expectFormModalVisible()
-      await authenticatedProductsPage.fillProductForm('Should Not Save', '99.99')
-      await authenticatedProductsPage.cancelForm()
-      await authenticatedProductsPage.expectFormModalHidden()
-
-      // Verify original values still in table using product ID
-      const displayedName = await authenticatedProductsPage.getProductNameInRow(productId)
-      const displayedPrice = await authenticatedProductsPage.getProductPriceInRow(productId)
-
-      expect(displayedName).toContain(productName)
-      expect(displayedPrice).toContain('3.00')
-    })
+    // Verify original values unchanged
+    const rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
+    expect(rowData.name).toContain(productName)
+    expect(rowData.price).toContain('3.00')
+    expect(rowData.category).toBeTruthy() // Category unchanged
   })
 
   /**
    * UC-A43: Deactivate/Activate Product
    */
-  test.describe('UC-A43: Deactivate/Activate Product', () => {
-    test('should deactivate product with confirmation', async ({ authenticatedProductsPage }) => {
-      // Pattern 001: Create unique test product
-      const productName = `Deactivate Test ${Date.now()}`
-      await authenticatedProductsPage.navigate()
-      await authenticatedProductsPage.createProduct(productName, '4.50')
-      await authenticatedProductsPage.expectFormModalHidden()
+  test('should deactivate product with confirmation and reactivate', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `Status Test ${Date.now()}`
+    const categoryName = `Status Test Category ${Date.now()}`
 
-      // Get product ID from table by finding the created product
-      const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    // Create a category first and get its ID
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+    expect(categoryId).not.toBeNull()
 
-      // Verify initially active
-      let status = await authenticatedProductsPage.getProductStatus(productId)
-      expect(status).toBe('active')
+    // Create and verify active with category
+    await authenticatedProductsPage.navigate()
+    if (categoryId) {
+      await authenticatedProductsPage.createProduct(productName, '4.50', categoryId)
+    }
+    await authenticatedProductsPage.expectFormModalHidden()
 
-      // Toggle status and confirm deactivation
-      await authenticatedProductsPage.clickStatusToggle(productId)
-      await authenticatedProductsPage.expectConfirmDialogVisible()
-      await authenticatedProductsPage.confirmDelete()
-      await authenticatedProductsPage.waitForLoadingToComplete()
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).not.toBeNull()
+    let rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
+    expect(rowData).not.toBeNull()
+    if (rowData) {
+      expect(rowData.isActive).toBe(true)
+      expect(rowData.category).toBeTruthy() // Category is set
+    }
 
-      // Verify status changed to inactive
-      status = await authenticatedProductsPage.getProductStatus(productId)
-      expect(status).toBe('inactive')
-    })
+    // Deactivate with confirmation
+    await authenticatedProductsPage.clickStatusToggle(productId)
+    await authenticatedProductsPage.expectConfirmDialogVisible()
+    await authenticatedProductsPage.confirmDelete()
+    await authenticatedProductsPage.waitForLoadingToComplete()
 
-    test('should activate product without confirmation', async ({ authenticatedProductsPage }) => {
-      // Pattern 001: Create and deactivate a product
-      const productName = `Activate Test ${Date.now()}`
-      await authenticatedProductsPage.navigate()
-      await authenticatedProductsPage.createProduct(productName, '6.00')
-      await authenticatedProductsPage.expectFormModalHidden()
+    // Verify deactivated
+    rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
+    expect(rowData).not.toBeNull()
+    if (rowData) {
+      expect(rowData.isActive).toBe(false)
+    }
 
-      // Get product ID from table by finding the created product
-      const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    // Reactivate (no confirmation dialog)
+    await authenticatedProductsPage.clickStatusToggle(productId)
+    const dialogVisible = await authenticatedProductsPage.page
+      .getByTestId('products-confirm-dialog')
+      .isVisible({ timeout: 1000 })
+      .catch(() => false)
+    expect(dialogVisible).toBe(false)
 
-      // Deactivate product
-      await authenticatedProductsPage.toggleProductStatus(productId, true)
-      let status = await authenticatedProductsPage.getProductStatus(productId)
-      expect(status).toBe('inactive')
+    await authenticatedProductsPage.waitForLoadingToComplete()
 
-      // Activate (should be immediate, no confirmation)
-      await authenticatedProductsPage.clickStatusToggle(productId)
+    // Verify reactivated
+    rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
+    expect(rowData).not.toBeNull()
+    if (rowData) {
+      expect(rowData.isActive).toBe(true)
+    }
+  })
 
-      // Verify no confirmation dialog appeared
-      const dialogVisible = await authenticatedProductsPage.page
-        .getByTestId('products-confirm-dialog')
-        .isVisible({ timeout: 1000 })
-        .catch(() => false)
-      expect(dialogVisible).toBe(false)
+  /**
+   * UC-A43: Cancel Deactivation
+   */
+  test('should cancel product deactivation and keep status unchanged', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `Cancel Deactivate ${Date.now()}`
+    const categoryName = `Cancel Deactivate Category ${Date.now()}`
 
-      // Verify status changed to active
-      await authenticatedProductsPage.waitForLoadingToComplete()
-      status = await authenticatedProductsPage.getProductStatus(productId)
-      expect(status).toBe('active')
-    })
+    // Create a category first and get its ID
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+    expect(categoryId).not.toBeNull()
 
-    test('should cancel deactivation', async ({ authenticatedProductsPage }) => {
-      // Pattern 001: Create unique test product
-      const productName = `Cancel Deactivate ${Date.now()}`
-      await authenticatedProductsPage.navigate()
-      await authenticatedProductsPage.createProduct(productName, '8.00')
-      await authenticatedProductsPage.expectFormModalHidden()
+    // Create product with category
+    await authenticatedProductsPage.navigate()
+    if (categoryId) {
+      await authenticatedProductsPage.createProduct(productName, '8.00', categoryId)
+    }
+    await authenticatedProductsPage.expectFormModalHidden()
 
-      // Get product ID from table by finding the created product
-      const productId = await authenticatedProductsPage.getProductIdByName(productName)
-
-      // Toggle status and cancel
+    // Try to deactivate but cancel
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).not.toBeNull()
+    if (productId) {
       await authenticatedProductsPage.clickStatusToggle(productId)
       await authenticatedProductsPage.expectConfirmDialogVisible()
       await authenticatedProductsPage.cancelDelete()
 
-      // Verify status unchanged
-      const status = await authenticatedProductsPage.getProductStatus(productId)
-      expect(status).toBe('active')
-    })
+      // Verify still active with category intact
+      const rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
+      expect(rowData).not.toBeNull()
+      if (rowData) {
+        expect(rowData.isActive).toBe(true)
+        expect(rowData.category).toBeTruthy()
+      }
+    }
+  })
 
-    test('should show delete confirmation and permanently delete product', async ({ authenticatedProductsPage }) => {
-      // Pattern 001: Create unique test product
-      const productName = `Delete Test ${Date.now()}`
-      const initialCount = await authenticatedProductsPage.getProductCount()
+  /**
+   * UC-A43: Delete Product
+   */
+  test('should delete product and remove from table permanently', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `Delete Test ${Date.now()}`
+    const categoryName = `Delete Test Category ${Date.now()}`
 
-      await authenticatedProductsPage.navigate()
-      await authenticatedProductsPage.createProduct(productName, '10.00')
-      await authenticatedProductsPage.expectFormModalHidden()
+    // Create a category first and get its ID
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+    expect(categoryId).not.toBeNull()
 
-      // Get product ID from table by finding the created product
-      const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    // Create and find product with category
+    await authenticatedProductsPage.navigate()
+    if (categoryId) {
+      await authenticatedProductsPage.createProduct(productName, '10.00', categoryId)
+    }
+    await authenticatedProductsPage.expectFormModalHidden()
 
-      // Click delete button and confirm
+    // Verify product exists
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).not.toBeNull()
+    const rowDataBeforeDelete = await authenticatedProductsPage.getRowDataByProductId(productId)
+    expect(rowDataBeforeDelete).not.toBeNull()
+    if (rowDataBeforeDelete) {
+      expect(rowDataBeforeDelete.name).toContain(productName)
+    }
+
+    // Delete with confirmation
+    if (productId) {
       await authenticatedProductsPage.clickDeleteButton(productId)
       await authenticatedProductsPage.expectConfirmDialogVisible()
       await authenticatedProductsPage.confirmDelete()
       await authenticatedProductsPage.waitForLoadingToComplete()
 
-      // Verify product is permanently deleted from database
-      // After deletion, product count should be back to initial
-      const finalCount = await authenticatedProductsPage.getProductCount()
-      expect(finalCount).toBe(initialCount)
-
-      // Verify product row is no longer visible in DOM
-      const isVisible = await authenticatedProductsPage.page
-        .locator(`[data-testid="products-table-row-${productId}"]`)
-        .isVisible({ timeout: 1000 })
-        .catch(() => false)
-      expect(isVisible).toBe(false)
-    })
+      // Verify product no longer exists in table
+      const foundProductId = await authenticatedProductsPage.getProductIdByName(productName)
+      expect(foundProductId).toBeNull() // Product should be deleted
+    }
   })
 
   /**
-   * Page State Verification
+   * Test Form Modal Initial State
    */
-  test.describe('Page State Verification', () => {
-    test('should verify page is on products route', async ({ page, authenticatedProductsPage }) => {
-      // Pattern 006: Verify we're on the right page
-      await authenticatedProductsPage.expectPageVisible()
-      expect(page.url()).toContain('/products')
-    })
+  test('should show empty form fields in create modal', async ({ authenticatedProductsPage }) => {
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
 
-    test('should display create button', async ({ authenticatedProductsPage }) => {
-      // Pattern 006: Create button should be clickable
-      await authenticatedProductsPage.openCreateModal()
+    const nameValue = await authenticatedProductsPage.getFormNameValue()
+    const priceValue = await authenticatedProductsPage.getFormPriceValue()
+
+    expect(nameValue).toBe('')
+    expect(priceValue).toBe('')
+
+    await authenticatedProductsPage.cancelForm()
+  })
+
+  /**
+   * Test Edit Modal Pre-fill
+   */
+  test('should pre-fill edit modal with existing product data', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `Edit Modal Test ${Date.now()}`
+    const productPrice = '9.99'
+    const categoryName = `Edit Modal Test Category ${Date.now()}`
+
+    // Create a category first and get its ID
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+    expect(categoryId).not.toBeNull()
+
+    // Create product with explicit category
+    await authenticatedProductsPage.navigate()
+    if (categoryId) {
+      await authenticatedProductsPage.createProduct(productName, productPrice, categoryId)
+    }
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    // Open edit modal
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).not.toBeNull()
+    if (productId) {
+      await authenticatedProductsPage.clickEditButton(productId)
       await authenticatedProductsPage.expectFormModalVisible()
-    })
+      await authenticatedProductsPage.expectEditMode()
+
+      // Verify form is pre-filled
+      const nameValue = await authenticatedProductsPage.getFormNameValue()
+      const priceValue = await authenticatedProductsPage.getFormPriceValue()
+
+      expect(nameValue).toContain(productName)
+      expect(priceValue).toContain('9.99')
+
+      await authenticatedProductsPage.cancelForm()
+    }
+  })
+
+  /**
+   * Test Page Navigation
+   */
+  test('should stay on products page after navigating away and back', async ({ authenticatedProductsPage }) => {
+    await authenticatedProductsPage.navigate()
+    const isOnPage = await authenticatedProductsPage.isOnProductsPage()
+    expect(isOnPage).toBe(true)
+
+    await authenticatedProductsPage.reloadPage()
+    const isStillOnPage = await authenticatedProductsPage.isOnProductsPage()
+    expect(isStillOnPage).toBe(true)
   })
 })

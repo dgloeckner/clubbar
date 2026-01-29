@@ -27,7 +27,9 @@ import { BasePage } from './BasePage'
 export class ProductsPage extends BasePage {
   // Main page locators (PRIVATE - hidden from tests)
   private readonly table = () => this.page.getByTestId('products-table')
-  private readonly tableRows = () => this.page.locator('[data-testid^="products-table-row-"]')
+  // Table rows have test IDs that are the product UUID directly (no prefix)
+  // Select all <tr> elements in the table body that have a data-testid attribute
+  private readonly tableRows = () => this.table().locator('tbody tr[data-testid]')
   private readonly createBtn = () => this.page.getByTestId('products-create-button')
   private readonly emptyState = () => this.page.getByTestId('products-empty-state')
   private readonly errorMessage = () => this.page.getByTestId('products-error-message')
@@ -123,7 +125,11 @@ export class ProductsPage extends BasePage {
     return productId
   }
 
-  async getProductIdByName(productName: string): Promise<string> {
+  /**
+   * Get product ID by name - returns null if not found (instead of throwing)
+   * Pattern 006: Nullable results for cleaner test assertions
+   */
+  async getProductIdByName(productName: string): Promise<string | null> {
     // Wait a moment for table to be updated
     await this.page.waitForLoadState('networkidle')
 
@@ -132,25 +138,18 @@ export class ProductsPage extends BasePage {
 
     const rows = await this.tableRows().all()
     for (const row of rows) {
-      // Get the name cell text specifically (third column)
+      // Get the name cell text specifically
       const nameCell = row.locator('[data-testid*="products-table-cell-name-"]')
       const nameText = await nameCell.textContent()
       if (nameText?.trim().includes(productName)) {
-        const rowId = await row.getAttribute('data-testid')
-        const productId = rowId?.replace('products-table-row-', '') || ''
+        // The row's test ID is the product ID directly (no prefix)
+        const productId = await row.getAttribute('data-testid')
         if (productId) return productId
       }
     }
 
-    // If not found, log all products for debugging
-    console.log(`Product "${productName}" not found in table`)
-    const allRows = await this.tableRows().all()
-    for (let i = 0; i < allRows.length; i++) {
-      const text = await allRows[i].textContent()
-      console.log(`Row ${i}: ${text?.substring(0, 100)}...`)
-    }
-
-    throw new Error(`Product "${productName}" not found in table`)
+    // Not found - return null instead of throwing
+    return null
   }
 
   async getProductNameInRow(productId: string): Promise<string> {
@@ -185,6 +184,101 @@ export class ProductsPage extends BasePage {
   }
 
   /**
+   * Get complete row data as JSON object (for nice test assertions)
+   * Pattern 006: Return structured data for better test readability
+   * Accepts nullable productId - returns null if id is null or row not found
+   */
+  async getRowDataByProductId(productId: string | null): Promise<{
+    id: string
+    name: string
+    price: string
+    category: string
+    isActive: boolean
+  } | null> {
+    if (!productId) {
+      return null
+    }
+
+    const row = this.page.locator(`[data-testid="${productId}"]`)
+    const isVisible = await row.isVisible({ timeout: 1000 }).catch(() => false)
+
+    if (!isVisible) {
+      return null
+    }
+
+    const name = await this.page
+      .getByTestId(`products-table-cell-name-${productId}`)
+      .first()
+      .textContent()
+
+    const price = await this.page
+      .getByTestId(`products-table-cell-price-${productId}`)
+      .first()
+      .textContent()
+
+    const category = await this.page
+      .getByTestId(`products-table-cell-category-${productId}`)
+      .first()
+      .textContent()
+
+    const toggle = this.page.getByTestId(`products-status-toggle-${productId}`)
+    const isActive = await toggle.first().getAttribute('aria-checked') === 'true'
+
+    return {
+      id: productId,
+      name: name?.trim() || '',
+      price: price?.trim() || '',
+      category: category?.trim() || '',
+      isActive,
+    }
+  }
+
+  /**
+   * Get row data or null if not found (for defensive checks)
+   * Pattern 006: Nullable results to avoid try/catch in tests
+   */
+  async getRowDataByProductIdOrNull(productId: string): Promise<{
+    id: string
+    name: string
+    price: string
+    category: string
+    isActive: boolean
+  } | null> {
+    const row = this.page.locator(`[data-testid="${productId}"]`)
+    const isVisible = await row.isVisible({ timeout: 1000 }).catch(() => false)
+
+    if (!isVisible) {
+      return null
+    }
+
+    const name = await this.page
+      .getByTestId(`products-table-cell-name-${productId}`)
+      .first()
+      .textContent()
+
+    const price = await this.page
+      .getByTestId(`products-table-cell-price-${productId}`)
+      .first()
+      .textContent()
+
+    const category = await this.page
+      .getByTestId(`products-table-cell-category-${productId}`)
+      .first()
+      .textContent()
+
+    const toggle = this.page.getByTestId(`products-status-toggle-${productId}`)
+    const isActive = await toggle.first().getAttribute('aria-checked') === 'true'
+
+    return {
+      id: productId,
+      name: name?.trim() || '',
+      price: price?.trim() || '',
+      category: category?.trim() || '',
+      isActive,
+    }
+  }
+
+  /**
    * LOADING STATE (Pattern 006: Semantic actions)
    */
 
@@ -206,52 +300,79 @@ export class ProductsPage extends BasePage {
   }
 
   async selectCategory(categoryId: string) {
-    await this.categorySelect().selectOption(categoryId)
+    // CategorySelect is a custom dropdown component, not native <select>
+    // Click the trigger button to open the dropdown
+    const trigger = this.page.getByTestId('products-form-category-select-trigger')
+    await trigger.click()
+
+    // Wait for dropdown to open
+    const dropdown = this.page.getByTestId('products-form-category-select-dropdown')
+    await expect(dropdown).toBeVisible({ timeout: 5000 })
+
+    // Wait for the specific option to appear
+    const option = this.page.getByTestId(`products-form-category-select-option-${categoryId}`)
+    await expect(option).toBeVisible({ timeout: 10000 })
+
+    // Click the option button for the category
+    await option.click()
+
+    // Wait for dropdown to close after selection
+    await expect(dropdown).not.toBeVisible({ timeout: 5000 }).catch(() => {
+      // If dropdown doesn't close, click trigger again to close it
+      return trigger.click()
+    })
   }
 
   async getSelectedCategory(): Promise<string> {
-    return await this.categorySelect().inputValue() || ''
+    // CategorySelect displays the selected category name in the trigger button
+    const trigger = this.page.getByTestId('products-form-category-select-trigger')
+    const text = await trigger.textContent()
+    return text?.trim() || ''
   }
 
   async getFirstActiveCategoryId(): Promise<string> {
-    // Get all options and find the last one (should be most recently created)
-    const options = await this.categorySelect().locator('option')
-    const count = await options.count()
+    // Get all category options from the dropdown
+    // First, open the dropdown by clicking the trigger
+    const trigger = this.page.getByTestId('products-form-category-select-trigger')
+    await trigger.click()
 
-    if (count > 1) {
-      // Try to find a "Product Test Category" option (from current/recent tests)
-      // These are most likely to be active
-      let foundValue = ''
+    // Wait for dropdown to appear
+    const dropdown = this.page.getByTestId('products-form-category-select-dropdown')
+    await expect(dropdown).toBeVisible({ timeout: 5000 })
 
-      for (let i = count - 1; i > 0; i--) {
-        const option = options.nth(i)
-        const text = await option.textContent()
-        const value = await option.getAttribute('value')
+    // Wait for at least one option to appear
+    await this.page.waitForSelector('[data-testid^="products-form-category-select-option-"]', { timeout: 5000 })
 
-        // Look for test category names
-        if (text && text.includes('Product Test Category')) {
-          foundValue = value || ''
-          break
-        }
-      }
+    // Get all option buttons
+    const options = await this.page.locator('[data-testid^="products-form-category-select-option-"]').all()
 
-      // If we found a test category, return it
-      if (foundValue) {
-        return foundValue
-      }
-
-      // Fallback: get the last non-placeholder option
-      const lastOption = options.nth(count - 1)
-      const value = await lastOption.getAttribute('value')
-      return value || ''
+    if (options.length === 0) {
+      // Close dropdown and return empty
+      await trigger.click()
+      return ''
     }
 
-    return ''
+    // Get the last option (most recently created category)
+    const lastOption = options[options.length - 1]
+    const testId = await lastOption.getAttribute('data-testid')
+    const categoryId = testId?.replace('products-form-category-select-option-', '') || ''
+
+    // Close dropdown by clicking trigger again
+    await trigger.click()
+
+    return categoryId
   }
 
   async submitForm() {
     await this.formSubmitBtn().click()
     // Wait for API call to complete
+    await this.waitForLoadingToComplete()
+  }
+
+  async submitFormWithoutWaitingForClose() {
+    // Click submit and wait for loading indicator to disappear
+    await this.formSubmitBtn().click()
+    // Wait for the global loading indicator to disappear (this is the actual UI feedback)
     await this.waitForLoadingToComplete()
   }
 

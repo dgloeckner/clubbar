@@ -103,22 +103,58 @@ class CategoriesService extends BaseService
      * Create new category.
      *
      * Validates names, auto-assigns display_order, logs audit entry.
+     * Handles race conditions in concurrent creation with retry logic
+     * (if display_order conflicts, tries next available value).
      *
      * @param array $validated Validated request data: names
      * @return CategoryDto Created category
      */
     public function createCategory(array $validated): CategoryDto
     {
-        // Auto-assign next display_order
-        $displayOrder = $this->categoriesRepository->getNextDisplayOrder();
+        $maxRetries = 5;
+        $lastException = null;
 
-        // Create category
-        $model = $this->categoriesRepository->create([
-            'names' => $validated['names'],
-            'display_order' => $displayOrder,
-            'is_active' => true,
-            'icon_name' => $validated['icon_name'] ?? null,
-        ]);
+        for ($attempt = 0; $attempt < $maxRetries; $attempt++) {
+            try {
+                // Wrap in transaction to make display_order assignment atomic
+                $model = \DB::transaction(function () use ($validated, $attempt) {
+                    // Auto-assign next display_order
+                    $displayOrder = $this->categoriesRepository->getNextDisplayOrder();
+
+                    // On retry attempts, increment the display order to avoid conflicts
+                    if ($attempt > 0) {
+                        $displayOrder += $attempt;
+                    }
+
+                    // Create category
+                    return $this->categoriesRepository->create([
+                        'names' => $validated['names'],
+                        'display_order' => $displayOrder,
+                        'is_active' => true,
+                        'icon_name' => $validated['icon_name'] ?? null,
+                    ]);
+                });
+
+                // Success - break out of retry loop
+                break;
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Check if this is a unique constraint violation on display_order
+                if ($e->getCode() !== '23000' && strpos($e->getMessage(), 'display_order') === false) {
+                    // Not a display_order unique constraint - re-throw
+                    throw $e;
+                }
+
+                // Store exception and retry
+                $lastException = $e;
+
+                if ($attempt === $maxRetries - 1) {
+                    // Final attempt failed - throw the exception
+                    throw $e;
+                }
+
+                // Continue to next retry attempt
+            }
+        }
 
         // Log audit entry
         $this->auditService->log(
