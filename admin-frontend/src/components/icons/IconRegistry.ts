@@ -43,12 +43,17 @@ export const PRODUCT_ICON_NAMES = [
 export type ProductIconName = (typeof PRODUCT_ICON_NAMES)[number]
 
 /**
- * Category icon names - Reuse product icons for categories
- * Categories can use the same product icons (beverages use drink icons, etc.)
+ * Category icon names - Separate set of category-specific icons
  */
-export const CATEGORY_ICON_NAMES = PRODUCT_ICON_NAMES
+export const CATEGORY_ICON_NAMES = [
+  'CategoryIcon',
+  'CategoryTagsIcon',
+  'CategoryLayersIcon',
+  'CategoryFolderIcon',
+  'CategoryListIcon',
+] as const
 
-export type CategoryIconName = ProductIconName
+export type CategoryIconName = (typeof CATEGORY_ICON_NAMES)[number]
 
 /**
  * Product icon registry - Maps icon names to components
@@ -70,10 +75,15 @@ export const ProductIconRegistry: Record<ProductIconName, React.FC<IconProps>> =
 }
 
 /**
- * Category icon registry - Reuses product icons
- * For category icon selection, use the same product icons
+ * Category icon registry - Maps category-specific icon names to components
  */
-export const CategoryIconRegistry: Record<CategoryIconName, React.FC<IconProps>> = ProductIconRegistry
+export const CategoryIconRegistry: Record<CategoryIconName, React.FC<IconProps>> = {
+  CategoryIcon: CategoryIcons.CategoryIcon,
+  CategoryTagsIcon: CategoryIcons.CategoryTagsIcon,
+  CategoryLayersIcon: CategoryIcons.CategoryLayersIcon,
+  CategoryFolderIcon: CategoryIcons.CategoryFolderIcon,
+  CategoryListIcon: CategoryIcons.CategoryListIcon,
+}
 
 /**
  * Navigation category icons - Generic category representations
@@ -101,7 +111,7 @@ export function getProductIcon(iconName?: string | null): React.FC<IconProps> {
 
 /**
  * Get category icon component by name with fallback to CategoryIcon
- * Categories use product icons, with CategoryIcon (grid) as default
+ * Uses category-specific icons from category-icons registry
  *
  * @param iconName - Icon name from database (nullable)
  * @returns React component for the icon

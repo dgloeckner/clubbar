@@ -91,6 +91,7 @@ export const tableElementStyles = {
   width: '100%',
   borderCollapse: 'collapse' as const,
   backgroundColor: 'transparent',
+  tableLayout: 'fixed' as const,
 }
 
 // Header cell common style object

@@ -271,11 +271,10 @@ export function MembersPage() {
             >
               <thead>
                 <tr style={headerRowStyle}>
-                  <th style={headerCellBaseStyle}>Status</th>
+                  <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>Status</th>
                   <th style={headerCellBaseStyle}>Name</th>
-                  <th style={headerCellBaseStyle}>Email</th>
-                  <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>Balance</th>
-                  <th style={{ ...headerCellBaseStyle, textAlign: 'center' }}>Actions</th>
+                  <th style={{ ...headerCellBaseStyle, width: '120px', textAlign: 'right' }}>Balance</th>
+                  <th style={{ ...headerCellBaseStyle, width: '140px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -289,7 +288,7 @@ export function MembersPage() {
                       opacity: member.is_active ? 1 : 0.6,
                     }}
                   >
-                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText, textAlign: 'center' }}>
+                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText, textAlign: 'center', width: '80px' }}>
                       <Toggle
                         enabled={member.is_active}
                         onChange={() => handleStatusToggle(member)}
@@ -297,22 +296,17 @@ export function MembersPage() {
                         testId={`members-status-toggle-${member.id}`}
                       />
                     </td>
-                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
+                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       <span data-testid={`members-table-cell-name-${member.id}`}>
                         {member.first_name} {member.last_name}
                       </span>
                     </td>
-                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
-                      <span data-testid={`members-table-cell-email-${member.id}`}>
-                        {member.email}
-                      </span>
-                    </td>
-                    <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right', color: tableColors.cellText }}>
+                    <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right', color: tableColors.cellText, width: '120px' }}>
                       <span data-testid={`members-table-cell-balance-${member.id}`}>
                         {formatPrice(member.balance_cents)}
                       </span>
                     </td>
-                    <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center' }}>
+                    <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center', width: '140px' }}>
                       <button
                         data-testid={`members-table-action-edit-${member.id}`}
                         onClick={() => handleEdit(member)}
