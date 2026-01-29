@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Card } from '../components/common/Card'
-import { DateRangePicker } from '../components/forms/DateRangePicker'
+import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { onLoadingStateChange } from '../services/api'
 import {
@@ -59,8 +59,9 @@ export function JournalPage() {
   const [pageSize, setPageSize] = useState(defaultPageSize)
 
   // Filter state
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [period, setPeriod] = useState('3m') // Period preset: '1m' | '3m' | '6m' | '1y' | '2y' | 'all'
+  const [dateFrom, setDateFrom] = useState<string | undefined>(undefined) // Set by PeriodPicker
+  const [dateTo, setDateTo] = useState<string | undefined>(undefined) // Set by PeriodPicker
   const [filterType, setFilterType] = useState<'all' | 'purchase' | 'correction'>('all')
   const [search, setSearch] = useState('')
 
@@ -128,13 +129,10 @@ export function JournalPage() {
   }
 
   // Handle filter changes
-  const handleDateFromChange = (date: string) => {
-    setDateFrom(date)
-    setCurrentPage(1)
-  }
-
-  const handleDateToChange = (date: string) => {
-    setDateTo(date)
+  const handlePeriodChange = (from: string | undefined, to: string | undefined, periodKey: string) => {
+    setPeriod(periodKey)
+    setDateFrom(from)
+    setDateTo(to)
     setCurrentPage(1)
   }
 
@@ -209,13 +207,11 @@ export function JournalPage() {
             />
           </div>
 
-          {/* Center-right: Date range picker */}
-          <DateRangePicker
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            onDateFromChange={handleDateFromChange}
-            onDateToChange={handleDateToChange}
-            testId="journal-date-range"
+          {/* Center-right: Period picker (segmented control) */}
+          <PeriodPicker
+            value={period}
+            onPeriodChange={handlePeriodChange}
+            testId="journal-period-picker"
           />
 
           {/* Type filter dropdown */}
