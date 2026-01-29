@@ -41,7 +41,7 @@ export function MembersPage() {
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [selectedMemberForTransactions, setSelectedMemberForTransactions] = useState<Member | null>(null)
-  const [sortKey, setSortKey] = useState<'first_name' | 'last_name' | 'balance' | 'created_at'>('created_at')
+  const [sortKey, setSortKey] = useState<'first_name' | 'last_name' | 'created_at'>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [sortByValue, setSortByValue] = useState('created_at-desc') // For sort dropdown
   const [filterIsActive, setFilterIsActive] = useState<'all' | 'active' | 'inactive'>('all')
@@ -74,9 +74,8 @@ export function MembersPage() {
         setMembers(response.items)
         setTotalMembers(response.total)
 
-        // Calculate total balance
-        const total = response.items.reduce((sum, m) => sum + m.balance_cents, 0)
-        setTotalBalance(total)
+        // Note: balance_cents is not available in members API response (would need separate transaction calculation)
+        setTotalBalance(0)
 
         setError(null)
       } catch (err) {
@@ -103,15 +102,11 @@ export function MembersPage() {
         await createMember(formData)
       }
 
-      // Reload members
-      const response = await getMembers(1, 20)
-      setMembers(response.items)
-      setPage(1)
-
-      // Reset form
+      // Reset form and page to trigger reload via useEffect
       setShowModal(false)
       setEditingMember(null)
       setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_signed_at: '', preferred_language: 'de' })
+      setPage(1)  // This triggers useEffect which will reload members with current filter/sort
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save member')
     } finally {
@@ -129,10 +124,8 @@ export function MembersPage() {
       }
       await updateMember(member.id, updatedData)
 
-      // Reload members
-      const response = await getMembers(page, 20, search || undefined)
-      setMembers(response.items)
-      setTotalMembers(response.total)
+      // Trigger reload via useEffect by resetting page
+      setPage(1)
 
       setError(null)
     } catch (err) {
@@ -282,7 +275,7 @@ export function MembersPage() {
             value={sortByValue}
             onChange={(e) => {
               const [key, direction] = e.target.value.split('-')
-              setSortKey(key as 'first_name' | 'last_name' | 'balance' | 'created_at')
+              setSortKey(key as 'first_name' | 'last_name' | 'created_at')
               setSortDirection(direction as 'asc' | 'desc')
               setPage(1)
             }}
@@ -303,8 +296,6 @@ export function MembersPage() {
             <option value="first_name-desc">First Name (Z-A)</option>
             <option value="last_name-asc">Last Name (A-Z)</option>
             <option value="last_name-desc">Last Name (Z-A)</option>
-            <option value="balance-desc">Highest Balance</option>
-            <option value="balance-asc">Lowest Balance</option>
           </select>
         </div>
 
@@ -347,20 +338,7 @@ export function MembersPage() {
                       sortKey="first_name"
                       currentSort={{ key: sortKey, direction: sortDirection }}
                       onSort={(key: string, direction: 'asc' | 'desc') => {
-                        setSortKey(key as 'first_name' | 'last_name' | 'balance' | 'created_at')
-                        setSortDirection(direction)
-                        setSortByValue(`${key}-${direction}`)
-                        setPage(1)
-                      }}
-                    />
-                  </th>
-                  <th style={{ ...headerCellBaseStyle, width: '120px', textAlign: 'right' }}>
-                    <SortableTableHeader
-                      label="Balance"
-                      sortKey="balance"
-                      currentSort={{ key: sortKey, direction: sortDirection }}
-                      onSort={(key: string, direction: 'asc' | 'desc') => {
-                        setSortKey(key as 'first_name' | 'last_name' | 'balance' | 'created_at')
+                        setSortKey(key as 'first_name' | 'last_name' | 'created_at')
                         setSortDirection(direction)
                         setSortByValue(`${key}-${direction}`)
                         setPage(1)
@@ -392,11 +370,6 @@ export function MembersPage() {
                     <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       <span data-testid={`members-table-cell-name-${member.id}`}>
                         {member.first_name} {member.last_name}
-                      </span>
-                    </td>
-                    <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right', color: tableColors.cellText, width: '120px' }}>
-                      <span data-testid={`members-table-cell-balance-${member.id}`}>
-                        {formatPrice(member.balance_cents)}
                       </span>
                     </td>
                     <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center', width: '200px' }}>

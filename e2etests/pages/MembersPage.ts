@@ -503,4 +503,58 @@ export class MembersPage extends BasePage {
     if (text.includes('Inactive Only')) return 'inactive'
     return 'all'
   }
+
+  /**
+   * Get member row by first name (returns row content or null if not found)
+   * Pattern 003: Database-Agnostic Assertions - search by data, not position
+   */
+  async getMemberRowByName(firstName: string): Promise<string | null> {
+    // Search for member by first name in the table
+    const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
+    const count = await nameLocators.count()
+
+    for (let i = 0; i < count; i++) {
+      const text = await nameLocators.nth(i).textContent()
+      if (text && text.includes(firstName)) {
+        return text
+      }
+    }
+
+    return null
+  }
+
+  /**
+   * Toggle member status (active/inactive) by finding them by first name
+   * Searches table by name to find member ID, then clicks toggle button
+   */
+  async toggleMemberStatus(firstName: string) {
+    // Find the member row by searching through name cells
+    const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
+    const count = await nameLocators.count()
+
+    for (let i = 0; i < count; i++) {
+      const text = await nameLocators.nth(i).textContent()
+      if (text && text.includes(firstName)) {
+        // Extract member ID from the name cell's test ID
+        // Format: members-table-cell-name-{memberId}
+        const nameCell = nameLocators.nth(i)
+        const testId = await nameCell.getAttribute('data-testid')
+
+        if (testId) {
+          const memberId = testId.replace('members-table-cell-name-', '')
+
+          // Click the toggle button for this member
+          const toggleButton = this.page.getByTestId(`members-status-toggle-${memberId}`)
+          await expect(toggleButton).toBeVisible()
+          await toggleButton.click()
+
+          // Wait for API to process
+          await this.page.waitForTimeout(500)
+          return
+        }
+      }
+    }
+
+    throw new Error(`Member with first name "${firstName}" not found in table`)
+  }
 }
