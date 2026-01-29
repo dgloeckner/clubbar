@@ -274,7 +274,7 @@ export function MembersPage() {
                   <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>Status</th>
                   <th style={headerCellBaseStyle}>Name</th>
                   <th style={{ ...headerCellBaseStyle, width: '120px', textAlign: 'right' }}>Balance</th>
-                  <th style={{ ...headerCellBaseStyle, width: '140px', textAlign: 'center' }}>Actions</th>
+                  <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -306,7 +306,7 @@ export function MembersPage() {
                         {formatPrice(member.balance_cents)}
                       </span>
                     </td>
-                    <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center', width: '140px' }}>
+                    <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center', width: '200px' }}>
                       <button
                         data-testid={`members-table-action-edit-${member.id}`}
                         onClick={() => handleEdit(member)}
