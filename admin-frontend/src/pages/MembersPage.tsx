@@ -127,8 +127,18 @@ export function MembersPage() {
       }
       await updateMember(member.id, updatedData)
 
-      // Trigger reload via useEffect by resetting page
-      setPage(1)
+      // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
+      const filter: { is_active?: boolean } = {}
+      if (filterIsActive === 'active') {
+        filter.is_active = true
+      } else if (filterIsActive === 'inactive') {
+        filter.is_active = false
+      }
+
+      const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
+      setMembers(response.items)
+      setTotalMembers(response.total)
+      setTotalBalance(0)
 
       setError(null)
     } catch (err) {
@@ -144,12 +154,21 @@ export function MembersPage() {
       setIsLoading(true)
       await deactivateMember(memberId)
 
-      // Reload members
-      const response = await getMembers(page, 20, search || undefined)
+      // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
+      const filter: { is_active?: boolean } = {}
+      if (filterIsActive === 'active') {
+        filter.is_active = true
+      } else if (filterIsActive === 'inactive') {
+        filter.is_active = false
+      }
+
+      const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
       setMembers(response.items)
       setTotalMembers(response.total)
+      setTotalBalance(0)
 
       setDeleteConfirm(null)
+      setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete member')
     } finally {
