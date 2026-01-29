@@ -49,8 +49,9 @@ export async function getMembers(
     params.search = search
   }
 
+  // Pass filters as nested object: filters[is_active]=true format
   if (filter?.is_active !== undefined) {
-    params.is_active = filter.is_active
+    params['filters[is_active]'] = filter.is_active ? 'true' : 'false'
   }
 
   const response = await get<MembersResponse>('/admin/members', { params })

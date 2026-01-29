@@ -26,7 +26,7 @@ final class AdminListRequest extends FormRequest
             'offset' => ['sometimes', 'integer', 'min:0'],
             'filters.is_active' => ['sometimes', 'string', 'in:true,false'],
             'filters.language' => ['sometimes', 'string', 'in:de,en,fr'],
-            'sort' => ['sometimes', 'string', 'in:first_name,last_name,balance,created_at'],
+            'sort' => ['sometimes', 'string', 'in:first_name,last_name,created_at'],
             'order' => ['sometimes', 'string', 'in:asc,desc'],
         ];
     }
