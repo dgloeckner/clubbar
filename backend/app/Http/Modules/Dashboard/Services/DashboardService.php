@@ -110,10 +110,8 @@ class DashboardService
      */
     private function getOutstandingBalanceCents(): int
     {
-        $result = Transaction::whereNull('settlement_id')
-            ->sum('amount_cents');
-
-        return (int) ($result ?? 0);
+        return (int) (Transaction::whereNull('settlement_id')
+            ->sum('amount_cents') ?? 0);
     }
 
     /**
@@ -126,10 +124,8 @@ class DashboardService
      */
     private function getTodaysRevenueCents(): int
     {
-        $result = Transaction::whereDate('created_at', today())
-            ->sum('amount_cents');
-
-        return (int) ($result ?? 0);
+        return (int) (Transaction::whereDate('created_at', today())
+            ->sum('amount_cents') ?? 0);
     }
 
     /**
