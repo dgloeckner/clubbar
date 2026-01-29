@@ -158,12 +158,52 @@ export function JournalPage() {
     }
   }
 
+  const handleCreateCorrection = () => {
+    // TODO: Implement correction creation modal/workflow
+    console.log('Create correction clicked')
+  }
+
   // Calculate pagination info
   const totalPages = Math.ceil(state.totalItems / pageSize)
 
   return (
     <div data-testid="journal-page">
       <Card title="Buchungsjournal" subtitle="Transaction journal and booking log">
+        {/* Action buttons bar */}
+        <div
+          data-testid="journal-actions-bar"
+          style={{
+            padding: tableSpacing.cellPadding,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
+          }}
+        >
+          <button
+            onClick={handleCreateCorrection}
+            data-testid="journal-create-correction-btn"
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#3b82f6',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 6,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'background-color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#2563eb'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#3b82f6'
+            }}
+          >
+            + Correction
+          </button>
+        </div>
+
         {/* Toolbar */}
         <div
           data-testid="journal-toolbar"
@@ -195,7 +235,7 @@ export function JournalPage() {
             onChange={(e) => {
               handleSearch(e.target.value)
             }}
-            placeholder="Search members..."
+            placeholder="Search members or details..."
             data-testid="journal-search-input"
             style={{
               flex: 1,
