@@ -16,6 +16,7 @@ use App\Http\Modules\Dashboard\DTOs\SystemStatusDto;
 use App\Http\Modules\Dashboard\DTOs\AlertsDto;
 use App\Http\Modules\Dashboard\DTOs\SepaAlertDto;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * DashboardService
@@ -104,17 +105,28 @@ class DashboardService
     /**
      * Calculate total outstanding balance (unsettled transactions)
      *
-     * Sum of all transaction amounts where transaction does NOT appear in settlement_items.
-     * Uses anti-join pattern: LEFT JOIN settlement_items WHERE NULL
+     * Sum of all transaction amounts where transaction does NOT appear in settlement_items
+     * from an active (non-cancelled) settlement.
+     *
+     * Uses NOT EXISTS subquery to find transactions not in active settlements.
+     * A transaction is considered unsettled if:
+     * - NOT in settlement_items, OR
+     * - In settlement_items from a cancelled settlement
+     *
      * Includes both positive charges and negative corrections.
      *
      * @return int Outstanding balance in cents
      */
     private function getOutstandingBalanceCents(): int
     {
-        return (int) (Transaction::leftJoin('settlement_items', 'transactions.id', '=', 'settlement_items.transaction_id')
-            ->whereNull('settlement_items.id')
-            ->sum('transactions.amount_cents') ?? 0);
+        return (int) (Transaction::whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('settlement_items')
+                    ->join('settlements', 'settlement_items.settlement_id', '=', 'settlements.id')
+                    ->where('settlements.is_cancelled', false)
+                    ->whereColumn('settlement_items.transaction_id', '=', 'transactions.id');
+            })
+            ->sum('amount_cents') ?? 0);
     }
 
     /**
@@ -155,15 +167,17 @@ class DashboardService
     /**
      * Count members with settled transactions
      *
-     * Number of unique members who have at least one transaction in settlement_items.
-     * Queries settlement_items directly (source of truth for settled transactions).
+     * Number of unique members who have at least one transaction in settlement_items
+     * from an active (non-cancelled) settlement.
      *
      * @return int Count of members with settled transactions
      */
     private function getSettledMembersCount(): int
     {
-        return SettlementItem::distinct('member_id')
-            ->count('member_id');
+        return SettlementItem::join('settlements', 'settlement_items.settlement_id', '=', 'settlements.id')
+            ->where('settlements.is_cancelled', false)
+            ->distinct('settlement_items.member_id')
+            ->count('settlement_items.member_id');
     }
 
     /**
