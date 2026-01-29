@@ -78,7 +78,6 @@ export function ProductsPage() {
   const [pageSize, setPageSize] = useState(25)
   const [sortKey, setSortKey] = useState<'name' | 'price' | 'category'>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [sortByValue, setSortByValue] = useState('name_asc') // For sort dropdown
   const [filterCategory, setFilterCategory] = useState<string | null>(null) // Category filter: null = all
   const [totalItems, setTotalItems] = useState(0) // From API
 
@@ -98,7 +97,7 @@ export function ProductsPage() {
   // Load products when pagination/sorting/filtering state changes
   useEffect(() => {
     loadProducts()
-  }, [currentPage, pageSize, sortByValue, filterCategory])
+  }, [currentPage, pageSize, sortKey, sortDirection, filterCategory])
 
   async function loadCategories() {
     try {
@@ -119,7 +118,8 @@ export function ProductsPage() {
         params: {
           page: currentPage,
           per_page: pageSize,
-          sort_by: sortByValue,
+          sort: sortKey,
+          order: sortDirection,
           ...(filterCategory && { category_id: filterCategory }), // Only include if not null
         },
       })
@@ -347,10 +347,6 @@ export function ProductsPage() {
 
     setSortKey(key as 'name' | 'price' | 'category')
     setSortDirection(newDirection)
-
-    // Build the API sort_by value - category is special case (no direction suffix)
-    const sortByVal = key === 'category' ? 'category' : `${key}_${newDirection}`
-    setSortByValue(sortByVal)
 
     // Reset to first page when sorting changes (useEffect will call loadProducts)
     setCurrentPage(1)
