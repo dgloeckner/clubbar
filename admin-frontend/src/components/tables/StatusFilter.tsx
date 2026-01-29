@@ -15,6 +15,9 @@ interface StatusFilterProps {
   value: 'all' | 'active' | 'inactive'
   onChange: (status: 'all' | 'active' | 'inactive') => void
   testId?: string
+  allLabel?: string
+  activeLabel?: string
+  inactiveLabel?: string
 }
 
 function ChevronDownIcon() {
@@ -29,6 +32,9 @@ export function StatusFilter({
   value,
   onChange,
   testId = 'status-filter',
+  allLabel = 'All Members',
+  activeLabel = 'Active Only',
+  inactiveLabel = 'Inactive Only',
 }: StatusFilterProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -44,9 +50,9 @@ export function StatusFilter({
   }, [])
 
   const statusLabels: Record<'all' | 'active' | 'inactive', string> = {
-    all: 'All Members',
-    active: 'Active Only',
-    inactive: 'Inactive Only',
+    all: allLabel,
+    active: activeLabel,
+    inactive: inactiveLabel,
   }
 
   const selectedLabel = statusLabels[value]
@@ -124,7 +130,7 @@ export function StatusFilter({
               }}
             >
               <span style={{ color: value === 'all' ? '#3b82f6' : '#64748b', fontWeight: 500 }}>●</span>
-              <span style={{ flex: 1 }}>All Members</span>
+              <span style={{ flex: 1 }}>{allLabel}</span>
             </button>
 
             {/* Active option */}
@@ -151,7 +157,7 @@ export function StatusFilter({
               }}
             >
               <span style={{ color: value === 'active' ? '#3b82f6' : '#64748b', fontWeight: 500 }}>●</span>
-              <span style={{ flex: 1 }}>Active Only</span>
+              <span style={{ flex: 1 }}>{activeLabel}</span>
             </button>
 
             {/* Inactive option */}
@@ -178,7 +184,7 @@ export function StatusFilter({
               }}
             >
               <span style={{ color: value === 'inactive' ? '#3b82f6' : '#64748b', fontWeight: 500 }}>●</span>
-              <span style={{ flex: 1 }}>Inactive Only</span>
+              <span style={{ flex: 1 }}>{inactiveLabel}</span>
             </button>
           </div>
         </div>

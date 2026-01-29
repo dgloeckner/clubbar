@@ -422,4 +422,154 @@ final readonly class TransactionsService
             'transactions' => $transactions,
         ];
     }
+
+    /**
+     * Get global transactions list with pagination, filtering, and sorting.
+     *
+     * Returns paginated list of all transactions with optional filtering and sorting.
+     * Used for admin journal view across all members.
+     *
+     * @param int $page Page number (1-indexed)
+     * @param int $perPage Items per page (1-100)
+     * @param ?string $dateFrom Start date (ISO format Y-m-d, optional)
+     * @param ?string $dateTo End date (ISO format Y-m-d, optional)
+     * @param string $type Filter by type (all|purchase|correction, default: all)
+     * @param ?string $memberId Filter by member UUID (optional)
+     * @param ?string $search Search member name or notes (optional)
+     * @param string $sortKey Sort field (created_at|amount|type|member, default: created_at)
+     * @param string $sortOrder Sort order (asc|desc, default: desc)
+     * @return array Response with items, total, page, per_page
+     */
+    public function getTransactions(
+        int $page = 1,
+        int $perPage = 20,
+        ?string $dateFrom = null,
+        ?string $dateTo = null,
+        string $type = 'all',
+        ?string $memberId = null,
+        ?string $search = null,
+        string $sortKey = 'created_at',
+        string $sortOrder = 'desc'
+    ): array {
+        // Ensure page is at least 1
+        $page = max(1, $page);
+        // Ensure per_page is between 1 and 100
+        $perPage = max(1, min(100, $perPage));
+
+        // Build query
+        $query = DB::table('transactions')
+            ->join('members', 'transactions.member_id', '=', 'members.id')
+            ->select([
+                'transactions.id',
+                'transactions.member_id',
+                'transactions.product_id',
+                'transactions.amount_cents',
+                'transactions.transaction_type',
+                'transactions.notes',
+                'transactions.created_at',
+                'transactions.created_by_admin_id',
+                'transactions.created_by_terminal_id',
+                'transactions.settlement_id',
+                DB::raw("CONCAT(members.first_name, ' ', members.last_name) AS member_name"),
+            ]);
+
+        // Apply type filter
+        if ($type !== 'all') {
+            $query->where('transactions.transaction_type', $type);
+        }
+
+        // Apply member filter
+        if ($memberId) {
+            $query->where('transactions.member_id', $memberId);
+        }
+
+        // Apply date range filter
+        if ($dateFrom) {
+            $query->whereDate('transactions.created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $query->whereDate('transactions.created_at', '<=', $dateTo);
+        }
+
+        // Apply search filter (member name or transaction notes)
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where(DB::raw("CONCAT(members.first_name, ' ', members.last_name)"), 'LIKE', "%{$search}%")
+                  ->orWhere('transactions.notes', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // Get total count before pagination
+        $total = $query->count();
+
+        // Apply sorting
+        if ($sortKey === 'member') {
+            // Sort by member name
+            if ($sortOrder === 'asc') {
+                $query->orderBy(DB::raw("CONCAT(members.first_name, ' ', members.last_name)"), 'asc');
+            } else {
+                $query->orderBy(DB::raw("CONCAT(members.first_name, ' ', members.last_name)"), 'desc');
+            }
+        } elseif ($sortKey === 'amount') {
+            // Sort by amount
+            $query->orderBy('transactions.amount_cents', $sortOrder);
+        } elseif ($sortKey === 'type') {
+            // Sort by transaction type
+            $query->orderBy('transactions.transaction_type', $sortOrder);
+        } else {
+            // Default: sort by created_at
+            $query->orderBy('transactions.created_at', $sortOrder);
+        }
+
+        // Apply pagination
+        $offset = ($page - 1) * $perPage;
+        $transactions = $query
+            ->limit($perPage)
+            ->offset($offset)
+            ->get()
+            ->map(function ($tx) {
+                // Fetch product name if product_id is set
+                $productName = null;
+                if ($tx->product_id) {
+                    try {
+                        $product = DB::table('products')
+                            ->where('id', $tx->product_id)
+                            ->select('names')
+                            ->first();
+
+                        if ($product) {
+                            $names = json_decode($product->names, true);
+                            $productName = reset($names) ?? 'Unknown Product';
+                        } else {
+                            $productName = 'Product (Deleted)';
+                        }
+                    } catch (\Exception $e) {
+                        $productName = 'Unknown Product';
+                    }
+                }
+
+                return [
+                    'id' => $tx->id,
+                    'member_id' => $tx->member_id,
+                    'member_name' => trim($tx->member_name ?? ''),
+                    'type' => $tx->transaction_type,
+                    'amount_cents' => (int) $tx->amount_cents,
+                    'description' => $tx->notes ?? ($tx->transaction_type === 'correction' ? 'Correction' : ''),
+                    'product_id' => $tx->product_id,
+                    'product_name' => $productName,
+                    'created_at' => $tx->created_at,
+                    'created_by_admin_id' => $tx->created_by_admin_id,
+                    'created_by_terminal_id' => $tx->created_by_terminal_id,
+                    'settlement_id' => $tx->settlement_id,
+                ];
+            })
+            ->toArray();
+
+        return [
+            'items' => $transactions,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+        ];
+    }
 }

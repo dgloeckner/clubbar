@@ -19,7 +19,7 @@
  */
 
 import { test as base, Page } from '@playwright/test'
-import { LoginPage, MembersPage, ProductsPage, SettlementsPage, StatisticsPage, CategoriesPage } from '../pages'
+import { LoginPage, MembersPage, ProductsPage, SettlementsPage, StatisticsPage, CategoriesPage, JournalPage } from '../pages'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
@@ -33,6 +33,8 @@ interface PageObjectFixtures {
   authenticatedStatisticsPage: StatisticsPage
   categoriesPage: CategoriesPage
   authenticatedCategoriesPage: CategoriesPage
+  journalPage: JournalPage
+  authenticatedJournalPage: JournalPage
 }
 
 /**
@@ -196,6 +198,40 @@ const authenticatedCategoriesPageFixture = async (
 }
 
 /**
+ * Fixture: journalPage
+ * Provides JournalPage instance (unauthenticated)
+ */
+const journalPageFixture = async ({ page }: { page: Page }, use: (value: JournalPage) => Promise<void>) => {
+  const journalPage = new JournalPage(page)
+  await use(journalPage)
+}
+
+/**
+ * Fixture: authenticatedJournalPage
+ *
+ * Provides JournalPage with test already authenticated (via storage state).
+ * Simply navigates to the page and returns the page object.
+ */
+const authenticatedJournalPageFixture = async (
+  { page }: { page: Page },
+  use: (value: JournalPage) => Promise<void>
+) => {
+  // Navigate to journal page
+  await page.goto('/journal', { waitUntil: 'domcontentloaded' })
+
+  // Wait for page to load - journal-page test ID indicates page is ready
+  await page.waitForSelector('[data-testid="journal-page"]', { timeout: 5000 })
+
+  // Wait for data to load - wait for the loading indicator to disappear
+  // This matches the pattern used in other pages (MembersPage, ProductsPage)
+  await page.waitForSelector('[data-testid="journal-loading"]', { state: 'hidden', timeout: 10000 })
+
+  // Create and provide JournalPage
+  const journalPage = new JournalPage(page)
+  await use(journalPage)
+}
+
+/**
  * Extend base test with custom fixtures
  */
 export const test = base.extend<PageObjectFixtures>({
@@ -210,6 +246,8 @@ export const test = base.extend<PageObjectFixtures>({
   authenticatedStatisticsPage: authenticatedStatisticsPageFixture,
   categoriesPage: categoriesPageFixture,
   authenticatedCategoriesPage: authenticatedCategoriesPageFixture,
+  journalPage: journalPageFixture,
+  authenticatedJournalPage: authenticatedJournalPageFixture,
 })
 
 // Re-export expect for convenience

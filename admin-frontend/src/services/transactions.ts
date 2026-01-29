@@ -69,3 +69,149 @@ export async function getMemberTransactionHistory(
 
   throw new Error('Invalid response from transaction history API')
 }
+
+/**
+ * Global transaction from API (for journal view)
+ */
+export interface GlobalTransaction {
+  id: string
+  member_id: string
+  member_name: string
+  type: 'purchase' | 'correction'
+  amount_cents: number
+  description: string
+  product_id: string | null
+  product_name: string | null
+  created_at: string
+  created_by_admin_id: string | null
+  created_by_terminal_id: string | null
+  settlement_id: string | null
+}
+
+/**
+ * Paginated global transactions response from backend
+ */
+export interface TransactionsListResponse {
+  items: GlobalTransaction[]
+  total: number
+  page: number
+  per_page: number
+}
+
+/**
+ * Get global transactions list with filtering and pagination (UC-A20 derivative)
+ * Used by: JournalPage for global transaction journal view
+ *
+ * @param page Page number (1-indexed, default: 1)
+ * @param perPage Items per page (1-100, default: 20)
+ * @param dateFrom Optional start date (ISO format: YYYY-MM-DD)
+ * @param dateTo Optional end date (ISO format: YYYY-MM-DD)
+ * @param type Transaction type filter (all|purchase|correction, default: all)
+ * @param memberId Optional member UUID to filter by
+ * @param search Optional search string (searches member name or notes)
+ * @param sortKey Field to sort by (created_at|amount|type|member, default: created_at)
+ * @param sortOrder Sort direction (asc|desc, default: desc)
+ * @returns Paginated transactions response
+ */
+export async function getTransactions(
+  page: number = 1,
+  perPage: number = 20,
+  dateFrom?: string,
+  dateTo?: string,
+  type: 'all' | 'purchase' | 'correction' = 'all',
+  memberId?: string,
+  search?: string,
+  sortKey: 'created_at' | 'amount' | 'type' | 'member' = 'created_at',
+  sortOrder: 'asc' | 'desc' = 'desc'
+): Promise<TransactionsListResponse> {
+  // Build query parameters
+  const params: Record<string, any> = {
+    page,
+    per_page: perPage,
+  }
+
+  if (dateFrom) {
+    params.date_from = dateFrom
+  }
+  if (dateTo) {
+    params.date_to = dateTo
+  }
+  if (type !== 'all') {
+    params.type = type
+  }
+  if (memberId) {
+    params.member_id = memberId
+  }
+  if (search) {
+    params.search = search
+  }
+  params.sort = sortKey
+  params.order = sortOrder
+
+  // Make API call
+  const response = await get<TransactionsListResponse>('/admin/transactions', {
+    params,
+  })
+
+  // Backend returns data directly or wrapped in data property
+  // Check if response has items (direct return) or data property (wrapped)
+  if (response && typeof response === 'object') {
+    if ('items' in response && Array.isArray(response.items)) {
+      return response as TransactionsListResponse
+    }
+    if ('data' in response && response.data && typeof response.data === 'object' && 'items' in response.data) {
+      return response.data as TransactionsListResponse
+    }
+  }
+
+  // Fallback response
+  return {
+    items: [],
+    total: 0,
+    page,
+    per_page: perPage,
+  }
+}
+
+/**
+ * Format transaction type for display
+ *
+ * @param type Transaction type
+ * @returns Display label
+ */
+export function formatTransactionType(type: 'purchase' | 'correction'): string {
+  const labels: Record<'purchase' | 'correction', string> = {
+    purchase: 'Purchase',
+    correction: 'Correction',
+  }
+  return labels[type] || type
+}
+
+/**
+ * Get badge color for transaction type
+ *
+ * @param type Transaction type
+ * @returns Tailwind color class
+ */
+export function getTransactionTypeColor(type: 'purchase' | 'correction'): string {
+  const colors: Record<'purchase' | 'correction', string> = {
+    purchase: 'bg-blue-100 text-blue-800',
+    correction: 'bg-orange-100 text-orange-800',
+  }
+  return colors[type] || 'bg-gray-100 text-gray-800'
+}
+
+/**
+ * Get amount color based on sign
+ *
+ * @param amountCents Amount in cents
+ * @returns Tailwind color class
+ */
+export function getAmountColor(amountCents: number): string {
+  if (amountCents > 0) {
+    return 'text-red-600' // Positive = charge (red)
+  } else if (amountCents < 0) {
+    return 'text-green-600' // Negative = credit (green)
+  }
+  return 'text-gray-600'
+}

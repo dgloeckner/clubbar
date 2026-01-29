@@ -5,6 +5,7 @@ namespace App\Http\Modules\Transactions\Controllers;
 use App\Http\Controllers\Controller;
 use App\Http\Modules\Transactions\Requests\CreateCorrectionRequest;
 use App\Http\Modules\Transactions\Requests\ExportTransactionsRequest;
+use App\Http\Modules\Transactions\Requests\GetTransactionsRequest;
 use App\Http\Modules\Transactions\Services\TransactionsService;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
@@ -24,9 +25,11 @@ use Illuminate\Http\Response;
  * - Audit logging for all mutations (Pattern 016)
  *
  * Endpoints:
+ * - GET /api/admin/transactions - Global transactions listing
  * - POST /api/admin/members/{memberId}/transactions/correct - Record correction
  * - GET /api/admin/transactions/export - Export to CSV
  *
+ * Implements UC-A20: View member transactions
  * Implements UC-A21: Manual Booking
  * Implements UC-A22: Export Transactions
  */
@@ -73,6 +76,56 @@ final class AdminController extends Controller
                 );
             }
 
+            return response()->json(
+                ['error' => 'server_error', 'message' => $e->getMessage()],
+                500
+            );
+        }
+    }
+
+    /**
+     * GET /api/admin/transactions - Get global transactions list
+     *
+     * Retrieves paginated list of all transactions across all members with filtering and sorting.
+     * Implements global transaction journal view.
+     * Implements Pattern 001 (FormRequest), Pattern 004 (Service Layer)
+     *
+     * Query Parameters:
+     * - page: integer, 1-indexed (default: 1)
+     * - per_page: integer, items per page (default: 20, max: 100)
+     * - date_from: ISO date (YYYY-MM-DD), optional
+     * - date_to: ISO date (YYYY-MM-DD), optional
+     * - type: all|purchase|correction (default: all)
+     * - member_id: UUID (optional, filter by member)
+     * - search: string (optional, search member name or notes)
+     * - sort: created_at|amount|type|member (default: created_at)
+     * - order: asc|desc (default: desc)
+     *
+     * @param GetTransactionsRequest $request Validated query parameters
+     * @return JsonResponse Paginated transactions with total count
+     */
+    public function getTransactions(GetTransactionsRequest $request): JsonResponse
+    {
+        try {
+            $pagination = $request->getPagination();
+            $filters = $request->getFilters();
+            $sort = $request->getSort();
+
+            // Delegate to service (Pattern 004: Service Layer)
+            $result = $this->service->getTransactions(
+                page: $pagination['page'],
+                perPage: $pagination['per_page'],
+                dateFrom: $filters['date_from'],
+                dateTo: $filters['date_to'],
+                type: $filters['type'],
+                memberId: $filters['member_id'],
+                search: $filters['search'],
+                sortKey: $sort['sort'],
+                sortOrder: $sort['order']
+            );
+
+            return response()->json($result);
+        } catch (\Exception $e) {
             return response()->json(
                 ['error' => 'server_error', 'message' => $e->getMessage()],
                 500

@@ -129,10 +129,11 @@ export class CategoriesPage extends BasePage {
   }
 
   async getCategoryStatus(categoryId: string): Promise<string> {
-    const status = await this.page
-      .getByTestId(`categories-table-cell-status-${categoryId}`)
-      .textContent()
-    return (status || '').trim()
+    // Toggle component stores state in data-checked attribute
+    const isActive = await this.page
+      .getByTestId(`categories-status-toggle-${categoryId}`)
+      .getAttribute('data-checked')
+    return isActive === 'true' ? 'Active' : 'Inactive'
   }
 
   async getCategoryProductCount(categoryId: string): Promise<number> {
@@ -178,7 +179,7 @@ export class CategoriesPage extends BasePage {
   }
 
   async openEditModal(categoryId: string) {
-    await this.page.getByTestId(`categories-edit-button-${categoryId}`).click()
+    await this.page.getByTestId(`categories-table-action-edit-${categoryId}`).click()
   }
 
   async fillCategoryName(language: string, name: string) {
@@ -334,7 +335,7 @@ export class CategoriesPage extends BasePage {
    */
 
   async deleteCategory(categoryId: string) {
-    await this.page.getByTestId(`categories-delete-button-${categoryId}`).click()
+    await this.page.getByTestId(`categories-table-action-delete-${categoryId}`).click()
   }
 
   async confirmDelete() {

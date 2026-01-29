@@ -11,6 +11,7 @@
  * - Reorder categories via drag & drop
  *
  * Uses TDD with E2E tests in e2etests/tests/admin/categories.spec.ts
+ * Follows /admin-frontend/patterns/table-implementation.md
  */
 
 import { useEffect, useState } from 'react'
@@ -20,6 +21,10 @@ import { EditIcon, TrashIcon, PlusIcon } from '../components/icons'
 import { IconSelect } from '../components/forms/IconSelect'
 import { getCategoryIcon } from '../components/icons/IconRegistry'
 import { IconCell } from '../components/tables/IconCell'
+import { StatusToggleCell } from '../components/tables/StatusToggleCell'
+import { StatusFilter } from '../components/tables/StatusFilter'
+import { SortableTableHeader } from '../components/tables/SortableTableHeader'
+import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -27,6 +32,7 @@ import {
   headerCellBaseStyle,
   tableColors,
   tableSpacing,
+  getRowStyle,
 } from '../styles/tableTokens'
 
 interface Category {
@@ -56,10 +62,20 @@ export function CategoriesPage() {
     message: string
   } | null>(null)
 
-  // Load categories on mount
+  // Filtering & sorting
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
+  const [sortKey, setSortKey] = useState<'name' | 'created_at'>('created_at')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  // Pagination
+  const [page, setPage] = useState(1)
+  const pageSize = 20
+  const [totalItems, setTotalItems] = useState(0)
+
+  // Load categories on mount and when filter/sort changes
   useEffect(() => {
     loadCategories()
-  }, [])
+  }, [filterStatus, sortKey, sortDirection, page])
 
   async function loadCategories() {
     try {
@@ -68,39 +84,52 @@ export function CategoriesPage() {
       // API returns { categories: [...] } directly (not wrapped in ApiResponse)
       const response = await get<any>('/admin/categories')
       // response IS the direct API response { categories: [...] }
-      const categoriesArray = response.categories
+      let categoriesArray = (response as any).categories || []
       if (Array.isArray(categoriesArray)) {
-        setCategories(categoriesArray)
+        // Apply filtering
+        if (filterStatus === 'active') {
+          categoriesArray = categoriesArray.filter((c) => c.is_active)
+        } else if (filterStatus === 'inactive') {
+          categoriesArray = categoriesArray.filter((c) => !c.is_active)
+        }
+
+        // Apply sorting
+        categoriesArray.sort((a: Category, b: Category) => {
+          let aVal: any = sortKey === 'name' ? a.names.de || a.names.en || '' : a.created_at
+          let bVal: any = sortKey === 'name' ? b.names.de || b.names.en || '' : b.created_at
+
+          if (typeof aVal === 'string') {
+            aVal = aVal.toLowerCase()
+            bVal = (bVal as string).toLowerCase()
+          }
+
+          if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+          if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+          return 0
+        })
+
+        // Update total items count
+        setTotalItems(categoriesArray.length)
+
+        // Apply pagination (client-side)
+        const startIdx = (page - 1) * pageSize
+        const endIdx = startIdx + pageSize
+        const paginatedArray = categoriesArray.slice(startIdx, endIdx)
+
+        setCategories(paginatedArray)
       } else {
         setCategories([])
+        setTotalItems(0)
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load categories')
       setCategories([])
+      setTotalItems(0)
     } finally {
       setLoading(false)
     }
   }
 
-  function openCreateModal() {
-    setModalMode('create')
-    setSelectedCategory(null)
-    setFormData({ de: '', en: '' })
-    setSelectedIcon(null)
-    setActiveLanguage('de')
-    setFormError(null)
-    setShowModal(true)
-  }
-
-  function openEditModal(category: Category) {
-    setModalMode('edit')
-    setSelectedCategory(category)
-    setFormData(category.names)
-    setSelectedIcon(category.icon_name || null)
-    setActiveLanguage('de')
-    setFormError(null)
-    setShowModal(true)
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -195,194 +224,233 @@ export function CategoriesPage() {
     }
   }
 
-  if (loading && categories.length === 0) {
-    return (
-      <div style={{ padding: '20px' }}>
-        <div>Loading categories...</div>
-      </div>
-    )
-  }
-
   return (
     <div data-testid="categories-page" style={{ padding: '20px' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ margin: 0, marginBottom: '8px' }}>Categories</h1>
-        <p style={{ margin: 0, color: theme.colors.text.secondary }}>Manage product categories</p>
-      </div>
+      <h1 style={{ margin: '0 0 20px 0' }}>Categories</h1>
 
       {error && (
         <div
           data-testid="categories-error-message"
           style={{
-            marginBottom: '20px',
-            padding: '12px',
-            backgroundColor: '#fee2e2',
-            color: '#dc2626',
-            borderRadius: '4px',
-            fontSize: '14px',
+            padding: theme.spacing.lg,
+            background: `${theme.colors.semantic.danger}20`,
+            borderBottom: `1px solid ${theme.colors.semantic.danger}`,
+            color: theme.colors.semantic.danger,
+            marginBottom: theme.spacing.lg,
+            borderRadius: theme.borderRadius.md,
           }}
         >
           {error}
         </div>
       )}
 
-      <button
-        data-testid="categories-create-button"
-        onClick={openCreateModal}
+      {/* Search/Filter toolbar */}
+      <div
         style={{
-          marginBottom: '20px',
-          padding: '10px 16px',
-          backgroundColor: theme.colors.semantic.primary,
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: 'pointer',
           display: 'flex',
+          gap: theme.spacing.md,
+          padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+          borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
           alignItems: 'center',
-          gap: '8px',
-          fontSize: '14px',
-          fontWeight: '500',
+          justifyContent: 'space-between',
         }}
       >
-        <PlusIcon size={18} />
-        Create Category
-      </button>
+        {/* LEFT: Count summary */}
+        <span data-testid="categories-count-summary" style={{ color: theme.colors.text.secondary, fontSize: '14px', whiteSpace: 'nowrap' }}>
+          <strong style={{ color: theme.colors.text.primary }}>{totalItems}</strong> Categories gefunden
+        </span>
 
-      {/* Categories Table */}
-      <div data-testid="categories-table-wrapper" style={tableWrapperStyles}>
-        <table
-          data-testid="categories-table"
-          style={tableElementStyles}
+        {/* CENTER: Filter + Sort dropdowns */}
+        <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
+          <StatusFilter
+            value={filterStatus}
+            onChange={(status) => {
+              setFilterStatus(status)
+              setPage(1) // Reset to first page when filtering
+            }}
+            testId="categories-filter-status"
+            allLabel="All Categories"
+            activeLabel="Active Only"
+            inactiveLabel="Inactive Only"
+          />
+        </div>
+
+        {/* RIGHT: Create button */}
+        <button
+          data-testid="categories-create-button"
+          onClick={() => {
+            setSelectedCategory(null)
+            setShowModal(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: theme.spacing.sm,
+            padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
+            background: theme.colors.semantic.primary,
+            border: 'none',
+            borderRadius: '6px',
+            color: 'white',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500',
+            whiteSpace: 'nowrap',
+          }}
         >
-          <thead>
-            <tr style={headerRowStyle}>
-              <th role="columnheader" style={headerCellBaseStyle}>
-                Status
-              </th>
-              <th role="columnheader" style={headerCellBaseStyle}>
-                Name
-              </th>
-              <th role="columnheader" style={headerCellBaseStyle}>
-                Products
-              </th>
-              <th role="columnheader" style={headerCellBaseStyle}>
-                Order
-              </th>
-              <th role="columnheader" style={headerCellBaseStyle}>
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map((category) => (
-              <tr
-                key={category.id}
-                data-testid={`categories-table-row-${category.id}`}
-                style={{
-                  borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
-                }}
-              >
-                <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
-                  <button
-                    data-testid={`categories-status-toggle-${category.id}`}
-                    onClick={() => handleStatusToggle(category)}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      backgroundColor: category.is_active ? '#dcfce7' : '#fee2e2',
-                      color: category.is_active ? '#166534' : '#991b1b',
-                      border: 'none',
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      transition: 'all 150ms',
-                    }}
-                  >
-                    <span data-testid={`categories-table-cell-status-${category.id}`}>
-                      {category.is_active ? '✓ Active' : '✗ Inactive'}
-                    </span>
-                  </button>
-                </td>
-                <IconCell
-                  icon={getCategoryIcon(category.icon_name)}
-                  label={category.names.de || category.names.en || 'Unnamed'}
-                  iconTestId={`categories-table-cell-icon-${category.id}`}
-                  labelTestId={`categories-table-cell-name-${category.id}`}
-                />
-                <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
-                  <span data-testid={`categories-table-cell-product-count-${category.id}`}>
-                    {category.product_count}
-                  </span>
-                </td>
-                <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
-                  <span data-testid={`categories-table-cell-order-${category.id}`}>
-                    {category.display_order}
-                  </span>
-                </td>
-                <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      data-testid={`categories-edit-button-${category.id}`}
-                      onClick={() => openEditModal(category)}
-                      style={{
-                        padding: '4px 8px',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        border: '1px solid rgba(59, 130, 246, 0.3)',
-                        borderRadius: '4px',
-                        color: '#3b82f6',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '12px',
-                        transition: 'all 150ms',
-                      }}
-                    >
-                      <EditIcon size={14} />
-                      Edit
-                    </button>
-                    <button
-                      data-testid={`categories-delete-button-${category.id}`}
-                      onClick={() => handleDelete(category)}
-                      disabled={category.product_count > 0}
-                      style={{
-                        padding: '4px 8px',
-                        backgroundColor: category.product_count > 0 ? 'rgba(107, 114, 128, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                        border: category.product_count > 0
-                          ? '1px solid rgba(107, 114, 128, 0.3)'
-                          : '1px solid rgba(239, 68, 68, 0.3)',
-                        borderRadius: '4px',
-                        color: category.product_count > 0 ? '#6b7280' : '#ef4444',
-                        cursor: category.product_count > 0 ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '12px',
-                        transition: 'all 150ms',
-                      }}
-                    >
-                      <TrashIcon size={14} />
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          <PlusIcon size={18} />
+          <span>Erstellen</span>
+        </button>
       </div>
 
-      {categories.length === 0 && !loading && (
+      {/* Loading State */}
+      {loading ? (
+        <div style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+          Loading categories...
+        </div>
+      ) : categories.length === 0 ? (
         <div
           data-testid="categories-empty-state"
           style={{
+            padding: theme.spacing.xl,
             textAlign: 'center',
-            padding: '40px',
-            color: '#94a3b8',
+            color: theme.colors.text.secondary,
           }}
         >
           No categories found. Create one to get started.
         </div>
+      ) : (
+        <>
+          <div data-testid="categories-table-wrapper" style={tableWrapperStyles}>
+            <table data-testid="categories-table" style={tableElementStyles}>
+            <thead>
+              <tr style={headerRowStyle}>
+                <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>Status</th>
+                <th style={headerCellBaseStyle}>
+                  <SortableTableHeader
+                    label="Name"
+                    sortKey="name"
+                    currentSort={{ key: sortKey, direction: sortDirection }}
+                    onSort={(key: string, direction: 'asc' | 'desc') => {
+                      setSortKey(key as 'name' | 'created_at')
+                      setSortDirection(direction)
+                      setPage(1) // Reset to first page when sorting
+                    }}
+                    testId="categories-sort-name"
+                  />
+                </th>
+                <th style={headerCellBaseStyle}>Products</th>
+                <th style={headerCellBaseStyle}>Order</th>
+                <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categories.map((category) => (
+                <tr
+                  key={category.id}
+                  data-testid={`categories-table-row-${category.id}`}
+                  style={getRowStyle(category.is_active)}
+                  onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
+                    if (category.is_active) {
+                      e.currentTarget.style.backgroundColor = tableColors.rowActiveHoverBg
+                    }
+                  }}
+                  onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => {
+                    e.currentTarget.style.backgroundColor = category.is_active
+                      ? tableColors.rowActiveBg
+                      : tableColors.rowInactiveBg
+                  }}
+                >
+                  {/* Status Toggle */}
+                  <StatusToggleCell
+                    enabled={category.is_active}
+                    onChange={() => handleStatusToggle(category)}
+                    testId={`categories-status-toggle-${category.id}`}
+                  />
+
+                  {/* Name */}
+                  <IconCell
+                    icon={getCategoryIcon(category.icon_name)}
+                    label={category.names.de || category.names.en || 'Unnamed'}
+                    iconTestId={`categories-table-cell-icon-${category.id}`}
+                    labelTestId={`categories-table-cell-name-${category.id}`}
+                  />
+
+                  {/* Products Count */}
+                  <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
+                    <span data-testid={`categories-table-cell-product-count-${category.id}`}>
+                      {category.product_count}
+                    </span>
+                  </td>
+
+                  {/* Order */}
+                  <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
+                    <span data-testid={`categories-table-cell-order-${category.id}`}>
+                      {category.display_order}
+                    </span>
+                  </td>
+
+                  {/* Actions */}
+                  <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center' }}>
+                    <button
+                      data-testid={`categories-table-action-edit-${category.id}`}
+                      onClick={() => {
+                        setModalMode('edit')
+                        setSelectedCategory(category)
+                        setFormData(category.names)
+                        setSelectedIcon(category.icon_name || null)
+                        setActiveLanguage('de')
+                        setFormError(null)
+                        setShowModal(true)
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: theme.colors.semantic.primary,
+                        cursor: 'pointer',
+                        padding: theme.spacing.sm,
+                      }}
+                      title="Edit"
+                    >
+                      <EditIcon size={18} />
+                    </button>
+                    <button
+                      data-testid={`categories-table-action-delete-${category.id}`}
+                      onClick={() => handleDelete(category)}
+                      disabled={category.product_count > 0}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: category.product_count > 0 ? '#6b7280' : theme.colors.semantic.danger,
+                        cursor: category.product_count > 0 ? 'not-allowed' : 'pointer',
+                        padding: theme.spacing.sm,
+                        marginLeft: theme.spacing.md,
+                        opacity: category.product_count > 0 ? 0.5 : 1,
+                      }}
+                      title={category.product_count > 0 ? `Cannot delete (${category.product_count} products)` : 'Delete'}
+                    >
+                      <TrashIcon size={18} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <PaginationToolbar
+            currentPage={page}
+            totalPages={Math.ceil(totalItems / pageSize)}
+            totalItems={totalItems}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={() => {}} // Not implemented - always use 20
+            variant="default"
+            showPageSize={false}
+            showInfo={true}
+            testId="categories-pagination"
+          />
+        </>
       )}
 
       {/* Create/Edit Modal */}
@@ -395,7 +463,7 @@ export function CategoriesPage() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            background: 'rgba(0, 0, 0, 0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -406,16 +474,16 @@ export function CategoriesPage() {
           <div
             data-testid="categories-form-modal-content"
             style={{
-              backgroundColor: '#1a2744',
-              padding: '24px',
-              borderRadius: '8px',
+              background: theme.colors.bg.secondary,
+              borderRadius: theme.borderRadius.lg,
+              padding: theme.spacing.xl,
               maxWidth: '500px',
               width: '90%',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 data-testid="categories-form-title" style={{ marginTop: 0, marginBottom: '16px', color: '#e2e8f0' }}>
+            <h2 data-testid="categories-form-title" style={{ margin: '0 0 20px 0' }}>
               {modalMode === 'create' ? 'Create Category' : 'Edit Category'}
             </h2>
 
@@ -423,11 +491,12 @@ export function CategoriesPage() {
               <div
                 data-testid="categories-form-error"
                 style={{
-                  marginBottom: '12px',
-                  padding: '8px',
-                  backgroundColor: '#fee2e2',
-                  color: '#dc2626',
-                  borderRadius: '4px',
+                  marginBottom: theme.spacing.lg,
+                  padding: theme.spacing.md,
+                  background: `${theme.colors.semantic.danger}20`,
+                  borderLeft: `3px solid ${theme.colors.semantic.danger}`,
+                  borderRadius: theme.borderRadius.md,
+                  color: theme.colors.semantic.danger,
                   fontSize: '14px',
                 }}
               >
@@ -436,19 +505,19 @@ export function CategoriesPage() {
             )}
 
             {/* Language Tabs */}
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #2d3748' }}>
+            <div style={{ marginBottom: theme.spacing.lg }}>
+              <div style={{ display: 'flex', gap: theme.spacing.md, borderBottom: `1px solid ${theme.colors.border.light}` }}>
                 {['de', 'en'].map((lang) => (
                   <button
                     key={lang}
                     data-testid={`categories-form-lang-tab-${lang}`}
                     onClick={() => setActiveLanguage(lang)}
                     style={{
-                      padding: '8px 12px',
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                       border: 'none',
-                      background: activeLanguage === lang ? 'transparent' : 'transparent',
-                      color: activeLanguage === lang ? '#3b82f6' : '#94a3b8',
-                      borderBottom: activeLanguage === lang ? '2px solid #3b82f6' : 'none',
+                      background: 'transparent',
+                      color: activeLanguage === lang ? theme.colors.semantic.primary : theme.colors.text.secondary,
+                      borderBottom: activeLanguage === lang ? `2px solid ${theme.colors.semantic.primary}` : 'none',
                       cursor: 'pointer',
                       fontSize: '14px',
                       fontWeight: activeLanguage === lang ? '600' : '400',
@@ -468,12 +537,12 @@ export function CategoriesPage() {
                 data-testid={`categories-form-lang-content-${lang}`}
                 style={{ display: activeLanguage === lang ? 'block' : 'none' }}
               >
-                <div style={{ marginBottom: '16px' }}>
+                <div style={{ marginBottom: theme.spacing.lg }}>
                   <label
                     style={{
                       display: 'block',
-                      marginBottom: '6px',
-                      color: '#e2e8f0',
+                      marginBottom: theme.spacing.sm,
+                      color: theme.colors.text.primary,
                       fontSize: '14px',
                       fontWeight: '500',
                     }}
@@ -488,13 +557,20 @@ export function CategoriesPage() {
                     onChange={(e) => setFormData({ ...formData, [lang]: e.target.value })}
                     style={{
                       width: '100%',
-                      padding: '8px',
-                      border: '1px solid #2d3748',
-                      borderRadius: '4px',
-                      backgroundColor: '#0d1829',
-                      color: '#e2e8f0',
+                      padding: theme.spacing.md,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      background: theme.colors.bg.primary,
+                      color: theme.colors.text.primary,
                       boxSizing: 'border-box',
                       fontSize: '14px',
+                      transition: 'all 150ms',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = theme.colors.semantic.primary
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = theme.colors.border.light
                     }}
                   />
                 </div>
@@ -510,20 +586,20 @@ export function CategoriesPage() {
             />
 
             {/* Buttons */}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end', marginTop: theme.spacing.xl }}>
               <button
                 data-testid="categories-form-cancel-button"
                 type="button"
                 onClick={() => setShowModal(false)}
                 style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#2d3748',
-                  color: '#e2e8f0',
-                  border: 'none',
-                  borderRadius: '4px',
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                  background: 'transparent',
+                  border: `1px solid ${theme.colors.border.light}`,
+                  borderRadius: theme.borderRadius.md,
+                  color: theme.colors.text.primary,
                   cursor: 'pointer',
                   fontSize: '14px',
-                  fontWeight: '500',
+                  fontWeight: theme.typography.fontWeight.semibold,
                   transition: 'all 150ms',
                 }}
               >
@@ -534,14 +610,14 @@ export function CategoriesPage() {
                 type="submit"
                 onClick={handleSubmit}
                 style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#3b82f6',
-                  color: 'white',
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                  background: theme.colors.semantic.primary,
                   border: 'none',
-                  borderRadius: '4px',
+                  borderRadius: theme.borderRadius.md,
+                  color: 'white',
                   cursor: 'pointer',
                   fontSize: '14px',
-                  fontWeight: '500',
+                  fontWeight: theme.typography.fontWeight.semibold,
                   transition: 'all 150ms',
                 }}
               >
@@ -562,7 +638,7 @@ export function CategoriesPage() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            background: 'rgba(0, 0, 0, 0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -572,55 +648,42 @@ export function CategoriesPage() {
         >
           <div
             style={{
-              backgroundColor: '#1a2744',
-              padding: '24px',
-              borderRadius: '8px',
+              background: theme.colors.bg.secondary,
+              borderRadius: theme.borderRadius.lg,
+              padding: theme.spacing.xl,
               maxWidth: '400px',
               width: '90%',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#e2e8f0' }}>
+            <h2 style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.lg }}>
               {confirmDialog.type === 'delete' ? 'Delete Category' : 'Confirm Action'}
-            </h3>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'flex-start' }}>
-              {confirmDialog.type === 'delete' && (
-                <div
-                  style={{
-                    fontSize: '24px',
-                    color: '#fbbf24',
-                    flexShrink: 0,
-                  }}
-                >
-                  ⚠️
-                </div>
-              )}
-              <p
-                data-testid="categories-confirm-message"
-                style={{
-                  marginTop: 0,
-                  marginBottom: '0',
-                  color: '#cbd5e1',
-                  fontSize: '14px',
-                }}
-              >
-                {confirmDialog.message}
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            </h2>
+            <p
+              data-testid="categories-confirm-message"
+              style={{
+                color: theme.colors.text.secondary,
+                marginBottom: theme.spacing.lg,
+                fontSize: '14px',
+              }}
+            >
+              {confirmDialog.message}
+            </p>
+
+            <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end' }}>
               <button
                 data-testid="categories-confirm-cancel"
                 onClick={() => setConfirmDialog(null)}
                 style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#2d3748',
-                  color: '#e2e8f0',
-                  border: 'none',
-                  borderRadius: '4px',
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                  background: 'transparent',
+                  border: `1px solid ${theme.colors.border.light}`,
+                  borderRadius: theme.borderRadius.md,
+                  color: theme.colors.text.primary,
                   cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
+                  fontSize: theme.typography.fontSize.sm,
+                  fontWeight: theme.typography.fontWeight.semibold,
                 }}
               >
                 Cancel
@@ -629,14 +692,14 @@ export function CategoriesPage() {
                 data-testid="categories-confirm-ok"
                 onClick={confirmAction}
                 style={{
-                  padding: '8px 16px',
-                  backgroundColor: confirmDialog.type === 'delete' ? '#ef4444' : '#3b82f6',
-                  color: 'white',
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                  background: confirmDialog.type === 'delete' ? theme.colors.semantic.danger : theme.colors.semantic.primary,
                   border: 'none',
-                  borderRadius: '4px',
+                  borderRadius: theme.borderRadius.md,
+                  color: 'white',
                   cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
+                  fontSize: theme.typography.fontSize.sm,
+                  fontWeight: theme.typography.fontWeight.semibold,
                 }}
               >
                 {confirmDialog.type === 'delete' ? 'Delete' : 'Confirm'}

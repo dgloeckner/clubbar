@@ -44,15 +44,15 @@ export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
       {/* Icon */}
       <div
         style={{
-          fontSize: '32px',
+          fontSize: '48px',
           marginBottom: '12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          height: '40px',
+          height: '56px',
         }}
       >
-        <IconComponent size={32} color="#e2e8f0" />
+        <IconComponent size={48} color="#e2e8f0" />
       </div>
 
       {/* Product Name */}
