@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Route;
  * Implements UC-A22: Export Transactions
  *
  * Endpoints:
+ * - GET /api/admin/members/{memberId}/transactions - Get member transaction history
  * - POST /api/admin/members/{memberId}/transactions/correct - Record correction
  * - GET /api/admin/transactions/export - Export as CSV
  *
@@ -34,6 +35,16 @@ Route::prefix('admin')
         \App\Http\Middleware\AuthenticateAdminSession::class,
     ])
     ->group(function () {
+        /**
+         * GET /api/admin/members/{memberId}/transactions
+         * Get member transaction history with current balance
+         * Requires: Admin session authentication (Pattern 013)
+         * Query params:
+         *   - type: optional, filter by transaction type (all|purchase|correction)
+         * Implements UC-A20: View member transactions
+         */
+        Route::get('/members/{memberId}/transactions', [AdminController::class, 'getTransactionHistory']);
+
         /**
          * POST /api/admin/members/{memberId}/transactions/correct
          * Record manual correction transaction for a member

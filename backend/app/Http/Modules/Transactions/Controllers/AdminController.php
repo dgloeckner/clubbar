@@ -44,6 +44,43 @@ final class AdminController extends Controller
     ) {}
 
     /**
+     * GET /api/admin/members/{memberId}/transactions - Get member transaction history
+     *
+     * Retrieves transaction history for a specific member with current balance.
+     * Implements UC-A20: View member transactions
+     * Implements Pattern 001 (FormRequest), Pattern 004 (Service Layer)
+     *
+     * Query Parameters:
+     * - type: optional, filter by transaction type (all|purchase|correction)
+     *
+     * @param string $memberId Member UUID
+     * @return JsonResponse Member transaction history with current_balance_cents and transactions
+     */
+    public function getTransactionHistory(string $memberId): JsonResponse
+    {
+        try {
+            $type = request()->query('type');
+
+            // Delegate to service (Pattern 004: Service Layer)
+            $history = $this->service->getMemberTransactionHistory($memberId, $type);
+
+            return response()->json($history);
+        } catch (\Exception $e) {
+            if ($e->getCode() === 404) {
+                return response()->json(
+                    ['error' => 'not_found', 'message' => $e->getMessage()],
+                    404
+                );
+            }
+
+            return response()->json(
+                ['error' => 'server_error', 'message' => $e->getMessage()],
+                500
+            );
+        }
+    }
+
+    /**
      * POST /api/admin/members/{memberId}/transactions/correct - Record correction
      *
      * Creates a manual booking (correction transaction) for accounting adjustments.

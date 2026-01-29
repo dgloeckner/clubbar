@@ -272,6 +272,75 @@ final readonly class TransactionsService
      * @return array Array with member_id, count, and transactions[]
      * @throws \Exception If member not found
      */
+    /**
+     * Get member transaction history with current balance
+     *
+     * Retrieves all transactions for a member with optional filtering by type.
+     * Returns member's current balance calculated from all transactions.
+     *
+     * @param string $memberId Member UUID
+     * @param ?string $type Optional filter: 'purchase' | 'correction' | null for all
+     * @return array Transaction history with member_id, current_balance_cents, transactions, settlements
+     */
+    public function getMemberTransactionHistory(
+        string $memberId,
+        ?string $type = null
+    ): array {
+        // Verify member exists
+        $memberExists = DB::table('members')
+            ->where('id', $memberId)
+            ->exists();
+
+        if (!$memberExists) {
+            throw new \Exception("Member not found: $memberId", 404);
+        }
+
+        // Get member's current balance
+        $currentBalance = DB::table('transactions')
+            ->where('member_id', $memberId)
+            ->sum('amount_cents') ?? 0;
+
+        // Get all transactions
+        $query = DB::table('transactions')
+            ->where('member_id', $memberId)
+            ->orderByDesc('created_at');
+
+        // Filter by type if specified
+        if ($type && $type !== 'all') {
+            $query->where('transaction_type', $type);
+        }
+
+        $transactions = $query
+            ->get()
+            ->map(function ($tx) {
+                return [
+                    'id' => $tx->id,
+                    'date' => $tx->created_at,
+                    'type' => $tx->transaction_type === 'correction' ? 'correction' : 'purchase',
+                    'description' => $tx->notes ?? ($tx->transaction_type === 'correction' ? 'Correction' : 'Purchase'),
+                    'amount_cents' => (int) $tx->amount_cents,
+                    'running_total_cents' => 0, // Will be calculated below
+                ];
+            })
+            ->toArray();
+
+        // Calculate running totals (reverse order since we fetched DESC)
+        $runningTotal = 0;
+        foreach (array_reverse($transactions) as &$tx) {
+            $runningTotal += $tx['amount_cents'];
+            $tx['running_total_cents'] = $runningTotal;
+        }
+        // Reverse back to DESC order
+        $transactions = array_reverse($transactions);
+
+        return [
+            'member_id' => $memberId,
+            'current_balance_cents' => (int) $currentBalance,
+            'transactions' => $transactions,
+            'settlements' => [], // TODO: Implement settlements when settlement module is available
+        ];
+    }
+
     public function getRecentTransactions(
         string $memberId,
         int $limit = 50,
