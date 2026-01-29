@@ -189,24 +189,24 @@ export function JournalPage() {
           </div>
 
           {/* Center-left: Search input */}
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <input
-              data-testid="journal-search-input"
-              type="text"
-              placeholder="Search member name or notes..."
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                border: `1px solid ${tableColors.rowActiveBorder}`,
-                borderRadius: 6,
-                backgroundColor: 'rgba(15, 29, 50, 0.4)',
-                color: tableColors.cellText,
-                fontSize: 14,
-              }}
-            />
-          </div>
+          <input
+            data-testid="journal-search-input"
+            type="text"
+            placeholder="Search member name or notes..."
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+            style={{
+              flex: 1,
+              minWidth: 200,
+              padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
+              backgroundColor: 'rgba(15, 29, 50, 0.4)',
+              border: `1px solid ${tableColors.rowActiveBorder}`,
+              borderRadius: '6px',
+              color: tableColors.cellText,
+              fontSize: '14px',
+              fontFamily: 'inherit',
+            }}
+          />
 
           {/* Center-right: Period picker (segmented control) */}
           <PeriodPicker
