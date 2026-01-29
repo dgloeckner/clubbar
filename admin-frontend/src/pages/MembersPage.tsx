@@ -13,6 +13,8 @@ import { useLoading } from '../context/LoadingContext'
 import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon } from '../components/icons'
 import { formatPrice, formatDate } from '../styles/design-system'
 import { getMembers, createMember, updateMember, deactivateMember, Member } from '../services/members'
+import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
+import { Toggle } from '../components/forms/Toggle'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -101,6 +103,29 @@ export function MembersPage() {
     }
   }
 
+  // Handle status toggle (activate/deactivate)
+  const handleStatusToggle = async (member: Member) => {
+    try {
+      setIsLoading(true)
+      const updatedData = {
+        ...member,
+        is_active: !member.is_active,
+      }
+      await updateMember(member.id, updatedData)
+
+      // Reload members
+      const response = await getMembers(page, 20, search || undefined)
+      setMembers(response.items)
+      setTotalMembers(response.total)
+
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update member status')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Handle delete confirmation
   const handleDelete = async (memberId: string) => {
     try {
@@ -108,7 +133,7 @@ export function MembersPage() {
       await deactivateMember(memberId)
 
       // Reload members
-      const response = await getMembers(page, 20)
+      const response = await getMembers(page, 20, search || undefined)
       setMembers(response.items)
       setTotalMembers(response.total)
 
@@ -177,53 +202,42 @@ export function MembersPage() {
       {/* Members Table */}
       <Card title="Mitglieder" subtitle="Manage club members and their accounts">
         {/* Search bar and create button */}
-        <div style={{ padding: theme.spacing.lg, borderBottom: `1px solid ${theme.colors.border.light}`, display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
-          <input
-            data-testid="members-search-input"
-            type="text"
-            placeholder="Search members..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            style={{
-              flex: 1,
-              padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-              background: theme.colors.bg.input,
-              border: `1px solid ${theme.colors.border.light}`,
-              borderRadius: theme.borderRadius.md,
-              color: theme.colors.text.primary,
-              fontSize: theme.typography.fontSize.base,
-              boxSizing: 'border-box',
-            }}
-          />
-          <button
-            data-testid="members-create-button"
-            onClick={() => {
-              setEditingMember(null)
-              setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_signed_at: '', preferred_language: 'de' })
-              setShowModal(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: theme.spacing.sm,
-              padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-              background: theme.colors.semantic.primary,
-              border: 'none',
-              borderRadius: theme.borderRadius.md,
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: theme.typography.fontSize.sm,
-              fontWeight: theme.typography.fontWeight.semibold,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <PlusIcon size={18} />
-            <span>Hinzufügen</span>
-          </button>
-        </div>
+        <TableSearchToolbar
+          value={search}
+          onChange={(value) => {
+            setSearch(value)
+            setPage(1)
+          }}
+          placeholder="Search members..."
+          testId="members-search-toolbar"
+          actions={
+            <button
+              data-testid="members-create-button"
+              onClick={() => {
+                setEditingMember(null)
+                setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_signed_at: '', preferred_language: 'de' })
+                setShowModal(true)
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: theme.spacing.sm,
+                padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
+                background: theme.colors.semantic.primary,
+                border: 'none',
+                borderRadius: '6px',
+                color: 'white',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <PlusIcon size={18} />
+              <span>Hinzufügen</span>
+            </button>
+          }
+        />
 
         {/* Table */}
         {error && (
@@ -257,6 +271,7 @@ export function MembersPage() {
             >
               <thead>
                 <tr style={headerRowStyle}>
+                  <th style={headerCellBaseStyle}>Status</th>
                   <th style={headerCellBaseStyle}>Name</th>
                   <th style={headerCellBaseStyle}>Email</th>
                   <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>Balance</th>
@@ -274,6 +289,14 @@ export function MembersPage() {
                       opacity: member.is_active ? 1 : 0.6,
                     }}
                   >
+                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText, textAlign: 'center' }}>
+                      <Toggle
+                        enabled={member.is_active}
+                        onChange={() => handleStatusToggle(member)}
+                        size="small"
+                        testId={`members-status-toggle-${member.id}`}
+                      />
+                    </td>
                     <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                       <span data-testid={`members-table-cell-name-${member.id}`}>
                         {member.first_name} {member.last_name}

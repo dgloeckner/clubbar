@@ -152,6 +152,7 @@ class AdminController extends Controller
                 'phone' => $request->phone(),
                 'cardUid' => $request->cardUid(),
                 'preferredLanguage' => $request->preferredLanguage()?->value,
+                'isActive' => $request->isActive(),
             ], fn($value) => $value !== null);
 
             // Delegate to service (Pattern 004: Service Layer)

@@ -40,6 +40,7 @@ final class UpdateMemberRequest extends FormRequest
                 'string',
                 Rule::enum(SupportedLanguage::class),
             ],
+            'is_active' => ['nullable', 'boolean'],
         ];
     }
 
@@ -116,6 +117,16 @@ final class UpdateMemberRequest extends FormRequest
     {
         $language = $this->validated('preferred_language');
         return $language ? SupportedLanguage::from($language) : null;
+    }
+
+    /**
+     * Get typed is_active (nullable)
+     *
+     * @return bool|null
+     */
+    public function isActive(): ?bool
+    {
+        return $this->validated('is_active');
     }
 
     /**

@@ -292,6 +292,9 @@ class MembersService extends BaseService
         if (isset($updateData['preferredLanguage'])) {
             $dbUpdateData['preferred_language'] = $updateData['preferredLanguage'];
         }
+        if (isset($updateData['isActive'])) {
+            $dbUpdateData['is_active'] = $updateData['isActive'];
+        }
 
         // Update in database
         $member = $this->membersRepository->updateById($memberId, $dbUpdateData);

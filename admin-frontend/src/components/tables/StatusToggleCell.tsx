@@ -20,7 +20,7 @@ import { tableSpacing } from '../../styles/tableTokens'
 interface StatusToggleCellProps {
   enabled: boolean
   onChange: () => void
-  size?: 'small' | 'medium'
+  size?: 'small' | 'default' | 'large'
   testId?: string
   cellTestId?: string
 }
