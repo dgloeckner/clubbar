@@ -14,6 +14,7 @@ import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon } from
 import { formatPrice, formatDate } from '../styles/design-system'
 import { getMembers, createMember, updateMember, deactivateMember, Member } from '../services/members'
 import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
+import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { Toggle } from '../components/forms/Toggle'
 import {
   tableWrapperStyles,
@@ -357,6 +358,22 @@ export function MembersPage() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && members.length > 0 && (
+          <PaginationToolbar
+            currentPage={page}
+            totalPages={Math.ceil(totalMembers / 20)}
+            totalItems={totalMembers}
+            pageSize={20}
+            onPageChange={setPage}
+            onPageSizeChange={() => {}} // Not implemented - always use 20
+            variant="default"
+            showPageSize={false}
+            showInfo={true}
+            testId="members-pagination"
+          />
         )}
       </Card>
 
