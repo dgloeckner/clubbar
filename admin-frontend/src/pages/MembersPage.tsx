@@ -80,9 +80,6 @@ export function MembersPage() {
         setMembers(response.items)
         setTotalMembers(response.total)
 
-        // Note: balance_cents is not available in members API response (would need separate transaction calculation)
-        setTotalBalance(0)
-
         setError(null)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load members')
@@ -158,7 +155,6 @@ export function MembersPage() {
       const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
       setMembers(response.items)
       setTotalMembers(response.total)
-      setTotalBalance(0)
 
       setError(null)
     } catch (err) {
@@ -185,7 +181,6 @@ export function MembersPage() {
       const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
       setMembers(response.items)
       setTotalMembers(response.total)
-      setTotalBalance(0)
 
       setDeleteConfirm(null)
       setError(null)
