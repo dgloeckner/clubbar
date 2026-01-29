@@ -620,3 +620,123 @@ test.describe('Products API - Terminal Sync', () => {
     }
   });
 });
+
+// Test: Icon Name Support
+test.describe('Products API - Icon Support', () => {
+  test('POST /api/admin/products accepts icon_name', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const productData = createValidProduct(category.id, {
+      icon_name: 'PilsIcon',
+    });
+
+    const response = await authenticatedRequest.post('/api/admin/products', {
+      data: productData,
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+    expect(body.icon_name).toBe('PilsIcon');
+  });
+
+  test('POST /api/admin/products allows null icon_name', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const productData = createValidProduct(category.id, {
+      icon_name: null,
+    });
+
+    const response = await authenticatedRequest.post('/api/admin/products', {
+      data: productData,
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+    expect(body.icon_name).toBeNull();
+  });
+
+  test('POST /api/admin/products returns icon_name in response', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const productData = createValidProduct(category.id, {
+      icon_name: 'WeizenIcon',
+    });
+
+    const response = await authenticatedRequest.post('/api/admin/products', {
+      data: productData,
+    });
+
+    const body = await response.json();
+    expect(body.icon_name).toBeDefined();
+    expect(body.icon_name).toBe('WeizenIcon');
+  });
+
+  test('PATCH /api/admin/products/{id} updates icon_name', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
+      data: createValidProduct(category.id, {
+        icon_name: 'PilsIcon',
+      }),
+    });
+
+    const product = await createResponse.json();
+
+    const updateResponse = await authenticatedRequest.patch(
+      `/api/admin/products/${product.id}`,
+      {
+        data: { icon_name: 'WeizenIcon' },
+      }
+    );
+
+    const updatedProduct = await updateResponse.json();
+    expect(updatedProduct.icon_name).toBe('WeizenIcon');
+  });
+
+  test('PATCH /api/admin/products/{id} allows clearing icon_name', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const createResponse = await authenticatedRequest.post('/api/admin/products', {
+      data: createValidProduct(category.id, {
+        icon_name: 'PilsIcon',
+      }),
+    });
+
+    const product = await createResponse.json();
+
+    const updateResponse = await authenticatedRequest.patch(
+      `/api/admin/products/${product.id}`,
+      {
+        data: { icon_name: null },
+      }
+    );
+
+    const updatedProduct = await updateResponse.json();
+    expect(updatedProduct.icon_name).toBeNull();
+  });
+
+  test('GET /api/sync/products includes icon_name', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    await authenticatedRequest.post('/api/admin/products', {
+      data: createValidProduct(category.id, {
+        icon_name: 'BeerAFIcon',
+      }),
+    });
+
+    const response = await authenticatedTerminalRequest.get('/api/sync/products');
+    const body = await response.json();
+
+    if (body.products.length > 0) {
+      const product = body.products[0];
+      expect(product.icon_name).toBeDefined();
+    }
+  });
+
+  test('POST /api/admin/products rejects invalid icon_name length', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+    const productData = createValidProduct(category.id, {
+      icon_name: 'a'.repeat(51), // Exceeds 50 char limit
+    });
+
+    const response = await authenticatedRequest.post('/api/admin/products', {
+      data: productData,
+    });
+
+    expect(response.status()).toBe(422);
+  });
+});

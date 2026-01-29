@@ -42,6 +42,10 @@ export class ProductsPage extends BasePage {
   private readonly nameInput = () => this.page.getByTestId('products-form-name-input')
   private readonly categorySelect = () => this.page.getByTestId('products-form-category-select')
   private readonly priceInput = () => this.page.getByTestId('products-form-price-input')
+  private readonly iconSelectTrigger = () => this.page.getByTestId('products-form-icon-select-trigger')
+  private readonly iconSelectDropdown = () => this.page.getByTestId('products-form-icon-select-dropdown')
+  private readonly iconSelectOption = (iconName: string) =>
+    this.page.getByTestId(`products-form-icon-select-option-${iconName}`)
   private readonly formSubmitBtn = () => this.page.getByTestId('products-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('products-form-cancel-button')
   private readonly formError = () => this.page.getByTestId('products-form-error')
@@ -128,13 +132,17 @@ export class ProductsPage extends BasePage {
   /**
    * Get product ID by name - returns null if not found (instead of throwing)
    * Pattern 006: Nullable results for cleaner test assertions
+   *
+   * Relies on frontend loading indicator being complete.
+   * Caller must ensure waitForLoadingToComplete() has been called.
    */
   async getProductIdByName(productName: string): Promise<string | null> {
-    // Wait a moment for table to be updated
-    await this.page.waitForLoadState('networkidle')
-
-    // Add extra wait to ensure React state is updated
-    await this.page.waitForTimeout(500)
+    // Ensure loading indicator is not visible (data should be loaded)
+    // Use short timeout since caller should have already waited
+    await expect(this.globalLoadingIndicator()).not.toBeVisible({ timeout: 5000 }).catch(() => {
+      // If still loading, wait for it to complete
+      return expect(this.globalLoadingIndicator()).not.toBeVisible({ timeout: 30000 })
+    })
 
     const rows = await this.tableRows().all()
     for (const row of rows) {
@@ -380,7 +388,41 @@ export class ProductsPage extends BasePage {
     await this.formCancelBtn().click()
   }
 
-  async createProduct(name: string, price: string, categoryId?: string) {
+  async selectIcon(iconName: string) {
+    // Click trigger to open dropdown
+    await this.iconSelectTrigger().click()
+    await expect(this.iconSelectDropdown()).toBeVisible()
+
+    // Click the icon option
+    await this.iconSelectOption(iconName).click()
+  }
+
+  async clearIcon() {
+    // Click trigger to open dropdown
+    await this.iconSelectTrigger().click()
+    await expect(this.iconSelectDropdown()).toBeVisible()
+
+    // Click clear option
+    await this.page.getByTestId('products-form-icon-select-option-clear').click()
+  }
+
+  async expectIconDropdownVisible() {
+    await expect(this.iconSelectDropdown()).toBeVisible()
+  }
+
+  async expectIconDropdownHidden() {
+    await expect(this.iconSelectDropdown()).not.toBeVisible()
+  }
+
+  async getSelectedIconName(): Promise<string | null> {
+    const text = await this.iconSelectTrigger().textContent()
+    if (!text || text.includes('Select icon')) {
+      return null
+    }
+    return text.trim()
+  }
+
+  async createProduct(name: string, price: string, categoryId?: string, iconName?: string) {
     await this.openCreateModal()
     await this.expectFormModalVisible()
     await this.fillProductForm(name, price)
@@ -394,6 +436,11 @@ export class ProductsPage extends BasePage {
       if (autoSelectId) {
         await this.selectCategory(autoSelectId)
       }
+    }
+
+    // Select icon if provided
+    if (iconName) {
+      await this.selectIcon(iconName)
     }
 
     await this.submitForm()

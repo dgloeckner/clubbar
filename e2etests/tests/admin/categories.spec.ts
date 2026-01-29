@@ -525,5 +525,61 @@ test.describe('Admin Frontend - Categories Page', () => {
 
       await authenticatedCategoriesPage.cancelForm()
     })
+
+    /**
+     * Test Icon Selection
+     * Implements UC: Icon Selection for Categories
+     */
+    test('should allow icon selection in dropdown', async ({ authenticatedCategoriesPage }) => {
+      await authenticatedCategoriesPage.navigate()
+      await authenticatedCategoriesPage.openCreateModal()
+      await authenticatedCategoriesPage.expectFormModalVisible()
+
+      // Click trigger to open dropdown
+      const trigger = authenticatedCategoriesPage.page.getByTestId('categories-form-icon-select-trigger')
+      await trigger.click()
+
+      // Dropdown should be visible
+      const dropdown = authenticatedCategoriesPage.page.getByTestId('categories-form-icon-select-dropdown')
+      await expect(dropdown).toBeVisible()
+
+      // Should have multiple icon options
+      const options = authenticatedCategoriesPage.page.locator('[data-testid^="categories-form-icon-select-option-"]')
+      const count = await options.count()
+      expect(count).toBeGreaterThan(0)
+    })
+
+    test('should change selected icon when clicking option', async ({ authenticatedCategoriesPage }) => {
+      await authenticatedCategoriesPage.navigate()
+      await authenticatedCategoriesPage.openCreateModal()
+      await authenticatedCategoriesPage.expectFormModalVisible()
+
+      // Select first icon
+      await authenticatedCategoriesPage.selectIcon('PilsIcon')
+      let selectedIcon = await authenticatedCategoriesPage.getSelectedIconName()
+      expect(selectedIcon).toContain('PilsIcon')
+
+      // Select different icon
+      await authenticatedCategoriesPage.selectIcon('WeizenIcon')
+      selectedIcon = await authenticatedCategoriesPage.getSelectedIconName()
+      expect(selectedIcon).toContain('WeizenIcon')
+    })
+
+    test('should clear icon when selecting none', async ({ authenticatedCategoriesPage }) => {
+      await authenticatedCategoriesPage.navigate()
+      await authenticatedCategoriesPage.openCreateModal()
+      await authenticatedCategoriesPage.expectFormModalVisible()
+
+      // Select an icon
+      await authenticatedCategoriesPage.selectIcon('CategoryIcon')
+      let selectedIcon = await authenticatedCategoriesPage.getSelectedIconName()
+      expect(selectedIcon).toContain('CategoryIcon')
+
+      // Clear icon
+      await authenticatedCategoriesPage.clearIcon()
+      selectedIcon = await authenticatedCategoriesPage.getSelectedIconName()
+      expect(selectedIcon).toBeNull()
+    })
+
   })
 })

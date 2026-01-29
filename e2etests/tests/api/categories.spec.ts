@@ -361,3 +361,116 @@ test.describe('Categories API - Terminal Sync', () => {
     expect(typeof body.cursor).toBe('string');
   });
 });
+
+// Test: Icon Name Support
+test.describe('Categories API - Icon Support', () => {
+  test('POST /api/admin/categories accepts icon_name', async ({ authenticatedRequest }) => {
+    const categoryData = createValidCategory({
+      icon_name: 'CategoryIcon',
+    });
+
+    const response = await authenticatedRequest.post('/api/admin/categories', {
+      data: categoryData,
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+    expect(body.icon_name).toBe('CategoryIcon');
+  });
+
+  test('POST /api/admin/categories allows null icon_name', async ({ authenticatedRequest }) => {
+    const categoryData = createValidCategory({
+      icon_name: null,
+    });
+
+    const response = await authenticatedRequest.post('/api/admin/categories', {
+      data: categoryData,
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+    expect(body.icon_name).toBeNull();
+  });
+
+  test('POST /api/admin/categories returns icon_name in response', async ({ authenticatedRequest }) => {
+    const categoryData = createValidCategory({
+      icon_name: 'CategoryTagsIcon',
+    });
+
+    const response = await authenticatedRequest.post('/api/admin/categories', {
+      data: categoryData,
+    });
+
+    const body = await response.json();
+    expect(body.icon_name).toBeDefined();
+    expect(body.icon_name).toBe('CategoryTagsIcon');
+  });
+
+  test('PATCH /api/admin/categories/{id} updates icon_name', async ({ authenticatedRequest }) => {
+    const createResponse = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory({
+        icon_name: 'CategoryIcon',
+      }),
+    });
+
+    const category = await createResponse.json();
+
+    const updateResponse = await authenticatedRequest.patch(
+      `/api/admin/categories/${category.id}`,
+      {
+        data: { icon_name: 'CategoryTagsIcon' },
+      }
+    );
+
+    const updatedCategory = await updateResponse.json();
+    expect(updatedCategory.icon_name).toBe('CategoryTagsIcon');
+  });
+
+  test('PATCH /api/admin/categories/{id} allows clearing icon_name', async ({ authenticatedRequest }) => {
+    const createResponse = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory({
+        icon_name: 'CategoryIcon',
+      }),
+    });
+
+    const category = await createResponse.json();
+
+    const updateResponse = await authenticatedRequest.patch(
+      `/api/admin/categories/${category.id}`,
+      {
+        data: { icon_name: null },
+      }
+    );
+
+    const updatedCategory = await updateResponse.json();
+    expect(updatedCategory.icon_name).toBeNull();
+  });
+
+  test('GET /api/sync/categories includes icon_name', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory({
+        icon_name: 'CategoryLayersIcon',
+      }),
+    });
+
+    const response = await authenticatedTerminalRequest.get('/api/sync/categories');
+    const body = await response.json();
+
+    if (body.categories.length > 0) {
+      const category = body.categories[0];
+      expect(category.icon_name).toBeDefined();
+    }
+  });
+
+  test('POST /api/admin/categories rejects invalid icon_name length', async ({ authenticatedRequest }) => {
+    const categoryData = createValidCategory({
+      icon_name: 'a'.repeat(51), // Exceeds 50 char limit
+    });
+
+    const response = await authenticatedRequest.post('/api/admin/categories', {
+      data: categoryData,
+    });
+
+    expect(response.status()).toBe(422);
+  });
+});

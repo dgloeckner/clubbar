@@ -444,4 +444,74 @@ test.describe('Products Page - Complete User Workflows', () => {
     const isStillOnPage = await authenticatedProductsPage.isOnProductsPage()
     expect(isStillOnPage).toBe(true)
   })
+
+  /**
+   * Test Icon Selection UI
+   * Implements UC: Icon Selection for Products
+   */
+  test('should display icon select in product form', async ({ authenticatedProductsPage }) => {
+    await authenticatedProductsPage.navigate()
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+
+    // Verify icon select trigger exists
+    const trigger = authenticatedProductsPage.page.getByTestId('products-form-icon-select-trigger')
+    await expect(trigger).toBeVisible()
+
+    // Verify trigger shows default text
+    const text = await trigger.textContent()
+    expect(text).toContain('Select icon')
+  })
+
+  test('should allow icon selection in dropdown', async ({ authenticatedProductsPage }) => {
+    await authenticatedProductsPage.navigate()
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+
+    // Click trigger to open dropdown
+    const trigger = authenticatedProductsPage.page.getByTestId('products-form-icon-select-trigger')
+    await trigger.click()
+
+    // Dropdown should be visible
+    const dropdown = authenticatedProductsPage.page.getByTestId('products-form-icon-select-dropdown')
+    await expect(dropdown).toBeVisible()
+
+    // Should have multiple icon options
+    const options = authenticatedProductsPage.page.locator('[data-testid^="products-form-icon-select-option-"]')
+    const count = await options.count()
+    expect(count).toBeGreaterThan(0)
+  })
+
+  test('should change selected icon when clicking option', async ({ authenticatedProductsPage }) => {
+    await authenticatedProductsPage.navigate()
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+
+    // Select first icon
+    await authenticatedProductsPage.selectIcon('PilsIcon')
+    let selectedIcon = await authenticatedProductsPage.getSelectedIconName()
+    expect(selectedIcon).toContain('PilsIcon')
+
+    // Select different icon
+    await authenticatedProductsPage.selectIcon('WeizenIcon')
+    selectedIcon = await authenticatedProductsPage.getSelectedIconName()
+    expect(selectedIcon).toContain('WeizenIcon')
+  })
+
+  test('should clear icon when selecting none', async ({ authenticatedProductsPage }) => {
+    await authenticatedProductsPage.navigate()
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+
+    // Select an icon
+    await authenticatedProductsPage.selectIcon('PilsIcon')
+    let selectedIcon = await authenticatedProductsPage.getSelectedIconName()
+    expect(selectedIcon).toContain('PilsIcon')
+
+    // Clear icon
+    await authenticatedProductsPage.clearIcon()
+    selectedIcon = await authenticatedProductsPage.getSelectedIconName()
+    expect(selectedIcon).toBeNull()
+  })
+
 })

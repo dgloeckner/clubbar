@@ -37,6 +37,10 @@ export class CategoriesPage extends BasePage {
   private readonly formModalContent = () => this.page.getByTestId('categories-form-modal-content')
   private readonly formTitle = () => this.page.getByTestId('categories-form-title')
   private readonly formError = () => this.page.getByTestId('categories-form-error')
+  private readonly iconSelectTrigger = () => this.page.getByTestId('categories-form-icon-select-trigger')
+  private readonly iconSelectDropdown = () => this.page.getByTestId('categories-form-icon-select-dropdown')
+  private readonly iconSelectOption = (iconName: string) =>
+    this.page.getByTestId(`categories-form-icon-select-option-${iconName}`)
   private readonly formSubmitBtn = () => this.page.getByTestId('categories-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('categories-form-cancel-button')
 
@@ -213,7 +217,41 @@ export class CategoriesPage extends BasePage {
     await this.formCancelBtn().click()
   }
 
-  async createCategory(names: { [lang: string]: string }) {
+  async selectIcon(iconName: string) {
+    // Click trigger to open dropdown
+    await this.iconSelectTrigger().click()
+    await expect(this.iconSelectDropdown()).toBeVisible()
+
+    // Click the icon option
+    await this.iconSelectOption(iconName).click()
+  }
+
+  async clearIcon() {
+    // Click trigger to open dropdown
+    await this.iconSelectTrigger().click()
+    await expect(this.iconSelectDropdown()).toBeVisible()
+
+    // Click clear option
+    await this.page.getByTestId('categories-form-icon-select-option-clear').click()
+  }
+
+  async expectIconDropdownVisible() {
+    await expect(this.iconSelectDropdown()).toBeVisible()
+  }
+
+  async expectIconDropdownHidden() {
+    await expect(this.iconSelectDropdown()).not.toBeVisible()
+  }
+
+  async getSelectedIconName(): Promise<string | null> {
+    const text = await this.iconSelectTrigger().textContent()
+    if (!text || text.includes('Select icon')) {
+      return null
+    }
+    return text.trim()
+  }
+
+  async createCategory(names: { [lang: string]: string }, iconName?: string) {
     await this.openCreateModal()
     await this.expectFormModalVisible()
 
@@ -224,6 +262,11 @@ export class CategoriesPage extends BasePage {
         await this.selectLanguageTab(languages[i])
       }
       await this.fillCategoryName(languages[i], names[languages[i]])
+    }
+
+    // Select icon if provided
+    if (iconName) {
+      await this.selectIcon(iconName)
     }
 
     await this.submitForm()
