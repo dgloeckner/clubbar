@@ -82,8 +82,8 @@ export const tableTransitions = {
 // Table wrapper styling
 export const tableWrapperStyles = {
   overflowX: 'auto' as const,
+  overflowY: 'hidden' as const,
   borderRadius: tableSpacing.tableWrapperRadius,
-  overflow: 'hidden' as const,
 }
 
 // Table element styling
