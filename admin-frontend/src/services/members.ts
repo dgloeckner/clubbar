@@ -28,17 +28,21 @@ export interface MembersResponse {
 }
 
 /**
- * Get list of members with pagination and filtering
+ * Get list of members with pagination, filtering, and sorting
  */
 export async function getMembers(
   page: number = 1,
   perPage: number = 20,
   search?: string,
-  filter?: { is_active?: boolean }
+  filter?: { is_active?: boolean },
+  sort: string = 'created_at',
+  order: 'asc' | 'desc' = 'desc'
 ): Promise<MembersResponse> {
   const params: Record<string, any> = {
     page,
     per_page: perPage,
+    sort,
+    order,
   }
 
   if (search) {

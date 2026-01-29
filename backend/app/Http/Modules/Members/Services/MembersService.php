@@ -111,7 +111,7 @@ class MembersService extends BaseService
      * @param array $filters Filter criteria
      * @return PaginatedResultDto Members with pagination metadata
      */
-    public function listMembers(int $limit, int $offset, array $filters = []): PaginatedResultDto
+    public function listMembers(int $limit, int $offset, array $filters = [], string $sortKey = 'created_at', string $sortOrder = 'desc'): PaginatedResultDto
     {
         // Build query with filters
         $query = $this->membersRepository->query();
@@ -120,9 +120,18 @@ class MembersService extends BaseService
         // Get total count before pagination
         $total = $query->count();
 
+        // Map sortKey to database column names
+        $columnMap = [
+            'first_name' => 'first_name',
+            'last_name' => 'last_name',
+            'balance' => 'balance_cents', // Note: balance stored in cents
+            'created_at' => 'created_at',
+        ];
+        $sortColumn = $columnMap[$sortKey] ?? 'created_at';
+
         // Apply pagination and fetch results
         $memberModels = $query
-            ->orderBy('created_at', 'desc')
+            ->orderBy($sortColumn, $sortOrder)
             ->skip($offset)
             ->take($limit)
             ->get();

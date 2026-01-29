@@ -15,6 +15,7 @@ import { formatPrice, formatDate } from '../styles/design-system'
 import { getMembers, createMember, updateMember, deactivateMember, Member } from '../services/members'
 import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
+import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { Toggle } from '../components/forms/Toggle'
 import {
   tableWrapperStyles,
@@ -39,6 +40,10 @@ export function MembersPage() {
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [selectedMemberForTransactions, setSelectedMemberForTransactions] = useState<Member | null>(null)
+  const [sortKey, setSortKey] = useState<'first_name' | 'last_name' | 'balance' | 'created_at'>('created_at')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [sortByValue, setSortByValue] = useState('created_at-desc') // For sort dropdown
+  const [filterIsActive, setFilterIsActive] = useState<'all' | 'active' | 'inactive'>('all')
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -54,7 +59,16 @@ export function MembersPage() {
       try {
         setLoading(true)
         setIsLoading(true)
-        const response = await getMembers(page, 20, search || undefined)
+
+        // Build filter object
+        const filter: { is_active?: boolean } = {}
+        if (filterIsActive === 'active') {
+          filter.is_active = true
+        } else if (filterIsActive === 'inactive') {
+          filter.is_active = false
+        }
+
+        const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
 
         setMembers(response.items)
         setTotalMembers(response.total)
@@ -74,7 +88,7 @@ export function MembersPage() {
 
     const timer = setTimeout(loadMembers, search ? 500 : 0) // Debounce search
     return () => clearTimeout(timer)
-  }, [page, search, setIsLoading])
+  }, [page, search, filterIsActive, sortKey, sortDirection, setIsLoading])
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -240,6 +254,73 @@ export function MembersPage() {
           }
         />
 
+        {/* Filter and Sort Controls */}
+        <div
+          style={{
+            display: 'flex',
+            gap: theme.spacing.md,
+            padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+            borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+          }}
+        >
+          {/* Status Filter */}
+          <select
+            data-testid="members-filter-status"
+            value={filterIsActive}
+            onChange={(e) => {
+              setFilterIsActive(e.target.value as 'all' | 'active' | 'inactive')
+              setPage(1)
+            }}
+            style={{
+              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+              backgroundColor: theme.colors.bg.card,
+              border: `1px solid ${tableColors.rowActiveBorder}`,
+              borderRadius: '6px',
+              color: theme.colors.text.primary,
+              fontSize: '14px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            <option value="all">All Members</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+          </select>
+
+          {/* Sort Dropdown */}
+          <select
+            data-testid="members-sort-by"
+            value={sortByValue}
+            onChange={(e) => {
+              const [key, direction] = e.target.value.split('-')
+              setSortKey(key as 'first_name' | 'last_name' | 'balance' | 'created_at')
+              setSortDirection(direction as 'asc' | 'desc')
+              setPage(1)
+            }}
+            style={{
+              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+              backgroundColor: theme.colors.bg.card,
+              border: `1px solid ${tableColors.rowActiveBorder}`,
+              borderRadius: '6px',
+              color: theme.colors.text.primary,
+              fontSize: '14px',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            <option value="created_at-desc">Newest first</option>
+            <option value="created_at-asc">Oldest first</option>
+            <option value="first_name-asc">First Name (A-Z)</option>
+            <option value="first_name-desc">First Name (Z-A)</option>
+            <option value="last_name-asc">Last Name (A-Z)</option>
+            <option value="last_name-desc">Last Name (Z-A)</option>
+            <option value="balance-desc">Highest Balance</option>
+            <option value="balance-asc">Lowest Balance</option>
+          </select>
+        </div>
+
         {/* Table */}
         {error && (
           <div
@@ -273,8 +354,32 @@ export function MembersPage() {
               <thead>
                 <tr style={headerRowStyle}>
                   <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>Status</th>
-                  <th style={headerCellBaseStyle}>Name</th>
-                  <th style={{ ...headerCellBaseStyle, width: '120px', textAlign: 'right' }}>Balance</th>
+                  <th style={headerCellBaseStyle}>
+                    <SortableTableHeader
+                      label="Name"
+                      sortKey="first_name"
+                      currentSort={{ key: sortKey, direction: sortDirection }}
+                      onSort={(key: string, direction: 'asc' | 'desc') => {
+                        setSortKey(key as 'first_name' | 'last_name' | 'balance' | 'created_at')
+                        setSortDirection(direction)
+                        setSortByValue(`${key}-${direction}`)
+                        setPage(1)
+                      }}
+                    />
+                  </th>
+                  <th style={{ ...headerCellBaseStyle, width: '120px', textAlign: 'right' }}>
+                    <SortableTableHeader
+                      label="Balance"
+                      sortKey="balance"
+                      currentSort={{ key: sortKey, direction: sortDirection }}
+                      onSort={(key: string, direction: 'asc' | 'desc') => {
+                        setSortKey(key as 'first_name' | 'last_name' | 'balance' | 'created_at')
+                        setSortDirection(direction)
+                        setSortByValue(`${key}-${direction}`)
+                        setPage(1)
+                      }}
+                    />
+                  </th>
                   <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>

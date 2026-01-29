@@ -67,9 +67,11 @@ class AdminController extends Controller
         $limit = $request->limit();
         $offset = $request->offset();
         $filters = $request->filters();
+        $sortKey = $request->sortKey();
+        $sortOrder = $request->sortOrder();
 
         // Delegate to service (Pattern 004: Service Layer)
-        $result = $this->membersService->listMembers($limit, $offset, $filters);
+        $result = $this->membersService->listMembers($limit, $offset, $filters, $sortKey, $sortOrder);
 
         // Serialize result to JSON (Pattern 003: DTOs)
         return response()->json($result->toArray());

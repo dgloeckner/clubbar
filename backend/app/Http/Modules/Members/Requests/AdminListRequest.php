@@ -26,6 +26,8 @@ final class AdminListRequest extends FormRequest
             'offset' => ['sometimes', 'integer', 'min:0'],
             'filters.is_active' => ['sometimes', 'string', 'in:true,false'],
             'filters.language' => ['sometimes', 'string', 'in:de,en,fr'],
+            'sort' => ['sometimes', 'string', 'in:first_name,last_name,balance,created_at'],
+            'order' => ['sometimes', 'string', 'in:asc,desc'],
         ];
     }
 
@@ -88,6 +90,26 @@ final class AdminListRequest extends FormRequest
             'is_active' => $this->filterIsActive(),
             'language' => $this->filterLanguage(),
         ], fn($value) => $value !== null);
+    }
+
+    /**
+     * Get sort field (default 'created_at')
+     *
+     * @return string
+     */
+    public function sortKey(): string
+    {
+        return $this->query('sort', 'created_at');
+    }
+
+    /**
+     * Get sort direction (default 'desc')
+     *
+     * @return string
+     */
+    public function sortOrder(): string
+    {
+        return $this->query('order', 'desc');
     }
 
     /**
