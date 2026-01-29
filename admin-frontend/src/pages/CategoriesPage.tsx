@@ -19,10 +19,10 @@ import { get, post, patch, del } from '../services/api'
 import { theme } from '../styles/design-system'
 import { EditIcon, TrashIcon, PlusIcon } from '../components/icons'
 import { IconSelect } from '../components/forms/IconSelect'
+import { StatusFilterPills } from '../components/forms/StatusFilterPills'
 import { getCategoryIcon } from '../components/icons/IconRegistry'
 import { IconCell } from '../components/tables/IconCell'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
-import { StatusFilter } from '../components/tables/StatusFilter'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import {
@@ -260,46 +260,42 @@ export function CategoriesPage() {
           <strong style={{ color: theme.colors.text.primary }}>{totalItems}</strong> Categories gefunden
         </span>
 
-        {/* CENTER: Filter + Sort dropdowns */}
+        {/* RIGHT: Filter + Create button */}
         <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
-          <StatusFilter
+          <StatusFilterPills
             value={filterStatus}
             onChange={(status) => {
               setFilterStatus(status)
               setPage(1) // Reset to first page when filtering
             }}
             testId="categories-filter-status"
-            allLabel="All Categories"
-            activeLabel="Active Only"
-            inactiveLabel="Inactive Only"
           />
-        </div>
 
-        {/* RIGHT: Create button */}
-        <button
-          data-testid="categories-create-button"
-          onClick={() => {
-            setSelectedCategory(null)
-            setShowModal(true)
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: theme.spacing.sm,
-            padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
-            background: theme.colors.semantic.primary,
-            border: 'none',
-            borderRadius: '6px',
-            color: 'white',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <PlusIcon size={18} />
-          <span>Erstellen</span>
-        </button>
+          <button
+            data-testid="categories-create-button"
+            onClick={() => {
+              setSelectedCategory(null)
+              setShowModal(true)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.spacing.sm,
+              padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
+              background: theme.colors.semantic.primary,
+              border: 'none',
+              borderRadius: '6px',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <PlusIcon size={18} />
+            <span>Erstellen</span>
+          </button>
+        </div>
       </div>
 
       {/* Loading State */}

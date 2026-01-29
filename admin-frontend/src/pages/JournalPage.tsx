@@ -190,21 +190,33 @@ export function JournalPage() {
 
           {/* Center-left: Search input */}
           <input
-            data-testid="journal-search-input"
             type="text"
-            placeholder="Search member name or notes..."
             value={search}
-            onChange={(e) => handleSearch(e.target.value)}
+            onChange={(e) => {
+              handleSearch(e.target.value)
+            }}
+            placeholder="Search members..."
+            data-testid="journal-search-input"
             style={{
               flex: 1,
-              minWidth: 200,
-              padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
-              backgroundColor: 'rgba(15, 29, 50, 0.4)',
-              border: `1px solid ${tableColors.rowActiveBorder}`,
-              borderRadius: '6px',
-              color: tableColors.cellText,
+              padding: '8px 12px',
+              backgroundColor: '#0d1829',
+              border: '1px solid #2d3748',
+              borderRadius: 8,
+              color: '#e2e8f0',
               fontSize: '14px',
               fontFamily: 'inherit',
+              maxWidth: '400px',
+              height: '40px',
+              boxSizing: 'border-box',
+              verticalAlign: 'middle',
+              transition: 'all 0.15s',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)'
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = '#2d3748'
             }}
           />
 
@@ -344,7 +356,7 @@ export function JournalPage() {
                         transition: 'background-color 150ms',
                       }}
                     >
-                      {/* Date */}
+                      {/* Date and Time */}
                       <td
                         data-testid={`journal-table-cell-date-${tx.id}`}
                         style={{
@@ -352,12 +364,25 @@ export function JournalPage() {
                           color: tableColors.cellText,
                         }}
                       >
-                        {new Date(tx.created_at).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                        })}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div>
+                            {new Date(tx.created_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                            })}
+                          </div>
+                          <div style={{ fontSize: '12px', color: tableColors.cellSecondaryText }}>
+                            {new Date(tx.created_at).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              hour12: false,
+                            })}
+                          </div>
+                        </div>
                       </td>
+
 
                       {/* Type */}
                       <td

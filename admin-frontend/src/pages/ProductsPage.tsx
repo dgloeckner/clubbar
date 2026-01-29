@@ -19,7 +19,7 @@ import { ProductPreview } from '../components/forms/ProductPreview'
 import { getProductIcon } from '../components/icons/IconRegistry'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
-import { SearchAndSortToolbar } from '../components/tables/SearchAndSortToolbar'
+import { CategoryFilter } from '../components/tables/CategoryFilter'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { IconCell } from '../components/tables/IconCell'
 import { PriceCell } from '../components/tables/PriceCell'
@@ -27,8 +27,6 @@ import { BadgeCell } from '../components/tables/BadgeCell'
 import { ActionButtons } from '../components/tables/ActionButtons'
 import {
   tableColors,
-  tableSpacing,
-  tableTransitions,
   tableWrapperStyles,
   tableElementStyles,
   headerCellBaseStyle,
@@ -78,9 +76,9 @@ export function ProductsPage() {
   // Pagination, sorting, and filtering state
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
-  const [sortKey, setSortKey] = useState<'name' | 'price' | 'category' | 'created_at'>('created_at')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [sortByValue, setSortByValue] = useState('created_at-desc') // For sort dropdown
+  const [sortKey, setSortKey] = useState<'name' | 'price' | 'category'>('name')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [sortByValue, setSortByValue] = useState('name_asc') // For sort dropdown
   const [filterCategory, setFilterCategory] = useState<string | null>(null) // Category filter: null = all
   const [totalItems, setTotalItems] = useState(0) // From API
 
@@ -100,7 +98,7 @@ export function ProductsPage() {
   // Load products when pagination/sorting/filtering state changes
   useEffect(() => {
     loadProducts()
-  }, [currentPage, pageSize, sortKey, sortDirection, filterCategory])
+  }, [currentPage, pageSize, sortByValue, filterCategory])
 
   async function loadCategories() {
     try {
@@ -121,44 +119,20 @@ export function ProductsPage() {
         params: {
           page: currentPage,
           per_page: pageSize,
-          sort: sortKey,
-          order: sortDirection,
+          sort_by: sortByValue,
           ...(filterCategory && { category_id: filterCategory }), // Only include if not null
         },
       })
       console.log('Products API response:', response)
+      // API response uses 'items' array with pagination metadata
       let items = (response as any).items || []
       console.log(`Loaded ${items.length} products from API`)
       console.log('Pagination info:', {
         total: (response as any).total,
         limit: (response as any).limit,
         offset: (response as any).offset,
+        has_more: (response as any).has_more,
       })
-
-      // Deduplicate products by ID (fix for duplicate rows issue)
-      const seenIds = new Set<string>()
-      const uniqueItems = items.filter((product: any) => {
-        if (seenIds.has(product.id)) {
-          console.warn(`Duplicate product detected: ${product.id}`)
-          return false
-        }
-        seenIds.add(product.id)
-        return true
-      })
-
-      if (uniqueItems.length < items.length) {
-        console.warn(`Filtered out ${items.length - uniqueItems.length} duplicate products`)
-        items = uniqueItems
-      }
-
-      if (items.length > 0) {
-        console.log('First product:', items[0])
-        console.log('First product names:', items[0].names)
-        console.log('First product category_id:', items[0].category_id)
-        console.log('First 5 product names:', items.slice(0, 5).map((p: any) => p.names?.de || 'NO NAME'))
-      } else {
-        console.log('No products returned from API')
-      }
 
       // Extract total from API response
       const apiTotal = (response as any).total || items.length
@@ -360,14 +334,26 @@ export function ProductsPage() {
   }
 
   function handleSort(key: string, direction: 'asc' | 'desc') {
-    // Validate and cast the key to the expected type
-    const validKeys = ['name', 'price', 'category', 'created_at']
-    if (validKeys.includes(key)) {
-      setSortKey(key as 'name' | 'price' | 'category' | 'created_at')
-      setSortDirection(direction)
-      // Reset to first page when sorting changes (useEffect will call loadProducts)
-      setCurrentPage(1)
+    const validKeys = ['name', 'price', 'category']
+    if (!validKeys.includes(key)) return
+
+    // If clicking the same column that's already sorted, toggle the direction
+    // Otherwise use the provided direction (which is 'asc' by default)
+    let newDirection = direction
+    if (sortKey === key) {
+      // Clicking the same column - toggle between asc and desc
+      newDirection = sortDirection === 'asc' ? 'desc' : 'asc'
     }
+
+    setSortKey(key as 'name' | 'price' | 'category')
+    setSortDirection(newDirection)
+
+    // Build the API sort_by value - category is special case (no direction suffix)
+    const sortByVal = key === 'category' ? 'category' : `${key}_${newDirection}`
+    setSortByValue(sortByVal)
+
+    // Reset to first page when sorting changes (useEffect will call loadProducts)
+    setCurrentPage(1)
   }
 
   function handlePageChange(page: number) {
@@ -382,30 +368,6 @@ export function ProductsPage() {
     setCurrentPage(1)
   }
 
-  // Sort options for the dropdown
-  const sortOptions = [
-    { value: 'name-asc', label: 'Name (A-Z)', direction: 'asc' as const },
-    { value: 'name-desc', label: 'Name (Z-A)', direction: 'desc' as const },
-    { value: 'price-asc', label: 'Price (low to high)', direction: 'asc' as const },
-    { value: 'price-desc', label: 'Price (high to low)', direction: 'desc' as const },
-    { value: 'category-asc', label: 'Category (A-Z)', direction: 'asc' as const },
-    { value: 'category-desc', label: 'Category (Z-A)', direction: 'desc' as const },
-    { value: 'created_at-desc', label: 'Newest first', direction: 'desc' as const },
-    { value: 'created_at-asc', label: 'Oldest first', direction: 'asc' as const },
-  ]
-
-  function handleSortByChange(value: string) {
-    setSortByValue(value)
-    // Parse the value to extract key and direction
-    const [key, direction] = value.split('-') as [
-      'name' | 'price' | 'category' | 'created_at',
-      'asc' | 'desc',
-    ]
-    setSortKey(key)
-    setSortDirection(direction)
-    // Reset to first page when sorting changes
-    setCurrentPage(1)
-  }
 
   function handleCategoryFilterChange(categoryId: string | null) {
     setFilterCategory(categoryId)
@@ -442,32 +404,6 @@ export function ProductsPage() {
 
       <h1>Products</h1>
 
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-        <button
-          data-testid="products-create-button"
-          onClick={() => {
-            setModalMode('create')
-            setEditingProduct(null)
-            setFormData({ name: '', price: '' })
-            setSelectedCategory('')
-            setFormError(null)
-            setShowModal(true)
-          }}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#3b82f6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '500',
-          }}
-        >
-          Create Product
-        </button>
-      </div>
-
       {error && (
         <div
           data-testid="products-error-message"
@@ -483,17 +419,60 @@ export function ProductsPage() {
         </div>
       )}
 
-      {/* Search and Sort Toolbar - top */}
-      <SearchAndSortToolbar
-        totalItems={totalItems}
-        sortOptions={sortOptions}
-        currentSort={sortByValue}
-        onSortChange={handleSortByChange}
-        categories={categories}
-        selectedCategory={filterCategory}
-        onCategoryChange={handleCategoryFilterChange}
-        testId="products-search-sort"
-      />
+      {/* Search and Sort Toolbar - top with Create button */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          marginBottom: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        {/* Left: Summary */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span data-testid="products-count-summary" style={{ color: '#cbd5e1', fontSize: 14 }}>
+            <strong style={{ color: '#e2e8f0' }}>{totalItems}</strong> Produkte gefunden
+          </span>
+        </div>
+
+        {/* Right: Category filter + Create button */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <CategoryFilter
+            categories={categories}
+            value={filterCategory}
+            onChange={handleCategoryFilterChange}
+            testId="products-search-sort-category"
+          />
+
+          {/* Create button */}
+          <button
+            data-testid="products-create-button"
+            onClick={() => {
+              setModalMode('create')
+              setEditingProduct(null)
+              setFormData({ name: '', price: '' })
+              setSelectedCategory('')
+              setFormError(null)
+              setShowModal(true)
+            }}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Create Product
+          </button>
+        </div>
+      </div>
 
       <div data-testid="products-table-wrapper" style={tableWrapperStyles}>
         <table

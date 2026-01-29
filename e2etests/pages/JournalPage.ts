@@ -115,14 +115,20 @@ export class JournalPage extends BasePage {
       const cells = row.locator('td')
       await cells.nth(0).waitFor({ state: 'visible', timeout: 3000 })
 
-      const date = await cells.nth(0).textContent({ timeout: 3000 })
+      // Parse date cell which contains date and time in separate divs
+      const dateCell = cells.nth(0)
+      const dateAndTime = await dateCell.locator('> div > div').allTextContents()
+      const date = dateAndTime.length >= 2
+        ? `${dateAndTime[0].trim()}\n${dateAndTime[1].trim()}`
+        : (await dateCell.textContent({ timeout: 3000 }))?.trim() || ''
+
       const type = await cells.nth(1).textContent({ timeout: 3000 })
       const member = await cells.nth(2).textContent({ timeout: 3000 })
       const details = await cells.nth(3).textContent({ timeout: 3000 })
       const amount = await cells.nth(4).textContent({ timeout: 3000 })
 
       return {
-        date: date?.trim() || '',
+        date: date,
         type: type?.trim() || '',
         member: member?.trim() || '',
         details: details?.trim() || '',

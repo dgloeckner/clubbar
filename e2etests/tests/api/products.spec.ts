@@ -86,9 +86,9 @@ test.describe('Products API - List', () => {
       const product = body.items[0];
       expect(product.id).toBeDefined();
       expect(product.names).toBeDefined();
-      expect(product.priceCents).toBeDefined();
-      expect(product.categoryId).toBeDefined();
-      expect(product.isActive).toBeDefined();
+      expect(product.price_cents).toBeDefined();
+      expect(product.category_id).toBeDefined();
+      expect(product.is_active).toBeDefined();
     }
   });
 
@@ -738,5 +738,143 @@ test.describe('Products API - Icon Support', () => {
     });
 
     expect(response.status()).toBe(422);
+  });
+});
+
+// Test: Price Sorting
+test.describe('Products API - Price Sorting', () => {
+  test('GET /api/admin/products?sort_by=price_asc returns products sorted by price ascending', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+
+    // Create products with different prices
+    const prices = [500, 100, 300, 200]; // €5.00, €1.00, €3.00, €2.00
+    const productIds: string[] = [];
+
+    for (const price of prices) {
+      const response = await authenticatedRequest.post('/api/admin/products', {
+        data: createValidProduct(category.id, {
+          price_cents: price,
+          names: { de: `Product ${price}`, en: `Product ${price}` },
+        }),
+      });
+      const product = await response.json();
+      productIds.push(product.id);
+    }
+
+    console.log('Created products with IDs:', productIds);
+
+    // Query with price_asc sort filtered to this category
+    const response = await authenticatedRequest.get(`/api/admin/products?sort=price&order=asc&category_id=${category.id}`);
+    const body = await response.json();
+
+    console.log('Total items:', body.total);
+    console.log('Items returned:', body.items.length);
+
+    expect(response.ok()).toBeTruthy();
+
+    // Find our test products in the response
+    const testProducts = body.items.filter((p: any) => productIds.includes(p.id));
+    console.log('Found test products:', testProducts.length);
+    console.log('Test product prices (asc):', testProducts.map((p: any) => p.price_cents));
+
+    expect(testProducts.length).toBe(4);
+
+    // Verify they are sorted by price ascending
+    for (let i = 1; i < testProducts.length; i++) {
+      expect(testProducts[i].price_cents).toBeGreaterThanOrEqual(testProducts[i - 1].price_cents);
+    }
+
+    // Verify the exact order: 100, 200, 300, 500
+    const sortedPrices = testProducts.map((p: any) => p.price_cents);
+    expect(sortedPrices).toEqual([100, 200, 300, 500]);
+  });
+
+  test('GET /api/admin/products?sort_by=price_desc returns products sorted by price descending', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+
+    // Create products with different prices
+    const prices = [500, 100, 300, 200]; // €5.00, €1.00, €3.00, €2.00
+    const productIds: string[] = [];
+
+    for (const price of prices) {
+      const response = await authenticatedRequest.post('/api/admin/products', {
+        data: createValidProduct(category.id, {
+          price_cents: price,
+          names: { de: `Product ${price}`, en: `Product ${price}` },
+        }),
+      });
+      const product = await response.json();
+      productIds.push(product.id);
+    }
+
+    // Query with price_desc sort filtered to this category
+    const response = await authenticatedRequest.get(`/api/admin/products?sort=price&order=desc&category_id=${category.id}`);
+    const body = await response.json();
+
+    expect(response.ok()).toBeTruthy();
+
+    // Find our test products in the response
+    const testProducts = body.items.filter((p: any) => productIds.includes(p.id));
+    console.log('Found test products (desc):', testProducts.length);
+    console.log('Test product prices (desc):', testProducts.map((p: any) => p.price_cents));
+    expect(testProducts.length).toBe(4);
+
+    // Verify they are sorted by price descending
+    for (let i = 1; i < testProducts.length; i++) {
+      expect(testProducts[i].price_cents).toBeLessThanOrEqual(testProducts[i - 1].price_cents);
+    }
+
+    // Verify the exact order: 500, 300, 200, 100
+    const sortedPrices = testProducts.map((p: any) => p.price_cents);
+    expect(sortedPrices).toEqual([500, 300, 200, 100]);
+  });
+
+  test('GET /api/admin/products price_asc and price_desc return different order', async ({ authenticatedRequest }) => {
+    const category = await createCategory(authenticatedRequest);
+
+    // Create 2 products with distinct prices
+    const cheapProduct = await (
+      await authenticatedRequest.post('/api/admin/products', {
+        data: createValidProduct(category.id, {
+          price_cents: 150,
+          names: { de: 'Cheap Product', en: 'Cheap Product' },
+        }),
+      })
+    ).json();
+
+    const expensiveProduct = await (
+      await authenticatedRequest.post('/api/admin/products', {
+        data: createValidProduct(category.id, {
+          price_cents: 950,
+          names: { de: 'Expensive Product', en: 'Expensive Product' },
+        }),
+      })
+    ).json();
+
+    // Query with price_asc - cheap should come first (filtered to category)
+    const ascResponse = await authenticatedRequest.get(`/api/admin/products?sort=price&order=asc&category_id=${category.id}`);
+    const ascBody = await ascResponse.json();
+    const ascProducts = ascBody.items.filter((p: any) => [cheapProduct.id, expensiveProduct.id].includes(p.id));
+
+    // Query with price_desc - expensive should come first (filtered to category)
+    const descResponse = await authenticatedRequest.get(`/api/admin/products?sort=price&order=desc&category_id=${category.id}`);
+    const descBody = await descResponse.json();
+    const descProducts = descBody.items.filter((p: any) => [cheapProduct.id, expensiveProduct.id].includes(p.id));
+
+    console.log('Asc products:', ascProducts.map((p: any) => ({ id: p.id, price: p.price_cents })));
+    console.log('Desc products:', descProducts.map((p: any) => ({ id: p.id, price: p.price_cents })));
+
+    // Verify asc: cheap first (150)
+    expect(ascProducts.length).toBe(2);
+    expect(ascProducts[0].price_cents).toBe(150);
+    expect(ascProducts[1].price_cents).toBe(950);
+
+    // Verify desc: expensive first (950)
+    expect(descProducts.length).toBe(2);
+    expect(descProducts[0].price_cents).toBe(950);
+    expect(descProducts[1].price_cents).toBe(150);
+
+    // Verify they're different
+    expect(ascProducts[0].id).not.toBe(descProducts[0].id);
   });
 });

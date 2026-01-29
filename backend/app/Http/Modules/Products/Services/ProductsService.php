@@ -97,8 +97,8 @@ class ProductsService extends BaseService
         string $sortBy = 'name',
         string $sortOrder = 'asc',
     ): PaginatedResultDto {
-        // Start with query that loads category relationship
-        $query = $this->productsRepository->query()->with('category');
+        // Start with base query
+        $query = $this->productsRepository->query();
 
         // Apply filters
         if (isset($filters['status']) && $filters['status'] !== 'all') {
@@ -121,6 +121,7 @@ class ProductsService extends BaseService
             'name' => $query->orderBy('products.names', $sortOrder),
             'price' => $query->orderBy('products.price_cents', $sortOrder),
             'category' => $query
+                ->select('products.*')
                 ->join('categories', 'products.category_id', '=', 'categories.id')
                 ->orderBy('categories.display_order', 'asc')
                 ->orderBy('products.names', 'asc'),
