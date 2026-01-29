@@ -6,6 +6,7 @@ use App\Models\Member;
 use App\Models\Transaction;
 use App\Models\Terminal;
 use App\Models\Settlement;
+use App\Models\SettlementItem;
 use App\Models\Product;
 use App\Http\Modules\Dashboard\DTOs\DashboardDto;
 use App\Http\Modules\Dashboard\DTOs\MetricsDto;
@@ -103,15 +104,17 @@ class DashboardService
     /**
      * Calculate total outstanding balance (unsettled transactions)
      *
-     * Sum of all transaction amounts where settlement_id is NULL.
+     * Sum of all transaction amounts where transaction does NOT appear in settlement_items.
+     * Uses anti-join pattern: LEFT JOIN settlement_items WHERE NULL
      * Includes both positive charges and negative corrections.
      *
      * @return int Outstanding balance in cents
      */
     private function getOutstandingBalanceCents(): int
     {
-        return (int) (Transaction::whereNull('settlement_id')
-            ->sum('amount_cents') ?? 0);
+        return (int) (Transaction::leftJoin('settlement_items', 'transactions.id', '=', 'settlement_items.transaction_id')
+            ->whereNull('settlement_items.id')
+            ->sum('transactions.amount_cents') ?? 0);
     }
 
     /**
@@ -152,15 +155,14 @@ class DashboardService
     /**
      * Count members with settled transactions
      *
-     * Number of unique members who have at least one settled transaction
-     * (settlement_id IS NOT NULL).
+     * Number of unique members who have at least one transaction in settlement_items.
+     * Queries settlement_items directly (source of truth for settled transactions).
      *
      * @return int Count of members with settled transactions
      */
     private function getSettledMembersCount(): int
     {
-        return Transaction::whereNotNull('settlement_id')
-            ->distinct('member_id')
+        return SettlementItem::distinct('member_id')
             ->count('member_id');
     }
 
