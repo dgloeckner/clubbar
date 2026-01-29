@@ -346,9 +346,9 @@ export function JournalPage() {
                     </th>
                     <th
                       style={headerCellBaseStyle}
-                      data-testid="journal-header-product"
+                      data-testid="journal-header-details"
                     >
-                      Product
+                      Details
                     </th>
                     <th
                       style={{
@@ -361,12 +361,6 @@ export function JournalPage() {
                       data-testid="journal-header-amount"
                     >
                       Amount {sortKey === 'amount' && (sortDirection === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th
-                      style={headerCellBaseStyle}
-                      data-testid="journal-header-description"
-                    >
-                      Description
                     </th>
                   </tr>
                 </thead>
@@ -429,15 +423,50 @@ export function JournalPage() {
                         {tx.member_name}
                       </td>
 
-                      {/* Product */}
+                      {/* Details (Product + Description) */}
                       <td
-                        data-testid={`journal-table-cell-product-${tx.id}`}
+                        data-testid={`journal-table-cell-details-${tx.id}`}
                         style={{
                           padding: tableSpacing.cellPadding,
-                          color: tableColors.cellText,
+                          color: tableColors.cellSecondaryText,
+                          fontSize: 13,
+                          maxWidth: 300,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
                         }}
+                        title={
+                          [tx.product_name, tx.description]
+                            .filter((v) => v)
+                            .join('\n')
+                            .trim() || 'No details'
+                        }
                       >
-                        {tx.product_name || '—'}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {tx.product_name && (
+                            <div
+                              style={{
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {tx.product_name}
+                            </div>
+                          )}
+                          {tx.description && (
+                            <div
+                              style={{
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                color: tableColors.cellText,
+                              }}
+                            >
+                              {tx.description}
+                            </div>
+                          )}
+                          {!tx.product_name && !tx.description && <span>—</span>}
+                        </div>
                       </td>
 
                       {/* Amount */}
@@ -450,23 +479,6 @@ export function JournalPage() {
                         }}
                       >
                         €{(tx.amount_cents / 100).toFixed(2)}
-                      </td>
-
-                      {/* Description */}
-                      <td
-                        data-testid={`journal-table-cell-description-${tx.id}`}
-                        style={{
-                          padding: tableSpacing.cellPadding,
-                          color: tableColors.cellSecondaryText,
-                          fontSize: 13,
-                          maxWidth: 250,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                        title={tx.description}
-                      >
-                        {tx.description || '—'}
                       </td>
                     </tr>
                   ))}

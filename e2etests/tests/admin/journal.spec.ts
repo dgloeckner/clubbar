@@ -165,7 +165,7 @@ test.describe('Journal Page - Transaction Display', () => {
       expect(row.type.toLowerCase(), 'Transaction type should be correction').toBe('correction')
       expect(row.amount, 'Amount should be displayed').toBeTruthy()
       expect(row.amount, 'Amount should be 50.00').toContain('50.00')
-      expect(row.description, 'Description should contain reason').toContain('E2E test correction')
+      expect(row.details, 'Details should contain reason').toContain('E2E test correction')
     }
   })
 
@@ -310,7 +310,7 @@ test.describe('Journal Page - Transaction Display', () => {
           expect(row.type, 'Type column should have data').toBeTruthy()
           expect(row.member, 'Member column should have member name').toContain(memberData.first_name)
           expect(row.amount, 'Amount column should show 123.45').toContain('123.45')
-          expect(row.description, 'Description should be present').toBeTruthy()
+          expect(row.details, 'Details column should be present').toBeTruthy()
 
           // Verify type is correction
           expect(row.type.toLowerCase(), 'Type should be correction').toBe('correction')

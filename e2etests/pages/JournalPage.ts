@@ -43,9 +43,8 @@ export class JournalPage extends BasePage {
   private readonly headerDate = () => this.page.getByTestId('journal-header-date')
   private readonly headerType = () => this.page.getByTestId('journal-header-type')
   private readonly headerMember = () => this.page.getByTestId('journal-header-member')
-  private readonly headerProduct = () => this.page.getByTestId('journal-header-product')
+  private readonly headerDetails = () => this.page.getByTestId('journal-header-details')
   private readonly headerAmount = () => this.page.getByTestId('journal-header-amount')
-  private readonly headerDescription = () => this.page.getByTestId('journal-header-description')
 
   constructor(page: Page) {
     super(page)
@@ -104,9 +103,8 @@ export class JournalPage extends BasePage {
     date: string
     type: string
     member: string
-    product: string
+    details: string
     amount: string
-    description: string
   }> {
     try {
       const row = this.tableRows().nth(index)
@@ -119,17 +117,15 @@ export class JournalPage extends BasePage {
       const date = await cells.nth(0).textContent({ timeout: 3000 })
       const type = await cells.nth(1).textContent({ timeout: 3000 })
       const member = await cells.nth(2).textContent({ timeout: 3000 })
-      const product = await cells.nth(3).textContent({ timeout: 3000 })
+      const details = await cells.nth(3).textContent({ timeout: 3000 })
       const amount = await cells.nth(4).textContent({ timeout: 3000 })
-      const description = await cells.nth(5).textContent({ timeout: 3000 })
 
       return {
         date: date?.trim() || '',
         type: type?.trim() || '',
         member: member?.trim() || '',
-        product: product?.trim() || '',
+        details: details?.trim() || '',
         amount: amount?.trim() || '',
-        description: description?.trim() || '',
       }
     } catch (error) {
       // Return empty row if cells not found
@@ -137,9 +133,8 @@ export class JournalPage extends BasePage {
         date: '',
         type: '',
         member: '',
-        product: '',
+        details: '',
         amount: '',
-        description: '',
       }
     }
   }
