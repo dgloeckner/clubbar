@@ -24,8 +24,8 @@ export class JournalPage extends BasePage {
   private readonly toolbar = () => this.page.getByTestId('journal-toolbar')
   private readonly countSummary = () => this.page.getByTestId('journal-count-summary')
   private readonly searchInput = () => this.page.getByTestId('journal-search-input')
-  private readonly dateFromInput = () => this.page.getByTestId('journal-date-range-from')
-  private readonly dateToInput = () => this.page.getByTestId('journal-date-range-to')
+  private readonly periodPickerButton = (period: '1m' | '3m' | '6m' | '1y' | '2y' | 'all') =>
+    this.page.getByTestId(`journal-period-picker-${period}`)
   private readonly filterTypeSelect = () => this.page.getByTestId('journal-filter-type-trigger')
 
   // Table elements
@@ -185,15 +185,9 @@ export class JournalPage extends BasePage {
     await this.page.waitForLoadState('networkidle')
   }
 
-  async setDateFrom(date: string) {
-    await this.dateFromInput().fill(date)
-    // Wait for request
-    await this.page.waitForLoadState('networkidle')
-  }
-
-  async setDateTo(date: string) {
-    await this.dateToInput().fill(date)
-    // Wait for request
+  async selectPeriod(period: '1m' | '3m' | '6m' | '1y' | '2y' | 'all') {
+    await this.periodPickerButton(period).click()
+    // Wait for request to complete with new date range
     await this.page.waitForLoadState('networkidle')
   }
 
