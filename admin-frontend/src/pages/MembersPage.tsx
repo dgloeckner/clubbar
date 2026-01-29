@@ -16,6 +16,7 @@ import { getMembers, createMember, updateMember, deactivateMember, Member } from
 import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
+import { StatusFilter } from '../components/tables/StatusFilter'
 import { Toggle } from '../components/forms/Toggle'
 import {
   tableWrapperStyles,
@@ -265,29 +266,15 @@ export function MembersPage() {
             justifyContent: 'flex-end',
           }}
         >
-          {/* Status Filter */}
-          <select
-            data-testid="members-filter-status"
+          {/* Status Filter Component */}
+          <StatusFilter
             value={filterIsActive}
-            onChange={(e) => {
-              setFilterIsActive(e.target.value as 'all' | 'active' | 'inactive')
+            onChange={(status) => {
+              setFilterIsActive(status)
               setPage(1)
             }}
-            style={{
-              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-              backgroundColor: theme.colors.bg.card,
-              border: `1px solid ${tableColors.rowActiveBorder}`,
-              borderRadius: '6px',
-              color: theme.colors.text.primary,
-              fontSize: '14px',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            <option value="all">All Members</option>
-            <option value="active">Active Only</option>
-            <option value="inactive">Inactive Only</option>
-          </select>
+            testId="members-filter-status"
+          />
 
           {/* Sort Dropdown */}
           <select

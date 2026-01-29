@@ -163,6 +163,18 @@ export class MembersPage extends BasePage {
     return balance || ''
   }
 
+  async getMemberNameAtRowIndex(rowIndex: number): Promise<string> {
+    // Get member name at specific row index (for sorting verification)
+    const nameCell = this.page.locator('[data-testid^="members-table-cell-name-"]').nth(rowIndex)
+    return await nameCell.textContent() || ''
+  }
+
+  async getMemberBalanceAtRowIndex(rowIndex: number): Promise<string> {
+    // Get member balance at specific row index (for sorting verification)
+    const balanceCell = this.page.locator('[data-testid^="members-table-cell-balance-"]').nth(rowIndex)
+    return await balanceCell.textContent() || ''
+  }
+
   async getMemberFirstNameInTable(firstName: string): Promise<string | null> {
     // Search for member by first name in the table
     const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
@@ -438,5 +450,57 @@ export class MembersPage extends BasePage {
 
   async getTransactionRunningTotal(rowIndex: number = 0): Promise<string> {
     return await this.page.getByTestId('transaction-running-total').nth(rowIndex).textContent() || ''
+  }
+
+  /**
+   * SORTING AND FILTERING CONTROLS
+   */
+
+  async setSortBy(sortOption: string) {
+    const dropdown = this.page.getByTestId('members-sort-by')
+    await expect(dropdown).toBeVisible()
+
+    // Set the value directly using evaluate
+    await dropdown.evaluate((el: HTMLSelectElement, value: string) => {
+      el.value = value
+    }, sortOption)
+
+    // Dispatch change event to trigger React's onChange
+    await dropdown.evaluate((el: HTMLSelectElement) => {
+      el.dispatchEvent(new Event('change', { bubbles: true }))
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    // Wait for React to process
+    await this.page.waitForTimeout(300)
+  }
+
+  async setStatusFilter(filterOption: 'all' | 'active' | 'inactive') {
+    // Click the trigger button to open dropdown
+    const trigger = this.page.getByTestId('members-filter-status-trigger')
+    await expect(trigger).toBeVisible()
+    await trigger.click()
+
+    // Click the option in the dropdown
+    const option = this.page.getByTestId(`members-filter-status-option-${filterOption}`)
+    await expect(option).toBeVisible()
+    await option.click()
+
+    // Wait for React to process the change
+    await this.page.waitForTimeout(300)
+  }
+
+  async getSortByValue(): Promise<string> {
+    return await this.page.getByTestId('members-sort-by').evaluate((el: HTMLSelectElement) => el.value) || ''
+  }
+
+  async getStatusFilterValue(): Promise<'all' | 'active' | 'inactive'> {
+    // Read the trigger button text to determine selected status
+    const trigger = this.page.getByTestId('members-filter-status-trigger')
+    const text = await trigger.textContent() || ''
+
+    if (text.includes('Active Only')) return 'active'
+    if (text.includes('Inactive Only')) return 'inactive'
+    return 'all'
   }
 }
