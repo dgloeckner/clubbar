@@ -36,6 +36,7 @@ export function MembersPage() {
   const { setIsLoading } = useLoading()
   const [members, setMembers] = useState<Member[]>([])
   const [totalMembers, setTotalMembers] = useState(0)
+  const [activeMembersCount, setActiveMembersCount] = useState(0)
   const [totalBalance, setTotalBalance] = useState(0)
   const [lastSettlementDate, setLastSettlementDate] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -95,11 +96,12 @@ export function MembersPage() {
     return () => clearTimeout(timer)
   }, [page, search, filterIsActive, sortKey, sortDirection, setIsLoading])
 
-  // Load dashboard metrics (last settlement date and outstanding balance)
+  // Load dashboard metrics (active members count, outstanding balance, last settlement date)
   useEffect(() => {
     const loadDashboardMetrics = async () => {
       try {
         const dashboard = await getDashboardMetrics()
+        setActiveMembersCount(dashboard.metrics.active_members)
         setTotalBalance(dashboard.metrics.outstanding_balance_cents)
         setLastSettlementDate(dashboard.system_status.last_settlement_date)
       } catch (err) {
@@ -231,7 +233,7 @@ export function MembersPage() {
         <StatCard
           icon={<UsersIcon />}
           label="Mitglieder"
-          value={totalMembers}
+          value={activeMembersCount}
           color="green"
         />
         <StatCard
