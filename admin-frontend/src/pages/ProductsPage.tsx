@@ -22,6 +22,17 @@ import { getProductIcon } from '../components/icons/IconRegistry'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { SearchAndSortToolbar } from '../components/tables/SearchAndSortToolbar'
+import {
+  tableColors,
+  tableSpacing,
+  tableTransitions,
+  tableWrapperStyles,
+  tableElementStyles,
+  headerCellBaseStyle,
+  headerRowStyle,
+  getRowStyle,
+  getButtonStyle,
+} from '../styles/tableTokens'
 
 interface Product {
   id: string
@@ -40,6 +51,55 @@ interface Category {
   names: { [lang: string]: string }
   is_active: boolean
   display_order: number
+}
+
+/**
+ * Action buttons cell component with Edit/Delete buttons
+ * Uses design tokens for consistent styling across tables
+ */
+function ActionButtonCell({
+  product,
+  onEdit,
+  onDelete,
+}: {
+  product: Product
+  onEdit: (product: Product) => void
+  onDelete: (product: Product) => void
+}) {
+  const [primaryHovered, setPrimaryHovered] = useState(false)
+  const [dangerHovered, setDangerHovered] = useState(false)
+
+  return (
+    <td
+      data-testid={`products-table-cell-actions-${product.id}`}
+      style={{
+        padding: tableSpacing.cellPadding,
+        display: 'flex',
+        gap: tableSpacing.actionButtonGap,
+        justifyContent: 'center',
+      }}
+    >
+      <button
+        data-testid={`products-edit-button-${product.id}`}
+        onClick={() => onEdit(product)}
+        style={getButtonStyle('primary', primaryHovered)}
+        onMouseEnter={() => setPrimaryHovered(true)}
+        onMouseLeave={() => setPrimaryHovered(false)}
+      >
+        <EditIcon size={18} />
+      </button>
+
+      <button
+        data-testid={`products-delete-button-${product.id}`}
+        onClick={() => onDelete(product)}
+        style={getButtonStyle('danger', dangerHovered)}
+        onMouseEnter={() => setDangerHovered(true)}
+        onMouseLeave={() => setDangerHovered(false)}
+      >
+        <TrashIcon size={18} />
+      </button>
+    </td>
+  )
 }
 
 export function ProductsPage() {
@@ -481,42 +541,23 @@ export function ProductsPage() {
         testId="products-search-sort"
       />
 
-      <div data-testid="products-table-wrapper" style={{ overflowX: 'auto', borderRadius: '16px', overflow: 'hidden' }}>
+      <div data-testid="products-table-wrapper" style={tableWrapperStyles}>
         <table
           data-testid="products-table"
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            backgroundColor: 'transparent',
-          }}
+          style={tableElementStyles}
         >
           <thead>
-            <tr style={{ backgroundColor: 'rgba(15, 29, 50, 0.6)', borderBottom: '1px solid rgba(71, 85, 105, 0.3)' }}>
+            <tr style={headerRowStyle}>
               <th
                 style={{
-                  padding: '14px 16px',
+                  ...headerCellBaseStyle,
                   textAlign: 'center',
-                  fontWeight: '600',
-                  color: '#cbd5e1',
-                  fontSize: '12px',
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
                   width: '60px',
                 }}
               >
                 AKTIV
               </th>
-              <th
-                style={{
-                  padding: '14px 16px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#cbd5e1',
-                  fontSize: '12px',
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}
-              >
+              <th style={{ ...headerCellBaseStyle, textAlign: 'left' }}>
                 <SortableTableHeader
                   label="Produkt"
                   sortKey="name"
@@ -525,17 +566,7 @@ export function ProductsPage() {
                   testId="products-table-header-name"
                 />
               </th>
-              <th
-                style={{
-                  padding: '14px 16px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#cbd5e1',
-                  fontSize: '12px',
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}
-              >
+              <th style={{ ...headerCellBaseStyle, textAlign: 'left' }}>
                 <SortableTableHeader
                   label="Preis"
                   sortKey="price"
@@ -544,17 +575,7 @@ export function ProductsPage() {
                   testId="products-table-header-price"
                 />
               </th>
-              <th
-                style={{
-                  padding: '14px 16px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#cbd5e1',
-                  fontSize: '12px',
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}
-              >
+              <th style={{ ...headerCellBaseStyle, textAlign: 'left' }}>
                 <SortableTableHeader
                   label="Kategorie"
                   sortKey="category"
@@ -563,17 +584,7 @@ export function ProductsPage() {
                   testId="products-table-header-category"
                 />
               </th>
-              <th
-                style={{
-                  padding: '14px 16px',
-                  textAlign: 'center',
-                  fontWeight: '600',
-                  color: '#cbd5e1',
-                  fontSize: '12px',
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}
-              >
+              <th style={{ ...headerCellBaseStyle, textAlign: 'center' }}>
                 Aktionen
               </th>
             </tr>
@@ -583,26 +594,19 @@ export function ProductsPage() {
               <tr
                 key={product.id}
                 data-testid={product.id}
-                style={{
-                  borderBottom: '1px solid rgba(71, 85, 105, 0.2)',
-                  backgroundColor: product.is_active
-                    ? 'rgba(30, 58, 138, 0.2)'
-                    : 'rgba(30, 58, 138, 0.1)',
-                  opacity: product.is_active ? 1 : 0.5,
-                  transition: 'background-color 150ms',
-                }}
+                style={getRowStyle(product.is_active)}
                 onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
                   if (product.is_active) {
-                    e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)'
+                    e.currentTarget.style.backgroundColor = tableColors.rowActiveHoverBg
                   }
                 }}
                 onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => {
                   e.currentTarget.style.backgroundColor = product.is_active
-                    ? 'rgba(30, 58, 138, 0.2)'
-                    : 'rgba(30, 58, 138, 0.1)'
+                    ? tableColors.rowActiveBg
+                    : tableColors.rowInactiveBg
                 }}
               >
-                <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center' }}>
                   <Toggle
                     enabled={product.is_active}
                     onChange={() => handleStatusToggle(product)}
@@ -610,7 +614,15 @@ export function ProductsPage() {
                     testId={`products-status-toggle-${product.id}`}
                   />
                 </td>
-                <td style={{ padding: '14px 16px', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <td
+                  style={{
+                    padding: tableSpacing.cellPadding,
+                    color: tableColors.cellText,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: tableSpacing.iconGap,
+                  }}
+                >
                   {(() => {
                     const IconComponent = getProductIcon(product.icon_name)
                     return <IconComponent size={20} data-testid={`products-table-cell-icon-${product.id}`} />
@@ -619,22 +631,30 @@ export function ProductsPage() {
                     {product.names.de || product.names.en || 'Unnamed Product'}
                   </span>
                 </td>
-                <td style={{ padding: '14px 16px', color: '#e2e8f0', fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', fontWeight: '700' }}>
+                <td
+                  style={{
+                    padding: tableSpacing.cellPadding,
+                    color: tableColors.cellText,
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: '14px',
+                    fontWeight: '700',
+                  }}
+                >
                   <span data-testid={`products-table-cell-price-${product.id}`}>
                     €{(product.price_cents / 100).toFixed(2)}
                   </span>
                 </td>
-                <td style={{ padding: '14px 16px', color: '#e2e8f0' }}>
+                <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                   <span
                     data-testid={`products-table-cell-category-${product.id}`}
                     style={{
                       display: 'inline-block',
-                      padding: '6px 12px',
-                      backgroundColor: 'rgba(71, 85, 105, 0.3)',
-                      color: '#a1aec6',
-                      borderRadius: '16px',
-                      fontSize: '13px',
-                      fontWeight: '500',
+                      padding: `${tableSpacing.badgePaddingVertical} ${tableSpacing.badgePaddingHorizontal}`,
+                      backgroundColor: tableColors.badgeBg,
+                      color: tableColors.badgeText,
+                      borderRadius: tableColors.badgeRadius,
+                      fontSize: tableColors.badgeFontSize,
+                      fontWeight: tableColors.badgeFontWeight,
                     }}
                   >
                     {(() => {
@@ -643,73 +663,7 @@ export function ProductsPage() {
                     })()}
                   </span>
                 </td>
-                <td
-                  data-testid={`products-table-cell-actions-${product.id}`}
-                  style={{
-                    padding: '14px 16px',
-                    display: 'flex',
-                    gap: '10px',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <button
-                    data-testid={`products-edit-button-${product.id}`}
-                    onClick={() => openEditModal(product)}
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      padding: '0',
-                      backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                      border: '1px solid rgba(59, 130, 246, 0.3)',
-                      borderRadius: '8px',
-                      color: '#3b82f6',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 150ms',
-                    }}
-                    onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.25)'
-                      e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'
-                    }}
-                    onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)'
-                      e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)'
-                    }}
-                  >
-                    <EditIcon size={18} />
-                  </button>
-
-                  <button
-                    data-testid={`products-delete-button-${product.id}`}
-                    onClick={() => handleDelete(product)}
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      padding: '0',
-                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                      borderRadius: '8px',
-                      color: '#ef4444',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 150ms',
-                    }}
-                    onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.25)'
-                      e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)'
-                    }}
-                    onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'
-                      e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'
-                    }}
-                  >
-                    <TrashIcon size={18} />
-                  </button>
-                </td>
+                <ActionButtonCell product={product} onEdit={openEditModal} onDelete={handleDelete} />
               </tr>
             ))}
           </tbody>
