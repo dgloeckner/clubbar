@@ -24,6 +24,7 @@ final class AdminListRequest extends FormRequest
         return [
             'limit' => ['sometimes', 'integer', 'min:1', 'max:100'],
             'offset' => ['sometimes', 'integer', 'min:0'],
+            'search' => ['sometimes', 'string', 'max:255'],
             'filters.is_active' => ['sometimes', 'string', 'in:true,false'],
             'filters.language' => ['sometimes', 'string', 'in:de,en,fr'],
             'sort' => ['sometimes', 'string', 'in:first_name,last_name,created_at'],
@@ -49,6 +50,17 @@ final class AdminListRequest extends FormRequest
     public function offset(): int
     {
         return max((int) $this->query('offset', 0), 0);
+    }
+
+    /**
+     * Get search query (nullable)
+     *
+     * @return string|null
+     */
+    public function search(): ?string
+    {
+        $search = $this->query('search');
+        return !empty($search) ? trim((string) $search) : null;
     }
 
     /**

@@ -101,21 +101,34 @@ class MembersService extends BaseService
     }
 
     /**
-     * List members with pagination and filters (Admin API).
+     * List members with pagination, search, and filters (Admin API).
      *
-     * Supports pagination (limit, offset) and filtering (is_active, language).
+     * Supports pagination (limit, offset), search by name/email, and filtering (is_active, language).
      * Uses admin DTO for extended field visibility.
      *
      * @param int $limit Items per page
      * @param int $offset Starting position
      * @param array $filters Filter criteria
+     * @param string $sortKey Column to sort by
+     * @param string $sortOrder Sort direction (asc/desc)
+     * @param string|null $search Search query for name/email
      * @return PaginatedResultDto Members with pagination metadata
      */
-    public function listMembers(int $limit, int $offset, array $filters = [], string $sortKey = 'created_at', string $sortOrder = 'desc'): PaginatedResultDto
+    public function listMembers(int $limit, int $offset, array $filters = [], string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $search = null): PaginatedResultDto
     {
         // Build query with filters
         $query = $this->membersRepository->query();
         $query = $this->applyFilters($query, $filters);
+
+        // Apply search filter if provided
+        if ($search) {
+            $query = $query->where(function ($q) use ($search) {
+                $q->whereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ['%' . $search . '%'])
+                  ->orWhere('first_name', 'LIKE', '%' . $search . '%')
+                  ->orWhere('last_name', 'LIKE', '%' . $search . '%')
+                  ->orWhere('email', 'LIKE', '%' . $search . '%');
+            });
+        }
 
         // Get total count before pagination
         $total = $query->count();

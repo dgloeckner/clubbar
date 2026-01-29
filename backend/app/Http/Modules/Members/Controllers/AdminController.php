@@ -66,12 +66,13 @@ class AdminController extends Controller
         // Get pagination parameters
         $limit = $request->limit();
         $offset = $request->offset();
+        $search = $request->search();
         $filters = $request->filters();
         $sortKey = $request->sortKey();
         $sortOrder = $request->sortOrder();
 
         // Delegate to service (Pattern 004: Service Layer)
-        $result = $this->membersService->listMembers($limit, $offset, $filters, $sortKey, $sortOrder);
+        $result = $this->membersService->listMembers($limit, $offset, $filters, $sortKey, $sortOrder, $search);
 
         // Serialize result to JSON (Pattern 003: DTOs)
         return response()->json($result->toArray());
