@@ -13,6 +13,13 @@
 import { useEffect, useState } from 'react'
 import { get } from '../services/api'
 import { theme } from '../styles/design-system'
+import {
+  tableElementStyles,
+  headerRowStyle,
+  headerCellBaseStyle,
+  tableColors,
+  tableSpacing,
+} from '../styles/tableTokens'
 
 interface Transaction {
   id: string
@@ -287,33 +294,29 @@ export function StatisticsPage() {
                 ) : (
                   <table
                     data-testid="recent-transactions-table"
-                    style={{
-                      width: '100%',
-                      borderCollapse: 'collapse',
-                      fontSize: theme.typography.fontSize.sm,
-                    }}
+                    style={tableElementStyles}
                   >
                     <thead>
-                      <tr style={{ borderBottom: `1px solid ${theme.colors.border.light}`, background: theme.colors.bg.secondary }}>
-                        <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Time</th>
-                        <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Member</th>
-                        <th style={{ padding: theme.spacing.md, textAlign: 'left', fontWeight: 600 }}>Product</th>
-                        <th style={{ padding: theme.spacing.md, textAlign: 'right', fontWeight: 600 }}>Amount</th>
+                      <tr style={headerRowStyle}>
+                        <th style={headerCellBaseStyle}>Time</th>
+                        <th style={headerCellBaseStyle}>Member</th>
+                        <th style={headerCellBaseStyle}>Product</th>
+                        <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>Amount</th>
                       </tr>
                     </thead>
                     <tbody>
                       {dashboardData.recent_transactions.slice(0, 10).map((tx) => (
-                        <tr key={tx.id} data-testid="transaction-row" style={{ borderBottom: `1px solid ${theme.colors.border.light}` }}>
-                          <td data-testid="transaction-time" style={{ padding: theme.spacing.md }}>
+                        <tr key={tx.id} data-testid="transaction-row" style={{ borderBottom: `1px solid ${tableColors.rowActiveBorder}`, color: tableColors.cellText }}>
+                          <td data-testid="transaction-time" style={{ padding: tableSpacing.cellPadding }}>
                             {formatDateTime(tx.created_at)}
                           </td>
-                          <td data-testid="transaction-member" style={{ padding: theme.spacing.md }}>
+                          <td data-testid="transaction-member" style={{ padding: tableSpacing.cellPadding }}>
                             {tx.member_name}
                           </td>
-                          <td data-testid="transaction-product" style={{ padding: theme.spacing.md }}>
+                          <td data-testid="transaction-product" style={{ padding: tableSpacing.cellPadding }}>
                             {tx.product_name}
                           </td>
-                          <td data-testid="transaction-amount" style={{ padding: theme.spacing.md, textAlign: 'right', fontWeight: 500 }}>
+                          <td data-testid="transaction-amount" style={{ padding: tableSpacing.cellPadding, textAlign: 'right', fontWeight: 500 }}>
                             {formatPrice(tx.amount_cents)}
                           </td>
                         </tr>
