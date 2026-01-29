@@ -53,6 +53,12 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
   - ✅ Admin Frontend Patterns: `admin-frontend/patterns/test-ids.md` with implementation guides
   - ✅ E2E Testing Patterns: `e2etests/patterns/005-test-ids.md` with 10 implementation patterns and real-world examples
 
+### Phase 4 Phase 2c: Icon Selection for Products & Categories
+- **Completion Date**: 2026-01-28
+- **Achievement**: Full icon selection system with 13 product icons + 5 category icons, IconRegistry, IconSelect dropdown component
+- **Result**: 18 API tests + admin UI tests passing, 470 total tests with no regressions
+- **Features**: Icon creation/update/clear, dropdown with visual preview, icon display in tables with fallbacks, loading indicator pattern for E2E tests
+
 ### Phase 4 Phase 2b: Categories Section + Products-Categories Integration
 - **Completion Date**: 2026-01-27
 - **Achievement**: Full Categories management page (UC-A44) + Products-Categories integration (UC-A40-A43) with test isolation fixes for parallel-safe execution
@@ -73,7 +79,32 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Phase 4 Phase 2b: Categories Section + Products-Categories Integration (✅ COMPLETE)
+### Phase 4: Table Design System - Generify Components (📍 READY TO START)
+
+**Plan**: [PHASE4_TABLE_DESIGN_SYSTEM.md](./PHASE4_TABLE_DESIGN_SYSTEM.md)
+
+**Goal**: Extract reusable table components and design patterns from ProductsPage; create unified table design system for all upcoming tables (Transactions, Settlements, Users, etc.)
+
+**Scope**:
+- Extract design tokens (colors, spacing, transitions)
+- Create generic table components (Container, Header, Row, Cell variants)
+- Create feature components (ActionButtons, StatusToggle, Icon display, Badges)
+- Refactor ProductsPage and CategoriesPage to use new components
+- Document table pattern for future implementations
+
+**Expected Benefit**: 3x faster table implementation, 100% style consistency, reduce code duplication by 30-40%
+
+**Estimated Effort**: 6 phases, ~8-10 hours total
+
+**Next Tables Using This System**:
+1. Transactions Table (UC-A20 modal)
+2. Settlements Table (UC-A30)
+3. Admin Users Table (UC-A70)
+4. Audit Log Table (UC-A81)
+
+---
+
+### Phase 4 Phase 2c: Icon Selection for Products & Categories (✅ COMPLETE)
 
 **Plan**: [PHASE4_CATEGORIES_PRODUCTS_FIX.md](./PHASE4_CATEGORIES_PRODUCTS_FIX.md)
 
