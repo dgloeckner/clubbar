@@ -14,8 +14,14 @@
 import { useEffect, useState } from 'react'
 import { get, post, patch, del, onLoadingStateChange } from '../services/api'
 import { EditIcon, TrashIcon } from '../components/icons'
+import { CategorySelect } from '../components/forms/CategorySelect'
 import { IconSelect } from '../components/forms/IconSelect'
+import { Toggle } from '../components/forms/Toggle'
+import { ProductPreview } from '../components/forms/ProductPreview'
 import { getProductIcon } from '../components/icons/IconRegistry'
+import { PaginationToolbar } from '../components/tables/PaginationToolbar'
+import { SortableTableHeader } from '../components/tables/SortableTableHeader'
+import { SearchAndSortToolbar } from '../components/tables/SearchAndSortToolbar'
 
 interface Product {
   id: string
@@ -29,25 +35,11 @@ interface Product {
   updated_at: string
 }
 
-interface ApiResponse {
-  items: Product[]
-  pagination?: {
-    page: number
-    per_page: number
-    total: number
-    total_pages: number
-  }
-}
-
 interface Category {
   id: string
   names: { [lang: string]: string }
   is_active: boolean
   display_order: number
-}
-
-interface CategoriesResponse {
-  categories: Category[]
 }
 
 export function ProductsPage() {
@@ -69,6 +61,15 @@ export function ProductsPage() {
     message: string
   } | null>(null)
 
+  // Pagination, sorting, and filtering state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
+  const [sortKey, setSortKey] = useState<'name' | 'price' | 'category' | 'created_at'>('created_at')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [sortByValue, setSortByValue] = useState('created_at-desc') // For sort dropdown
+  const [filterCategory, setFilterCategory] = useState<string | null>(null) // Category filter: null = all
+  const [totalItems, setTotalItems] = useState(0) // From API
+
   // Subscribe to global loading state on mount
   useEffect(() => {
     const unsubscribe = onLoadingStateChange((isLoading) => {
@@ -80,13 +81,17 @@ export function ProductsPage() {
   // Load products and categories on mount
   useEffect(() => {
     loadCategories()
-    loadProducts()
   }, [])
+
+  // Load products when pagination/sorting/filtering state changes
+  useEffect(() => {
+    loadProducts()
+  }, [currentPage, pageSize, sortKey, sortDirection, filterCategory])
 
   async function loadCategories() {
     try {
-      const response = await get<CategoriesResponse>('/admin/categories')
-      const categoriesArray = response.categories || []
+      const response = await get<any>('/admin/categories')
+      const categoriesArray = (response as any).categories || []
       setCategories(categoriesArray)
     } catch (err: any) {
       // Silently fail - categories are optional
@@ -98,19 +103,27 @@ export function ProductsPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await get<ApiResponse>('/admin/products', {
+      const response = await get<any>('/admin/products', {
         params: {
-          page: 1,
-          per_page: 20,
+          page: currentPage,
+          per_page: pageSize,
+          sort: sortKey,
+          order: sortDirection,
+          ...(filterCategory && { category_id: filterCategory }), // Only include if not null
         },
       })
       console.log('Products API response:', response)
-      let items = response.items || []
+      let items = (response as any).items || []
       console.log(`Loaded ${items.length} products from API`)
+      console.log('Pagination info:', {
+        total: (response as any).total,
+        limit: (response as any).limit,
+        offset: (response as any).offset,
+      })
 
       // Deduplicate products by ID (fix for duplicate rows issue)
       const seenIds = new Set<string>()
-      const uniqueItems = items.filter(product => {
+      const uniqueItems = items.filter((product: any) => {
         if (seenIds.has(product.id)) {
           console.warn(`Duplicate product detected: ${product.id}`)
           return false
@@ -128,11 +141,14 @@ export function ProductsPage() {
         console.log('First product:', items[0])
         console.log('First product names:', items[0].names)
         console.log('First product category_id:', items[0].category_id)
-        console.log('First 5 product names:', items.slice(0, 5).map(p => p.names?.de || 'NO NAME'))
+        console.log('First 5 product names:', items.slice(0, 5).map((p: any) => p.names?.de || 'NO NAME'))
       } else {
         console.log('No products returned from API')
       }
 
+      // Extract total from API response
+      const apiTotal = (response as any).total || items.length
+      setTotalItems(apiTotal)
       setProducts(items)
     } catch (err: any) {
       setError(err.message || 'Failed to load products')
@@ -324,6 +340,65 @@ export function ProductsPage() {
     setModalMode('create')
   }
 
+  // Server-side pagination - products are already sorted/paginated from API
+  function getTotalPages(): number {
+    return Math.ceil(totalItems / pageSize)
+  }
+
+  function handleSort(key: string, direction: 'asc' | 'desc') {
+    // Validate and cast the key to the expected type
+    const validKeys = ['name', 'price', 'category', 'created_at']
+    if (validKeys.includes(key)) {
+      setSortKey(key as 'name' | 'price' | 'category' | 'created_at')
+      setSortDirection(direction)
+      // Reset to first page when sorting changes (useEffect will call loadProducts)
+      setCurrentPage(1)
+    }
+  }
+
+  function handlePageChange(page: number) {
+    const totalPages = Math.ceil(totalItems / pageSize)
+    setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
+    // useEffect will call loadProducts with new page
+  }
+
+  function handlePageSizeChange(newSize: number) {
+    setPageSize(newSize)
+    // Reset to first page when page size changes (useEffect will call loadProducts)
+    setCurrentPage(1)
+  }
+
+  // Sort options for the dropdown
+  const sortOptions = [
+    { value: 'name-asc', label: 'Name (A-Z)', direction: 'asc' as const },
+    { value: 'name-desc', label: 'Name (Z-A)', direction: 'desc' as const },
+    { value: 'price-asc', label: 'Price (low to high)', direction: 'asc' as const },
+    { value: 'price-desc', label: 'Price (high to low)', direction: 'desc' as const },
+    { value: 'category-asc', label: 'Category (A-Z)', direction: 'asc' as const },
+    { value: 'category-desc', label: 'Category (Z-A)', direction: 'desc' as const },
+    { value: 'created_at-desc', label: 'Newest first', direction: 'desc' as const },
+    { value: 'created_at-asc', label: 'Oldest first', direction: 'asc' as const },
+  ]
+
+  function handleSortByChange(value: string) {
+    setSortByValue(value)
+    // Parse the value to extract key and direction
+    const [key, direction] = value.split('-') as [
+      'name' | 'price' | 'category' | 'created_at',
+      'asc' | 'desc',
+    ]
+    setSortKey(key)
+    setSortDirection(direction)
+    // Reset to first page when sorting changes
+    setCurrentPage(1)
+  }
+
+  function handleCategoryFilterChange(categoryId: string | null) {
+    setFilterCategory(categoryId)
+    // Reset to first page when category filter changes
+    setCurrentPage(1)
+  }
+
   if (loading && products.length === 0) {
     return (
       <div style={{ padding: '20px' }}>
@@ -371,6 +446,8 @@ export function ProductsPage() {
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '500',
           }}
         >
           Create Product
@@ -392,84 +469,112 @@ export function ProductsPage() {
         </div>
       )}
 
-      <div data-testid="products-table-wrapper" style={{ overflowX: 'auto' }}>
+      {/* Search and Sort Toolbar - top */}
+      <SearchAndSortToolbar
+        totalItems={totalItems}
+        sortOptions={sortOptions}
+        currentSort={sortByValue}
+        onSortChange={handleSortByChange}
+        categories={categories}
+        selectedCategory={filterCategory}
+        onCategoryChange={handleCategoryFilterChange}
+        testId="products-search-sort"
+      />
+
+      <div data-testid="products-table-wrapper" style={{ overflowX: 'auto', borderRadius: '16px', overflow: 'hidden' }}>
         <table
           data-testid="products-table"
           style={{
             width: '100%',
             borderCollapse: 'collapse',
-            backgroundColor: '#1a2744',
-            borderRadius: '4px',
-            overflow: 'hidden',
+            backgroundColor: 'transparent',
           }}
         >
           <thead>
-            <tr style={{ backgroundColor: '#0f1d32' }}>
+            <tr style={{ backgroundColor: 'rgba(15, 29, 50, 0.6)', borderBottom: '1px solid rgba(71, 85, 105, 0.3)' }}>
               <th
                 style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
-                  textAlign: 'left',
+                  padding: '14px 16px',
+                  textAlign: 'center',
                   fontWeight: '600',
-                  color: '#e2e8f0',
+                  color: '#cbd5e1',
+                  fontSize: '12px',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                  width: '60px',
                 }}
               >
-                Status
+                AKTIV
               </th>
               <th
                 style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
+                  padding: '14px 16px',
                   textAlign: 'left',
                   fontWeight: '600',
-                  color: '#e2e8f0',
+                  color: '#cbd5e1',
+                  fontSize: '12px',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
                 }}
               >
-                ID
+                <SortableTableHeader
+                  label="Produkt"
+                  sortKey="name"
+                  currentSort={{ key: sortKey, direction: sortDirection }}
+                  onSort={handleSort}
+                  testId="products-table-header-name"
+                />
               </th>
               <th
                 style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
+                  padding: '14px 16px',
                   textAlign: 'left',
                   fontWeight: '600',
-                  color: '#e2e8f0',
+                  color: '#cbd5e1',
+                  fontSize: '12px',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
                 }}
               >
-                Name
+                <SortableTableHeader
+                  label="Preis"
+                  sortKey="price"
+                  currentSort={{ key: sortKey, direction: sortDirection }}
+                  onSort={handleSort}
+                  testId="products-table-header-price"
+                />
               </th>
               <th
                 style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
+                  padding: '14px 16px',
                   textAlign: 'left',
                   fontWeight: '600',
-                  color: '#e2e8f0',
+                  color: '#cbd5e1',
+                  fontSize: '12px',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
                 }}
               >
-                Price
+                <SortableTableHeader
+                  label="Kategorie"
+                  sortKey="category"
+                  currentSort={{ key: sortKey, direction: sortDirection }}
+                  onSort={handleSort}
+                  testId="products-table-header-category"
+                />
               </th>
               <th
                 style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
-                  textAlign: 'left',
+                  padding: '14px 16px',
+                  textAlign: 'center',
                   fontWeight: '600',
-                  color: '#e2e8f0',
+                  color: '#cbd5e1',
+                  fontSize: '12px',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
                 }}
               >
-                Category
-              </th>
-              <th
-                style={{
-                  border: '1px solid #2d3748',
-                  padding: '12px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  color: '#e2e8f0',
-                }}
-              >
-                Actions
+                Aktionen
               </th>
             </tr>
           </thead>
@@ -477,53 +582,61 @@ export function ProductsPage() {
             {products.map((product) => (
               <tr
                 key={product.id}
-                data-testid={`products-table-row-${product.id}`}
+                data-testid={product.id}
                 style={{
-                  borderBottom: '1px solid #2d3748',
+                  borderBottom: '1px solid rgba(71, 85, 105, 0.2)',
+                  backgroundColor: product.is_active
+                    ? 'rgba(30, 58, 138, 0.2)'
+                    : 'rgba(30, 58, 138, 0.1)',
+                  opacity: product.is_active ? 1 : 0.5,
+                  transition: 'background-color 150ms',
+                }}
+                onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
+                  if (product.is_active) {
+                    e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)'
+                  }
+                }}
+                onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => {
+                  e.currentTarget.style.backgroundColor = product.is_active
+                    ? 'rgba(30, 58, 138, 0.2)'
+                    : 'rgba(30, 58, 138, 0.1)'
                 }}
               >
-                <td style={{ border: '1px solid #2d3748', padding: '12px' }}>
-                  <button
-                    data-testid={`products-status-toggle-${product.id}`}
-                    onClick={() => handleStatusToggle(product)}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: '4px',
-                      backgroundColor: product.is_active ? '#dcfce7' : '#fee2e2',
-                      color: product.is_active ? '#166534' : '#991b1b',
-                      border: 'none',
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      transition: 'all 150ms',
-                    }}
-                  >
-                    <span data-testid={`products-table-cell-status-${product.id}`}>
-                      {product.is_active ? '✓ Active' : '✗ Inactive'}
-                    </span>
-                  </button>
+                <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+                  <Toggle
+                    enabled={product.is_active}
+                    onChange={() => handleStatusToggle(product)}
+                    size="small"
+                    testId={`products-status-toggle-${product.id}`}
+                  />
                 </td>
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0', fontFamily: 'monospace', fontSize: '11px' }}>
-                  <span data-testid={`products-table-cell-id-${product.id}`}>
-                    {product.id}
-                  </span>
-                </td>
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <td style={{ padding: '14px 16px', color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: '12px' }}>
                   {(() => {
                     const IconComponent = getProductIcon(product.icon_name)
                     return <IconComponent size={20} data-testid={`products-table-cell-icon-${product.id}`} />
                   })()}
-                  <span data-testid={`products-table-cell-name-${product.id}`}>
+                  <span data-testid={`products-table-cell-name-${product.id}`} style={{ fontWeight: '500' }}>
                     {product.names.de || product.names.en || 'Unnamed Product'}
                   </span>
                 </td>
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
+                <td style={{ padding: '14px 16px', color: '#e2e8f0', fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', fontWeight: '700' }}>
                   <span data-testid={`products-table-cell-price-${product.id}`}>
                     €{(product.price_cents / 100).toFixed(2)}
                   </span>
                 </td>
-                <td style={{ border: '1px solid #2d3748', padding: '12px', color: '#e2e8f0' }}>
-                  <span data-testid={`products-table-cell-category-${product.id}`}>
+                <td style={{ padding: '14px 16px', color: '#e2e8f0' }}>
+                  <span
+                    data-testid={`products-table-cell-category-${product.id}`}
+                    style={{
+                      display: 'inline-block',
+                      padding: '6px 12px',
+                      backgroundColor: 'rgba(71, 85, 105, 0.3)',
+                      color: '#a1aec6',
+                      borderRadius: '16px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                    }}
+                  >
                     {(() => {
                       const category = categories.find((c) => c.id === product.category_id)
                       return category ? category.names.de || category.names.en || 'Unknown' : 'Unknown'
@@ -533,52 +646,68 @@ export function ProductsPage() {
                 <td
                   data-testid={`products-table-cell-actions-${product.id}`}
                   style={{
-                    border: '1px solid #2d3748',
-                    padding: '12px',
+                    padding: '14px 16px',
                     display: 'flex',
-                    gap: '8px',
+                    gap: '10px',
+                    justifyContent: 'center',
                   }}
                 >
                   <button
                     data-testid={`products-edit-button-${product.id}`}
                     onClick={() => openEditModal(product)}
                     style={{
-                      padding: '4px 8px',
-                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                      width: '40px',
+                      height: '40px',
+                      padding: '0',
+                      backgroundColor: 'rgba(59, 130, 246, 0.15)',
                       border: '1px solid rgba(59, 130, 246, 0.3)',
-                      borderRadius: '4px',
+                      borderRadius: '8px',
                       color: '#3b82f6',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '4px',
-                      fontSize: '12px',
+                      justifyContent: 'center',
                       transition: 'all 150ms',
                     }}
+                    onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.25)'
+                      e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'
+                    }}
+                    onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.15)'
+                      e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)'
+                    }}
                   >
-                    <EditIcon size={14} />
-                    Edit
+                    <EditIcon size={18} />
                   </button>
 
                   <button
                     data-testid={`products-delete-button-${product.id}`}
                     onClick={() => handleDelete(product)}
                     style={{
-                      padding: '4px 8px',
-                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      width: '40px',
+                      height: '40px',
+                      padding: '0',
+                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
                       border: '1px solid rgba(239, 68, 68, 0.3)',
-                      borderRadius: '4px',
+                      borderRadius: '8px',
                       color: '#ef4444',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '4px',
-                      fontSize: '12px',
+                      justifyContent: 'center',
                       transition: 'all 150ms',
                     }}
+                    onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.25)'
+                      e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)'
+                    }}
+                    onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.15)'
+                      e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'
+                    }}
                   >
-                    <TrashIcon size={14} />
-                    Delete
+                    <TrashIcon size={18} />
                   </button>
                 </td>
               </tr>
@@ -587,7 +716,24 @@ export function ProductsPage() {
         </table>
       </div>
 
-      {products.length === 0 && !loading && (
+      {/* Pagination toolbar - bottom */}
+      {totalItems > 0 && (
+        <PaginationToolbar
+          currentPage={currentPage}
+          totalPages={getTotalPages()}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          pageSizeOptions={[10, 25, 50, 100]}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          variant="default"
+          showPageSize={true}
+          showInfo={true}
+          testId="products-pagination-bottom"
+        />
+      )}
+
+      {totalItems === 0 && !loading && (
         <div
           data-testid="products-empty-state"
           style={{
@@ -623,33 +769,37 @@ export function ProductsPage() {
               backgroundColor: '#1a2744',
               padding: '24px',
               borderRadius: '8px',
-              maxWidth: '500px',
+              maxWidth: '700px',
               width: '90%',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              gap: '24px',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 data-testid="products-form-title" style={{ marginTop: 0, marginBottom: '16px', color: '#e2e8f0' }}>
-              {modalMode === 'create' ? 'Create Product' : 'Edit Product'}
-            </h2>
+            {/* Left Column: Form */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <h2 data-testid="products-form-title" style={{ marginTop: 0, marginBottom: '16px', color: '#e2e8f0' }}>
+                {modalMode === 'create' ? 'Create Product' : 'Edit Product'}
+              </h2>
 
-            {formError && (
-              <div
-                data-testid="products-form-error"
-                style={{
-                  marginBottom: '12px',
-                  padding: '8px',
-                  backgroundColor: '#fee2e2',
-                  color: '#dc2626',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                }}
-              >
-                {formError}
-              </div>
-            )}
+              {formError && (
+                <div
+                  data-testid="products-form-error"
+                  style={{
+                    marginBottom: '12px',
+                    padding: '8px',
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                  }}
+                >
+                  {formError}
+                </div>
+              )}
 
-            <form onSubmit={handleFormSubmit}>
+              <form onSubmit={handleFormSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
               <div style={{ marginBottom: '16px' }}>
                 <label
                   style={{
@@ -670,53 +820,26 @@ export function ProductsPage() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   style={{
                     width: '100%',
-                    padding: '8px',
-                    border: '1px solid #2d3748',
-                    borderRadius: '4px',
-                    backgroundColor: '#0d1829',
+                    padding: '10px 12px',
+                    border: '1px solid #4b5563',
+                    borderRadius: '6px',
+                    backgroundColor: '#1e293b',
                     color: '#e2e8f0',
+                    fontSize: '14px',
                     boxSizing: 'border-box',
                   }}
                   required
                 />
               </div>
 
-              <div style={{ marginBottom: '16px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    color: '#e2e8f0',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                  }}
-                >
-                  Category *
-                </label>
-                <select
-                  data-testid="products-form-category-select"
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    border: '1px solid #2d3748',
-                    borderRadius: '4px',
-                    backgroundColor: '#0d1829',
-                    color: '#e2e8f0',
-                    boxSizing: 'border-box',
-                    cursor: 'pointer',
-                  }}
-                  required
-                >
-                  <option value="">Select a category...</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.names.de || cat.names.en || 'Unnamed'}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CategorySelect
+                categories={categories}
+                value={selectedCategory}
+                onChange={setSelectedCategory}
+                testId="products-form-category-select"
+                label="Category *"
+                required
+              />
 
               <div style={{ marginBottom: '20px' }}>
                 <label
@@ -739,11 +862,12 @@ export function ProductsPage() {
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                   style={{
                     width: '100%',
-                    padding: '8px',
-                    border: '1px solid #2d3748',
-                    borderRadius: '4px',
-                    backgroundColor: '#0d1829',
+                    padding: '10px 12px',
+                    border: '1px solid #4b5563',
+                    borderRadius: '6px',
+                    backgroundColor: '#1e293b',
                     color: '#e2e8f0',
+                    fontSize: '14px',
                     boxSizing: 'border-box',
                   }}
                   required
@@ -758,7 +882,7 @@ export function ProductsPage() {
                 label="Icon (optional)"
               />
 
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: 'auto' }}>
                 <button
                   data-testid="products-form-cancel-button"
                   type="button"
@@ -770,6 +894,8 @@ export function ProductsPage() {
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
                   }}
                 >
                   Cancel
@@ -784,12 +910,27 @@ export function ProductsPage() {
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
                   }}
                 >
                   {modalMode === 'create' ? 'Create Product' : 'Save Changes'}
                 </button>
               </div>
-            </form>
+              </form>
+            </div>
+
+            {/* Right Column: Preview */}
+            <div style={{ width: '160px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '12px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Terminal Preview
+              </div>
+              <ProductPreview
+                name={formData.name}
+                price={formData.price}
+                iconName={selectedIcon}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -857,6 +998,8 @@ export function ProductsPage() {
                   borderRadius: '4px',
                   color: '#9ca3af',
                   cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
                 }}
               >
                 Cancel
@@ -872,6 +1015,8 @@ export function ProductsPage() {
                   borderRadius: '4px',
                   color: '#ef4444',
                   cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
                 }}
               >
                 {confirmDialog.type === 'delete' ? 'Delete' : 'Deactivate'}
