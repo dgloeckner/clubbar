@@ -490,8 +490,35 @@ export class MembersPage extends BasePage {
     await this.page.waitForTimeout(300)
   }
 
+  async setSortBy(sortValue: string) {
+    // Click the trigger button to open dropdown
+    const trigger = this.page.getByTestId('members-sort-trigger')
+    await expect(trigger).toBeVisible()
+    await trigger.click()
+
+    // Click the option in the dropdown
+    const option = this.page.getByTestId(`members-sort-option-${sortValue}`)
+    await expect(option).toBeVisible()
+    await option.click()
+
+    // Wait for React to process the change
+    await this.page.waitForTimeout(300)
+  }
+
   async getSortByValue(): Promise<string> {
-    return await this.page.getByTestId('members-sort-by').evaluate((el: HTMLSelectElement) => el.value) || ''
+    // Read the trigger button text to determine selected sort
+    const trigger = this.page.getByTestId('members-sort-trigger')
+    const text = await trigger.textContent() || ''
+
+    // Extract the sort option from button text (contains direction arrow + label)
+    if (text.includes('Newest first')) return 'created_at-desc'
+    if (text.includes('Oldest first')) return 'created_at-asc'
+    if (text.includes('First Name (A-Z)')) return 'first_name-asc'
+    if (text.includes('First Name (Z-A)')) return 'first_name-desc'
+    if (text.includes('Last Name (A-Z)')) return 'last_name-asc'
+    if (text.includes('Last Name (Z-A)')) return 'last_name-desc'
+
+    return 'created_at-desc'  // Default
   }
 
   async getStatusFilterValue(): Promise<'all' | 'active' | 'inactive'> {

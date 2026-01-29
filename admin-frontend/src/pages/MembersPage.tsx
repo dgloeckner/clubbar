@@ -17,6 +17,7 @@ import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { StatusFilter } from '../components/tables/StatusFilter'
+import { SortDropdown } from '../components/tables/SortDropdown'
 import { Toggle } from '../components/forms/Toggle'
 import {
   tableWrapperStyles,
@@ -269,34 +270,26 @@ export function MembersPage() {
             testId="members-filter-status"
           />
 
-          {/* Sort Dropdown */}
-          <select
-            data-testid="members-sort-by"
+          {/* Sort Dropdown Component */}
+          <SortDropdown
+            options={[
+              { value: 'created_at-desc', label: 'Newest first', direction: 'desc' },
+              { value: 'created_at-asc', label: 'Oldest first', direction: 'asc' },
+              { value: 'first_name-asc', label: 'First Name (A-Z)', direction: 'asc' },
+              { value: 'first_name-desc', label: 'First Name (Z-A)', direction: 'desc' },
+              { value: 'last_name-asc', label: 'Last Name (A-Z)', direction: 'asc' },
+              { value: 'last_name-desc', label: 'Last Name (Z-A)', direction: 'desc' },
+            ]}
             value={sortByValue}
-            onChange={(e) => {
-              const [key, direction] = e.target.value.split('-')
+            onChange={(value) => {
+              const [key, direction] = value.split('-')
               setSortKey(key as 'first_name' | 'last_name' | 'created_at')
               setSortDirection(direction as 'asc' | 'desc')
+              setSortByValue(value)  // Update the dropdown value display
               setPage(1)
             }}
-            style={{
-              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-              backgroundColor: theme.colors.bg.card,
-              border: `1px solid ${tableColors.rowActiveBorder}`,
-              borderRadius: '6px',
-              color: theme.colors.text.primary,
-              fontSize: '14px',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            <option value="created_at-desc">Newest first</option>
-            <option value="created_at-asc">Oldest first</option>
-            <option value="first_name-asc">First Name (A-Z)</option>
-            <option value="first_name-desc">First Name (Z-A)</option>
-            <option value="last_name-asc">Last Name (A-Z)</option>
-            <option value="last_name-desc">Last Name (Z-A)</option>
-          </select>
+            testId="members-sort"
+          />
         </div>
 
         {/* Table */}
