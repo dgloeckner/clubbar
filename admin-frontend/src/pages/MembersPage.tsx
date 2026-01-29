@@ -4,7 +4,6 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Card } from '../components/common/Card'
 import { StatCard } from '../components/common/StatCard'
 import { TransactionModal } from '../components/modals/TransactionModal'
 import { theme } from '../styles/design-system'
@@ -18,7 +17,8 @@ import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { StatusFilter } from '../components/tables/StatusFilter'
 import { SortDropdown } from '../components/tables/SortDropdown'
-import { Toggle } from '../components/forms/Toggle'
+import { StatusToggleCell } from '../components/tables/StatusToggleCell'
+import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import {
   tableWrapperStyles,
@@ -27,6 +27,7 @@ import {
   headerCellBaseStyle,
   tableColors,
   tableSpacing,
+  getRowStyle,
 } from '../styles/tableTokens'
 
 export function MembersPage() {
@@ -179,7 +180,7 @@ export function MembersPage() {
         : '1fr'
 
   return (
-    <div data-testid="members-page">
+    <div data-testid="members-page" style={{ padding: '20px' }}>
       {/* Stats Grid */}
       <div
         data-testid="members-stats-grid"
@@ -210,55 +211,63 @@ export function MembersPage() {
         />
       </div>
 
-      {/* Members Table */}
-      <Card title="Mitglieder" subtitle="Manage club members and their accounts">
-        {/* Search bar and create button */}
-        <TableSearchToolbar
+      <h1 style={{ margin: '0 0 20px 0' }}>Mitglieder</h1>
+
+      {/* Search bar + filters + create button (compact row) */}
+      <div
+        style={{
+          display: 'flex',
+          gap: theme.spacing.md,
+          padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+          borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        {/* Members count summary - LEFT */}
+        <span data-testid="members-count-summary" style={{ color: theme.colors.text.secondary, fontSize: '14px', whiteSpace: 'nowrap' }}>
+          <strong style={{ color: theme.colors.text.primary }}>{totalMembers}</strong> Mitglieder gefunden
+        </span>
+
+        {/* Search input */}
+        <input
+          type="text"
           value={search}
-          onChange={(value) => {
-            setSearch(value)
+          onChange={(e) => {
+            setSearch(e.target.value)
             setPage(1)
           }}
           placeholder="Search members..."
-          testId="members-search-toolbar"
-          actions={
-            <button
-              data-testid="members-create-button"
-              onClick={() => {
-                setEditingMember(null)
-                setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_signed_at: '', preferred_language: 'de' })
-                setShowModal(true)
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: theme.spacing.sm,
-                padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
-                background: theme.colors.semantic.primary,
-                border: 'none',
-                borderRadius: '6px',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: '500',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <PlusIcon size={18} />
-              <span>Hinzufügen</span>
-            </button>
-          }
+          data-testid="members-search-input"
+          style={{
+            flex: 1,
+            padding: '8px 12px',
+            backgroundColor: '#0d1829',
+            border: '1px solid #2d3748',
+            borderRadius: 8,
+            color: '#e2e8f0',
+            fontSize: '14px',
+            fontFamily: 'inherit',
+            maxWidth: '400px',
+            height: '40px',
+            boxSizing: 'border-box',
+            verticalAlign: 'middle',
+            transition: 'all 0.15s',
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)'
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = '#2d3748'
+          }}
         />
 
-        {/* Filter and Sort Controls */}
+        {/* Status Filter + Sort (right side) */}
         <div
           style={{
             display: 'flex',
             gap: theme.spacing.md,
-            padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-            borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
             alignItems: 'center',
-            justifyContent: 'flex-end',
           }}
         >
           {/* Status Filter Component */}
@@ -286,12 +295,40 @@ export function MembersPage() {
               const [key, direction] = value.split('-')
               setSortKey(key as 'first_name' | 'last_name' | 'created_at')
               setSortDirection(direction as 'asc' | 'desc')
-              setSortByValue(value)  // Update the dropdown value display
+              setSortByValue(value)
               setPage(1)
             }}
             testId="members-sort"
           />
+
+          {/* Create button */}
+          <button
+            data-testid="members-create-button"
+            onClick={() => {
+              setEditingMember(null)
+              setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_signed_at: '', preferred_language: 'de' })
+              setShowModal(true)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.spacing.sm,
+              padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
+              background: theme.colors.semantic.primary,
+              border: 'none',
+              borderRadius: '6px',
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <PlusIcon size={18} />
+            <span>Hinzufügen</span>
+          </button>
         </div>
+      </div>
 
         {/* Table */}
         {error && (
@@ -347,26 +384,29 @@ export function MembersPage() {
                   <tr
                     key={member.id}
                     data-testid={`members-table-row-${member.id}`}
-                    style={{
-                      borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
-                      background: member.is_active ? 'transparent' : `${theme.colors.semantic.danger}05`,
-                      opacity: member.is_active ? 1 : 0.6,
+                    style={getRowStyle(member.is_active)}
+                    onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
+                      if (member.is_active) {
+                        e.currentTarget.style.backgroundColor = tableColors.rowActiveHoverBg
+                      }
+                    }}
+                    onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => {
+                      e.currentTarget.style.backgroundColor = member.is_active
+                        ? tableColors.rowActiveBg
+                        : tableColors.rowInactiveBg
                     }}
                   >
-                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText, textAlign: 'center', width: '80px' }}>
-                      <Toggle
-                        enabled={member.is_active}
-                        onChange={() => handleStatusToggle(member)}
-                        size="small"
-                        testId={`members-status-toggle-${member.id}`}
-                      />
-                    </td>
-                    <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      <span data-testid={`members-table-cell-name-${member.id}`}>
-                        {member.first_name} {member.last_name}
-                      </span>
-                    </td>
-                    <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center', width: '200px' }}>
+                    <StatusToggleCell
+                      enabled={member.is_active}
+                      onChange={() => handleStatusToggle(member)}
+                      size="small"
+                      testId={`members-status-toggle-${member.id}`}
+                      cellTestId={`members-table-cell-status-${member.id}`}
+                    />
+                    <TableCell testId={`members-table-cell-name-${member.id}`}>
+                      {member.first_name} {member.last_name}
+                    </TableCell>
+                    <TableCell align="center">
                       <button
                         data-testid={`members-table-action-edit-${member.id}`}
                         onClick={() => handleEdit(member)}
@@ -411,7 +451,7 @@ export function MembersPage() {
                       >
                         📊
                       </button>
-                    </td>
+                    </TableCell>
                   </tr>
                 ))}
               </tbody>
@@ -434,7 +474,6 @@ export function MembersPage() {
             testId="members-pagination"
           />
         )}
-      </Card>
 
       {/* Create/Edit Modal */}
       {showModal && (
