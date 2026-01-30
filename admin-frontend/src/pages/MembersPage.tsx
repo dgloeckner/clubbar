@@ -56,6 +56,7 @@ export function MembersPage() {
     last_name: '',
     email: '',
     iban: '',
+    mandate_reference: '',
     mandate_signed_at: '',
     preferred_language: 'de',
   })
@@ -125,7 +126,7 @@ export function MembersPage() {
       // Reset form and page to trigger reload via useEffect
       setShowModal(false)
       setEditingMember(null)
-      setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_signed_at: '', preferred_language: 'de' })
+      setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de' })
       setPage(1)  // This triggers useEffect which will reload members with current filter/sort
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save member')
@@ -199,6 +200,7 @@ export function MembersPage() {
       last_name: member.last_name,
       email: member.email || '',
       iban: member.iban || '',
+      mandate_reference: member.mandate_reference || '',
       mandate_signed_at: member.mandate_signed_at || '',
       preferred_language: member.preferred_language || 'de',
     })
@@ -678,6 +680,32 @@ export function MembersPage() {
                   placeholder="DE89370400440532013000"
                   minLength={15}
                   maxLength={34}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                    fontFamily: 'monospace',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                  Mandate Reference (SEPA) <span style={{ color: theme.colors.semantic.danger }}>*</span>
+                </label>
+                <input
+                  data-testid="members-form-mandate-reference-input"
+                  type="text"
+                  required
+                  value={formData.mandate_reference}
+                  onChange={(e) => setFormData({ ...formData, mandate_reference: e.target.value.toUpperCase() })}
+                  placeholder="Unique mandate identifier"
+                  minLength={1}
+                  maxLength={35}
                   style={{
                     width: '100%',
                     padding: `${theme.spacing.md} ${theme.spacing.lg}`,

@@ -10,10 +10,12 @@ export interface Member {
   email?: string
   first_name: string
   last_name: string
-  iban: string
-  mandate_signed_at: string
+  iban?: string
+  mandate_reference?: string
+  mandate_signed_at?: string
   preferred_language: string
   is_active: boolean
+  is_sepa_valid: boolean
   balance_cents: number
   card_uid?: string
   created_at: string
