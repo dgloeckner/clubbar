@@ -220,3 +220,51 @@ export interface UpdateSepaConfigRequest {
   creditor_address_city: string
   creditor_address_country: string
 }
+
+/**
+ * Admin User Types
+ */
+export interface AdminUser {
+  id: string
+  email: string
+  display_name: string
+  locale: string
+  is_active: boolean
+  last_login_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateAdminUserRequest {
+  email: string
+  display_name: string
+  locale: string
+}
+
+export interface UpdateAdminUserRequest {
+  email?: string
+  display_name?: string
+  locale?: string
+}
+
+export interface AdminUsersListResponse {
+  data: AdminUser[]
+  pagination: {
+    total: number
+    per_page: number
+    current_page: number
+    last_page: number
+  }
+}
+
+export interface CreateAdminUserResponse {
+  admin: AdminUser
+  password: string
+  message: string
+}
+
+export interface ResetPasswordResponse {
+  admin: AdminUser
+  password: string
+  message: string
+}

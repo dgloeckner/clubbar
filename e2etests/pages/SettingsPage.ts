@@ -267,4 +267,296 @@ export class SettingsPage {
     // Pattern 008: Use Playwright assertions
     await expect(this.sepaTab).toBeVisible()
   }
+
+  // ==================== Admin Users Tab ====================
+
+  /**
+   * Click admin users tab to switch to that tab
+   */
+  async clickAdminUsersTab() {
+    const adminUsersTab = this.page.getByTestId('settings-tab-admin-users')
+    await adminUsersTab.click()
+    // Wait for admin users content to appear
+    await this.page.getByTestId('settings-admin-users-table').waitFor({ state: 'visible' })
+  }
+
+  /**
+   * Expect admin users tab to be visible
+   */
+  async expectAdminUsersTabVisible() {
+    await expect(this.page.getByTestId('settings-tab-admin-users')).toBeVisible()
+  }
+
+  /**
+   * Click create admin button
+   */
+  async clickCreateAdminButton() {
+    await this.page.getByTestId('settings-admin-create-button').click()
+    // Wait for modal to appear
+    await this.page.getByTestId('settings-admin-create-modal').waitFor({ state: 'visible' })
+  }
+
+  /**
+   * Fill create admin form
+   */
+  async fillCreateAdminForm(data: {
+    email: string
+    display_name: string
+    locale?: string
+  }) {
+    if (data.email) {
+      await this.page.getByTestId('settings-admin-create-email').fill(data.email)
+    }
+    if (data.display_name) {
+      await this.page.getByTestId('settings-admin-create-display-name').fill(data.display_name)
+    }
+    if (data.locale) {
+      await this.page.getByTestId('settings-admin-create-locale').selectOption(data.locale)
+    }
+  }
+
+  /**
+   * Click create admin confirm button
+   */
+  async clickCreateAdminConfirm() {
+    await this.page.getByTestId('settings-admin-create-confirm-button').click()
+  }
+
+  /**
+   * Check if create admin modal is visible
+   */
+  async isCreateAdminModalVisible(): Promise<boolean> {
+    return await this.page.getByTestId('settings-admin-create-modal').isVisible().catch(() => false)
+  }
+
+  /**
+   * Close create admin modal by clicking cancel
+   */
+  async closeCreateAdminModal() {
+    await this.page.getByTestId('settings-admin-create-cancel-button').click()
+  }
+
+  /**
+   * Get generated password from password display modal
+   */
+  async getGeneratedPassword(): Promise<string | null> {
+    const modal = this.page.getByTestId('settings-admin-password-modal')
+    const isVisible = await modal.isVisible().catch(() => false)
+    if (!isVisible) {
+      return null
+    }
+    const passwordText = await this.page.getByTestId('settings-admin-password-display').textContent()
+    return passwordText?.trim() || null
+  }
+
+  /**
+   * Copy password to clipboard from password display modal
+   */
+  async copyPasswordToClipboard() {
+    await this.page.getByTestId('settings-admin-password-copy-button').click()
+  }
+
+  /**
+   * Close password display modal by clicking the copy & close button
+   */
+  async closePasswordModal() {
+    const closeButton = this.page.getByTestId('settings-admin-password-copy-button')
+    await closeButton.click()
+  }
+
+  /**
+   * Get admin user count in table by counting rows
+   */
+  async getAdminUserCount(): Promise<number> {
+    const rows = this.page.locator('[data-testid^="settings-admin-user-row-"]')
+    return await rows.count()
+  }
+
+  /**
+   * Find admin user row by email text content
+   */
+  private async findAdminUserRowByEmail(email: string) {
+    // Find the row that contains this email in the email column
+    const rows = this.page.locator('[data-testid^="settings-admin-user-row-"]')
+    const count = await rows.count()
+
+    for (let i = 0; i < count; i++) {
+      const row = rows.nth(i)
+      const emailText = await row.locator('[data-testid^="settings-admin-user-email-"]').textContent()
+      if (emailText?.trim() === email) {
+        return row
+      }
+    }
+    return null
+  }
+
+  /**
+   * Get admin user ID by email (needed for button test IDs)
+   */
+  private async getAdminUserIdByEmail(email: string): Promise<string | null> {
+    const rows = this.page.locator('[data-testid^="settings-admin-user-row-"]')
+    const count = await rows.count()
+
+    for (let i = 0; i < count; i++) {
+      const row = rows.nth(i)
+      const rowTestId = await row.getAttribute('data-testid')
+      const emailText = await row.locator('[data-testid^="settings-admin-user-email-"]').textContent()
+
+      if (emailText?.trim() === email && rowTestId) {
+        // Extract ID from data-testid like "settings-admin-user-row-<id>"
+        const id = rowTestId.replace('settings-admin-user-row-', '')
+        return id
+      }
+    }
+    return null
+  }
+
+  /**
+   * Get admin user by email
+   */
+  async getAdminUserByEmail(email: string) {
+    const row = await this.findAdminUserRowByEmail(email)
+    if (!row) {
+      return null
+    }
+
+    const emailText = await row.locator('[data-testid^="settings-admin-user-email-"]').textContent()
+    const nameText = await row.locator('[data-testid^="settings-admin-user-name-"]').textContent()
+    const statusText = await row.locator('[data-testid^="settings-admin-user-status-"]').textContent()
+
+    return {
+      email: emailText?.trim() || '',
+      displayName: nameText?.trim() || '',
+      status: statusText?.trim() || '',
+    }
+  }
+
+  /**
+   * Click edit button for admin user by email
+   */
+  async clickEditAdminButton(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+
+    await this.page.getByTestId(`settings-admin-edit-button-${adminId}`).click()
+    // Wait for edit modal to appear
+    await this.page.getByTestId('settings-admin-edit-modal').waitFor({ state: 'visible' })
+  }
+
+  /**
+   * Fill edit admin form
+   */
+  async fillEditAdminForm(data: {
+    email?: string
+    display_name?: string
+    locale?: string
+  }) {
+    if (data.email) {
+      const emailInput = this.page.getByTestId('settings-admin-edit-email')
+      await emailInput.fill(data.email)
+    }
+    if (data.display_name) {
+      const nameInput = this.page.getByTestId('settings-admin-edit-display-name')
+      await nameInput.fill(data.display_name)
+    }
+    if (data.locale) {
+      await this.page.getByTestId('settings-admin-edit-locale').selectOption(data.locale)
+    }
+  }
+
+  /**
+   * Click edit admin confirm button
+   */
+  async clickEditAdminConfirm() {
+    await this.page.getByTestId('settings-admin-edit-confirm-button').click()
+  }
+
+  /**
+   * Check if edit admin modal is visible
+   */
+  async isEditAdminModalVisible(): Promise<boolean> {
+    return await this.page.getByTestId('settings-admin-edit-modal').isVisible().catch(() => false)
+  }
+
+  /**
+   * Close edit admin modal by clicking cancel
+   */
+  async closeEditAdminModal() {
+    await this.page.getByTestId('settings-admin-edit-cancel-button').click()
+  }
+
+  /**
+   * Click reset password button for admin user by email
+   */
+  async clickResetPasswordButton(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+
+    await this.page.getByTestId(`settings-admin-reset-password-button-${adminId}`).click()
+    // Wait for password modal to appear
+    await this.page.getByTestId('settings-admin-password-modal').waitFor({ state: 'visible' })
+  }
+
+  /**
+   * Click deactivate button for admin user by email
+   */
+  async clickDeactivateButton(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+
+    await this.page.getByTestId(`settings-admin-deactivate-button-${adminId}`).click()
+  }
+
+  /**
+   * Click reactivate button for admin user by email
+   */
+  async clickReactivateButton(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+
+    await this.page.getByTestId(`settings-admin-reactivate-button-${adminId}`).click()
+  }
+
+  /**
+   * Get admin user status by email
+   */
+  async getAdminUserStatus(email: string): Promise<string | null> {
+    const row = await this.findAdminUserRowByEmail(email)
+    if (!row) {
+      return null
+    }
+
+    const statusText = await row.locator('[data-testid^="settings-admin-user-status-"]').textContent()
+    return statusText?.trim() || null
+  }
+
+  /**
+   * Check if table is empty
+   */
+  async isAdminUsersTableEmpty(): Promise<boolean> {
+    const count = await this.getAdminUserCount()
+    return count === 0
+  }
+
+  /**
+   * Expect admin users table to be visible
+   */
+  async expectAdminUsersTableVisible() {
+    await expect(this.page.getByTestId('settings-admin-users-table')).toBeVisible()
+  }
+
+  /**
+   * Expect create button to be visible
+   */
+  async expectCreateAdminButtonVisible() {
+    await expect(this.page.getByTestId('settings-admin-create-button')).toBeVisible()
+  }
 }

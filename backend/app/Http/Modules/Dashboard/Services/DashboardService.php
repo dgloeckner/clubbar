@@ -294,9 +294,13 @@ class DashboardService
      */
     private function buildSystemStatusDto(): SystemStatusDto
     {
+        $lastSettlement = Settlement::whereNotNull('created_at')
+            ->max('created_at');
+
         return new SystemStatusDto(
-            last_settlement_date: Settlement::whereNotNull('created_at')
-                ->max('created_at')?->toIso8601String(),
+            last_settlement_date: $lastSettlement !== null
+                ? (is_string($lastSettlement) ? \Carbon\Carbon::parse($lastSettlement)->toIso8601String() : $lastSettlement->toIso8601String())
+                : null,
             pending_settlement_count: Settlement::where('is_cancelled', false)
                 ->count(),
             total_members: Member::count(),
