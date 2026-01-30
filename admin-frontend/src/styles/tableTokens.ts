@@ -31,6 +31,9 @@ export const tableColors = {
   cellText: '#e2e8f0',
   cellSecondaryText: '#a1aec6',
 
+  // Borders
+  border: '1px solid rgba(71, 85, 105, 0.2)',
+
   // Badge/chip styling
   badgeBg: 'rgba(71, 85, 105, 0.3)',
   badgeText: '#a1aec6',
