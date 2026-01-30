@@ -186,6 +186,13 @@ final class AdminController extends Controller
                 );
             }
 
+            if ($e->getCode() === 422) {
+                return response()->json([
+                    'error' => 'sepa_invalid',
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
             return response()->json(
                 ['error' => 'server_error', 'message' => $e->getMessage()],
                 500

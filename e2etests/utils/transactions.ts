@@ -27,14 +27,17 @@ export interface TestMemberData {
   last_name: string
   email: string
   preferred_language: 'de' | 'en'
+  iban: string
+  mandate_reference: string
+  mandate_signed_at: string
 }
 
 /**
- * Create isolated test member data
+ * Create isolated test member data with valid SEPA by default
  * @param firstName - Base name (timestamp appended for isolation)
  * @param lastName - Last name
  * @param baseEmail - Base email (timestamp appended)
- * @returns Test member data ready for API submission
+ * @returns Test member data ready for API submission (SEPA-valid by default)
  */
 export const createTestMember = (
   firstName: string = 'TestMember',
@@ -42,11 +45,44 @@ export const createTestMember = (
   baseEmail: string = 'member'
 ): TestMemberData => {
   const timestamp = Date.now()
+  const uuid = generateUUID()
+
   return {
     first_name: `${firstName}_${timestamp}`,
     last_name: lastName,
     email: `${baseEmail}-${timestamp}@test.example`,
     preferred_language: 'de',
+    // SEPA data (valid by default)
+    iban: 'DE89370400440532013000',
+    mandate_reference: uuid.replace(/-/g, '').toUpperCase().substring(0, 35),
+    mandate_signed_at: '2024-01-01',
+  }
+}
+
+/**
+ * Create a test member without valid SEPA data (for negative testing)
+ * @param firstName - Base name (timestamp appended for isolation)
+ * @param lastName - Last name
+ * @param missingField - Which field to omit: 'iban', 'mandate', or 'both'
+ * @returns Test member data with missing SEPA fields
+ */
+export const createSepaInvalidMember = (
+  firstName: string = 'InvalidMember',
+  lastName: string = 'Test',
+  missingField: 'iban' | 'mandate' | 'both' = 'both'
+): TestMemberData => {
+  const timestamp = Date.now()
+  const uuid = generateUUID()
+
+  return {
+    first_name: `${firstName}_${timestamp}`,
+    last_name: lastName,
+    email: `invalid-${timestamp}@test.example`,
+    preferred_language: 'de',
+    // Conditionally include SEPA fields
+    iban: missingField === 'iban' || missingField === 'both' ? '' : 'DE89370400440532013000',
+    mandate_reference: missingField === 'mandate' || missingField === 'both' ? '' : uuid.replace(/-/g, '').substring(0, 35),
+    mandate_signed_at: '',
   }
 }
 

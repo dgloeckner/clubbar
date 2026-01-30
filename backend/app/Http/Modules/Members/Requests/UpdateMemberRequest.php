@@ -41,6 +41,9 @@ final class UpdateMemberRequest extends FormRequest
                 Rule::enum(SupportedLanguage::class),
             ],
             'is_active' => ['nullable', 'boolean'],
+            'iban' => ['nullable', 'string', 'min:15', 'max:34'],
+            'mandate_reference' => ['nullable', 'string', 'min:1', 'max:35'],
+            'mandate_signed_at' => ['nullable', 'date_format:Y-m-d'],
         ];
     }
 
@@ -127,6 +130,36 @@ final class UpdateMemberRequest extends FormRequest
     public function isActive(): ?bool
     {
         return $this->validated('is_active');
+    }
+
+    /**
+     * Get typed IBAN (nullable)
+     *
+     * @return string|null
+     */
+    public function iban(): ?string
+    {
+        return $this->validated('iban');
+    }
+
+    /**
+     * Get typed mandate reference (nullable)
+     *
+     * @return string|null
+     */
+    public function mandateReference(): ?string
+    {
+        return $this->validated('mandate_reference');
+    }
+
+    /**
+     * Get typed mandate signed date (nullable)
+     *
+     * @return string|null
+     */
+    public function mandateSignedAt(): ?string
+    {
+        return $this->validated('mandate_signed_at');
     }
 
     /**

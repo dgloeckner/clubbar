@@ -227,6 +227,9 @@ class MembersService extends BaseService
         ?string $phone,
         ?string $cardUid,
         SupportedLanguage $language,
+        ?string $iban = null,
+        ?string $mandateReference = null,
+        ?string $mandateSignedAt = null,
     ): MemberAdminDto {
         // Create member in database
         $member = $this->membersRepository->create([
@@ -237,6 +240,9 @@ class MembersService extends BaseService
             'card_uid' => $cardUid,
             'preferred_language' => $language->value,
             'is_active' => true,
+            'iban' => $iban,
+            'mandate_reference' => $mandateReference,
+            'mandate_signed_at' => $mandateSignedAt,
         ]);
 
         // Log member creation (Pattern 016: Audit Logging)
@@ -253,6 +259,9 @@ class MembersService extends BaseService
                 'card_uid' => $cardUid,
                 'preferred_language' => $language->value,
                 'is_active' => true,
+                'iban' => $iban ? (substr($iban, 0, 2) . '****' . substr($iban, -4)) : null,
+                'mandate_reference' => $mandateReference,
+                'mandate_signed_at' => $mandateSignedAt,
             ],
             adminUserId: $this->getCurrentAdminUserId(),
         );

@@ -95,6 +95,9 @@ class AdminController extends Controller
         $phone = $request->phone();
         $cardUid = $request->cardUid();
         $language = $request->preferredLanguage();
+        $iban = $request->iban();
+        $mandateReference = $request->mandateReference();
+        $mandateSignedAt = $request->mandateSignedAt();
 
         // Delegate to service (Pattern 004: Service Layer)
         $member = $this->membersService->createMember(
@@ -103,7 +106,10 @@ class AdminController extends Controller
             $email,
             $phone,
             $cardUid,
-            $language
+            $language,
+            $iban,
+            $mandateReference,
+            $mandateSignedAt
         );
 
         // Return created member as JSON (Pattern 003: DTO serialization)
@@ -156,6 +162,9 @@ class AdminController extends Controller
                 'cardUid' => $request->cardUid(),
                 'preferredLanguage' => $request->preferredLanguage()?->value,
                 'isActive' => $request->isActive(),
+                'iban' => $request->iban(),
+                'mandateReference' => $request->mandateReference(),
+                'mandateSignedAt' => $request->mandateSignedAt(),
             ], fn($value) => $value !== null);
 
             // Delegate to service (Pattern 004: Service Layer)

@@ -57,6 +57,31 @@ final readonly class TransactionsService
         // Step 1: Insert transactions and collect affected members
         foreach ($transactions as $transaction) {
             try {
+                // Validate member exists and has valid SEPA
+                $member = DB::table('members')
+                    ->where('id', $transaction['member_id'])
+                    ->select('id', 'iban', 'mandate_reference')
+                    ->first();
+
+                if (!$member) {
+                    $errors[] = [
+                        'transaction_id' => $transaction['id'],
+                        'error' => 'member_not_found',
+                        'message' => 'Member does not exist',
+                    ];
+                    continue;
+                }
+
+                $isSepaValid = !empty($member->iban) && !empty($member->mandate_reference);
+                if (!$isSepaValid) {
+                    $errors[] = [
+                        'transaction_id' => $transaction['id'],
+                        'error' => 'sepa_invalid',
+                        'message' => 'Member does not have valid SEPA mandate. Transactions cannot be created without IBAN and mandate reference.',
+                    ];
+                    continue;
+                }
+
                 // Insert transaction (will fail silently if UUID already exists - idempotency)
                 DB::table('transactions')->insertOrIgnore([
                     'id' => $transaction['id'],
@@ -119,12 +144,22 @@ final readonly class TransactionsService
         ?string $adminId = null
     ): array {
         // Verify member exists
-        $memberExists = DB::table('members')
+        $member = DB::table('members')
             ->where('id', $memberId)
-            ->exists();
+            ->select('id', 'iban', 'mandate_reference')
+            ->first();
 
-        if (!$memberExists) {
+        if (!$member) {
             throw new \Exception("Member not found: $memberId", 404);
+        }
+
+        // Validate SEPA
+        $isSepaValid = !empty($member->iban) && !empty($member->mandate_reference);
+        if (!$isSepaValid) {
+            throw new \Exception(
+                'Member does not have valid SEPA mandate. Please update member IBAN and mandate reference before creating transactions.',
+                422
+            );
         }
 
         // Create correction transaction

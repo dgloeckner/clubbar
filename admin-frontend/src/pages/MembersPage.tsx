@@ -397,6 +397,9 @@ export function MembersPage() {
               <thead>
                 <tr style={headerRowStyle}>
                   <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>Status</th>
+                  <th style={{ ...headerCellBaseStyle, width: '100px', textAlign: 'center' }} data-testid="members-table-header-sepa">
+                    SEPA
+                  </th>
                   <th style={headerCellBaseStyle}>
                     <SortableTableHeader
                       label="Name"
@@ -437,6 +440,21 @@ export function MembersPage() {
                       testId={`members-status-toggle-${member.id}`}
                       cellTestId={`members-table-cell-status-${member.id}`}
                     />
+                    <td style={{ textAlign: 'center' }} data-testid={`members-table-cell-sepa-${member.id}`}>
+                      <span
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: 4,
+                          fontSize: 12,
+                          fontWeight: 500,
+                          backgroundColor: member.is_sepa_valid ? theme.colors.semantic.success : theme.colors.semantic.danger,
+                          color: '#ffffff',
+                          display: 'inline-block',
+                        }}
+                      >
+                        {member.is_sepa_valid ? 'Valid' : 'Missing'}
+                      </span>
+                    </td>
                     <TableCell testId={`members-table-cell-name-${member.id}`}>
                       {member.first_name} {member.last_name}
                     </TableCell>
@@ -543,6 +561,39 @@ export function MembersPage() {
               {editingMember ? 'Edit Member' : 'New Member'}
             </h2>
 
+            {/* SEPA Status Indicator */}
+            {editingMember && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: 6,
+                  marginBottom: theme.spacing.md,
+                  backgroundColor: editingMember.is_sepa_valid
+                    ? 'rgba(34, 197, 94, 0.1)'
+                    : 'rgba(239, 68, 68, 0.1)',
+                  border: `1px solid ${editingMember.is_sepa_valid ? theme.colors.semantic.success : theme.colors.semantic.danger}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: theme.spacing.sm,
+                }}
+                data-testid="members-form-sepa-status"
+              >
+                <span style={{ fontSize: 18 }}>
+                  {editingMember.is_sepa_valid ? '✓' : '⚠'}
+                </span>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: theme.colors.text.primary }}>
+                    {editingMember.is_sepa_valid ? 'SEPA Mandate Valid' : 'SEPA Mandate Missing'}
+                  </div>
+                  {!editingMember.is_sepa_valid && (
+                    <div style={{ fontSize: 12, color: theme.colors.text.secondary, marginTop: 4 }}>
+                      Member needs IBAN and mandate reference to create transactions.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
@@ -616,7 +667,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  IBAN *
+                  IBAN <span style={{ color: theme.colors.semantic.danger }}>*</span>
                 </label>
                 <input
                   data-testid="members-form-iban-input"
@@ -642,7 +693,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  Mandate Date (SEPA) *
+                  Mandate Date (SEPA) <span style={{ color: theme.colors.semantic.danger }}>*</span>
                 </label>
                 <input
                   data-testid="members-form-mandate-date-input"

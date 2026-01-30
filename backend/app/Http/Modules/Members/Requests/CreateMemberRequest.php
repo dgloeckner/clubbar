@@ -35,6 +35,9 @@ final class CreateMemberRequest extends FormRequest
                 'string',
                 Rule::enum(SupportedLanguage::class),
             ],
+            'iban' => ['nullable', 'string', 'min:15', 'max:34'],
+            'mandate_reference' => ['nullable', 'string', 'min:1', 'max:35'],
+            'mandate_signed_at' => ['nullable', 'date_format:Y-m-d'],
         ];
     }
 
@@ -113,6 +116,36 @@ final class CreateMemberRequest extends FormRequest
     public function preferredLanguage(): SupportedLanguage
     {
         return SupportedLanguage::from($this->validated('preferred_language'));
+    }
+
+    /**
+     * Get typed IBAN (nullable)
+     *
+     * @return string|null
+     */
+    public function iban(): ?string
+    {
+        return $this->validated('iban');
+    }
+
+    /**
+     * Get typed mandate reference (nullable)
+     *
+     * @return string|null
+     */
+    public function mandateReference(): ?string
+    {
+        return $this->validated('mandate_reference');
+    }
+
+    /**
+     * Get typed mandate signed date (nullable)
+     *
+     * @return string|null
+     */
+    public function mandateSignedAt(): ?string
+    {
+        return $this->validated('mandate_signed_at');
     }
 
     /**
