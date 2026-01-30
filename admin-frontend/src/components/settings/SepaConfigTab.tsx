@@ -54,7 +54,7 @@ export function SepaConfigTab({
   }: {
     label: string
     fieldKey: keyof UpdateSepaConfigRequest
-    value: string
+    value: string | null | undefined
     type?: string
     placeholder?: string
     disabled?: boolean
@@ -64,6 +64,9 @@ export function SepaConfigTab({
     showCharCounter?: boolean
     showValidation?: boolean
   }) => {
+    // Normalize value to empty string if null or undefined
+    const normalizedValue = value ?? ''
+
     const hasError = !!fieldErrors[fieldKey]
     const errorMessage = fieldErrors[fieldKey]
 
@@ -96,15 +99,15 @@ export function SepaConfigTab({
           <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
             {showCharCounter && maxLength && (
               <CharacterCounter
-                currentLength={value.length}
+                currentLength={normalizedValue.length}
                 maxLength={maxLength}
                 testId={`settings-sepa-char-counter-${fieldKey}`}
               />
             )}
             {showValidation && fieldKey === 'creditor_iban' && (
               <ValidationIndicator
-                isValid={validateIban(value)}
-                show={value.length > 0}
+                isValid={validateIban(normalizedValue)}
+                show={normalizedValue.length > 0}
                 testId={`settings-sepa-validation-${fieldKey}`}
               />
             )}
@@ -113,10 +116,10 @@ export function SepaConfigTab({
 
         <input
           type={type}
-          value={value}
-          onChange={(e) => onFieldChange(fieldKey, e.target.value)}
           disabled={disabled}
           placeholder={placeholder}
+          value={normalizedValue}
+          onChange={(e) => onFieldChange(fieldKey, e.target.value)}
           data-testid={`settings-sepa-input-${fieldKey}`}
           style={{
             padding: `${theme.spacing.md} ${theme.spacing.md}`,

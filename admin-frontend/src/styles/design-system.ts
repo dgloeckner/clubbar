@@ -9,6 +9,7 @@ export const theme = {
     bg: {
       primary: '#0a1628',    // Main background
       secondary: '#0f1d32',  // Cards, panels
+      tertiary: '#11233a',   // Tertiary background (for disabled states)
       card: '#1a2744',       // Content cards
       input: '#0d1829',      // Form fields
       hover: '#15213f',      // Hover states
