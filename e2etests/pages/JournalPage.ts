@@ -47,6 +47,15 @@ export class JournalPage extends BasePage {
   private readonly headerDetails = () => this.page.getByTestId('journal-header-details')
   private readonly headerAmount = () => this.page.getByTestId('journal-header-amount')
 
+  // Settlement mode elements
+  private readonly settlementStatusFilter = (status: 'all' | 'open' | 'settled') =>
+    this.page.getByTestId(`journal-settlement-status-filter-${status}`)
+  private readonly transactionCheckbox = (transactionId: string) =>
+    this.page.locator(`[data-testid^="journal-table-row-"] input[data-testid="transaction-checkbox-${transactionId}"]`)
+  private readonly selectAllCheckbox = () => this.page.getByTestId('journal-select-all-checkbox')
+  private readonly concludeSettlementBtn = () => this.page.getByTestId('journal-settlement-conclude-btn')
+  private readonly successMessage = () => this.page.getByTestId('journal-success-message')
+
   constructor(page: Page) {
     super(page)
   }
@@ -272,6 +281,86 @@ export class JournalPage extends BasePage {
 
     if (!found) {
       throw new Error(`Transaction with member name "${memberName}" not found after ${maxAttempts} attempts`)
+    }
+  }
+
+  /**
+   * LOADING PATTERN (solid loading indicator waits)
+   */
+
+  async waitForPageLoad(timeout = 10000) {
+    // Wait for loading indicator to disappear
+    await expect(this.loadingIndicator()).toBeHidden({ timeout })
+
+    // Wait for content (table or empty state)
+    try {
+      await Promise.race([
+        expect(this.table()).toBeVisible({ timeout: 1000 }),
+        expect(this.emptyState()).toBeVisible({ timeout: 1000 }),
+      ])
+    } catch {
+      throw new Error('Page loaded but neither table nor empty state appeared')
+    }
+  }
+
+  /**
+   * SETTLEMENT MODE INTERACTIONS
+   */
+
+  async enterSettlementMode() {
+    await this.page.getByTestId('journal-settlement-selected-btn').click()
+    // Wait for mode switch and checkboxes to appear
+    await this.page.waitForTimeout(300)
+  }
+
+  async selectAllTransactions() {
+    const checkbox = this.selectAllCheckbox()
+    await checkbox.check()
+    // Wait for selection to register
+    await this.page.waitForTimeout(300)
+  }
+
+  async filterBySettlementStatus(status: 'all' | 'open' | 'settled') {
+    await this.settlementStatusFilter(status).click()
+    // Wait for filter to apply
+    await this.page.waitForLoadState('networkidle')
+  }
+
+  async selectTransactionsByMemberName(memberName: string) {
+    const count = await this.getTransactionCount()
+    for (let i = 0; i < count; i++) {
+      const row = await this.getTransactionRow(i)
+      if (row.member && row.member.includes(memberName)) {
+        // Find and click the checkbox for this row
+        const rowElement = this.tableRows().nth(i)
+        const checkbox = rowElement.locator('input[type="checkbox"]')
+        await checkbox.check()
+        // Wait for selection to register
+        await this.page.waitForTimeout(300)
+      }
+    }
+  }
+
+  async getSelectedTransactionCount(): Promise<number> {
+    // Count checked checkboxes in transaction rows
+    const checkboxes = this.page.locator('[data-testid^="journal-table-row-"] input[type="checkbox"]:checked')
+    return await checkboxes.count()
+  }
+
+  async concludeSettlement() {
+    await this.concludeSettlementBtn().click()
+    // Wait for settlement creation request to complete
+    await this.page.waitForLoadState('networkidle')
+    // Wait a bit for any success message to appear
+    await this.page.waitForTimeout(1000)
+  }
+
+  async getSuccessMessage(): Promise<string | null> {
+    try {
+      const text = await this.successMessage().textContent({ timeout: 5000 })
+      return text?.trim() || null
+    } catch {
+      return null
     }
   }
 }

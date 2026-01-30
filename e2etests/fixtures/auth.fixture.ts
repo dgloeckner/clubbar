@@ -1,5 +1,11 @@
 import { test as base, APIRequestContext } from "@playwright/test";
 import { TEST_CREDENTIALS } from "../config/test-credentials";
+import {
+  createTestMember,
+  createSyncTransaction,
+  createCorrection,
+  createSettlement,
+} from "../utils/transactions";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -21,6 +27,22 @@ const API_BASE = "http://localhost:8080/api";
  *     // ... assertions
  *   });
  */
+/**
+ * Test transaction helper interface
+ * Provides convenient API methods for creating test data
+ */
+interface TestTransactionsFixture {
+  createMember(firstName?: string, lastName?: string, baseEmail?: string): Promise<any>;
+  createSyncTransaction(memberId: string, amountCents?: number, notes?: string): Promise<string>;
+  createCorrection(
+    memberId: string,
+    amountCents?: number,
+    notes?: string,
+    reason?: 'adjustment' | 'refund' | 'discount'
+  ): Promise<string>;
+  createSettlement(transactionIds: string[], daysFromNow?: number): Promise<string>;
+}
+
 interface AuthFixtures {
   authenticatedRequest: APIRequestContext & {
     cookieString: string;
@@ -28,6 +50,7 @@ interface AuthFixtures {
   authenticatedTerminalRequest: APIRequestContext & {
     token: string;
   };
+  testTransactions: TestTransactionsFixture;
 }
 
 /**
@@ -198,6 +221,82 @@ export const test = base.extend<AuthFixtures>({
 
     // Provide the authenticated terminal request to the test
     await use(terminalRequest);
+  },
+
+  testTransactions: async ({ authenticatedRequest, authenticatedTerminalRequest }, use) => {
+    // Create test transactions fixture with convenient API methods
+    const fixture: TestTransactionsFixture = {
+      async createMember(firstName = 'TestMember', lastName = 'Test', baseEmail = 'member') {
+        const memberData = createTestMember(firstName, lastName, baseEmail);
+        const response = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
+          data: memberData,
+        });
+
+        if (response.status() !== 201) {
+          const error = await response.json();
+          throw new Error(`Failed to create member: ${JSON.stringify(error)}`);
+        }
+
+        return await response.json();
+      },
+
+      async createSyncTransaction(memberId: string, amountCents = 2500, notes = 'Test transaction') {
+        const txnData = createSyncTransaction(memberId, amountCents, notes);
+        const response = await authenticatedTerminalRequest.post(`${API_BASE}/sync/transactions`, {
+          data: {
+            transactions: [txnData],
+          },
+        });
+
+        if (response.status() !== 201) {
+          const error = await response.json();
+          throw new Error(`Failed to create sync transaction: ${JSON.stringify(error)}`);
+        }
+
+        const result = await response.json();
+        return result.accepted_ids?.[0] || txnData.id;
+      },
+
+      async createCorrection(
+        memberId: string,
+        amountCents = 1000,
+        notes = 'Test correction',
+        reason = 'adjustment'
+      ) {
+        const correctionData = createCorrection(amountCents, notes, reason);
+        const response = await authenticatedRequest.post(
+          `${API_BASE}/admin/members/${memberId}/transactions/correct`,
+          {
+            data: correctionData,
+          }
+        );
+
+        if (response.status() !== 201) {
+          const error = await response.json();
+          throw new Error(`Failed to create correction: ${JSON.stringify(error)}`);
+        }
+
+        const result = await response.json();
+        return result.id;
+      },
+
+      async createSettlement(transactionIds: string[], daysFromNow = 7) {
+        const settlementData = createSettlement(transactionIds, daysFromNow);
+        const response = await authenticatedRequest.post(`${API_BASE}/admin/settlements`, {
+          data: settlementData,
+        });
+
+        if (response.status() !== 201) {
+          const error = await response.json();
+          throw new Error(`Failed to create settlement: ${JSON.stringify(error)}`);
+        }
+
+        const result = await response.json();
+        return result.id;
+      },
+    };
+
+    await use(fixture);
   },
 });
 
