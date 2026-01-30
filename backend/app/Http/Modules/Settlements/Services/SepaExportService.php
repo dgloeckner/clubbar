@@ -120,6 +120,7 @@ final readonly class SepaExportService
                     'id' => $paymentInfoId,
                     'creditorAccountIBAN' => $this->sanitizeIban($config->creditor_iban),
                     'creditorName' => $this->sanitizeName($config->creditor_name),
+                    'seqType' => 'RCUR', // Recurring collection (per ADR-0008)
                     // creditorAgentBIC is optional
                 ]
             );
