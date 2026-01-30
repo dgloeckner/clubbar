@@ -49,7 +49,7 @@ test.describe('Settlements API', () => {
       expect(body.messages.creditor_iban).toBeDefined();
     });
 
-    test('A4: PUT /sepa-config rejects creditor_id change (immutability)', async ({ authenticatedRequest }) => {
+    test('A4: PUT /sepa-config allows creditor_id change with warning', async ({ authenticatedRequest }) => {
       // First set creditor_id
       await authenticatedRequest.put('/api/admin/sepa-config', {
         data: {
@@ -62,16 +62,25 @@ test.describe('Settlements API', () => {
         },
       });
 
-      // Try to change creditor_id
+      // Change creditor_id (now allowed - loosened from strict immutability)
+      // Changes are logged in audit trail
       const response = await authenticatedRequest.put('/api/admin/sepa-config', {
         data: {
           creditor_id: 'DE02DIFFERENT9999999999',
+          creditor_name: 'Org 1',
+          creditor_iban: 'DE89370400440532013000',
+          creditor_address_street: 'Street',
+          creditor_address_city: 'City',
+          creditor_address_country: 'DE',
         },
       });
 
-      expect(response.status()).toBe(422);
+      // Should succeed (no longer rejected)
+      expect(response.status()).toBe(200);
       const body = await response.json();
-      expect(body.error).toBeTruthy();
+      // Creditor ID should be masked in response
+      expect(body.creditor_id).toBeTruthy();
+      expect(body.creditor_name).toBe('Org 1');
     });
 
     test('A5: PUT /sepa-config requires authentication', async ({ request }) => {

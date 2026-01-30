@@ -79,12 +79,8 @@ final readonly class SepaConfigService
             return null;
         }
 
-        // ADR-0007: creditor_id is immutable
-        if (isset($attributes['creditor_id']) && $attributes['creditor_id'] !== $currentConfig->creditor_id) {
-            if ($currentConfig->creditor_id !== null) {
-                throw new \Exception('SEPA creditor ID cannot be changed once set');
-            }
-        }
+        // Note: creditor_id can be changed, but changes are logged in audit trail
+        // Users see a warning in the UI about the compliance implications
 
         // Store old values for audit log (unmasked for full history)
         $oldValues = [

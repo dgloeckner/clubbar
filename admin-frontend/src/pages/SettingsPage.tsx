@@ -221,7 +221,7 @@ export function SettingsPage() {
     setError(null)
   }
 
-  // Check if creditor_id is already set (immutability)
+  // Check if creditor_id is already set (for warning display)
   const isCreditorIdSet = !!existingConfig
 
   // Form field component
@@ -439,15 +439,27 @@ export function SettingsPage() {
             }}
           >
             {/* Creditor ID Field */}
+            {isCreditorIdSet && (
+              <div
+                style={{
+                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                  marginBottom: theme.spacing.lg,
+                  background: 'rgba(251, 146, 60, 0.1)',
+                  border: `1px solid rgba(251, 146, 60, 0.5)`,
+                  borderRadius: theme.borderRadius.md,
+                  color: 'rgb(234, 88, 12)',
+                  fontSize: theme.typography.fontSize.sm,
+                }}
+              >
+                ⚠️ <strong>Warning:</strong> The creditor ID is a legal identifier that appears in SEPA exports and settlement records. Changing it may impact compliance and audit trails.
+              </div>
+            )}
             <FormField
               label="Gläubiger ID (Creditor ID)"
               fieldKey="creditor_id"
               value={formData.creditor_id}
               placeholder="e.g., DE01ZZZ09999999999"
-              disabled={isCreditorIdSet}
-              helperText={
-                isCreditorIdSet ? '⚠️ Cannot be changed after initial setup' : 'Unique SEPA creditor identifier (max 35 chars)'
-              }
+              helperText="Unique SEPA creditor identifier (max 35 chars)"
             />
 
             {/* Creditor Name Field */}
