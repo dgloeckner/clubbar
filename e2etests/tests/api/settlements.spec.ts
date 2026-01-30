@@ -279,15 +279,23 @@ test.describe('Settlements API', () => {
       expect(body.pagination).toHaveProperty('current_page');
     });
 
-    test('D2: GET /settlements filters by type', async ({ authenticatedRequest }) => {
-      const response = await authenticatedRequest.get('/api/admin/settlements?type=sepa');
+    test('D2: GET /settlements returns list with correct structure', async ({ authenticatedRequest }) => {
+      // Note: settlement_type filtering was removed when settlements were unified.
+      // Export format (SEPA/CSV) is determined at export time, not at settlement creation.
+      const response = await authenticatedRequest.get('/api/admin/settlements');
 
       expect(response.status()).toBe(200);
       const body = await response.json();
       expect(Array.isArray(body.data)).toBe(true);
+
+      // Verify settlement structure
       if (body.data.length > 0) {
         body.data.forEach((settlement: any) => {
-          expect(settlement.settlement_type).toBe('sepa');
+          expect(settlement.id).toBeTruthy();
+          expect(settlement.settlement_date).toBeTruthy();
+          expect(typeof settlement.total_amount_cents).toBe('number');
+          expect(typeof settlement.member_count).toBe('number');
+          expect(typeof settlement.is_cancelled).toBe('boolean');
         });
       }
     });
@@ -480,8 +488,11 @@ test.describe('Settlements API', () => {
       const detail = await authenticatedRequest.get(`/api/admin/settlements/${listData.data[0].id}`);
       expect(detail.status()).toBe(200);
       const detailData = await detail.json();
-      expect(detailData).toHaveProperty('settlement_type');
+      // Verify settlement has required fields (settlement_type removed when settlements were unified)
+      expect(detailData).toHaveProperty('id');
+      expect(detailData).toHaveProperty('settlement_date');
       expect(detailData).toHaveProperty('items');
+      expect(Array.isArray(detailData.items)).toBe(true);
     }
   });
 });
