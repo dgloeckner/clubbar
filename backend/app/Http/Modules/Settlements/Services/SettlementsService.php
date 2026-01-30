@@ -177,8 +177,17 @@ final readonly class SettlementsService
         // Fetch transactions to calculate total and member count
         $transactions = DB::table('transactions')
             ->whereIn('id', $transactionIds)
-            ->select(['id', 'member_id', 'amount_cents'])
+            ->select(['id', 'member_id', 'amount_cents', 'settlement_id'])
             ->get();
+
+        // Validate all transactions are unsettled
+        $settledTransactions = $transactions->filter(fn($txn) => $txn->settlement_id !== null);
+        if ($settledTransactions->isNotEmpty()) {
+            $settledIds = $settledTransactions->pluck('id')->join(', ', ' and ');
+            throw new \Exception(
+                "Cannot settle already-settled transactions: {$settledIds}"
+            );
+        }
 
         $totalAmount = $transactions->sum('amount_cents');
         $memberIds = $transactions->pluck('member_id')->unique();
