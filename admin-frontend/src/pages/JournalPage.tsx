@@ -28,11 +28,14 @@ import {
   formatTransactionType,
   getTransactionTypeColor,
   getAmountColor,
+  createCorrection,
   type GlobalTransaction
 } from '../services/transactions'
 import {
   createSettlement
 } from '../services/settlements'
+import { getMembers, type Member } from '../services/members'
+import { theme } from '../styles/design-system'
 import {
   tableColors,
   tableSpacing,
@@ -77,6 +80,17 @@ export function JournalPage() {
   type SettlementMode = 'none' | 'edit'
   const [settlementMode, setSettlementMode] = useState<SettlementMode>('none')
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set())
+
+  // Correction modal state
+  const [showCorrectionModal, setShowCorrectionModal] = useState(false)
+  const [members, setMembers] = useState<Member[]>([])
+  const [correctionForm, setCorrectionForm] = useState({
+    memberId: '',
+    amountCents: 0,
+    reason: '',
+  })
+  const [correctionError, setCorrectionError] = useState<string | null>(null)
+  const [correctionLoading, setCorrectionLoading] = useState(false)
 
   // Track if component is mounted to prevent state updates on unmounted component
   const isMountedRef = useRef(true)
@@ -167,9 +181,67 @@ export function JournalPage() {
     }
   }
 
-  const handleCreateCorrection = () => {
-    // TODO: Implement correction creation modal/workflow
-    console.log('Create correction clicked')
+  const handleCreateCorrection = async () => {
+    setShowCorrectionModal(true)
+    setCorrectionError(null)
+    setCorrectionForm({ memberId: '', amountCents: 0, reason: '' })
+
+    // Load members for dropdown
+    try {
+      const response = await getMembers(1, 1000, undefined, {}, 'first_name', 'asc')
+      setMembers(response.items)
+    } catch (err) {
+      setCorrectionError('Failed to load members')
+    }
+  }
+
+  const handleCorrectionModalClose = () => {
+    setShowCorrectionModal(false)
+    setCorrectionError(null)
+    setCorrectionForm({ memberId: '', amountCents: 0, reason: '' })
+  }
+
+  const handleSubmitCorrection = async () => {
+    // Validate
+    if (!correctionForm.memberId) {
+      setCorrectionError('Please select a member')
+      return
+    }
+    if (!correctionForm.reason.trim()) {
+      setCorrectionError('Please enter a reason')
+      return
+    }
+    if (correctionForm.amountCents === 0) {
+      setCorrectionError('Amount must not be zero')
+      return
+    }
+
+    try {
+      setCorrectionLoading(true)
+      setCorrectionError(null)
+
+      await createCorrection(
+        correctionForm.memberId,
+        correctionForm.amountCents,
+        correctionForm.reason
+      )
+
+      // Close modal and reload transactions
+      handleCorrectionModalClose()
+      await loadTransactions()
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create correction'
+      // Check if it's a SEPA validation error (422)
+      if (err instanceof Error && errorMsg.includes('422')) {
+        setCorrectionError('Member does not have valid SEPA mandate. Please update member IBAN and mandate reference.')
+      } else if (err instanceof Error && errorMsg.includes('not_found')) {
+        setCorrectionError('Member not found')
+      } else {
+        setCorrectionError(errorMsg)
+      }
+    } finally {
+      setCorrectionLoading(false)
+    }
   }
 
   const handleToggleTransaction = (id: string) => {
@@ -821,6 +893,186 @@ export function JournalPage() {
                 />
               )}
             </div>
+        )}
+
+        {/* Correction Modal */}
+        {showCorrectionModal && (
+          <div
+            data-testid="journal-correction-modal"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+            }}
+            onClick={handleCorrectionModalClose}
+          >
+            <div
+              data-testid="journal-correction-modal-content"
+              style={{
+                background: theme.colors.bg.secondary,
+                borderRadius: theme.borderRadius.lg,
+                padding: theme.spacing.xl,
+                maxWidth: '500px',
+                width: '90%',
+                boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 data-testid="journal-correction-modal-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
+                Add Correction
+              </h2>
+
+              {correctionError && (
+                <div
+                  data-testid="journal-correction-error"
+                  style={{
+                    padding: theme.spacing.md,
+                    background: `${theme.colors.semantic.danger}20`,
+                    borderLeft: `3px solid ${theme.colors.semantic.danger}`,
+                    color: theme.colors.semantic.danger,
+                    marginBottom: theme.spacing.lg,
+                    borderRadius: theme.borderRadius.md,
+                    fontSize: theme.typography.fontSize.sm,
+                  }}
+                >
+                  {correctionError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>
+                {/* Member Selection */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                    Member *
+                  </label>
+                  <select
+                    data-testid="journal-correction-member-select"
+                    value={correctionForm.memberId}
+                    onChange={(e) => setCorrectionForm({ ...correctionForm, memberId: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      fontSize: theme.typography.fontSize.sm,
+                      boxSizing: 'border-box',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="">Select a member...</option>
+                    {members.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.first_name} {member.last_name} {!member.is_sepa_valid && '⚠ No SEPA'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                    Amount (EUR) *
+                  </label>
+                  <input
+                    data-testid="journal-correction-amount-input"
+                    type="number"
+                    step="0.01"
+                    value={correctionForm.amountCents / 100}
+                    onChange={(e) => setCorrectionForm({ ...correctionForm, amountCents: Math.round(parseFloat(e.target.value) * 100) })}
+                    placeholder="0.00"
+                    style={{
+                      width: '100%',
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      fontSize: theme.typography.fontSize.sm,
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <div style={{ fontSize: '11px', color: theme.colors.text.secondary, marginTop: '4px' }}>
+                    Positive = charge, Negative = credit
+                  </div>
+                </div>
+
+                {/* Reason */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                    Reason *
+                  </label>
+                  <textarea
+                    data-testid="journal-correction-reason-input"
+                    value={correctionForm.reason}
+                    onChange={(e) => setCorrectionForm({ ...correctionForm, reason: e.target.value })}
+                    placeholder="e.g., Refund for damaged item, Price adjustment, etc."
+                    maxLength={255}
+                    style={{
+                      width: '100%',
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      fontSize: theme.typography.fontSize.sm,
+                      boxSizing: 'border-box',
+                      minHeight: '80px',
+                      fontFamily: 'inherit',
+                      resize: 'vertical',
+                    }}
+                  />
+                </div>
+
+                {/* Buttons */}
+                <div style={{ display: 'flex', gap: theme.spacing.md, justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={handleCorrectionModalClose}
+                    disabled={correctionLoading}
+                    style={{
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.tertiary,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      cursor: correctionLoading ? 'not-allowed' : 'pointer',
+                      fontSize: theme.typography.fontSize.sm,
+                      fontWeight: 500,
+                      opacity: correctionLoading ? 0.6 : 1,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSubmitCorrection}
+                    disabled={correctionLoading}
+                    data-testid="journal-correction-submit-btn"
+                    style={{
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.semantic.primary,
+                      border: 'none',
+                      borderRadius: theme.borderRadius.md,
+                      color: '#ffffff',
+                      cursor: correctionLoading ? 'not-allowed' : 'pointer',
+                      fontSize: theme.typography.fontSize.sm,
+                      fontWeight: 500,
+                      opacity: correctionLoading ? 0.6 : 1,
+                    }}
+                  >
+                    {correctionLoading ? 'Saving...' : 'Add Correction'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </Card>
     </div>

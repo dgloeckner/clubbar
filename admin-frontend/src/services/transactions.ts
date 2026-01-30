@@ -1,9 +1,9 @@
 /**
  * Transactions API Service
- * Handles member transaction history (UC-A20)
+ * Handles member transaction history (UC-A20) and corrections (UC-A21)
  */
 
-import { get } from './api'
+import { get, post } from './api'
 
 export interface Transaction {
   id: string
@@ -177,6 +177,42 @@ export async function getTransactions(
     page,
     per_page: perPage,
   }
+}
+
+/**
+ * Create a manual correction transaction for a member (UC-A21)
+ * Used by: JournalPage for creating manual bookings/adjustments
+ *
+ * @param memberId Member UUID
+ * @param amountCents Amount in cents (positive=charge, negative=credit)
+ * @param reason Description/reason for correction
+ * @returns Created transaction
+ * @throws Error if member not found or SEPA invalid
+ */
+export async function createCorrection(
+  memberId: string,
+  amountCents: number,
+  reason: string
+): Promise<Transaction & { member_id: string }> {
+  const response = await post<any>(
+    `/admin/members/${memberId}/transactions/correct`,
+    {
+      amount_cents: amountCents,
+      reason,
+    }
+  )
+
+  if (!response) {
+    throw new Error('No response from correction API')
+  }
+
+  // Handle wrapped response
+  if ('data' in response && response.data) {
+    return response.data as Transaction & { member_id: string }
+  }
+
+  // Direct response
+  return response as Transaction & { member_id: string }
 }
 
 /**
