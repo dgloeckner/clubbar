@@ -559,4 +559,13 @@ export class SettingsPage {
   async expectCreateAdminButtonVisible() {
     await expect(this.page.getByTestId('settings-admin-create-button')).toBeVisible()
   }
+
+  /**
+   * Wait for password modal to appear after admin user creation
+   * Implements Pattern 008: Use Playwright auto-waiting with expect()
+   */
+  async waitForPasswordModal() {
+    const modal = this.page.getByTestId('settings-admin-password-modal')
+    await expect(modal).toBeVisible({ timeout: 5000 })
+  }
 }

@@ -88,7 +88,7 @@ test.describe('Admin Users Management', () => {
     await authenticatedSettingsPage.clickCreateAdminConfirm()
 
     // Wait for password modal to appear (indicates API call succeeded)
-    await authenticatedSettingsPage.page.waitForTimeout(500)
+    await authenticatedSettingsPage.waitForPasswordModal()
 
     // Assert: Password modal should be visible
     const passwordText = await authenticatedSettingsPage.getGeneratedPassword()
