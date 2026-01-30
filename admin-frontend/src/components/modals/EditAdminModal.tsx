@@ -4,13 +4,14 @@
  */
 
 import { theme } from '../../styles/design-system'
+import { LanguageSelector } from '../forms/LanguageSelector'
 
 export interface EditAdminModalProps {
   isOpen: boolean
   formData: {
     email: string
     display_name: string
-    locale: string
+    locale: 'de' | 'en'
   }
   onFormChange: (field: string, value: string) => void
   onSubmit: () => void
@@ -81,24 +82,13 @@ export function EditAdminModal({ isOpen, formData, onFormChange, onSubmit, onClo
             color: theme.colors.text.primary,
           }}
         />
-        <select
-          data-testid="settings-admin-edit-locale"
-          value={formData.locale}
-          onChange={(e) => onFormChange('locale', e.target.value)}
-          style={{
-            width: '100%',
-            padding: theme.spacing.md,
-            marginBottom: theme.spacing.lg,
-            border: `1px solid ${theme.colors.border.light}`,
-            borderRadius: theme.borderRadius.md,
-            boxSizing: 'border-box',
-            background: theme.colors.bg.secondary,
-            color: theme.colors.text.primary,
-          }}
-        >
-          <option value="de">German (de)</option>
-          <option value="en">English (en)</option>
-        </select>
+        <div style={{ marginBottom: theme.spacing.lg }}>
+          <LanguageSelector
+            value={formData.locale}
+            onChange={(language) => onFormChange('locale', language)}
+            testId="settings-admin-edit-locale"
+          />
+        </div>
         <div style={{ display: 'flex', gap: theme.spacing.md }}>
           <button
             data-testid="settings-admin-edit-confirm-button"
