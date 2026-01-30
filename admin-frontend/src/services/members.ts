@@ -93,12 +93,13 @@ export async function getMember(id: string): Promise<Member> {
 
 /**
  * Create a new member
- * Required fields per UC-A11: first_name, last_name, iban, mandate_signed_at, preferred_language
+ * Required fields per UC-A11: first_name, last_name, iban, mandate_reference, mandate_signed_at, preferred_language
  */
 export async function createMember(data: {
   first_name: string
   last_name: string
   iban: string
+  mandate_reference: string
   mandate_signed_at: string
   preferred_language: string
   email?: string
