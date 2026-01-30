@@ -5,11 +5,10 @@
 
 import { useEffect, useState } from 'react'
 import { StatCard } from '../components/common/StatCard'
-import { TransactionModal } from '../components/modals/TransactionModal'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useLoading } from '../context/LoadingContext'
-import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon, BookIcon } from '../components/icons'
+import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon } from '../components/icons'
 import { formatPrice, formatDate } from '../styles/design-system'
 import { getMembers, createMember, updateMember, deactivateMember, Member } from '../services/members'
 import { getDashboardMetrics } from '../services/dashboard'
@@ -46,7 +45,6 @@ export function MembersPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [selectedMemberForTransactions, setSelectedMemberForTransactions] = useState<Member | null>(null)
   const [sortKey, setSortKey] = useState<'first_name' | 'last_name' | 'created_at'>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [sortByValue, setSortByValue] = useState('created_at-desc') // For sort dropdown
@@ -490,21 +488,6 @@ export function MembersPage() {
                       >
                         <TrashIcon size={18} />
                       </button>
-                      <button
-                        data-testid={`view-transactions-button-${member.id}`}
-                        onClick={() => setSelectedMemberForTransactions(member)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: theme.colors.semantic.primary,
-                          cursor: 'pointer',
-                          padding: theme.spacing.sm,
-                          marginLeft: theme.spacing.md,
-                        }}
-                        title="View Transactions"
-                      >
-                        <BookIcon size={18} />
-                      </button>
                     </TableCell>
                   </tr>
                 ))}
@@ -869,16 +852,6 @@ export function MembersPage() {
         </div>
       )}
 
-      {/* Transaction Modal (UC-A20) */}
-      {selectedMemberForTransactions && (
-        <TransactionModal
-          isOpen={!!selectedMemberForTransactions}
-          memberId={selectedMemberForTransactions.id}
-          memberName={`${selectedMemberForTransactions.first_name} ${selectedMemberForTransactions.last_name}`}
-          currentBalance={selectedMemberForTransactions.balance_cents}
-          onClose={() => setSelectedMemberForTransactions(null)}
-        />
-      )}
     </div>
   )
 }
