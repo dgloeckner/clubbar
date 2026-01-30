@@ -97,7 +97,52 @@ export const theme = {
     default: '150ms ease-in-out',
     fast: '100ms ease-in-out',
     slow: '200ms ease-in-out',
-  }
+  },
+
+  // Avatar gradients (5 color schemes)
+  avatars: {
+    gradients: {
+      blue: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+      green: 'linear-gradient(135deg, #22c55e 0%, #10b981 100%)',
+      orange: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
+      pink: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)',
+      gray: 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
+    },
+    sizes: {
+      sm: '32px',
+      md: '40px',
+      lg: '48px',
+    },
+  },
+
+  // Status badge styles
+  badges: {
+    success: {
+      bg: 'rgba(34, 197, 94, 0.1)',
+      text: '#22c55e',
+      dot: '#22c55e',
+    },
+    warning: {
+      bg: 'rgba(251, 146, 60, 0.1)',
+      text: '#f97316',
+      dot: '#f97316',
+    },
+    danger: {
+      bg: 'rgba(239, 68, 68, 0.1)',
+      text: '#ef4444',
+      dot: '#ef4444',
+    },
+    info: {
+      bg: 'rgba(59, 130, 246, 0.1)',
+      text: '#3b82f6',
+      dot: '#3b82f6',
+    },
+    neutral: {
+      bg: 'rgba(107, 114, 128, 0.1)',
+      text: '#64748b',
+      dot: '#64748b',
+    },
+  },
 }
 
 /**
@@ -172,6 +217,35 @@ export function formatDateTime(dateString: string, locale: string = 'de-DE'): st
       hour: '2-digit',
       minute: '2-digit',
     }).format(date)
+  } catch {
+    return dateString
+  }
+}
+
+/**
+ * Format date relative to today (Heute, Gestern, or absolute date)
+ */
+export function formatRelativeDate(dateString: string, locale: string = 'de-DE'): string {
+  if (!dateString) return 'Never'
+
+  try {
+    const date = new Date(dateString)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const isSameDay = (d1: Date, d2: Date) =>
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+
+    if (isSameDay(date, today)) {
+      return 'Heute'
+    }
+    if (isSameDay(date, yesterday)) {
+      return 'Gestern'
+    }
+    return formatDate(dateString, locale)
   } catch {
     return dateString
   }

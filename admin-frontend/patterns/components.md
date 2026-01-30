@@ -1,0 +1,392 @@
+# Admin Frontend Component Patterns
+
+This document describes the reusable UI components available for building admin frontend pages and features.
+
+## Component Library
+
+### Common Components
+
+#### Avatar Component
+
+Displays user avatar with gradient background and initials.
+
+**File**: `src/components/common/Avatar.tsx`
+
+**Props**:
+- `name` (string, required): User name (extracts initials)
+- `variant` ('blue' | 'green' | 'orange' | 'pink' | 'gray', default: 'blue'): Gradient color scheme
+- `size` ('sm' | 'md' | 'lg', default: 'md'): Avatar size
+- `inactive` (boolean, default: false): Shows grayscale + opacity 0.5
+- `testId` (string, optional): Test ID for E2E testing
+
+**Example**:
+```typescript
+import { Avatar } from '@/components/common/Avatar'
+
+export function UserRow({ name, isActive }) {
+  return (
+    <div>
+      <Avatar
+        name={name}
+        variant="blue"
+        size="md"
+        inactive={!isActive}
+        testId={`avatar-${name}`}
+      />
+    </div>
+  )
+}
+```
+
+**Color Variants**:
+- `blue`: Gradient from #3b82f6 to #8b5cf6 (blue-purple)
+- `green`: Gradient from #22c55e to #10b981 (green)
+- `orange`: Gradient from #f97316 to #fb923c (orange)
+- `pink`: Gradient from #ec4899 to #f472b6 (pink)
+- `gray`: Gradient from #64748b to #94a3b8 (neutral, for inactive states)
+
+---
+
+#### Badge Component
+
+Status badge with colored dot indicator.
+
+**File**: `src/components/common/Badge.tsx`
+
+**Props**:
+- `label` (string, required): Badge text
+- `variant` ('success' | 'warning' | 'danger' | 'info' | 'neutral', default: 'neutral'): Color variant
+- `showDot` (boolean, default: true): Show colored dot indicator
+- `testId` (string, optional): Test ID for E2E testing
+
+**Example**:
+```typescript
+import { Badge } from '@/components/common/Badge'
+
+export function StatusCell({ isActive }) {
+  return (
+    <Badge
+      label={isActive ? 'Active' : 'Inactive'}
+      variant={isActive ? 'success' : 'neutral'}
+      showDot={true}
+      testId="status-badge"
+    />
+  )
+}
+```
+
+**Variants**:
+- `success`: Green (#22c55e)
+- `warning`: Orange (#f97316)
+- `danger`: Red (#ef4444)
+- `info`: Blue (#3b82f6)
+- `neutral`: Gray (#64748b)
+
+---
+
+#### Tooltip Component
+
+Displays tooltip on hover with configurable position.
+
+**File**: `src/components/common/Tooltip.tsx`
+
+**Props**:
+- `content` (string, required): Tooltip text
+- `position` ('top' | 'bottom' | 'left' | 'right', default: 'top'): Tooltip position
+- `children` (ReactNode, required): Element to attach tooltip to
+- `testId` (string, optional): Test ID for E2E testing
+
+**Example**:
+```typescript
+import { Tooltip } from '@/components/common/Tooltip'
+
+export function ActionButton() {
+  return (
+    <Tooltip content="Edit this user" position="top">
+      <button onClick={handleEdit}>✎ Edit</button>
+    </Tooltip>
+  )
+}
+```
+
+---
+
+#### ActionMenu Component
+
+Dropdown menu with action items (3-dot menu).
+
+**File**: `src/components/common/ActionMenu.tsx`
+
+**Props**:
+- `items` (ActionMenuItem[], required): Array of menu items
+- `testId` (string, optional): Test ID for E2E testing
+
+**ActionMenuItem**:
+- `label` (string): Menu item text
+- `icon` (ReactNode, optional): Icon to display
+- `onClick` (() => void): Handler function
+- `variant` ('default' | 'danger', default: 'default'): Styling (red text for danger)
+
+**Example**:
+```typescript
+import { ActionMenu } from '@/components/common/ActionMenu'
+
+export function AdminRow({ admin }) {
+  return (
+    <ActionMenu
+      items={[
+        {
+          label: 'Deactivate',
+          onClick: () => handleDeactivate(admin.id),
+          variant: 'danger',
+        },
+        {
+          label: 'Delete',
+          onClick: () => handleDelete(admin.id),
+          variant: 'danger',
+        },
+      ]}
+      testId={`actions-${admin.id}`}
+    />
+  )
+}
+```
+
+---
+
+#### Alert Component
+
+Alert message with icon and optional dismiss button.
+
+**File**: `src/components/common/Alert.tsx`
+
+**Props**:
+- `variant` ('warning' | 'danger' | 'info' | 'success', default: 'warning'): Color variant
+- `icon` (ReactNode, optional): Icon element
+- `title` (string, optional): Alert title
+- `message` (string, required): Alert message
+- `dismissible` (boolean, default: false): Show dismiss button
+- `testId` (string, optional): Test ID for E2E testing
+
+**Example**:
+```typescript
+import { Alert } from '@/components/common/Alert'
+
+export function SettingsPage() {
+  return (
+    <Alert
+      variant="warning"
+      icon="⚠️"
+      title="Warning"
+      message="This field is a legal identifier and cannot be changed."
+      dismissible={false}
+      testId="sepa-warning"
+    />
+  )
+}
+```
+
+---
+
+### Form Components
+
+#### CharacterCounter Component
+
+Displays character count with color warning based on limit.
+
+**File**: `src/components/forms/CharacterCounter.tsx`
+
+**Props**:
+- `currentLength` (number, required): Current character count
+- `maxLength` (number, required): Maximum allowed characters
+- `testId` (string, optional): Test ID for E2E testing
+
+**Colors**:
+- Normal (0-80%): Secondary text (#94a3b8)
+- Warning (80-100%): Orange (#f97316)
+- Danger (≥100%): Red (#ef4444)
+
+**Example**:
+```typescript
+import { CharacterCounter } from '@/components/forms/CharacterCounter'
+
+export function CreditorForm({ creditorName }) {
+  return (
+    <div>
+      <input value={creditorName} placeholder="Organization name" />
+      <CharacterCounter
+        currentLength={creditorName.length}
+        maxLength={70}
+        testId="name-counter"
+      />
+    </div>
+  )
+}
+```
+
+---
+
+#### ValidationIndicator Component
+
+Shows checkmark for valid fields, X for invalid fields.
+
+**File**: `src/components/forms/ValidationIndicator.tsx`
+
+**Props**:
+- `isValid` (boolean, required): Validation state
+- `show` (boolean, required): Show/hide the indicator
+- `testId` (string, optional): Test ID for E2E testing
+
+**Example**:
+```typescript
+import { ValidationIndicator } from '@/components/forms/ValidationIndicator'
+
+function IbanInput({ iban, validateIban }) {
+  const isValid = validateIban(iban)
+
+  return (
+    <div style={{ display: 'flex', gap: '8px' }}>
+      <input value={iban} />
+      <ValidationIndicator
+        isValid={isValid}
+        show={iban.length > 0}
+        testId="iban-validation"
+      />
+    </div>
+  )
+}
+```
+
+---
+
+## Design System Tokens
+
+All components use tokens from `src/styles/design-system.ts`:
+
+### Avatar Gradients
+
+```typescript
+theme.avatars.gradients = {
+  blue: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+  green: 'linear-gradient(135deg, #22c55e 0%, #10b981 100%)',
+  orange: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)',
+  pink: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)',
+  gray: 'linear-gradient(135deg, #64748b 0%, #94a3b8 100%)',
+}
+
+theme.avatars.sizes = {
+  sm: '32px',
+  md: '40px',
+  lg: '48px',
+}
+```
+
+### Badge Styles
+
+```typescript
+theme.badges = {
+  success: { bg: 'rgba(34, 197, 94, 0.1)', text: '#22c55e', dot: '#22c55e' },
+  warning: { bg: 'rgba(251, 146, 60, 0.1)', text: '#f97316', dot: '#f97316' },
+  danger: { bg: 'rgba(239, 68, 68, 0.1)', text: '#ef4444', dot: '#ef4444' },
+  info: { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6', dot: '#3b82f6' },
+  neutral: { bg: 'rgba(107, 114, 128, 0.1)', text: '#64748b', dot: '#64748b' },
+}
+```
+
+---
+
+## Utility Functions
+
+### formatRelativeDate()
+
+Format date relative to today (Heute, Gestern, or absolute date).
+
+**File**: `src/styles/design-system.ts`
+
+**Signature**:
+```typescript
+export function formatRelativeDate(dateString: string, locale: string = 'de-DE'): string
+```
+
+**Example**:
+```typescript
+import { formatRelativeDate } from '@/styles/design-system'
+
+function LoginCell({ lastLoginAt }) {
+  return <span>{formatRelativeDate(lastLoginAt)}</span>
+}
+```
+
+**Output**:
+- Today: "Heute"
+- Yesterday: "Gestern"
+- Older dates: "30.01.2026" (formatted)
+- No date: "Never"
+
+---
+
+## Usage Patterns
+
+### Example: User List with Avatars, Badges, and Actions
+
+```typescript
+import { Avatar } from '@/components/common/Avatar'
+import { Badge } from '@/components/common/Badge'
+import { ActionMenu } from '@/components/common/ActionMenu'
+import { Tooltip } from '@/components/common/Tooltip'
+import { formatRelativeDate } from '@/styles/design-system'
+
+function UserTable({ users }) {
+  return (
+    <table>
+      <tbody>
+        {users.map((user, index) => (
+          <tr key={user.id}>
+            <td>
+              <Avatar
+                name={user.name}
+                variant={getVariant(index)}
+                size="sm"
+                inactive={!user.is_active}
+              />
+              {user.name}
+            </td>
+            <td>
+              <Badge
+                label={user.is_active ? 'Active' : 'Inactive'}
+                variant={user.is_active ? 'success' : 'neutral'}
+              />
+            </td>
+            <td>{formatRelativeDate(user.last_login_at)}</td>
+            <td>
+              <ActionMenu items={[
+                { label: 'Edit', onClick: () => handleEdit(user.id) },
+                { label: 'Delete', onClick: () => handleDelete(user.id), variant: 'danger' },
+              ]} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+```
+
+---
+
+## Best Practices
+
+1. **Always include test IDs** for E2E testing
+2. **Use theme tokens** instead of hardcoded colors
+3. **Keep components stateless** - pass handlers as props
+4. **Use TypeScript** for type safety
+5. **Inline styles only** - no external CSS files
+6. **Follow accessibility** - use semantic HTML and ARIA attributes when needed
+
+---
+
+## Related Patterns
+
+- **Test IDs Pattern**: See `admin-frontend/patterns/test-ids.md` for naming conventions
+- **E2E Testing Patterns**: See `e2etests/patterns/README.md` for test examples
+- **Backend Patterns**: See `backend/patterns/` for API integration examples

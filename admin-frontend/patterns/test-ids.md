@@ -777,8 +777,100 @@ When implementing a new page or component:
 
 ---
 
+## Settings Page Test IDs Reference
+
+The Settings page uses these test IDs for E2E testing:
+
+### Page Structure
+```typescript
+data-testid="settings-page"                    // Main container
+data-testid="settings-page-loading"            // Loading indicator
+data-testid="settings-tabs"                    // Tab navigation container
+data-testid="settings-tab-sepa"                // SEPA Configuration tab
+data-testid="settings-tab-admin-users"         // Admin Users tab
+```
+
+### SEPA Configuration Tab
+```typescript
+// Form
+data-testid="settings-sepa-form"               // Main form container
+data-testid="settings-sepa-input-creditor_id"  // Creditor ID input
+data-testid="settings-sepa-input-creditor_name"        // Creditor Name input
+data-testid="settings-sepa-input-creditor_iban"        // IBAN input
+data-testid="settings-sepa-input-creditor_address_street"   // Street input
+data-testid="settings-sepa-input-creditor_address_city"     // City input
+data-testid="settings-sepa-input-creditor_address_country"  // Country input
+
+// Validation & Feedback
+data-testid="settings-sepa-char-counter-creditor_id"        // Character counter (35 max)
+data-testid="settings-sepa-char-counter-creditor_name"      // Character counter (70 max)
+data-testid="settings-sepa-char-counter-creditor_address_street"  // Char counter (70 max)
+data-testid="settings-sepa-char-counter-creditor_address_city"    // Char counter (70 max)
+data-testid="settings-sepa-validation-creditor_iban"        // IBAN validation indicator
+data-testid="settings-sepa-alert-warning"                   // Warning alert
+data-testid="settings-sepa-error-message"                   // Error message banner
+data-testid="settings-sepa-success-message"                 // Success message banner
+
+// Actions
+data-testid="settings-sepa-save-button"        // Save button
+data-testid="settings-sepa-cancel-button"      // Cancel button
+```
+
+### Admin Users Tab
+```typescript
+// Table & Listing
+data-testid="settings-admin-users-table"                    // Admin users table
+data-testid="settings-admin-users-count-badge"              // Count badge (e.g., "5")
+data-testid="settings-admin-create-button"                  // Create admin button
+
+// User Rows
+data-testid="settings-admin-user-row-{id}"                  // Admin user row (by ID)
+data-testid="settings-admin-user-avatar-{id}"               // User avatar
+data-testid="settings-admin-user-name-{id}"                 // User name cell
+data-testid="settings-admin-user-email-{id}"                // User email cell
+data-testid="settings-admin-user-badge-{id}"                // Status badge
+data-testid="settings-admin-user-status-{id}"               // Status cell
+
+// User Actions
+data-testid="settings-admin-edit-button-{id}"               // Edit button
+data-testid="settings-admin-reset-password-button-{id}"     // Reset password button
+data-testid="settings-admin-action-menu-{id}"               // Overflow menu (3-dot)
+data-testid="settings-admin-deactivate-button-{id}"         // Deactivate button (in menu)
+data-testid="settings-admin-reactivate-button-{id}"         // Reactivate button (in menu)
+```
+
+### Create Admin Modal
+```typescript
+data-testid="settings-admin-create-modal"                   // Modal container
+data-testid="settings-admin-create-email"                   // Email input
+data-testid="settings-admin-create-display-name"            // Display name input
+data-testid="settings-admin-create-locale"                  // Locale dropdown
+data-testid="settings-admin-create-confirm-button"          // Create button
+data-testid="settings-admin-create-cancel-button"           // Cancel button
+```
+
+### Edit Admin Modal
+```typescript
+data-testid="settings-admin-edit-modal"                     // Modal container
+data-testid="settings-admin-edit-email"                     // Email input
+data-testid="settings-admin-edit-display-name"              // Display name input
+data-testid="settings-admin-edit-locale"                    // Locale dropdown
+data-testid="settings-admin-edit-confirm-button"            // Update button
+data-testid="settings-admin-edit-cancel-button"             // Cancel button
+```
+
+### Password Display Modal
+```typescript
+data-testid="settings-admin-password-modal"                 // Modal container
+data-testid="settings-admin-password-display"               // Password text (monospace)
+data-testid="settings-admin-password-copy-button"           // Copy & Close button
+```
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1 | 2026-01-30 | Added Settings page test IDs reference |
 | 1.0 | 2026-01-26 | Initial pattern documentation |

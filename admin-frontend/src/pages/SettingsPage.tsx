@@ -1,21 +1,23 @@
 /**
  * Settings Page
- * Configuration management for system settings (SEPA configuration, etc.)
+ * Configuration management for system settings (SEPA configuration, admin users)
  */
 
 import { useEffect, useState } from 'react'
 import { theme } from '../styles/design-system'
 import { useLoading } from '../context/LoadingContext'
-import { useBreakpoint } from '../hooks/useBreakpoint'
 import { getSepaConfig, updateSepaConfig } from '../services/sepa-config'
 import { getAdminUsers, createAdminUser, updateAdminUser, deactivateAdminUser, reactivateAdminUser, resetAdminPassword } from '../services/admin-users'
-import { SepaConfig, UpdateSepaConfigRequest, AdminUser, CreateAdminUserRequest, UpdateAdminUserRequest, AdminUsersListResponse } from '../types'
+import { SepaConfig, UpdateSepaConfigRequest, AdminUser, CreateAdminUserRequest, UpdateAdminUserRequest } from '../types'
 import { AxiosError } from 'axios'
+import { SepaConfigTab } from '../components/settings/SepaConfigTab'
+import { AdminUsersTab } from '../components/settings/AdminUsersTab'
+import { CreateAdminModal } from '../components/modals/CreateAdminModal'
+import { EditAdminModal } from '../components/modals/EditAdminModal'
+import { PasswordDisplayModal } from '../components/modals/PasswordDisplayModal'
 
 export function SettingsPage() {
-  const breakpoint = useBreakpoint()
   const { setIsLoading } = useLoading()
-  const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
 
   // State management
   const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users'>('sepa')
@@ -187,7 +189,6 @@ export function SettingsPage() {
   // Validate IBAN format (basic client-side validation)
   const validateIban = (iban: string): boolean => {
     if (!iban) return false
-    // Basic format: 15-34 chars, starts with 2-letter country code, alphanumeric
     return /^[A-Z]{2}[0-9A-Z]{13,32}$/.test(iban.toUpperCase())
   }
 
@@ -225,7 +226,6 @@ export function SettingsPage() {
       newErrors.creditor_address_country = 'Country must be a 2-letter ISO code (e.g., DE, AT, CH)'
     }
 
-    // Creditor ID validation (only if setting for first time)
     if (!existingConfig && !formData.creditor_id?.trim()) {
       newErrors.creditor_id = 'Creditor ID is required'
     } else if (formData.creditor_id && formData.creditor_id.length > 35) {
@@ -240,7 +240,6 @@ export function SettingsPage() {
   const handleFieldChange = (field: keyof UpdateSepaConfigRequest, value: string) => {
     let finalValue = value
 
-    // Auto-uppercase IBAN and country code
     if (field === 'creditor_iban' || field === 'creditor_address_country') {
       finalValue = value.toUpperCase()
     }
@@ -250,7 +249,6 @@ export function SettingsPage() {
       [field]: finalValue,
     }))
 
-    // Clear error for this field when user starts typing
     if (fieldErrors[field]) {
       setFieldErrors((prev) => {
         const newErrors = { ...prev }
@@ -259,7 +257,6 @@ export function SettingsPage() {
       })
     }
 
-    // Clear success message when user edits form
     if (successMessage) {
       setSuccessMessage(null)
     }
@@ -331,104 +328,6 @@ export function SettingsPage() {
   // Check if creditor_id is already set (for warning display)
   const isCreditorIdSet = !!existingConfig
 
-  // Form field component
-  const FormField = ({
-    label,
-    fieldKey,
-    value,
-    type = 'text',
-    placeholder = '',
-    disabled = false,
-    helperText,
-    monospace = false,
-  }: {
-    label: string
-    fieldKey: keyof UpdateSepaConfigRequest
-    value: string
-    type?: string
-    placeholder?: string
-    disabled?: boolean
-    helperText?: string
-    monospace?: boolean
-  }) => {
-    const hasError = !!fieldErrors[fieldKey]
-    const errorMessage = fieldErrors[fieldKey]
-
-    return (
-      <div
-        style={{
-          marginBottom: theme.spacing.lg,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: theme.spacing.sm,
-        }}
-      >
-        <label
-          style={{
-            fontSize: theme.typography.fontSize.sm,
-            fontWeight: theme.typography.fontWeight.medium,
-            color: theme.colors.text.primary,
-          }}
-        >
-          {label}
-          {fieldKey !== 'creditor_address_country' && fieldKey !== 'creditor_address_street' && fieldKey !== 'creditor_address_city' ? null : ''}
-        </label>
-
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => handleFieldChange(fieldKey, e.target.value)}
-          disabled={disabled}
-          placeholder={placeholder}
-          data-testid={`settings-sepa-input-${fieldKey}`}
-          style={{
-            padding: `${theme.spacing.md} ${theme.spacing.md}`,
-            border: `1px solid ${hasError ? theme.colors.semantic.danger : theme.colors.border.light}`,
-            borderRadius: theme.borderRadius.md,
-            fontSize: theme.typography.fontSize.sm,
-            fontFamily: monospace ? 'monospace' : theme.typography.fontFamily.base,
-            backgroundColor: disabled ? theme.colors.bg.tertiary : theme.colors.bg.primary,
-            color: disabled ? theme.colors.text.secondary : theme.colors.text.primary,
-            cursor: disabled ? 'not-allowed' : 'auto',
-            transition: `all ${theme.transitions.default}`,
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = hasError ? theme.colors.semantic.danger : theme.colors.semantic.primary
-            e.currentTarget.style.boxShadow = `0 0 0 3px ${hasError ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)'}`
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = hasError ? theme.colors.semantic.danger : theme.colors.border.light
-            e.currentTarget.style.boxShadow = 'none'
-          }}
-        />
-
-        {helperText && (
-          <p
-            style={{
-              margin: 0,
-              fontSize: theme.typography.fontSize.xs,
-              color: theme.colors.text.secondary,
-            }}
-          >
-            {helperText}
-          </p>
-        )}
-
-        {errorMessage && (
-          <p
-            style={{
-              margin: 0,
-              fontSize: theme.typography.fontSize.xs,
-              color: theme.colors.semantic.danger,
-            }}
-          >
-            {errorMessage}
-          </p>
-        )}
-      </div>
-    )
-  }
-
   // Tab styles
   const tabStyle = (isActive: boolean) => ({
     padding: `${theme.spacing.md} ${theme.spacing.lg}`,
@@ -474,7 +373,7 @@ export function SettingsPage() {
         </p>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs Navigation */}
       <div
         data-testid="settings-tabs"
         style={{
@@ -502,682 +401,77 @@ export function SettingsPage() {
 
       {/* SEPA Configuration Tab */}
       {activeTab === 'sepa' && (
-        <div>
-          {/* Error Message */}
-          {error && (
-            <div
-              data-testid="settings-sepa-error-message"
-              style={{
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.lg,
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: `1px solid ${theme.colors.semantic.danger}`,
-                borderRadius: theme.borderRadius.md,
-                color: theme.colors.semantic.danger,
-                fontSize: theme.typography.fontSize.sm,
-              }}
-            >
-              {error}
-            </div>
-          )}
-
-          {/* Success Message */}
-          {successMessage && (
-            <div
-              data-testid="settings-sepa-success-message"
-              style={{
-                padding: theme.spacing.md,
-                marginBottom: theme.spacing.lg,
-                background: 'rgba(34, 197, 94, 0.1)',
-                border: `1px solid rgba(34, 197, 94, 0.5)`,
-                borderRadius: theme.borderRadius.md,
-                color: 'rgb(34, 197, 94)',
-                fontSize: theme.typography.fontSize.sm,
-              }}
-            >
-              {successMessage}
-            </div>
-          )}
-
-          {/* Form */}
-          <form
-            data-testid="settings-sepa-form"
-            onSubmit={(e) => {
-              e.preventDefault()
-              handleSave()
-            }}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            {/* Creditor ID Field */}
-            {isCreditorIdSet && (
-              <div
-                style={{
-                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                  marginBottom: theme.spacing.lg,
-                  background: 'rgba(251, 146, 60, 0.1)',
-                  border: `1px solid rgba(251, 146, 60, 0.5)`,
-                  borderRadius: theme.borderRadius.md,
-                  color: 'rgb(234, 88, 12)',
-                  fontSize: theme.typography.fontSize.sm,
-                }}
-              >
-                ⚠️ <strong>Warning:</strong> The creditor ID is a legal identifier that appears in SEPA exports and settlement records. Changing it may impact compliance and audit trails.
-              </div>
-            )}
-            <FormField
-              label="Gläubiger ID (Creditor ID)"
-              fieldKey="creditor_id"
-              value={formData.creditor_id}
-              placeholder="e.g., DE01ZZZ09999999999"
-              helperText="Unique SEPA creditor identifier (max 35 chars)"
-            />
-
-            {/* Creditor Name Field */}
-            <FormField
-              label="Gläubiger Name (Creditor Name)"
-              fieldKey="creditor_name"
-              value={formData.creditor_name}
-              placeholder="e.g., Rowing Club Name"
-              helperText="Your organization name (max 70 chars)"
-            />
-
-            {/* Creditor IBAN Field */}
-            <FormField
-              label="Gläubiger IBAN (Creditor IBAN)"
-              fieldKey="creditor_iban"
-              value={formData.creditor_iban}
-              placeholder="e.g., DE89370400440532013000"
-              monospace={true}
-              helperText="Bank account IBAN (15-34 characters, mod-97 validated)"
-            />
-
-            {/* Street Address Field */}
-            <FormField
-              label="Straße (Street Address)"
-              fieldKey="creditor_address_street"
-              value={formData.creditor_address_street}
-              placeholder="e.g., Mainstreet 123"
-              helperText="Organization street address (max 70 chars)"
-            />
-
-            {/* City Field */}
-            <FormField
-              label="Stadt (City)"
-              fieldKey="creditor_address_city"
-              value={formData.creditor_address_city}
-              placeholder="e.g., Munich"
-              helperText="City name (max 70 chars)"
-            />
-
-            {/* Country Code Field */}
-            <FormField
-              label="Ländercode (Country Code)"
-              fieldKey="creditor_address_country"
-              value={formData.creditor_address_country}
-              placeholder="e.g., DE"
-              helperText="2-letter ISO country code (DE, AT, CH, etc.)"
-            />
-
-            {/* Action Buttons */}
-            <div
-              style={{
-                display: 'flex',
-                gap: theme.spacing.md,
-                marginTop: theme.spacing.xl,
-                justifyContent: isMobile ? 'stretch' : 'flex-start',
-              }}
-            >
-              <button
-                data-testid="settings-sepa-save-button"
-                onClick={handleSave}
-                disabled={saving}
-                style={{
-                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                  background: theme.colors.semantic.primary,
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: theme.borderRadius.md,
-                  fontSize: theme.typography.fontSize.sm,
-                  fontWeight: theme.typography.fontWeight.semibold,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  opacity: saving ? 0.6 : 1,
-                  transition: `all ${theme.transitions.default}`,
-                }}
-                onMouseEnter={(e) => {
-                  if (!saving) {
-                    e.currentTarget.style.background = 'rgb(37, 99, 235)'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = theme.colors.semantic.primary
-                }}
-              >
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-
-              <button
-                data-testid="settings-sepa-cancel-button"
-                onClick={handleCancel}
-                disabled={saving}
-                style={{
-                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                  background: 'transparent',
-                  color: theme.colors.text.secondary,
-                  border: `1px solid ${theme.colors.border.light}`,
-                  borderRadius: theme.borderRadius.md,
-                  fontSize: theme.typography.fontSize.sm,
-                  fontWeight: theme.typography.fontWeight.semibold,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  opacity: saving ? 0.6 : 1,
-                  transition: `all ${theme.transitions.default}`,
-                }}
-                onMouseEnter={(e) => {
-                  if (!saving) {
-                    e.currentTarget.style.backgroundColor = theme.colors.bg.tertiary
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent'
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+        <SepaConfigTab
+          config={existingConfig}
+          loading={false}
+          saving={saving}
+          error={error}
+          successMessage={successMessage}
+          formData={formData}
+          fieldErrors={fieldErrors}
+          onFieldChange={handleFieldChange}
+          onSave={handleSave}
+          onCancel={handleCancel}
+          validateIban={validateIban}
+        />
       )}
 
       {/* Admin Users Tab */}
       {activeTab === 'admin-users' && (
-        <div>
-          {/* Loading State */}
-          {adminUsersLoading ? (
-            <div style={{ textAlign: 'center', padding: theme.spacing.xl }}>
-              Loading admin users...
-            </div>
-          ) : (
-            <div>
-              {/* Add Admin Button */}
-              <div style={{ marginBottom: theme.spacing.lg }}>
-                <button
-                  data-testid="settings-admin-create-button"
-                  onClick={() => setShowCreateAdminModal(true)}
-                  style={{
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.semantic.primary,
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: theme.borderRadius.md,
-                    fontSize: theme.typography.fontSize.sm,
-                    fontWeight: theme.typography.fontWeight.semibold,
-                    cursor: 'pointer',
-                    transition: `all ${theme.transitions.default}`,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgb(37, 99, 235)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = theme.colors.semantic.primary
-                  }}
-                >
-                  + Create Admin User
-                </button>
-              </div>
-
-              {/* Admin Users Table */}
-              <div
-                style={{
-                  overflowX: 'auto',
-                  border: `1px solid ${theme.colors.border.light}`,
-                  borderRadius: theme.borderRadius.md,
-                }}
-              >
-                <table
-                  data-testid="settings-admin-users-table"
-                  style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: theme.typography.fontSize.sm,
-                  }}
-                >
-                  <thead>
-                    <tr style={{ background: theme.colors.bg.tertiary }}>
-                      <th style={{ padding: theme.spacing.md, textAlign: 'left', borderBottom: `1px solid ${theme.colors.border.light}`, fontWeight: theme.typography.fontWeight.semibold }}>Email</th>
-                      <th style={{ padding: theme.spacing.md, textAlign: 'left', borderBottom: `1px solid ${theme.colors.border.light}`, fontWeight: theme.typography.fontWeight.semibold }}>Name</th>
-                      <th style={{ padding: theme.spacing.md, textAlign: 'left', borderBottom: `1px solid ${theme.colors.border.light}`, fontWeight: theme.typography.fontWeight.semibold }}>Status</th>
-                      <th style={{ padding: theme.spacing.md, textAlign: 'left', borderBottom: `1px solid ${theme.colors.border.light}`, fontWeight: theme.typography.fontWeight.semibold }}>Last Login</th>
-                      <th style={{ padding: theme.spacing.md, textAlign: 'center', borderBottom: `1px solid ${theme.colors.border.light}`, fontWeight: theme.typography.fontWeight.semibold }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {adminUsers.map((admin) => (
-                      <tr key={admin.id} data-testid={`settings-admin-user-row-${admin.id}`} style={{ borderBottom: `1px solid ${theme.colors.border.light}` }}>
-                        <td style={{ padding: theme.spacing.md }} data-testid={`settings-admin-user-email-${admin.id}`}>{admin.email}</td>
-                        <td style={{ padding: theme.spacing.md }} data-testid={`settings-admin-user-name-${admin.id}`}>{admin.display_name}</td>
-                        <td style={{ padding: theme.spacing.md }} data-testid={`settings-admin-user-status-${admin.id}`}>
-                          <span
-                            style={{
-                              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                              background: admin.is_active ? 'rgba(34, 197, 94, 0.1)' : 'rgba(107, 114, 128, 0.1)',
-                              color: admin.is_active ? 'rgb(34, 197, 94)' : 'rgb(107, 114, 128)',
-                              borderRadius: theme.borderRadius.sm,
-                              fontSize: theme.typography.fontSize.xs,
-                              fontWeight: theme.typography.fontWeight.semibold,
-                            }}
-                          >
-                            {admin.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td style={{ padding: theme.spacing.md, color: theme.colors.text.secondary, fontSize: theme.typography.fontSize.xs }}>
-                          {admin.last_login_at ? new Date(admin.last_login_at).toLocaleDateString() : 'Never'}
-                        </td>
-                        <td style={{ padding: theme.spacing.md, textAlign: 'center' }}>
-                          <div style={{ display: 'flex', gap: theme.spacing.sm, justifyContent: 'center' }}>
-                            <button
-                              data-testid={`settings-admin-edit-button-${admin.id}`}
-                              onClick={() => {
-                                setEditingAdmin(admin)
-                                setEditAdminFormData({
-                                  email: admin.email,
-                                  display_name: admin.display_name,
-                                  locale: admin.locale,
-                                })
-                                setShowEditAdminModal(true)
-                              }}
-                              style={{
-                                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                                background: 'transparent',
-                                color: theme.colors.semantic.primary,
-                                border: `1px solid ${theme.colors.semantic.primary}`,
-                                borderRadius: theme.borderRadius.sm,
-                                fontSize: theme.typography.fontSize.xs,
-                                cursor: 'pointer',
-                                transition: `all ${theme.transitions.default}`,
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'transparent'
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              data-testid={`settings-admin-reset-password-button-${admin.id}`}
-                              onClick={() => handleResetPassword(admin.id)}
-                              style={{
-                                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                                background: 'rgba(251, 146, 60, 0.1)',
-                                color: 'rgb(234, 88, 12)',
-                                border: '1px solid rgba(251, 146, 60, 0.5)',
-                                borderRadius: theme.borderRadius.sm,
-                                fontSize: theme.typography.fontSize.xs,
-                                cursor: 'pointer',
-                                transition: `all ${theme.transitions.default}`,
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(251, 146, 60, 0.2)'
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'rgba(251, 146, 60, 0.1)'
-                              }}
-                            >
-                              Reset PWD
-                            </button>
-                            {admin.is_active ? (
-                              <button
-                                data-testid={`settings-admin-deactivate-button-${admin.id}`}
-                                onClick={() => handleDeactivateAdmin(admin.id)}
-                                style={{
-                                  padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                                  background: 'rgba(239, 68, 68, 0.1)',
-                                  color: theme.colors.semantic.danger,
-                                  border: `1px solid ${theme.colors.semantic.danger}`,
-                                  borderRadius: theme.borderRadius.sm,
-                                  fontSize: theme.typography.fontSize.xs,
-                                  cursor: 'pointer',
-                                  transition: `all ${theme.transitions.default}`,
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
-                                }}
-                              >
-                                Deactivate
-                              </button>
-                            ) : (
-                              <button
-                                data-testid={`settings-admin-reactivate-button-${admin.id}`}
-                                onClick={() => handleReactivateAdmin(admin.id)}
-                                style={{
-                                  padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                                  background: 'rgba(34, 197, 94, 0.1)',
-                                  color: 'rgb(34, 197, 94)',
-                                  border: '1px solid rgba(34, 197, 94, 0.5)',
-                                  borderRadius: theme.borderRadius.sm,
-                                  fontSize: theme.typography.fontSize.xs,
-                                  cursor: 'pointer',
-                                  transition: `all ${theme.transitions.default}`,
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)'
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = 'rgba(34, 197, 94, 0.1)'
-                                }}
-                              >
-                                Reactivate
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {adminUsers.length === 0 && (
-                <div style={{ textAlign: 'center', padding: theme.spacing.xl, color: theme.colors.text.secondary }}>
-                  No admin users found
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Create Admin Modal */}
-          {showCreateAdminModal && (
-            <div
-              data-testid="settings-admin-create-modal"
-              style={{
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(0, 0, 0, 0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1000,
-              }}
-              onClick={() => setShowCreateAdminModal(false)}
-            >
-              <div
-                style={{
-                  background: theme.colors.bg.primary,
-                  borderRadius: theme.borderRadius.lg,
-                  padding: theme.spacing.xl,
-                  maxWidth: '400px',
-                  width: '90%',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h2 style={{ margin: 0, marginBottom: theme.spacing.lg }}>Create Admin User</h2>
-                <input
-                  data-testid="settings-admin-create-email"
-                  type="email"
-                  placeholder="Email"
-                  value={createAdminFormData.email}
-                  onChange={(e) => setCreateAdminFormData({ ...createAdminFormData, email: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: theme.spacing.md,
-                    marginBottom: theme.spacing.md,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    boxSizing: 'border-box',
-                  }}
-                />
-                <input
-                  data-testid="settings-admin-create-display-name"
-                  type="text"
-                  placeholder="Display Name"
-                  value={createAdminFormData.display_name}
-                  onChange={(e) => setCreateAdminFormData({ ...createAdminFormData, display_name: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: theme.spacing.md,
-                    marginBottom: theme.spacing.md,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    boxSizing: 'border-box',
-                  }}
-                />
-                <select
-                  data-testid="settings-admin-create-locale"
-                  value={createAdminFormData.locale}
-                  onChange={(e) => setCreateAdminFormData({ ...createAdminFormData, locale: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: theme.spacing.md,
-                    marginBottom: theme.spacing.lg,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <option value="de">German (de)</option>
-                  <option value="en">English (en)</option>
-                </select>
-                <div style={{ display: 'flex', gap: theme.spacing.md }}>
-                  <button
-                    data-testid="settings-admin-create-confirm-button"
-                    onClick={handleCreateAdmin}
-                    style={{
-                      flex: 1,
-                      padding: theme.spacing.md,
-                      background: theme.colors.semantic.primary,
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: theme.borderRadius.md,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Create
-                  </button>
-                  <button
-                    data-testid="settings-admin-create-cancel-button"
-                    onClick={() => setShowCreateAdminModal(false)}
-                    style={{
-                      flex: 1,
-                      padding: theme.spacing.md,
-                      background: 'transparent',
-                      color: theme.colors.text.secondary,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Edit Admin Modal */}
-          {showEditAdminModal && editingAdmin && (
-            <div
-              data-testid="settings-admin-edit-modal"
-              style={{
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(0, 0, 0, 0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1000,
-              }}
-              onClick={() => setShowEditAdminModal(false)}
-            >
-              <div
-                style={{
-                  background: theme.colors.bg.primary,
-                  borderRadius: theme.borderRadius.lg,
-                  padding: theme.spacing.xl,
-                  maxWidth: '400px',
-                  width: '90%',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h2 style={{ margin: 0, marginBottom: theme.spacing.lg }}>Edit Admin User</h2>
-                <input
-                  data-testid="settings-admin-edit-email"
-                  type="email"
-                  placeholder="Email"
-                  value={editAdminFormData.email}
-                  onChange={(e) => setEditAdminFormData({ ...editAdminFormData, email: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: theme.spacing.md,
-                    marginBottom: theme.spacing.md,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    boxSizing: 'border-box',
-                  }}
-                />
-                <input
-                  data-testid="settings-admin-edit-display-name"
-                  type="text"
-                  placeholder="Display Name"
-                  value={editAdminFormData.display_name}
-                  onChange={(e) => setEditAdminFormData({ ...editAdminFormData, display_name: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: theme.spacing.md,
-                    marginBottom: theme.spacing.md,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    boxSizing: 'border-box',
-                  }}
-                />
-                <select
-                  data-testid="settings-admin-edit-locale"
-                  value={editAdminFormData.locale}
-                  onChange={(e) => setEditAdminFormData({ ...editAdminFormData, locale: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: theme.spacing.md,
-                    marginBottom: theme.spacing.lg,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <option value="de">German (de)</option>
-                  <option value="en">English (en)</option>
-                </select>
-                <div style={{ display: 'flex', gap: theme.spacing.md }}>
-                  <button
-                    data-testid="settings-admin-edit-confirm-button"
-                    onClick={handleUpdateAdmin}
-                    style={{
-                      flex: 1,
-                      padding: theme.spacing.md,
-                      background: theme.colors.semantic.primary,
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: theme.borderRadius.md,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Update
-                  </button>
-                  <button
-                    data-testid="settings-admin-edit-cancel-button"
-                    onClick={() => setShowEditAdminModal(false)}
-                    style={{
-                      flex: 1,
-                      padding: theme.spacing.md,
-                      background: 'transparent',
-                      color: theme.colors.text.secondary,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Password Modal */}
-          {showPasswordModal && generatedPassword && (
-            <div
-              data-testid="settings-admin-password-modal"
-              style={{
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(0, 0, 0, 0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1000,
-              }}
-              onClick={() => {
-                setShowPasswordModal(false)
-                setGeneratedPassword(null)
-              }}
-            >
-              <div
-                style={{
-                  background: theme.colors.bg.primary,
-                  borderRadius: theme.borderRadius.lg,
-                  padding: theme.spacing.xl,
-                  maxWidth: '400px',
-                  width: '90%',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h2 style={{ margin: 0, marginBottom: theme.spacing.lg, color: 'rgb(234, 88, 12)' }}>⚠️ Password Created</h2>
-                <p style={{ margin: 0, marginBottom: theme.spacing.lg, color: theme.colors.text.secondary }}>
-                  This password is shown only once. Make sure to copy it before closing this dialog.
-                </p>
-                <div
-                  data-testid="settings-admin-password-display"
-                  style={{
-                    padding: theme.spacing.md,
-                    background: theme.colors.bg.tertiary,
-                    borderRadius: theme.borderRadius.md,
-                    marginBottom: theme.spacing.lg,
-                    fontFamily: 'monospace',
-                    fontSize: theme.typography.fontSize.sm,
-                    textAlign: 'center',
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {generatedPassword}
-                </div>
-                <button
-                  data-testid="settings-admin-password-copy-button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedPassword)
-                    setShowPasswordModal(false)
-                    setGeneratedPassword(null)
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: theme.spacing.md,
-                    background: theme.colors.semantic.primary,
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: theme.borderRadius.md,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Copy & Close
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <AdminUsersTab
+          users={adminUsers}
+          loading={adminUsersLoading}
+          onCreateUser={() => setShowCreateAdminModal(true)}
+          onEditUser={(admin) => {
+            setEditingAdmin(admin)
+            setEditAdminFormData({
+              email: admin.email,
+              display_name: admin.display_name,
+              locale: admin.locale,
+            })
+            setShowEditAdminModal(true)
+          }}
+          onResetPassword={handleResetPassword}
+          onDeactivateUser={handleDeactivateAdmin}
+          onReactivateUser={handleReactivateAdmin}
+        />
       )}
+
+      {/* Modals */}
+      <CreateAdminModal
+        isOpen={showCreateAdminModal}
+        formData={createAdminFormData}
+        onFormChange={(field, value) => {
+          setCreateAdminFormData((prev) => ({
+            ...prev,
+            [field]: value,
+          }))
+        }}
+        onSubmit={handleCreateAdmin}
+        onClose={() => setShowCreateAdminModal(false)}
+      />
+
+      <EditAdminModal
+        isOpen={showEditAdminModal}
+        formData={editAdminFormData}
+        onFormChange={(field, value) => {
+          setEditAdminFormData((prev) => ({
+            ...prev,
+            [field]: value,
+          }))
+        }}
+        onSubmit={handleUpdateAdmin}
+        onClose={() => setShowEditAdminModal(false)}
+      />
+
+      <PasswordDisplayModal
+        isOpen={showPasswordModal}
+        password={generatedPassword}
+        onClose={() => {
+          setShowPasswordModal(false)
+          setGeneratedPassword(null)
+        }}
+      />
     </div>
   )
 }
