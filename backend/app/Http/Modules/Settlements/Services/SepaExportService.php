@@ -76,17 +76,23 @@ final readonly class SepaExportService
      * Sets up the message and payment information section headers.
      *
      * @param mixed $config SEPA configuration
-     * @return mixed SEPA document object
+     * @return \Digitick\Sepa\TransferFile\Facade\CustomerDirectDebitFacade SEPA document object
      */
     private function initializeSepaDocument($config)
     {
-        // This will be implemented using digitick/sepa-xml library
-        // Example structure:
-        // $sepaDocument = new \Digitick\Sepa\TransferFile\Factory\TransferFileFactory();
-        // $transfer = $sepaDocument->createFile(\Digitick\Sepa\TransferFile\TransferFileInterface::FORMAT_PAIN_008_003_02);
-        // $transfer->setInitiatingPartyName($this->sanitizeName($config->creditor_name));
+        try {
+            // Create SEPA direct debit transfer file (pain.008.001.09)
+            // Using the modern API from TransferFileFacadeFactory
+            $sepaFile = \Digitick\Sepa\TransferFile\Factory\TransferFileFacadeFactory::createDirectDebit(
+                'SETTLE' . str_pad((string) time(), 13, '0', STR_PAD_LEFT), // Unique message ID
+                $this->sanitizeName($config->creditor_name),
+                'pain.008.001.09' // Modern PAIN format
+            );
 
-        throw new \Exception('SEPA export requires digitick/sepa-xml library. Install via: composer require digitick/sepa-xml');
+            return $sepaFile;
+        } catch (\Exception $e) {
+            throw new \Exception('Failed to initialize SEPA document: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -94,7 +100,7 @@ final readonly class SepaExportService
      *
      * Groups transactions by member and creates payment instructions.
      *
-     * @param mixed $sepaDocument The SEPA document
+     * @param \Digitick\Sepa\TransferFile\Facade\CustomerDirectDebitFacade $sepaDocument The SEPA document
      * @param Settlement $settlement The settlement
      * @param Collection $items Settlement items with relationships loaded
      * @return void
@@ -113,17 +119,22 @@ final readonly class SepaExportService
                 throw new \Exception("Member {$memberId} is missing SEPA mandate or IBAN");
             }
 
-            // Calculate total for this member
-            $totalAmount = $memberItems->sum('amount_cents') / 100; // Convert cents to EUR
+            // Calculate total for this member (in EUR cents)
+            $totalAmountCents = $memberItems->sum('amount_cents');
 
-            // Add payment instruction (placeholder for actual library call)
-            // $sepaDocument->addPayment(
-            //     name: $this->sanitizeName($member->first_name . ' ' . $member->last_name),
-            //     iban: $member->iban,
-            //     amount: $totalAmount,
-            //     mandateReference: $member->mandate_reference,
-            //     mandateSignDate: $member->mandate_signed_at,
-            // );
+            // Create and add payment to the facade
+            try {
+                $sepaFile = $sepaDocument->addTransfer(
+                    $this->sanitizeName($member->first_name . ' ' . $member->last_name),
+                    $this->sanitizeIban($member->iban),
+                    $totalAmountCents // Amount in cents
+                );
+
+                // Set mandate information on the payment
+                $sepaFile->setMandateOfTransfer($member->mandate_reference, $member->mandate_signed_at);
+            } catch (\Exception $e) {
+                throw new \Exception("Failed to add payment for member {$memberId}: " . $e->getMessage());
+            }
         }
     }
 
@@ -149,15 +160,22 @@ final readonly class SepaExportService
             throw new \Exception('Generated XML is malformed');
         }
 
-        // Check for required elements
-        $messageId = $dom->getElementsByTagName('MsgId')->item(0)?->nodeValue;
+        // Check for required SEPA elements
+        $grpHdr = $dom->getElementsByTagName('GrpHdr')->item(0);
+        if (!$grpHdr) {
+            throw new \Exception('Missing required GrpHdr element in SEPA XML');
+        }
+
+        $messageId = $grpHdr->getElementsByTagName('MsgId')->item(0)?->nodeValue;
         if (empty($messageId)) {
             throw new \Exception('Missing message ID in SEPA XML');
         }
 
-        // Additional XSD validation can be done via digitick/sepa-xml library
-        // $validator = new \Digitick\Sepa\Validator\SepaValidator();
-        // $validator->validate($xml);
+        // Check for payment information
+        $pmtInf = $dom->getElementsByTagName('PmtInf')->item(0);
+        if (!$pmtInf) {
+            throw new \Exception('Missing required PmtInf element in SEPA XML');
+        }
     }
 
     /**
