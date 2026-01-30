@@ -216,54 +216,69 @@ export function AdminUsersTab({
                   <td style={{ padding: theme.spacing.md, textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: theme.spacing.sm, justifyContent: 'center', alignItems: 'center' }}>
                       {/* Edit Button */}
-                      <Tooltip content="Edit admin user" position="top">
+                      <Tooltip content="Bearbeiten" position="top">
                         <button
                           data-testid={`settings-admin-edit-button-${admin.id}`}
                           onClick={() => onEditUser(admin)}
                           style={{
-                            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            border: 'none',
                             background: 'transparent',
-                            color: theme.colors.semantic.primary,
-                            border: `1px solid ${theme.colors.semantic.primary}`,
-                            borderRadius: theme.borderRadius.sm,
-                            fontSize: theme.typography.fontSize.xs,
+                            color: theme.colors.text.secondary,
                             cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                             transition: `all ${theme.transitions.default}`,
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'
+                            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'
+                            e.currentTarget.style.color = theme.colors.semantic.primary
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.color = theme.colors.text.secondary
                           }}
                         >
-                          Edit
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
                         </button>
                       </Tooltip>
 
                       {/* Reset Password Button */}
-                      <Tooltip content="Reset password" position="top">
+                      <Tooltip content="Passwort zurücksetzen" position="top">
                         <button
                           data-testid={`settings-admin-reset-password-button-${admin.id}`}
                           onClick={() => onResetPassword(admin.id)}
                           style={{
-                            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                            background: 'rgba(251, 146, 60, 0.1)',
-                            color: 'rgb(234, 88, 12)',
-                            border: '1px solid rgba(251, 146, 60, 0.5)',
-                            borderRadius: theme.borderRadius.sm,
-                            fontSize: theme.typography.fontSize.xs,
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            background: 'transparent',
+                            color: theme.colors.text.secondary,
                             cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                             transition: `all ${theme.transitions.default}`,
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'rgba(251, 146, 60, 0.2)'
+                            e.currentTarget.style.background = 'rgba(249, 115, 22, 0.2)'
+                            e.currentTarget.style.color = 'rgb(249, 115, 22)'
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'rgba(251, 146, 60, 0.1)'
+                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.color = theme.colors.text.secondary
                           }}
                         >
-                          Reset PWD
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                          </svg>
                         </button>
                       </Tooltip>
 
@@ -273,14 +288,26 @@ export function AdminUsersTab({
                           admin.is_active
                             ? [
                                 {
-                                  label: 'Deactivate',
+                                  label: 'Deaktivieren',
+                                  icon: (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <circle cx="12" cy="12" r="10" />
+                                      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                                    </svg>
+                                  ),
                                   onClick: () => onDeactivateUser(admin.id),
                                   variant: 'danger',
                                 },
                               ]
                             : [
                                 {
-                                  label: 'Reactivate',
+                                  label: 'Reaktivieren',
+                                  icon: (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <polyline points="23 4 23 10 17 10" />
+                                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                                    </svg>
+                                  ),
                                   onClick: () => onReactivateUser(admin.id),
                                   variant: 'default',
                                 },

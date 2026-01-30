@@ -56,25 +56,32 @@ export function ActionMenu({ items, testId }: ActionMenuProps) {
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          background: 'transparent',
+          width: '32px',
+          height: '32px',
+          borderRadius: '8px',
           border: 'none',
-          padding: theme.spacing.sm,
-          cursor: 'pointer',
+          background: 'transparent',
           color: theme.colors.text.secondary,
-          fontSize: theme.typography.fontSize.lg,
+          cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           transition: `all ${theme.transitions.default}`,
         }}
         onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(71,85,105,0.3)'
           e.currentTarget.style.color = theme.colors.text.primary
         }}
         onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent'
           e.currentTarget.style.color = theme.colors.text.secondary
         }}
       >
-        ⋮
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="1" />
+          <circle cx="19" cy="12" r="1" />
+          <circle cx="5" cy="12" r="1" />
+        </svg>
       </button>
 
       {/* Dropdown Menu */}
@@ -84,13 +91,14 @@ export function ActionMenu({ items, testId }: ActionMenuProps) {
             position: 'absolute',
             right: 0,
             top: '100%',
-            marginTop: theme.spacing.sm,
-            background: theme.colors.bg.secondary,
-            border: `1px solid ${theme.colors.border.light}`,
-            borderRadius: theme.borderRadius.md,
-            boxShadow: theme.shadows.lg,
+            marginTop: '4px',
+            background: '#1a2744',
+            border: '1px solid rgba(71,85,105,0.4)',
+            borderRadius: '10px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
             zIndex: 1000,
-            minWidth: '160px',
+            minWidth: '180px',
+            padding: '4px',
             overflow: 'hidden',
           }}
         >
@@ -101,26 +109,38 @@ export function ActionMenu({ items, testId }: ActionMenuProps) {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: theme.spacing.md,
+                gap: '10px',
                 width: '100%',
-                padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                padding: '10px 12px',
                 background: 'transparent',
                 border: 'none',
                 color: item.variant === 'danger' ? theme.colors.semantic.danger : theme.colors.text.primary,
                 textAlign: 'left',
                 cursor: 'pointer',
-                fontSize: theme.typography.fontSize.sm,
-                transition: `all ${theme.transitions.default}`,
-                borderBottom: index < items.length - 1 ? `1px solid ${theme.colors.border.light}` : 'none',
+                fontSize: '13px',
+                transition: `background 0.1s`,
+                borderRadius: '6px',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = theme.colors.bg.hover
+                e.currentTarget.style.background = item.variant === 'danger' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)'
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent'
               }}
             >
-              {item.icon && <span style={{ display: 'flex', alignItems: 'center' }}>{item.icon}</span>}
+              {item.icon && (
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: item.variant === 'danger' ? theme.colors.semantic.danger : theme.colors.text.secondary,
+                    width: '14px',
+                    height: '14px',
+                  }}
+                >
+                  {item.icon}
+                </span>
+              )}
               {item.label}
             </button>
           ))}

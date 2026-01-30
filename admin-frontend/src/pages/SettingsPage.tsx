@@ -328,16 +328,29 @@ export function SettingsPage() {
   // Check if creditor_id is already set (for warning display)
   const isCreditorIdSet = !!existingConfig
 
-  // Tab styles
+  // Tab styles (prototype styling: button group container)
+  const tabContainerStyle = {
+    display: 'inline-flex' as const,
+    background: '#1a2744',
+    borderRadius: '12px',
+    padding: '4px',
+    gap: '4px',
+    border: '1px solid rgba(71,85,105,0.3)',
+  }
+
   const tabStyle = (isActive: boolean) => ({
     padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-    borderBottom: isActive ? `2px solid ${theme.colors.semantic.primary}` : '1px solid transparent',
-    color: isActive ? theme.colors.semantic.primary : theme.colors.text.secondary,
-    background: 'transparent',
+    borderRadius: '8px',
+    background: isActive ? theme.colors.semantic.primary : 'transparent',
+    color: isActive ? 'white' : theme.colors.text.secondary,
     cursor: 'pointer',
     fontSize: theme.typography.fontSize.sm,
     fontWeight: isActive ? theme.typography.fontWeight.semibold : theme.typography.fontWeight.medium,
     transition: `all ${theme.transitions.default}`,
+    border: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   })
 
   if (loading) {
@@ -374,29 +387,36 @@ export function SettingsPage() {
       </div>
 
       {/* Tabs Navigation */}
-      <div
-        data-testid="settings-tabs"
-        style={{
-          borderBottom: `1px solid ${theme.colors.border.light}`,
-          marginBottom: theme.spacing.xl,
-          display: 'flex',
-          gap: 0,
-        }}
-      >
-        <button
-          data-testid="settings-tab-sepa"
-          onClick={() => setActiveTab('sepa')}
-          style={tabStyle(activeTab === 'sepa') as any}
+      <div style={{ marginBottom: theme.spacing.xl }}>
+        <div
+          data-testid="settings-tabs"
+          style={tabContainerStyle}
         >
-          SEPA-Konfiguration
-        </button>
-        <button
-          data-testid="settings-tab-admin-users"
-          onClick={() => setActiveTab('admin-users')}
-          style={tabStyle(activeTab === 'admin-users') as any}
-        >
-          Admin-Benutzer
-        </button>
+          <button
+            data-testid="settings-tab-sepa"
+            onClick={() => setActiveTab('sepa')}
+            style={tabStyle(activeTab === 'sepa') as any}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="5" width="20" height="14" rx="2" />
+              <line x1="2" y1="10" x2="22" y2="10" />
+            </svg>
+            SEPA-Konfiguration
+          </button>
+          <button
+            data-testid="settings-tab-admin-users"
+            onClick={() => setActiveTab('admin-users')}
+            style={tabStyle(activeTab === 'admin-users') as any}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="8.5" cy="7" r="4" />
+              <circle cx="18.5" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            </svg>
+            Admin-Benutzer
+          </button>
+        </div>
       </div>
 
       {/* SEPA Configuration Tab */}
