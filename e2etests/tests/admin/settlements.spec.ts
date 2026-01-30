@@ -23,16 +23,9 @@ test.describe('Settlements Page', () => {
     const settlementsPage = new SettlementsPage(page)
     await settlementsPage.navigate()
 
-    // Wait for page to load - either table or empty state should appear
-    await Promise.race([
-      page.waitForSelector('[data-testid="settlements-table"]', { timeout: 5000 }),
-      page.waitForSelector('[data-testid="settlements-empty-state"]', { timeout: 5000 }),
-    ]).catch(() => {
-      // It's ok if neither appears immediately (still loading or error state)
-    })
-
-    // Wait for loading state to disappear if it exists
-    await page.locator('text=Loading settlements').waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {})
+    // Wait for page to be fully loaded using solid loading indicator pattern
+    // This replaces the fragile Promise.race with reliable state-based waiting
+    await settlementsPage.waitForPageLoad()
   })
 
   /**
@@ -336,178 +329,158 @@ test.describe('Settlements Page', () => {
     })
 
     test('should open settlement creation form when clicking New Settlement', async ({ page }) => {
-      const newBtn = page.locator('[data-testid="new-settlement-button"]')
-      await newBtn.click()
+      const settlementsPage = new SettlementsPage(page)
+
+      // Use page object method to open settlement with proper loading wait
+      await settlementsPage.openNewSettlement()
 
       // Verify settlement form or selection view opens
       const formOrSelection = page.locator('[data-testid="settlement-form"], [data-testid="settlement-transaction-selection"]')
-      await expect(formOrSelection.first()).toBeVisible({ timeout: 5000 })
+      await expect(formOrSelection.first()).toBeVisible()
     })
 
     test('should display transaction selection view for SEPA settlement', async ({ page }) => {
-      const newBtn = page.locator('[data-testid="new-settlement-button"]')
-      await newBtn.click()
+      const settlementsPage = new SettlementsPage(page)
+
+      // Use page object method with proper loading wait
+      await settlementsPage.openNewSettlement()
 
       // Verify selection view visible
       const selectionView = page.locator('[data-testid="settlement-transaction-selection"]')
-      const selectionVisible = await selectionView.isVisible().catch(() => false)
+      await expect(selectionView).toBeVisible()
 
-      if (selectionVisible) {
-        // Verify table or empty state
-        const table = page.locator('[data-testid="settlement-selection-table"]')
-        const tableVisible = await table.isVisible().catch(() => false)
-
-        expect(tableVisible).toBeTruthy()
-      }
+      // Verify table exists (should have transactions)
+      const table = page.locator('[data-testid="settlement-selection-table"]')
+      await expect(table).toBeVisible()
     })
 
     test('should display SEPA-valid member transactions as selected by default', async ({ page }) => {
-      const newBtn = page.locator('[data-testid="new-settlement-button"]')
-      await newBtn.click()
+      const settlementsPage = new SettlementsPage(page)
 
-      const selectionView = page.locator('[data-testid="settlement-transaction-selection"]')
-      const selectionVisible = await selectionView.isVisible().catch(() => false)
+      // Open new settlement with proper loading wait
+      await settlementsPage.openNewSettlement()
 
-      if (selectionVisible) {
+      // Get transaction row count using page object method
+      const rowCount = await settlementsPage.getTransactionSelectionRowCount()
+
+      if (rowCount > 0) {
         const rows = page.locator('[data-testid="settlement-transaction-row"]')
-        const rowCount = await rows.count()
-
-        if (rowCount > 0) {
-          // First transaction should have checkbox checked
-          const checkbox = rows.first().locator('input[type="checkbox"]')
-          const isChecked = await checkbox.isChecked().catch(() => false)
-          // Default should be selected (but may be false if no eligible transactions)
-          expect(typeof isChecked === 'boolean').toBeTruthy()
-        }
+        // First transaction should have checkbox checked
+        const checkbox = rows.first().locator('input[type="checkbox"]')
+        const isChecked = await checkbox.isChecked()
+        // Default should be selected (but may be false if no eligible transactions)
+        expect(typeof isChecked === 'boolean').toBeTruthy()
       }
     })
 
     test('should display SEPA-invalid members section separately', async ({ page }) => {
-      const newBtn = page.locator('[data-testid="new-settlement-button"]')
-      await newBtn.click()
+      const settlementsPage = new SettlementsPage(page)
 
+      // Open new settlement with proper loading wait
+      await settlementsPage.openNewSettlement()
+
+      // Selection view should be visible after openNewSettlement
       const selectionView = page.locator('[data-testid="settlement-transaction-selection"]')
-      const selectionVisible = await selectionView.isVisible().catch(() => false)
+      await expect(selectionView).toBeVisible()
 
-      if (selectionVisible) {
-        // Check for SEPA-invalid section
-        const invalidSection = page.locator('[data-testid="settlement-sepa-invalid-members"]')
-        const invalidExists = await invalidSection.isVisible().catch(() => false)
+      // Check for SEPA-invalid section
+      const invalidSection = page.locator('[data-testid="settlement-sepa-invalid-members"]')
+      const invalidExists = await invalidSection.isVisible().catch(() => false)
 
-        if (invalidExists) {
-          // Should not have selectable checkboxes
-          const checkboxes = invalidSection.locator('input[type="checkbox"]')
-          const count = await checkboxes.count()
-          expect(count).toBe(0) // No checkboxes for SEPA-invalid
-        }
+      if (invalidExists) {
+        // Should not have selectable checkboxes
+        const checkboxes = invalidSection.locator('input[type="checkbox"]')
+        const count = await checkboxes.count()
+        expect(count).toBe(0) // No checkboxes for SEPA-invalid
       }
     })
 
     test('should have Select All / Select None buttons', async ({ page }) => {
-      const newBtn = page.locator('[data-testid="new-settlement-button"]')
-      await newBtn.click()
+      const settlementsPage = new SettlementsPage(page)
 
-      const selectionView = page.locator('[data-testid="settlement-transaction-selection"]')
-      const selectionVisible = await selectionView.isVisible().catch(() => false)
+      // Open new settlement with proper loading wait
+      await settlementsPage.openNewSettlement()
 
-      if (selectionVisible) {
-        const selectAllBtn = page.locator('[data-testid="settlement-select-all"]')
-        const selectNoneBtn = page.locator('[data-testid="settlement-select-none"]')
+      // Verify selection view and buttons are visible
+      const selectAllBtn = page.locator('[data-testid="settlement-select-all"]')
+      const selectNoneBtn = page.locator('[data-testid="settlement-select-none"]')
 
-        const selectAllVisible = await selectAllBtn.isVisible().catch(() => false)
-        const selectNoneVisible = await selectNoneBtn.isVisible().catch(() => false)
-
-        expect(selectAllVisible || selectNoneVisible).toBeTruthy()
-      }
+      await expect(selectAllBtn.or(selectNoneBtn)).toBeVisible()
     })
 
     test('should display Continue button in selection view', async ({ page }) => {
-      const newBtn = page.locator('[data-testid="new-settlement-button"]')
-      await newBtn.click()
+      const settlementsPage = new SettlementsPage(page)
 
-      const selectionView = page.locator('[data-testid="settlement-transaction-selection"]')
-      const selectionVisible = await selectionView.isVisible().catch(() => false)
+      // Open new settlement with proper loading wait
+      await settlementsPage.openNewSettlement()
 
-      if (selectionVisible) {
-        const continueBtn = page.locator('[data-testid="settlement-selection-continue"]')
-        await expect(continueBtn).toBeVisible()
-      }
+      // Continue button should be visible after opening settlement
+      const continueBtn = page.locator('[data-testid="settlement-selection-continue"]')
+      await expect(continueBtn).toBeVisible()
     })
 
     test('should show settlement summary after continuing', async ({ page }) => {
-      const newBtn = page.locator('[data-testid="new-settlement-button"]')
-      await newBtn.click()
+      const settlementsPage = new SettlementsPage(page)
 
-      const selectionView = page.locator('[data-testid="settlement-transaction-selection"]')
-      const selectionVisible = await selectionView.isVisible().catch(() => false)
+      // Open new settlement with proper loading wait
+      await settlementsPage.openNewSettlement()
 
-      if (selectionVisible) {
-        // Check if any transactions available
-        const rows = page.locator('[data-testid="settlement-transaction-row"]')
-        const rowCount = await rows.count()
+      // Check if any transactions available
+      const rowCount = await settlementsPage.getTransactionSelectionRowCount()
 
-        if (rowCount > 0) {
-          const continueBtn = page.locator('[data-testid="settlement-selection-continue"]')
-          await continueBtn.click()
+      if (rowCount > 0) {
+        // Continue to summary using page object method with proper wait
+        await settlementsPage.continueFromTransactionSelection()
 
-          // Verify summary view appears
-          const summary = page.locator('[data-testid="settlement-summary-section"]')
-          await expect(summary).toBeVisible({ timeout: 5000 })
-        }
+        // Verify summary view appears
+        const summary = page.locator('[data-testid="settlement-summary-section"]')
+        await expect(summary).toBeVisible()
       }
     })
 
     test('should display execution date field in summary', async ({ page }) => {
-      const newBtn = page.locator('[data-testid="new-settlement-button"]')
-      await newBtn.click()
+      const settlementsPage = new SettlementsPage(page)
 
-      const selectionView = page.locator('[data-testid="settlement-transaction-selection"]')
-      const selectionVisible = await selectionView.isVisible().catch(() => false)
+      // Open new settlement with proper loading wait
+      await settlementsPage.openNewSettlement()
 
-      if (selectionVisible) {
-        const rows = page.locator('[data-testid="settlement-transaction-row"]')
-        const rowCount = await rows.count()
+      const rowCount = await settlementsPage.getTransactionSelectionRowCount()
 
-        if (rowCount > 0) {
-          const continueBtn = page.locator('[data-testid="settlement-selection-continue"]')
-          await continueBtn.click()
+      if (rowCount > 0) {
+        // Continue to summary with proper wait
+        await settlementsPage.continueFromTransactionSelection()
 
-          const executionDateField = page.locator('[data-testid="settlement-execution-date-input"]')
-          await expect(executionDateField).toBeVisible({ timeout: 5000 })
-        }
+        // Execution date field should be visible in summary
+        const executionDateField = page.locator('[data-testid="settlement-execution-date-input"]')
+        await expect(executionDateField).toBeVisible()
       }
     })
 
     test('should enforce minimum 7-day execution date rule', async ({ page }) => {
-      const newBtn = page.locator('[data-testid="new-settlement-button"]')
-      await newBtn.click()
+      const settlementsPage = new SettlementsPage(page)
 
-      const selectionView = page.locator('[data-testid="settlement-transaction-selection"]')
-      const selectionVisible = await selectionView.isVisible().catch(() => false)
+      // Open new settlement with proper loading wait
+      await settlementsPage.openNewSettlement()
 
-      if (selectionVisible) {
-        const rows = page.locator('[data-testid="settlement-transaction-row"]')
-        const rowCount = await rows.count()
+      const rowCount = await settlementsPage.getTransactionSelectionRowCount()
 
-        if (rowCount > 0) {
-          const continueBtn = page.locator('[data-testid="settlement-selection-continue"]')
-          await continueBtn.click()
+      if (rowCount > 0) {
+        // Continue to summary with proper wait
+        await settlementsPage.continueFromTransactionSelection()
 
-          const executionDateField = page.locator('[data-testid="settlement-execution-date-input"]')
-          const fieldVisible = await executionDateField.isVisible({ timeout: 5000 }).catch(() => false)
+        const executionDateField = page.locator('[data-testid="settlement-execution-date-input"]')
+        await expect(executionDateField).toBeVisible()
 
-          if (fieldVisible) {
-            // Try to set date to today (should fail or be prevented)
-            const today = new Date().toISOString().split('T')[0]
-            await executionDateField.fill(today)
+        // Try to set date to today (should fail or be prevented)
+        const today = new Date().toISOString().split('T')[0]
+        await executionDateField.fill(today)
 
-            // Check for error message
-            const errorMsg = page.locator('[data-testid="execution-date-error"]')
-            const errorVisible = await errorMsg.isVisible().catch(() => false)
-            // Either error is shown or date is not accepted
-            expect(errorVisible).toBeTruthy()
-          }
-        }
+        // Check for error message
+        const errorMsg = page.locator('[data-testid="execution-date-error"]')
+        const errorVisible = await errorMsg.isVisible().catch(() => false)
+
+        // Either error is shown or date is not accepted
+        expect(errorVisible).toBeTruthy()
       }
     })
   })
@@ -528,85 +501,65 @@ test.describe('Settlements Page', () => {
     })
 
     test('should display transaction selection for manual settlement', async ({ page }) => {
-      const manualBtn = page.locator('[data-testid="manual-settlement-button"]')
-      const manualBtnVisible = await manualBtn.isVisible().catch(() => false)
+      const settlementsPage = new SettlementsPage(page)
 
-      if (manualBtnVisible) {
-        await manualBtn.click()
+      // Open manual settlement with proper loading wait
+      await settlementsPage.openManualSettlement()
 
-        // Verify selection view for manual settlement
-        const selectionView = page.locator('[data-testid="settlement-manual-selection"]')
-        const selectionVisible = await selectionView.isVisible().catch(() => false)
+      // Verify selection view for manual settlement is visible
+      const selectionView = page.locator('[data-testid="settlement-manual-selection"]')
+      await expect(selectionView).toBeVisible()
 
-        if (selectionVisible) {
-          // Should have transaction table or empty state
-          const table = page.locator('[data-testid="settlement-manual-table"]')
-          const emptyState = page.locator('[data-testid="settlement-no-transactions"]')
+      // Should have transaction table or empty state
+      const table = page.locator('[data-testid="settlement-manual-table"]')
+      const emptyState = page.locator('[data-testid="settlement-no-transactions"]')
 
-          const tableExists = await table.isVisible().catch(() => false)
-          const emptyExists = await emptyState.isVisible().catch(() => false)
+      const tableVisible = await table.isVisible().catch(() => false)
+      const emptyVisible = await emptyState.isVisible().catch(() => false)
 
-          expect(tableExists || emptyExists).toBeTruthy()
-        }
-      }
+      expect(tableVisible || emptyVisible).toBeTruthy()
     })
 
     test('should display SEPA status filter in manual settlement', async ({ page }) => {
-      const manualBtn = page.locator('[data-testid="manual-settlement-button"]')
-      const manualBtnVisible = await manualBtn.isVisible().catch(() => false)
+      const settlementsPage = new SettlementsPage(page)
 
-      if (manualBtnVisible) {
-        await manualBtn.click()
+      // Open manual settlement with proper loading wait
+      await settlementsPage.openManualSettlement()
 
-        const selectionView = page.locator('[data-testid="settlement-manual-selection"]')
-        const selectionVisible = await selectionView.isVisible().catch(() => false)
+      // Verify selection view is visible
+      const selectionView = page.locator('[data-testid="settlement-manual-selection"]')
+      await expect(selectionView).toBeVisible()
 
-        if (selectionVisible) {
-          // Check for SEPA status filter
-          const sepaFilter = page.locator('[data-testid="settlement-sepa-status-filter"]')
-          const filterVisible = await sepaFilter.isVisible().catch(() => false)
-
-          expect(filterVisible).toBeTruthy()
-        }
-      }
+      // Check for SEPA status filter
+      const sepaFilter = page.locator('[data-testid="settlement-sepa-status-filter"]')
+      await expect(sepaFilter).toBeVisible()
     })
 
     test('should display reason dropdown and comment field in summary', async ({ page }) => {
-      const manualBtn = page.locator('[data-testid="manual-settlement-button"]')
-      const manualBtnVisible = await manualBtn.isVisible().catch(() => false)
+      const settlementsPage = new SettlementsPage(page)
 
-      if (manualBtnVisible) {
-        await manualBtn.click()
+      // Open manual settlement with proper loading wait
+      await settlementsPage.openManualSettlement()
 
-        const selectionView = page.locator('[data-testid="settlement-manual-selection"]')
-        const selectionVisible = await selectionView.isVisible().catch(() => false)
+      // Verify selection view is visible
+      const selectionView = page.locator('[data-testid="settlement-manual-selection"]')
+      await expect(selectionView).toBeVisible()
 
-        if (selectionVisible) {
-          // Select a transaction if available
-          const checkbox = page.locator('[data-testid="settlement-manual-table"] input[type="checkbox"]').first()
-          const checkboxVisible = await checkbox.isVisible().catch(() => false)
+      // Select a transaction if available
+      const checkbox = page.locator('[data-testid="settlement-manual-table"] input[type="checkbox"]').first()
+      const checkboxVisible = await checkbox.isVisible().catch(() => false)
 
-          if (checkboxVisible) {
-            await checkbox.check()
+      if (checkboxVisible) {
+        await checkbox.check()
 
-            // Click continue
-            const continueBtn = page.locator('[data-testid="settlement-manual-continue"]')
-            const continueBtnVisible = await continueBtn.isVisible().catch(() => false)
+        // Continue with proper loading wait
+        await settlementsPage.continueFromManualSelection()
 
-            if (continueBtnVisible) {
-              await continueBtn.click()
+        // Verify summary with reason and comment fields
+        const reasonField = page.locator('[data-testid="settlement-reason"]')
+        const commentField = page.locator('[data-testid="settlement-comment"]')
 
-              // Verify summary with reason and comment fields
-              const reasonField = page.locator('[data-testid="settlement-reason"]')
-              const commentField = page.locator('[data-testid="settlement-comment"]')
-
-              const reasonVisible = await reasonField.isVisible({ timeout: 5000 }).catch(() => false)
-              const commentVisible = await commentField.isVisible().catch(() => false)
-
-              expect(reasonVisible || commentVisible).toBeTruthy()
-            }
-          }
-        }
+        await expect(reasonField.or(commentField)).toBeVisible()
       }
     })
 

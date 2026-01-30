@@ -15,6 +15,9 @@ import { Page, expect } from '@playwright/test'
 import { BasePage } from './BasePage'
 
 export class SettlementsPage extends BasePage {
+  // Loading and state indicators (PRIVATE)
+  private readonly loadingIndicator = () => this.page.getByTestId('settlements-loading')
+
   // Main page locators (PRIVATE)
   private readonly table = () => this.page.getByTestId('settlements-table')
   private readonly tableRows = () => this.page.locator('[data-testid="settlement-row"]')
@@ -72,6 +75,78 @@ export class SettlementsPage extends BasePage {
    */
   async navigate() {
     await super.navigate('http://localhost:5173/settlements')
+  }
+
+  /**
+   * Wait for page to be fully loaded
+   *
+   * Solid waiting pattern based on loading indicator:
+   * 1. Wait for loading indicator to disappear (means data is loaded)
+   * 2. Wait for content to appear (table or empty state)
+   *
+   * This replaces fragile Promise.race patterns with reliable state-based waits.
+   *
+   * @param timeout Maximum time to wait in milliseconds (default: 10 seconds)
+   */
+  async waitForPageLoad(timeout = 10000) {
+    // Step 1: Wait for loading indicator to be hidden/removed from DOM
+    await expect(this.loadingIndicator()).toBeHidden({ timeout })
+
+    // Step 2: Wait for either table or empty state to be visible
+    // If neither appears after loading completes, that's an error we should catch
+    try {
+      await Promise.race([
+        expect(this.table()).toBeVisible({ timeout: 1000 }),
+        expect(this.emptyState()).toBeVisible({ timeout: 1000 }),
+      ])
+    } catch {
+      // If this fails, it means loading is gone but no content appeared
+      // This is a real error that tests should know about
+      throw new Error('Page loaded but neither settlements table nor empty state appeared')
+    }
+  }
+
+  /**
+   * Wait for table to be visible after loading
+   *
+   * Use this when you expect the table to be loaded (not empty state).
+   * Waits for loading indicator to disappear, then waits for table specifically.
+   *
+   * @param timeout Maximum time to wait in milliseconds (default: 10 seconds)
+   */
+  async waitForTableVisible(timeout = 10000) {
+    // Wait for loading indicator to be hidden
+    await expect(this.loadingIndicator()).toBeHidden({ timeout })
+    // Wait for table specifically
+    await expect(this.table()).toBeVisible({ timeout: 2000 })
+  }
+
+  /**
+   * Wait for empty state to be visible after loading
+   *
+   * Use this when you expect no settlements (empty state).
+   * Waits for loading indicator to disappear, then waits for empty state specifically.
+   *
+   * @param timeout Maximum time to wait in milliseconds (default: 10 seconds)
+   */
+  async waitForEmptyStateVisible(timeout = 10000) {
+    // Wait for loading indicator to be hidden
+    await expect(this.loadingIndicator()).toBeHidden({ timeout })
+    // Wait for empty state specifically
+    await expect(this.emptyState()).toBeVisible({ timeout: 2000 })
+  }
+
+  /**
+   * Wait for loading to complete (indicator disappears)
+   *
+   * Use this as a generic "wait for action to complete" in settlement detail/create flows
+   * where you're not waiting for a specific content element.
+   *
+   * @param timeout Maximum time to wait in milliseconds (default: 10 seconds)
+   */
+  async waitForLoadingComplete(timeout = 10000) {
+    // Simply wait for loading indicator to disappear
+    await expect(this.loadingIndicator()).toBeHidden({ timeout })
   }
 
   /**
@@ -137,7 +212,8 @@ export class SettlementsPage extends BasePage {
   async viewSettlementDetails(settlementId: string) {
     const viewBtn = this.page.getByTestId(`settlement-view-button-${settlementId}`)
     await viewBtn.click()
-    await this.page.waitForLoadState('networkidle')
+    // Wait for loading to complete using solid loading indicator
+    await this.waitForLoadingComplete()
   }
 
   async getSettlementSummary(): Promise<{
@@ -189,7 +265,8 @@ export class SettlementsPage extends BasePage {
 
   async goBackToList() {
     await this.backBtn().click()
-    await this.page.waitForLoadState('networkidle')
+    // Wait for list view to load with loading indicator
+    await this.waitForPageLoad()
   }
 
   /**
@@ -198,7 +275,8 @@ export class SettlementsPage extends BasePage {
 
   async openNewSettlement() {
     await this.newSettlementBtn().click()
-    await this.page.waitForLoadState('networkidle')
+    // Wait for settlement creation form/view to load
+    await this.waitForLoadingComplete()
   }
 
   async getTransactionSelectionRowCount(): Promise<number> {
@@ -225,7 +303,8 @@ export class SettlementsPage extends BasePage {
 
   async continueFromTransactionSelection() {
     await this.selectionContinueBtn().click()
-    await this.page.waitForLoadState('networkidle')
+    // Wait for settlement summary to load using loading indicator
+    await this.waitForLoadingComplete()
   }
 
   async setExecutionDate(date: string) {
@@ -247,7 +326,8 @@ export class SettlementsPage extends BasePage {
 
     if (filterExists) {
       await filter.selectOption(type)
-      await this.page.waitForLoadState('networkidle')
+      // Wait for filtered settlements to load using loading indicator
+      await this.waitForPageLoad()
     }
   }
 
@@ -257,7 +337,8 @@ export class SettlementsPage extends BasePage {
 
   async openManualSettlement() {
     await this.manualSettlementBtn().click()
-    await this.page.waitForLoadState('networkidle')
+    // Wait for manual settlement transaction selection to load
+    await this.waitForLoadingComplete()
   }
 
   async getManualTransactionRowCount(): Promise<number> {
@@ -276,12 +357,14 @@ export class SettlementsPage extends BasePage {
 
   async filterBySepaStatus(status: 'all' | 'valid' | 'invalid') {
     await this.sepaStatusFilter().selectOption(status)
-    await this.page.waitForLoadState('networkidle')
+    // Wait for filtered transactions to load
+    await this.waitForLoadingComplete()
   }
 
   async continueFromManualSelection() {
     await this.manualContinueBtn().click()
-    await this.page.waitForLoadState('networkidle')
+    // Wait for settlement summary to load
+    await this.waitForLoadingComplete()
   }
 
   async setSettlementReason(reason: string) {
@@ -304,7 +387,8 @@ export class SettlementsPage extends BasePage {
 
   async submitSettlement() {
     await this.submitBtn().click()
-    await this.page.waitForLoadState('networkidle')
+    // Wait for settlement to be created and page to reload (return to list)
+    await this.waitForPageLoad()
   }
 
   /**
