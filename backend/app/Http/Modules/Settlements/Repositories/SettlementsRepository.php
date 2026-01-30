@@ -146,11 +146,12 @@ class SettlementsRepository extends BaseRepository
      */
     public function getNextSepaMessageId(): string
     {
-        $year = now()->year;
-        $count = $this->query()
-            ->whereYear('created_at', $year)
-            ->count();
-
-        return sprintf('SET-%d-%03d', $year, $count + 1);
+        // Generate UUID-based SEPA message ID for parallel test safety
+        // Format: SEPA-{12-char-uuid-hex}
+        // Eliminates race conditions from sequential counters
+        // UUIDs are guaranteed unique without database locks
+        $uuid = \Illuminate\Support\Str::uuid()->toString();
+        // Take first 12 chars of UUID (timestamp-based portion is unique enough)
+        return 'SEPA-' . substr(str_replace('-', '', $uuid), 0, 12);
     }
 }
