@@ -1,23 +1,23 @@
 /**
  * Settlements Page
- * Settlement management with unified workflow
+ * Settlement history viewing and management
  *
  * Implements:
- * - UC-A33: Settlement History (list view with table)
- * - UC-A34: Settlement Details (detail view with export options)
- * - UC-A30/A35: Create Settlement (unified transaction selection)
+ * - UC-A33: Settlement History (list view with table, filtering, sorting, pagination)
+ * - Bulk actions: Export SEPA, Export CSV, Export Transactions, Undo Settlement
  *
  * Workflow:
- * 1. List view: Display all settlements with filtering and pagination
- * 2. Create: Select transactions to include in settlement
- * 3. Details: View settlement members, export as SEPA XML or CSV
+ * Single page list view with filtering, sorting, and pagination.
+ * All actions (exports, undo) accessible directly from list table.
  *
  * Pattern: Table implementation with filtering, sorting, and pagination
  * Uses TDD with E2E tests in e2etests/tests/admin/settlements.spec.ts
+ *
+ * Note: Settlement creation is handled in the Journal page (UC-A30, UC-A35).
+ * Settlement details view was removed - no additional value beyond list view.
  */
 
 import { useEffect, useState } from 'react'
-import { get } from '../services/api'
 import { theme } from '../styles/design-system'
 import { Card } from '../components/common/Card'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
@@ -43,37 +43,13 @@ import {
 } from '../services/settlements'
 
 
-interface SettlementMember {
-  member_id: string
-  member_name: string
-  amount_cents: number
-  iban_masked: string | null
-  mandate_reference: string | null
-  is_sepa_eligible: boolean
-}
-
-interface SettlementDetail extends Settlement {
-  period_start: string | null
-  period_end: string | null
-  sepa_message_id: string | null
-  manual_reason: string | null
-  cancelled_at: string | null
-  notes: string | null
-  created_by_admin_id: string
-  members: SettlementMember[]
-}
-
-type ViewMode = 'list' | 'details' | 'create'
-
 const defaultPageSize = 20
 
 export function SettlementsPage() {
   const [settlements, setSettlements] = useState<Settlement[]>([])
-  const [selectedSettlement, setSelectedSettlement] = useState<SettlementDetail | null>(null)
   const [totalItems, setTotalItems] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('list')
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -91,10 +67,8 @@ export function SettlementsPage() {
 
   // Load settlements when filters, sorting, or pagination changes
   useEffect(() => {
-    if (viewMode === 'list') {
-      loadSettlements()
-    }
-  }, [currentPage, pageSize, dateFrom, dateTo, statusFilter, sortKey, sortOrder, viewMode])
+    loadSettlements()
+  }, [currentPage, pageSize, dateFrom, dateTo, statusFilter, sortKey, sortOrder])
 
   const loadSettlements = async () => {
     try {
@@ -123,32 +97,6 @@ export function SettlementsPage() {
     }
   }
 
-  const loadSettlementDetails = async (settlementId: string) => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const response = await get<SettlementDetail>(`/admin/settlements/${settlementId}`)
-
-      // Handle both wrapped and unwrapped responses
-      if (response && typeof response === 'object') {
-        if ('id' in response && (response as any).id === settlementId) {
-          setSelectedSettlement(response as unknown as SettlementDetail)
-          setViewMode('details')
-        } else if ('data' in response && typeof (response as any).data === 'object') {
-          const data = (response as any).data as unknown as SettlementDetail
-          if (data && typeof data === 'object' && 'id' in data) {
-            setSelectedSettlement(data)
-            setViewMode('details')
-          }
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load settlement details')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   // Handle period change from PeriodPicker
   const handlePeriodChange = (from: string | undefined, to: string | undefined, periodKey: string) => {
@@ -206,9 +154,7 @@ export function SettlementsPage() {
   // Calculate total pages
   const totalPages = Math.ceil(totalItems / pageSize)
 
-  // List View
-  if (viewMode === 'list') {
-    const status = (settlement: Settlement) => getSettlementStatus(settlement as any)
+  const status = (settlement: Settlement) => getSettlementStatus(settlement as any)
 
     return (
       <div data-testid="settlements-page">
@@ -452,32 +398,6 @@ export function SettlementsPage() {
                           }}
                         >
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                            {/* View Details */}
-                            <button
-                              data-testid={`settlement-view-button-${settlement.id}`}
-                              onClick={() => loadSettlementDetails(settlement.id)}
-                              style={{
-                                padding: '4px 8px',
-                                backgroundColor: '#06b6d4',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: 4,
-                                fontSize: 12,
-                                fontWeight: 500,
-                                cursor: 'pointer',
-                                transition: 'background-color 0.15s',
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = '#0891b2'
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = '#06b6d4'
-                              }}
-                              title="View Settlement Details"
-                            >
-                              View
-                            </button>
-
                             {/* Export SEPA XML */}
                             <button
                               data-testid={`settlements-export-sepa-btn-${settlement.id}`}
@@ -638,285 +558,4 @@ export function SettlementsPage() {
         </Card>
       </div>
     )
-  }
-
-  // Details View
-  if (viewMode === 'details' && selectedSettlement) {
-    return (
-      <div data-testid="settlement-details-page">
-        <div style={{ padding: theme.spacing.xl }}>
-          <button
-            data-testid="settlement-back-button"
-            onClick={() => {
-              setViewMode('list')
-              setSelectedSettlement(null)
-            }}
-            style={{
-              marginBottom: theme.spacing.lg,
-              background: 'transparent',
-              border: 'none',
-              color: theme.colors.semantic.primary,
-              cursor: 'pointer',
-              fontWeight: 500,
-              textDecoration: 'underline',
-            }}
-          >
-            ← Back to Settlements
-          </button>
-
-          {/* Summary Section */}
-          <div
-            data-testid="settlement-summary"
-            style={{
-              background: theme.colors.bg.card,
-              border: `1px solid ${theme.colors.border.light}`,
-              borderRadius: theme.borderRadius.lg,
-              padding: theme.spacing.lg,
-              marginBottom: theme.spacing.lg,
-            }}
-          >
-            <h2 style={{ marginTop: 0 }}>Settlement Summary</h2>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: theme.spacing.lg,
-              }}
-            >
-              <div>
-                <div style={{ color: theme.colors.text.secondary, fontSize: theme.typography.fontSize.sm }}>Created</div>
-                <div data-testid="settlement-summary-created" style={{ fontWeight: 500, fontSize: theme.typography.fontSize.lg }}>
-                  {formatDate(selectedSettlement.created_at)}
-                </div>
-              </div>
-              <div>
-                <div style={{ color: theme.colors.text.secondary, fontSize: theme.typography.fontSize.sm }}>Execution Date</div>
-                <div data-testid="settlement-execution-date" style={{ fontWeight: 500, fontSize: theme.typography.fontSize.lg }}>
-                  {selectedSettlement.execution_date ? formatDate(selectedSettlement.execution_date) : '—'}
-                </div>
-              </div>
-              <div>
-                <div style={{ color: theme.colors.text.secondary, fontSize: theme.typography.fontSize.sm }}>Total Members</div>
-                <div data-testid="settlement-total-members" style={{ fontWeight: 500, fontSize: theme.typography.fontSize.lg }}>
-                  {selectedSettlement.member_count}
-                </div>
-              </div>
-              <div>
-                <div style={{ color: theme.colors.text.secondary, fontSize: theme.typography.fontSize.sm }}>Total Amount</div>
-                <div data-testid="settlement-summary-total" style={{ fontWeight: 500, fontSize: theme.typography.fontSize.lg }}>
-                  {formatPrice(selectedSettlement.total_amount_cents)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Members List */}
-          {selectedSettlement.members && selectedSettlement.members.length > 0 && (
-            <div
-              style={{
-                background: theme.colors.bg.card,
-                border: `1px solid ${theme.colors.border.light}`,
-                borderRadius: theme.borderRadius.lg,
-                padding: theme.spacing.lg,
-                marginBottom: theme.spacing.lg,
-              }}
-            >
-              <h3>Settlement Members</h3>
-              <table
-                data-testid="settlement-members-table"
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  fontSize: theme.typography.fontSize.sm,
-                }}
-              >
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${tableColors.rowActiveBorder}` }}>
-                    <th style={{ padding: tableSpacing.cellPadding, textAlign: 'left', fontWeight: 600, color: tableColors.headerText }}>Name</th>
-                    <th style={{ padding: tableSpacing.cellPadding, textAlign: 'right', fontWeight: 600, color: tableColors.headerText }}>Amount</th>
-                    <th style={{ padding: tableSpacing.cellPadding, textAlign: 'left', fontWeight: 600, color: tableColors.headerText }}>SEPA Status</th>
-                    <th style={{ padding: tableSpacing.cellPadding, textAlign: 'left', fontWeight: 600, color: tableColors.headerText }}>Mandate Ref</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedSettlement.members.map((member) => (
-                    <tr
-                      key={member.member_id}
-                      data-testid="settlement-member-row"
-                      style={{ borderBottom: `1px solid ${tableColors.rowActiveBorder}` }}
-                    >
-                      <td
-                        data-testid="member-name"
-                        style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}
-                      >
-                        {member.member_name}
-                      </td>
-                      <td
-                        data-testid="member-amount"
-                        style={{ padding: tableSpacing.cellPadding, textAlign: 'right', fontWeight: 500, color: tableColors.cellText }}
-                      >
-                        {formatPrice(member.amount_cents)}
-                      </td>
-                      <td
-                        data-testid="member-sepa-status"
-                        style={{
-                          padding: tableSpacing.cellPadding,
-                          color: member.is_sepa_eligible ? '#16A34A' : '#DC2626',
-                        }}
-                      >
-                        {member.is_sepa_eligible ? 'Valid' : 'Invalid'}
-                      </td>
-                      <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellSecondaryText }}>
-                        {member.mandate_reference ? member.mandate_reference : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Downloads Section */}
-          <div
-            data-testid="settlement-downloads"
-            style={{
-              background: theme.colors.bg.card,
-              border: `1px solid ${theme.colors.border.light}`,
-              borderRadius: theme.borderRadius.lg,
-              padding: theme.spacing.lg,
-              display: 'flex',
-              gap: theme.spacing.md,
-            }}
-          >
-            <button
-              onClick={() => handleExportSepa(selectedSettlement.id)}
-              style={{
-                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                background: theme.colors.semantic.primary,
-                color: 'white',
-                border: 'none',
-                borderRadius: theme.borderRadius.sm,
-                cursor: 'pointer',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '0.9'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '1'
-              }}
-            >
-              Download SEPA XML
-            </button>
-            <button
-              onClick={() => handleExportCsv(selectedSettlement.id)}
-              style={{
-                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                background: theme.colors.bg.secondary,
-                color: theme.colors.text.primary,
-                border: `1px solid ${theme.colors.border.light}`,
-                borderRadius: theme.borderRadius.sm,
-                cursor: 'pointer',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '0.9'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '1'
-              }}
-            >
-              Download CSV
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Settlement Creation - Transaction Selection (Step 1)
-  if (viewMode === 'create') {
-    return (
-      <div style={{ padding: theme.spacing.xl }}>
-        <button
-          onClick={() => setViewMode('list')}
-          style={{
-            marginBottom: theme.spacing.lg,
-            background: 'transparent',
-            border: 'none',
-            color: theme.colors.semantic.primary,
-            cursor: 'pointer',
-            fontWeight: 500,
-            textDecoration: 'underline',
-          }}
-        >
-          ← Back
-        </button>
-
-        <h2>Create Settlement</h2>
-        <p style={{ color: theme.colors.text.secondary, marginBottom: theme.spacing.lg }}>
-          Select transactions to include in this settlement. After creation, you can export the settlement as SEPA XML or CSV.
-        </p>
-
-        <div data-testid="settlement-transaction-selection" style={{ marginBottom: theme.spacing.lg }}>
-          <h3>Select Transactions</h3>
-          <div
-            data-testid="settlement-selection-table"
-            style={{
-              background: theme.colors.bg.card,
-              border: `1px solid ${theme.colors.border.light}`,
-              borderRadius: theme.borderRadius.lg,
-              padding: theme.spacing.lg,
-            }}
-          >
-            <p style={{ color: theme.colors.text.secondary }}>Transactions loading...</p>
-            <div style={{ display: 'flex', gap: theme.spacing.md, marginTop: theme.spacing.md }}>
-              <button
-                data-testid="settlement-select-all"
-                style={{
-                  padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                  background: theme.colors.semantic.primary,
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: theme.borderRadius.sm,
-                  cursor: 'pointer',
-                }}
-              >
-                Select All
-              </button>
-              <button
-                data-testid="settlement-select-none"
-                style={{
-                  padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                  background: theme.colors.bg.secondary,
-                  color: theme.colors.text.primary,
-                  border: `1px solid ${theme.colors.border.light}`,
-                  borderRadius: theme.borderRadius.sm,
-                  cursor: 'pointer',
-                }}
-              >
-                Select None
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <button
-          data-testid="settlement-selection-continue"
-          onClick={() => setViewMode('list')}
-          style={{
-            padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-            background: theme.colors.semantic.primary,
-            color: 'white',
-            border: 'none',
-            borderRadius: theme.borderRadius.md,
-            cursor: 'pointer',
-            fontWeight: 500,
-          }}
-        >
-          Create Settlement
-        </button>
-      </div>
-    )
-  }
-
-  return null
 }

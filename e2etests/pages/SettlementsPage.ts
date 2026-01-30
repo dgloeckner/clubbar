@@ -20,7 +20,7 @@ export class SettlementsPage extends BasePage {
 
   // Main page locators (PRIVATE)
   private readonly table = () => this.page.getByTestId('settlements-table')
-  private readonly tableRows = () => this.page.locator('[data-testid="settlement-row"]')
+  private readonly tableRows = () => this.page.locator('[data-testid^="settlements-table-row-"]')
   private readonly emptyState = () => this.page.getByTestId('settlements-empty-state')
   private readonly newSettlementBtn = () => this.page.getByTestId('new-settlement-button')
   private readonly manualSettlementBtn = () => this.page.getByTestId('manual-settlement-button')
@@ -33,18 +33,6 @@ export class SettlementsPage extends BasePage {
     this.page.getByTestId(`settlement-member-count-${settlementId}`)
   private readonly settlementTotalAmount = (settlementId: string) =>
     this.page.getByTestId(`settlement-total-amount-${settlementId}`)
-
-  // Details page locators
-  private readonly detailsPage = () => this.page.getByTestId('settlement-details-page')
-  private readonly summarySection = () => this.page.getByTestId('settlement-summary')
-  private readonly summaryCreated = () => this.page.getByTestId('settlement-summary-created')
-  private readonly summaryExecutionDate = () => this.page.getByTestId('settlement-execution-date')
-  private readonly summaryTotal = () => this.page.getByTestId('settlement-summary-total')
-  private readonly totalMembers = () => this.page.getByTestId('settlement-total-members')
-  private readonly membersTable = () => this.page.getByTestId('settlement-members-table')
-  private readonly memberRows = () => this.page.locator('[data-testid="settlement-member-row"]')
-  private readonly downloadsSection = () => this.page.getByTestId('settlement-downloads')
-  private readonly backBtn = () => this.page.getByTestId('settlement-back-button')
 
   // SEPA settlement creation locators
   private readonly transactionSelection = () => this.page.getByTestId('settlement-transaction-selection')
@@ -169,10 +157,6 @@ export class SettlementsPage extends BasePage {
     await expect(this.emptyState()).toBeVisible()
   }
 
-  async expectDetailsPageVisible() {
-    await expect(this.detailsPage()).toBeVisible()
-  }
-
   /**
    * LIST VIEW INTERACTIONS (UC-A33)
    */
@@ -205,69 +189,7 @@ export class SettlementsPage extends BasePage {
     }
   }
 
-  /**
-   * SETTLEMENT DETAILS (UC-A34)
-   */
 
-  async viewSettlementDetails(settlementId: string) {
-    const viewBtn = this.page.getByTestId(`settlement-view-button-${settlementId}`)
-    await viewBtn.click()
-    // Wait for loading to complete using solid loading indicator
-    await this.waitForLoadingComplete()
-  }
-
-  async getSettlementSummary(): Promise<{
-    created?: string
-    executionDate?: string
-    totalMembers?: string
-    totalAmount?: string
-  }> {
-    const created = await this.summaryCreated().textContent().catch(() => null)
-    const executionDate = await this.summaryExecutionDate().textContent().catch(() => null)
-    const totalMembers = await this.totalMembers().textContent().catch(() => null)
-    const totalAmount = await this.summaryTotal().textContent().catch(() => null)
-
-    return {
-      created: created || undefined,
-      executionDate: executionDate || undefined,
-      totalMembers: totalMembers || undefined,
-      totalAmount: totalAmount || undefined,
-    }
-  }
-
-  async getSettlementMembers(): Promise<
-    Array<{ name: string; amount: string; sepaStatus?: string }>
-  > {
-    const rows = this.memberRows()
-    const count = await rows.count()
-    const members = []
-
-    for (let i = 0; i < count; i++) {
-      const row = rows.nth(i)
-      const name = await row.locator('[data-testid="member-name"]').textContent()
-      const amount = await row.locator('[data-testid="member-amount"]').textContent()
-      const sepaStatus = await row
-        .locator('[data-testid="member-sepa-status"]')
-        .textContent()
-        .catch(() => null)
-
-      if (name && amount) {
-        members.push({
-          name,
-          amount,
-          sepaStatus: sepaStatus || undefined,
-        })
-      }
-    }
-
-    return members
-  }
-
-  async goBackToList() {
-    await this.backBtn().click()
-    // Wait for list view to load with loading indicator
-    await this.waitForPageLoad()
-  }
 
   /**
    * SEPA SETTLEMENT CREATION (UC-A30)
