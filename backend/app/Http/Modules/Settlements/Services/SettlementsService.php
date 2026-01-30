@@ -189,6 +189,18 @@ final readonly class SettlementsService
             );
         }
 
+        // Also validate no settlement_items exist for these transactions (handles orphaned items)
+        $existingItems = DB::table('settlement_items')
+            ->whereIn('transaction_id', $transactionIds)
+            ->pluck('transaction_id');
+
+        if ($existingItems->isNotEmpty()) {
+            $existingIds = $existingItems->join(', ', ' and ');
+            throw new \Exception(
+                "Transactions already have settlement items: {$existingIds}"
+            );
+        }
+
         $totalAmount = $transactions->sum('amount_cents');
         $memberIds = $transactions->pluck('member_id')->unique();
         $memberCount = count($memberIds);
@@ -313,11 +325,14 @@ final readonly class SettlementsService
             throw new \Exception('Cannot cancel settlement that has been exported');
         }
 
-        // Unmark all transactions
+        // Unmark all transactions and delete settlement items
         $items = SettlementItem::where('settlement_id', $settlementId)->get();
         $transactionIds = $items->pluck('transaction_id')->toArray();
 
         $this->repository->unmarkTransactionsAsSettled($transactionIds);
+
+        // Delete settlement items (cleanup)
+        SettlementItem::where('settlement_id', $settlementId)->delete();
 
         // Mark settlement as cancelled
         $settlement->update([
