@@ -825,7 +825,7 @@ data-testid="settings-admin-create-button"                  // Create admin butt
 
 // User Rows
 data-testid="settings-admin-user-row-{id}"                  // Admin user row (by ID)
-data-testid="settings-admin-user-avatar-{id}"               // User avatar
+data-testid="settings-admin-user-toggle-{id}"               // User enable/disable toggle
 data-testid="settings-admin-user-name-{id}"                 // User name cell
 data-testid="settings-admin-user-email-{id}"                // User email cell
 data-testid="settings-admin-user-badge-{id}"                // Status badge

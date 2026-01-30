@@ -154,6 +154,46 @@ export function AdminRow({ admin }) {
 
 ---
 
+#### Toggle Component
+
+Enable/disable switch for toggling item state.
+
+**File**: `src/components/common/Toggle.tsx`
+
+**Props**:
+- `isEnabled` (boolean, required): Current toggle state
+- `onChange` ((enabled: boolean) => void, required): Handler called when toggled
+- `disabled` (boolean, default: false): Disable the toggle
+- `testId` (string, optional): Test ID for E2E testing
+
+**Colors**:
+- Enabled: Green (#22c55e) with white thumb
+- Disabled: Gray (rgba(71,85,105,0.3)) with white thumb
+- Smooth transition 0.15s
+
+**Example**:
+```typescript
+import { Toggle } from '@/components/common/Toggle'
+
+export function AdminUserRow({ admin }) {
+  return (
+    <Toggle
+      isEnabled={admin.is_active}
+      onChange={(enabled) => {
+        if (enabled) {
+          handleReactivate(admin.id)
+        } else {
+          handleDeactivate(admin.id)
+        }
+      }}
+      testId={`admin-toggle-${admin.id}`}
+    />
+  )
+}
+```
+
+---
+
 #### Alert Component
 
 Alert message with icon and optional dismiss button.
