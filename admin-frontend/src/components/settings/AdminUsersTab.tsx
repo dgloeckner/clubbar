@@ -1,6 +1,6 @@
 /**
  * AdminUsersTab Component
- * Admin users list with gradient avatars, status badges, action buttons
+ * Admin users list with toggle for active/inactive status and action buttons
  */
 
 import { theme, formatRelativeDate } from '../../styles/design-system'
@@ -126,16 +126,6 @@ export function AdminUsersTab({
                     fontWeight: theme.typography.fontWeight.semibold,
                   }}
                 >
-                  Status
-                </th>
-                <th
-                  style={{
-                    padding: theme.spacing.md,
-                    textAlign: 'left',
-                    borderBottom: `1px solid ${theme.colors.border.light}`,
-                    fontWeight: theme.typography.fontWeight.semibold,
-                  }}
-                >
                   Last Login
                 </th>
                 <th
@@ -187,16 +177,6 @@ export function AdminUsersTab({
                   {/* Email */}
                   <td style={{ padding: theme.spacing.md }} data-testid={`settings-admin-user-email-${admin.id}`}>
                     {admin.email}
-                  </td>
-
-                  {/* Status Badge */}
-                  <td style={{ padding: theme.spacing.md }} data-testid={`settings-admin-user-status-${admin.id}`}>
-                    <Badge
-                      label={admin.is_active ? 'Active' : 'Inactive'}
-                      variant={admin.is_active ? 'success' : 'neutral'}
-                      showDot={true}
-                      testId={`settings-admin-user-badge-${admin.id}`}
-                    />
                   </td>
 
                   {/* Last Login (Relative Date) */}
