@@ -9,15 +9,12 @@
  * - Create settlement with selected transactions
  * - Export and verify CSV exports (aggregated and full)
  *
- * Test Data:
- * - Multiple members with IBANs and mandates
- * - Transactions with known amounts for verification
- * - Known settlement dates and execution dates
- *
  * Patterns:
- * - Pattern 001: Test Data Isolation (unique members per test)
+ * - Pattern 001: Test Data Isolation (unique members per test via timestamps)
  * - Pattern 003: Database-Agnostic Assertions (search by fields, not position)
- * - Pattern 007: Page Object Fixtures
+ * - Pattern 007: Page Object Fixtures (testTransactions)
+ *
+ * Uses Playwright test.step() for clear test organization and reporting.
  */
 
 import { test, expect } from '../../fixtures/auth.fixture'
@@ -26,182 +23,159 @@ import { SettlementsPage } from '../../pages/SettlementsPage'
 
 test.describe('Settlement E2E: Full Workflow', () => {
   test('should create transactions and settlement, then export CSV', async ({ page, authenticatedRequest, testTransactions }) => {
-    // ============================================================================
-    // SETUP: Create test members
-    // ============================================================================
+    let member1Id: string, member1FirstName: string
+    let member2Id: string, member2FirstName: string
+    let settlementId: string
 
-    // Create members using test fixture (handles isolation via timestamps)
-    const member1 = await testTransactions.createMember('E2ETest1', 'Doe')
-    const member1Id = member1.id
-    const member1FirstName = member1.first_name
+    // Create test members
+    await test.step('Create test members', async () => {
+      const member1 = await testTransactions.createMember('E2ETest1', 'Doe')
+      member1Id = member1.id
+      member1FirstName = member1.first_name
 
-    const member2 = await testTransactions.createMember('E2ETest2', 'Smith')
-    const member2Id = member2.id
-    const member2FirstName = member2.first_name
+      const member2 = await testTransactions.createMember('E2ETest2', 'Smith')
+      member2Id = member2.id
+      member2FirstName = member2.first_name
 
-    // ============================================================================
-    // CREATE TRANSACTIONS: Via sync API (terminal transactions)
-    // ============================================================================
+      expect(member1Id).toBeTruthy()
+      expect(member2Id).toBeTruthy()
+    })
 
-    // Sync transaction for member 1: €25.00
-    await testTransactions.createSyncTransaction(member1Id, 2500, 'Pilsner beer')
+    // Create transactions via sync API and corrections
+    await test.step('Create transactions via sync API and corrections', async () => {
+      // Sync transaction for member 1: €25.00
+      await testTransactions.createSyncTransaction(member1Id, 2500, 'Pilsner beer')
 
-    // ============================================================================
-    // CREATE TRANSACTIONS: Via manual corrections
-    // ============================================================================
+      // Manual correction for member 2: €15.50
+      await testTransactions.createCorrection(member2Id, 1550, 'Manual correction for drinks')
 
-    // Manual correction for member 2: €15.50
-    await testTransactions.createCorrection(member2Id, 1550, 'Manual correction for drinks')
+      // Manual correction for member 1: €10.00
+      await testTransactions.createCorrection(member1Id, 1000, 'Additional charge')
+    })
 
-    // Manual correction for member 1: €10.00
-    await testTransactions.createCorrection(member1Id, 1000, 'Additional charge')
+    // Navigate to journal and verify transactions by member name
+    await test.step('Verify test transactions appear in journal', async () => {
+      const journalPage = new JournalPage(page)
+      await journalPage.navigate()
+      await expect(page.getByTestId('journal-loading')).toBeHidden({ timeout: 10000 })
 
-    // ============================================================================
-    // VERIFY: Transactions created in Journal
-    // ============================================================================
+      // Filter to "Open" transactions only
+      await journalPage.filterBySettlementStatus('open')
+      await expect(page.getByTestId('journal-loading')).toBeHidden()
 
-    const journalPage = new JournalPage(page)
-    await journalPage.navigate()
-    await journalPage.waitForPageLoad()
+      // Verify our specific test members' transactions exist
+      await journalPage.waitForTransactionToAppear(member1FirstName)
+      const member2Index = await journalPage.findTransactionByMemberName(member2FirstName)
+      expect(member2Index).not.toBeNull()
+    })
 
-    // Filter to "Open" transactions only
-    await journalPage.filterBySettlementStatus('open')
+    // Enter settlement mode and select transactions
+    await test.step('Select transactions for settlement', async () => {
+      const journalPage = new JournalPage(page)
 
-    // Get transactions count - should be at least 3
-    const transactionCount = await journalPage.getTransactionCount()
-    expect(transactionCount).toBeGreaterThanOrEqual(3)
+      // Enter settlement mode to show checkboxes
+      await journalPage.enterSettlementMode()
 
-    // ============================================================================
-    // SELECT TRANSACTIONS for settlement
-    // ============================================================================
+      // Select all open transactions
+      await journalPage.selectAllTransactions()
 
-    // Enter settlement mode to show checkboxes
-    await journalPage.enterSettlementMode()
+      // Verify at least our 3 test transactions are selected
+      const selectedCount = await journalPage.getSelectedTransactionCount()
+      expect(selectedCount).toBeGreaterThanOrEqual(3)
+    })
 
-    // Select all open transactions
-    await journalPage.selectAllTransactions()
+    // Create settlement from selected transactions
+    await test.step('Create settlement from selected transactions', async () => {
+      const journalPage = new JournalPage(page)
 
-    // Verify selection count
-    const selectedCount = await journalPage.getSelectedTransactionCount()
-    expect(selectedCount).toBeGreaterThanOrEqual(3)
+      // Conclude settlement
+      await journalPage.concludeSettlement()
 
-    // ============================================================================
-    // CREATE SETTLEMENT
-    // ============================================================================
+      // Wait for loading indicator to disappear (settlement created and journal reloaded)
+      await expect(page.getByTestId('journal-loading')).toBeHidden({ timeout: 10000 })
+    })
 
-    await journalPage.concludeSettlement()
+    // Navigate to settlements and find created settlement
+    await test.step('Navigate to settlements and find created settlement', async () => {
+      const settlementsPage = new SettlementsPage(page)
+      await settlementsPage.navigate()
+      await expect(page.getByTestId('settlements-loading')).toBeHidden({ timeout: 10000 })
 
-    // Settlement is created, navigate to settlements page to verify
-    const settlementsPage = new SettlementsPage(page)
-    await settlementsPage.navigate()
-    await settlementsPage.waitForPageLoad()
+      // Get the first (most recent) settlement ID from the first row
+      const rows = page.locator('[data-testid^="settlements-table-row-"]')
+      const rowCount = await rows.count()
+      expect(rowCount).toBeGreaterThan(0)
 
-    // ============================================================================
-    // EXPORT: Get settlement list and find our settlement
-    // ============================================================================
+      const firstRowTestId = await rows.first().getAttribute('data-testid')
+      settlementId = firstRowTestId?.replace('settlements-table-row-', '') || ''
+      expect(settlementId).toBeTruthy()
+    })
 
-    // Get settlement rows
-    const rowCount = await settlementsPage.getSettlementCount()
-    expect(rowCount).toBeGreaterThan(0)
+    // Export and verify aggregated CSV
+    await test.step('Export and verify aggregated CSV', async () => {
+      const csvAggregatedResponse = await authenticatedRequest.get(
+        `/api/admin/settlements/${settlementId}/export-csv`
+      )
+      expect(csvAggregatedResponse.status()).toBe(200)
 
-    // Get the first (most recent) settlement ID from the first row
-    const rows = page.locator('[data-testid^="settlements-table-row-"]')
-    const firstRowTestId = await rows.first().getAttribute('data-testid')
-    const settlementId = firstRowTestId?.replace('settlements-table-row-', '')
-    expect(settlementId).toBeTruthy()
+      const csvAggregatedContent = await csvAggregatedResponse.text()
+      expect(csvAggregatedContent).toBeTruthy()
 
-    // ============================================================================
-    // EXPORT: CSV (Aggregated by Member)
-    // ============================================================================
+      // Verify CSV contains our test members
+      expect(csvAggregatedContent).toContain(member1FirstName)
 
-    const csvAggregatedResponse = await authenticatedRequest.get(
-      `/api/admin/settlements/${settlementId}/export-csv`
-    )
-    expect(csvAggregatedResponse.status()).toBe(200)
+      // Verify CSV header structure
+      const csvLines = csvAggregatedContent.trim().split('\n')
+      expect(csvLines.length).toBeGreaterThan(1)
+      expect(csvLines[0]).toContain('Member Name')
+      expect(csvLines[0]).toContain('Amount EUR')
+    })
 
-    const csvAggregatedContent = await csvAggregatedResponse.text()
-    expect(csvAggregatedContent).toBeTruthy()
+    // Export and verify full/detailed CSV
+    await test.step('Export and verify full transaction CSV', async () => {
+      const csvFullResponse = await authenticatedRequest.get(
+        `/api/admin/settlements/${settlementId}/export-transactions-csv`
+      )
 
-    // Verify CSV header
-    const csvLines = csvAggregatedContent.trim().split('\n')
-    expect(csvLines.length).toBeGreaterThan(1) // Header + at least one member
-    expect(csvLines[0]).toContain('Member Name') // CSV header present
-    expect(csvLines[0]).toContain('Amount EUR') // Amount column exists
+      if (csvFullResponse.status() === 200) {
+        const csvFullContent = await csvFullResponse.text()
+        expect(csvFullContent).toBeTruthy()
 
-    // ============================================================================
-    // EXPORT: CSV (Full/Detailed Transactions)
-    // ============================================================================
+        // Verify full CSV contains test members
+        expect(csvFullContent).toContain(member1FirstName)
+        expect(csvFullContent).toContain(member2FirstName)
+      }
+    })
 
-    const csvFullResponse = await authenticatedRequest.get(
-      `/api/admin/settlements/${settlementId}/export-transactions-csv`
-    )
+    // Refresh and verify settlement persists
+    await test.step('Verify settlement persists after page refresh', async () => {
+      const settlementsPage = new SettlementsPage(page)
 
-    if (csvFullResponse.status() === 200) {
-      const csvFullContent = await csvFullResponse.text()
-      expect(csvFullContent).toBeTruthy()
+      // Refresh settlements page
+      await page.reload()
+      await expect(page.getByTestId('settlements-loading')).toBeHidden({ timeout: 10000 })
 
-      // Verify full CSV contains transaction details
-      const fullCsvLines = csvFullContent.trim().split('\n')
-      expect(fullCsvLines.length).toBeGreaterThan(1) // Header + transactions
+      // Verify settlement still appears
+      const rows = page.locator('[data-testid^="settlements-table-row-"]')
+      const rowCount = await rows.count()
+      expect(rowCount).toBeGreaterThan(0)
+    })
 
-      // Verify CSV contains both member data
-      expect(csvFullContent).toContain(member1FirstName)
-      expect(csvFullContent).toContain(member2FirstName)
+    // Verify transactions marked as settled
+    await test.step('Verify transactions marked as settled in journal', async () => {
+      const journalPage = new JournalPage(page)
+      await journalPage.navigate()
+      await expect(page.getByTestId('journal-loading')).toBeHidden({ timeout: 10000 })
 
-      // Verify transaction notes appear
-      expect(csvFullContent).toMatch(/Pilsner|Correction|Additional/)
-    }
+      // Filter to "Settled" transactions
+      await journalPage.filterBySettlementStatus('settled')
+      await expect(page.getByTestId('journal-loading')).toBeHidden()
 
-    // ============================================================================
-    // VERIFY: CSV Format and Data Integrity
-    // ============================================================================
-
-    // Parse aggregated CSV to verify structure
-    const csvHeader = csvLines[0]
-    const expectedColumns = ['name', 'member', 'amount'] // Common CSV column names
-    const hasValidColumns =
-      expectedColumns.some((col) => csvHeader.toLowerCase().includes(col.toLowerCase())) &&
-      csvLines.length >= 2
-
-    expect(hasValidColumns).toBe(true)
-
-    // Verify all rows have consistent field count
-    const headerFieldCount = csvHeader.split(',').length
-    for (let i = 1; i < csvLines.length; i++) {
-      const fieldCount = csvLines[i].split(',').length
-      expect(fieldCount).toBe(headerFieldCount)
-    }
-
-    // ============================================================================
-    // VERIFY: Settlement Status Changed
-    // ============================================================================
-
-    // Refresh settlements page
-    await page.reload()
-    await settlementsPage.waitForPageLoad()
-
-    // Verify settlement appears in list
-    const updatedRowCount = await settlementsPage.getSettlementCount()
-    expect(updatedRowCount).toBeGreaterThan(0)
-
-    // ============================================================================
-    // VERIFY: Transactions marked as Settled
-    // ============================================================================
-
-    await journalPage.navigate()
-    await journalPage.waitForPageLoad()
-
-    // Filter to "Settled" transactions
-    await journalPage.filterBySettlementStatus('settled')
-
-    // Verify settled transactions appear
-    const settledCount = await journalPage.getTransactionCount()
-    expect(settledCount).toBeGreaterThanOrEqual(3)
-
-    // Verify member names appear in settled transactions
-    const pageContent = await page.content()
-    expect(pageContent).toContain(member1FirstName)
-    expect(pageContent).toContain(member2FirstName)
+      // Verify our specific test members' transactions are now settled
+      await journalPage.waitForTransactionToAppear(member1FirstName)
+      const member2Index = await journalPage.findTransactionByMemberName(member2FirstName)
+      expect(member2Index).not.toBeNull()
+    })
   })
 
   test('should verify CSV export correctness with known amounts', async ({
@@ -209,69 +183,84 @@ test.describe('Settlement E2E: Full Workflow', () => {
     authenticatedRequest,
     testTransactions,
   }) => {
-    // ============================================================================
-    // CREATE CLEAN TEST DATA
-    // ============================================================================
+    let memberId: string, testMemberFirstName: string
+    let settlementId: string
 
-    // Create test member using fixture
-    const member = await testTransactions.createMember('CSVTest', 'Verify')
-    const memberId = member.id
-    const testMemberFirstName = member.first_name
+    // Create test member and transactions
+    await test.step('Create test member with known transaction amounts', async () => {
+      // Create test member using fixture
+      const member = await testTransactions.createMember('CSVTest', 'Verify')
+      memberId = member.id
+      testMemberFirstName = member.first_name
 
-    // ============================================================================
-    // CREATE TRANSACTIONS WITH KNOWN AMOUNTS
-    // ============================================================================
+      // Create 3 transactions with known amounts: €10, €20, €30 = €60
+      const amounts = [1000, 2000, 3000] // in cents
+      const transactionIds: string[] = []
 
-    // Create 3 transactions with known amounts: €10, €20, €30 = €60
-    const amounts = [1000, 2000, 3000] // in cents
-    const transactionIds: string[] = []
+      for (let i = 0; i < amounts.length; i++) {
+        const txId = await testTransactions.createCorrection(
+          memberId,
+          amounts[i],
+          `Test correction ${i + 1}`
+        )
+        transactionIds.push(txId)
+        expect(txId).toBeTruthy()
+      }
 
-    for (let i = 0; i < amounts.length; i++) {
-      const txId = await testTransactions.createCorrection(
-        memberId,
-        amounts[i],
-        `Test correction ${i + 1}`
+      // Create settlement with all transactions
+      settlementId = await testTransactions.createSettlement(transactionIds, 7)
+      expect(settlementId).toBeTruthy()
+    })
+
+    // Export and verify CSV by member name
+    await test.step('Export settlement as CSV and verify member appears', async () => {
+      const csvResponse = await authenticatedRequest.get(
+        `/api/admin/settlements/${settlementId}/export-csv`
       )
-      transactionIds.push(txId)
-    }
+      expect(csvResponse.status()).toBe(200)
 
-    // ============================================================================
-    // CREATE SETTLEMENT
-    // ============================================================================
+      const csvContent = await csvResponse.text()
+      expect(csvContent).toBeTruthy()
 
-    const settlementId = await testTransactions.createSettlement(transactionIds, 7)
+      // Verify CSV contains our unique test member name
+      expect(csvContent).toContain(testMemberFirstName)
 
-    // ============================================================================
-    // EXPORT AND VERIFY CSV
-    // ============================================================================
+      // Verify CSV structure
+      const lines = csvContent.trim().split('\n')
+      expect(lines.length).toBeGreaterThan(1)
 
-    const csvResponse = await authenticatedRequest.get(
-      `/api/admin/settlements/${settlementId}/export-csv`
-    )
-    expect(csvResponse.status()).toBe(200)
+      // Verify total amount (€60) appears for our member
+      const memberRow = lines.find((line) => line.includes(testMemberFirstName))
+      expect(memberRow).toBeTruthy()
+      if (memberRow) {
+        expect(memberRow).toMatch(/60[.,]?00|6000/)
+      }
+    })
 
-    const csvContent = await csvResponse.text()
-    expect(csvContent).toBeTruthy()
+    // Verify CSV format and data integrity
+    await test.step('Verify CSV format and data consistency', async () => {
+      const csvResponse = await authenticatedRequest.get(
+        `/api/admin/settlements/${settlementId}/export-csv`
+      )
 
-    // ============================================================================
-    // PARSE AND VERIFY CSV DATA
-    // ============================================================================
+      const csvContent = await csvResponse.text()
+      const csvLines = csvContent.trim().split('\n')
 
-    const lines = csvContent.trim().split('\n')
-    expect(lines.length).toBeGreaterThan(1)
+      // Parse CSV to verify structure
+      const csvHeader = csvLines[0]
+      const expectedColumns = ['name', 'member', 'amount']
+      const hasValidColumns =
+        expectedColumns.some((col) => csvHeader.toLowerCase().includes(col.toLowerCase())) &&
+        csvLines.length >= 2
 
-    // Find the row with our test member
-    const memberRow = lines.find((line) => line.includes(testMemberFirstName))
-    expect(memberRow).toBeTruthy()
+      expect(hasValidColumns).toBe(true)
 
-    // Extract the amount from the member row
-    // CSV format varies, but should contain the aggregated amount
-    if (memberRow) {
-      // Verify total amount (€60) appears in some form
-      expect(memberRow).toMatch(/60[.,]?00|6000/)
-    }
-
-    // Note: IBAN and mandate fields are not currently supported by the member creation API
-    // so they are not tested in this E2E test
+      // Verify all rows have consistent field count
+      const headerFieldCount = csvHeader.split(',').length
+      for (let i = 1; i < csvLines.length; i++) {
+        const fieldCount = csvLines[i].split(',').length
+        expect(fieldCount).toBe(headerFieldCount)
+      }
+    })
   })
 })
