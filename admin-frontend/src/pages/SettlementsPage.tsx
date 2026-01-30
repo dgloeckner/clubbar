@@ -452,6 +452,32 @@ export function SettlementsPage() {
                           }}
                         >
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                            {/* View Details */}
+                            <button
+                              data-testid={`settlement-view-button-${settlement.id}`}
+                              onClick={() => loadSettlementDetails(settlement.id)}
+                              style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#06b6d4',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: 4,
+                                fontSize: 12,
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                transition: 'background-color 0.15s',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#0891b2'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#06b6d4'
+                              }}
+                              title="View Settlement Details"
+                            >
+                              View
+                            </button>
+
                             {/* Export SEPA XML */}
                             <button
                               data-testid={`settlements-export-sepa-btn-${settlement.id}`}
@@ -763,6 +789,7 @@ export function SettlementsPage() {
             }}
           >
             <button
+              onClick={() => handleExportSepa(selectedSettlement.id)}
               style={{
                 padding: `${theme.spacing.sm} ${theme.spacing.md}`,
                 background: theme.colors.semantic.primary,
@@ -771,10 +798,17 @@ export function SettlementsPage() {
                 borderRadius: theme.borderRadius.sm,
                 cursor: 'pointer',
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '0.9'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '1'
+              }}
             >
               Download SEPA XML
             </button>
             <button
+              onClick={() => handleExportCsv(selectedSettlement.id)}
               style={{
                 padding: `${theme.spacing.sm} ${theme.spacing.md}`,
                 background: theme.colors.bg.secondary,
@@ -782,6 +816,12 @@ export function SettlementsPage() {
                 border: `1px solid ${theme.colors.border.light}`,
                 borderRadius: theme.borderRadius.sm,
                 cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '0.9'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '1'
               }}
             >
               Download CSV

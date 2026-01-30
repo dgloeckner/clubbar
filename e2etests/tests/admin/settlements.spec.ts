@@ -44,12 +44,28 @@ test.describe('Settlements Page', () => {
 
   /**
    * UC-A34: Settlement Details - Detail View
-   * NOTE: These tests verify the settlement details page structure.
-   * Settlement details are accessed from the list view via action buttons on each settlement row.
    */
   test.describe('UC-A34: Settlement Details', () => {
-    // NOTE: Test to navigate to details is removed because there's no UI button to open details
-    // from the list view in the current implementation. Details view structure tests remain below.
+    test('should open settlement details when clicking view button', async ({ page }) => {
+      // Get all settlement rows (using correct test ID prefix from component)
+      const rows = page.locator('[data-testid^="settlements-table-row-"]')
+      const rowCount = await rows.count()
+
+      if (rowCount > 0) {
+        // Extract settlement ID from the first row's test ID (e.g., "settlements-table-row-uuid")
+        const firstRowTestId = await rows.first().getAttribute('data-testid')
+        const settlementId = firstRowTestId?.replace('settlements-table-row-', '') || ''
+
+        if (settlementId) {
+          // Use page object method to open settlement details
+          const settlementsPage = new SettlementsPage(page)
+          await settlementsPage.viewSettlementDetails(settlementId)
+
+          // Verify details page is now visible
+          await expect(page.getByTestId('settlement-details-page')).toBeVisible({ timeout: 5000 })
+        }
+      }
+    })
 
     test('should display settlement summary information', async ({ page }) => {
       // Check if we're on details page
