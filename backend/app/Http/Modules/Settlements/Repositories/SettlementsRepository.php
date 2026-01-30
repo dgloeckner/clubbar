@@ -29,28 +29,36 @@ class SettlementsRepository extends BaseRepository
     /**
      * Find unsettled transactions for a member or all members
      *
-     * Returns transactions that have not yet been included in any settlement.
+     * Returns transactions that have not yet been included in any active settlement.
+     * Settlement status is determined by presence in settlement_items table, not settlement_id FK.
      *
      * @param string|null $memberId Optional: filter by specific member
      * @return Collection
      */
     public function findUnsettledTransactions(?string $memberId = null): Collection
     {
-        $query = $this->model->whereHas('items')
-            ->where('settlement_id', null)
+        $query = \DB::table('transactions')
+            ->whereNotExists(function ($subquery) {
+                $subquery->select(\DB::raw(1))
+                    ->from('settlement_items')
+                    ->join('settlements', 'settlement_items.settlement_id', '=', 'settlements.id')
+                    ->where('settlements.is_cancelled', false)
+                    ->whereColumn('settlement_items.transaction_id', '=', 'transactions.id');
+            })
             ->orderBy('created_at', 'asc');
 
         if ($memberId) {
             $query->where('member_id', $memberId);
         }
 
-        return $query->get();
+        return collect($query->get());
     }
 
     /**
      * Calculate total balance for each member from unsettled transactions
      *
      * Groups unsettled transactions by member and sums amounts.
+     * Settlement status determined by presence in settlement_items table (not settlement_id FK).
      * Used for settlement preview and balance display.
      *
      * @param string|null $fromDate Filter transactions from this date
@@ -61,7 +69,13 @@ class SettlementsRepository extends BaseRepository
     {
         $query = \DB::table('transactions')
             ->select('member_id', \DB::raw('SUM(amount_cents) as total_amount_cents'))
-            ->whereNull('settlement_id')
+            ->whereNotExists(function ($subquery) {
+                $subquery->select(\DB::raw(1))
+                    ->from('settlement_items')
+                    ->join('settlements', 'settlement_items.settlement_id', '=', 'settlements.id')
+                    ->where('settlements.is_cancelled', false)
+                    ->whereColumn('settlement_items.transaction_id', '=', 'transactions.id');
+            })
             ->groupBy('member_id');
 
         if ($fromDate) {
@@ -72,37 +86,6 @@ class SettlementsRepository extends BaseRepository
         }
 
         return $query->pluck('total_amount_cents', 'member_id')->toArray();
-    }
-
-    /**
-     * Mark transactions as settled by assigning them to a settlement
-     *
-     * Updates settlement_id on all specified transactions.
-     *
-     * @param string $settlementId The settlement to assign to
-     * @param array $transactionIds Array of transaction UUIDs to mark as settled
-     * @return int Number of rows updated
-     */
-    public function markTransactionsAsSettled(string $settlementId, array $transactionIds): int
-    {
-        return \DB::table('transactions')
-            ->whereIn('id', $transactionIds)
-            ->update(['settlement_id' => $settlementId]);
-    }
-
-    /**
-     * Unmark transactions as settled (set settlement_id to NULL)
-     *
-     * Used when cancelling a settlement to release transactions back to unsettled state.
-     *
-     * @param array $transactionIds Array of transaction UUIDs to unmark
-     * @return int Number of rows updated
-     */
-    public function unmarkTransactionsAsSettled(array $transactionIds): int
-    {
-        return \DB::table('transactions')
-            ->whereIn('id', $transactionIds)
-            ->update(['settlement_id' => null]);
     }
 
     /**

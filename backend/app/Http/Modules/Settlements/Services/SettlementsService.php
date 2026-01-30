@@ -177,19 +177,10 @@ final readonly class SettlementsService
         // Fetch transactions to calculate total and member count
         $transactions = DB::table('transactions')
             ->whereIn('id', $transactionIds)
-            ->select(['id', 'member_id', 'amount_cents', 'settlement_id'])
+            ->select(['id', 'member_id', 'amount_cents'])
             ->get();
 
-        // Validate all transactions are unsettled
-        $settledTransactions = $transactions->filter(fn($txn) => $txn->settlement_id !== null);
-        if ($settledTransactions->isNotEmpty()) {
-            $settledIds = $settledTransactions->pluck('id')->join(', ', ' and ');
-            throw new \Exception(
-                "Cannot settle already-settled transactions: {$settledIds}"
-            );
-        }
-
-        // Also validate no settlement_items exist for these transactions (handles orphaned items)
+        // Validate no settlement_items exist for these transactions (ensures no duplicates)
         $existingItems = DB::table('settlement_items')
             ->whereIn('transaction_id', $transactionIds)
             ->pluck('transaction_id');
@@ -232,9 +223,6 @@ final readonly class SettlementsService
                 'amount_cents' => $txn->amount_cents,
             ]);
         }
-
-        // Mark transactions as settled
-        $this->repository->markTransactionsAsSettled($settlement->id, $transactionIds);
 
         // Log to audit trail
         $this->auditService->log(
@@ -325,13 +313,7 @@ final readonly class SettlementsService
             throw new \Exception('Cannot cancel settlement that has been exported');
         }
 
-        // Unmark all transactions and delete settlement items
-        $items = SettlementItem::where('settlement_id', $settlementId)->get();
-        $transactionIds = $items->pluck('transaction_id')->toArray();
-
-        $this->repository->unmarkTransactionsAsSettled($transactionIds);
-
-        // Delete settlement items (cleanup)
+        // Delete settlement items (this releases transactions back to unsettled state)
         SettlementItem::where('settlement_id', $settlementId)->delete();
 
         // Mark settlement as cancelled

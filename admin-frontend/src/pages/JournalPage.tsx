@@ -189,7 +189,7 @@ export function JournalPage() {
       setSelectedTransactionIds(new Set())
     } else {
       // Only select unsettled transactions
-      const unsettled = state.transactions.filter(t => t.settlement_id === null)
+      const unsettled = state.transactions.filter(t => !t.is_settled)
       setSelectedTransactionIds(new Set(unsettled.map(t => t.id)))
     }
   }
@@ -210,7 +210,7 @@ export function JournalPage() {
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }))
 
-      const openTransactions = state.transactions.filter(t => t.settlement_id === null)
+      const openTransactions = state.transactions.filter(t => !t.is_settled)
       if (openTransactions.length === 0) {
         setState((prev) => ({ ...prev, loading: false, error: 'No open transactions to settle' }))
         return
@@ -644,7 +644,7 @@ export function JournalPage() {
                             data-testid={`journal-select-checkbox-${tx.id}`}
                             checked={selectedTransactionIds.has(tx.id)}
                             onChange={() => handleToggleTransaction(tx.id)}
-                            disabled={tx.settlement_id !== null}
+                            disabled={tx.is_settled}
                           />
                         </td>
                       )}

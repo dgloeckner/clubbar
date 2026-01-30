@@ -12,7 +12,7 @@ export interface Transaction {
   description: string
   amount_cents: number
   running_total_cents: number
-  settlement_id?: string | null
+  is_settled?: boolean
 }
 
 export interface Settlement {
@@ -85,7 +85,7 @@ export interface GlobalTransaction {
   created_at: string
   created_by_admin_id: string | null
   created_by_terminal_id: string | null
-  settlement_id: string | null
+  is_settled: boolean
   settlement_date: string | null
 }
 

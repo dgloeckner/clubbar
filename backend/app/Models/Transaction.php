@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\Member;
+use App\Models\Product;
 
 /**
  * Transaction Model
@@ -68,7 +70,6 @@ class Transaction extends Model
         'related_transaction_id',
         'created_by_terminal_id',
         'created_by_admin_id',
-        'settlement_id',
     ];
 
     /**
@@ -98,14 +99,6 @@ class Transaction extends Model
     }
 
     /**
-     * Get the settlement this transaction belongs to (if settled)
-     */
-    public function settlement(): BelongsTo
-    {
-        return $this->belongsTo(Settlement::class, 'settlement_id', 'id');
-    }
-
-    /**
      * Get the related transaction (for corrections)
      */
     public function relatedTransaction(): BelongsTo
@@ -127,21 +120,5 @@ class Transaction extends Model
     public function isCorrection(): bool
     {
         return $this->transaction_type === 'correction';
-    }
-
-    /**
-     * Check if transaction is unsettled
-     */
-    public function isUnsettled(): bool
-    {
-        return $this->settlement_id === null;
-    }
-
-    /**
-     * Check if transaction is settled
-     */
-    public function isSettled(): bool
-    {
-        return $this->settlement_id !== null;
     }
 }

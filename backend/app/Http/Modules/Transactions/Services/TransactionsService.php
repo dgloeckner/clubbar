@@ -462,7 +462,6 @@ final readonly class TransactionsService
         // Build query
         $query = DB::table('transactions')
             ->join('members', 'transactions.member_id', '=', 'members.id')
-            ->leftJoin('settlements', 'transactions.settlement_id', '=', 'settlements.id')
             ->select([
                 'transactions.id',
                 'transactions.member_id',
@@ -473,8 +472,22 @@ final readonly class TransactionsService
                 'transactions.created_at',
                 'transactions.created_by_admin_id',
                 'transactions.created_by_terminal_id',
-                'transactions.settlement_id',
-                'settlements.settlement_date',
+                DB::raw('(
+                    SELECT s.settlement_date
+                    FROM settlement_items si
+                    JOIN settlements s ON si.settlement_id = s.id
+                    WHERE si.transaction_id = transactions.id
+                      AND s.is_cancelled = false
+                    LIMIT 1
+                ) as settlement_date'),
+                DB::raw('(
+                    CASE WHEN EXISTS (
+                        SELECT 1 FROM settlement_items si
+                        JOIN settlements s ON si.settlement_id = s.id
+                        WHERE si.transaction_id = transactions.id
+                          AND s.is_cancelled = false
+                    ) THEN 1 ELSE 0 END
+                ) as is_settled'),
                 DB::raw("CONCAT(members.first_name, ' ', members.last_name) AS member_name"),
             ]);
 
@@ -506,9 +519,21 @@ final readonly class TransactionsService
 
         // Apply settlement status filter
         if ($settlementStatus === 'open') {
-            $query->whereNull('transactions.settlement_id');
+            $query->whereNotExists(function ($subquery) {
+                $subquery->select(DB::raw(1))
+                    ->from('settlement_items')
+                    ->join('settlements', 'settlement_items.settlement_id', '=', 'settlements.id')
+                    ->where('settlements.is_cancelled', false)
+                    ->whereColumn('settlement_items.transaction_id', '=', 'transactions.id');
+            });
         } elseif ($settlementStatus === 'settled') {
-            $query->whereNotNull('transactions.settlement_id');
+            $query->whereExists(function ($subquery) {
+                $subquery->select(DB::raw(1))
+                    ->from('settlement_items')
+                    ->join('settlements', 'settlement_items.settlement_id', '=', 'settlements.id')
+                    ->where('settlements.is_cancelled', false)
+                    ->whereColumn('settlement_items.transaction_id', '=', 'transactions.id');
+            });
         }
         // 'all' = no filter
 
@@ -573,7 +598,7 @@ final readonly class TransactionsService
                     'created_at' => $tx->created_at,
                     'created_by_admin_id' => $tx->created_by_admin_id,
                     'created_by_terminal_id' => $tx->created_by_terminal_id,
-                    'settlement_id' => $tx->settlement_id,
+                    'is_settled' => (bool) $tx->is_settled,
                     'settlement_date' => $tx->settlement_date,
                 ];
             })
