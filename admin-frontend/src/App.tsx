@@ -17,6 +17,7 @@ import { CategoriesPage } from './pages/CategoriesPage'
 import { JournalPage } from './pages/JournalPage'
 import { SettlementsPage } from './pages/SettlementsPage'
 import { StatisticsPage } from './pages/StatisticsPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 // Layout
 import { MainLayout } from './components/layout/MainLayout'
@@ -122,6 +123,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <StatisticsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
           </ProtectedRoute>
         }
       />

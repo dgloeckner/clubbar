@@ -19,6 +19,7 @@ export { PackageIcon } from './PackageIcon'
 export { BookIcon } from './BookIcon'
 export { ReceiptIcon } from './ReceiptIcon'
 export { ChartIcon } from './ChartIcon'
+export { SettingsIcon } from './SettingsIcon'
 
 // User and action icons
 export { UserIcon } from './UserIcon'

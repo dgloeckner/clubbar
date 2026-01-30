@@ -19,7 +19,7 @@
  */
 
 import { test as base, Page } from '@playwright/test'
-import { LoginPage, MembersPage, ProductsPage, SettlementsPage, StatisticsPage, CategoriesPage, JournalPage } from '../pages'
+import { LoginPage, MembersPage, ProductsPage, SettlementsPage, StatisticsPage, CategoriesPage, JournalPage, SettingsPage } from '../pages'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
@@ -35,6 +35,8 @@ interface PageObjectFixtures {
   authenticatedCategoriesPage: CategoriesPage
   journalPage: JournalPage
   authenticatedJournalPage: JournalPage
+  settingsPage: SettingsPage
+  authenticatedSettingsPage: SettingsPage
 }
 
 /**
@@ -232,6 +234,36 @@ const authenticatedJournalPageFixture = async (
 }
 
 /**
+ * Fixture: settingsPage
+ * Provides SettingsPage instance (unauthenticated)
+ */
+const settingsPageFixture = async ({ page }: { page: Page }, use: (value: SettingsPage) => Promise<void>) => {
+  const settingsPage = new SettingsPage(page)
+  await use(settingsPage)
+}
+
+/**
+ * Fixture: authenticatedSettingsPage
+ *
+ * Provides SettingsPage with test already authenticated (via storage state).
+ * Simply navigates to the page and returns the page object.
+ */
+const authenticatedSettingsPageFixture = async (
+  { page }: { page: Page },
+  use: (value: SettingsPage) => Promise<void>
+) => {
+  // Navigate to settings page
+  await page.goto('/settings', { waitUntil: 'domcontentloaded' })
+
+  // Wait for page to load - settings-page test ID indicates page is ready
+  await page.waitForSelector('[data-testid="settings-page"]', { timeout: 5000 })
+
+  // Create and provide SettingsPage
+  const settingsPage = new SettingsPage(page)
+  await use(settingsPage)
+}
+
+/**
  * Extend base test with custom fixtures
  */
 export const test = base.extend<PageObjectFixtures>({
@@ -248,6 +280,8 @@ export const test = base.extend<PageObjectFixtures>({
   authenticatedCategoriesPage: authenticatedCategoriesPageFixture,
   journalPage: journalPageFixture,
   authenticatedJournalPage: authenticatedJournalPageFixture,
+  settingsPage: settingsPageFixture,
+  authenticatedSettingsPage: authenticatedSettingsPageFixture,
 })
 
 // Re-export expect for convenience

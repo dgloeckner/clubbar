@@ -16,6 +16,7 @@ import {
   BookIcon,
   ReceiptIcon,
   ChartIcon,
+  SettingsIcon,
   UserIcon,
   LogoutIcon,
 } from '../icons'
@@ -59,6 +60,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     },
     { label: 'Abrechnungen', path: '/settlements', icon: <ReceiptIcon size={20} /> },
     { label: 'Statistik', path: '/statistics', icon: <ChartIcon size={20} /> },
+    { label: 'Einstellungen', path: '/settings', icon: <SettingsIcon size={20} /> },
   ]
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'

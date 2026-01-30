@@ -158,6 +158,23 @@ export async function post<T>(
 }
 
 /**
+ * Generic PUT request wrapper
+ */
+export async function put<T>(
+  url: string,
+  data?: any,
+  config?: any
+): Promise<ApiResponse<T>> {
+  try {
+    const response: AxiosResponse<ApiResponse<T>> = await apiClient.put(url, data, config)
+    return response.data
+  } catch (error) {
+    console.error('PUT error:', error)
+    throw error
+  }
+}
+
+/**
  * Generic PATCH request wrapper
  */
 export async function patch<T>(
