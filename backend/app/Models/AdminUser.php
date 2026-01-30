@@ -54,6 +54,7 @@ class AdminUser extends Model
         'display_name',
         'locale',
         'is_active',
+        'last_login_at',
     ];
 
     /**
