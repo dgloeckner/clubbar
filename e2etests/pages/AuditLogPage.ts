@@ -5,9 +5,21 @@
  */
 
 import { Page, expect } from '@playwright/test'
+import { BasePage } from './BasePage'
 
-export class AuditLogPage {
-  constructor(private page: Page) {}
+export class AuditLogPage extends BasePage {
+  constructor(page: Page) {
+    super(page)
+  }
+
+  /**
+   * Provide access to page for advanced test scenarios (e.g., extracting test IDs from elements)
+   * Tests can access via: auditLogPage.getPageForAdvancedQueries()
+   * Or use the typed accessor: (auditLogPage as any).page
+   */
+  getPageForAdvancedQueries(): Page {
+    return this['page']
+  }
 
   /**
    * NAVIGATION
