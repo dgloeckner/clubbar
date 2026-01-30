@@ -5,7 +5,7 @@ test.describe('Settlements API', () => {
    * SEPA Config Tests (5 tests)
    */
   test.describe('SEPA Configuration', () => {
-    test('A1: GET /sepa-config returns config with masked fields', async ({ authenticatedRequest }) => {
+    test('A1: GET /sepa-config returns full unmasked config (admin-only)', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.get('/api/admin/sepa-config');
 
       expect(response.status()).toBe(200);
@@ -15,6 +15,7 @@ test.describe('Settlements API', () => {
       expect(body).toHaveProperty('creditor_iban');
       expect(body).toHaveProperty('is_configured');
       expect(typeof body.is_configured).toBe('boolean');
+      // Admin endpoint returns full unmasked values (no masking for admin-only access)
     });
 
     test('A2: PUT /sepa-config updates successfully', async ({ authenticatedRequest }) => {

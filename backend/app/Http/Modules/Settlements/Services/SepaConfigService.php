@@ -37,11 +37,13 @@ final readonly class SepaConfigService
     /**
      * Get SEPA configuration
      *
-     * Returns masked DTO for security (creditor_id and IBAN are masked in responses)
+     * For admin endpoints: returns unmasked full values (admin-only access)
+     * For public endpoints: would return masked values (but no public endpoint currently)
      *
+     * @param bool $masked Whether to mask sensitive fields (default: false for admin)
      * @return SepaConfigDto|null The configuration, or null if not found
      */
-    public function getConfig(): ?SepaConfigDto
+    public function getConfig(bool $masked = false): ?SepaConfigDto
     {
         $config = $this->repository->getConfig();
 
@@ -50,9 +52,9 @@ final readonly class SepaConfigService
         }
 
         return new SepaConfigDto(
-            creditorId: $this->maskCreditorId($config->creditor_id),
+            creditorId: $masked ? $this->maskCreditorId($config->creditor_id) : $config->creditor_id,
             creditorName: $config->creditor_name,
-            creditorIban: IbanMasker::mask($config->creditor_iban),
+            creditorIban: $masked ? IbanMasker::mask($config->creditor_iban) : $config->creditor_iban,
             creditorAddressStreet: $config->creditor_address_street,
             creditorAddressCity: $config->creditor_address_city,
             creditorAddressCountry: $config->creditor_address_country,
@@ -111,9 +113,9 @@ final readonly class SepaConfigService
         );
 
         return new SepaConfigDto(
-            creditorId: $this->maskCreditorId($updated->creditor_id),
+            creditorId: $updated->creditor_id,
             creditorName: $updated->creditor_name,
-            creditorIban: IbanMasker::mask($updated->creditor_iban),
+            creditorIban: $updated->creditor_iban,
             creditorAddressStreet: $updated->creditor_address_street,
             creditorAddressCity: $updated->creditor_address_city,
             creditorAddressCountry: $updated->creditor_address_country,

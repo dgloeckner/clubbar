@@ -51,11 +51,11 @@ export function SettingsPage() {
 
         if (config) {
           setExistingConfig(config)
-          // Pre-fill form with masked values
+          // Pre-fill form with full unmasked values (admin-only page, no need to mask)
           const formValues: UpdateSepaConfigRequest = {
-            creditor_id: config.creditor_id, // masked: ****3000
+            creditor_id: config.creditor_id,
             creditor_name: config.creditor_name,
-            creditor_iban: config.creditor_iban, // masked: ****3000
+            creditor_iban: config.creditor_iban,
             creditor_address_street: config.creditor_address_street,
             creditor_address_city: config.creditor_address_city,
             creditor_address_country: config.creditor_address_country,
@@ -478,7 +478,7 @@ export function SettingsPage() {
               value={formData.creditor_iban}
               placeholder="e.g., DE89370400440532013000"
               monospace={true}
-              helperText="Bank account IBAN (15-34 characters, will be validated)"
+              helperText="Bank account IBAN (15-34 characters, mod-97 validated)"
             />
 
             {/* Street Address Field */}
