@@ -120,6 +120,7 @@ final readonly class SepaExportService
                     'id' => $paymentInfoId,
                     'creditorAccountIBAN' => $this->sanitizeIban($config->creditor_iban),
                     'creditorName' => $this->sanitizeName($config->creditor_name),
+                    'creditorId' => $config->creditor_id,
                     'seqType' => 'RCUR', // Recurring collection (per ADR-0008)
                     // creditorAgentBIC is optional
                 ]
@@ -149,10 +150,12 @@ final readonly class SepaExportService
                 $iban = $this->sanitizeIban($member->iban);
 
                 $transferInfo = [
-                    'iban' => $iban,
                     'amount' => $totalAmountCents, // Amount in cents
-                    'mandateId' => $member->mandate_reference,
-                    'mandateSignatureDate' => $member->mandate_signed_at,
+                    'debtorIban' => $iban,
+                    'debtorName' => $memberName,
+                    'debtorMandate' => $member->mandate_reference,
+                    'debtorMandateSignDate' => $member->mandate_signed_at,
+                    'remittanceInformation' => 'Settlement ' . $settlement->id,
                 ];
 
                 $sepaDocument->addTransfer(
