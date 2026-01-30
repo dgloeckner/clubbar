@@ -11,6 +11,7 @@ import { useLoading } from '../../context/LoadingContext'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { LoadingIndicator } from '../common/LoadingIndicator'
 import {
+  AuditLogIcon,
   UsersIcon,
   PackageIcon,
   BookIcon,
@@ -61,6 +62,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     { label: 'Abrechnungen', path: '/settlements', icon: <ReceiptIcon size={20} /> },
     { label: 'Statistik', path: '/statistics', icon: <ChartIcon size={20} /> },
     { label: 'Einstellungen', path: '/settings', icon: <SettingsIcon size={20} /> },
+    { label: 'Audit-Log', path: '/audit-log', icon: <AuditLogIcon size={20} />, testId: 'nav-audit-log' },
   ]
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
@@ -189,6 +191,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             <Link
               key={item.path}
               to={item.path}
+              data-testid={item.testId}
               style={{
                 display: 'flex',
                 alignItems: 'center',
