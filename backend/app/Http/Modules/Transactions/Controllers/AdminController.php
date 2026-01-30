@@ -89,6 +89,7 @@ final class AdminController extends Controller
      * Retrieves paginated list of all transactions across all members with filtering and sorting.
      * Implements global transaction journal view.
      * Implements Pattern 001 (FormRequest), Pattern 004 (Service Layer)
+     * Implements UC-A22-B: Filter Transactions by Settlement Status
      *
      * Query Parameters:
      * - page: integer, 1-indexed (default: 1)
@@ -100,6 +101,7 @@ final class AdminController extends Controller
      * - search: string (optional, search member name or notes)
      * - sort: created_at|amount|type|member (default: created_at)
      * - order: asc|desc (default: desc)
+     * - settlement_status: all|open|settled (default: all)
      *
      * @param GetTransactionsRequest $request Validated query parameters
      * @return JsonResponse Paginated transactions with total count
@@ -121,7 +123,8 @@ final class AdminController extends Controller
                 memberId: $filters['member_id'],
                 search: $filters['search'],
                 sortKey: $sort['sort'],
-                sortOrder: $sort['order']
+                sortOrder: $sort['order'],
+                settlementStatus: $filters['settlement_status']
             );
 
             return response()->json($result);

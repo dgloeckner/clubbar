@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Shared\Enums\ManualReason;
-use App\Shared\Enums\SettlementType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,7 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * Settlement Model
  *
- * Represents a settlement (SEPA or manual) for periodic billing.
+ * Represents a unified settlement for periodic billing.
+ * Settlements can be exported in different formats (SEPA XML, CSV) at export time.
  *
  * Implements UC-A30: Create Settlement, ADR-0007: SEPA Configuration
  * Each settlement contains multiple settlement_items (one per transaction).
@@ -54,7 +54,6 @@ class Settlement extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'settlement_type',
         'manual_reason',
         'settlement_date',
         'execution_date',
@@ -77,7 +76,6 @@ class Settlement extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'settlement_type' => SettlementType::class,
         'manual_reason' => ManualReason::class,
         'settlement_date' => 'date',
         'execution_date' => 'date',
@@ -132,19 +130,4 @@ class Settlement extends Model
         return $this->exported_at !== null;
     }
 
-    /**
-     * Check if settlement is a SEPA settlement
-     */
-    public function isSepa(): bool
-    {
-        return $this->settlement_type === SettlementType::SEPA;
-    }
-
-    /**
-     * Check if settlement is a manual settlement
-     */
-    public function isManual(): bool
-    {
-        return $this->settlement_type === SettlementType::MANUAL;
-    }
 }

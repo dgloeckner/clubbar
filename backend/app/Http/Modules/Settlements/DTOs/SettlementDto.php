@@ -14,7 +14,6 @@ final readonly class SettlementDto
 {
     public function __construct(
         public string $id,
-        public string $settlementType,
         public ?string $manualReason,
         public string $settlementDate,
         public string $executionDate,
@@ -29,6 +28,8 @@ final readonly class SettlementDto
         public ?string $notes,
         public array $items,
         public string $createdAt,
+        public ?string $createdByAdminId,
+        public ?string $createdByAdminName,
     ) {}
 
     /**
@@ -43,7 +44,6 @@ final readonly class SettlementDto
     {
         return [
             'id' => $this->id,
-            'settlement_type' => $this->settlementType,
             'manual_reason' => $this->manualReason,
             'settlement_date' => $this->settlementDate,
             'execution_date' => $this->executionDate,
@@ -59,6 +59,8 @@ final readonly class SettlementDto
             'notes' => $this->notes,
             'items' => $this->items,
             'created_at' => $this->createdAt,
+            'created_by_admin_id' => $this->createdByAdminId,
+            'created_by_admin_name' => $this->createdByAdminName,
         ];
     }
 }

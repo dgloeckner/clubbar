@@ -86,6 +86,7 @@ export interface GlobalTransaction {
   created_by_admin_id: string | null
   created_by_terminal_id: string | null
   settlement_id: string | null
+  settlement_date: string | null
 }
 
 /**
@@ -111,6 +112,7 @@ export interface TransactionsListResponse {
  * @param search Optional search string (searches member name or notes)
  * @param sortKey Field to sort by (created_at|amount|type|member, default: created_at)
  * @param sortOrder Sort direction (asc|desc, default: desc)
+ * @param settlementStatus Settlement status filter (all|open|settled, default: all)
  * @returns Paginated transactions response
  */
 export async function getTransactions(
@@ -122,7 +124,8 @@ export async function getTransactions(
   memberId?: string,
   search?: string,
   sortKey: 'created_at' | 'amount' | 'type' | 'member' = 'created_at',
-  sortOrder: 'asc' | 'desc' = 'desc'
+  sortOrder: 'asc' | 'desc' = 'desc',
+  settlementStatus: 'all' | 'open' | 'settled' = 'all'
 ): Promise<TransactionsListResponse> {
   // Build query parameters
   const params: Record<string, any> = {
@@ -147,6 +150,9 @@ export async function getTransactions(
   }
   params.sort = sortKey
   params.order = sortOrder
+  if (settlementStatus !== 'all') {
+    params.settlement_status = settlementStatus
+  }
 
   // Make API call
   const response = await get<TransactionsListResponse>('/admin/transactions', {

@@ -8,7 +8,6 @@ use App\Http\Modules\Settlements\Requests\CreateSettlementRequest;
 use App\Http\Modules\Settlements\Requests\PreviewSettlementRequest;
 use App\Http\Modules\Settlements\Services\SettlementsService;
 use App\Shared\Enums\ManualReason;
-use App\Shared\Enums\SettlementType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -52,12 +51,9 @@ class AdminController extends Controller
     public function store(CreateSettlementRequest $request): JsonResponse
     {
         $adminId = $request->session()->get('admin_id');
-
-        $settlementType = SettlementType::from($request->settlementType());
         $manualReason = $request->manualReason() ? ManualReason::from($request->manualReason()) : null;
 
         $settlement = $this->settlementsService->createSettlement(
-            settlementType: $settlementType,
             transactionIds: $request->transactionIds(),
             settlementDate: $request->settlementDate(),
             executionDate: $request->executionDate(),
@@ -81,8 +77,26 @@ class AdminController extends Controller
         $page = (int) $request->query('page', 1);
         $perPage = (int) $request->query('per_page', 20);
         $type = $request->query('type');
+        $status = $request->query('status', 'all');
+        $sortKey = $request->query('sort', 'created_at');
+        $sortOrder = $request->query('order', 'desc');
 
-        $result = $this->settlementsService->listSettlements($page, $perPage, $type);
+        // Validate parameters
+        $validStatuses = ['all', 'active', 'cancelled'];
+        $validSortKeys = ['created_at', 'created_by'];
+        $validSortOrders = ['asc', 'desc'];
+
+        if (!in_array($status, $validStatuses)) {
+            $status = 'all';
+        }
+        if (!in_array($sortKey, $validSortKeys)) {
+            $sortKey = 'created_at';
+        }
+        if (!in_array($sortOrder, $validSortOrders)) {
+            $sortOrder = 'desc';
+        }
+
+        $result = $this->settlementsService->listSettlements($page, $perPage, $type, $status, $sortKey, $sortOrder);
 
         return response()->json([
             'data' => array_map(fn($dto) => $dto->toArray(), $result->items),
@@ -174,6 +188,28 @@ class AdminController extends Controller
             return response()->streamDownload(
                 fn() => print $csv,
                 "settlement-{$id}.csv",
+                ['Content-Type' => 'text/csv; charset=UTF-8'],
+            );
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * GET /api/admin/settlements/{id}/export-transactions - Export Detailed Transactions CSV
+     *
+     * Generates and downloads CSV file with detailed transaction information
+     */
+    public function exportTransactionsCsv(string $id, Request $request): StreamedResponse|JsonResponse
+    {
+        $adminId = $request->session()->get('admin_id');
+
+        try {
+            $csv = $this->settlementsService->exportTransactionsCsv($id, $adminId);
+
+            return response()->streamDownload(
+                fn() => print $csv,
+                "settlement-{$id}-transactions.csv",
                 ['Content-Type' => 'text/csv; charset=UTF-8'],
             );
         } catch (\Exception $e) {

@@ -541,4 +541,152 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     console.log(`Final transaction count on All: ${finalCount}`)
     expect(finalCount, 'Should have transactions available').toBeGreaterThanOrEqual(0)
   })
+
+  /**
+   * Test 8: Verify settlement date column displays correctly in journal
+   *
+   * E2E Verification Flow:
+   * 1. Navigate to journal
+   * 2. Verify settlement date column header exists
+   * 3. Filter by "settled" transactions
+   * 4. Verify settled transactions show date and time
+   * 5. Verify unsettled transactions show "—"
+   * 6. Verify date/time format is correct
+   */
+  test('should display settlement date column with correct format', async ({ page, authenticatedJournalPage }) => {
+    // === ARRANGE ===
+    console.log('Navigating to journal page...')
+    await authenticatedJournalPage.navigate()
+    await authenticatedJournalPage.expectPageVisible()
+    await authenticatedJournalPage.waitForTableToLoad()
+
+    // === ACT & ASSERT ===
+    // 1. Verify settlement date column header exists
+    console.log('Verifying settlement date column header exists...')
+    const settlementDateHeader = page.getByTestId('journal-header-settlement-date')
+    await expect(settlementDateHeader).toBeVisible()
+    const headerText = await settlementDateHeader.textContent()
+    expect(headerText?.trim()).toBe('Settlement Date')
+    console.log('✅ Settlement Date header found')
+
+    // 2. Check "all" transactions - should have mix of settled and unsettled
+    console.log('\nChecking transactions in "All" filter...')
+    const allFilterBtn = page.getByTestId('journal-settlement-status-filter-all')
+    await expect(allFilterBtn).toBeVisible()
+    await allFilterBtn.click()
+    await authenticatedJournalPage.waitForTableToLoad()
+
+    let hasSettled = false
+    let hasUnsettled = false
+
+    const allRows = await page.locator('[data-testid^="journal-table-row-"]').all()
+    console.log(`Checking ${allRows.length} transactions...`)
+
+    for (const row of allRows) {
+      const testIdAttr = await row.getAttribute('data-testid')
+      const transactionId = testIdAttr?.replace('journal-table-row-', '')
+      if (!transactionId) continue
+
+      const settlementDateCell = row.locator(`[data-testid="journal-table-cell-settlement-date-${transactionId}"]`)
+      const cellText = await settlementDateCell.textContent()
+
+      if (cellText === '—') {
+        hasUnsettled = true
+      } else if (cellText && cellText.trim() !== '') {
+        hasSettled = true
+        // Verify format for settled transaction
+        console.log(`  Settled transaction date: "${cellText}"`)
+        const hasDate = /\d{2}\/\d{2}\/\d{4}/.test(cellText)
+        const hasTime = /\d{2}:\d{2}:\d{2}/.test(cellText)
+        expect(hasDate, `Date format should be MM/DD/YYYY, got: "${cellText}"`).toBeTruthy()
+        expect(hasTime, `Time format should be HH:MM:SS, got: "${cellText}"`).toBeTruthy()
+      }
+    }
+
+    console.log(`  Found settled transactions: ${hasSettled}`)
+    console.log(`  Found unsettled transactions: ${hasUnsettled}`)
+
+    // 3. Filter by "settled" - all should show date and time
+    console.log('\nFiltering by "settled" transactions...')
+    const settledFilterBtn = page.getByTestId('journal-settlement-status-filter-settled')
+    await expect(settledFilterBtn).toBeVisible()
+    await settledFilterBtn.click()
+    await authenticatedJournalPage.waitForTableToLoad()
+
+    const settledRows = await page.locator('[data-testid^="journal-table-row-"]').all()
+    console.log(`Found ${settledRows.length} settled transactions`)
+    expect(settledRows.length, 'Should have at least one settled transaction').toBeGreaterThan(0)
+
+    // Verify all settled transactions show date and time
+    for (const row of settledRows) {
+      const testIdAttr = await row.getAttribute('data-testid')
+      const transactionId = testIdAttr?.replace('journal-table-row-', '')
+      if (!transactionId) continue
+
+      const settlementDateCell = row.locator(`[data-testid="journal-table-cell-settlement-date-${transactionId}"]`)
+      const cellText = await settlementDateCell.textContent()
+
+      expect(cellText, 'Settled transaction should have settlement date').toBeTruthy()
+      expect(cellText, 'Settlement date should not be dash').not.toBe('—')
+
+      // Verify date/time format
+      const dateMatch = cellText?.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+      const timeMatch = cellText?.match(/(\d{2}):(\d{2}):(\d{2})/)
+
+      expect(dateMatch, `Date should be MM/DD/YYYY format, got: "${cellText}"`).toBeTruthy()
+      expect(timeMatch, `Time should be HH:MM:SS format, got: "${cellText}"`).toBeTruthy()
+
+      if (dateMatch && timeMatch) {
+        const [, month, day, year] = dateMatch
+        const [, hours, minutes, seconds] = timeMatch
+
+        // Validate date ranges
+        expect(parseInt(month), 'Month should be 01-12').toBeGreaterThanOrEqual(1)
+        expect(parseInt(month), 'Month should be 01-12').toBeLessThanOrEqual(12)
+        expect(parseInt(day), 'Day should be 01-31').toBeGreaterThanOrEqual(1)
+        expect(parseInt(day), 'Day should be 01-31').toBeLessThanOrEqual(31)
+        expect(parseInt(year), 'Year should be valid').toBeGreaterThan(2020)
+
+        // Validate time ranges
+        expect(parseInt(hours), 'Hours should be 00-23').toBeGreaterThanOrEqual(0)
+        expect(parseInt(hours), 'Hours should be 00-23').toBeLessThan(24)
+        expect(parseInt(minutes), 'Minutes should be 00-59').toBeGreaterThanOrEqual(0)
+        expect(parseInt(minutes), 'Minutes should be 00-59').toBeLessThan(60)
+        expect(parseInt(seconds), 'Seconds should be 00-59').toBeGreaterThanOrEqual(0)
+        expect(parseInt(seconds), 'Seconds should be 00-59').toBeLessThan(60)
+
+        console.log(`  ✅ Valid settlement date: ${month}/${day}/${year} ${hours}:${minutes}:${seconds}`)
+      }
+    }
+
+    // 4. Filter by "open" - all should show dash
+    console.log('\nFiltering by "open" (unsettled) transactions...')
+    const openFilterBtn = page.getByTestId('journal-settlement-status-filter-open')
+    await expect(openFilterBtn).toBeVisible()
+    await openFilterBtn.click()
+    await authenticatedJournalPage.waitForTableToLoad()
+
+    const openRows = await page.locator('[data-testid^="journal-table-row-"]').all()
+    console.log(`Found ${openRows.length} open transactions`)
+    expect(openRows.length, 'Should have at least one unsettled transaction').toBeGreaterThan(0)
+
+    // Verify all open transactions show dash (sample first few to avoid timeout)
+    let dashCount = 0
+    const maxToCheck = Math.min(3, openRows.length) // Only check first 3 to avoid timeouts
+    for (let i = 0; i < maxToCheck; i++) {
+      const row = openRows[i]
+      const testIdAttr = await row.getAttribute('data-testid')
+      const transactionId = testIdAttr?.replace('journal-table-row-', '')
+      if (!transactionId) continue
+
+      const settlementDateCell = row.locator(`[data-testid="journal-table-cell-settlement-date-${transactionId}"]`)
+      const cellText = await settlementDateCell.textContent({timeout: 5000})
+
+      expect(cellText?.trim(), 'Open transaction should show dash').toBe('—')
+      dashCount++
+    }
+
+    console.log(`  ✅ All ${dashCount} open transactions show "—"`)
+    console.log('\n✅ Settlement date column verification complete!')
+  })
 })

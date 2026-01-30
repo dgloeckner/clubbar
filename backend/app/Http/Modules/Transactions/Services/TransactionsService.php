@@ -428,6 +428,7 @@ final readonly class TransactionsService
      *
      * Returns paginated list of all transactions with optional filtering and sorting.
      * Used for admin journal view across all members.
+     * Implements UC-A22-B: Filter Transactions by Settlement Status
      *
      * @param int $page Page number (1-indexed)
      * @param int $perPage Items per page (1-100)
@@ -438,6 +439,7 @@ final readonly class TransactionsService
      * @param ?string $search Search member name or notes (optional)
      * @param string $sortKey Sort field (created_at|amount|type|member, default: created_at)
      * @param string $sortOrder Sort order (asc|desc, default: desc)
+     * @param string $settlementStatus Filter by settlement status (all|open|settled, default: all)
      * @return array Response with items, total, page, per_page
      */
     public function getTransactions(
@@ -449,7 +451,8 @@ final readonly class TransactionsService
         ?string $memberId = null,
         ?string $search = null,
         string $sortKey = 'created_at',
-        string $sortOrder = 'desc'
+        string $sortOrder = 'desc',
+        string $settlementStatus = 'all'
     ): array {
         // Ensure page is at least 1
         $page = max(1, $page);
@@ -459,6 +462,7 @@ final readonly class TransactionsService
         // Build query
         $query = DB::table('transactions')
             ->join('members', 'transactions.member_id', '=', 'members.id')
+            ->leftJoin('settlements', 'transactions.settlement_id', '=', 'settlements.id')
             ->select([
                 'transactions.id',
                 'transactions.member_id',
@@ -470,6 +474,7 @@ final readonly class TransactionsService
                 'transactions.created_by_admin_id',
                 'transactions.created_by_terminal_id',
                 'transactions.settlement_id',
+                'settlements.settlement_date',
                 DB::raw("CONCAT(members.first_name, ' ', members.last_name) AS member_name"),
             ]);
 
@@ -498,6 +503,14 @@ final readonly class TransactionsService
                   ->orWhere('transactions.notes', 'LIKE', "%{$search}%");
             });
         }
+
+        // Apply settlement status filter
+        if ($settlementStatus === 'open') {
+            $query->whereNull('transactions.settlement_id');
+        } elseif ($settlementStatus === 'settled') {
+            $query->whereNotNull('transactions.settlement_id');
+        }
+        // 'all' = no filter
 
         // Get total count before pagination
         $total = $query->count();
@@ -561,6 +574,7 @@ final readonly class TransactionsService
                     'created_by_admin_id' => $tx->created_by_admin_id,
                     'created_by_terminal_id' => $tx->created_by_terminal_id,
                     'settlement_id' => $tx->settlement_id,
+                    'settlement_date' => $tx->settlement_date,
                 ];
             })
             ->toArray();

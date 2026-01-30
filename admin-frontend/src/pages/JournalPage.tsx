@@ -20,7 +20,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Card } from '../components/common/Card'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
-import { TypeFilter } from '../components/forms/TypeFilter'
+import { SettlementStatusFilter } from '../components/forms/SettlementStatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { onLoadingStateChange } from '../services/api'
 import {
@@ -30,6 +30,9 @@ import {
   getAmountColor,
   type GlobalTransaction
 } from '../services/transactions'
+import {
+  createSettlement
+} from '../services/settlements'
 import {
   tableColors,
   tableSpacing,
@@ -63,12 +66,17 @@ export function JournalPage() {
   const [period, setPeriod] = useState('3m') // Period preset: '1m' | '3m' | '6m' | '1y' | '2y' | 'all'
   const [dateFrom, setDateFrom] = useState<string | undefined>(undefined) // Set by PeriodPicker
   const [dateTo, setDateTo] = useState<string | undefined>(undefined) // Set by PeriodPicker
-  const [filterType, setFilterType] = useState<'all' | 'purchase' | 'correction'>('all')
+  const [settlementStatus, setSettlementStatus] = useState<'all' | 'open' | 'settled'>('all')
   const [search, setSearch] = useState('')
 
   // Sorting state
   const [sortKey, setSortKey] = useState<'created_at' | 'amount' | 'type' | 'member'>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+
+  // Settlement mode state
+  type SettlementMode = 'none' | 'edit'
+  const [settlementMode, setSettlementMode] = useState<SettlementMode>('none')
+  const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set())
 
   // Track if component is mounted to prevent state updates on unmounted component
   const isMountedRef = useRef(true)
@@ -88,7 +96,7 @@ export function JournalPage() {
   // Load transactions when filters, sorting, or pagination changes
   useEffect(() => {
     loadTransactions()
-  }, [currentPage, pageSize, dateFrom, dateTo, filterType, search, sortKey, sortDirection])
+  }, [currentPage, pageSize, dateFrom, dateTo, settlementStatus, search, sortKey, sortDirection])
 
   async function loadTransactions() {
     try {
@@ -99,11 +107,12 @@ export function JournalPage() {
         pageSize,
         dateFrom || undefined,
         dateTo || undefined,
-        filterType,
+        'all', // type - deprecated, always 'all' for now
         undefined, // memberId - future enhancement
         search || undefined,
         sortKey,
-        sortDirection
+        sortDirection,
+        settlementStatus
       )
 
       // Only update state if component is still mounted
@@ -142,8 +151,8 @@ export function JournalPage() {
     setCurrentPage(1)
   }
 
-  const handleFilterTypeChange = (type: 'all' | 'purchase' | 'correction') => {
-    setFilterType(type)
+  const handleSettlementStatusChange = (status: 'all' | 'open' | 'settled') => {
+    setSettlementStatus(status)
     setCurrentPage(1)
   }
 
@@ -163,6 +172,99 @@ export function JournalPage() {
     console.log('Create correction clicked')
   }
 
+  const handleToggleTransaction = (id: string) => {
+    setSelectedTransactionIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const handleSelectAll = () => {
+    if (selectedTransactionIds.size === state.transactions.length && state.transactions.length > 0) {
+      setSelectedTransactionIds(new Set())
+    } else {
+      // Only select unsettled transactions
+      const unsettled = state.transactions.filter(t => t.settlement_id === null)
+      setSelectedTransactionIds(new Set(unsettled.map(t => t.id)))
+    }
+  }
+
+  const handleCancelSettlement = () => {
+    setSettlementMode('none')
+    setSelectedTransactionIds(new Set())
+  }
+
+  const handleEnterEditMode = () => {
+    setSettlementMode('edit')
+    setSelectedTransactionIds(new Set())
+  }
+
+  const handleSettleAll = async () => {
+    if (!confirm('Settle all open transactions?')) return
+
+    try {
+      setState((prev) => ({ ...prev, loading: true, error: null }))
+
+      const openTransactions = state.transactions.filter(t => t.settlement_id === null)
+      if (openTransactions.length === 0) {
+        setState((prev) => ({ ...prev, loading: false, error: 'No open transactions to settle' }))
+        return
+      }
+
+      const today = new Date().toISOString().split('T')[0]
+      const executionDate = new Date()
+      executionDate.setDate(executionDate.getDate() + 7)
+      const executionDateStr = executionDate.toISOString().split('T')[0]
+
+      await createSettlement(
+        openTransactions.map(t => t.id),
+        today,
+        executionDateStr
+      )
+
+      setSettlementMode('none')
+      setSelectedTransactionIds(new Set())
+      await loadTransactions()
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to settle all transactions'
+      setState((prev) => ({ ...prev, loading: false, error: errorMsg }))
+    }
+  }
+
+  const handleConcludeSettlement = async () => {
+    if (selectedTransactionIds.size === 0) {
+      alert('Please select at least one transaction')
+      return
+    }
+
+    try {
+      setState((prev) => ({ ...prev, loading: true, error: null }))
+
+      const today = new Date().toISOString().split('T')[0]
+      const executionDate = new Date()
+      executionDate.setDate(executionDate.getDate() + 7)
+      const executionDateStr = executionDate.toISOString().split('T')[0]
+
+      await createSettlement(
+        Array.from(selectedTransactionIds),
+        today,
+        executionDateStr
+      )
+
+      setSettlementMode('none')
+      setSelectedTransactionIds(new Set())
+      await loadTransactions()
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create settlement'
+      setState((prev) => ({ ...prev, loading: false, error: errorMsg }))
+    }
+  }
+
   // Calculate pagination info
   const totalPages = Math.ceil(state.totalItems / pageSize)
 
@@ -176,6 +278,7 @@ export function JournalPage() {
             padding: tableSpacing.cellPadding,
             display: 'flex',
             justifyContent: 'flex-end',
+            gap: 12,
             borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
           }}
         >
@@ -202,6 +305,114 @@ export function JournalPage() {
           >
             + Correction
           </button>
+
+          {/* Settlement Controls */}
+          {settlementMode === 'none' && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                data-testid="journal-settlement-selected-btn"
+                onClick={handleEnterEditMode}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#3b82f6',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'background-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#2563eb'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#3b82f6'
+                }}
+              >
+                + Settlement (selected)
+              </button>
+              <button
+                data-testid="journal-settlement-all-btn"
+                onClick={handleSettleAll}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#10b981',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'background-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#059669'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#10b981'
+                }}
+              >
+                + Settlement (all)
+              </button>
+            </div>
+          )}
+
+          {settlementMode === 'edit' && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                data-testid="journal-settlement-conclude-btn"
+                onClick={handleConcludeSettlement}
+                disabled={selectedTransactionIds.size === 0}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: selectedTransactionIds.size > 0 ? '#10b981' : '#6b7280',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: selectedTransactionIds.size > 0 ? 'pointer' : 'not-allowed',
+                  transition: 'background-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedTransactionIds.size > 0) {
+                    e.currentTarget.style.backgroundColor = '#059669'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedTransactionIds.size > 0) {
+                    e.currentTarget.style.backgroundColor = '#10b981'
+                  }
+                }}
+              >
+                Conclude Settlement ({selectedTransactionIds.size})
+              </button>
+              <button
+                data-testid="journal-settlement-cancel-btn"
+                onClick={handleCancelSettlement}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'background-color 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#dc2626'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#ef4444'
+                }}
+              >
+                Cancel Settlement
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Toolbar */}
@@ -267,11 +478,11 @@ export function JournalPage() {
             testId="journal-period-picker"
           />
 
-          {/* Type filter (colored toggle pills) */}
-          <TypeFilter
-            value={filterType}
-            onTypeChange={handleFilterTypeChange}
-            testId="journal-type-filter"
+          {/* Settlement status filter (colored toggle pills) */}
+          <SettlementStatusFilter
+            value={settlementStatus}
+            onChange={handleSettlementStatusChange}
+            testId="journal-settlement-status-filter"
           />
         </div>
 
@@ -329,6 +540,22 @@ export function JournalPage() {
             >
                 <thead>
                   <tr style={headerRowStyle}>
+                    {/* Checkbox header (only in edit mode) */}
+                    {settlementMode === 'edit' && (
+                      <th
+                        style={{
+                          ...headerCellBaseStyle,
+                          width: '50px',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          data-testid="journal-select-all-checkbox"
+                          checked={selectedTransactionIds.size === state.transactions.length && state.transactions.length > 0}
+                          onChange={handleSelectAll}
+                        />
+                      </th>
+                    )}
                     <th
                       style={{
                         ...headerCellBaseStyle,
@@ -383,6 +610,12 @@ export function JournalPage() {
                     >
                       Amount {sortKey === 'amount' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
+                    <th
+                      style={headerCellBaseStyle}
+                      data-testid="journal-header-settlement-date"
+                    >
+                      Settlement Date
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -392,10 +625,29 @@ export function JournalPage() {
                       data-testid={`journal-table-row-${tx.id}`}
                       style={{
                         borderBottom: tableColors.rowActiveBorder,
-                        backgroundColor: tableColors.rowActiveBg,
+                        backgroundColor: selectedTransactionIds.has(tx.id)
+                          ? 'rgba(59, 130, 246, 0.1)'
+                          : tableColors.rowActiveBg,
                         transition: 'background-color 150ms',
                       }}
                     >
+                      {/* Checkbox column (only in edit mode) */}
+                      {settlementMode === 'edit' && (
+                        <td
+                          style={{
+                            padding: tableSpacing.cellPadding,
+                            width: '50px',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            data-testid={`journal-select-checkbox-${tx.id}`}
+                            checked={selectedTransactionIds.has(tx.id)}
+                            onChange={() => handleToggleTransaction(tx.id)}
+                            disabled={tx.settlement_id !== null}
+                          />
+                        </td>
+                      )}
                       {/* Date and Time */}
                       <td
                         data-testid={`journal-table-cell-date-${tx.id}`}
@@ -513,6 +765,37 @@ export function JournalPage() {
                         }}
                       >
                         €{(tx.amount_cents / 100).toFixed(2)}
+                      </td>
+
+                      {/* Settlement Date */}
+                      <td
+                        data-testid={`journal-table-cell-settlement-date-${tx.id}`}
+                        style={{
+                          padding: tableSpacing.cellPadding,
+                          color: tableColors.cellText,
+                        }}
+                      >
+                        {tx.settlement_date ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <div>
+                              {new Date(tx.settlement_date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                              })}
+                            </div>
+                            <div style={{ fontSize: '12px', color: tableColors.cellSecondaryText }}>
+                              {new Date(tx.settlement_date).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false,
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                     </tr>
                   ))}

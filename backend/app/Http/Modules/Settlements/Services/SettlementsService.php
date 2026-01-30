@@ -12,7 +12,6 @@ use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Enums\ManualReason;
-use App\Shared\Enums\SettlementType;
 use App\Shared\Services\AuditService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
@@ -134,23 +133,21 @@ final readonly class SettlementsService
      * Create a settlement
      *
      * Creates settlement record and marks transactions as settled.
-     * Generates unique sepa_message_id for SEPA settlements.
+     * Generates unique sepa_message_id for settlement export.
      * Logs creation to audit log.
      *
-     * @param SettlementType $settlementType Type of settlement (sepa or manual)
      * @param array $transactionIds Transaction UUIDs to include
      * @param Carbon|string $settlementDate Date settlement was created
      * @param Carbon|string $executionDate Date when payment will be executed
      * @param string|null $periodStart Start of transaction period (optional)
      * @param string|null $periodEnd End of transaction period (optional)
-     * @param ManualReason|null $manualReason Reason (required for manual settlements)
+     * @param ManualReason|null $manualReason Optional reason for settlement context
      * @param string|null $notes Admin notes
      * @param string $adminUserId Admin creating the settlement
      * @return SettlementDto The created settlement
      * @throws \Exception If execution_date < settlement_date + 7 days
      */
     public function createSettlement(
-        SettlementType $settlementType,
         array $transactionIds,
         Carbon|string $settlementDate,
         Carbon|string $executionDate,
@@ -187,15 +184,11 @@ final readonly class SettlementsService
         $memberIds = $transactions->pluck('member_id')->unique();
         $memberCount = count($memberIds);
 
-        // Generate SEPA message ID for SEPA settlements
-        $sepaMessageId = null;
-        if ($settlementType === SettlementType::SEPA) {
-            $sepaMessageId = $this->repository->getNextSepaMessageId();
-        }
+        // Generate SEPA message ID for settlement export
+        $sepaMessageId = $this->repository->getNextSepaMessageId();
 
         // Create settlement
         $settlement = $this->repository->create([
-            'settlement_type' => $settlementType,
             'manual_reason' => $manualReason,
             'settlement_date' => $settlementDate,
             'execution_date' => $executionDate,
@@ -204,6 +197,7 @@ final readonly class SettlementsService
             'sepa_message_id' => $sepaMessageId,
             'total_amount_cents' => $totalAmount,
             'member_count' => $memberCount,
+            'is_cancelled' => false,
             'notes' => $notes,
             'created_by_admin_id' => $adminUserId,
         ]);
@@ -228,7 +222,6 @@ final readonly class SettlementsService
             entityId: $settlement->id,
             oldValues: null,
             newValues: [
-                'settlement_type' => $settlementType->value,
                 'total_amount_cents' => $totalAmount,
                 'member_count' => $memberCount,
                 'sepa_message_id' => $sepaMessageId,
@@ -257,20 +250,23 @@ final readonly class SettlementsService
     }
 
     /**
-     * List settlements with pagination and filtering
+     * List settlements with pagination
      *
      * @param int $page Page number
      * @param int $perPage Items per page
-     * @param string|null $type Filter by type (sepa or manual)
+     * @param string|null $type Deprecated: type parameter no longer used (all settlements unified)
      * @return PaginatedResultDto
      */
-    public function listSettlements(int $page = 1, int $perPage = 20, ?string $type = null): PaginatedResultDto
-    {
-        if ($type) {
-            $paginator = $this->repository->findByTypePaginated($type, $page, $perPage);
-        } else {
-            $paginator = $this->repository->findActivePaginated($page, $perPage);
-        }
+    public function listSettlements(
+        int $page = 1,
+        int $perPage = 20,
+        ?string $type = null,
+        ?string $status = null,
+        ?string $sortKey = 'created_at',
+        ?string $sortOrder = 'desc'
+    ): PaginatedResultDto {
+        // Type parameter ignored - all settlements are now unified
+        $paginator = $this->repository->findActivePaginated($page, $perPage, $status, $sortKey, $sortOrder);
 
         $items = collect($paginator->items())->map(fn($s) => $this->transformSettlement($s))->toArray();
 
@@ -353,10 +349,6 @@ final readonly class SettlementsService
             throw new \Exception('Settlement not found');
         }
 
-        if (!$settlement->isSepa()) {
-            throw new \Exception('Only SEPA settlements can be exported as XML');
-        }
-
         // Load settlement items with member relationships
         $items = SettlementItem::where('settlement_id', $settlementId)
             ->with('member')
@@ -405,12 +397,26 @@ final readonly class SettlementsService
             ->orderBy('member_id')
             ->get();
 
-        // Build CSV
+        // Group items by member and aggregate amounts
+        $memberTotals = [];
+        foreach ($items as $item) {
+            $memberId = $item->member_id;
+            if (!isset($memberTotals[$memberId])) {
+                $memberTotals[$memberId] = [
+                    'member' => $item->member,
+                    'total_cents' => 0,
+                ];
+            }
+            $memberTotals[$memberId]['total_cents'] += $item->amount_cents;
+        }
+
+        // Build CSV header
         $csv = "Member Name;Email;IBAN;Amount EUR\n";
 
-        foreach ($items as $item) {
-            $member = $item->member;
-            $amountEur = number_format($item->amount_cents / 100, 2, '.', '');
+        // Output one line per member with aggregated amount
+        foreach ($memberTotals as $data) {
+            $member = $data['member'];
+            $amountEur = number_format($data['total_cents'] / 100, 2, '.', '');
 
             $csv .= sprintf(
                 "\"%s\";%s;%s;%s\n",
@@ -435,6 +441,99 @@ final readonly class SettlementsService
     }
 
     /**
+     * Export settlement transactions as detailed CSV
+     *
+     * Generates CSV with one row per transaction showing member details and amounts.
+     * Useful for detailed transaction reconciliation and accounting.
+     *
+     * @param string $settlementId Settlement UUID
+     * @param string $adminUserId Admin performing export
+     * @return string CSV content (semicolon-delimited, UTF-8)
+     */
+    public function exportTransactionsCsv(string $settlementId, string $adminUserId): string
+    {
+        $settlement = $this->repository->findById($settlementId);
+
+        if (!$settlement) {
+            throw new \Exception('Settlement not found');
+        }
+
+        // Load items with transaction and member details
+        $items = SettlementItem::where('settlement_items.settlement_id', $settlementId)
+            ->with(['member', 'transaction'])
+            ->join('transactions', 'settlement_items.transaction_id', '=', 'transactions.id')
+            ->orderBy('settlement_items.member_id')
+            ->orderBy('transactions.created_at')
+            ->select('settlement_items.*')
+            ->get();
+
+        // Build CSV header with detailed transaction info
+        $csv = "Transaction ID;Transaction Date;Transaction Type;Product ID;Product;Member Name;Member Email;Member IBAN;Amount EUR;Notes\n";
+
+        // Output one line per transaction
+        foreach ($items as $item) {
+            $member = $item->member;
+            $transaction = $item->transaction;
+            $amountEur = number_format($item->amount_cents / 100, 2, '.', '');
+
+            // Get product name if available
+            $productName = '';
+            if ($transaction->product_id) {
+                $product = DB::table('products')
+                    ->where('id', $transaction->product_id)
+                    ->select('names')
+                    ->first();
+
+                if ($product) {
+                    $names = json_decode($product->names, true);
+                    $productName = reset($names) ?? 'Unknown Product';
+                } else {
+                    $productName = 'Product (Deleted)';
+                }
+            }
+
+            // Get transaction type label
+            $typeLabel = match($transaction->transaction_type) {
+                'purchase' => 'Purchase',
+                'correction' => 'Correction',
+                default => 'Unknown',
+            };
+
+            // Get transaction date
+            $txnDate = $transaction->created_at->format('Y-m-d H:i:s');
+
+            // Get notes (correction reason or empty)
+            $notes = $transaction->notes ?? '';
+
+            $csv .= sprintf(
+                "%s;%s;%s;%s;\"%s\";\"%s\";\"%s\";%s;%s;\"%s\"\n",
+                $transaction->id,
+                $txnDate,
+                $typeLabel,
+                $transaction->product_id ?? '',
+                addslashes($productName),
+                addslashes($member->first_name . ' ' . $member->last_name),
+                addslashes($member->email),
+                $member->iban ?? '',
+                $amountEur,
+                addslashes($notes),
+            );
+        }
+
+        // Log export
+        $this->auditService->log(
+            action: AuditAction::SETTLEMENT_EXPORT,
+            entityType: EntityType::SETTLEMENT,
+            entityId: $settlementId,
+            oldValues: null,
+            newValues: ['format' => 'transactions_csv'],
+            adminUserId: $adminUserId,
+        );
+
+        return $csv;
+    }
+
+    /**
      * Transform Settlement model to SettlementDto
      *
      * @param Settlement $settlement
@@ -447,6 +546,11 @@ final readonly class SettlementsService
             $settlement->load('items.member');
         }
 
+        // Load admin user if not already loaded
+        if (!$settlement->relationLoaded('createdBy')) {
+            $settlement->load('createdBy');
+        }
+
         // Transform items
         $items = $settlement->items->map(fn($item) => new SettlementItemDto(
             settlementId: $item->settlement_id,
@@ -456,9 +560,17 @@ final readonly class SettlementsService
             amountCents: $item->amount_cents,
         ))->toArray();
 
+        // Build admin name
+        $adminName = null;
+        if ($settlement->createdBy) {
+            $adminName = trim($settlement->createdBy->first_name . ' ' . $settlement->createdBy->last_name);
+            if (empty($adminName)) {
+                $adminName = $settlement->createdBy->email;
+            }
+        }
+
         return new SettlementDto(
             id: $settlement->id,
-            settlementType: $settlement->settlement_type->value,
             manualReason: $settlement->manual_reason?->value,
             settlementDate: $settlement->settlement_date->format('Y-m-d'),
             executionDate: $settlement->execution_date->format('Y-m-d'),
@@ -473,6 +585,8 @@ final readonly class SettlementsService
             notes: $settlement->notes,
             items: $items,
             createdAt: $settlement->created_at->toIso8601String(),
+            createdByAdminId: $settlement->created_by_admin_id,
+            createdByAdminName: $adminName,
         );
     }
 }

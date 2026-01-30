@@ -22,8 +22,10 @@ use Illuminate\Http\Exceptions\HttpResponseException;
  * - search: string (optional, search member name or notes)
  * - sort: created_at|amount|type|member (default: created_at)
  * - order: asc|desc (default: desc)
+ * - settlement_status: all|open|settled (default: all)
  *
  * Used by: Global transactions journal (UC-A20 derivative)
+ * Implements: UC-A22-B Filter Transactions by Settlement Status
  */
 class GetTransactionsRequest extends FormRequest
 {
@@ -56,6 +58,7 @@ class GetTransactionsRequest extends FormRequest
             'search' => 'nullable|string|max:255',
             'sort' => 'nullable|string|in:created_at,amount,type,member',
             'order' => 'nullable|string|in:asc,desc',
+            'settlement_status' => 'nullable|string|in:all,open,settled',
         ];
     }
 
@@ -81,6 +84,7 @@ class GetTransactionsRequest extends FormRequest
             'search.max' => 'Search string cannot exceed 255 characters',
             'sort.in' => 'Sort must be one of: created_at, amount, type, member',
             'order.in' => 'Order must be asc or desc',
+            'settlement_status.in' => 'Settlement status must be one of: all, open, settled',
         ];
     }
 
@@ -128,6 +132,7 @@ class GetTransactionsRequest extends FormRequest
             'type' => $this->query('type', 'all'),
             'member_id' => $this->query('member_id'),
             'search' => $this->query('search'),
+            'settlement_status' => $this->query('settlement_status', 'all'),
         ];
     }
 

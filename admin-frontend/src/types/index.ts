@@ -119,19 +119,23 @@ export interface Transaction {
 
 /**
  * Settlement Types
+ * Note: Settlement types are unified (no longer have sepa vs manual distinction).
+ * Use getSettlementStatus() from services/settlements.ts for status.
  */
-export type SettlementType = 'manual' | 'sepa_direct_debit'
-export type SettlementStatus = 'draft' | 'pending' | 'completed' | 'failed'
+export type SettlementStatus = 'active' | 'exported' | 'cancelled'
 
 export interface Settlement {
   id: string
-  settlement_type: SettlementType
-  status: SettlementStatus
+  settlement_date: string
+  execution_date: string | null
   total_amount_cents: number
+  total_amount_eur: number
   member_count: number
-  execution_date: string
+  is_cancelled: boolean
+  exported_at: string | null
   created_at: string
-  updated_at: string
+  created_by_admin_id: string | null
+  created_by_admin_name: string | null
 }
 
 export interface SettlementMember {
@@ -142,7 +146,6 @@ export interface SettlementMember {
   amount_cents: number
   iban: string
   mandate_reference: string
-  status: 'pending' | 'processed' | 'failed'
 }
 
 /**

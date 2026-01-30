@@ -22,7 +22,6 @@ final class CreateSettlementRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'settlement_type' => ['required', 'string', 'in:sepa,manual'],
             'transaction_ids' => ['required', 'array', 'min:1'],
             'transaction_ids.*' => ['uuid'],
             'settlement_date' => ['required', 'date', 'date_format:Y-m-d'],
@@ -37,8 +36,6 @@ final class CreateSettlementRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'settlement_type.required' => 'Settlement type is required',
-            'settlement_type.in' => 'Settlement type must be sepa or manual',
             'transaction_ids.required' => 'At least one transaction is required',
             'transaction_ids.min' => 'At least one transaction is required',
             'transaction_ids.*.uuid' => 'Each transaction ID must be a valid UUID',
@@ -69,17 +66,7 @@ final class CreateSettlementRequest extends FormRequest
                     "Execution date must be at least 7 days after settlement date. Minimum: {$minimumDate->format('Y-m-d')}"
                 );
             }
-
-            // Validate manual_reason is required for manual settlements
-            if ($this->settlement_type === 'manual' && empty($this->manual_reason)) {
-                $validator->errors()->add('manual_reason', 'Manual reason is required for manual settlements');
-            }
         });
-    }
-
-    public function settlementType(): string
-    {
-        return $this->validated('settlement_type');
     }
 
     public function transactionIds(): array

@@ -17,7 +17,8 @@ use Illuminate\Support\Facades\Route;
  * - GET /api/admin/settlements/{id} - Get settlement details with items
  * - DELETE /api/admin/settlements/{id} - Cancel settlement
  * - GET /api/admin/settlements/{id}/export-sepa - Export settlement as SEPA XML
- * - GET /api/admin/settlements/{id}/export-csv - Export settlement as CSV
+ * - GET /api/admin/settlements/{id}/export-csv - Export settlement as CSV (aggregated by member)
+ * - GET /api/admin/settlements/{id}/export-transactions - Export detailed transactions CSV
  * - GET /api/admin/sepa-config - Get SEPA configuration (masked sensitive fields)
  * - PUT /api/admin/sepa-config - Update SEPA configuration
  *
@@ -40,6 +41,7 @@ Route::prefix('admin')
         Route::delete('/settlements/{id}', [AdminController::class, 'destroy']);
         Route::get('/settlements/{id}/export-sepa', [AdminController::class, 'exportSepa']);
         Route::get('/settlements/{id}/export-csv', [AdminController::class, 'exportCsv']);
+        Route::get('/settlements/{id}/export-transactions', [AdminController::class, 'exportTransactionsCsv']);
 
         // SEPA configuration
         Route::get('/sepa-config', [SepaConfigController::class, 'show']);

@@ -112,29 +112,33 @@ class SettlementsRepository extends BaseRepository
      * @param int $perPage Items per page
      * @return LengthAwarePaginator
      */
-    public function findActivePaginated(int $page = 1, int $perPage = 20): LengthAwarePaginator
-    {
-        return $this->query()
-            ->where('is_cancelled', false)
-            ->orderBy('settlement_date', 'desc')
-            ->paginate($perPage, ['*'], 'page', $page);
-    }
+    public function findActivePaginated(
+        int $page = 1,
+        int $perPage = 20,
+        ?string $status = null,
+        ?string $sortKey = 'created_at',
+        ?string $sortOrder = 'desc'
+    ): LengthAwarePaginator {
+        $query = $this->query();
 
-    /**
-     * Find settlements by type with pagination
-     *
-     * @param string $type Settlement type (sepa or manual)
-     * @param int $page Page number
-     * @param int $perPage Items per page
-     * @return LengthAwarePaginator
-     */
-    public function findByTypePaginated(string $type, int $page = 1, int $perPage = 20): LengthAwarePaginator
-    {
-        return $this->query()
-            ->where('settlement_type', $type)
-            ->where('is_cancelled', false)
-            ->orderBy('settlement_date', 'desc')
-            ->paginate($perPage, ['*'], 'page', $page);
+        // Filter by status
+        if ($status === 'active') {
+            $query->where('is_cancelled', false);
+        } elseif ($status === 'cancelled') {
+            $query->where('is_cancelled', true);
+        }
+        // 'all' = no filter
+
+        // Apply sorting
+        if ($sortKey === 'created_by') {
+            // Sort by created_by_admin_id, with NULL values at the end
+            $query->orderByRaw("COALESCE(created_by_admin_id, '') " . strtoupper($sortOrder));
+        } else {
+            // Default: sort by created_at
+            $query->orderBy('created_at', strtoupper($sortOrder));
+        }
+
+        return $query->paginate($perPage, ['*'], 'page', $page);
     }
 
     /**
