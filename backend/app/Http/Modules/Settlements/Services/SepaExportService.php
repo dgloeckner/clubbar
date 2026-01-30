@@ -107,10 +107,30 @@ final readonly class SepaExportService
      */
     private function addTransactionsToDocument($sepaDocument, Settlement $settlement, Collection $items): void
     {
+        // Get creditor info from SEPA config
+        $config = $this->sepaConfigRepository->getConfig();
+
+        // Create payment info once (all members go into same payment batch)
+        $paymentInfoId = 'PAYMENT-' . str_pad((string) $settlement->id, 8, '0', STR_PAD_LEFT);
+
+        try {
+            $paymentInfo = $sepaDocument->addPaymentInfo(
+                $this->sanitizeName($config->creditor_name),
+                [
+                    'id' => $paymentInfoId,
+                    'creditorAccountIBAN' => $this->sanitizeIban($config->creditor_iban),
+                    'creditorName' => $this->sanitizeName($config->creditor_name),
+                    // creditorAgentBIC is optional
+                ]
+            );
+        } catch (\Exception $e) {
+            throw new \Exception('Failed to create payment info: ' . $e->getMessage());
+        }
+
         // Group items by member for batch processing
         $itemsByMember = $items->groupBy('member_id');
 
-        // For each member, add debit instruction
+        // For each member, add debit instruction to the payment
         foreach ($itemsByMember as $memberId => $memberItems) {
             $member = $memberItems->first()->member;
 
@@ -122,22 +142,24 @@ final readonly class SepaExportService
             // Calculate total for this member (in EUR cents)
             $totalAmountCents = $memberItems->sum('amount_cents');
 
-            // Create and add payment to the facade
+            // Add transfer to the payment
             try {
-                // Modern API expects transfer information as an array
+                $memberName = $this->sanitizeName($member->first_name . ' ' . $member->last_name);
+                $iban = $this->sanitizeIban($member->iban);
+
                 $transferInfo = [
-                    'iban' => $this->sanitizeIban($member->iban),
+                    'iban' => $iban,
                     'amount' => $totalAmountCents, // Amount in cents
                     'mandateId' => $member->mandate_reference,
                     'mandateSignatureDate' => $member->mandate_signed_at,
                 ];
 
-                $sepaFile = $sepaDocument->addTransfer(
-                    $this->sanitizeName($member->first_name . ' ' . $member->last_name),
+                $sepaDocument->addTransfer(
+                    $this->sanitizeName($config->creditor_name),
                     $transferInfo
                 );
             } catch (\Exception $e) {
-                throw new \Exception("Failed to add payment for member {$memberId}: " . $e->getMessage());
+                throw new \Exception("Failed to add transfer for member {$memberId}: " . $e->getMessage());
             }
         }
     }
