@@ -20,7 +20,7 @@ export function SettingsPage() {
   const { setIsLoading } = useLoading()
 
   // State management
-  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users'>('sepa')
+  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users'>('admin-users')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -393,17 +393,6 @@ export function SettingsPage() {
           style={tabContainerStyle}
         >
           <button
-            data-testid="settings-tab-sepa"
-            onClick={() => setActiveTab('sepa')}
-            style={tabStyle(activeTab === 'sepa') as any}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="5" width="20" height="14" rx="2" />
-              <line x1="2" y1="10" x2="22" y2="10" />
-            </svg>
-            SEPA-Konfiguration
-          </button>
-          <button
             data-testid="settings-tab-admin-users"
             onClick={() => setActiveTab('admin-users')}
             style={tabStyle(activeTab === 'admin-users') as any}
@@ -415,6 +404,17 @@ export function SettingsPage() {
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
             </svg>
             Admin-Benutzer
+          </button>
+          <button
+            data-testid="settings-tab-sepa"
+            onClick={() => setActiveTab('sepa')}
+            style={tabStyle(activeTab === 'sepa') as any}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="5" width="20" height="14" rx="2" />
+              <line x1="2" y1="10" x2="22" y2="10" />
+            </svg>
+            SEPA-Konfiguration
           </button>
         </div>
       </div>
