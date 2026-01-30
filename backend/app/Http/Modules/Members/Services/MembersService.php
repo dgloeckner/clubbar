@@ -326,6 +326,15 @@ class MembersService extends BaseService
         if (isset($updateData['isActive'])) {
             $dbUpdateData['is_active'] = $updateData['isActive'];
         }
+        if (isset($updateData['iban'])) {
+            $dbUpdateData['iban'] = $updateData['iban'];
+        }
+        if (isset($updateData['mandateReference'])) {
+            $dbUpdateData['mandate_reference'] = $updateData['mandateReference'];
+        }
+        if (isset($updateData['mandateSignedAt'])) {
+            $dbUpdateData['mandate_signed_at'] = $updateData['mandateSignedAt'];
+        }
 
         // Update in database
         $member = $this->membersRepository->updateById($memberId, $dbUpdateData);

@@ -41,8 +41,9 @@ final class UpdateMemberRequest extends FormRequest
                 Rule::enum(SupportedLanguage::class),
             ],
             'is_active' => ['nullable', 'boolean'],
-            'iban' => ['nullable', 'string', 'min:15', 'max:34'],
-            'mandate_reference' => ['nullable', 'string', 'min:1', 'max:35'],
+            // SEPA fields: allow clearing by removing min requirement (empty string = clear field)
+            'iban' => ['nullable', 'string', 'max:34'],
+            'mandate_reference' => ['nullable', 'string', 'max:35'],
             'mandate_signed_at' => ['nullable', 'date_format:Y-m-d'],
         ];
     }
