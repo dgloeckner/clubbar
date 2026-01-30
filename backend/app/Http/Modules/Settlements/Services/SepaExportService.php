@@ -124,14 +124,18 @@ final readonly class SepaExportService
 
             // Create and add payment to the facade
             try {
+                // Modern API expects transfer information as an array
+                $transferInfo = [
+                    'iban' => $this->sanitizeIban($member->iban),
+                    'amount' => $totalAmountCents, // Amount in cents
+                    'mandateId' => $member->mandate_reference,
+                    'mandateSignatureDate' => $member->mandate_signed_at,
+                ];
+
                 $sepaFile = $sepaDocument->addTransfer(
                     $this->sanitizeName($member->first_name . ' ' . $member->last_name),
-                    $this->sanitizeIban($member->iban),
-                    $totalAmountCents // Amount in cents
+                    $transferInfo
                 );
-
-                // Set mandate information on the payment
-                $sepaFile->setMandateOfTransfer($member->mandate_reference, $member->mandate_signed_at);
             } catch (\Exception $e) {
                 throw new \Exception("Failed to add payment for member {$memberId}: " . $e->getMessage());
             }
