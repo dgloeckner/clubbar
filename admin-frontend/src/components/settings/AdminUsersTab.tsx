@@ -4,10 +4,9 @@
  */
 
 import { theme, formatRelativeDate } from '../../styles/design-system'
-import { Avatar } from '../common/Avatar'
+import { Toggle } from '../common/Toggle'
 import { Badge } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
-import { ActionMenu } from '../common/ActionMenu'
 import { AdminUser } from '../../types'
 
 export interface AdminUsersTabProps {
@@ -20,11 +19,6 @@ export interface AdminUsersTabProps {
   onReactivateUser: (id: string) => void
 }
 
-// Function to determine avatar color variant based on admin index
-function getAvatarVariant(index: number): 'blue' | 'green' | 'orange' | 'pink' | 'gray' {
-  const variants: ('blue' | 'green' | 'orange' | 'pink' | 'gray')[] = ['blue', 'green', 'orange', 'pink', 'gray']
-  return variants[index % variants.length]
-}
 
 export function AdminUsersTab({
   users,
@@ -167,7 +161,7 @@ export function AdminUsersTab({
                     transition: `opacity ${theme.transitions.default}`,
                   }}
                 >
-                  {/* User Avatar + Name */}
+                  {/* User Toggle + Name */}
                   <td
                     style={{
                       padding: theme.spacing.md,
@@ -176,12 +170,16 @@ export function AdminUsersTab({
                       gap: theme.spacing.md,
                     }}
                   >
-                    <Avatar
-                      name={admin.display_name}
-                      variant={getAvatarVariant(index)}
-                      size="sm"
-                      inactive={!admin.is_active}
-                      testId={`settings-admin-user-avatar-${admin.id}`}
+                    <Toggle
+                      isEnabled={admin.is_active}
+                      onChange={(enabled) => {
+                        if (enabled) {
+                          onReactivateUser(admin.id)
+                        } else {
+                          onDeactivateUser(admin.id)
+                        }
+                      }}
+                      testId={`settings-admin-user-toggle-${admin.id}`}
                     />
                     <span data-testid={`settings-admin-user-name-${admin.id}`}>{admin.display_name}</span>
                   </td>
@@ -282,39 +280,6 @@ export function AdminUsersTab({
                         </button>
                       </Tooltip>
 
-                      {/* Action Menu (3-dot) */}
-                      <ActionMenu
-                        items={
-                          admin.is_active
-                            ? [
-                                {
-                                  label: 'Deaktivieren',
-                                  icon: (
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <circle cx="12" cy="12" r="10" />
-                                      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-                                    </svg>
-                                  ),
-                                  onClick: () => onDeactivateUser(admin.id),
-                                  variant: 'danger',
-                                },
-                              ]
-                            : [
-                                {
-                                  label: 'Reaktivieren',
-                                  icon: (
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <polyline points="23 4 23 10 17 10" />
-                                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                                    </svg>
-                                  ),
-                                  onClick: () => onReactivateUser(admin.id),
-                                  variant: 'default',
-                                },
-                              ]
-                        }
-                        testId={`settings-admin-action-menu-${admin.id}`}
-                      />
                     </div>
                   </td>
                 </tr>
