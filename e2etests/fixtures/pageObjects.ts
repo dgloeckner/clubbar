@@ -19,7 +19,7 @@
  */
 
 import { test as base, Page } from '@playwright/test'
-import { LoginPage, MembersPage, ProductsPage, SettlementsPage, StatisticsPage, CategoriesPage, JournalPage, SettingsPage } from '../pages'
+import { LoginPage, MembersPage, ProductsPage, SettlementsPage, StatisticsPage, CategoriesPage, JournalPage, SettingsPage, AuditLogPage } from '../pages'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
@@ -37,6 +37,8 @@ interface PageObjectFixtures {
   authenticatedJournalPage: JournalPage
   settingsPage: SettingsPage
   authenticatedSettingsPage: SettingsPage
+  auditLogPage: AuditLogPage
+  authenticatedAuditLogPage: AuditLogPage
 }
 
 /**
@@ -264,6 +266,36 @@ const authenticatedSettingsPageFixture = async (
 }
 
 /**
+ * Fixture: auditLogPage
+ * Provides AuditLogPage instance (unauthenticated)
+ */
+const auditLogPageFixture = async ({ page }: { page: Page }, use: (value: AuditLogPage) => Promise<void>) => {
+  const auditLogPage = new AuditLogPage(page)
+  await use(auditLogPage)
+}
+
+/**
+ * Fixture: authenticatedAuditLogPage
+ *
+ * Provides AuditLogPage with test already authenticated (via storage state).
+ * Simply navigates to the page and returns the page object.
+ */
+const authenticatedAuditLogPageFixture = async (
+  { page }: { page: Page },
+  use: (value: AuditLogPage) => Promise<void>
+) => {
+  // Navigate to audit log page
+  await page.goto('/audit-log', { waitUntil: 'domcontentloaded' })
+
+  // Wait for page to load - audit-log-page test ID indicates page is ready
+  await page.waitForSelector('[data-testid="audit-log-page"]', { timeout: 5000 })
+
+  // Create and provide AuditLogPage
+  const auditLogPage = new AuditLogPage(page)
+  await use(auditLogPage)
+}
+
+/**
  * Extend base test with custom fixtures
  */
 export const test = base.extend<PageObjectFixtures>({
@@ -282,6 +314,8 @@ export const test = base.extend<PageObjectFixtures>({
   authenticatedJournalPage: authenticatedJournalPageFixture,
   settingsPage: settingsPageFixture,
   authenticatedSettingsPage: authenticatedSettingsPageFixture,
+  auditLogPage: auditLogPageFixture,
+  authenticatedAuditLogPage: authenticatedAuditLogPageFixture,
 })
 
 // Re-export expect for convenience
