@@ -181,14 +181,21 @@ final readonly class SettlementsService
             ->get();
 
         // Validate no settlement_items exist for these transactions (ensures no duplicates)
+        // This prevents duplicate transaction_id entries in settlement_items table (UNIQUE constraint)
         $existingItems = DB::table('settlement_items')
             ->whereIn('transaction_id', $transactionIds)
-            ->pluck('transaction_id');
+            ->join('settlements', 'settlement_items.settlement_id', '=', 'settlements.id')
+            ->where('settlements.is_cancelled', false)
+            ->select('settlement_items.transaction_id', 'settlements.settlement_date')
+            ->get();
 
         if ($existingItems->isNotEmpty()) {
-            $existingIds = $existingItems->join(', ', ' and ');
+            $conflictCount = $existingItems->count();
+            $firstDate = $existingItems->first()?->settlement_date ?? 'unknown';
             throw new \Exception(
-                "Transactions already have settlement items: {$existingIds}"
+                "Cannot settle: {$conflictCount} transaction(s) already have settlement items. " .
+                "First settlement date: {$firstDate}. " .
+                "Please unselect already-settled transactions and try again."
             );
         }
 
@@ -199,46 +206,65 @@ final readonly class SettlementsService
         // Generate SEPA message ID for settlement export
         $sepaMessageId = $this->repository->getNextSepaMessageId();
 
-        // Create settlement
-        $settlement = $this->repository->create([
-            'manual_reason' => $manualReason,
-            'settlement_date' => $settlementDate,
-            'execution_date' => $executionDate,
-            'period_start' => $periodStart,
-            'period_end' => $periodEnd,
-            'sepa_message_id' => $sepaMessageId,
-            'total_amount_cents' => $totalAmount,
-            'member_count' => $memberCount,
-            'is_cancelled' => false,
-            'notes' => $notes,
-            'created_by_admin_id' => $adminUserId,
-        ]);
-
-        // Create settlement_items (line items)
-        foreach ($transactions as $txn) {
-            SettlementItem::create([
-                'settlement_id' => $settlement->id,
-                'transaction_id' => $txn->id,
-                'member_id' => $txn->member_id,
-                'amount_cents' => $txn->amount_cents,
-            ]);
-        }
-
-        // Log to audit trail
-        $this->auditService->log(
-            action: AuditAction::SETTLEMENT_CREATE,
-            entityType: EntityType::SETTLEMENT,
-            entityId: $settlement->id,
-            oldValues: null,
-            newValues: [
+        // CRITICAL: Wrap entire settlement creation in database transaction (ensures atomicity)
+        // Previous bug: Settlement was created before settlement_items loop, causing orphaned settlements
+        // if any settlement_item insertion failed (e.g., UNIQUE constraint violation on transaction_id).
+        // DB::transaction ensures: Either ALL are created, or NONE are created (no orphans).
+        return DB::transaction(function () use (
+            $manualReason,
+            $settlementDate,
+            $executionDate,
+            $periodStart,
+            $periodEnd,
+            $sepaMessageId,
+            $totalAmount,
+            $memberCount,
+            $notes,
+            $adminUserId,
+            $transactions,
+        ) {
+            // Create settlement
+            $settlement = $this->repository->create([
+                'manual_reason' => $manualReason,
+                'settlement_date' => $settlementDate,
+                'execution_date' => $executionDate,
+                'period_start' => $periodStart,
+                'period_end' => $periodEnd,
+                'sepa_message_id' => $sepaMessageId,
                 'total_amount_cents' => $totalAmount,
                 'member_count' => $memberCount,
-                'sepa_message_id' => $sepaMessageId,
-            ],
-            adminUserId: $adminUserId,
-        );
+                'is_cancelled' => false,
+                'notes' => $notes,
+                'created_by_admin_id' => $adminUserId,
+            ]);
 
-        return $this->transformSettlement($settlement);
+            // Create settlement_items (line items)
+            // If ANY of these fail, entire transaction rolls back
+            foreach ($transactions as $txn) {
+                SettlementItem::create([
+                    'settlement_id' => $settlement->id,
+                    'transaction_id' => $txn->id,
+                    'member_id' => $txn->member_id,
+                    'amount_cents' => $txn->amount_cents,
+                ]);
+            }
+
+            // Log to audit trail
+            $this->auditService->log(
+                action: AuditAction::SETTLEMENT_CREATE,
+                entityType: EntityType::SETTLEMENT,
+                entityId: $settlement->id,
+                oldValues: null,
+                newValues: [
+                    'total_amount_cents' => $totalAmount,
+                    'member_count' => $memberCount,
+                    'sepa_message_id' => $sepaMessageId,
+                ],
+                adminUserId: $adminUserId,
+            );
+
+            return $this->transformSettlement($settlement);
+        });
     }
 
     /**

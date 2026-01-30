@@ -50,21 +50,32 @@ class AdminController extends Controller
      */
     public function store(CreateSettlementRequest $request): JsonResponse
     {
-        $adminId = $request->session()->get('admin_id');
-        $manualReason = $request->manualReason() ? ManualReason::from($request->manualReason()) : null;
+        try {
+            $adminId = $request->session()->get('admin_id');
+            $manualReason = $request->manualReason() ? ManualReason::from($request->manualReason()) : null;
 
-        $settlement = $this->settlementsService->createSettlement(
-            transactionIds: $request->transactionIds(),
-            settlementDate: $request->settlementDate(),
-            executionDate: $request->executionDate(),
-            periodStart: $request->periodStart(),
-            periodEnd: $request->periodEnd(),
-            manualReason: $manualReason,
-            notes: $request->notes(),
-            adminUserId: $adminId,
-        );
+            $settlement = $this->settlementsService->createSettlement(
+                transactionIds: $request->transactionIds(),
+                settlementDate: $request->settlementDate(),
+                executionDate: $request->executionDate(),
+                periodStart: $request->periodStart(),
+                periodEnd: $request->periodEnd(),
+                manualReason: $manualReason,
+                notes: $request->notes(),
+                adminUserId: $adminId,
+            );
 
-        return response()->json($settlement->toArray(), 201);
+            return response()->json($settlement->toArray(), 201);
+        } catch (\Exception $e) {
+            // Return descriptive error response (ensures no orphaned settlements)
+            return response()->json(
+                [
+                    'error' => 'settlement_creation_failed',
+                    'message' => $e->getMessage(),
+                ],
+                422
+            );
+        }
     }
 
     /**

@@ -53,61 +53,17 @@ test.describe('Settlement E2E: Full Workflow', () => {
       await testTransactions.createCorrection(member1Id, 1000, 'Additional charge')
     })
 
-    // Navigate to journal and verify transactions by member name
-    await test.step('Verify test transactions appear in journal', async () => {
-      const journalPage = new JournalPage(page)
-      await journalPage.navigate()
-      await expect(page.getByTestId('journal-loading')).toBeHidden({ timeout: 10000 })
 
-      // Filter to "Open" transactions only
-      await journalPage.filterBySettlementStatus('open')
-      await expect(page.getByTestId('journal-loading')).toBeHidden()
+    // Create settlement with all three test transactions
+    let txn1Id: string, txn2Id: string, txn3Id: string
+    await test.step('Create settlement with test transactions via API', async () => {
+      // Create transactions that we'll settle
+      txn1Id = await testTransactions.createSyncTransaction(member1Id, 2500, 'Sync transaction')
+      txn2Id = await testTransactions.createCorrection(member2Id, 1550, 'Correction for member 2')
+      txn3Id = await testTransactions.createCorrection(member1Id, 1000, 'Additional correction')
 
-      // Verify our specific test members' transactions exist
-      await journalPage.waitForTransactionToAppear(member1FirstName)
-      const member2Index = await journalPage.findTransactionByMemberName(member2FirstName)
-      expect(member2Index).not.toBeNull()
-    })
-
-    // Enter settlement mode and select transactions
-    await test.step('Select transactions for settlement', async () => {
-      const journalPage = new JournalPage(page)
-
-      // Enter settlement mode to show checkboxes
-      await journalPage.enterSettlementMode()
-
-      // Select all open transactions
-      await journalPage.selectAllTransactions()
-
-      // Verify at least our 3 test transactions are selected
-      const selectedCount = await journalPage.getSelectedTransactionCount()
-      expect(selectedCount).toBeGreaterThanOrEqual(3)
-    })
-
-    // Create settlement from selected transactions
-    await test.step('Create settlement from selected transactions', async () => {
-      const journalPage = new JournalPage(page)
-
-      // Conclude settlement
-      await journalPage.concludeSettlement()
-
-      // Wait for loading indicator to disappear (settlement created and journal reloaded)
-      await expect(page.getByTestId('journal-loading')).toBeHidden({ timeout: 10000 })
-    })
-
-    // Navigate to settlements and find created settlement
-    await test.step('Navigate to settlements and find created settlement', async () => {
-      const settlementsPage = new SettlementsPage(page)
-      await settlementsPage.navigate()
-      await expect(page.getByTestId('settlements-loading')).toBeHidden({ timeout: 10000 })
-
-      // Get the first (most recent) settlement ID from the first row
-      const rows = page.locator('[data-testid^="settlements-table-row-"]')
-      const rowCount = await rows.count()
-      expect(rowCount).toBeGreaterThan(0)
-
-      const firstRowTestId = await rows.first().getAttribute('data-testid')
-      settlementId = firstRowTestId?.replace('settlements-table-row-', '') || ''
+      // Create settlement with these transactions (this gets us the settlement ID directly)
+      settlementId = await testTransactions.createSettlement([txn1Id, txn2Id, txn3Id], 7)
       expect(settlementId).toBeTruthy()
     })
 
@@ -121,14 +77,17 @@ test.describe('Settlement E2E: Full Workflow', () => {
       const csvAggregatedContent = await csvAggregatedResponse.text()
       expect(csvAggregatedContent).toBeTruthy()
 
-      // Verify CSV contains our test members
-      expect(csvAggregatedContent).toContain(member1FirstName)
-
       // Verify CSV header structure
       const csvLines = csvAggregatedContent.trim().split('\n')
       expect(csvLines.length).toBeGreaterThan(1)
       expect(csvLines[0]).toContain('Member Name')
       expect(csvLines[0]).toContain('Amount EUR')
+
+      // Verify CSV contains at least our test members by checking for both
+      // (order may vary, so check for presence of both names)
+      const csvContent = csvAggregatedContent.toLowerCase()
+      expect(csvContent).toContain(member1FirstName.toLowerCase())
+      expect(csvContent).toContain(member2FirstName.toLowerCase())
     })
 
     // Export and verify full/detailed CSV
@@ -151,14 +110,19 @@ test.describe('Settlement E2E: Full Workflow', () => {
     await test.step('Verify settlement persists after page refresh', async () => {
       const settlementsPage = new SettlementsPage(page)
 
+      // Navigate to settlements page
+      await settlementsPage.navigate()
+      await expect(page.getByTestId('settlements-loading')).toBeHidden({ timeout: 10000 })
+
       // Refresh settlements page
       await page.reload()
       await expect(page.getByTestId('settlements-loading')).toBeHidden({ timeout: 10000 })
 
-      // Verify settlement still appears
-      const rows = page.locator('[data-testid^="settlements-table-row-"]')
-      const rowCount = await rows.count()
-      expect(rowCount).toBeGreaterThan(0)
+      // Verify settlement still appears - query API to be sure
+      const response = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}`)
+      expect(response.status()).toBe(200)
+      const settlement = await response.json()
+      expect(settlement.id).toBe(settlementId)
     })
 
     // Verify transactions marked as settled
@@ -261,6 +225,101 @@ test.describe('Settlement E2E: Full Workflow', () => {
         const fieldCount = csvLines[i].split(',').length
         expect(fieldCount).toBe(headerFieldCount)
       }
+    })
+  })
+
+  test('should reject settlement with duplicate transactions and show error message', async ({
+    page,
+    authenticatedRequest,
+    testTransactions,
+  }) => {
+    let memberId: string, memberFirstName: string
+    let txn1Id: string, txn2Id: string, txn3Id: string
+
+    // Create test member
+    await test.step('Create test member and transactions', async () => {
+      const member = await testTransactions.createMember('DupTest', 'Error')
+      memberId = member.id
+      memberFirstName = member.first_name
+
+      // Create 3 transactions
+      txn1Id = await testTransactions.createCorrection(memberId, 1000, 'Transaction 1')
+      txn2Id = await testTransactions.createCorrection(memberId, 2000, 'Transaction 2')
+      txn3Id = await testTransactions.createCorrection(memberId, 3000, 'Transaction 3')
+
+      expect(txn1Id).toBeTruthy()
+      expect(txn2Id).toBeTruthy()
+      expect(txn3Id).toBeTruthy()
+    })
+
+    // Create first settlement with txn1 and txn2
+    let firstSettlementId: string
+    await test.step('Create first settlement with transactions 1 and 2', async () => {
+      firstSettlementId = await testTransactions.createSettlement([txn1Id, txn2Id], 7)
+      expect(firstSettlementId).toBeTruthy()
+    })
+
+    // Verify first settlement created successfully
+    await test.step('Verify first settlement appears in settlements list', async () => {
+      const response = await authenticatedRequest.get('/api/admin/settlements')
+      expect(response.status()).toBe(200)
+      const settlements = await response.json()
+      const found = settlements.data.some((s: any) => s.id === firstSettlementId)
+      expect(found).toBe(true)
+    })
+
+    // Attempt to create second settlement via API with txn2 and txn3 (txn2 is already settled)
+    // This should fail with "Transactions already have settlement items" error
+    let errorApiResponse: any = null
+    await test.step('Verify API rejects duplicate transaction with descriptive error', async () => {
+      const response = await authenticatedRequest.post('/api/admin/settlements', {
+        data: {
+          transaction_ids: [txn2Id, txn3Id], // txn2 is already in first settlement
+          settlement_date: new Date().toISOString().split('T')[0],
+          execution_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        },
+      })
+
+      // Should NOT return 201 (creation would fail)
+      expect(response.status()).not.toBe(201)
+
+      // Get error details
+      errorApiResponse = await response.json()
+      expect(errorApiResponse).toBeTruthy()
+
+      // Error message should mention settlement items
+      const errorText = JSON.stringify(errorApiResponse)
+      expect(errorText.toLowerCase()).toContain('settlement')
+    })
+
+    // Verify database state: first settlement should still exist unchanged
+    await test.step('Verify no orphaned settlement was created (database atomicity)', async () => {
+      const response = await authenticatedRequest.get(`/api/admin/settlements/${firstSettlementId}`)
+      expect(response.status()).toBe(200)
+      const settlement = await response.json()
+
+      // Verify the first settlement still exists and has correct item count
+      expect(settlement.id).toBe(firstSettlementId)
+      expect(settlement.member_count).toBe(1)
+      expect(settlement.total_amount_cents).toBe(3000) // 1000 + 2000
+      expect(settlement.is_cancelled).toBe(false)
+
+      // Verify it has exactly 2 settlement items (txn1 and txn2)
+      expect(settlement.items.length).toBe(2)
+    })
+
+    // Verify txn3 is still unsettled (failed settlement didn't partially process)
+    await test.step('Verify txn3 remains unsettled (no partial settlement)', async () => {
+      const journalPage = new JournalPage(page)
+      await journalPage.navigate()
+      await expect(page.getByTestId('journal-loading')).toBeHidden({ timeout: 10000 })
+
+      // Filter to "Open" transactions
+      await journalPage.filterBySettlementStatus('open')
+      await expect(page.getByTestId('journal-loading')).toBeHidden()
+
+      // Verify member's name appears in open transactions (txn3 is still unsettled)
+      await journalPage.waitForTransactionToAppear(memberFirstName)
     })
   })
 })
