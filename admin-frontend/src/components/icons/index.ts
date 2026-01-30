@@ -14,6 +14,7 @@
 export { type IconProps } from './types'
 
 // Core navigation icons
+export { AuditLogIcon } from './AuditLogIcon'
 export { UsersIcon } from './UsersIcon'
 export { PackageIcon } from './PackageIcon'
 export { BookIcon } from './BookIcon'
