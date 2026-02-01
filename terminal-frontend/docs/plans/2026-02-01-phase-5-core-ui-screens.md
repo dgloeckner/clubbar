@@ -1177,11 +1177,22 @@ Tests: 4 widget tests passing
 
 ---
 
-## Batch 1 Tasks
+## Batch 1 Tasks - Status
 
-- [ ] Task 1: MemberGreetingScreen (4 tests)
-- [ ] Task 2: ProductSelectionScreen (5 tests)
-- [ ] Task 3: ShoppingCartScreen (5 tests)
-- [ ] Task 4: CheckoutConfirmationScreen (4 tests)
+- [x] Task 1: MemberGreetingScreen (4 tests) - COMPLETED ✅
+  - All 4 tests passing
+  - Commit: 40a4c75
+  - Display logic for member greeting and error states implemented
 
-**Total Phase 5 Tests Target:** 18 tests passing
+- [~] Task 2: ProductSelectionScreen (5 tests) - IN PROGRESS 🔄
+  - Test file created with 4 tests
+  - Implementation started - needs CartProvider API integration
+  - Issue: CartProvider.addItem requires (productId, productName, priceCents, quantity, language) parameters
+  - Database models reconciled (CategoriesCacheData.names, ProductsCacheData.priceCents)
+  - Next: Adapt implementation to pass all CartProvider parameters
+
+- [ ] Task 3: ShoppingCartScreen (5 tests) - PENDING
+- [ ] Task 4: CheckoutConfirmationScreen (4 tests) - PENDING
+
+**Batch 1 Progress:** 1/4 screens complete, 4/18 tests passing
+**Next Steps:** Complete Task 2 with CartProvider API adaptation, then Tasks 3-4

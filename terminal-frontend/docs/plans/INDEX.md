@@ -2,10 +2,12 @@
 
 ## Current Status
 
-**Phase 5: Core UI Screens** - READY FOR EXECUTION
-- 4 Screens: MemberGreetingScreen, ProductSelectionScreen, ShoppingCartScreen, CheckoutConfirmationScreen
-- Ready to start Batch 1 (18 tests target)
-- Estimated: 4 tasks, 18 widget tests total
+**Phase 5: Core UI Screens** - BATCH 1 IN PROGRESS 🔄
+- **Progress:** Task 1 complete (4/4 tests ✅), Task 2 in progress (API integration needed)
+- **Tests Passing:** 4/18 (25% complete)
+- **Current Issue:** CartProvider.addItem signature requires (productId, productName, priceCents, quantity, language)
+- **Remaining:** 3 screens to implement (Tasks 2-4)
+- **Next Action:** Adapt Task 2 ProductSelectionScreen to pass all CartProvider parameters, then complete Tasks 3-4
 
 ## Completed Plans
 
