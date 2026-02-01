@@ -1,0 +1,53 @@
+name: ruderbar_terminal
+description: "Native Flutter POS terminal for Ruderbar club bar system."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Database & ORM (compatible versions - drift_dev requires older sqlite3)
+  drift: ^2.30.1
+  sqlite3_flutter_libs: ^0.5.41
+  sqflite_common: ^2.5.6
+  sqflite_common_ffi: ^2.3.7+1 # Compatible with drift_dev
+
+  # Networking
+  http: ^1.6.0
+
+  # State Management
+  provider: ^6.1.5+1
+
+  # Animations & UI
+  confetti: ^0.8.0
+
+  # Date/Time (immutable)
+  intl: ^0.20.2
+
+  # Logging
+  logger: ^2.6.2
+
+  # UUID generation
+  uuid: ^4.5.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Code Generation
+  drift_dev: ^2.30.1
+  build_runner: ^2.10.5
+
+  # Testing (note: flutter_test pins test_api, use compatible test version)
+  mocktail: ^1.0.4
+
+  # Linting
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
