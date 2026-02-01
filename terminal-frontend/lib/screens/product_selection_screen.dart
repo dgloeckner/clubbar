@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/products_provider.dart';
+import 'package:ruderbar_terminal/providers/auth_provider.dart';
+import 'package:ruderbar_terminal/providers/sync_provider.dart';
+import 'package:ruderbar_terminal/providers/members_provider.dart';
+import 'package:ruderbar_terminal/widgets/app_header.dart';
 
 class ProductSelectionScreen extends StatefulWidget {
   const ProductSelectionScreen({super.key});
@@ -31,26 +36,35 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
         final categories = productsProvider.categories;
 
         if (categories.isEmpty) {
-          return const Center(child: Text('No categories available'));
+          return const Scaffold(
+            body: Center(child: Text('No categories available')),
+          );
         }
 
-        return Column(
-          children: [
-            // Top bar with cart button
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  ElevatedButton(
-                    onPressed: () {
-                      // Navigate to cart
-                    },
-                    child: Text('Cart (${cartProvider.itemCount})'),
-                  ),
-                ],
+        return Scaffold(
+          appBar: AppHeader(
+            title: 'Products',
+            authProvider: context.read<AuthProvider>(),
+            syncProvider: context.read<SyncProvider>(),
+            membersProvider: context.read<MembersProvider>(),
+          ),
+          body: Column(
+            children: [
+              // Top bar with cart button
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        context.go('/cart');
+                      },
+                      child: Text('Cart (${cartProvider.itemCount})'),
+                    ),
+                  ],
+                ),
               ),
-            ),
             // Category tabs
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -73,16 +87,17 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            // Product grid
-            Expanded(
-              child: _buildProductGrid(
-                context,
-                categories[_selectedCategoryIndex],
-                productsProvider,
-                cartProvider,
+              // Product grid
+              Expanded(
+                child: _buildProductGrid(
+                  context,
+                  categories[_selectedCategoryIndex],
+                  productsProvider,
+                  cartProvider,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );

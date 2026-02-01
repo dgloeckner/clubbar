@@ -6,10 +6,16 @@ import 'dart:convert';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/providers/products_provider.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
+import 'package:ruderbar_terminal/providers/auth_provider.dart';
+import 'package:ruderbar_terminal/providers/sync_provider.dart';
+import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/screens/product_selection_screen.dart';
 
 class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockCartProvider extends Mock implements CartProvider {}
+class MockAuthProvider extends Mock implements AuthProvider {}
+class MockSyncProvider extends Mock implements SyncProvider {}
+class MockMembersProvider extends Mock implements MembersProvider {}
 
 void main() {
   setUpAll(() {
@@ -26,10 +32,31 @@ void main() {
   group('ProductSelectionScreen', () {
     late MockProductsProvider mockProductsProvider;
     late MockCartProvider mockCartProvider;
+    late MockAuthProvider mockAuthProvider;
+    late MockSyncProvider mockSyncProvider;
+    late MockMembersProvider mockMembersProvider;
 
     setUp(() {
       mockProductsProvider = MockProductsProvider();
       mockCartProvider = MockCartProvider();
+      mockAuthProvider = MockAuthProvider();
+      mockSyncProvider = MockSyncProvider();
+      mockMembersProvider = MockMembersProvider();
+
+      // Setup auth provider mocks
+      when(() => mockAuthProvider.isAuthenticated).thenReturn(true);
+      when(() => mockAuthProvider.addListener(any())).thenReturn(null);
+      when(() => mockAuthProvider.removeListener(any())).thenReturn(null);
+
+      // Setup sync provider mocks
+      when(() => mockSyncProvider.isSyncing).thenReturn(false);
+      when(() => mockSyncProvider.addListener(any())).thenReturn(null);
+      when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
+
+      // Setup members provider mocks
+      when(() => mockMembersProvider.selectedMember).thenReturn(null);
+      when(() => mockMembersProvider.addListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
     });
 
     testWidgets('displays choice chips for categories', (WidgetTester tester) async {
@@ -58,6 +85,9 @@ void main() {
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+              ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
+              ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+              ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),
           ),
@@ -93,6 +123,9 @@ void main() {
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+              ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
+              ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+              ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),
           ),
@@ -128,6 +161,9 @@ void main() {
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+              ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
+              ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+              ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),
           ),
@@ -153,6 +189,9 @@ void main() {
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+              ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
+              ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+              ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),
           ),
