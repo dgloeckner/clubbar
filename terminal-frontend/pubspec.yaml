@@ -23,6 +23,9 @@ dependencies:
   # State Management
   provider: ^6.1.5+1
 
+  # Navigation
+  go_router: ^12.0.0
+
   # Animations & UI
   confetti: ^0.8.0
 
