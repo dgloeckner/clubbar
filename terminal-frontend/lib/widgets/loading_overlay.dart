@@ -16,7 +16,10 @@ class LoadingOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        child,
+        IgnorePointer(
+          ignoring: isLoading,
+          child: child,
+        ),
         if (isLoading)
           Positioned.fill(
             child: Container(
