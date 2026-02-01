@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'schema/members_cache.dart';
@@ -28,15 +29,15 @@ class RuderbarDatabase extends _$RuderbarDatabase {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       sqfliteFfiInit();
     }
-    
-    return databaseFactoryFfi.openDatabase(
-      'ruderbar_terminal.db',
-      options: OpenDatabaseOptions(
-        version: 1,
-        onOpen: (db) async {
-          await db.execute('PRAGMA foreign_keys = ON');
-        },
-      ),
-    ) as QueryExecutor;
+
+    // Use NativeDatabase for proper FFI/sqflite integration
+    final file = File('ruderbar_terminal.db');
+
+    return NativeDatabase(
+      file,
+      setup: (db) {
+        db.execute('PRAGMA foreign_keys = ON');
+      },
+    );
   }
 }
