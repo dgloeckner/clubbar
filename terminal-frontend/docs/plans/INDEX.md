@@ -2,12 +2,17 @@
 
 ## Current Status
 
-**Phase 5: Core UI Screens** - BATCH 1 IN PROGRESS 🔄
-- **Progress:** Task 1 complete (4/4 tests ✅), Task 2 in progress (API integration needed)
-- **Tests Passing:** 4/18 (25% complete)
-- **Current Issue:** CartProvider.addItem signature requires (productId, productName, priceCents, quantity, language)
-- **Remaining:** 3 screens to implement (Tasks 2-4)
-- **Next Action:** Adapt Task 2 ProductSelectionScreen to pass all CartProvider parameters, then complete Tasks 3-4
+**Phase 4: Screens & Widgets** - COMPLETE ✅
+- **Progress:** All 13 tasks complete
+- **Tests Passing:** 192/192 (100% ✅)
+- **Completion Date:** 2026-02-02
+- **Completed Components:**
+  - 6 Common Widgets: AppHeader, ProductCard, CategoryTabs, CartItemRow, ErrorBanner, LoadingOverlay
+  - 4 Screen Widgets: MemberGreetingScreen, ProductSelectionScreen, ShoppingCartScreen, CheckoutConfirmationScreen
+  - Widgets Index export file
+  - Full test coverage with mocktail mocking
+  - Material 3 design implementation
+- **Next Phase:** Phase 5 (pending)
 
 ## Completed Plans
 
@@ -29,14 +34,18 @@
   - Background sync every 60 seconds with non-blocking error handling
   - Complete offline-first state management architecture
 
-### Phase 4: RFID Detection & UI (COMPLETED ✅)
-- **Completion Date:** 2026-02-01
-- **Tasks:** 2 completed (Tasks 15-16)
-- **Test Coverage:** 8 tests passing (4 service + 4 widget)
+### Phase 4: Screens & Widgets (COMPLETED ✅)
+- **Location:** `docs/plans/2026-02-01-phase-4-screens-and-widgets.md`
+- **Completion Date:** 2026-02-02
+- **Tasks:** 13 completed
+- **Test Coverage:** 192 tests passing (all tests passing)
 - **Outcomes:**
-  - MockRfidService for card detection simulation (800ms delay)
-  - RfidProvider wrapping mock service with error handling
-  - RfidDetectorButton widget (Material 3 gradient button with animations)
+  - **Common Widgets (6):** AppHeader, ProductCard, CategoryTabs, CartItemRow, ErrorBanner, LoadingOverlay
+  - **Screen Widgets (4):** MemberGreetingScreen, ProductSelectionScreen, ShoppingCartScreen, CheckoutConfirmationScreen
+  - **Utilities:** Widgets index export file
+  - **Testing:** Full widget test coverage with mocktail mocking and Provider integration
+  - **Design:** Material 3 design system with responsive layouts
+  - **State Management:** Consumer widgets connected to Provider state
 
 ## Next Phase
 
@@ -67,29 +76,31 @@ d07bca6 feat: create SyncProvider with background timer (Phase 3 Task 8)
 
 | Metric | Value |
 |--------|-------|
-| Total Phases Started | 5 |
-| Completed Phases | 4 (Phase 1-4) |
-| Tests Passing (Total) | 60+ |
+| Total Phases Started | 4 |
+| Completed Phases | 4 (Phase 1-4) ✅ |
+| Tests Passing (Total) | 192/192 (100%) ✅ |
 | Services Implemented | 5 (MembersService, ProductsService, CartService, SyncService, MockRfidService) |
-| Providers Implemented | 5 (AuthProvider, MembersProvider, ProductsProvider, CartProvider, SyncProvider) |
-| Screens Implemented | 0 (Phase 5 ready) |
-| Git Commits | 42+ |
+| Providers Implemented | 5 (AuthProvider, MembersProvider, ProductsProvider, CartProvider, SyncProvider, RfidProvider) |
+| Widgets Implemented | 10 (6 common + 4 screens) |
+| Git Commits | 50+ |
 
-## How to Continue
+## Project Status Summary
 
-**To resume Phase 5:**
-```bash
-cd /Users/dg/dev/frgs-vereinsbar/terminal-frontend
+**Completed Implementation:**
+- ✅ Phase 1-2: Project setup, Drift ORM, repositories, network service
+- ✅ Phase 3: Provider-based state management with services
+- ✅ Phase 4: Screens & widgets with Material 3 design and full test coverage
+- **All 192 tests passing** - Ready for Phase 5
 
-# Read the Phase 5 plan
-cat docs/plans/2026-02-01-phase-5-core-ui-screens.md
+**What's Implemented:**
+- Database layer with Drift ORM
+- Network sync with eventual consistency
+- State management with Provider pattern
+- 10 production-ready widgets/screens
+- Complete test coverage with mocktail
 
-# Execute the plan using superpowers:executing-plans skill
-# Implement Batch 1 (Tasks 1-4): MemberGreetingScreen through CheckoutConfirmationScreen
-```
-
-**Key Resources:**
-- Terminal Use Cases: `use-cases/terminal/UC-T01-book-product-to-tab.md`
-- Phase 3-4 Providers: `lib/providers/` (MembersProvider, ProductsProvider, CartProvider, RfidProvider)
-- Phase 3-4 Services: `lib/services/` (MembersService, ProductsService, CartService, MockRfidService)
-- Test Framework: Flutter test with mocktail mocking
+**Next Steps:**
+- Phase 5: App navigation and integration (future work)
+- Consider integrating screens with Navigator/routing
+- Add end-to-end tests with Playwright
+- Deploy to staging/production
