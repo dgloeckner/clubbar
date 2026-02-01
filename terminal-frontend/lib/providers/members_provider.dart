@@ -79,4 +79,11 @@ class MembersProvider extends ChangeNotifier {
     _selectedMember = null;
     notifyListeners();
   }
+
+  /// Clear error state
+  void clearError() {
+    _lastError = null;
+    _errorType = null;
+    notifyListeners();
+  }
 }

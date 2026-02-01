@@ -24,6 +24,7 @@ void main() {
       when(() => mockRfidProvider.removeListener(any())).thenReturn(null);
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.lastError).thenReturn(null);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -38,6 +39,30 @@ void main() {
       );
 
       expect(find.text('Scan Member Card'), findsOneWidget);
+    });
+
+    testWidgets('displays error message when member not found', (WidgetTester tester) async {
+      when(() => mockRfidProvider.addListener(any())).thenReturn(null);
+      when(() => mockRfidProvider.removeListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.addListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.lastError).thenReturn('Member not found');
+      when(() => mockMembersProvider.clearError()).thenReturn(null);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+              ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
+            ],
+            child: const Scaffold(body: IdleWaitingScreen()),
+          ),
+        ),
+      );
+
+      expect(find.text('Member not found'), findsOneWidget);
+      expect(find.text('Try Again'), findsOneWidget);
     });
   });
 }
