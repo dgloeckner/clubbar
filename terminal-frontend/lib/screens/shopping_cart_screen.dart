@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
@@ -83,26 +84,44 @@ class ShoppingCartScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: cartProvider.isLoading
-                            ? null
-                            : () async {
-                                final member = membersProvider.selectedMember;
-                                if (member != null) {
-                                  await cartProvider.checkout(member);
-                                  if (context.mounted) {
-                                    Navigator.of(context).pop();
-                                  }
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: Colors.green,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: cartProvider.isLoading
+                                ? null
+                                : () {
+                                    context.go('/products');
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            child: const Text('Continue Shopping'),
+                          ),
                         ),
-                        child: const Text('Proceed to Checkout'),
-                      ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: cartProvider.isLoading
+                                ? null
+                                : () async {
+                                    final member = membersProvider.selectedMember;
+                                    if (member != null) {
+                                      await cartProvider.checkout(member);
+                                      if (context.mounted) {
+                                        final transactionId = 'txn-${DateTime.now().millisecondsSinceEpoch}';
+                                        context.go('/confirmation/$transactionId');
+                                      }
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              backgroundColor: Colors.green,
+                            ),
+                            child: const Text('Checkout'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

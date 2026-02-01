@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/database/database.dart';
@@ -122,7 +123,8 @@ void main() {
         ),
       );
 
-      expect(find.text('Proceed to Checkout'), findsOneWidget);
+      expect(find.text('Checkout'), findsOneWidget);
+      expect(find.text('Continue Shopping'), findsOneWidget);
     });
 
     testWidgets('shows empty cart message when no items',
@@ -147,27 +149,40 @@ void main() {
       );
 
       expect(find.text('Your cart is empty'), findsOneWidget);
-      expect(find.text('Proceed to Checkout'), findsNothing);
+      expect(find.text('Checkout'), findsNothing);
+      expect(find.text('Continue Shopping'), findsNothing);
     });
 
     testWidgets('calls checkout when button pressed', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
-            providers: [
-              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<MembersProvider>.value(
-                value: mockMembersProvider,
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                  value: mockMembersProvider,
+                ),
+              ],
+              child: const Scaffold(
+                body: ShoppingCartScreen(),
               ),
-            ],
-            child: const Scaffold(
-              body: ShoppingCartScreen(),
             ),
           ),
-        ),
+          GoRoute(
+            path: '/confirmation/:transactionId',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Confirmation')),
+            ),
+          ),
+        ],
       );
 
-      await tester.tap(find.text('Proceed to Checkout'));
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+      await tester.tap(find.text('Checkout'));
       await tester.pumpAndSettle();
 
       verify(() => mockCartProvider.checkout(any())).called(1);
