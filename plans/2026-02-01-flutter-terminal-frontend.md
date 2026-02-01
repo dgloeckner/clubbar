@@ -4,7 +4,18 @@
 
 **Goal:** Build a native macOS Flutter app (cross-platform ready for Linux/Raspberry Pi) that implements the complete terminal POS workflow: RFID scanning, product browsing, shopping cart management, transaction booking, and offline sync.
 
-**Architecture:** Following Ruderbar's offline-first design (ADR-0012), the terminal is a local-first app with periodic sync to backend. Flutter provides native macOS performance with cross-platform code sharing. Local SQLite database caches members/products and queues transactions. Material 3 design system with playful animations (confetti on purchase, animated buttons).
+**Architecture:** Following Ruderbar's offline-first design (ADR-0012), the terminal is a local-first app with periodic sync to backend. Flutter provides native macOS performance. Local SQLite database caches members/products and queues transactions. Material 3 design system with playful animations (confetti on purchase, animated buttons).
+
+**Key Design Decisions:**
+- **Inactivity Timeout (30s)**: Logout clears session but preserves cart. User can rescan to resume (preserved 1 hour max).
+- **Balance Limit**: €100 hardcoded for MVP; configurable from backend admin panel in future.
+- **Balance Display**: Show warning only at checkout (if new balance > €100).
+- **Post-Purchase Flow**: "Continue Shopping" → Products, "Done" → RFID Scan.
+- **Language Switching**: User can change language in profile screen; persists locally + syncs to backend.
+- **Mock Data**: 1 test member (Max Mustermann) + 5 beverages + sauna tokens (fully valid, includes SEPA).
+- **Error Handling**: Transaction errors show modal; user manually retries or cancels (no auto-retry).
+- **Platform**: macOS only (Phase 1). Linux/RPi support deferred to Phase 8.
+- **Settings**: Hardcoded config for Phase 1. Admin settings screen deferred to Phase 2.
 
 **Tech Stack:**
 - **Framework**: Flutter (Dart) with Material 3 design
@@ -145,8 +156,12 @@ class AppConfig {
   static const Duration syncInterval = Duration(seconds: 60);
   static const Duration syncTimeout = Duration(seconds: 10);
 
-  // Inactivity
+  // Inactivity & Cart Preservation
   static const Duration inactivityTimeout = Duration(seconds: 30);
+  static const Duration cartPreservationDuration = Duration(hours: 1);
+
+  // Balance Limit (€100.00 = 10000 cents; configurable from backend later)
+  static const int balanceLimitCents = 10000; // €100.00
 
   // Backend API
   static const String apiBaseUrl = 'http://localhost:8080/api';
@@ -1902,6 +1917,7 @@ import 'package:flutter/foundation.dart';
 import '../models/member_dto.dart';
 
 class MockRfidService {
+  // Single test member with full SEPA data
   static final _mockMembers = {
     'RF-4821': MemberDTO(
       id: '550e8400-e29b-41d4-a716-446655440000',
@@ -1910,17 +1926,7 @@ class MockRfidService {
       lastName: 'Mustermann',
       preferredLanguage: 'de',
       isActive: true,
-      isSepaValid: true,
-      updatedAt: '2025-02-01T10:00:00Z',
-    ),
-    'RF-1234': MemberDTO(
-      id: '550e8400-e29b-41d4-a716-446655440001',
-      cardUid: 'RF-1234',
-      firstName: 'Anna',
-      lastName: 'Schmidt',
-      preferredLanguage: 'de',
-      isActive: true,
-      isSepaValid: true,
+      isSepaValid: true, // Has valid IBAN + mandate_reference
       updatedAt: '2025-02-01T10:00:00Z',
     ),
   };
@@ -1930,11 +1936,11 @@ class MockRfidService {
     // Simulate reader delay
     await Future.delayed(const Duration(milliseconds: 800));
 
-    // Return first mock member (or override for testing)
+    // Return mock member (or override for testing different scenarios)
     return _mockMembers[cardUidOverride ?? 'RF-4821'];
   }
 
-  /// Get all mock members for testing
+  /// Get all mock members (just 1 for MVP)
   List<MemberDTO> getAllMockMembers() => _mockMembers.values.toList();
 }
 ```
@@ -2029,18 +2035,12 @@ void main() {
       expect(member.firstName, equals('Max'));
     });
 
-    test('detectCard with override returns correct member', () async {
-      final member = await rfidService.detectCard(cardUidOverride: 'RF-1234');
-
-      expect(member, isNotNull);
-      expect(member!.firstName, equals('Anna'));
-    });
-
-    test('getAllMockMembers returns all test data', () {
+    test('getAllMockMembers returns test data', () {
       final members = rfidService.getAllMockMembers();
 
-      expect(members.length, equals(2));
-      expect(members.map((m) => m.firstName).contains('Max'), isTrue);
+      expect(members.length, equals(1));
+      expect(members.first.firstName, equals('Max'));
+      expect(members.first.isSepaValid, isTrue);
     });
 
     test('detectCard simulates delay', () async {
@@ -2229,6 +2229,35 @@ git commit -m "feat: phase-4 add RfidDetectorButton widget with mock detection"
 
 ---
 
+## Mock Data Seed (for development/demo)
+
+**Pre-populate SQLite with:**
+
+1. **Member**: Max Mustermann (RF-4821)
+   - ID: `550e8400-e29b-41d4-a716-446655440000`
+   - Card UID: RF-4821
+   - Language: de
+   - SEPA valid: true
+   - Balance: €0.00 (fresh account)
+
+2. **Categories** (2):
+   - Beverages (display_order: 1, names: {"de": "Getränke", "en": "Beverages"})
+   - Sauna (display_order: 2, names: {"de": "Sauna", "en": "Sauna"})
+
+3. **Products**:
+   - **5 Beverages** (in Beverages category):
+     1. Pils 0.5L - €3.50
+     2. Weizen 0.5L - €3.80
+     3. Radler 0.5L - €3.00
+     4. Wasser 0.33L - €1.50
+     5. Apfelschorle - €2.00
+   - **1 Sauna Token** (in Sauna category):
+     1. Sauna-Token 30min - €2.00
+
+**Implementation note:** Create `terminal-frontend/lib/database/seed.dart` with `seedMockData()` function. Call during first app launch or in a debug button in Phase 2.
+
+---
+
 ## Future Work: Real RFID Integration (Phase 8)
 
 **Deferred:** Native macOS USB serial RFID reader integration
@@ -2281,6 +2310,36 @@ terminal-frontend/
 3. **Offline-First**: All core POS works without network; sync is async background task
 4. **Material 3**: Modern Flutter design with dark theme
 5. **Immutable Models**: Use value equality for cleaner state management
+
+### Implementation Details
+
+**Inactivity Timeout (30 seconds)**
+- Timer starts when user first scans card
+- Logs user out (return to RFID scan screen) if idle
+- Cart is preserved (not cleared) → user can rescan to resume
+- Preserved cart expires after 1 hour
+
+**Balance Limit Enforcement (€100.00)**
+- Checked at checkout: `newBalance = currentBalance + cartTotal`
+- If `newBalance > 10000 cents` (€100): Show warning modal, disable Buy button
+- Warning message: "Limit exceeded: Current balance + cart would be €X.XX (max €100.00)"
+
+**Language Switching**
+- User taps profile icon → User screen → Language selector
+- Changes `member.preferred_language` in cache (local only)
+- Syncs to backend on next sync cycle (POST to `/api/members/{id}`)
+- Products/categories immediately redisplay in new language
+
+**Error Handling (Transaction Creation)**
+- If `createPurchaseTransaction()` throws exception: Show error modal
+- User can manually retry (calls checkout again) or cancel
+- No automatic retries (manual only per requirements)
+
+**Mock Data Strategy**
+- Pre-populated SQLite on first app launch
+- 1 test member + 5 beverages + 1 sauna token
+- All mock members have valid SEPA data
+- Can rescan same card multiple times for testing
 
 ---
 
