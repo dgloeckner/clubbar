@@ -7,6 +7,7 @@ import 'package:ruderbar_terminal/models/member_dto.dart';
 import 'package:ruderbar_terminal/models/product_dto.dart';
 import 'package:ruderbar_terminal/repository/members_repository.dart';
 import 'package:ruderbar_terminal/repository/products_repository.dart';
+import 'package:ruderbar_terminal/repository/transactions_repository.dart';
 
 void main() {
   group('MembersRepository', () {
@@ -478,6 +479,300 @@ void main() {
 
       expect(categories, isEmpty);
       expect(products, isEmpty);
+    });
+  });
+
+  group('TransactionsRepository', () {
+    late RuderbarDatabase db;
+    late TransactionsRepository repo;
+
+    Future<void> createTestMember(String memberId) async {
+      await db.into(db.membersCache).insert(
+        MembersCacheCompanion(
+          id: Value(memberId),
+          cardUid: Value('card-$memberId'),
+          firstName: const Value('Test'),
+          lastName: const Value('Member'),
+          preferredLanguage: const Value('de'),
+          isActive: const Value(1),
+          isSepaValid: const Value(1),
+          updatedAt: const Value('2025-02-01T12:00:00Z'),
+        ),
+      );
+    }
+
+    setUp(() async {
+      db = RuderbarDatabase();
+      repo = TransactionsRepository(db);
+    });
+
+    tearDown(() async {
+      await db.close();
+      // Clean up database file
+      final file = File('ruderbar_terminal.db');
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
+    });
+
+    test('insertTransaction inserts local transaction', () async {
+      await createTestMember('member-1');
+
+      await repo.insertTransaction(
+        TransactionsLocalData(
+          id: 'txn-1',
+          memberId: 'member-1',
+          productId: null,
+          amountCents: -350,
+          transactionType: 'PURCHASE',
+          notes: null,
+          createdAt: '2025-02-01T12:00:00Z',
+          synced: 0,
+        ),
+      );
+
+      final count = await (db.select(db.transactionsLocal)).get();
+      expect(count.length, equals(1));
+      expect(count.first.transactionType, equals('PURCHASE'));
+    });
+
+    test('getUnsyncedTransactions returns only unsynced', () async {
+      await createTestMember('member-1');
+
+      // Insert synced and unsynced transactions
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-synced'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-350),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:00:00Z'),
+          synced: const Value(1),
+        ),
+      );
+
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-unsynced'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-350),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:01:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      final unsynced = await repo.getUnsyncedTransactions();
+
+      expect(unsynced.length, equals(1));
+      expect(unsynced.first.id, equals('txn-unsynced'));
+    });
+
+    test('getTransaction returns transaction by id', () async {
+      await createTestMember('member-1');
+
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-1'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-350),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:00:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      final txn = await repo.getTransaction('txn-1');
+
+      expect(txn, isNotNull);
+      expect(txn!.memberId, equals('member-1'));
+      expect(txn.amountCents, equals(-350));
+    });
+
+    test('getTransactionsByMember returns member transactions in desc order',
+        () async {
+      await createTestMember('member-1');
+
+      // Insert transactions for member (older first in insertion)
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-1'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-350),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:00:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-2'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-300),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:01:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      final txns = await repo.getTransactionsByMember('member-1');
+
+      expect(txns.length, equals(2));
+      expect(txns[0].id, equals('txn-2')); // Newest first
+      expect(txns[1].id, equals('txn-1')); // Oldest second
+    });
+
+    test('getTransactionCount returns total transaction count', () async {
+      await createTestMember('member-1');
+
+      // Insert 3 transactions
+      for (int i = 0; i < 3; i++) {
+        await db.into(db.transactionsLocal).insert(
+          TransactionsLocalCompanion(
+            id: Value('txn-$i'),
+            memberId: const Value('member-1'),
+            productId: const Value(null),
+            amountCents: const Value(-350),
+            transactionType: const Value('PURCHASE'),
+            notes: const Value(null),
+            createdAt: Value('2025-02-01T12:0$i:00Z'),
+            synced: const Value(0),
+          ),
+        );
+      }
+
+      final count = await repo.getTransactionCount();
+
+      expect(count, equals(3));
+    });
+
+    test('markAsSynced updates synced flag', () async {
+      await createTestMember('member-1');
+
+      // Insert transactions
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-1'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-350),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:00:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      await repo.markAsSynced(['txn-1']);
+
+      final txn = await repo.getTransaction('txn-1');
+      expect(txn!.synced, equals(1));
+    });
+
+    test('getTotalAmountForMember sums all amounts', () async {
+      await createTestMember('member-1');
+
+      // Insert transactions for member
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-1'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-350),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:00:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-2'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-300),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:01:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      final total = await repo.getTotalAmountForMember('member-1');
+
+      expect(total, equals(-650)); // -350 + -300
+    });
+
+    test('clearCache deletes all transactions', () async {
+      await createTestMember('member-1');
+
+      // Insert transactions
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-1'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-350),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:00:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      await repo.clearCache();
+
+      final txns = await (db.select(db.transactionsLocal)).get();
+      expect(txns, isEmpty);
+    });
+
+    test('deleteTransaction deletes specific transaction', () async {
+      await createTestMember('member-1');
+
+      // Insert transactions
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-1'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-350),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:00:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-2'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-300),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:01:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      await repo.deleteTransaction('txn-1');
+
+      final txns = await (db.select(db.transactionsLocal)).get();
+      expect(txns.length, equals(1));
+      expect(txns.first.id, equals('txn-2'));
     });
   });
 }
