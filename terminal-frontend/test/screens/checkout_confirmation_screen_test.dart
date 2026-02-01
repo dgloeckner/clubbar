@@ -1,105 +1,194 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/providers/cart_provider.dart';
+import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/screens/checkout_confirmation_screen.dart';
+
+class MockCartProvider extends Mock implements CartProvider {}
+class MockMembersProvider extends Mock implements MembersProvider {}
 
 void main() {
   group('CheckoutConfirmationScreen', () {
-    testWidgets('displays success message', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CheckoutConfirmationScreen(
-            isSuccess: true,
-            message: 'Transaction successful',
-            onDismiss: () {},
-          ),
-        ),
-      );
+    late MockCartProvider mockCartProvider;
+    late MockMembersProvider mockMembersProvider;
 
-      expect(find.text('Transaction successful'), findsOneWidget);
-      expect(find.byIcon(Icons.check_circle), findsOneWidget);
-      expect(find.text('Success!'), findsOneWidget);
+    setUp(() {
+      mockCartProvider = MockCartProvider();
+      mockMembersProvider = MockMembersProvider();
+
+      // Setup cart provider mocks
+      when(() => mockCartProvider.clearCart()).thenReturn(null);
+      when(() => mockCartProvider.addListener(any())).thenReturn(null);
+      when(() => mockCartProvider.removeListener(any())).thenReturn(null);
+
+      // Setup members provider mocks
+      when(() => mockMembersProvider.clearSelectedMember()).thenReturn(null);
+      when(() => mockMembersProvider.addListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
     });
 
-    testWidgets('displays error message on failure', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CheckoutConfirmationScreen(
-            isSuccess: false,
-            message: 'Payment failed',
-            onDismiss: () {},
+    testWidgets('displays success message', (WidgetTester tester) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                  value: mockMembersProvider,
+                ),
+              ],
+              child: const CheckoutConfirmationScreen(
+                transactionId: 'txn-12345',
+              ),
+            ),
           ),
-        ),
+          GoRoute(
+            path: '/idle',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Idle')),
+            ),
+          ),
+        ],
       );
 
-      expect(find.text('Payment failed'), findsOneWidget);
-      expect(find.byIcon(Icons.error), findsOneWidget);
-      expect(find.text('Error'), findsOneWidget);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+      expect(find.text('Success!'), findsOneWidget);
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
     });
 
     testWidgets('has dismiss button', (WidgetTester tester) async {
-      var dismissed = false;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CheckoutConfirmationScreen(
-            isSuccess: true,
-            message: 'Success',
-            onDismiss: () {
-              dismissed = true;
-            },
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                  value: mockMembersProvider,
+                ),
+              ],
+              child: const CheckoutConfirmationScreen(
+                transactionId: 'txn-12345',
+              ),
+            ),
           ),
-        ),
+          GoRoute(
+            path: '/idle',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Idle')),
+            ),
+          ),
+        ],
       );
 
-      await tester.tap(find.byType(ElevatedButton));
-      expect(dismissed, isTrue);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+      expect(find.text('Return to Idle Now'), findsOneWidget);
     });
 
-    testWidgets('uses green styling for success', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CheckoutConfirmationScreen(
-            isSuccess: true,
-            message: 'Success',
-            onDismiss: () {},
+    testWidgets('displays transaction ID', (WidgetTester tester) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                  value: mockMembersProvider,
+                ),
+              ],
+              child: const CheckoutConfirmationScreen(
+                transactionId: 'txn-abc123',
+              ),
+            ),
           ),
-        ),
+          GoRoute(
+            path: '/idle',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Idle')),
+            ),
+          ),
+        ],
       );
 
-      final icon = find.byIcon(Icons.check_circle);
-      expect(icon, findsOneWidget);
-      final successText = find.text('Success!');
-      expect(successText, findsOneWidget);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+      expect(find.text('Transaction txn-abc123 completed'), findsOneWidget);
     });
 
-    testWidgets('uses red styling for failure', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CheckoutConfirmationScreen(
-            isSuccess: false,
-            message: 'Failed',
-            onDismiss: () {},
+    testWidgets('displays auto-loop countdown message', (WidgetTester tester) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                  value: mockMembersProvider,
+                ),
+              ],
+              child: const CheckoutConfirmationScreen(
+                transactionId: 'txn-12345',
+              ),
+            ),
           ),
-        ),
+          GoRoute(
+            path: '/idle',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Idle')),
+            ),
+          ),
+        ],
       );
 
-      final icon = find.byIcon(Icons.error);
-      expect(icon, findsOneWidget);
-      final errorText = find.text('Error');
-      expect(errorText, findsOneWidget);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+      expect(find.text('Returning to idle in 3 seconds...'), findsOneWidget);
     });
 
-    testWidgets('displays continue button', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CheckoutConfirmationScreen(
-            isSuccess: true,
-            message: 'Success',
-            onDismiss: () {},
+    testWidgets('displays manual return button', (WidgetTester tester) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                  value: mockMembersProvider,
+                ),
+              ],
+              child: const CheckoutConfirmationScreen(
+                transactionId: 'txn-12345',
+              ),
+            ),
           ),
-        ),
+          GoRoute(
+            path: '/idle',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Idle')),
+            ),
+          ),
+        ],
       );
 
-      expect(find.text('Continue'), findsOneWidget);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+
+      expect(find.text('Return to Idle Now'), findsOneWidget);
     });
   });
 }

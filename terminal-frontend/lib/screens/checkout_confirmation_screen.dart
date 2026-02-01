@@ -1,16 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'dart:async';
+import 'package:ruderbar_terminal/providers/cart_provider.dart';
+import 'package:ruderbar_terminal/providers/members_provider.dart';
 
-class CheckoutConfirmationScreen extends StatelessWidget {
-  final bool isSuccess;
-  final String message;
-  final VoidCallback onDismiss;
+class CheckoutConfirmationScreen extends StatefulWidget {
+  final String transactionId;
 
   const CheckoutConfirmationScreen({
-    required this.isSuccess,
-    required this.message,
-    required this.onDismiss,
+    required this.transactionId,
     Key? key,
   }) : super(key: key);
+
+  @override
+  State<CheckoutConfirmationScreen> createState() =>
+      _CheckoutConfirmationScreenState();
+}
+
+class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen> {
+  Timer? _autoLoopTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-loop back to idle after 3 seconds
+    _autoLoopTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        // Clear cart and selected member
+        context.read<CartProvider>().clearCart();
+        context.read<MembersProvider>().clearSelectedMember();
+        // Navigate back to idle
+        context.go('/idle');
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoLoopTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,15 +50,15 @@ class CheckoutConfirmationScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              isSuccess ? Icons.check_circle : Icons.error,
+              Icons.check_circle,
               size: 100,
-              color: isSuccess ? Colors.green : Colors.red,
+              color: Colors.green,
             ),
             const SizedBox(height: 24),
             Text(
-              isSuccess ? 'Success!' : 'Error',
+              'Success!',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: isSuccess ? Colors.green : Colors.red,
+                    color: Colors.green,
                     fontWeight: FontWeight.bold,
                   ),
             ),
@@ -36,19 +66,32 @@ class CheckoutConfirmationScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32.0),
               child: Text(
-                message,
+                'Transaction ${widget.transactionId} completed',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
             ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: Text(
+                'Returning to idle in 3 seconds...',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
             const SizedBox(height: 40),
             ElevatedButton(
-              onPressed: onDismiss,
+              onPressed: () {
+                context.read<CartProvider>().clearCart();
+                context.read<MembersProvider>().clearSelectedMember();
+                context.go('/idle');
+              },
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                backgroundColor: isSuccess ? Colors.green : Colors.red,
+                backgroundColor: Colors.green,
               ),
-              child: const Text('Continue'),
+              child: const Text('Return to Idle Now'),
             ),
           ],
         ),

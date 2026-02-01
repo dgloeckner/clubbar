@@ -26,14 +26,11 @@ final appRouter = GoRouter(
       builder: (context, state) => const ShoppingCartScreen(),
     ),
     GoRoute(
-      path: '/confirmation',
+      path: '/confirmation/:transactionId',
       builder: (context, state) {
+        final transactionId = state.pathParameters['transactionId'] ?? '';
         return CheckoutConfirmationScreen(
-          isSuccess: true,
-          message: 'Transaction complete',
-          onDismiss: () {
-            context.go('/');
-          },
+          transactionId: transactionId,
         );
       },
     ),
