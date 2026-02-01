@@ -79,7 +79,21 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Phase 4: Table Design System - Generify Components (📍 READY TO START)
+### Flutter Terminal Frontend (📍 READY TO START)
+
+**Plan**: [2026-02-01-flutter-terminal-frontend.md](./2026-02-01-flutter-terminal-frontend.md)
+
+**Goal**: Build native macOS Flutter app (cross-platform: Linux/Raspberry Pi) with complete POS workflow (RFID scanning, products, shopping cart, transactions, offline sync).
+
+**Stack**: Flutter + Dart, Drift ORM (SQLite), Provider state management, Material 3 design, confetti animations.
+
+**Status**: Plan complete, ready for execution. Phase 1 (setup & database) will begin in dedicated worktree.
+
+**Next**: Approve plan, then execute tasks 1-4 (project init, database schema, DTOs, cart model).
+
+---
+
+### Phase 4: Table Design System - Generify Components (📋 BACKLOG)
 
 **Plan**: [PHASE4_TABLE_DESIGN_SYSTEM.md](./PHASE4_TABLE_DESIGN_SYSTEM.md)
 
