@@ -2,17 +2,21 @@
 
 ## Current Status
 
-**Phase 4: Screens & Widgets** - COMPLETE ✅
-- **Progress:** All 13 tasks complete
-- **Tests Passing:** 192/192 (100% ✅)
+**Phase 5: App Navigation & Integration** - COMPLETE ✅
+- **Progress:** All 16 tasks complete
+- **Tests Passing:** 202/202 (100% ✅)
 - **Completion Date:** 2026-02-02
 - **Completed Components:**
-  - 6 Common Widgets: AppHeader, ProductCard, CategoryTabs, CartItemRow, ErrorBanner, LoadingOverlay
-  - 4 Screen Widgets: MemberGreetingScreen, ProductSelectionScreen, ShoppingCartScreen, CheckoutConfirmationScreen
-  - Widgets Index export file
-  - Full test coverage with mocktail mocking
-  - Material 3 design implementation
-- **Next Phase:** Phase 5 (pending)
+  - Go Router with 5 main routes (/idle, /products, /member-details, /cart, /confirmation/:transactionId)
+  - IdleWaitingScreen for RFID scanning
+  - MemberDetailsScreen for member info display
+  - Error modal component for error handling
+  - Navigation integration between all screens
+  - Auto-loop from confirmation to idle after 3 seconds
+  - MembersProvider methods: clearSelectedMember(), clearError()
+  - Navigation integration tests
+  - Full test coverage with 202+ passing tests
+- **Next Phase:** Phase 6 (optional - E2E tests or advanced features)
 
 ## Completed Plans
 
@@ -47,19 +51,24 @@
   - **Design:** Material 3 design system with responsive layouts
   - **State Management:** Consumer widgets connected to Provider state
 
+### Phase 5: App Navigation & Integration (COMPLETED ✅)
+- **Location:** `docs/plans/2026-02-01-phase-5-app-navigation.md`
+- **Completion Date:** 2026-02-02
+- **Tasks:** 16 completed
+- **Test Coverage:** 202 tests passing (10 additional navigation tests)
+- **Outcomes:**
+  - **Navigation:** Go Router with 5 main routes (/idle, /products, /member-details, /cart, /confirmation/:transactionId)
+  - **Screens:** IdleWaitingScreen, MemberDetailsScreen, error modal component
+  - **Features:** Auto-loop from confirmation to idle after 3 seconds
+  - **Provider Methods:** clearSelectedMember(), clearError() in MembersProvider
+  - **Testing:** Navigation integration tests verifying app flow
+  - **Integration:** All screens connected in working app navigation flow
+
 ## Next Phase
 
-### Phase 5: Core UI Screens (READY TO START)
-- **Location:** `docs/plans/2026-02-01-phase-5-core-ui-screens.md`
-- **Overview:** Implement main checkout/shopping screens
-- **Tasks:** 4 screen implementations
-- **Test Target:** 18 widget tests
-- **Key Screens:**
-  - MemberGreetingScreen: Display member welcome
-  - ProductSelectionScreen: Browse categories and products
-  - ShoppingCartScreen: Review and manage cart items
-  - CheckoutConfirmationScreen: Transaction confirmation
-- **References:** UC-T01 (Book Product to Tab)
+### Phase 6: Advanced Features (FUTURE)
+- **Options:** E2E tests, backend integration, or advanced UI features
+- **Pending:** User specification of next priorities
 
 ## Git Commit History (Recent)
 
@@ -76,13 +85,14 @@ d07bca6 feat: create SyncProvider with background timer (Phase 3 Task 8)
 
 | Metric | Value |
 |--------|-------|
-| Total Phases Started | 4 |
-| Completed Phases | 4 (Phase 1-4) ✅ |
-| Tests Passing (Total) | 192/192 (100%) ✅ |
+| Total Phases Started | 5 |
+| Completed Phases | 5 (Phase 1-5) ✅ |
+| Tests Passing (Total) | 202/202 (100%) ✅ |
 | Services Implemented | 5 (MembersService, ProductsService, CartService, SyncService, MockRfidService) |
-| Providers Implemented | 5 (AuthProvider, MembersProvider, ProductsProvider, CartProvider, SyncProvider, RfidProvider) |
+| Providers Implemented | 6 (Auth, Members, Products, Cart, Sync, Rfid) |
 | Widgets Implemented | 10 (6 common + 4 screens) |
-| Git Commits | 50+ |
+| Navigation Routes | 5 (/idle, /products, /member-details, /cart, /confirmation/:transactionId) |
+| Git Commits | 70+ |
 
 ## Project Status Summary
 
@@ -90,17 +100,20 @@ d07bca6 feat: create SyncProvider with background timer (Phase 3 Task 8)
 - ✅ Phase 1-2: Project setup, Drift ORM, repositories, network service
 - ✅ Phase 3: Provider-based state management with services
 - ✅ Phase 4: Screens & widgets with Material 3 design and full test coverage
-- **All 192 tests passing** - Ready for Phase 5
+- ✅ Phase 5: App navigation, routing, and screen integration
+- **All 202 tests passing** - Ready for Phase 6 (optional advanced features)
 
 **What's Implemented:**
 - Database layer with Drift ORM
 - Network sync with eventual consistency
 - State management with Provider pattern
 - 10 production-ready widgets/screens
-- Complete test coverage with mocktail
+- Go Router navigation with 5 main routes
+- Auto-loop transaction flow (confirmation → idle)
+- Complete test coverage with mocktail and navigation tests
 
 **Next Steps:**
-- Phase 5: App navigation and integration (future work)
-- Consider integrating screens with Navigator/routing
-- Add end-to-end tests with Playwright
-- Deploy to staging/production
+- Phase 6: E2E tests, backend integration, or other advanced features (pending user specification)
+- Optional: Add Playwright E2E tests for complete user flows
+- Optional: Backend API integration testing
+- Optional: Deploy to staging/production
