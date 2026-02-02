@@ -92,16 +92,18 @@ class RuderbarTerminalApp extends StatelessWidget {
         ChangeNotifierProvider<SyncProvider>(create: (_) => syncProvider),
         ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider)),
       ],
-      child: MaterialApp.router(
-        title: AppConfig.appName,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF3B82F6),
-            brightness: Brightness.dark,
+      child: Builder(
+        builder: (context) => MaterialApp.router(
+          title: AppConfig.appName,
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF3B82F6),
+              brightness: Brightness.dark,
+            ),
           ),
+          routerConfig: createAppRouter(context),
         ),
-        routerConfig: appRouter,
       ),
     );
   }

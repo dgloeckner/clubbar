@@ -72,8 +72,10 @@ void main() {
             ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
             ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
           ],
-          child: MaterialApp.router(
-            routerConfig: appRouter,
+          child: Builder(
+            builder: (context) => MaterialApp.router(
+              routerConfig: createAppRouter(context),
+            ),
           ),
         ),
       );
