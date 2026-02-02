@@ -128,7 +128,6 @@ void main() {
       );
 
       expect(find.text('Checkout'), findsOneWidget);
-      expect(find.text('Cancel'), findsOneWidget);
     });
 
     testWidgets('shows empty cart message when no items',
@@ -154,7 +153,6 @@ void main() {
 
       expect(find.text('Your cart is empty'), findsOneWidget);
       expect(find.text('Checkout'), findsNothing);
-      expect(find.text('Cancel'), findsNothing);
     });
 
     testWidgets('calls checkout when button pressed', (WidgetTester tester) async {

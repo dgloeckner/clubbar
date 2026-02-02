@@ -329,39 +329,8 @@ class ShoppingCartScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Action buttons
-                  Row(
-                    children: [
-                      // Cancel button
-                      Expanded(
-                        flex: 1,
-                        child: GestureDetector(
-                          onTap: () => context.go('/products'),
-                          child: Container(
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: const Color(0xff7f1d1d),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  color: Color(0xffef4444),
-                                  fontSize: AppFontSizes.xl,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-
-                      // Checkout button
-                      Expanded(
-                        flex: 2,
-                        child: GestureDetector(
+                  // Checkout button
+                  GestureDetector(
                           onTap: () async {
                             final selectedMember = membersProvider.selectedMember;
 
@@ -393,37 +362,34 @@ class ShoppingCartScreen extends StatelessWidget {
                               context.go('/confirmation/${cartProvider.lastTransactionId}');
                             }
                           },
-                          child: Container(
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: const Color(0xff22c55e),
-                              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                    child: Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: const Color(0xff22c55e),
+                        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                      ),
+                      child: const Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.check,
+                              color: Colors.black,
+                              size: 24,
                             ),
-                            child: const Center(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.check,
-                                    color: Colors.black,
-                                    size: 24,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Checkout',
-                                    style: TextStyle(
-                                      color: Colors.black,
-                                      fontSize: AppFontSizes.xl,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
+                            SizedBox(width: 8),
+                            Text(
+                              'Checkout',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: AppFontSizes.xl,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),
