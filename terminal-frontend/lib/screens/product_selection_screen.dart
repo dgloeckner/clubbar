@@ -39,38 +39,12 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   static const double _gridSpacing = 12.0;
 
   // Screen layout constants (1280x720 fixed window)
-  static const double _screenWidth = 1280.0;
   static const double _screenHeight = 720.0;
   static const double _headerHeight = 56.0;
   static const double _memberBarHeight = 74.0;
   static const double _categoryTabsHeight = 60.0;
   static const double _horizontalPadding = 16.0;
   static const double _verticalSpacing = 12.0;
-
-  double _calculateAspectRatio(int productCount) {
-    if (productCount <= 0) return 1.0;
-
-    // Calculate rows needed (4 columns)
-    final rows = (productCount / _columns).ceil();
-
-    // Available dimensions
-    final availableWidth = _screenWidth - (_horizontalPadding * 2);
-    final availableHeight = _screenHeight
-        - _headerHeight
-        - _memberBarHeight
-        - _categoryTabsHeight
-        - (_verticalSpacing * 3); // spacing between components
-
-    // Calculate item dimensions
-    final totalHorizontalGaps = (_columns - 1) * _gridSpacing;
-    final itemWidth = (availableWidth - totalHorizontalGaps) / _columns;
-
-    final totalVerticalGaps = (rows - 1) * _gridSpacing;
-    final itemHeight = (availableHeight - totalVerticalGaps) / rows;
-
-    // Aspect ratio = width / height (> 1 means landscape)
-    return itemWidth / itemHeight;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -179,21 +153,41 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       );
     }
 
-    // Calculate aspect ratio based on product count and available space
-    final aspectRatio = _calculateAspectRatio(products.length);
+    // Use LayoutBuilder to get actual available width
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate aspect ratio from actual constraints
+        final availableWidth = constraints.maxWidth;
+        final rows = (products.length / _columns).ceil();
 
-    return GridView.builder(
-      padding: EdgeInsets.zero,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: _columns,
-        crossAxisSpacing: _gridSpacing,
-        mainAxisSpacing: _gridSpacing,
-        childAspectRatio: aspectRatio,
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
+        // Available height for grid (from screen calculation)
+        final availableHeight = _screenHeight
+            - _headerHeight
+            - _memberBarHeight
+            - _categoryTabsHeight
+            - (_verticalSpacing * 3);
+
+        // Calculate item dimensions from actual width
+        final totalHorizontalGaps = (_columns - 1) * _gridSpacing;
+        final itemWidth = (availableWidth - totalHorizontalGaps) / _columns;
+
+        final totalVerticalGaps = (rows - 1) * _gridSpacing;
+        final itemHeight = (availableHeight - totalVerticalGaps) / rows;
+
+        final aspectRatio = itemWidth / itemHeight;
+
+        return GridView.builder(
+          padding: EdgeInsets.zero,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _columns,
+            crossAxisSpacing: _gridSpacing,
+            mainAxisSpacing: _gridSpacing,
+            childAspectRatio: aspectRatio,
+          ),
+          itemCount: products.length,
+          itemBuilder: (context, index) {
             final product = products[index];
             final name = productsProvider.getTranslatedName(product, 'de');
 
@@ -218,5 +212,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
             );
           },
         );
+      },
+    );
   }
 }
