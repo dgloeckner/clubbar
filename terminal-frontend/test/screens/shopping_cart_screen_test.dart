@@ -38,6 +38,7 @@ void main() {
         ),
       ]);
       when(() => mockCartProvider.total).thenReturn(1100);
+      when(() => mockCartProvider.itemCount).thenReturn(2);
       when(() => mockCartProvider.isLoading).thenReturn(false);
       when(() => mockCartProvider.lastError).thenReturn(null);
       when(() => mockCartProvider.removeItem(any())).thenReturn(null);
@@ -60,6 +61,7 @@ void main() {
         updatedAt: '2025-02-01T10:00:00Z',
       );
       when(() => mockMembersProvider.selectedMember).thenReturn(testMember);
+      when(() => mockMembersProvider.clearSelectedMember()).thenReturn(null);
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
     });
@@ -132,6 +134,7 @@ void main() {
     testWidgets('shows empty cart message when no items',
         (WidgetTester tester) async {
       when(() => mockCartProvider.items).thenReturn([]);
+      when(() => mockCartProvider.itemCount).thenReturn(0);
 
       await tester.pumpWidget(
         MaterialApp(

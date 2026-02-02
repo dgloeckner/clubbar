@@ -5,6 +5,7 @@ import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:ruderbar_terminal/utils/icon_registry.dart';
+import 'package:ruderbar_terminal/widgets/member_bar.dart';
 
 class ShoppingCartScreen extends StatelessWidget {
   const ShoppingCartScreen({super.key});
@@ -14,19 +15,48 @@ class ShoppingCartScreen extends StatelessWidget {
     return euros.toStringAsFixed(2);
   }
 
+  static const double _horizontalPadding = 16.0;
+  static const double _verticalSpacing = 12.0;
+
   @override
   Widget build(BuildContext context) {
     return Consumer2<CartProvider, MembersProvider>(
       builder: (context, cartProvider, membersProvider, child) {
+        final selectedMember = membersProvider.selectedMember;
+
         if (cartProvider.items.isEmpty) {
-          return const Center(
-            child: Text(
-              'Your cart is empty',
-              style: TextStyle(
-                color: Color(0xff94a3b8),
-                fontSize: AppFontSizes.lg,
+          return Column(
+            children: [
+              // Member bar with back button
+              if (selectedMember != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _horizontalPadding,
+                    vertical: _verticalSpacing,
+                  ),
+                  child: MemberBar(
+                    member: selectedMember,
+                    itemCount: cartProvider.itemCount,
+                    showBackButton: true,
+                    onBackPressed: () => context.go('/products'),
+                    onLogoutPressed: () {
+                      membersProvider.clearSelectedMember();
+                      context.go('/idle');
+                    },
+                  ),
+                ),
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'Your cart is empty',
+                    style: TextStyle(
+                      color: Color(0xff94a3b8),
+                      fontSize: AppFontSizes.lg,
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           );
         }
 
@@ -42,6 +72,25 @@ class ShoppingCartScreen extends StatelessWidget {
 
         return Column(
           children: [
+            // Member bar with back button
+            if (selectedMember != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _horizontalPadding,
+                  vertical: _verticalSpacing,
+                ),
+                child: MemberBar(
+                  member: selectedMember,
+                  itemCount: cartProvider.itemCount,
+                  showBackButton: true,
+                  onBackPressed: () => context.go('/products'),
+                  onLogoutPressed: () {
+                    membersProvider.clearSelectedMember();
+                    context.go('/idle');
+                  },
+                ),
+              ),
+
             // Item list
             Expanded(
               child: ListView.builder(

@@ -5,13 +5,17 @@ class MemberBar extends StatelessWidget {
   final MembersCacheData member;
   final int itemCount;
   final VoidCallback? onCartPressed;
+  final VoidCallback? onBackPressed;
   final VoidCallback? onLogoutPressed;
+  final bool showBackButton;
 
   const MemberBar({
     required this.member,
     required this.itemCount,
     this.onCartPressed,
+    this.onBackPressed,
     this.onLogoutPressed,
+    this.showBackButton = false,
     Key? key,
   }) : super(key: key);
 
@@ -26,9 +30,9 @@ class MemberBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xff1e293b).withOpacity(0.8),
+        color: const Color(0xcc1e293b),
         border: Border.all(
-          color: const Color(0xff475569).withOpacity(0.4),
+          color: const Color(0x66475569),
           width: 1,
         ),
         borderRadius: BorderRadius.circular(12),
@@ -88,68 +92,11 @@ class MemberBar extends StatelessWidget {
           // Action buttons on right
           Row(
             children: [
-              // Cart button with badge
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onCartPressed,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                      color: itemCount > 0
-                          ? const Color(0xff3b82f6).withOpacity(0.2)
-                          : const Color(0xff3b82f6).withOpacity(0.1),
-                      border: Border.all(
-                        color: itemCount > 0
-                            ? const Color(0xff3b82f6).withOpacity(0.4)
-                            : const Color(0xff3b82f6).withOpacity(0.2),
-                        width: 1,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: Opacity(
-                            opacity: 0.6,
-                            child: Icon(
-                              Icons.shopping_cart_outlined,
-                              color: Colors.white,
-                              size: 31,
-                            ),
-                          ),
-                        ),
-                        // Badge with item count
-                        if (itemCount > 0)
-                          Positioned(
-                            top: 2,
-                            right: 2,
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              decoration: const BoxDecoration(
-                                color: Color(0xffEF4444),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  itemCount.toString(),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              // Cart button or Back button
+              if (showBackButton)
+                _buildBackButton()
+              else
+                _buildCartButton(),
               const SizedBox(width: 8),
               // Logout button
               Material(
@@ -182,6 +129,102 @@ class MemberBar extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCartButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onCartPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 58,
+          height: 58,
+          decoration: BoxDecoration(
+            color: itemCount > 0
+                ? const Color(0x333b82f6)
+                : const Color(0x1a3b82f6),
+            border: Border.all(
+              color: itemCount > 0
+                  ? const Color(0x663b82f6)
+                  : const Color(0x333b82f6),
+              width: 1,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Stack(
+            children: [
+              const Center(
+                child: Opacity(
+                  opacity: 0.6,
+                  child: Icon(
+                    Icons.shopping_cart_outlined,
+                    color: Colors.white,
+                    size: 31,
+                  ),
+                ),
+              ),
+              // Badge with item count
+              if (itemCount > 0)
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: const BoxDecoration(
+                      color: Color(0xffEF4444),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        itemCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onBackPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 58,
+          height: 58,
+          decoration: BoxDecoration(
+            color: const Color(0x333b82f6),
+            border: Border.all(
+              color: const Color(0x663b82f6),
+              width: 1,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Center(
+            child: Opacity(
+              opacity: 0.6,
+              child: Icon(
+                Icons.arrow_back,
+                color: Colors.white,
+                size: 31,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
