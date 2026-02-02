@@ -34,6 +34,10 @@ class IdleWaitingScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // RFID button (glowing effect handled in RfidDetectorButton)
+                    const RfidDetectorButton(),
+                    const SizedBox(height: AppSpacing.xxxl),
+
                     // Welcome text
                     Text(
                       'Durstig?',
@@ -56,10 +60,6 @@ class IdleWaitingScreen extends StatelessWidget {
                         fontWeight: FontWeight.w400,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.xxxl),
-
-                    // RFID button (glowing effect handled in RfidDetectorButton)
-                    const RfidDetectorButton(),
                     const SizedBox(height: AppSpacing.xxxl),
 
                     // Optional demo button
