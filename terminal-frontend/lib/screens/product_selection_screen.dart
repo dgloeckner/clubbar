@@ -66,7 +66,11 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                       member: selectedMember,
                       itemCount: cartProvider.itemCount,
                       onCartPressed: () => context.go('/cart'),
-                      onLogoutPressed: () => context.go('/'),
+                      onLogoutPressed: () {
+                        // Clear selected member and navigate to scan page
+                        membersProvider.clearSelectedMember();
+                        context.go('/idle');
+                      },
                     ),
                   ),
                 const SizedBox(height: 12),
