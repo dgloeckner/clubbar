@@ -19,7 +19,6 @@ class CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = getCategoryIcon(null); // iconName not in schema yet, use null for default
     final backgroundColor = selected
         ? const Color(0xff3b82f6)  // Blue when selected
         : const Color(0xff0f1d32); // Secondary bg when unselected
@@ -46,8 +45,8 @@ class CategoryChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
+            getCategoryIcon(
+              categoryName,
               size: 32,
               color: textColor,
             ),

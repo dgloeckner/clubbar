@@ -58,7 +58,6 @@ class ShoppingCartScreen extends StatelessWidget {
                   itemCount: cartProvider.items.length,
                   itemBuilder: (context, index) {
                     final item = cartProvider.items[index];
-                    final icon = getProductIcon(null);
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -74,8 +73,8 @@ class ShoppingCartScreen extends StatelessWidget {
                       child: Row(
                         children: [
                           // Icon
-                          Icon(
-                            icon,
+                          getProductIcon(
+                            item.productName,
                             size: 40,
                             color: const Color(0xff0ea5e9),
                           ),

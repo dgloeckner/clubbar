@@ -58,7 +58,6 @@ class _ProductCardState extends State<ProductCard>
   @override
   Widget build(BuildContext context) {
     final priceEuros = widget.product.priceCents / 100.0;
-    final icon = getProductIcon(null);
 
     return GestureDetector(
       onTapDown: _handleTapDown,
@@ -87,8 +86,8 @@ class _ProductCardState extends State<ProductCard>
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // Icon (64px)
-                Icon(
-                  icon,
+                getProductIcon(
+                  widget.productName,
                   size: 64,
                   color: const Color(0xff0ea5e9),
                 ),
