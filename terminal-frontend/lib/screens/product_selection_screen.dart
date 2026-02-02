@@ -41,6 +41,30 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     return 4;
   }
 
+  double _calculateItemSize(int productCount) {
+    // Available space for grid: 1280 (screen) - 32 (padding) = 1248px width
+    // Available height: 720 - 56 (header) - 74 (member bar) - 12 - 44 (tabs) - 16 - 24 = 494px
+    // Spacing between items: 12px
+
+    if (productCount <= 0) return 0;
+
+    // For 1-4 products: single row, use full width squares
+    if (productCount <= 4) {
+      // 303px width with 3 gaps of 12px = (303*4) + 36 = 1248px (perfect fit)
+      return 303.0;
+    }
+
+    // For 5-8 products: 2 rows, use 241px squares
+    // (241*4) + 36 gaps + 12 row gap = 1012 width, 494 height (perfect fit for 2 rows)
+    if (productCount <= 8) {
+      return 241.0;
+    }
+
+    // For 9+ products: would exceed available space without scrolling
+    // Return best-fit size (would need scrolling enabled)
+    return 200.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer3<ProductsProvider, CartProvider, MembersProvider>(
@@ -151,6 +175,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
 
     // Calculate optimal grid dimensions based on product count
     final columns = _calculateOptimalColumns(products.length);
+    final itemSize = _calculateItemSize(products.length);
 
     return GridView.builder(
       padding: EdgeInsets.zero,
@@ -179,17 +204,21 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
           quantity = 0;
         }
 
-        return ProductCard(
-          product: product,
-          productName: name,
-          quantity: quantity,
-          onTap: () => cartProvider.addItem(
-            product.id,
-            name,
-            product.priceCents,
-            1,
-            'de',
-            iconName: product.iconName,
+        return SizedBox(
+          width: itemSize,
+          height: itemSize,
+          child: ProductCard(
+            product: product,
+            productName: name,
+            quantity: quantity,
+            onTap: () => cartProvider.addItem(
+              product.id,
+              name,
+              product.priceCents,
+              1,
+              'de',
+              iconName: product.iconName,
+            ),
           ),
         );
       },
