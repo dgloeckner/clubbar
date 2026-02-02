@@ -164,7 +164,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
+        crossAxisCount: 8,
         crossAxisSpacing: AppSpacing.md,
         mainAxisSpacing: AppSpacing.md,
         childAspectRatio: 0.9,
