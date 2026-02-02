@@ -56,42 +56,70 @@ Widget getCategoryIcon(
 /// Map product name to SVG asset path
 String _getProductIconPath(String? productName) {
   switch (productName?.toLowerCase()) {
+    // Pils variants
     case 'pils':
+    case 'pilsner':
       return 'assets/icons/products/pils_icon.svg';
+    // Weizen variants
     case 'weizen':
+    case 'weißbier':
+    case 'wheat beer':
       return 'assets/icons/products/weizen_icon.svg';
+    // Beer AF variants
     case 'beeralf':
     case 'beer_af':
     case 'alcohol_free_beer':
       return 'assets/icons/products/beer_af_icon.svg';
+    // Radler variants
     case 'radler':
       return 'assets/icons/products/radler_icon.svg';
+    // Lemonade/Apfelschorle variants
     case 'lemonade':
+    case 'apfelschorle':
       return 'assets/icons/products/lemonade_icon.svg';
+    // Apple juice variants
     case 'applejuice':
     case 'apple_juice':
       return 'assets/icons/products/apple_juice_icon.svg';
+    // Apfelwein/Apple cider variants
     case 'appler':
     case 'apple_cider':
+    case 'apfelwein':
       return 'assets/icons/products/appler_icon.svg';
+    // Water large variants
     case 'waterlarge':
     case 'water_large':
+    case 'wasser 1l':
+    case 'wasser1l':
+    case 'wasser groß':
       return 'assets/icons/products/water_large_icon.svg';
+    // Water small variants
     case 'watersmall':
     case 'water_small':
+    case 'wasser 0,33l':
+    case 'wasser033l':
+    case 'wasser klein':
       return 'assets/icons/products/water_small_icon.svg';
+    // Sauna token variants
     case 'saunatoken':
     case 'sauna_token':
       return 'assets/icons/products/sauna_token_icon.svg';
+    // Sauna thermometer variants
     case 'saunathermometer':
     case 'sauna_thermometer':
       return 'assets/icons/products/sauna_thermometer_icon.svg';
+    // Sauna time variants
     case 'saunatime':
     case 'sauna_time':
       return 'assets/icons/products/sauna_time_icon.svg';
+    // Sauna cabin variants
     case 'saunacabin':
     case 'sauna_cabin':
       return 'assets/icons/products/sauna_cabin_icon.svg';
+    // Coffee - no icon available, use fallback
+    case 'kaffee':
+    case 'coffee':
+      return 'assets/icons/products/pils_icon.svg'; // Fallback (no coffee icon)
     default:
       return 'assets/icons/products/pils_icon.svg'; // Safe fallback
   }
