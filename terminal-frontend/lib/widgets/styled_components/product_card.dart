@@ -70,6 +70,7 @@ class _ProductCardState extends State<ProductCard>
       child: ScaleTransition(
         scale: _scaleAnimation,
         child: Stack(
+          fit: StackFit.expand,
           children: [
             Card(
               color: Color(int.parse('0xff${AppColors.bgCard.replaceFirst('#', '')}')),
