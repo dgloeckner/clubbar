@@ -8,7 +8,11 @@ import 'package:ruderbar_terminal/providers/products_provider.dart';
 import 'package:ruderbar_terminal/providers/auth_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
+import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:ruderbar_terminal/widgets/app_header.dart';
+import 'package:ruderbar_terminal/widgets/styled_components/product_card.dart';
+import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
+import 'package:ruderbar_terminal/widgets/styled_components/member_info_card.dart';
 
 class ProductSelectionScreen extends StatefulWidget {
   const ProductSelectionScreen({super.key});
@@ -31,72 +35,105 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<ProductsProvider, CartProvider>(
-      builder: (context, productsProvider, cartProvider, child) {
+    return Consumer3<ProductsProvider, CartProvider, MembersProvider>(
+      builder: (context, productsProvider, cartProvider, membersProvider, child) {
         final categories = productsProvider.categories;
+        final selectedMember = membersProvider.selectedMember;
 
         if (categories.isEmpty) {
-          return const Scaffold(
-            body: Center(child: Text('No categories available')),
+          return Scaffold(
+            backgroundColor: const Color(0xff0a1628),
+            body: const Center(
+              child: Text(
+                'No categories available',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
           );
         }
 
         return Scaffold(
+          backgroundColor: const Color(0xff0a1628),
           appBar: AppHeader(
             title: 'Products',
             authProvider: context.read<AuthProvider>(),
             syncProvider: context.read<SyncProvider>(),
             membersProvider: context.read<MembersProvider>(),
           ),
-          body: Column(
-            children: [
-              // Top bar with cart button
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        context.go('/cart');
-                      },
-                      child: Text('Cart (${cartProvider.itemCount})'),
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                // Member info card header
+                if (selectedMember != null)
+                  Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: MemberInfoCard(
+                      member: selectedMember,
+                      balanceCents: 0,
                     ),
-                  ],
+                  ),
+
+                // Cart button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          context.go('/cart');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xff3b82f6),
+                        ),
+                        child: Text(
+                          'Cart (${cartProvider.itemCount})',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            // Category tabs
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: List.generate(
-                  categories.length,
-                  (index) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: ChoiceChip(
-                      label: Text(_getCategoryName(categories[index])),
-                      selected: _selectedCategoryIndex == index,
-                      onSelected: (selected) {
-                        setState(() {
-                          _selectedCategoryIndex = index;
-                        });
-                      },
+                const SizedBox(height: AppSpacing.lg),
+
+                // Category tabs (horizontal scrollable)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  child: Row(
+                    children: List.generate(
+                      categories.length,
+                      (index) => Padding(
+                        padding: const EdgeInsets.only(right: AppSpacing.md),
+                        child: CategoryChip(
+                          category: categories[index],
+                          categoryName: _getCategoryName(categories[index]),
+                          selected: _selectedCategoryIndex == index,
+                          onSelected: () {
+                            setState(() {
+                              _selectedCategoryIndex = index;
+                            });
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
-              // Product grid
-              Expanded(
-                child: _buildProductGrid(
-                  context,
-                  categories[_selectedCategoryIndex],
-                  productsProvider,
-                  cartProvider,
+                const SizedBox(height: AppSpacing.lg),
+
+                // Product grid (2 columns, portrait optimized)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  child: _buildProductGrid(
+                    context,
+                    categories[_selectedCategoryIndex],
+                    productsProvider,
+                    cartProvider,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.xl),
+              ],
+            ),
           ),
         );
       },
@@ -114,30 +151,33 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
         .toList();
 
     if (products.isEmpty) {
-      return const Center(child: Text('No products in this category'));
+      return const Center(
+        child: Text(
+          'No products in this category',
+          style: TextStyle(color: Color(0xff94a3b8)),
+        ),
+      );
     }
 
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.zero,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+        crossAxisCount: 2,
+        crossAxisSpacing: AppSpacing.lg,
+        mainAxisSpacing: AppSpacing.lg,
+        childAspectRatio: 0.85,
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {
         final product = products[index];
         final name = productsProvider.getTranslatedName(product, 'de');
-        final cartItem = cartProvider.items
-            .where((item) => item.productId == product.id)
-            .firstOrNull;
 
-        return _buildProductTile(
-          context,
-          product,
-          name,
-          cartItem?.quantity ?? 0,
-          () => cartProvider.addItem(
+        return ProductCard(
+          product: product,
+          productName: name,
+          onTap: () => cartProvider.addItem(
             product.id,
             name,
             product.priceCents,
@@ -146,45 +186,6 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildProductTile(
-    BuildContext context,
-    ProductsCacheData product,
-    String name,
-    int quantity,
-    VoidCallback onTap,
-  ) {
-    final priceEuros = product.priceCents / 100.0;
-    return GestureDetector(
-      onTap: onTap,
-      child: Card(
-        child: Stack(
-          children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(name, style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 8),
-                Text('\$${priceEuros.toStringAsFixed(2)}', style: Theme.of(context).textTheme.bodyMedium),
-              ],
-            ),
-            if (quantity > 0)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: CircleAvatar(
-                  backgroundColor: Colors.blue,
-                  child: Text(
-                    '$quantity',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -10,6 +10,7 @@ import 'package:ruderbar_terminal/providers/auth_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/screens/product_selection_screen.dart';
+import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
 
 class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockCartProvider extends Mock implements CartProvider {}
@@ -94,7 +95,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(ChoiceChip), findsWidgets);
+      expect(find.byType(CategoryChip), findsWidgets);
     });
 
     testWidgets('displays grid view when categories exist', (WidgetTester tester) async {
