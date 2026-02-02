@@ -25,17 +25,16 @@ import 'package:ruderbar_terminal/models/member_dto.dart';
 /// Seed database with mock categories and products for development
 Future<void> _seedMockData(RuderbarDatabase database) async {
   try {
-    // Check if data already exists
-    final existingCategories = await database.select(database.categoriesCache).get();
-    if (existingCategories.isNotEmpty) {
-      return; // Data already seeded
-    }
-
-    // Insert mock categories and products using the repositories
+    // Create repositories
     final productsRepo = ProductsRepository(database);
     final membersRepo = MembersRepository(database);
 
-    await productsRepo.upsertCategories([
+    // Check if categories exist (determines if we need to seed products/categories)
+    final existingCategories = await database.select(database.categoriesCache).get();
+
+    if (existingCategories.isEmpty) {
+      // Seed categories and products only if they don't exist
+      await productsRepo.upsertCategories([
       CategoryDTO(
         id: 'cat-1',
         names: {'de': 'Bier', 'en': 'Beer'},
@@ -81,8 +80,9 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         updatedAt: '2025-02-01T10:00:00Z',
       ),
     ]);
+    }
 
-    // Insert test members for development
+    // Insert test members for development (always ensure members exist)
     await membersRepo.upsertMembers([
       MemberDTO(
         id: 'member-1',
