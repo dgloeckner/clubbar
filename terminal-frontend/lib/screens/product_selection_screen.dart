@@ -111,7 +111,11 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
               // Product grid (4 columns, fills remaining space)
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
+                  padding: const EdgeInsets.only(
+                    left: _horizontalPadding,
+                    right: _horizontalPadding,
+                    bottom: 5,
+                  ),
                   child: _buildProductGrid(
                     context,
                     categories[_selectedCategoryIndex],
