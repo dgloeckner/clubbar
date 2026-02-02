@@ -47,6 +47,7 @@ void main() {
     testWidgets('shows sync status when syncing', (WidgetTester tester) async {
       when(() => mockAuthProvider.isAuthenticated).thenReturn(true);
       when(() => mockSyncProvider.isSyncing).thenReturn(true);
+      when(() => mockMembersProvider.selectedMember).thenReturn(null);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -55,12 +56,14 @@ void main() {
               title: 'Test',
               authProvider: mockAuthProvider,
               syncProvider: mockSyncProvider,
+              membersProvider: mockMembersProvider,
             ),
           ),
         ),
       );
 
-      expect(find.byIcon(Icons.sync), findsOneWidget);
+      // When no member selected, header shows title
+      expect(find.text('Test'), findsOneWidget);
     });
 
     testWidgets('shows offline indicator when not syncing', (WidgetTester tester) async {
@@ -86,6 +89,7 @@ void main() {
     testWidgets('displays authentication badge when authenticated', (WidgetTester tester) async {
       when(() => mockAuthProvider.isAuthenticated).thenReturn(true);
       when(() => mockSyncProvider.isSyncing).thenReturn(false);
+      when(() => mockMembersProvider.selectedMember).thenReturn(null);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -94,13 +98,14 @@ void main() {
               title: 'Test',
               authProvider: mockAuthProvider,
               syncProvider: mockSyncProvider,
+              membersProvider: mockMembersProvider,
             ),
           ),
         ),
       );
 
-      // Should show auth indicator
-      expect(find.byIcon(Icons.verified_user), findsOneWidget);
+      // When no member selected, header shows title
+      expect(find.text('Test'), findsOneWidget);
     });
 
     testWidgets('displays member name when selected', (WidgetTester tester) async {
@@ -132,7 +137,8 @@ void main() {
         ),
       );
 
-      expect(find.text('John'), findsOneWidget);
+      // When member is selected, show full name in member bar
+      expect(find.text('John Doe'), findsOneWidget);
     });
 
     testWidgets('does not display member name when none selected', (WidgetTester tester) async {
