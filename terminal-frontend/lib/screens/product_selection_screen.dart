@@ -34,36 +34,42 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     }
   }
 
-  int _calculateOptimalColumns(int productCount) {
-    if (productCount <= 0) return 1;
-    if (productCount <= 2) return productCount;
-    if (productCount <= 4) return 4;
-    // For 5+ products, use 4 columns to fit multiple rows
-    return 4;
-  }
+  // Grid layout constants
+  static const int _columns = 4;
+  static const double _gridSpacing = 12.0;
 
-  double _calculateItemSize(int productCount) {
-    // Available space for grid: 1280 (screen) - 32 (padding) = 1248px width
-    // Available height: 720 - 56 (header) - 74 (member bar) - 12 - 44 (tabs) - 16 - 24 = 494px
-    // Spacing between items: 12px
+  // Screen layout constants (1280x720 fixed window)
+  static const double _screenWidth = 1280.0;
+  static const double _screenHeight = 720.0;
+  static const double _headerHeight = 56.0;
+  static const double _memberBarHeight = 74.0;
+  static const double _categoryTabsHeight = 60.0;
+  static const double _horizontalPadding = 16.0;
+  static const double _verticalSpacing = 12.0;
 
-    if (productCount <= 0) return 0;
+  double _calculateAspectRatio(int productCount) {
+    if (productCount <= 0) return 1.0;
 
-    // For 1-4 products: single row, use full width squares
-    if (productCount <= 4) {
-      // 303px width with 3 gaps of 12px = (303*4) + 36 = 1248px (perfect fit)
-      return 303.0;
-    }
+    // Calculate rows needed (4 columns)
+    final rows = (productCount / _columns).ceil();
 
-    // For 5-8 products: 2 rows, use 241px squares
-    // (241*4) + 36 gaps + 12 row gap = 1012 width, 494 height (perfect fit for 2 rows)
-    if (productCount <= 8) {
-      return 241.0;
-    }
+    // Available dimensions
+    final availableWidth = _screenWidth - (_horizontalPadding * 2);
+    final availableHeight = _screenHeight
+        - _headerHeight
+        - _memberBarHeight
+        - _categoryTabsHeight
+        - (_verticalSpacing * 3); // spacing between components
 
-    // For 9+ products: would exceed available space without scrolling
-    // Return best-fit size (would need scrolling enabled)
-    return 200.0;
+    // Calculate item dimensions
+    final totalHorizontalGaps = (_columns - 1) * _gridSpacing;
+    final itemWidth = (availableWidth - totalHorizontalGaps) / _columns;
+
+    final totalVerticalGaps = (rows - 1) * _gridSpacing;
+    final itemHeight = (availableHeight - totalVerticalGaps) / rows;
+
+    // Aspect ratio = width / height (> 1 means landscape)
+    return itemWidth / itemHeight;
   }
 
   @override
@@ -94,7 +100,10 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 // Member bar
                 if (selectedMember != null)
                   Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _horizontalPadding,
+                      vertical: _verticalSpacing,
+                    ),
                     child: MemberBar(
                       member: selectedMember,
                       itemCount: cartProvider.itemCount,
@@ -106,7 +115,6 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                       },
                     ),
                   ),
-                const SizedBox(height: 12),
 
                 // Category tabs (horizontal scrollable)
                 SingleChildScrollView(
@@ -131,19 +139,16 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: _verticalSpacing),
 
-                // Product grid (4 columns, square items)
+                // Product grid (4 columns, fills available space)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  child: Container(
-                    width: double.infinity,
-                    child: _buildProductGrid(
-                      context,
-                      categories[_selectedCategoryIndex],
-                      productsProvider,
-                      cartProvider,
-                    ),
+                  padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
+                  child: _buildProductGrid(
+                    context,
+                    categories[_selectedCategoryIndex],
+                    productsProvider,
+                    cartProvider,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
@@ -174,29 +179,21 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       );
     }
 
-    // Calculate optimal grid dimensions based on product count
-    final columns = _calculateOptimalColumns(products.length);
-    final itemSize = _calculateItemSize(products.length);
+    // Calculate aspect ratio based on product count and available space
+    final aspectRatio = _calculateAspectRatio(products.length);
 
-    // Calculate grid width: (itemSize * columns) + (gaps between items)
-    final gapWidth = (columns - 1) * AppSpacing.md;
-    final gridWidth = (itemSize * columns) + gapWidth;
-
-    return Center(
-      child: SizedBox(
-        width: gridWidth,
-        child: GridView.builder(
-          padding: EdgeInsets.zero,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: AppSpacing.md,
-            mainAxisSpacing: AppSpacing.md,
-            childAspectRatio: 1.0, // Square items
-          ),
-          itemCount: products.length,
-          itemBuilder: (context, index) {
+    return GridView.builder(
+      padding: EdgeInsets.zero,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: _columns,
+        crossAxisSpacing: _gridSpacing,
+        mainAxisSpacing: _gridSpacing,
+        childAspectRatio: aspectRatio,
+      ),
+      itemCount: products.length,
+      itemBuilder: (context, index) {
             final product = products[index];
             final name = productsProvider.getTranslatedName(product, 'de');
 
@@ -220,8 +217,6 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
               ),
             );
           },
-        ),
-      ),
-    );
+        );
   }
 }
