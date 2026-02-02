@@ -103,9 +103,9 @@ void main() {
         ),
       );
 
-      // Total is 1100 cents = 11,00 €
-      expect(find.text('11,00 €'), findsWidgets);
-      expect(find.text('Summe'), findsOneWidget);
+      // Total is 1100 cents = €11.00
+      expect(find.text('€11.00'), findsWidgets);
+      expect(find.text('Total'), findsOneWidget);
     });
 
     testWidgets('has checkout button', (WidgetTester tester) async {
@@ -125,8 +125,8 @@ void main() {
         ),
       );
 
-      expect(find.text('Buchen'), findsOneWidget);
-      expect(find.text('Abbrechen'), findsOneWidget);
+      expect(find.text('Checkout'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
     });
 
     testWidgets('shows empty cart message when no items',
@@ -150,8 +150,8 @@ void main() {
       );
 
       expect(find.text('Your cart is empty'), findsOneWidget);
-      expect(find.text('Buchen'), findsNothing);
-      expect(find.text('Abbrechen'), findsNothing);
+      expect(find.text('Checkout'), findsNothing);
+      expect(find.text('Cancel'), findsNothing);
     });
 
     testWidgets('calls checkout when button pressed', (WidgetTester tester) async {
@@ -186,7 +186,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
-      await tester.tap(find.text('Buchen'));
+      await tester.tap(find.text('Checkout'));
       await tester.pumpAndSettle();
 
       // Verify checkout was called with the selected member
@@ -235,8 +235,8 @@ void main() {
         ),
       );
 
-      // Price is 550 cents = 5,50 € per unit
-      expect(find.text('5,50 € / Stück'), findsOneWidget);
+      // Price is 550 cents = €5.50 per unit
+      expect(find.text('€5.50 each'), findsOneWidget);
     });
 
     testWidgets('has plus and minus buttons for quantity',

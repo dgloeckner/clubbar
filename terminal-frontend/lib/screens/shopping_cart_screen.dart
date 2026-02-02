@@ -11,7 +11,7 @@ class ShoppingCartScreen extends StatelessWidget {
 
   String _formatPrice(int cents) {
     final euros = cents / 100.0;
-    return euros.toStringAsFixed(2).replaceAll('.', ',');
+    return euros.toStringAsFixed(2);
   }
 
   @override
@@ -90,7 +90,7 @@ class ShoppingCartScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '$unitPriceFormatted € / Stück',
+                                '€$unitPriceFormatted each',
                                 style: const TextStyle(
                                   color: Color(0xff0ea5e9),
                                   fontSize: AppFontSizes.base,
@@ -184,7 +184,7 @@ class ShoppingCartScreen extends StatelessWidget {
                         SizedBox(
                           width: 90,
                           child: Text(
-                            '$lineTotalFormatted €',
+                            '€$lineTotalFormatted',
                             textAlign: TextAlign.right,
                             style: const TextStyle(
                               color: Colors.white,
@@ -250,7 +250,7 @@ class ShoppingCartScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Summe',
+                            'Total',
                             style: TextStyle(
                               color: Color(0xff94a3b8),
                               fontSize: AppFontSizes.lg,
@@ -259,7 +259,7 @@ class ShoppingCartScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Neuer Deckel: ${_formatPrice(newBalanceCents)} €',
+                            'New Balance: €${_formatPrice(newBalanceCents)}',
                             style: const TextStyle(
                               color: Color(0xff22c55e),
                               fontSize: AppFontSizes.base,
@@ -269,7 +269,7 @@ class ShoppingCartScreen extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        '${_formatPrice(totalCents)} €',
+                        '€${_formatPrice(totalCents)}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 48,
@@ -296,7 +296,7 @@ class ShoppingCartScreen extends StatelessWidget {
                             ),
                             child: const Center(
                               child: Text(
-                                'Abbrechen',
+                                'Cancel',
                                 style: TextStyle(
                                   color: Color(0xffef4444),
                                   fontSize: AppFontSizes.xl,
@@ -361,7 +361,7 @@ class ShoppingCartScreen extends StatelessWidget {
                                   ),
                                   SizedBox(width: 8),
                                   Text(
-                                    'Buchen',
+                                    'Checkout',
                                     style: TextStyle(
                                       color: Colors.black,
                                       fontSize: AppFontSizes.xl,
