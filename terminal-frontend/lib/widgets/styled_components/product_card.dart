@@ -9,11 +9,11 @@ class ProductCard extends StatefulWidget {
   final VoidCallback onTap;
 
   const ProductCard({
-    Key? key,
+    super.key,
     required this.product,
     required this.productName,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   State<ProductCard> createState() => _ProductCardState();
@@ -58,7 +58,7 @@ class _ProductCardState extends State<ProductCard>
   @override
   Widget build(BuildContext context) {
     final priceEuros = widget.product.priceCents / 100.0;
-    final icon = getProductIcon(widget.product.iconName);
+    final icon = getProductIcon(null);
 
     return GestureDetector(
       onTapDown: _handleTapDown,
