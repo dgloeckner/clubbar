@@ -2,16 +2,18 @@ import 'package:flutter/foundation.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/repository/members_repository.dart';
 import 'package:ruderbar_terminal/services/mock_rfid_service.dart';
+import 'package:ruderbar_terminal/providers/members_provider.dart';
 
 class RfidProvider extends ChangeNotifier {
   final MockRfidService _rfidService = MockRfidService();
   final MembersRepository _membersRepository;
+  final MembersProvider _membersProvider;
 
   MembersCacheData? _detectedMember;
   bool _isScanning = false;
   String? _error;
 
-  RfidProvider(this._membersRepository);
+  RfidProvider(this._membersRepository, this._membersProvider);
 
   MembersCacheData? get detectedMember => _detectedMember;
   bool get isScanning => _isScanning;
@@ -29,6 +31,7 @@ class RfidProvider extends ChangeNotifier {
       if (mockMember == null) {
         _error = 'Unknown card';
         _detectedMember = null;
+        _membersProvider.setError('Unknown card');
       } else {
         // Look up in local cache (should exist from sync)
         final (member, error) =
@@ -37,15 +40,19 @@ class RfidProvider extends ChangeNotifier {
         if (member != null) {
           _detectedMember = member;
           _error = null;
+          // Set as selected member in MembersProvider (triggers navigation to /products)
+          _membersProvider.setSelectedMember(member);
         } else {
           // If not in cache, return error
           _error = error ?? 'Member not found in cache';
           _detectedMember = null;
+          _membersProvider.setError(_error!);
         }
       }
     } catch (e) {
       _error = 'Error: $e';
       _detectedMember = null;
+      _membersProvider.setError(_error!);
     }
 
     _isScanning = false;

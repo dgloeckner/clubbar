@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
+import 'package:ruderbar_terminal/providers/rfid_provider.dart';
 
 class IdleWaitingScreen extends StatelessWidget {
   const IdleWaitingScreen({Key? key}) : super(key: key);
@@ -59,6 +60,16 @@ class IdleWaitingScreen extends StatelessWidget {
               Text(
                 'Hold your card near the reader',
                 style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 32),
+              // Test button for mock RFID detection (development only)
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final rfidProvider = context.read<RfidProvider>();
+                  await rfidProvider.simulateCardDetection();
+                },
+                icon: const Icon(Icons.touch_app),
+                label: const Text('Simulate Card Scan'),
               ),
             ],
           ),

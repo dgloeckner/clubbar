@@ -48,6 +48,14 @@ class MembersProvider extends ChangeNotifier {
     }
   }
 
+  /// Set selected member directly
+  void setSelectedMember(MembersCacheData member) {
+    _selectedMember = member;
+    _lastError = null;
+    _errorType = null;
+    notifyListeners();
+  }
+
   /// Clear selected member
   void clearSelectedMember() {
     _selectedMember = null;
@@ -77,6 +85,13 @@ class MembersProvider extends ChangeNotifier {
   Future<void> clearCache() async {
     _members = [];
     _selectedMember = null;
+    notifyListeners();
+  }
+
+  /// Set error state
+  void setError(String message) {
+    _lastError = message;
+    _errorType = null;
     notifyListeners();
   }
 
