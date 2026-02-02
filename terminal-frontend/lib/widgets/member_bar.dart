@@ -69,7 +69,7 @@ class MemberBar extends StatelessWidget {
                     '$firstName $lastName',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
+                      fontSize: 17,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -77,7 +77,7 @@ class MemberBar extends StatelessWidget {
                     'Deckel: 0,00 €', // TODO: Get actual balance from member
                     style: const TextStyle(
                       color: Color(0xffFF6B4A),
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
