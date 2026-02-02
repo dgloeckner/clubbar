@@ -153,9 +153,22 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
         final product = products[index];
         final name = productsProvider.getTranslatedName(product, 'de');
 
+        // Get quantity from cart if product is already there
+        int quantity = 0;
+        try {
+          final cartItem = cartProvider.items.firstWhere(
+            (item) => item.productId == product.id,
+          );
+          quantity = cartItem.quantity;
+        } catch (e) {
+          // Product not in cart
+          quantity = 0;
+        }
+
         return ProductCard(
           product: product,
           productName: name,
+          quantity: quantity,
           onTap: () => cartProvider.addItem(
             product.id,
             name,

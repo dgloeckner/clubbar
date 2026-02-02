@@ -7,12 +7,14 @@ class ProductCard extends StatefulWidget {
   final ProductsCacheData product;
   final String productName;
   final VoidCallback onTap;
+  final int quantity;
 
   const ProductCard({
     super.key,
     required this.product,
     required this.productName,
     required this.onTap,
+    this.quantity = 0,
   });
 
   @override
@@ -59,66 +61,93 @@ class _ProductCardState extends State<ProductCard>
   Widget build(BuildContext context) {
     final priceEuros = widget.product.priceCents / 100.0;
 
+    final isInCart = widget.quantity > 0;
+
     return GestureDetector(
       onTapDown: _handleTapDown,
       onTapUp: _handleTapUp,
       onTapCancel: _handleTapCancel,
       child: ScaleTransition(
         scale: _scaleAnimation,
-        child: Card(
-          color: Color(int.parse('0xff${AppColors.bgCard.replaceFirst('#', '')}')),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-            side: const BorderSide(
-              color: Color(0xff334155),
-              width: 1,
-            ),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-              boxShadow: const [],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Icon (48px, compact size for 4-column grid)
-                getProductIcon(
-                  widget.product.iconName,
-                  size: 48,
+        child: Stack(
+          children: [
+            Card(
+              color: Color(int.parse('0xff${AppColors.bgCard.replaceFirst('#', '')}')),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                side: BorderSide(
+                  color: isInCart ? const Color(0xff3b82f6) : const Color(0xff334155),
+                  width: isInCart ? 2 : 1,
                 ),
-                const SizedBox(height: AppSpacing.md),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                  boxShadow: const [],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Icon (48px, compact size for 4-column grid)
+                    getProductIcon(
+                      widget.product.iconName,
+                      size: 48,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
 
-                // Product name (smaller font for compact layout)
-                Text(
-                  widget.productName,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xfff1f5f9),
-                    fontSize: AppFontSizes.sm,
-                    fontWeight: FontWeight.w600,
+                    // Product name (smaller font for compact layout)
+                    Text(
+                      widget.productName,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xfff1f5f9),
+                        fontSize: AppFontSizes.sm,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+
+                    // Price (cyan, bold, base font)
+                    Text(
+                      '€${priceEuros.toStringAsFixed(2)}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xff0ea5e9),
+                        fontSize: AppFontSizes.base,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Counter badge when in cart
+            if (isInCart)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff3b82f6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${widget.quantity}x',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xs),
-
-                // Price (cyan, bold, base font)
-                Text(
-                  '€${priceEuros.toStringAsFixed(2)}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xff0ea5e9),
-                    fontSize: AppFontSizes.base,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+          ],
         ),
       ),
     );
