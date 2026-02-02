@@ -87,7 +87,7 @@ class _ProductCardState extends State<ProductCard>
               children: [
                 // Icon (48px, compact size for 4-column grid)
                 getProductIcon(
-                  widget.productName,
+                  widget.product.iconName,
                   size: 48,
                 ),
                 const SizedBox(height: AppSpacing.md),

@@ -41,6 +41,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         names: {'de': 'Getränke', 'en': 'Drinks'},
         displayOrder: 1,
         isActive: true,
+        iconName: 'CategoryFolderIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
       CategoryDTO(
@@ -48,6 +49,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         names: {'de': 'Sauna', 'en': 'Sauna'},
         displayOrder: 2,
         isActive: true,
+        iconName: 'CategoryLayersIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
     ]);
@@ -61,6 +63,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         descriptions: null,
         priceCents: 350,
         isActive: true,
+        iconName: 'PilsIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
       ProductDTO(
@@ -70,6 +73,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         descriptions: null,
         priceCents: 300,
         isActive: true,
+        iconName: 'RadlerIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
       ProductDTO(
@@ -79,6 +83,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         descriptions: null,
         priceCents: 380,
         isActive: true,
+        iconName: 'WeizenIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
       ProductDTO(
@@ -88,6 +93,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         descriptions: null,
         priceCents: 150,
         isActive: true,
+        iconName: 'WaterSmallIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
       ProductDTO(
@@ -97,6 +103,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         descriptions: null,
         priceCents: 200,
         isActive: true,
+        iconName: 'LemonadeIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
       ProductDTO(
@@ -106,6 +113,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         descriptions: null,
         priceCents: 300,
         isActive: true,
+        iconName: 'ApplerIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
       ProductDTO(
@@ -115,6 +123,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         descriptions: null,
         priceCents: 200,
         isActive: true,
+        iconName: 'WaterLargeIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
       ProductDTO(
@@ -124,6 +133,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         descriptions: null,
         priceCents: 200,
         isActive: true,
+        iconName: 'PilsIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
     ]);

@@ -5,6 +5,7 @@ class CategoryDTO {
   final Map<String, String> names; // {"de": "...", "en": "..."}
   final int displayOrder;
   final bool isActive;
+  final String? iconName;
   final String updatedAt;
 
   CategoryDTO({
@@ -12,6 +13,7 @@ class CategoryDTO {
     required this.names,
     required this.displayOrder,
     required this.isActive,
+    this.iconName,
     required this.updatedAt,
   });
 
@@ -21,6 +23,7 @@ class CategoryDTO {
       names: Map<String, String>.from(jsonDecode(json['names'] as String) as Map),
       displayOrder: json['display_order'] as int,
       isActive: (json['is_active'] as int?) == 1,
+      iconName: json['icon_name'] as String?,
       updatedAt: json['updated_at'] as String,
     );
   }
@@ -30,6 +33,7 @@ class CategoryDTO {
     'names': jsonEncode(names),
     'display_order': displayOrder,
     'is_active': isActive ? 1 : 0,
+    'icon_name': iconName,
     'updated_at': updatedAt,
   };
 }

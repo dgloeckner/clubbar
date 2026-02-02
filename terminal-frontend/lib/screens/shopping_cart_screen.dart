@@ -74,9 +74,8 @@ class ShoppingCartScreen extends StatelessWidget {
                         children: [
                           // Icon
                           getProductIcon(
-                            item.productName,
+                            item.iconName,
                             size: 40,
-                            color: const Color(0xff0ea5e9),
                           ),
                           const SizedBox(width: AppSpacing.md),
 

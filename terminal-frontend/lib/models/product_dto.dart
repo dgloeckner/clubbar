@@ -7,6 +7,7 @@ class ProductDTO {
   final Map<String, String>? descriptions;
   final int priceCents;
   final bool isActive;
+  final String? iconName;
   final String updatedAt;
 
   ProductDTO({
@@ -16,6 +17,7 @@ class ProductDTO {
     this.descriptions,
     required this.priceCents,
     required this.isActive,
+    this.iconName,
     required this.updatedAt,
   });
 
@@ -29,6 +31,7 @@ class ProductDTO {
         : null,
       priceCents: json['price_cents'] as int,
       isActive: (json['is_active'] as int?) == 1,
+      iconName: json['icon_name'] as String?,
       updatedAt: json['updated_at'] as String,
     );
   }
@@ -40,6 +43,7 @@ class ProductDTO {
     'descriptions': descriptions != null ? jsonEncode(descriptions) : null,
     'price_cents': priceCents,
     'is_active': isActive ? 1 : 0,
+    'icon_name': iconName,
     'updated_at': updatedAt,
   };
 }

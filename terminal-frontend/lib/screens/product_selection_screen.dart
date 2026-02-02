@@ -183,6 +183,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
             product.priceCents,
             1,
             'de',
+            iconName: product.iconName,
           ),
         );
       },

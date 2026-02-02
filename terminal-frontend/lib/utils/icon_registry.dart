@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-/// Get product icon as SVG widget
-/// Returns SvgPicture with optional color filtering
+/// Get product icon as SVG widget from backend icon name enum value
+/// Maps backend icon name (e.g., "PilsIcon") to SVG asset
 Widget getProductIcon(
-  String? productName, {
+  String? iconName, {
   double size = 64,
-  Color? color,
 }) {
-  final iconPath = _getProductIconPath(productName);
+  final iconPath = _getProductIconPath(iconName);
 
   return SvgPicture.asset(
     iconPath,
     width: size,
     height: size,
-    // SVG files have their own colors - render as-is for best results
     placeholderBuilder: (BuildContext context) {
       return SizedBox(
         width: size,
@@ -25,20 +23,18 @@ Widget getProductIcon(
   );
 }
 
-/// Get category icon as SVG widget
-/// Returns SvgPicture with optional color filtering
+/// Get category icon as SVG widget from backend icon name enum value
+/// Maps backend icon name (e.g., "CategoryIcon") to SVG asset
 Widget getCategoryIcon(
-  String? categoryName, {
+  String? iconName, {
   double size = 40,
-  Color? color,
 }) {
-  final iconPath = _getCategoryIconPath(categoryName);
+  final iconPath = _getCategoryIconPath(iconName);
 
   return SvgPicture.asset(
     iconPath,
     width: size,
     height: size,
-    // SVG files have their own colors - render as-is for best results
     placeholderBuilder: (BuildContext context) {
       return SizedBox(
         width: size,
@@ -49,101 +45,59 @@ Widget getCategoryIcon(
   );
 }
 
-/// Map product name to SVG asset path
-String _getProductIconPath(String? productName) {
-  // Extract product type from full name (e.g., "Pils 0,5l" → "pils")
-  final productType = productName
-      ?.split(' ')
-      .first
-      .toLowerCase()
-      ?? '';
-
-  switch (productType) {
-    // Pils variants
-    case 'pils':
-    case 'pilsner':
+/// Map backend product icon enum name to SVG asset path
+/// Backend enum values: PilsIcon, WeizenIcon, BeerAFIcon, RadlerIcon, LemonadeIcon,
+/// AppleJuiceIcon, ApplerIcon, WaterLargeIcon, WaterSmallIcon, SaunaTokenIcon,
+/// SaunaThermometerIcon, SaunaTimeIcon, SaunaCabinIcon
+String _getProductIconPath(String? iconName) {
+  switch (iconName) {
+    case 'PilsIcon':
       return 'assets/icons/products/pils_icon.svg';
-    // Weizen variants
-    case 'weizen':
-    case 'weißbier':
-    case 'wheat beer':
+    case 'WeizenIcon':
       return 'assets/icons/products/weizen_icon.svg';
-    // Beer AF variants
-    case 'beeralf':
-    case 'beer_af':
-    case 'alcohol_free_beer':
-      return 'assets/icons/products/beer_af_icon.svg';
-    // Radler variants
-    case 'radler':
+    case 'BeerAFIcon':
+      return 'assets/icons/products/beerAF_icon.svg';
+    case 'RadlerIcon':
       return 'assets/icons/products/radler_icon.svg';
-    // Lemonade/Apfelschorle variants
-    case 'lemonade':
-    case 'apfelschorle':
+    case 'LemonadeIcon':
       return 'assets/icons/products/lemonade_icon.svg';
-    // Apple juice variants
-    case 'applejuice':
-    case 'apple_juice':
+    case 'AppleJuiceIcon':
       return 'assets/icons/products/apple_juice_icon.svg';
-    // Apfelwein/Apple cider variants
-    case 'appler':
-    case 'apple_cider':
-    case 'apfelwein':
+    case 'ApplerIcon':
       return 'assets/icons/products/appler_icon.svg';
-    // Water large variants
-    case 'waterlarge':
-    case 'water_large':
-    case 'wasser 1l':
-    case 'wasser1l':
-    case 'wasser groß':
+    case 'WaterLargeIcon':
       return 'assets/icons/products/water_large_icon.svg';
-    // Water small variants
-    case 'watersmall':
-    case 'water_small':
-    case 'wasser 0,33l':
-    case 'wasser033l':
-    case 'wasser klein':
+    case 'WaterSmallIcon':
       return 'assets/icons/products/water_small_icon.svg';
-    // Sauna token variants
-    case 'saunatoken':
-    case 'sauna_token':
+    case 'SaunaTokenIcon':
       return 'assets/icons/products/sauna_token_icon.svg';
-    // Sauna thermometer variants
-    case 'saunathermometer':
-    case 'sauna_thermometer':
+    case 'SaunaThermometerIcon':
       return 'assets/icons/products/sauna_thermometer_icon.svg';
-    // Sauna time variants
-    case 'saunatime':
-    case 'sauna_time':
+    case 'SaunaTimeIcon':
       return 'assets/icons/products/sauna_time_icon.svg';
-    // Sauna cabin variants
-    case 'saunacabin':
-    case 'sauna_cabin':
+    case 'SaunaCabinIcon':
       return 'assets/icons/products/sauna_cabin_icon.svg';
-    // Coffee - no icon available, use fallback
-    case 'kaffee':
-    case 'coffee':
-      return 'assets/icons/products/pils_icon.svg'; // Fallback (no coffee icon)
     default:
-      return 'assets/icons/products/pils_icon.svg'; // Safe fallback
+      return 'assets/icons/products/pils_icon.svg'; // Fallback
   }
 }
 
-/// Map category name to SVG asset path
-String _getCategoryIconPath(String? categoryName) {
-  switch (categoryName?.toLowerCase()) {
-    case 'tags':
-    case 'category_tags':
+/// Map backend category icon enum name to SVG asset path
+/// Backend enum values: CategoryIcon, CategoryTagsIcon, CategoryLayersIcon,
+/// CategoryFolderIcon, CategoryListIcon
+String _getCategoryIconPath(String? iconName) {
+  switch (iconName) {
+    case 'CategoryIcon':
+      return 'assets/icons/categories/category_icon.svg';
+    case 'CategoryTagsIcon':
       return 'assets/icons/categories/category_tags_icon.svg';
-    case 'layers':
-    case 'category_layers':
+    case 'CategoryLayersIcon':
       return 'assets/icons/categories/category_layers_icon.svg';
-    case 'folder':
-    case 'category_folder':
+    case 'CategoryFolderIcon':
       return 'assets/icons/categories/category_folder_icon.svg';
-    case 'list':
-    case 'category_list':
+    case 'CategoryListIcon':
       return 'assets/icons/categories/category_list_icon.svg';
     default:
-      return 'assets/icons/categories/category_icon.svg'; // Safe fallback
+      return 'assets/icons/categories/category_icon.svg'; // Fallback
   }
 }

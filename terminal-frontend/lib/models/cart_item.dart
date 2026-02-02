@@ -4,6 +4,7 @@ class CartItem {
   final int priceCents;
   int quantity;
   final String language;
+  final String? iconName;
 
   CartItem({
     required this.productId,
@@ -11,6 +12,7 @@ class CartItem {
     required this.priceCents,
     required this.quantity,
     required this.language,
+    this.iconName,
   });
 
   int get lineTotalCents => priceCents * quantity;

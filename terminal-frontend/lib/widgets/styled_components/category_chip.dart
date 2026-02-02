@@ -46,9 +46,8 @@ class CategoryChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             getCategoryIcon(
-              categoryName,
+              category.iconName,
               size: 32,
-              color: textColor,
             ),
             const SizedBox(width: AppSpacing.sm),
             Text(

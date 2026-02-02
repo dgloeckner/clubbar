@@ -28,8 +28,9 @@ class CartProvider extends ChangeNotifier {
     String productName,
     int priceCents,
     int quantity,
-    String language,
-  ) {
+    String language, {
+    String? iconName,
+  }) {
     final existingIndex =
         _items.indexWhere((item) => item.productId == productId);
 
@@ -45,6 +46,7 @@ class CartProvider extends ChangeNotifier {
         quantity: quantity,
         priceCents: priceCents,
         language: language,
+        iconName: iconName,
       ));
     }
 

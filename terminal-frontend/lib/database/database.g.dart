@@ -576,6 +576,17 @@ class $CategoriesCacheTable extends CategoriesCache
     requiredDuringInsert: false,
     defaultValue: Constant(1),
   );
+  static const VerificationMeta _iconNameMeta = const VerificationMeta(
+    'iconName',
+  );
+  @override
+  late final GeneratedColumn<String> iconName = GeneratedColumn<String>(
+    'icon_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -593,6 +604,7 @@ class $CategoriesCacheTable extends CategoriesCache
     names,
     displayOrder,
     isActive,
+    iconName,
     updatedAt,
   ];
   @override
@@ -637,6 +649,12 @@ class $CategoriesCacheTable extends CategoriesCache
         isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
       );
     }
+    if (data.containsKey('icon_name')) {
+      context.handle(
+        _iconNameMeta,
+        iconName.isAcceptableOrUnknown(data['icon_name']!, _iconNameMeta),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -670,6 +688,10 @@ class $CategoriesCacheTable extends CategoriesCache
         DriftSqlType.int,
         data['${effectivePrefix}is_active'],
       )!,
+      iconName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}icon_name'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}updated_at'],
@@ -689,12 +711,14 @@ class CategoriesCacheData extends DataClass
   final String names;
   final int displayOrder;
   final int isActive;
+  final String? iconName;
   final String updatedAt;
   const CategoriesCacheData({
     required this.id,
     required this.names,
     required this.displayOrder,
     required this.isActive,
+    this.iconName,
     required this.updatedAt,
   });
   @override
@@ -704,6 +728,9 @@ class CategoriesCacheData extends DataClass
     map['names'] = Variable<String>(names);
     map['display_order'] = Variable<int>(displayOrder);
     map['is_active'] = Variable<int>(isActive);
+    if (!nullToAbsent || iconName != null) {
+      map['icon_name'] = Variable<String>(iconName);
+    }
     map['updated_at'] = Variable<String>(updatedAt);
     return map;
   }
@@ -714,6 +741,9 @@ class CategoriesCacheData extends DataClass
       names: Value(names),
       displayOrder: Value(displayOrder),
       isActive: Value(isActive),
+      iconName: iconName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(iconName),
       updatedAt: Value(updatedAt),
     );
   }
@@ -728,6 +758,7 @@ class CategoriesCacheData extends DataClass
       names: serializer.fromJson<String>(json['names']),
       displayOrder: serializer.fromJson<int>(json['displayOrder']),
       isActive: serializer.fromJson<int>(json['isActive']),
+      iconName: serializer.fromJson<String?>(json['iconName']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
     );
   }
@@ -739,6 +770,7 @@ class CategoriesCacheData extends DataClass
       'names': serializer.toJson<String>(names),
       'displayOrder': serializer.toJson<int>(displayOrder),
       'isActive': serializer.toJson<int>(isActive),
+      'iconName': serializer.toJson<String?>(iconName),
       'updatedAt': serializer.toJson<String>(updatedAt),
     };
   }
@@ -748,12 +780,14 @@ class CategoriesCacheData extends DataClass
     String? names,
     int? displayOrder,
     int? isActive,
+    Value<String?> iconName = const Value.absent(),
     String? updatedAt,
   }) => CategoriesCacheData(
     id: id ?? this.id,
     names: names ?? this.names,
     displayOrder: displayOrder ?? this.displayOrder,
     isActive: isActive ?? this.isActive,
+    iconName: iconName.present ? iconName.value : this.iconName,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   CategoriesCacheData copyWithCompanion(CategoriesCacheCompanion data) {
@@ -764,6 +798,7 @@ class CategoriesCacheData extends DataClass
           ? data.displayOrder.value
           : this.displayOrder,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      iconName: data.iconName.present ? data.iconName.value : this.iconName,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -775,13 +810,15 @@ class CategoriesCacheData extends DataClass
           ..write('names: $names, ')
           ..write('displayOrder: $displayOrder, ')
           ..write('isActive: $isActive, ')
+          ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, names, displayOrder, isActive, updatedAt);
+  int get hashCode =>
+      Object.hash(id, names, displayOrder, isActive, iconName, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -790,6 +827,7 @@ class CategoriesCacheData extends DataClass
           other.names == this.names &&
           other.displayOrder == this.displayOrder &&
           other.isActive == this.isActive &&
+          other.iconName == this.iconName &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -798,6 +836,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
   final Value<String> names;
   final Value<int> displayOrder;
   final Value<int> isActive;
+  final Value<String?> iconName;
   final Value<String> updatedAt;
   final Value<int> rowid;
   const CategoriesCacheCompanion({
@@ -805,6 +844,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     this.names = const Value.absent(),
     this.displayOrder = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.iconName = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -813,6 +853,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     required String names,
     required int displayOrder,
     this.isActive = const Value.absent(),
+    this.iconName = const Value.absent(),
     required String updatedAt,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -824,6 +865,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     Expression<String>? names,
     Expression<int>? displayOrder,
     Expression<int>? isActive,
+    Expression<String>? iconName,
     Expression<String>? updatedAt,
     Expression<int>? rowid,
   }) {
@@ -832,6 +874,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
       if (names != null) 'names': names,
       if (displayOrder != null) 'display_order': displayOrder,
       if (isActive != null) 'is_active': isActive,
+      if (iconName != null) 'icon_name': iconName,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -842,6 +885,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     Value<String>? names,
     Value<int>? displayOrder,
     Value<int>? isActive,
+    Value<String?>? iconName,
     Value<String>? updatedAt,
     Value<int>? rowid,
   }) {
@@ -850,6 +894,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
       names: names ?? this.names,
       displayOrder: displayOrder ?? this.displayOrder,
       isActive: isActive ?? this.isActive,
+      iconName: iconName ?? this.iconName,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -870,6 +915,9 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     if (isActive.present) {
       map['is_active'] = Variable<int>(isActive.value);
     }
+    if (iconName.present) {
+      map['icon_name'] = Variable<String>(iconName.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<String>(updatedAt.value);
     }
@@ -886,6 +934,7 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
           ..write('names: $names, ')
           ..write('displayOrder: $displayOrder, ')
           ..write('isActive: $isActive, ')
+          ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -965,6 +1014,17 @@ class $ProductsCacheTable extends ProductsCache
     requiredDuringInsert: false,
     defaultValue: Constant(1),
   );
+  static const VerificationMeta _iconNameMeta = const VerificationMeta(
+    'iconName',
+  );
+  @override
+  late final GeneratedColumn<String> iconName = GeneratedColumn<String>(
+    'icon_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -984,6 +1044,7 @@ class $ProductsCacheTable extends ProductsCache
     descriptions,
     priceCents,
     isActive,
+    iconName,
     updatedAt,
   ];
   @override
@@ -1042,6 +1103,12 @@ class $ProductsCacheTable extends ProductsCache
         isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
       );
     }
+    if (data.containsKey('icon_name')) {
+      context.handle(
+        _iconNameMeta,
+        iconName.isAcceptableOrUnknown(data['icon_name']!, _iconNameMeta),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -1083,6 +1150,10 @@ class $ProductsCacheTable extends ProductsCache
         DriftSqlType.int,
         data['${effectivePrefix}is_active'],
       )!,
+      iconName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}icon_name'],
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}updated_at'],
@@ -1104,6 +1175,7 @@ class ProductsCacheData extends DataClass
   final String? descriptions;
   final int priceCents;
   final int isActive;
+  final String? iconName;
   final String updatedAt;
   const ProductsCacheData({
     required this.id,
@@ -1112,6 +1184,7 @@ class ProductsCacheData extends DataClass
     this.descriptions,
     required this.priceCents,
     required this.isActive,
+    this.iconName,
     required this.updatedAt,
   });
   @override
@@ -1125,6 +1198,9 @@ class ProductsCacheData extends DataClass
     }
     map['price_cents'] = Variable<int>(priceCents);
     map['is_active'] = Variable<int>(isActive);
+    if (!nullToAbsent || iconName != null) {
+      map['icon_name'] = Variable<String>(iconName);
+    }
     map['updated_at'] = Variable<String>(updatedAt);
     return map;
   }
@@ -1139,6 +1215,9 @@ class ProductsCacheData extends DataClass
           : Value(descriptions),
       priceCents: Value(priceCents),
       isActive: Value(isActive),
+      iconName: iconName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(iconName),
       updatedAt: Value(updatedAt),
     );
   }
@@ -1155,6 +1234,7 @@ class ProductsCacheData extends DataClass
       descriptions: serializer.fromJson<String?>(json['descriptions']),
       priceCents: serializer.fromJson<int>(json['priceCents']),
       isActive: serializer.fromJson<int>(json['isActive']),
+      iconName: serializer.fromJson<String?>(json['iconName']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
     );
   }
@@ -1168,6 +1248,7 @@ class ProductsCacheData extends DataClass
       'descriptions': serializer.toJson<String?>(descriptions),
       'priceCents': serializer.toJson<int>(priceCents),
       'isActive': serializer.toJson<int>(isActive),
+      'iconName': serializer.toJson<String?>(iconName),
       'updatedAt': serializer.toJson<String>(updatedAt),
     };
   }
@@ -1179,6 +1260,7 @@ class ProductsCacheData extends DataClass
     Value<String?> descriptions = const Value.absent(),
     int? priceCents,
     int? isActive,
+    Value<String?> iconName = const Value.absent(),
     String? updatedAt,
   }) => ProductsCacheData(
     id: id ?? this.id,
@@ -1187,6 +1269,7 @@ class ProductsCacheData extends DataClass
     descriptions: descriptions.present ? descriptions.value : this.descriptions,
     priceCents: priceCents ?? this.priceCents,
     isActive: isActive ?? this.isActive,
+    iconName: iconName.present ? iconName.value : this.iconName,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   ProductsCacheData copyWithCompanion(ProductsCacheCompanion data) {
@@ -1203,6 +1286,7 @@ class ProductsCacheData extends DataClass
           ? data.priceCents.value
           : this.priceCents,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      iconName: data.iconName.present ? data.iconName.value : this.iconName,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1216,6 +1300,7 @@ class ProductsCacheData extends DataClass
           ..write('descriptions: $descriptions, ')
           ..write('priceCents: $priceCents, ')
           ..write('isActive: $isActive, ')
+          ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -1229,6 +1314,7 @@ class ProductsCacheData extends DataClass
     descriptions,
     priceCents,
     isActive,
+    iconName,
     updatedAt,
   );
   @override
@@ -1241,6 +1327,7 @@ class ProductsCacheData extends DataClass
           other.descriptions == this.descriptions &&
           other.priceCents == this.priceCents &&
           other.isActive == this.isActive &&
+          other.iconName == this.iconName &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -1251,6 +1338,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
   final Value<String?> descriptions;
   final Value<int> priceCents;
   final Value<int> isActive;
+  final Value<String?> iconName;
   final Value<String> updatedAt;
   final Value<int> rowid;
   const ProductsCacheCompanion({
@@ -1260,6 +1348,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     this.descriptions = const Value.absent(),
     this.priceCents = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.iconName = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -1270,6 +1359,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     this.descriptions = const Value.absent(),
     required int priceCents,
     this.isActive = const Value.absent(),
+    this.iconName = const Value.absent(),
     required String updatedAt,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -1284,6 +1374,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     Expression<String>? descriptions,
     Expression<int>? priceCents,
     Expression<int>? isActive,
+    Expression<String>? iconName,
     Expression<String>? updatedAt,
     Expression<int>? rowid,
   }) {
@@ -1294,6 +1385,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
       if (descriptions != null) 'descriptions': descriptions,
       if (priceCents != null) 'price_cents': priceCents,
       if (isActive != null) 'is_active': isActive,
+      if (iconName != null) 'icon_name': iconName,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1306,6 +1398,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     Value<String?>? descriptions,
     Value<int>? priceCents,
     Value<int>? isActive,
+    Value<String?>? iconName,
     Value<String>? updatedAt,
     Value<int>? rowid,
   }) {
@@ -1316,6 +1409,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
       descriptions: descriptions ?? this.descriptions,
       priceCents: priceCents ?? this.priceCents,
       isActive: isActive ?? this.isActive,
+      iconName: iconName ?? this.iconName,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -1342,6 +1436,9 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     if (isActive.present) {
       map['is_active'] = Variable<int>(isActive.value);
     }
+    if (iconName.present) {
+      map['icon_name'] = Variable<String>(iconName.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<String>(updatedAt.value);
     }
@@ -1360,6 +1457,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
           ..write('descriptions: $descriptions, ')
           ..write('priceCents: $priceCents, ')
           ..write('isActive: $isActive, ')
+          ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -2512,6 +2610,7 @@ typedef $$CategoriesCacheTableCreateCompanionBuilder =
       required String names,
       required int displayOrder,
       Value<int> isActive,
+      Value<String?> iconName,
       required String updatedAt,
       Value<int> rowid,
     });
@@ -2521,6 +2620,7 @@ typedef $$CategoriesCacheTableUpdateCompanionBuilder =
       Value<String> names,
       Value<int> displayOrder,
       Value<int> isActive,
+      Value<String?> iconName,
       Value<String> updatedAt,
       Value<int> rowid,
     });
@@ -2590,6 +2690,11 @@ class $$CategoriesCacheTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get iconName => $composableBuilder(
+    column: $table.iconName,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
@@ -2650,6 +2755,11 @@ class $$CategoriesCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get iconName => $composableBuilder(
+    column: $table.iconName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -2678,6 +2788,9 @@ class $$CategoriesCacheTableAnnotationComposer
 
   GeneratedColumn<int> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<String> get iconName =>
+      $composableBuilder(column: $table.iconName, builder: (column) => column);
 
   GeneratedColumn<String> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -2742,6 +2855,7 @@ class $$CategoriesCacheTableTableManager
                 Value<String> names = const Value.absent(),
                 Value<int> displayOrder = const Value.absent(),
                 Value<int> isActive = const Value.absent(),
+                Value<String?> iconName = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CategoriesCacheCompanion(
@@ -2749,6 +2863,7 @@ class $$CategoriesCacheTableTableManager
                 names: names,
                 displayOrder: displayOrder,
                 isActive: isActive,
+                iconName: iconName,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
@@ -2758,6 +2873,7 @@ class $$CategoriesCacheTableTableManager
                 required String names,
                 required int displayOrder,
                 Value<int> isActive = const Value.absent(),
+                Value<String?> iconName = const Value.absent(),
                 required String updatedAt,
                 Value<int> rowid = const Value.absent(),
               }) => CategoriesCacheCompanion.insert(
@@ -2765,6 +2881,7 @@ class $$CategoriesCacheTableTableManager
                 names: names,
                 displayOrder: displayOrder,
                 isActive: isActive,
+                iconName: iconName,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
@@ -2834,6 +2951,7 @@ typedef $$ProductsCacheTableCreateCompanionBuilder =
       Value<String?> descriptions,
       required int priceCents,
       Value<int> isActive,
+      Value<String?> iconName,
       required String updatedAt,
       Value<int> rowid,
     });
@@ -2845,6 +2963,7 @@ typedef $$ProductsCacheTableUpdateCompanionBuilder =
       Value<String?> descriptions,
       Value<int> priceCents,
       Value<int> isActive,
+      Value<String?> iconName,
       Value<String> updatedAt,
       Value<int> rowid,
     });
@@ -2946,6 +3065,11 @@ class $$ProductsCacheTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get iconName => $composableBuilder(
+    column: $table.iconName,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
@@ -3034,6 +3158,11 @@ class $$ProductsCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get iconName => $composableBuilder(
+    column: $table.iconName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -3090,6 +3219,9 @@ class $$ProductsCacheTableAnnotationComposer
 
   GeneratedColumn<int> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<String> get iconName =>
+      $composableBuilder(column: $table.iconName, builder: (column) => column);
 
   GeneratedColumn<String> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -3180,6 +3312,7 @@ class $$ProductsCacheTableTableManager
                 Value<String?> descriptions = const Value.absent(),
                 Value<int> priceCents = const Value.absent(),
                 Value<int> isActive = const Value.absent(),
+                Value<String?> iconName = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ProductsCacheCompanion(
@@ -3189,6 +3322,7 @@ class $$ProductsCacheTableTableManager
                 descriptions: descriptions,
                 priceCents: priceCents,
                 isActive: isActive,
+                iconName: iconName,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
@@ -3200,6 +3334,7 @@ class $$ProductsCacheTableTableManager
                 Value<String?> descriptions = const Value.absent(),
                 required int priceCents,
                 Value<int> isActive = const Value.absent(),
+                Value<String?> iconName = const Value.absent(),
                 required String updatedAt,
                 Value<int> rowid = const Value.absent(),
               }) => ProductsCacheCompanion.insert(
@@ -3209,6 +3344,7 @@ class $$ProductsCacheTableTableManager
                 descriptions: descriptions,
                 priceCents: priceCents,
                 isActive: isActive,
+                iconName: iconName,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
