@@ -114,7 +114,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                   padding: const EdgeInsets.only(
                     left: _horizontalPadding,
                     right: _horizontalPadding,
-                    bottom: 5,
+                    bottom: 10,
                   ),
                   child: _buildProductGrid(
                     context,
