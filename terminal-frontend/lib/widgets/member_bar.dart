@@ -117,7 +117,7 @@ class MemberBar extends StatelessWidget {
                             child: Icon(
                               Icons.shopping_cart_outlined,
                               color: Colors.white,
-                              size: 24,
+                              size: 31,
                             ),
                           ),
                         ),
@@ -173,7 +173,7 @@ class MemberBar extends StatelessWidget {
                       child: Icon(
                         Icons.logout,
                         color: Colors.white,
-                        size: 24,
+                        size: 31,
                       ),
                     ),
                   ),
