@@ -54,7 +54,7 @@ class CategoryChip extends StatelessWidget {
               categoryName,
               style: TextStyle(
                 color: textColor,
-                fontSize: AppFontSizes.xl,
+                fontSize: AppFontSizes.xxxl,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
