@@ -59,6 +59,8 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
             authProvider: context.read<AuthProvider>(),
             syncProvider: context.read<SyncProvider>(),
             membersProvider: context.read<MembersProvider>(),
+            onCartPressed: () => context.go('/cart'),
+            onLogoutPressed: () => context.go('/'),
           ),
           body: SingleChildScrollView(
             child: Column(

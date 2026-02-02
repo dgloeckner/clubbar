@@ -9,6 +9,8 @@ class AppHeader extends AppBar {
     required AuthProvider authProvider,
     required SyncProvider syncProvider,
     MembersProvider? membersProvider,
+    VoidCallback? onCartPressed,
+    VoidCallback? onLogoutPressed,
     Key? key,
   }) : super(
     key: key,
@@ -45,6 +47,22 @@ class AppHeader extends AppBar {
           padding: EdgeInsets.all(16.0),
           child: Icon(Icons.verified_user),
         ),
+      // Shopping cart icon
+      Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: IconButton(
+          icon: const Icon(Icons.shopping_cart_outlined),
+          onPressed: onCartPressed,
+        ),
+      ),
+      // Logout icon
+      Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: IconButton(
+          icon: const Icon(Icons.logout),
+          onPressed: onLogoutPressed,
+        ),
+      ),
     ],
   );
 }
