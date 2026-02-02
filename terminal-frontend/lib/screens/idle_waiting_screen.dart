@@ -1,80 +1,90 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/providers/rfid_provider.dart';
+import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:ruderbar_terminal/widgets/rfid_detector_button.dart';
 
 class IdleWaitingScreen extends StatelessWidget {
-  const IdleWaitingScreen({Key? key}) : super(key: key);
+  const IdleWaitingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<MembersProvider>(
-      builder: (context, membersProvider, child) {
-        final error = membersProvider.lastError;
-
-        if (error != null) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 80,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  error,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
+    return Scaffold(
+      backgroundColor: const Color(0xff0a1628), // Deep navy background
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: AppSpacing.xxxl,
+                horizontal: AppSpacing.lg,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Welcome text
+                  Text(
+                    'Durstig?',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xfff1f5f9), // Primary text
+                      fontSize: AppFontSizes.xxxl,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () {
-                    membersProvider.clearError();
-                  },
-                  child: const Text('Try Again'),
-                ),
-              ],
-            ),
-          );
-        }
+                  const SizedBox(height: AppSpacing.md),
 
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.nfc,
-                size: 80,
-                color: Theme.of(context).colorScheme.primary,
+                  // Subtitle
+                  Text(
+                    'Halte deine Karte an den Scanner',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xff94a3b8), // Secondary text
+                      fontSize: AppFontSizes.base,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxxl),
+
+                  // RFID button (glowing effect handled in RfidDetectorButton)
+                  const RfidDetectorButton(),
+                  const SizedBox(height: AppSpacing.xxxl),
+
+                  // Optional demo button
+                  Consumer<RfidProvider>(
+                    builder: (context, rfidProvider, child) {
+                      return ElevatedButton(
+                        onPressed: !rfidProvider.isScanning
+                            ? () => rfidProvider.simulateCardDetection(context)
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xff3b82f6),
+                          disabledBackgroundColor: const Color(0xff334155),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xl,
+                            vertical: AppSpacing.md,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                          ),
+                        ),
+                        child: const Text(
+                          'Demo: Scan Card',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: AppFontSizes.base,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              Text(
-                'Scan Member Card',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Hold your card near the reader',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 32),
-              // Test button for mock RFID detection (development only)
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final rfidProvider = context.read<RfidProvider>();
-                  await rfidProvider.simulateCardDetection(context);
-                },
-                icon: const Icon(Icons.touch_app),
-                label: const Text('Simulate Card Scan'),
-              ),
-            ],
+            ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

@@ -59,6 +59,7 @@ void main() {
 
       when(() => mockRfidProvider.addListener(any())).thenReturn(null);
       when(() => mockRfidProvider.removeListener(any())).thenReturn(null);
+      when(() => mockRfidProvider.isScanning).thenReturn(false);
     });
 
     testWidgets('app starts at idle screen', (WidgetTester tester) async {
@@ -80,7 +81,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Scan Member Card'), findsOneWidget);
+      expect(find.text('Durstig?'), findsOneWidget);
     });
   });
 }
