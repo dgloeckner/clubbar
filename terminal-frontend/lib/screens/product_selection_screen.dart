@@ -177,51 +177,56 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     final columns = _calculateOptimalColumns(products.length);
     final itemSize = _calculateItemSize(products.length);
 
-    return GridView.builder(
-      padding: EdgeInsets.zero,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        crossAxisSpacing: AppSpacing.md,
-        mainAxisSpacing: AppSpacing.md,
-        childAspectRatio: 1.0, // Square items
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        final name = productsProvider.getTranslatedName(product, 'de');
+    // Calculate grid width: (itemSize * columns) + (gaps between items)
+    final gapWidth = (columns - 1) * AppSpacing.md;
+    final gridWidth = (itemSize * columns) + gapWidth;
 
-        // Get quantity from cart if product is already there
-        int quantity = 0;
-        try {
-          final cartItem = cartProvider.items.firstWhere(
-            (item) => item.productId == product.id,
-          );
-          quantity = cartItem.quantity;
-        } catch (e) {
-          // Product not in cart
-          quantity = 0;
-        }
-
-        return SizedBox(
-          width: itemSize,
-          height: itemSize,
-          child: ProductCard(
-            product: product,
-            productName: name,
-            quantity: quantity,
-            onTap: () => cartProvider.addItem(
-              product.id,
-              name,
-              product.priceCents,
-              1,
-              'de',
-              iconName: product.iconName,
-            ),
+    return Center(
+      child: SizedBox(
+        width: gridWidth,
+        child: GridView.builder(
+          padding: EdgeInsets.zero,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: AppSpacing.md,
+            mainAxisSpacing: AppSpacing.md,
+            childAspectRatio: 1.0, // Square items
           ),
-        );
-      },
+          itemCount: products.length,
+          itemBuilder: (context, index) {
+            final product = products[index];
+            final name = productsProvider.getTranslatedName(product, 'de');
+
+            // Get quantity from cart if product is already there
+            int quantity = 0;
+            try {
+              final cartItem = cartProvider.items.firstWhere(
+                (item) => item.productId == product.id,
+              );
+              quantity = cartItem.quantity;
+            } catch (e) {
+              // Product not in cart
+              quantity = 0;
+            }
+
+            return ProductCard(
+              product: product,
+              productName: name,
+              quantity: quantity,
+              onTap: () => cartProvider.addItem(
+                product.id,
+                name,
+                product.priceCents,
+                1,
+                'de',
+                iconName: product.iconName,
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
