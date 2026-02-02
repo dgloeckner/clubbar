@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:collection/collection.dart';
 import 'dart:convert';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
@@ -200,16 +201,10 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
             final name = productsProvider.getTranslatedName(product, 'de');
 
             // Get quantity from cart if product is already there
-            int quantity = 0;
-            try {
-              final cartItem = cartProvider.items.firstWhere(
-                (item) => item.productId == product.id,
-              );
-              quantity = cartItem.quantity;
-            } catch (e) {
-              // Product not in cart
-              quantity = 0;
-            }
+            final cartItem = cartProvider.items.firstWhereOrNull(
+              (item) => item.productId == product.id,
+            );
+            final quantity = cartItem?.quantity ?? 0;
 
             return ProductCard(
               product: product,
