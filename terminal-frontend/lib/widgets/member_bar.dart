@@ -124,8 +124,8 @@ class MemberBar extends StatelessWidget {
                         // Badge with item count
                         if (itemCount > 0)
                           Positioned(
-                            top: -8,
-                            right: -8,
+                            top: 2,
+                            right: 2,
                             child: Container(
                               width: 20,
                               height: 20,
