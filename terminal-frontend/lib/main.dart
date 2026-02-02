@@ -20,6 +20,7 @@ import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/sync_service.dart';
 import 'package:ruderbar_terminal/models/category_dto.dart';
 import 'package:ruderbar_terminal/models/product_dto.dart';
+import 'package:ruderbar_terminal/models/member_dto.dart';
 
 /// Seed database with mock categories and products for development
 Future<void> _seedMockData(RuderbarDatabase database) async {
@@ -32,6 +33,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
 
     // Insert mock categories and products using the repositories
     final productsRepo = ProductsRepository(database);
+    final membersRepo = MembersRepository(database);
 
     await productsRepo.upsertCategories([
       CategoryDTO(
@@ -76,6 +78,30 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         descriptions: null,
         priceCents: 600,
         isActive: true,
+        updatedAt: '2025-02-01T10:00:00Z',
+      ),
+    ]);
+
+    // Insert test members for development
+    await membersRepo.upsertMembers([
+      MemberDTO(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: true,
+        isSepaValid: true,
+        updatedAt: '2025-02-01T10:00:00Z',
+      ),
+      MemberDTO(
+        id: 'member-2',
+        cardUid: 'card-456',
+        firstName: 'Jane',
+        lastName: 'Smith',
+        preferredLanguage: 'de',
+        isActive: true,
+        isSepaValid: true,
         updatedAt: '2025-02-01T10:00:00Z',
       ),
     ]);
