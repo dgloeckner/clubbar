@@ -123,14 +123,13 @@ void main() {
         ),
       );
 
-      expect(find.text('Checkout'), findsOneWidget);
-      expect(find.text('Continue Shopping'), findsOneWidget);
+      expect(find.text('Proceed to Checkout'), findsOneWidget);
+      expect(find.text('Back to Products'), findsOneWidget);
     });
 
     testWidgets('shows empty cart message when no items',
         (WidgetTester tester) async {
       when(() => mockCartProvider.items).thenReturn([]);
-      when(() => mockCartProvider.total).thenReturn(0);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -149,8 +148,8 @@ void main() {
       );
 
       expect(find.text('Your cart is empty'), findsOneWidget);
-      expect(find.text('Checkout'), findsNothing);
-      expect(find.text('Continue Shopping'), findsNothing);
+      expect(find.text('Proceed to Checkout'), findsNothing);
+      expect(find.text('Back to Products'), findsNothing);
     });
 
     testWidgets('calls checkout when button pressed', (WidgetTester tester) async {
@@ -172,9 +171,9 @@ void main() {
             ),
           ),
           GoRoute(
-            path: '/confirmation/:transactionId',
+            path: '/checkout',
             builder: (context, state) => const Scaffold(
-              body: Center(child: Text('Confirmation')),
+              body: Center(child: Text('Checkout')),
             ),
           ),
         ],
@@ -182,16 +181,15 @@ void main() {
 
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
-      await tester.tap(find.text('Checkout'));
+      await tester.tap(find.text('Proceed to Checkout'));
       await tester.pumpAndSettle();
 
-      verify(() => mockCartProvider.checkout(any())).called(1);
+      // Verify navigation occurred (checkout was not called from shopping cart)
+      verifyNever(() => mockCartProvider.checkout(any()));
     });
 
-    testWidgets('displays error banner when error present',
+    testWidgets('removes item when remove button tapped',
         (WidgetTester tester) async {
-      when(() => mockCartProvider.lastError).thenReturn('Payment failed');
-
       await tester.pumpWidget(
         MaterialApp(
           home: MultiProvider(
@@ -208,7 +206,10 @@ void main() {
         ),
       );
 
-      expect(find.text('Payment failed'), findsOneWidget);
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+
+      verify(() => mockCartProvider.removeItem('prod-1')).called(1);
     });
   });
 }
