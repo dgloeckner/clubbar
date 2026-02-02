@@ -21,11 +21,13 @@ void main() {
 
       // Setup cart provider mocks
       when(() => mockCartProvider.clearCart()).thenReturn(null);
+      when(() => mockCartProvider.total).thenReturn(2500); // €25.00
       when(() => mockCartProvider.addListener(any())).thenReturn(null);
       when(() => mockCartProvider.removeListener(any())).thenReturn(null);
 
       // Setup members provider mocks
       when(() => mockMembersProvider.clearSelectedMember()).thenReturn(null);
+      when(() => mockMembersProvider.selectedMember).thenReturn(null);
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
     });
@@ -59,11 +61,11 @@ void main() {
 
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
-      expect(find.text('Success!'), findsOneWidget);
+      expect(find.text('Payment Successful'), findsOneWidget);
       expect(find.byIcon(Icons.check_circle), findsOneWidget);
     });
 
-    testWidgets('has dismiss button', (WidgetTester tester) async {
+    testWidgets('displays countdown message', (WidgetTester tester) async {
       final router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -92,7 +94,7 @@ void main() {
 
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
-      expect(find.text('Return to Idle Now'), findsOneWidget);
+      expect(find.textContaining('Redirecting in'), findsOneWidget);
     });
 
     testWidgets('displays transaction ID', (WidgetTester tester) async {
@@ -124,10 +126,10 @@ void main() {
 
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
-      expect(find.text('Transaction txn-abc123 completed'), findsOneWidget);
+      expect(find.text('txn-abc123'), findsOneWidget);
     });
 
-    testWidgets('displays auto-loop countdown message', (WidgetTester tester) async {
+    testWidgets('countdown decrements every second', (WidgetTester tester) async {
       final router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -156,10 +158,19 @@ void main() {
 
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
-      expect(find.text('Returning to idle in 3 seconds...'), findsOneWidget);
+      // Initially shows 3 seconds
+      expect(find.textContaining('Redirecting in 3'), findsOneWidget);
+
+      // After 1 second, should show 2 seconds
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.textContaining('Redirecting in 2'), findsOneWidget);
+
+      // After another 1 second, should show 1 second
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.textContaining('Redirecting in 1'), findsOneWidget);
     });
 
-    testWidgets('displays manual return button', (WidgetTester tester) async {
+    testWidgets('clears cart on navigation', (WidgetTester tester) async {
       final router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -188,7 +199,12 @@ void main() {
 
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
-      expect(find.text('Return to Idle Now'), findsOneWidget);
+      // Wait for auto-navigation
+      await tester.pump(const Duration(seconds: 3));
+
+      // Verify clearCart was called
+      verify(() => mockCartProvider.clearCart()).called(greaterThanOrEqualTo(1));
+      verify(() => mockMembersProvider.clearSelectedMember()).called(greaterThanOrEqualTo(1));
     });
   });
 }
