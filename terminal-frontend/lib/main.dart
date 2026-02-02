@@ -18,12 +18,80 @@ import 'package:ruderbar_terminal/services/members_service.dart';
 import 'package:ruderbar_terminal/services/products_service.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/sync_service.dart';
+import 'package:ruderbar_terminal/models/category_dto.dart';
+import 'package:ruderbar_terminal/models/product_dto.dart';
+
+/// Seed database with mock categories and products for development
+Future<void> _seedMockData(RuderbarDatabase database) async {
+  try {
+    // Check if data already exists
+    final existingCategories = await database.select(database.categoriesCache).get();
+    if (existingCategories.isNotEmpty) {
+      return; // Data already seeded
+    }
+
+    // Insert mock categories and products using the repositories
+    final productsRepo = ProductsRepository(database);
+
+    await productsRepo.upsertCategories([
+      CategoryDTO(
+        id: 'cat-1',
+        names: {'de': 'Bier', 'en': 'Beer'},
+        displayOrder: 1,
+        isActive: true,
+        updatedAt: '2025-02-01T10:00:00Z',
+      ),
+      CategoryDTO(
+        id: 'cat-2',
+        names: {'de': 'Wein', 'en': 'Wine'},
+        displayOrder: 2,
+        isActive: true,
+        updatedAt: '2025-02-01T10:00:00Z',
+      ),
+    ]);
+
+    await productsRepo.upsertProducts([
+      ProductDTO(
+        id: 'prod-1',
+        categoryId: 'cat-1',
+        names: {'de': 'Pilsner', 'en': 'Pilsner'},
+        descriptions: null,
+        priceCents: 350,
+        isActive: true,
+        updatedAt: '2025-02-01T10:00:00Z',
+      ),
+      ProductDTO(
+        id: 'prod-2',
+        categoryId: 'cat-1',
+        names: {'de': 'Weißbier', 'en': 'Wheat Beer'},
+        descriptions: null,
+        priceCents: 400,
+        isActive: true,
+        updatedAt: '2025-02-01T10:00:00Z',
+      ),
+      ProductDTO(
+        id: 'prod-3',
+        categoryId: 'cat-2',
+        names: {'de': 'Rotwein', 'en': 'Red Wine'},
+        descriptions: null,
+        priceCents: 600,
+        isActive: true,
+        updatedAt: '2025-02-01T10:00:00Z',
+      ),
+    ]);
+  } catch (e) {
+    // Silently fail - data might already exist
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize database
   final database = RuderbarDatabase();
+
+  // Seed database with mock data for development
+  await _seedMockData(database);
 
   // Create repositories (data access layer)
   final membersRepo = MembersRepository(database);
@@ -47,6 +115,9 @@ void main() async {
   // Create providers (UI state management)
   final membersProvider = MembersProvider(service: membersService);
   final productsProvider = ProductsProvider(service: productsService);
+
+  // Load products into provider (after seeding database)
+  await productsProvider.refreshProducts();
   final syncProvider = SyncProvider(
     syncService: syncService,
     membersProvider: membersProvider,
