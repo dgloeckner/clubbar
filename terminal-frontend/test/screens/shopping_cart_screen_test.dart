@@ -103,8 +103,9 @@ void main() {
         ),
       );
 
-      expect(find.text('€11.00'), findsWidgets);
-      expect(find.text('Total:'), findsOneWidget);
+      // Total is 1100 cents = 11,00 €
+      expect(find.text('11,00 €'), findsWidgets);
+      expect(find.text('Summe'), findsOneWidget);
     });
 
     testWidgets('has checkout button', (WidgetTester tester) async {
@@ -124,8 +125,8 @@ void main() {
         ),
       );
 
-      expect(find.text('Proceed to Checkout'), findsOneWidget);
-      expect(find.text('Back to Products'), findsOneWidget);
+      expect(find.text('Buchen'), findsOneWidget);
+      expect(find.text('Abbrechen'), findsOneWidget);
     });
 
     testWidgets('shows empty cart message when no items',
@@ -149,8 +150,8 @@ void main() {
       );
 
       expect(find.text('Your cart is empty'), findsOneWidget);
-      expect(find.text('Proceed to Checkout'), findsNothing);
-      expect(find.text('Back to Products'), findsNothing);
+      expect(find.text('Buchen'), findsNothing);
+      expect(find.text('Abbrechen'), findsNothing);
     });
 
     testWidgets('calls checkout when button pressed', (WidgetTester tester) async {
@@ -185,14 +186,14 @@ void main() {
 
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
 
-      await tester.tap(find.text('Proceed to Checkout'));
+      await tester.tap(find.text('Buchen'));
       await tester.pumpAndSettle();
 
       // Verify checkout was called with the selected member
       verify(() => mockCartProvider.checkout(any())).called(1);
     });
 
-    testWidgets('removes item when remove button tapped',
+    testWidgets('removes item when delete button tapped',
         (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -210,10 +211,57 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Remove'));
+      // Find the delete icon button
+      await tester.tap(find.byIcon(Icons.delete_outline));
       await tester.pumpAndSettle();
 
       verify(() => mockCartProvider.removeItem('prod-1')).called(1);
+    });
+
+    testWidgets('displays price per unit', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+              ChangeNotifierProvider<MembersProvider>.value(
+                value: mockMembersProvider,
+              ),
+            ],
+            child: const Scaffold(
+              body: ShoppingCartScreen(),
+            ),
+          ),
+        ),
+      );
+
+      // Price is 550 cents = 5,50 € per unit
+      expect(find.text('5,50 € / Stück'), findsOneWidget);
+    });
+
+    testWidgets('has plus and minus buttons for quantity',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+              ChangeNotifierProvider<MembersProvider>.value(
+                value: mockMembersProvider,
+              ),
+            ],
+            child: const Scaffold(
+              body: ShoppingCartScreen(),
+            ),
+          ),
+        ),
+      );
+
+      // Check for plus and minus symbols
+      expect(find.text('+'), findsOneWidget);
+      expect(find.text('−'), findsOneWidget);
+      // Check quantity is displayed
+      expect(find.text('2'), findsOneWidget);
     });
   });
 }
