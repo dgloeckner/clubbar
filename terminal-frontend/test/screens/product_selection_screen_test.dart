@@ -148,6 +148,17 @@ void main() {
         ),
       ];
 
+      final testMember = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        updatedAt: '2024-01-01T00:00:00Z',
+      );
+
       when(() => mockProductsProvider.categories).thenReturn(categories);
       when(() => mockProductsProvider.products).thenReturn([]);
       when(() => mockProductsProvider.addListener(any())).thenReturn(null);
@@ -155,6 +166,9 @@ void main() {
       when(() => mockCartProvider.itemCount).thenReturn(5);
       when(() => mockCartProvider.addListener(any())).thenReturn(null);
       when(() => mockCartProvider.removeListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.selectedMember).thenReturn(testMember);
+      when(() => mockMembersProvider.addListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -171,8 +185,9 @@ void main() {
         ),
       );
 
-      expect(find.byType(ElevatedButton), findsOneWidget);
-      expect(find.text('Cart (5)'), findsOneWidget);
+      // Cart button should show badge with item count
+      expect(find.byIcon(Icons.shopping_cart_outlined), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
     });
 
     testWidgets('renders successfully when empty', (WidgetTester tester) async {

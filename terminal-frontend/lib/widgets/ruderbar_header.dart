@@ -1,0 +1,125 @@
+import 'package:flutter/material.dart';
+import 'dart:async';
+
+class RuderbarHeader extends StatefulWidget implements PreferredSizeWidget {
+  final bool isOnline;
+
+  const RuderbarHeader({
+    required this.isOnline,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  State<RuderbarHeader> createState() => _RuderbarHeaderState();
+
+  @override
+  Size get preferredSize => const Size.fromHeight(56);
+}
+
+class _RuderbarHeaderState extends State<RuderbarHeader> {
+  late DateTime _currentTime;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentTime = DateTime.now();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {
+          _currentTime = DateTime.now();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _formatTime(DateTime time) {
+    final hours = time.hour.toString().padLeft(2, '0');
+    final minutes = time.minute.toString().padLeft(2, '0');
+    return '$hours:$minutes';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xff0f1d32),
+        border: Border(
+          bottom: BorderSide(
+            color: const Color(0xff3b82f6).withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Left: Ruderbar title
+          Text(
+            'Ruderbar',
+            style: const TextStyle(
+              color: Color(0xfff1f5f9),
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          // Right: Online badge and clock
+          Row(
+            children: [
+              if (widget.isOnline)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff22c55e).withOpacity(0.15),
+                    border: Border.all(
+                      color: const Color(0xff22c55e).withOpacity(0.3),
+                      width: 1,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    children: [
+                      Text(
+                        '● ',
+                        style: TextStyle(
+                          color: Color(0xff22c55e),
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        'Online',
+                        style: TextStyle(
+                          color: Color(0xfff1f5f9),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(width: 12),
+              Text(
+                _formatTime(_currentTime),
+                style: const TextStyle(
+                  color: Color(0xff64748b),
+                  fontSize: 16,
+                  fontFamily: 'JetBrains Mono',
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

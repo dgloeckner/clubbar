@@ -9,7 +9,8 @@ import 'package:ruderbar_terminal/providers/auth_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/widgets/app_header.dart';
+import 'package:ruderbar_terminal/widgets/ruderbar_header.dart';
+import 'package:ruderbar_terminal/widgets/member_bar.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/product_card.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
 
@@ -37,6 +38,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     return Consumer3<ProductsProvider, CartProvider, MembersProvider>(
       builder: (context, productsProvider, cartProvider, membersProvider, child) {
         final categories = productsProvider.categories;
+        final selectedMember = membersProvider.selectedMember;
 
         if (categories.isEmpty) {
           return Scaffold(
@@ -52,39 +54,22 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
 
         return Scaffold(
           backgroundColor: const Color(0xff0a1628),
-          appBar: AppHeader(
-            title: 'Products',
-            authProvider: context.read<AuthProvider>(),
-            syncProvider: context.read<SyncProvider>(),
-            membersProvider: context.read<MembersProvider>(),
-            onCartPressed: () => context.go('/cart'),
-            onLogoutPressed: () => context.go('/'),
-          ),
+          appBar: RuderbarHeader(isOnline: true),
           body: SingleChildScrollView(
             child: Column(
               children: [
-                // Cart button
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          context.go('/cart');
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xff3b82f6),
-                        ),
-                        child: Text(
-                          'Cart (${cartProvider.itemCount})',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    ],
+                // Member bar
+                if (selectedMember != null)
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: MemberBar(
+                      member: selectedMember,
+                      itemCount: cartProvider.itemCount,
+                      onCartPressed: () => context.go('/cart'),
+                      onLogoutPressed: () => context.go('/'),
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
+                const SizedBox(height: 12),
 
                 // Category tabs (horizontal scrollable)
                 SingleChildScrollView(
