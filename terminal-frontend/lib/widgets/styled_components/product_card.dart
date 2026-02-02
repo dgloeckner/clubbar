@@ -130,7 +130,7 @@ class _ProductCardState extends State<ProductCard>
             // Counter badge when in cart
             if (isInCart)
               Positioned(
-                top: 8,
+                top: 13,
                 right: 16,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
