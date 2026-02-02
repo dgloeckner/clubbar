@@ -12,7 +12,6 @@ import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:ruderbar_terminal/widgets/app_header.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/product_card.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/member_info_card.dart';
 
 class ProductSelectionScreen extends StatefulWidget {
   const ProductSelectionScreen({super.key});
@@ -38,7 +37,6 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     return Consumer3<ProductsProvider, CartProvider, MembersProvider>(
       builder: (context, productsProvider, cartProvider, membersProvider, child) {
         final categories = productsProvider.categories;
-        final selectedMember = membersProvider.selectedMember;
 
         if (categories.isEmpty) {
           return Scaffold(
@@ -65,16 +63,6 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
           body: SingleChildScrollView(
             child: Column(
               children: [
-                // Member info card header
-                if (selectedMember != null)
-                  Padding(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
-                    child: MemberInfoCard(
-                      member: selectedMember,
-                      balanceCents: 0,
-                    ),
-                  ),
-
                 // Cart button
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),

@@ -93,10 +93,13 @@ class AppHeader extends AppBar {
                 width: 1,
               ),
             ),
-            child: const Icon(
-              Icons.shopping_cart_outlined,
-              color: Colors.white,
-              size: 24,
+            child: const Opacity(
+              opacity: 0.6,
+              child: Icon(
+                Icons.shopping_cart_outlined,
+                color: Colors.white,
+                size: 24,
+              ),
             ),
           ),
         ),
@@ -115,10 +118,13 @@ class AppHeader extends AppBar {
                 width: 1,
               ),
             ),
-            child: const Icon(
-              Icons.logout,
-              color: Colors.white,
-              size: 24,
+            child: const Opacity(
+              opacity: 0.6,
+              child: Icon(
+                Icons.logout,
+                color: Colors.white,
+                size: 24,
+              ),
             ),
           ),
         ),
