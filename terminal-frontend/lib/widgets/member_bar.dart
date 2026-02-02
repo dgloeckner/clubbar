@@ -127,8 +127,8 @@ class MemberBar extends StatelessWidget {
                             top: 2,
                             right: 2,
                             child: Container(
-                              width: 26,
-                              height: 26,
+                              width: 18,
+                              height: 18,
                               decoration: const BoxDecoration(
                                 color: Color(0xffEF4444),
                                 shape: BoxShape.circle,
@@ -138,7 +138,7 @@ class MemberBar extends StatelessWidget {
                                   itemCount.toString(),
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 16,
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
