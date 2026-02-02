@@ -66,7 +66,7 @@ class _ProductCardState extends State<ProductCard>
       child: ScaleTransition(
         scale: _scaleAnimation,
         child: Card(
-          color: Color(int.parse('0xff' + AppColors.bgCard.replaceFirst('#', ''))),
+          color: Color(int.parse('0xff${AppColors.bgCard.replaceFirst('#', '')}')),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppBorderRadius.lg),
