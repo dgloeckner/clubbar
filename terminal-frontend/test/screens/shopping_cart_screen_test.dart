@@ -44,6 +44,7 @@ void main() {
       when(() => mockCartProvider.updateQuantity(any(), any())).thenReturn(null);
       when(() => mockCartProvider.checkout(any()))
           .thenAnswer((_) async => null);
+      when(() => mockCartProvider.lastTransactionId).thenReturn(null);
       when(() => mockCartProvider.addListener(any())).thenReturn(null);
       when(() => mockCartProvider.removeListener(any())).thenReturn(null);
 
@@ -153,6 +154,9 @@ void main() {
     });
 
     testWidgets('calls checkout when button pressed', (WidgetTester tester) async {
+      // Setup checkout to return a transaction ID
+      when(() => mockCartProvider.lastTransactionId).thenReturn('txn-123');
+
       final router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -171,9 +175,9 @@ void main() {
             ),
           ),
           GoRoute(
-            path: '/checkout',
+            path: '/confirmation/:transactionId',
             builder: (context, state) => const Scaffold(
-              body: Center(child: Text('Checkout')),
+              body: Center(child: Text('Confirmation')),
             ),
           ),
         ],
@@ -184,8 +188,8 @@ void main() {
       await tester.tap(find.text('Proceed to Checkout'));
       await tester.pumpAndSettle();
 
-      // Verify navigation occurred (checkout was not called from shopping cart)
-      verifyNever(() => mockCartProvider.checkout(any()));
+      // Verify checkout was called with the selected member
+      verify(() => mockCartProvider.checkout(any())).called(1);
     });
 
     testWidgets('removes item when remove button tapped',

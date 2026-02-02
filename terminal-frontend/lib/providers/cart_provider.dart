@@ -10,6 +10,7 @@ class CartProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _lastError;
   Exception? _errorType;
+  String? _lastTransactionId;
 
   CartProvider({required CartService service}) : _service = service;
 
@@ -19,6 +20,7 @@ class CartProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get lastError => _lastError;
   Exception? get errorType => _errorType;
+  String? get lastTransactionId => _lastTransactionId;
 
   /// Add item to cart (accumulates quantity if product already present)
   void addItem(
@@ -92,7 +94,8 @@ class CartProvider extends ChangeNotifier {
         return;
       }
 
-      // Clear cart on success
+      // Store transaction ID and clear cart on success
+      _lastTransactionId = txnId;
       _items = [];
       _lastError = null;
       _errorType = null;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
+import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:ruderbar_terminal/utils/icon_registry.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/action_button.dart';
@@ -171,7 +172,42 @@ class ShoppingCartScreen extends StatelessWidget {
                     // Checkout button
                     ActionButton(
                       label: 'Proceed to Checkout',
-                      onPressed: () => context.go('/checkout'),
+                      onPressed: () async {
+                        final membersProvider = context.read<MembersProvider>();
+                        final selectedMember = membersProvider.selectedMember;
+
+                        if (selectedMember == null) {
+                          // This shouldn't happen due to router redirects, but handle it
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Member not selected'),
+                              backgroundColor: Color(0xffef4444),
+                            ),
+                          );
+                          return;
+                        }
+
+                        // Perform checkout
+                        await cartProvider.checkout(selectedMember);
+
+                        // Check for errors
+                        if (cartProvider.lastError != null) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(cartProvider.lastError!),
+                                backgroundColor: const Color(0xffef4444),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
+                        // Navigate to confirmation screen
+                        if (cartProvider.lastTransactionId != null && context.mounted) {
+                          context.go('/confirmation/${cartProvider.lastTransactionId}');
+                        }
+                      },
                       buttonStyle: ActionButtonStyle.primary,
                       fullWidth: true,
                     ),
