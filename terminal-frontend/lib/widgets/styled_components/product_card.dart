@@ -92,14 +92,14 @@ class _ProductCardState extends State<ProductCard>
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Icon (48px, compact size for 4-column grid)
+                    // Icon (larger for better visibility)
                     getProductIcon(
                       widget.product.iconName,
-                      size: 48,
+                      size: 72,
                     ),
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(height: AppSpacing.lg),
 
-                    // Product name (smaller font for compact layout)
+                    // Product name (larger font)
                     Text(
                       widget.productName,
                       textAlign: TextAlign.center,
@@ -107,19 +107,19 @@ class _ProductCardState extends State<ProductCard>
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Color(0xfff1f5f9),
-                        fontSize: AppFontSizes.sm,
+                        fontSize: AppFontSizes.lg,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
+                    const SizedBox(height: AppSpacing.sm),
 
-                    // Price (cyan, bold, base font)
+                    // Price (cyan, bold, larger font)
                     Text(
                       '€${priceEuros.toStringAsFixed(2)}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Color(0xff0ea5e9),
-                        fontSize: AppFontSizes.base,
+                        fontSize: AppFontSizes.xl,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
