@@ -136,6 +136,17 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         iconName: 'PilsIcon',
         updatedAt: '2025-02-01T10:00:00Z',
       ),
+      // Sauna
+      ProductDTO(
+        id: 'prod-9',
+        categoryId: 'cat-2',
+        names: {'de': 'Sauna-Token', 'en': 'Sauna Token'},
+        descriptions: null,
+        priceCents: 200,
+        isActive: true,
+        iconName: 'SaunaTokenIcon',
+        updatedAt: '2025-02-01T10:00:00Z',
+      ),
     ]);
     }
 
