@@ -108,14 +108,17 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // Product grid (4 columns, fixed height items)
+                // Product grid (4 columns, square items)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  child: _buildProductGrid(
-                    context,
-                    categories[_selectedCategoryIndex],
-                    productsProvider,
-                    cartProvider,
+                  child: Container(
+                    width: double.infinity,
+                    child: _buildProductGrid(
+                      context,
+                      categories[_selectedCategoryIndex],
+                      productsProvider,
+                      cartProvider,
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
