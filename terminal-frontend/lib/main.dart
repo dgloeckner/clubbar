@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:ruderbar_terminal/config/app_config.dart';
 import 'package:ruderbar_terminal/config/app_router.dart';
 import 'package:ruderbar_terminal/database/database.dart';
@@ -158,6 +159,17 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize window manager for desktop
+  await windowManager.ensureInitialized();
+  windowManager.waitUntilReadyToShow().then((_) async {
+    // Set fixed window size: 1280x720 (HD resolution)
+    await windowManager.setSize(const Size(1280, 720));
+    await windowManager.setMinimumSize(const Size(1280, 720));
+    await windowManager.setMaximumSize(const Size(1280, 720));
+    await windowManager.center();
+    await windowManager.show();
+  });
 
   // Initialize database
   final database = RuderbarDatabase();
