@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/rfid_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:ruderbar_terminal/widgets/rfid_detector_button.dart';
+import 'package:ruderbar_terminal/widgets/ruderbar_header.dart';
 
 class IdleWaitingScreen extends StatelessWidget {
   const IdleWaitingScreen({super.key});
@@ -11,6 +12,7 @@ class IdleWaitingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xff0a1628), // Deep navy background
+      appBar: RuderbarHeader(isOnline: true),
       body: Container(
         // Radial gradient glow from center (from prototype)
         decoration: const BoxDecoration(
