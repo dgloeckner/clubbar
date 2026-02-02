@@ -129,7 +129,8 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
         final product = products[index];
         final name = productsProvider.getTranslatedName(product, 'de');
         final cartItem = cartProvider.items
-            .firstWhere((item) => item.productId == product.id, orElse: () => null as dynamic);
+            .where((item) => item.productId == product.id)
+            .firstOrNull;
 
         return _buildProductTile(
           context,
