@@ -1,0 +1,8 @@
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <circle cx="12" cy="12" r="10" fill="#0891b2" stroke="#0e7490"/>
+  <circle cx="12" cy="12" r="8" fill="none" stroke="#67e8f9" strokeWidth="0.5"/>
+  <path d="M6 11L12 5l6 6" stroke="#ecfeff" strokeWidth="1.5"/>
+  <rect x="7" y="11" width="10" height="7" fill="#ecfeff" fillOpacity="0.2" stroke="#ecfeff" strokeWidth="1"/>
+  <rect x="10" y="13" width="4" height="5" fill="#0891b2" stroke="#ecfeff" strokeWidth="0.5"/>
+  <path d="M15 4q-0.5-1 0-2" stroke="#67e8f9" strokeWidth="1"/>
+</svg>
