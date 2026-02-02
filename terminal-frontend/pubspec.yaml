@@ -28,6 +28,7 @@ dependencies:
 
   # Animations & UI
   confetti: ^0.8.0
+  flutter_svg: ^2.0.0
 
   # Date/Time (immutable)
   intl: ^0.20.2
