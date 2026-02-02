@@ -89,84 +89,92 @@ class MemberBar extends StatelessWidget {
           Row(
             children: [
               // Cart button with badge
-              GestureDetector(
-                onTap: onCartPressed,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: itemCount > 0
-                        ? const Color(0xff3b82f6).withOpacity(0.2)
-                        : const Color(0xff3b82f6).withOpacity(0.1),
-                    border: Border.all(
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onCartPressed,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
                       color: itemCount > 0
-                          ? const Color(0xff3b82f6).withOpacity(0.4)
-                          : const Color(0xff3b82f6).withOpacity(0.2),
-                      width: 1,
+                          ? const Color(0xff3b82f6).withOpacity(0.2)
+                          : const Color(0xff3b82f6).withOpacity(0.1),
+                      border: Border.all(
+                        color: itemCount > 0
+                            ? const Color(0xff3b82f6).withOpacity(0.4)
+                            : const Color(0xff3b82f6).withOpacity(0.2),
+                        width: 1,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Stack(
-                    children: [
-                      Center(
-                        child: Opacity(
-                          opacity: 0.6,
-                          child: Icon(
-                            Icons.shopping_cart_outlined,
-                            color: Colors.white,
-                            size: 24,
+                    child: Stack(
+                      children: [
+                        Center(
+                          child: Opacity(
+                            opacity: 0.6,
+                            child: Icon(
+                              Icons.shopping_cart_outlined,
+                              color: Colors.white,
+                              size: 24,
+                            ),
                           ),
                         ),
-                      ),
-                      // Badge with item count
-                      if (itemCount > 0)
-                        Positioned(
-                          top: -8,
-                          right: -8,
-                          child: Container(
-                            width: 20,
-                            height: 20,
-                            decoration: const BoxDecoration(
-                              color: Color(0xffEF4444),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: Text(
-                                itemCount.toString(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                        // Badge with item count
+                        if (itemCount > 0)
+                          Positioned(
+                            top: -8,
+                            right: -8,
+                            child: Container(
+                              width: 20,
+                              height: 20,
+                              decoration: const BoxDecoration(
+                                color: Color(0xffEF4444),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  itemCount.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               // Logout button
-              GestureDetector(
-                onTap: onLogoutPressed,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color(0xffDC2626),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xffEF4444),
-                      width: 1,
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onLogoutPressed,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xffDC2626),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xffEF4444),
+                        width: 1,
+                      ),
                     ),
-                  ),
-                  child: const Opacity(
-                    opacity: 0.6,
-                    child: Icon(
-                      Icons.logout,
-                      color: Colors.white,
-                      size: 24,
+                    child: const Opacity(
+                      opacity: 0.6,
+                      child: Icon(
+                        Icons.logout,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
                   ),
                 ),
