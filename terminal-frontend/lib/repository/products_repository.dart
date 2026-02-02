@@ -57,6 +57,7 @@ class ProductsRepository {
           names: Value(jsonEncode(dto.names)),
           displayOrder: Value(dto.displayOrder),
           isActive: Value(dto.isActive ? 1 : 0),
+          iconName: Value(dto.iconName),
           updatedAt: Value(dto.updatedAt),
         ),
       );
@@ -74,6 +75,7 @@ class ProductsRepository {
           descriptions: Value(dto.descriptions != null ? jsonEncode(dto.descriptions) : null),
           priceCents: Value(dto.priceCents),
           isActive: Value(dto.isActive ? 1 : 0),
+          iconName: Value(dto.iconName),
           updatedAt: Value(dto.updatedAt),
         ),
       );
