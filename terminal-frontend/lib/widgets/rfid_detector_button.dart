@@ -14,6 +14,11 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _glowController;
   late Animation<double> _glowAnimation;
+  late Animation<double> _opacityAnimation;
+
+  // Colors from prototype
+  static const Color _blue = Color(0xff3b82f6);
+  static const Color _teal = Color(0xff14b8a6);
 
   @override
   void initState() {
@@ -23,7 +28,13 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
       vsync: this,
     )..repeat(reverse: true);
 
-    _glowAnimation = Tween<double>(begin: 15.0, end: 30.0).animate(
+    // Glow blur radius: 40px -> 60px (from prototype)
+    _glowAnimation = Tween<double>(begin: 40.0, end: 60.0).animate(
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
+    );
+
+    // Glow opacity: 0.2 -> 0.4 (from prototype)
+    _opacityAnimation = Tween<double>(begin: 0.2, end: 0.4).animate(
       CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
   }
@@ -38,11 +49,19 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
   Widget build(BuildContext context) {
     return Consumer<RfidProvider>(
       builder: (context, rfidProvider, child) {
-        // Stop animation when not scanning
-        if (rfidProvider.isScanning && !_glowController.isAnimating) {
-          _glowController.repeat(reverse: true);
-        } else if (!rfidProvider.isScanning && _glowController.isAnimating) {
-          _glowController.stop();
+        // Adjust animation speed based on state
+        if (rfidProvider.isScanning) {
+          // Faster pulse when scanning (0.8s)
+          if (_glowController.duration != const Duration(milliseconds: 800)) {
+            _glowController.duration = const Duration(milliseconds: 800);
+            _glowController.repeat(reverse: true);
+          }
+        } else {
+          // Slower glow when idle (2s)
+          if (_glowController.duration != const Duration(milliseconds: 2000)) {
+            _glowController.duration = const Duration(milliseconds: 2000);
+            _glowController.repeat(reverse: true);
+          }
         }
 
         return GestureDetector(
@@ -61,21 +80,18 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: rfidProvider.isScanning
-                        ? [
-                            Colors.blue.shade400,
-                            Colors.teal.shade300,
-                          ]
+                        ? [_blue, _teal] // Full opacity when scanning
                         : [
-                            Colors.blue.shade200,
-                            Colors.teal.shade200,
-                          ],
+                            _blue.withValues(alpha: 0.2),
+                            _teal.withValues(alpha: 0.2),
+                          ], // 20% opacity when idle
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xff0ea5e9).withValues(
-                        alpha: rfidProvider.isScanning ? 0.6 : 0.3,
+                      color: _blue.withValues(
+                        alpha: rfidProvider.isScanning ? 0.5 : _opacityAnimation.value,
                       ),
-                      blurRadius: rfidProvider.isScanning ? _glowAnimation.value : 15,
+                      blurRadius: rfidProvider.isScanning ? 60 : _glowAnimation.value,
                       spreadRadius: rfidProvider.isScanning ? 5 : 0,
                     ),
                   ],
