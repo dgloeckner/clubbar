@@ -33,6 +33,14 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     }
   }
 
+  int _calculateOptimalColumns(int productCount) {
+    if (productCount <= 0) return 1;
+    if (productCount <= 2) return productCount;
+    if (productCount <= 4) return 4;
+    // For 5+ products, use 4 columns to fit multiple rows
+    return 4;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer3<ProductsProvider, CartProvider, MembersProvider>(
@@ -138,15 +146,18 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       );
     }
 
+    // Calculate optimal grid dimensions based on product count
+    final columns = _calculateOptimalColumns(products.length);
+
     return GridView.builder(
       padding: EdgeInsets.zero,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 8,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: columns,
         crossAxisSpacing: AppSpacing.md,
         mainAxisSpacing: AppSpacing.md,
-        childAspectRatio: 0.9,
+        childAspectRatio: 1.0, // Square items
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {
