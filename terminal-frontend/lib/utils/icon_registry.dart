@@ -55,7 +55,14 @@ Widget getCategoryIcon(
 
 /// Map product name to SVG asset path
 String _getProductIconPath(String? productName) {
-  switch (productName?.toLowerCase()) {
+  // Extract product type from full name (e.g., "Pils 0,5l" → "pils")
+  final productType = productName
+      ?.split(' ')
+      .first
+      .toLowerCase()
+      ?? '';
+
+  switch (productType) {
     // Pils variants
     case 'pils':
     case 'pilsner':
