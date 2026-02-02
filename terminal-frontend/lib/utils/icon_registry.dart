@@ -14,9 +14,7 @@ Widget getProductIcon(
     iconPath,
     width: size,
     height: size,
-    colorFilter: color != null
-        ? ColorFilter.mode(color, BlendMode.srcIn)
-        : null,
+    // SVG files have their own colors - render as-is for best results
     placeholderBuilder: (BuildContext context) {
       return SizedBox(
         width: size,
@@ -40,9 +38,7 @@ Widget getCategoryIcon(
     iconPath,
     width: size,
     height: size,
-    colorFilter: color != null
-        ? ColorFilter.mode(color, BlendMode.srcIn)
-        : null,
+    // SVG files have their own colors - render as-is for best results
     placeholderBuilder: (BuildContext context) {
       return SizedBox(
         width: size,
