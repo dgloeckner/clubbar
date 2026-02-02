@@ -119,7 +119,7 @@ class _ProductCardState extends State<ProductCard>
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Color(0xff0ea5e9),
-                        fontSize: AppFontSizes.xl,
+                        fontSize: AppFontSizes.xxl,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
