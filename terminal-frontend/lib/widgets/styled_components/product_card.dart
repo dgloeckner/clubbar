@@ -107,7 +107,7 @@ class _ProductCardState extends State<ProductCard>
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Color(0xfff1f5f9),
-                        fontSize: AppFontSizes.lg,
+                        fontSize: AppFontSizes.xl,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
