@@ -38,25 +38,25 @@ class IdleWaitingScreen extends StatelessWidget {
                     const RfidDetectorButton(),
                     const SizedBox(height: AppSpacing.xxxl),
 
-                    // Welcome text
+                    // Welcome text (30% larger than xxxl)
                     Text(
                       'Durstig?',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Color(0xfff1f5f9), // Primary text
-                        fontSize: AppFontSizes.xxxl,
+                        fontSize: 42, // 32 * 1.3
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // Subtitle
+                    // Subtitle (30% larger than base)
                     Text(
                       'Halte deine Karte an den Scanner',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Color(0xff94a3b8), // Secondary text
-                        fontSize: AppFontSizes.base,
+                        fontSize: 21, // 16 * 1.3
                         fontWeight: FontWeight.w400,
                       ),
                     ),
