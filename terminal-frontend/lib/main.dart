@@ -187,7 +187,7 @@ class RuderbarTerminalApp extends StatelessWidget {
         ChangeNotifierProvider<ProductsProvider>(create: (_) => productsProvider),
         ChangeNotifierProvider(create: (_) => CartProvider(service: cartService)),
         ChangeNotifierProvider<SyncProvider>(create: (_) => syncProvider),
-        ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider)),
+        ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider, membersRepository)),
       ],
       child: Builder(
         builder: (context) => MaterialApp.router(
