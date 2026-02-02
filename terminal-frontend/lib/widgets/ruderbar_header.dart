@@ -72,40 +72,34 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          // Right: Online badge and clock
+          // Right: Online/Offline badge and clock
           Row(
             children: [
-              if (widget.isOnline)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xff22c55e).withOpacity(0.15),
-                    border: Border.all(
-                      color: const Color(0xff22c55e).withOpacity(0.3),
-                      width: 1,
-                    ),
-                    borderRadius: BorderRadius.circular(6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: widget.isOnline
+                      ? const Color(0xff22c55e).withOpacity(0.15)
+                      : const Color(0xffef4444).withOpacity(0.15),
+                  border: Border.all(
+                    color: widget.isOnline
+                        ? const Color(0xff22c55e).withOpacity(0.3)
+                        : const Color(0xffef4444).withOpacity(0.3),
+                    width: 1,
                   ),
-                  child: const Row(
-                    children: [
-                      Text(
-                        '● ',
-                        style: TextStyle(
-                          color: Color(0xff22c55e),
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        'Online',
-                        style: TextStyle(
-                          color: Color(0xfff1f5f9),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  widget.isOnline ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    color: widget.isOnline
+                        ? const Color(0xff22c55e).withOpacity(0.7)
+                        : const Color(0xffef4444).withOpacity(0.7),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
+              ),
               const SizedBox(width: 12),
               Text(
                 _formatTime(_currentTime),
