@@ -121,7 +121,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // Product grid (2 columns, portrait optimized)
+                // Product grid (4 columns, fixed height items)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                   child: _buildProductGrid(
@@ -164,10 +164,10 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: AppSpacing.lg,
-        mainAxisSpacing: AppSpacing.lg,
-        childAspectRatio: 0.85,
+        crossAxisCount: 4,
+        crossAxisSpacing: AppSpacing.md,
+        mainAxisSpacing: AppSpacing.md,
+        childAspectRatio: 0.9,
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {

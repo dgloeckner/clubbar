@@ -85,33 +85,34 @@ class _ProductCardState extends State<ProductCard>
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Icon (64px)
+                // Icon (48px, compact size for 4-column grid)
                 getProductIcon(
                   widget.productName,
-                  size: 64,
-                  color: const Color(0xff0ea5e9),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-
-                // Product name
-                Text(
-                  widget.productName,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xfff1f5f9),
-                    fontSize: AppFontSizes.base,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  size: 48,
                 ),
                 const SizedBox(height: AppSpacing.md),
 
-                // Price (cyan, bold, lg font)
+                // Product name (smaller font for compact layout)
+                Text(
+                  widget.productName,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xfff1f5f9),
+                    fontSize: AppFontSizes.sm,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+
+                // Price (cyan, bold, base font)
                 Text(
                   '€${priceEuros.toStringAsFixed(2)}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Color(0xff0ea5e9),
-                    fontSize: AppFontSizes.lg,
+                    fontSize: AppFontSizes.base,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
