@@ -66,7 +66,7 @@ class IdleWaitingScreen extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: () async {
                   final rfidProvider = context.read<RfidProvider>();
-                  await rfidProvider.simulateCardDetection();
+                  await rfidProvider.simulateCardDetection(context);
                 },
                 icon: const Icon(Icons.touch_app),
                 label: const Text('Simulate Card Scan'),

@@ -6,10 +6,15 @@ import 'package:ruderbar_terminal/providers/rfid_provider.dart';
 import 'package:ruderbar_terminal/widgets/rfid_detector_button.dart';
 
 class MockRfidProvider extends Mock implements RfidProvider {}
+class FakeBuildContext extends Fake implements BuildContext {}
 
 void main() {
   group('RfidDetectorButton', () {
     late MockRfidProvider mockRfidProvider;
+
+    setUpAll(() {
+      registerFallbackValue(FakeBuildContext());
+    });
 
     setUp(() {
       mockRfidProvider = MockRfidProvider();
@@ -52,7 +57,7 @@ void main() {
 
     testWidgets('button is clickable when not scanning', (WidgetTester tester) async {
       when(() => mockRfidProvider.isScanning).thenReturn(false);
-      when(() => mockRfidProvider.simulateCardDetection()).thenAnswer((_) async {});
+      when(() => mockRfidProvider.simulateCardDetection(any())).thenAnswer((_) async {});
 
       await tester.pumpWidget(
         MaterialApp(
@@ -68,7 +73,7 @@ void main() {
       await tester.tap(find.byType(GestureDetector));
       await tester.pump();
 
-      verify(() => mockRfidProvider.simulateCardDetection()).called(1);
+      verify(() => mockRfidProvider.simulateCardDetection(any())).called(1);
     });
 
     testWidgets('button gradient changes when scanning', (WidgetTester tester) async {

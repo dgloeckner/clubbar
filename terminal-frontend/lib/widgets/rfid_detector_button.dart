@@ -12,7 +12,7 @@ class RfidDetectorButton extends StatelessWidget {
         return GestureDetector(
           onTap: rfidProvider.isScanning
               ? null
-              : () => rfidProvider.simulateCardDetection(),
+              : () => rfidProvider.simulateCardDetection(context),
           child: Container(
             width: 140,
             height: 140,
