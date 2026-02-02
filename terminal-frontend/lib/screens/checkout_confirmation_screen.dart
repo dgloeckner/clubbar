@@ -100,10 +100,9 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     // For now, we'll show this as zero since balance updates come from backend sync
     const newBalance = 0;
 
-    return Scaffold(
-      backgroundColor: hexToColor(AppColors.bgPrimary),
-      body: Center(
-        child: ScaleTransition(
+    // Body content only - MainLayout provides Scaffold and header
+    return Center(
+      child: ScaleTransition(
           scale: _scaleAnimation,
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -188,7 +187,6 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }

@@ -7,6 +7,7 @@ import 'package:ruderbar_terminal/screens/member_details_screen.dart';
 import 'package:ruderbar_terminal/screens/shopping_cart_screen.dart';
 import 'package:ruderbar_terminal/screens/checkout_confirmation_screen.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
+import 'package:ruderbar_terminal/widgets/main_layout.dart';
 
 // Create router with dynamic redirect based on member selection
 GoRouter createAppRouter(BuildContext context) {
@@ -37,31 +38,65 @@ GoRouter createAppRouter(BuildContext context) {
       return null; // No redirect needed
     },
     routes: [
-    GoRoute(
-      path: '/idle',
-      builder: (context, state) => const IdleWaitingScreen(),
-    ),
-    GoRoute(
-      path: '/products',
-      builder: (context, state) => const ProductSelectionScreen(),
-    ),
-    GoRoute(
-      path: '/member-details',
-      builder: (context, state) => const MemberDetailsScreen(),
-    ),
-    GoRoute(
-      path: '/cart',
-      builder: (context, state) => const ShoppingCartScreen(),
-    ),
-    GoRoute(
-      path: '/confirmation/:transactionId',
-      builder: (context, state) {
-        final transactionId = state.pathParameters['transactionId'] ?? '';
-        return CheckoutConfirmationScreen(
-          transactionId: transactionId,
-        );
-      },
-    ),
-  ],
+      // Shell route with persistent header
+      ShellRoute(
+        builder: (context, state, child) => MainLayout(child: child),
+        routes: [
+          GoRoute(
+            path: '/idle',
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const IdleWaitingScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/products',
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const ProductSelectionScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/member-details',
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const MemberDetailsScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/cart',
+            pageBuilder: (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const ShoppingCartScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+            ),
+          ),
+          GoRoute(
+            path: '/confirmation/:transactionId',
+            pageBuilder: (context, state) {
+              final transactionId = state.pathParameters['transactionId'] ?? '';
+              return CustomTransitionPage(
+                key: state.pageKey,
+                child: CheckoutConfirmationScreen(transactionId: transactionId),
+                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    ],
   );
 }

@@ -13,24 +13,8 @@ class ShoppingCartScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xff0a1628),
-      appBar: AppBar(
-        backgroundColor: const Color(0xff0f1d32),
-        title: const Text(
-          'Cart',
-          style: TextStyle(
-            color: Color(0xfff1f5f9),
-            fontSize: AppFontSizes.xl,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xfff1f5f9)),
-          onPressed: () => context.go('/products'),
-        ),
-      ),
-      body: Consumer<CartProvider>(
+    // Body content only - MainLayout provides Scaffold and header
+    return Consumer<CartProvider>(
         builder: (context, cartProvider, child) {
           if (cartProvider.items.isEmpty) {
             return const Center(
@@ -224,7 +208,6 @@ class ShoppingCartScreen extends StatelessWidget {
             ],
           );
         },
-      ),
-    );
+      );
   }
 }

@@ -7,7 +7,6 @@ import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/products_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/widgets/ruderbar_header.dart';
 import 'package:ruderbar_terminal/widgets/member_bar.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/product_card.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
@@ -45,21 +44,16 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
         final selectedMember = membersProvider.selectedMember;
 
         if (categories.isEmpty) {
-          return Scaffold(
-            backgroundColor: const Color(0xff0a1628),
-            body: const Center(
-              child: Text(
-                'No categories available',
-                style: TextStyle(color: Colors.white),
-              ),
+          return const Center(
+            child: Text(
+              'No categories available',
+              style: TextStyle(color: Colors.white),
             ),
           );
         }
 
-        return Scaffold(
-          backgroundColor: const Color(0xff0a1628),
-          appBar: RuderbarHeader(isOnline: true),
-          body: Column(
+        // Body content only - MainLayout provides Scaffold and header
+        return Column(
             children: [
               // Member bar
               if (selectedMember != null)
@@ -125,8 +119,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 ),
               ),
             ],
-          ),
-        );
+          );
       },
     );
   }

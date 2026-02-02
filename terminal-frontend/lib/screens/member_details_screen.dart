@@ -12,15 +12,13 @@ class MemberDetailsScreen extends StatelessWidget {
         final member = membersProvider.selectedMember;
 
         if (member == null) {
-          return const Scaffold(
-            body: Center(
-              child: Text('No member selected'),
-            ),
+          return const Center(
+            child: Text('No member selected'),
           );
         }
 
-        return Scaffold(
-          body: SingleChildScrollView(
+        // Body content only - MainLayout provides Scaffold and header
+        return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,8 +45,7 @@ class MemberDetailsScreen extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        );
+          );
       },
     );
   }
