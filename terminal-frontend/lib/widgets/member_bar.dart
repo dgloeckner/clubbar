@@ -77,7 +77,7 @@ class MemberBar extends StatelessWidget {
                     'Deckel: 0,00 €', // TODO: Get actual balance from member
                     style: const TextStyle(
                       color: Color(0xffFF6B4A),
-                      fontSize: 15,
+                      fontSize: 17,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
