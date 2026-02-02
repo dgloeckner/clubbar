@@ -133,16 +133,16 @@ class _ProductCardState extends State<ProductCard>
                 top: 8,
                 right: 16,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: const Color(0xff3b82f6),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
                     '${widget.quantity}x',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
