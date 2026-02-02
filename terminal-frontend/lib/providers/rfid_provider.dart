@@ -1,19 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/repository/members_repository.dart';
 import 'package:ruderbar_terminal/services/mock_rfid_service.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 
 class RfidProvider extends ChangeNotifier {
   final MockRfidService _rfidService = MockRfidService();
-  final MembersRepository _membersRepository;
   final MembersProvider _membersProvider;
 
   MembersCacheData? _detectedMember;
   bool _isScanning = false;
   String? _error;
 
-  RfidProvider(this._membersRepository, this._membersProvider);
+  RfidProvider(this._membersProvider);
 
   MembersCacheData? get detectedMember => _detectedMember;
   bool get isScanning => _isScanning;
@@ -33,21 +31,23 @@ class RfidProvider extends ChangeNotifier {
         _detectedMember = null;
         _membersProvider.setError('Unknown card');
       } else {
-        // Look up in local cache (should exist from sync)
-        final (member, error) =
-            await _membersRepository.findByCardUid(mockMember.cardUid!);
+        // For development/testing: create a MembersCacheData from mock member
+        // In production with real RFID, this would look up from synced database cache
+        final member = MembersCacheData(
+          id: mockMember.id,
+          cardUid: mockMember.cardUid!,
+          firstName: mockMember.firstName,
+          lastName: mockMember.lastName,
+          preferredLanguage: mockMember.preferredLanguage,
+          isActive: mockMember.isActive ? 1 : 0,
+          isSepaValid: mockMember.isSepaValid ? 1 : 0,
+          updatedAt: mockMember.updatedAt,
+        );
 
-        if (member != null) {
-          _detectedMember = member;
-          _error = null;
-          // Set as selected member in MembersProvider (triggers navigation to /products)
-          _membersProvider.setSelectedMember(member);
-        } else {
-          // If not in cache, return error
-          _error = error ?? 'Member not found in cache';
-          _detectedMember = null;
-          _membersProvider.setError(_error!);
-        }
+        _detectedMember = member;
+        _error = null;
+        // Set as selected member in MembersProvider (triggers navigation to /products)
+        _membersProvider.setSelectedMember(member);
       }
     } catch (e) {
       _error = 'Error: $e';
