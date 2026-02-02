@@ -6,10 +6,7 @@ import 'dart:convert';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/providers/auth_provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:ruderbar_terminal/widgets/ruderbar_header.dart';
 import 'package:ruderbar_terminal/widgets/member_bar.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/product_card.dart';
@@ -37,12 +34,6 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   // Grid layout constants
   static const int _columns = 4;
   static const double _gridSpacing = 12.0;
-
-  // Screen layout constants (1280x720 fixed window)
-  static const double _screenHeight = 720.0;
-  static const double _headerHeight = 56.0;
-  static const double _memberBarHeight = 74.0;
-  static const double _categoryTabsHeight = 60.0;
   static const double _horizontalPadding = 16.0;
   static const double _verticalSpacing = 12.0;
 
@@ -68,37 +59,38 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
         return Scaffold(
           backgroundColor: const Color(0xff0a1628),
           appBar: RuderbarHeader(isOnline: true),
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                // Member bar
-                if (selectedMember != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: _horizontalPadding,
-                      vertical: _verticalSpacing,
-                    ),
-                    child: MemberBar(
-                      member: selectedMember,
-                      itemCount: cartProvider.itemCount,
-                      onCartPressed: () => context.go('/cart'),
-                      onLogoutPressed: () {
-                        // Clear selected member and navigate to scan page
-                        membersProvider.clearSelectedMember();
-                        context.go('/idle');
-                      },
-                    ),
+          body: Column(
+            children: [
+              // Member bar
+              if (selectedMember != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _horizontalPadding,
+                    vertical: _verticalSpacing,
                   ),
+                  child: MemberBar(
+                    member: selectedMember,
+                    itemCount: cartProvider.itemCount,
+                    onCartPressed: () => context.go('/cart'),
+                    onLogoutPressed: () {
+                      // Clear selected member and navigate to scan page
+                      membersProvider.clearSelectedMember();
+                      context.go('/idle');
+                    },
+                  ),
+                ),
 
-                // Category tabs (horizontal scrollable)
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                  child: Row(
-                    children: List.generate(
-                      categories.length,
-                      (index) => Padding(
-                        padding: const EdgeInsets.only(right: AppSpacing.md),
+              // Category tabs (full width, 2 tabs)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
+                child: Row(
+                  children: List.generate(
+                    categories.length,
+                    (index) => Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: index < categories.length - 1 ? _gridSpacing : 0,
+                        ),
                         child: CategoryChip(
                           category: categories[index],
                           categoryName: _getCategoryName(categories[index]),
@@ -113,10 +105,12 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: _verticalSpacing),
+              ),
+              const SizedBox(height: _verticalSpacing),
 
-                // Product grid (4 columns, fills available space)
-                Padding(
+              // Product grid (4 columns, fills remaining space)
+              Expanded(
+                child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
                   child: _buildProductGrid(
                     context,
@@ -125,9 +119,8 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                     cartProvider,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xl),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -153,21 +146,15 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       );
     }
 
-    // Use LayoutBuilder to get actual available width
+    // Use LayoutBuilder to get actual available dimensions
     return LayoutBuilder(
       builder: (context, constraints) {
         // Calculate aspect ratio from actual constraints
         final availableWidth = constraints.maxWidth;
+        final availableHeight = constraints.maxHeight;
         final rows = (products.length / _columns).ceil();
 
-        // Available height for grid (from screen calculation)
-        final availableHeight = _screenHeight
-            - _headerHeight
-            - _memberBarHeight
-            - _categoryTabsHeight
-            - (_verticalSpacing * 3);
-
-        // Calculate item dimensions from actual width
+        // Calculate item dimensions from actual constraints
         final totalHorizontalGaps = (_columns - 1) * _gridSpacing;
         final itemWidth = (availableWidth - totalHorizontalGaps) / _columns;
 
@@ -178,7 +165,6 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
 
         return GridView.builder(
           padding: EdgeInsets.zero,
-          shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: _columns,
