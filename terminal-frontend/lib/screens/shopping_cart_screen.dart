@@ -302,7 +302,7 @@ class ShoppingCartScreen extends StatelessWidget {
                             'Total',
                             style: TextStyle(
                               color: Color(0xff94a3b8),
-                              fontSize: AppFontSizes.lg,
+                              fontSize: AppFontSizes.xxl,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -311,7 +311,7 @@ class ShoppingCartScreen extends StatelessWidget {
                             'New Balance: €${_formatPrice(newBalanceCents)}',
                             style: const TextStyle(
                               color: Color(0xff22c55e),
-                              fontSize: AppFontSizes.base,
+                              fontSize: AppFontSizes.xl,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
