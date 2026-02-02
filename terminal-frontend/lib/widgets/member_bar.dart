@@ -24,7 +24,7 @@ class MemberBar extends StatelessWidget {
             .toUpperCase();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xff1e293b).withOpacity(0.8),
         border: Border.all(
@@ -42,11 +42,11 @@ class MemberBar extends StatelessWidget {
             children: [
               // Avatar with initials
               Container(
-                width: 36,
-                height: 36,
+                width: 43,
+                height: 43,
                 decoration: BoxDecoration(
                   color: const Color(0xffFF6B4A),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(22),
                 ),
                 child: Center(
                   child: Text(
@@ -95,8 +95,8 @@ class MemberBar extends StatelessWidget {
                   onTap: onCartPressed,
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    width: 48,
-                    height: 48,
+                    width: 58,
+                    height: 58,
                     decoration: BoxDecoration(
                       color: itemCount > 0
                           ? const Color(0xff3b82f6).withOpacity(0.2)
@@ -158,8 +158,8 @@ class MemberBar extends StatelessWidget {
                   onTap: onLogoutPressed,
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    width: 48,
-                    height: 48,
+                    width: 58,
+                    height: 58,
                     decoration: BoxDecoration(
                       color: const Color(0xffDC2626),
                       borderRadius: BorderRadius.circular(12),

@@ -32,7 +32,7 @@ class CategoryChip extends StatelessWidget {
         duration: AppAnimations.normal,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
+          vertical: 14, // 20% taller than AppSpacing.md (12)
         ),
         decoration: BoxDecoration(
           color: backgroundColor,
@@ -47,7 +47,7 @@ class CategoryChip extends StatelessWidget {
           children: [
             getCategoryIcon(
               category.iconName,
-              size: 32,
+              size: 38,
             ),
             const SizedBox(width: AppSpacing.sm),
             Text(
