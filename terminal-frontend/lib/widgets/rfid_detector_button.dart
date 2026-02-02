@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/rfid_provider.dart';
 
@@ -91,10 +92,10 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
                             strokeWidth: 3,
                           ),
                         )
-                      : const Icon(
-                          Icons.contactless,
-                          size: 60,
-                          color: Colors.white,
+                      : SvgPicture.asset(
+                          'assets/icons/ui/rfid_icon.svg',
+                          width: 80,
+                          height: 80,
                         ),
                 ),
               );

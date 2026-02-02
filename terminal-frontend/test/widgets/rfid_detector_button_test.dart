@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
@@ -35,7 +36,7 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.contactless), findsOneWidget);
+      expect(find.byType(SvgPicture), findsOneWidget);
     });
 
     testWidgets('button shows spinner when scanning', (WidgetTester tester) async {
@@ -92,7 +93,7 @@ void main() {
 
       // Verify that the widget renders with scanning appearance (contains CircularProgressIndicator)
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.byIcon(Icons.contactless), findsNothing);
+      expect(find.byType(SvgPicture), findsNothing);
     });
   });
 }
