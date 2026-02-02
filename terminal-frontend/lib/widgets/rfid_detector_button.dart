@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/rfid_provider.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
 
 class RfidDetectorButton extends StatefulWidget {
   const RfidDetectorButton({super.key});
@@ -72,8 +71,8 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xff0ea5e9).withOpacity(
-                        rfidProvider.isScanning ? 0.6 : 0.3,
+                      color: const Color(0xff0ea5e9).withValues(
+                        alpha: rfidProvider.isScanning ? 0.6 : 0.3,
                       ),
                       blurRadius: rfidProvider.isScanning ? _glowAnimation.value : 15,
                       spreadRadius: rfidProvider.isScanning ? 5 : 0,
@@ -87,7 +86,7 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
                           height: 60,
                           child: CircularProgressIndicator(
                             valueColor: AlwaysStoppedAnimation(
-                              Colors.white.withOpacity(0.8),
+                              Colors.white.withValues(alpha: 0.8),
                             ),
                             strokeWidth: 3,
                           ),
