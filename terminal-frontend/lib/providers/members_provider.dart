@@ -64,9 +64,10 @@ class MembersProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Set selected member directly
-  void setSelectedMember(MembersCacheData member) {
+  /// Set selected member directly and compute effective balance
+  Future<void> setSelectedMember(MembersCacheData member) async {
     _selectedMember = member;
+    _memberDeckel = await _service.getEffectiveBalance(member);
     _lastError = null;
     _errorType = null;
     notifyListeners();

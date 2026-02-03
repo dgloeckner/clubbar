@@ -21,25 +21,36 @@ class RfidProvider extends ChangeNotifier {
   bool get isScanning => _isScanning;
   String? get error => _error;
 
-  /// Simulate RFID card detection (called from UI when user taps detect button)
+  /// Simulate RFID card detection (called from UI when user taps detect button).
+  /// Uses a real synced member from the local DB if available, otherwise falls
+  /// back to the hardcoded mock member (for offline-only development).
   Future<void> simulateCardDetection(BuildContext context, {String? cardUidOverride}) async {
     _isScanning = true;
     _error = null;
     notifyListeners();
 
     try {
-      final mockMember = await _rfidService.detectCard(cardUidOverride: cardUidOverride);
+      // Simulate reader delay
+      await Future.delayed(const Duration(milliseconds: 800));
 
-      if (mockMember == null) {
-        _error = 'Unknown card';
-        _detectedMember = null;
-        _membersProvider.setError('Unknown card');
-        _isScanning = false;
-        notifyListeners();
+      // Try to pick a real member from the local DB (synced from backend)
+      final activeMembers = await _membersRepository.getAllActive();
+      final MembersCacheData member;
+
+      if (activeMembers.isNotEmpty) {
+        member = activeMembers.first;
       } else {
-        // For development/testing: create a MembersCacheData from mock member
-        // In production with real RFID, this would look up from synced database cache
-        final member = MembersCacheData(
+        // No synced members yet — fall back to mock member for offline dev
+        final mockMember = await _rfidService.detectCard(cardUidOverride: cardUidOverride);
+        if (mockMember == null) {
+          _error = 'Unknown card';
+          _detectedMember = null;
+          _membersProvider.setError('Unknown card');
+          _isScanning = false;
+          notifyListeners();
+          return;
+        }
+        member = MembersCacheData(
           id: mockMember.id,
           cardUid: mockMember.cardUid!,
           firstName: mockMember.firstName,
@@ -50,8 +61,7 @@ class RfidProvider extends ChangeNotifier {
           balanceCents: 0,
           updatedAt: mockMember.updatedAt,
         );
-
-        // Persist member to local database (required for transaction FK constraint)
+        // Persist mock member locally for offline dev
         try {
           await _membersRepository.upsertMembers([
             MemberDTO(
@@ -65,22 +75,18 @@ class RfidProvider extends ChangeNotifier {
               updatedAt: member.updatedAt,
             ),
           ]);
-        } catch (e) {
-          // Member might already exist, which is fine - continue
-        }
+        } catch (_) {}
+      }
 
-        _detectedMember = member;
-        _error = null;
-        // Set as selected member in MembersProvider
-        _membersProvider.setSelectedMember(member);
+      _detectedMember = member;
+      _error = null;
+      _membersProvider.setSelectedMember(member);
 
-        _isScanning = false;
-        notifyListeners();
+      _isScanning = false;
+      notifyListeners();
 
-        // Navigate to products screen (use context immediately after notifyListeners)
-        if (context.mounted) {
-          context.go('/products');
-        }
+      if (context.mounted) {
+        context.go('/products');
       }
     } catch (e) {
       _error = 'Error: $e';
