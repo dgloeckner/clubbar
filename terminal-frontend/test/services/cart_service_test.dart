@@ -68,7 +68,8 @@ void main() {
 
       expect(txnId, isNotNull);
       expect(error, isNull);
-      verify(() => mockRepo.insertTransaction(any())).called(1);
+      // 2x Beer + 1x Wine = 3 individual transactions
+      verify(() => mockRepo.insertTransaction(any())).called(3);
     });
 
     test('createTransaction returns error when repository fails', () async {

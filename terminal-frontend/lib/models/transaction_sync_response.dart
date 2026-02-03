@@ -11,15 +11,35 @@ class TransactionSyncResponse {
   });
 
   factory TransactionSyncResponse.fromJson(Map<String, dynamic> json) {
+    final rawAccepted = json['accepted_ids'] as List<dynamic>? ?? [];
+
+    // PHP json_encode returns [] for empty arrays and {} for objects.
+    // Handle both Map and List (empty array) for these fields.
+    final rejectedRaw = json['rejected'];
+    final balancesRaw = json['member_balances'];
+
+    final Map<String, int> memberBalances;
+    if (balancesRaw is Map) {
+      memberBalances = balancesRaw.map(
+          (key, value) => MapEntry(key.toString(), (value as num).toInt()));
+    } else {
+      memberBalances = {};
+    }
+
+    final TransactionSyncRejected rejected;
+    if (rejectedRaw is Map<String, dynamic>) {
+      rejected = TransactionSyncRejected.fromJson(rejectedRaw);
+    } else {
+      rejected = TransactionSyncRejected(count: 0, errors: []);
+    }
+
     return TransactionSyncResponse(
-      acceptedIds: (json['accepted_ids'] as List<dynamic>)
-          .map((id) => id as String)
+      acceptedIds: rawAccepted
+          .where((id) => id != null)
+          .map((id) => id.toString())
           .toList(),
-      rejected: TransactionSyncRejected.fromJson(
-          json['rejected'] as Map<String, dynamic>),
-      memberBalances: Map<String, int>.from(
-          (json['member_balances'] as Map).map(
-              (key, value) => MapEntry(key as String, value as int))),
+      rejected: rejected,
+      memberBalances: memberBalances,
     );
   }
 }
@@ -35,11 +55,12 @@ class TransactionSyncRejected {
   });
 
   factory TransactionSyncRejected.fromJson(Map<String, dynamic> json) {
+    final rawErrors = json['errors'] as List<dynamic>? ?? [];
     return TransactionSyncRejected(
-      count: json['count'] as int,
-      errors: (json['errors'] as List<dynamic>)
-          .map((e) =>
-              TransactionSyncError.fromJson(e as Map<String, dynamic>))
+      count: (json['count'] as num?)?.toInt() ?? 0,
+      errors: rawErrors
+          .whereType<Map<String, dynamic>>()
+          .map((e) => TransactionSyncError.fromJson(e))
           .toList(),
     );
   }
@@ -57,8 +78,8 @@ class TransactionSyncError {
 
   factory TransactionSyncError.fromJson(Map<String, dynamic> json) {
     return TransactionSyncError(
-      transactionId: json['transaction_id'] as String,
-      reason: json['reason'] as String,
+      transactionId: (json['transaction_id'] ?? json['id'] ?? '').toString(),
+      reason: (json['reason'] ?? json['message'] ?? 'Unknown error').toString(),
     );
   }
 }

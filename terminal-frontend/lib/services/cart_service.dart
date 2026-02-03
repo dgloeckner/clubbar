@@ -10,38 +10,39 @@ class CartService {
   CartService({required TransactionsRepository repository})
       : _repository = repository;
 
-  /// Create and persist transaction from cart items
-  /// Returns tuple: (transactionId, errorMessage)
+  /// Create and persist transactions from cart items.
+  /// Creates one transaction per cart line item (each with its product_id),
+  /// as required by the backend API.
+  /// Returns tuple: (firstTransactionId, errorMessage)
   Future<(String?, String?)> createTransaction(
     MembersCacheData member,
     List<CartItem> items,
   ) async {
     try {
-      // Calculate total amount
-      final totalCents = items.fold<int>(
-        0,
-        (sum, item) => sum + item.lineTotalCents,
-      );
+      final now = DateTime.now().toUtc().toIso8601String();
+      String? firstTxnId;
 
-      // Generate transaction ID
-      final txnId = _uuid.v4();
+      for (final item in items) {
+        for (var i = 0; i < item.quantity; i++) {
+          final txnId = _uuid.v4();
+          firstTxnId ??= txnId;
 
-      // Create transaction for the member (sum of all items)
-      final transaction = TransactionsLocalData(
-        id: txnId,
-        memberId: member.id,
-        productId: null, // Multi-item transaction, no single product
-        amountCents: totalCents,
-        transactionType: 'purchase',
-        notes: '${items.length} items',
-        createdAt: DateTime.now().toIso8601String(),
-        synced: 0,
-      );
+          final transaction = TransactionsLocalData(
+            id: txnId,
+            memberId: member.id,
+            productId: item.productId,
+            amountCents: item.priceCents,
+            transactionType: 'purchase',
+            notes: null,
+            createdAt: now,
+            synced: 0,
+          );
 
-      // Persist to repository
-      await _repository.insertTransaction(transaction);
+          await _repository.insertTransaction(transaction);
+        }
+      }
 
-      return (txnId, null);
+      return (firstTxnId, null);
     } catch (e) {
       return (null, 'Failed to create transaction: $e');
     }
