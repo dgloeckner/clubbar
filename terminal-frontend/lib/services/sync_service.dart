@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:logger/logger.dart';
 import '../config/app_config.dart';
+import '../database/database.dart';
 import '../repository/members_repository.dart';
 import '../repository/products_repository.dart';
 import '../repository/transactions_repository.dart';
@@ -16,9 +20,12 @@ class SyncService {
   final TransactionsRepository _transactionsRepo;
   final SyncRepository _syncRepo;
   final Logger _logger;
+  final String? _failedTransactionsPath;
 
   bool _isSyncing = false;
   DateTime? _lastSyncTime;
+  DateTime? _lastTransactionSyncTime;
+  String? _lastTransactionSyncError;
 
   SyncService({
     required NetworkService networkService,
@@ -27,18 +34,26 @@ class SyncService {
     required TransactionsRepository transactionsRepo,
     required SyncRepository syncRepo,
     Logger? logger,
+    String? failedTransactionsPath,
   })  : _networkService = networkService,
         _membersRepo = membersRepo,
         _productsRepo = productsRepo,
         _transactionsRepo = transactionsRepo,
         _syncRepo = syncRepo,
-        _logger = logger ?? Logger();
+        _logger = logger ?? Logger(),
+        _failedTransactionsPath = failedTransactionsPath;
 
   /// Check if sync is currently in progress
   bool get isSyncing => _isSyncing;
 
   /// Get last successful sync time
   DateTime? get lastSyncTime => _lastSyncTime;
+
+  /// Get last successful transaction sync time
+  DateTime? get lastTransactionSyncTime => _lastTransactionSyncTime;
+
+  /// Get last transaction sync error (null if last transaction sync succeeded or no attempt)
+  String? get lastTransactionSyncError => _lastTransactionSyncError;
 
   /// Check if sync is needed based on interval
   Future<bool> isSyncNeeded() async {
@@ -67,8 +82,11 @@ class SyncService {
       // Non-fatal: transaction sync errors should not block member/product sync
       try {
         await _syncTransactions();
-      } catch (e) {
-        _logger.w('Transaction sync failed (non-fatal): $e');
+        _lastTransactionSyncTime = DateTime.now();
+        _lastTransactionSyncError = null;
+      } catch (e, stackTrace) {
+        _logger.w('Transaction sync failed (non-fatal): $e', error: e, stackTrace: stackTrace);
+        _lastTransactionSyncError = e.toString();
       }
 
       // Update last sync time
@@ -82,8 +100,8 @@ class SyncService {
 
       _logger.i('Sync cycle completed successfully');
       return SyncResult.success;
-    } catch (e) {
-      _logger.e('Sync cycle failed', error: e);
+    } catch (e, stackTrace) {
+      _logger.e('Sync cycle failed: $e', error: e, stackTrace: stackTrace);
       await _syncRepo.setLastSyncError(e.toString());
       await _syncRepo.incrementSyncRetryCount();
       return SyncResult.failure;
@@ -106,8 +124,8 @@ class SyncService {
       await _syncRepo.setLastMembersSyncTime(now.toIso8601String());
 
       _logger.i('Members synced: ${response.members.length} items');
-    } catch (e) {
-      _logger.e('Members sync failed', error: e);
+    } catch (e, stackTrace) {
+      _logger.e('Members sync failed: $e', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -121,8 +139,8 @@ class SyncService {
       await _productsRepo.upsertCategories(response.categories);
 
       _logger.i('Categories synced: ${response.categories.length} items');
-    } catch (e) {
-      _logger.e('Categories sync failed', error: e);
+    } catch (e, stackTrace) {
+      _logger.e('Categories sync failed: $e', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -140,30 +158,41 @@ class SyncService {
       await _syncRepo.setLastProductsSyncTime(now.toIso8601String());
 
       _logger.i('Products synced: ${response.products.length} items');
-    } catch (e) {
-      _logger.e('Products sync failed', error: e);
+    } catch (e, stackTrace) {
+      _logger.e('Products sync failed: $e', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
 
   /// Sync unsynced transactions to backend via POST /sync/transactions
   Future<void> _syncTransactions() async {
-    try {
-      _logger.i('Syncing transactions');
-      final unsyncedTxns = await _transactionsRepo.getUnsyncedTransactions();
+    final unsyncedTxns = await _transactionsRepo.getUnsyncedTransactions();
 
-      if (unsyncedTxns.isEmpty) {
-        _logger.i('No unsynced transactions');
+    if (unsyncedTxns.isEmpty) {
+      _logger.i('No unsynced transactions');
+      return;
+    }
+
+    try {
+      _logger.i('Syncing ${unsyncedTxns.length} transactions');
+
+      // Filter out transactions missing required fields (e.g. legacy records without product_id)
+      final validTxns = unsyncedTxns.where((t) => t.productId != null).toList();
+      if (validTxns.isEmpty) {
+        _logger.i('No valid transactions to sync (${unsyncedTxns.length} skipped: missing product_id)');
         return;
+      }
+      if (validTxns.length < unsyncedTxns.length) {
+        _logger.w('Skipping ${unsyncedTxns.length - validTxns.length} transactions with null product_id');
       }
 
       // Convert to API format per api/terminal.yaml
-      final payloads = unsyncedTxns.map((t) => {
+      final payloads = validTxns.map((t) => {
         'id': t.id,
         'member_id': t.memberId,
         'product_id': t.productId,
         'amount_cents': t.amountCents,
-        'created_at': t.createdAt,
+        'created_at': _normalizeTimestamp(t.createdAt),
       }).toList();
 
       // POST to backend
@@ -184,9 +213,64 @@ class SyncService {
           _logger.w('  Rejected ${error.transactionId}: ${error.reason}');
         }
       }
-    } catch (e) {
-      _logger.e('Transactions sync failed', error: e);
+    } catch (e, stackTrace) {
+      _logger.e('Transactions sync failed: $e', error: e, stackTrace: stackTrace);
+      _logFailedTransactions(unsyncedTxns, e);
       rethrow;
+    }
+  }
+
+  /// Normalize a timestamp to ISO 8601 UTC format (with Z suffix) as expected by the backend.
+  String _normalizeTimestamp(String timestamp) {
+    try {
+      return DateTime.parse(timestamp).toUtc().toIso8601String();
+    } catch (_) {
+      return timestamp;
+    }
+  }
+
+  /// Append failed transaction details to a JSON file for later recovery.
+  void _logFailedTransactions(List<TransactionsLocalData> txns, Object error) {
+    if (_failedTransactionsPath == null) return;
+
+    try {
+      final file = File(_failedTransactionsPath);
+      List<dynamic> existing = [];
+
+      if (file.existsSync()) {
+        try {
+          final contents = file.readAsStringSync();
+          if (contents.isNotEmpty) {
+            existing = jsonDecode(contents) as List<dynamic>;
+          }
+        } catch (_) {
+          // Corrupt file — start fresh
+        }
+      } else {
+        // Ensure parent directory exists
+        file.parent.createSync(recursive: true);
+      }
+
+      existing.add({
+        'timestamp': DateTime.now().toIso8601String(),
+        'error': error.toString(),
+        'transaction_count': txns.length,
+        'transactions': txns.map((t) => {
+          'id': t.id,
+          'member_id': t.memberId,
+          'product_id': t.productId,
+          'amount_cents': t.amountCents,
+          'transaction_type': t.transactionType,
+          'notes': t.notes,
+          'created_at': t.createdAt,
+        }).toList(),
+      });
+
+      file.writeAsStringSync(
+        const JsonEncoder.withIndent('  ').convert(existing),
+      );
+    } catch (e) {
+      _logger.w('Failed to write failed transactions log: $e');
     }
   }
 

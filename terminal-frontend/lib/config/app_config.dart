@@ -20,10 +20,14 @@ class AppConfig {
 
   // Backend API
   static const String apiBaseUrl = 'http://localhost:8080/api';
+  static const String healthEndpoint = '/health';
   static const String syncEndpointMembers = '/sync/members';
   static const String syncEndpointCategories = '/sync/categories';
   static const String syncEndpointProducts = '/sync/products';
   static const String syncEndpointTransactions = '/sync/transactions';
+
+  // Health check
+  static const Duration healthCheckTimeout = Duration(seconds: 5);
 
   // UI
   static const double minTapTarget = 48.0;

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:ruderbar_terminal/providers/sync_provider.dart';
 
 class RuderbarHeader extends StatefulWidget implements PreferredSizeWidget {
-  final bool isOnline;
+  final ConnectionStatus connectionStatus;
+  final VoidCallback? onStatusTap;
 
   const RuderbarHeader({
-    required this.isOnline,
+    required this.connectionStatus,
+    this.onStatusTap,
     Key? key,
   }) : super(key: key);
 
@@ -45,8 +48,32 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
     return '$hours:$minutes';
   }
 
+  Color _badgeColor() {
+    switch (widget.connectionStatus) {
+      case ConnectionStatus.online:
+        return const Color(0xff22c55e);
+      case ConnectionStatus.offline:
+        return const Color(0xffef4444);
+      case ConnectionStatus.error:
+        return const Color(0xfff59e0b);
+    }
+  }
+
+  String _badgeText() {
+    switch (widget.connectionStatus) {
+      case ConnectionStatus.online:
+        return 'Online';
+      case ConnectionStatus.offline:
+        return 'Offline';
+      case ConnectionStatus.error:
+        return 'Error';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final color = _badgeColor();
+
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -72,31 +99,28 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          // Right: Online/Offline badge and clock
+          // Right: Status badge and clock
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: widget.isOnline
-                      ? const Color(0xff22c55e).withOpacity(0.15)
-                      : const Color(0xffef4444).withOpacity(0.15),
-                  border: Border.all(
-                    color: widget.isOnline
-                        ? const Color(0xff22c55e).withOpacity(0.3)
-                        : const Color(0xffef4444).withOpacity(0.3),
-                    width: 1,
+              GestureDetector(
+                onTap: widget.onStatusTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.15),
+                    border: Border.all(
+                      color: color.withOpacity(0.3),
+                      width: 1,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  widget.isOnline ? 'Online' : 'Offline',
-                  style: TextStyle(
-                    color: widget.isOnline
-                        ? const Color(0xff22c55e).withOpacity(0.7)
-                        : const Color(0xffef4444).withOpacity(0.7),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                  child: Text(
+                    _badgeText(),
+                    style: TextStyle(
+                      color: color.withOpacity(0.7),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ),

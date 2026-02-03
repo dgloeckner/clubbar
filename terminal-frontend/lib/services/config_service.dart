@@ -114,6 +114,16 @@ class ConfigService {
     }
   }
 
+  /// Returns the path to the logs directory, creating it if needed.
+  Future<String> getLogsDir() async {
+    final baseDir = await _getConfigDir();
+    final logsDir = Directory('$baseDir/logs');
+    if (!logsDir.existsSync()) {
+      logsDir.createSync(recursive: true);
+    }
+    return logsDir.path;
+  }
+
   /// Delete config file and reset in-memory state.
   Future<void> clear() async {
     _terminalId = null;

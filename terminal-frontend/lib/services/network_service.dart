@@ -38,6 +38,20 @@ class NetworkService {
     return headers;
   }
 
+  /// Check if the backend is reachable via the health endpoint.
+  /// Returns true on 2xx, false on any exception or non-2xx status.
+  Future<bool> checkHealth() async {
+    try {
+      final uri = Uri.parse('$_baseUrl${AppConfig.healthEndpoint}');
+      final response = await http
+          .get(uri, headers: _buildHeaders())
+          .timeout(AppConfig.healthCheckTimeout);
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// GET request
   Future<dynamic> get(String endpoint) async {
     try {
@@ -115,9 +129,12 @@ class NetworkService {
         return decoded;
       }
 
-      // Status code 4xx or 5xx is error
+      // Status code 4xx or 5xx is error — include full response body for debugging
       final errorMessage = decoded['message'] ?? 'HTTP ${response.statusCode}';
-      throw NetworkException(errorMessage, statusCode: response.statusCode);
+      throw NetworkException(
+        '$errorMessage | Body: ${response.body}',
+        statusCode: response.statusCode,
+      );
     } catch (e) {
       if (e is NetworkException) {
         rethrow;

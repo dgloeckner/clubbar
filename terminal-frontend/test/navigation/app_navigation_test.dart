@@ -54,6 +54,7 @@ void main() {
       when(() => mockCartProvider.removeListener(any())).thenReturn(null);
 
       when(() => mockSyncProvider.isSyncing).thenReturn(false);
+      when(() => mockSyncProvider.connectionStatus).thenReturn(ConnectionStatus.online);
       when(() => mockSyncProvider.addListener(any())).thenReturn(null);
       when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
 

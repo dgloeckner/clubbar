@@ -187,6 +187,25 @@ void main() {
       expect(freshService.apiToken, 'b' * 64);
     });
 
+    group('getLogsDir', () {
+      test('creates logs subdirectory and returns its path', () async {
+        final logsDir = await configService.getLogsDir();
+
+        expect(logsDir, equals('${tempDir.path}/logs'));
+        expect(Directory(logsDir).existsSync(), isTrue);
+      });
+
+      test('returns existing logs directory without error', () async {
+        // Create it first
+        final firstCall = await configService.getLogsDir();
+        // Call again — should not throw
+        final secondCall = await configService.getLogsDir();
+
+        expect(firstCall, equals(secondCall));
+        expect(Directory(secondCall).existsSync(), isTrue);
+      });
+    });
+
     group('environment variable overrides', () {
       test('env vars are documented for override behavior', () {
         // ConfigService supports env var overrides via Platform.environment:

@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:ruderbar_terminal/config/app_config.dart';
@@ -20,6 +23,7 @@ import 'package:ruderbar_terminal/services/products_service.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/sync_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:ruderbar_terminal/services/error_file_output.dart';
 import 'package:ruderbar_terminal/models/category_dto.dart';
 import 'package:ruderbar_terminal/models/product_dto.dart';
 import 'package:ruderbar_terminal/models/member_dto.dart';
@@ -149,9 +153,8 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         updatedAt: '2025-02-01T10:00:00Z',
       ),
     ]);
-    }
 
-    // Insert test members for development (always ensure members exist)
+    // Seed test members only when no real members exist yet
     await membersRepo.upsertMembers([
       MemberDTO(
         id: 'member-1',
@@ -174,6 +177,7 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
         updatedAt: '2025-02-01T10:00:00Z',
       ),
     ]);
+    }
   } catch (e) {
     // Silently fail - data might already exist
   }
@@ -201,6 +205,19 @@ void main() async {
   // Load terminal configuration (ADR-0019)
   final configService = ConfigService();
   await configService.load();
+
+  // Set up file-based error logging
+  final logsDir = await configService.getLogsDir();
+  final errorLogFile = File('$logsDir/error.log');
+  final failedTxnsPath = '$logsDir/failed_transactions.json';
+
+  final logger = Logger(
+    printer: SimplePrinter(printTime: true, colors: false),
+    output: MultiOutput([
+      ConsoleOutput(),
+      ErrorFileOutput(file: errorLogFile),
+    ]),
+  );
 
   // Initialize database
   final database = RuderbarDatabase();
@@ -235,6 +252,8 @@ void main() async {
     productsRepo: productsRepo,
     transactionsRepo: transactionsRepo,
     syncRepo: syncRepo,
+    logger: logger,
+    failedTransactionsPath: failedTxnsPath,
   );
 
   // Create providers (UI state management)
@@ -247,6 +266,7 @@ void main() async {
     syncService: syncService,
     membersProvider: membersProvider,
     productsProvider: productsProvider,
+    networkService: networkService,
   );
 
   runApp(RuderbarTerminalApp(

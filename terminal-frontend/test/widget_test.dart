@@ -37,6 +37,7 @@ void main() {
     final mockConfigService = MockConfigService();
     final mockNetworkService = MockNetworkService();
     when(() => mockConfigService.isConfigured).thenReturn(true);
+    when(() => mockSyncProvider.connectionStatus).thenReturn(ConnectionStatus.online);
 
     // Build our app and trigger a frame.
     await tester.pumpWidget(

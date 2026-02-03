@@ -27,7 +27,7 @@ On first launch, the terminal app shows a **Setup Screen**:
 3. **API Token** - Paste the 64-character hex token
 4. Click **Save & Connect**
 
-The app tests the connection via the `/health` endpoint. On success, config is saved and the terminal navigates to the idle screen.
+The app tests the connection via api endpoint. On success, config is saved and the terminal navigates to the idle screen.
 
 ### 3. Alternative: Environment Variables
 
