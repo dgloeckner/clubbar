@@ -1,17 +1,26 @@
 <?php
 
-use Illuminate\Http\Request;
+declare(strict_types=1);
 
-define('LARAVEL_START', microtime(true));
+require __DIR__ . '/../vendor/autoload.php';
 
-// Determine if the application is in maintenance mode...
-if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php')) {
-    require $maintenance;
-}
+use Slim\Factory\AppFactory;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
 
-// Register the Composer autoloader...
-require __DIR__.'/../vendor/autoload.php';
+$app = AppFactory::create();
+$app->addBodyParsingMiddleware();
+$app->addRoutingMiddleware();
+$app->addErrorMiddleware(true, true, true);
 
-// Bootstrap Laravel and handle the request...
-(require_once __DIR__.'/../bootstrap/app.php')
-    ->handleRequest(Request::capture());
+// Temporary health check to verify Slim works
+$app->get('/api/health', function (Request $request, Response $response) {
+    $data = [
+        'status' => 'ok',
+        'timestamp' => (new DateTimeImmutable())->format('Y-m-d\TH:i:s\Z'),
+    ];
+    $response->getBody()->write(json_encode($data));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+$app->run();
