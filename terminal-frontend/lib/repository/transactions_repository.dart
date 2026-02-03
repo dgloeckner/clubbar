@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import '../database/database.dart';
+import 'members_repository.dart';
 
 class TransactionsRepository {
   final RuderbarDatabase _db;
@@ -67,9 +68,40 @@ class TransactionsRepository {
     return transactions.fold<int>(0, (sum, txn) => sum + txn.amountCents);
   }
 
+  /// Get sum of amountCents for unsynced transactions for a specific member
+  Future<int> getUnsyncedAmountForMember(String memberId) async {
+    final transactions = await (_db.select(_db.transactionsLocal)
+          ..where((t) =>
+              t.memberId.equals(memberId) & t.synced.equals(0)))
+        .get();
+    return transactions.fold<int>(0, (sum, txn) => sum + txn.amountCents);
+  }
+
   /// Clear all transactions (for logout or reset)
   Future<void> clearCache() async {
     await _db.delete(_db.transactionsLocal).go();
+  }
+
+  /// Atomically mark transactions as synced and update member balances.
+  /// Runs in a single SQLite transaction for consistency.
+  Future<void> completeSyncAtomically({
+    required List<String> acceptedIds,
+    required Map<String, int> memberBalances,
+    required MembersRepository membersRepo,
+  }) async {
+    await _db.transaction(() async {
+      // Mark accepted transactions as synced
+      for (final txnId in acceptedIds) {
+        await (_db.update(_db.transactionsLocal)
+              ..where((t) => t.id.equals(txnId)))
+            .write(const TransactionsLocalCompanion(synced: Value(1)));
+      }
+
+      // Update member balances from backend response
+      for (final entry in memberBalances.entries) {
+        await membersRepo.updateMemberBalance(entry.key, entry.value);
+      }
+    });
   }
 
   /// Delete transaction by ID

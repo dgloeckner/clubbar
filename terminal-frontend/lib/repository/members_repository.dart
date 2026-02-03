@@ -57,6 +57,13 @@ class MembersRepository {
         .get();
   }
 
+  /// Update member balance (called during atomic sync completion)
+  Future<void> updateMemberBalance(String memberId, int balanceCents) async {
+    await (_db.update(_db.membersCache)
+          ..where((m) => m.id.equals(memberId)))
+        .write(MembersCacheCompanion(balanceCents: Value(balanceCents)));
+  }
+
   /// Clear all member cache (for logout or reset)
   Future<void> clearCache() async {
     await _db.delete(_db.membersCache).go();

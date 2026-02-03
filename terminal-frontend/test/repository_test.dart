@@ -739,6 +739,75 @@ void main() {
       expect(txns, isEmpty);
     });
 
+    test('completeSyncAtomically marks transactions synced and updates balances', () async {
+      await createTestMember('member-1');
+      await createTestMember('member-2');
+      final membersRepo = MembersRepository(db);
+
+      // Insert unsynced transactions
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-1'),
+          memberId: const Value('member-1'),
+          productId: const Value(null),
+          amountCents: const Value(-350),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:00:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      await db.into(db.transactionsLocal).insert(
+        TransactionsLocalCompanion(
+          id: const Value('txn-2'),
+          memberId: const Value('member-2'),
+          productId: const Value(null),
+          amountCents: const Value(-300),
+          transactionType: const Value('PURCHASE'),
+          notes: const Value(null),
+          createdAt: const Value('2025-02-01T12:01:00Z'),
+          synced: const Value(0),
+        ),
+      );
+
+      // Complete sync atomically
+      await repo.completeSyncAtomically(
+        acceptedIds: ['txn-1', 'txn-2'],
+        memberBalances: {'member-1': 4500, 'member-2': 1200},
+        membersRepo: membersRepo,
+      );
+
+      // Verify transactions marked as synced
+      final txn1 = await repo.getTransaction('txn-1');
+      expect(txn1!.synced, equals(1));
+
+      final txn2 = await repo.getTransaction('txn-2');
+      expect(txn2!.synced, equals(1));
+
+      // Verify member balances updated
+      final members = await db.select(db.membersCache).get();
+      final m1 = members.firstWhere((m) => m.id == 'member-1');
+      final m2 = members.firstWhere((m) => m.id == 'member-2');
+      expect(m1.balanceCents, equals(4500));
+      expect(m2.balanceCents, equals(1200));
+    });
+
+    test('completeSyncAtomically with empty lists is a no-op', () async {
+      await createTestMember('member-1');
+      final membersRepo = MembersRepository(db);
+
+      await repo.completeSyncAtomically(
+        acceptedIds: [],
+        memberBalances: {},
+        membersRepo: membersRepo,
+      );
+
+      // No crash, no changes
+      final members = await db.select(db.membersCache).get();
+      expect(members.first.balanceCents, equals(0));
+    });
+
     test('deleteTransaction deletes specific transaction', () async {
       await createTestMember('member-1');
 
