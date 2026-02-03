@@ -3,16 +3,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/rfid_provider.dart';
+import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/screens/idle_waiting_screen.dart';
 
 class MockRfidProvider extends Mock implements RfidProvider {}
+class MockSyncProvider extends Mock implements SyncProvider {}
 
 void main() {
   group('IdleWaitingScreen', () {
     late MockRfidProvider mockRfidProvider;
+    late MockSyncProvider mockSyncProvider;
 
     setUp(() {
       mockRfidProvider = MockRfidProvider();
+      mockSyncProvider = MockSyncProvider();
+      when(() => mockSyncProvider.startBackgroundSync(intervalSeconds: any(named: 'intervalSeconds')))
+          .thenReturn(null);
+      when(() => mockSyncProvider.addListener(any())).thenReturn(null);
+      when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
     });
 
     testWidgets('displays welcome text', (WidgetTester tester) async {
@@ -22,8 +30,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ChangeNotifierProvider<RfidProvider>.value(
-            value: mockRfidProvider,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+              ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+            ],
             child: const Scaffold(body: IdleWaitingScreen()),
           ),
         ),
@@ -39,8 +50,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ChangeNotifierProvider<RfidProvider>.value(
-            value: mockRfidProvider,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+              ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+            ],
             child: const Scaffold(body: IdleWaitingScreen()),
           ),
         ),
@@ -56,8 +70,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ChangeNotifierProvider<RfidProvider>.value(
-            value: mockRfidProvider,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+              ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+            ],
             child: const Scaffold(body: IdleWaitingScreen()),
           ),
         ),
@@ -73,8 +90,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ChangeNotifierProvider<RfidProvider>.value(
-            value: mockRfidProvider,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+              ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+            ],
             child: const Scaffold(body: IdleWaitingScreen()),
           ),
         ),

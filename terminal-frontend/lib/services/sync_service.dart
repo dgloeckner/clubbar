@@ -59,11 +59,17 @@ class SyncService {
       // Sync members
       await _syncMembers();
 
-      // Sync products
+      // Sync categories and products
+      await _syncCategories();
       await _syncProducts();
 
       // Sync transactions (unsynced transactions to backend)
-      await _syncTransactions();
+      // Non-fatal: transaction sync errors should not block member/product sync
+      try {
+        await _syncTransactions();
+      } catch (e) {
+        _logger.w('Transaction sync failed (non-fatal): $e');
+      }
 
       // Update last sync time
       final now = DateTime.now();
@@ -106,23 +112,34 @@ class SyncService {
     }
   }
 
+  /// Sync categories from backend
+  Future<void> _syncCategories() async {
+    try {
+      _logger.i('Syncing categories');
+      final response = await _networkService.syncCategories();
+
+      await _productsRepo.upsertCategories(response.categories);
+
+      _logger.i('Categories synced: ${response.categories.length} items');
+    } catch (e) {
+      _logger.e('Categories sync failed', error: e);
+      rethrow;
+    }
+  }
+
   /// Sync products from backend
   Future<void> _syncProducts() async {
     try {
       _logger.i('Syncing products');
       final response = await _networkService.syncProducts();
 
-      // Upsert categories into local database
-      await _productsRepo.upsertCategories(response.categories);
-
-      // Upsert products into local database
       await _productsRepo.upsertProducts(response.products);
 
       // Update sync timestamp
       final now = DateTime.now();
       await _syncRepo.setLastProductsSyncTime(now.toIso8601String());
 
-      _logger.i('Products synced: ${response.products.length} items, ${response.categories.length} categories');
+      _logger.i('Products synced: ${response.products.length} items');
     } catch (e) {
       _logger.e('Products sync failed', error: e);
       rethrow;

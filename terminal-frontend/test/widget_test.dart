@@ -14,6 +14,7 @@ import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/repository/members_repository.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:ruderbar_terminal/services/network_service.dart';
 import 'package:ruderbar_terminal/main.dart';
 
 class MockRuderbarDatabase extends Mock implements RuderbarDatabase {}
@@ -23,6 +24,7 @@ class MockCartService extends Mock implements CartService {}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockMembersRepository extends Mock implements MembersRepository {}
 class MockConfigService extends Mock implements ConfigService {}
+class MockNetworkService extends Mock implements NetworkService {}
 
 void main() {
   testWidgets('App initializes with Material 3 theme', (WidgetTester tester) async {
@@ -33,6 +35,7 @@ void main() {
     final mockSyncProvider = MockSyncProvider();
     final mockMembersRepository = MockMembersRepository();
     final mockConfigService = MockConfigService();
+    final mockNetworkService = MockNetworkService();
     when(() => mockConfigService.isConfigured).thenReturn(true);
 
     // Build our app and trigger a frame.
@@ -45,6 +48,7 @@ void main() {
         syncProvider: mockSyncProvider,
         membersRepository: mockMembersRepository,
         configService: mockConfigService,
+        networkService: mockNetworkService,
       ),
     );
 

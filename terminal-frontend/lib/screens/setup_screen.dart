@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/network_service.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
@@ -52,13 +54,6 @@ class _SetupScreenState extends State<SetupScreen> {
     if (value == null || value.trim().isEmpty) {
       return 'API Token is required';
     }
-    final trimmed = value.trim();
-    if (trimmed.length != 64) {
-      return 'Token must be 64 characters';
-    }
-    if (!RegExp(r'^[a-fA-F0-9]+$').hasMatch(trimmed)) {
-      return 'Token must be hexadecimal (0-9, a-f)';
-    }
     return null;
   }
 
@@ -75,10 +70,10 @@ class _SetupScreenState extends State<SetupScreen> {
       final apiToken = _apiTokenController.text.trim();
       final terminalId = _terminalIdController.text.trim();
 
-      // Test connection
+      // Test connection by syncing members (validates both URL and token)
       final testService = NetworkService(baseUrl: apiUrl);
       testService.setAuthToken(apiToken);
-      await testService.get('/health');
+      await testService.syncMembers();
 
       // Connection successful — save config
       await widget.configService.save(
@@ -88,6 +83,14 @@ class _SetupScreenState extends State<SetupScreen> {
       );
 
       if (mounted) {
+        // Update the app's NetworkService with the new credentials
+        final appNetworkService = context.read<NetworkService>();
+        appNetworkService.setBaseUrl(apiUrl);
+        appNetworkService.setAuthToken(apiToken);
+
+        // Trigger initial sync to populate local database
+        context.read<SyncProvider>().startBackgroundSync();
+
         context.go('/idle');
       }
     } on NetworkException catch (e) {
@@ -179,7 +182,7 @@ class _SetupScreenState extends State<SetupScreen> {
                     style: const TextStyle(color: Color(0xfff1f5f9)),
                     obscureText: true,
                     decoration: _inputDecoration(
-                      hintText: '64-character hex token',
+                      hintText: 'Paste token from admin panel',
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xxxl),

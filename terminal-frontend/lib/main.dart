@@ -205,8 +205,10 @@ void main() async {
   // Initialize database
   final database = RuderbarDatabase();
 
-  // Seed database with mock data for development
-  await _seedMockData(database);
+  // Seed database with mock data (only when explicitly enabled)
+  if (configService.seedTestData) {
+    await _seedMockData(database);
+  }
 
   // Create repositories (data access layer)
   final membersRepo = MembersRepository(database);
@@ -255,6 +257,7 @@ void main() async {
     syncProvider: syncProvider,
     membersRepository: membersRepo,
     configService: configService,
+    networkService: networkService,
   ));
 }
 
@@ -266,6 +269,7 @@ class RuderbarTerminalApp extends StatelessWidget {
   final SyncProvider syncProvider;
   final MembersRepository membersRepository;
   final ConfigService configService;
+  final NetworkService networkService;
 
   const RuderbarTerminalApp({
     super.key,
@@ -276,12 +280,14 @@ class RuderbarTerminalApp extends StatelessWidget {
     required this.syncProvider,
     required this.membersRepository,
     required this.configService,
+    required this.networkService,
   });
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<NetworkService>.value(value: networkService),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider<MembersProvider>(create: (_) => membersProvider),
         ChangeNotifierProvider<ProductsProvider>(create: (_) => productsProvider),

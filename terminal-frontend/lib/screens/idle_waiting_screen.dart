@@ -1,11 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/rfid_provider.dart';
+import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:ruderbar_terminal/widgets/rfid_detector_button.dart';
 
-class IdleWaitingScreen extends StatelessWidget {
+class IdleWaitingScreen extends StatefulWidget {
   const IdleWaitingScreen({super.key});
+
+  @override
+  State<IdleWaitingScreen> createState() => _IdleWaitingScreenState();
+}
+
+class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Start background sync when idle screen mounts
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<SyncProvider>().startBackgroundSync();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -22,15 +22,32 @@ class ProductDTO {
   });
 
   factory ProductDTO.fromJson(Map<String, dynamic> json) {
+    // names may be a JSON string (from SQLite) or a Map (from API)
+    final rawNames = json['names'];
+    final names = rawNames is String
+        ? Map<String, String>.from(jsonDecode(rawNames) as Map)
+        : Map<String, String>.from(rawNames as Map);
+
+    // descriptions may be a JSON string, a Map, a List (empty []), or null
+    final rawDesc = json['descriptions'];
+    Map<String, String>? descriptions;
+    if (rawDesc is String) {
+      descriptions = Map<String, String>.from(jsonDecode(rawDesc) as Map);
+    } else if (rawDesc is Map && rawDesc.isNotEmpty) {
+      descriptions = Map<String, String>.from(rawDesc);
+    }
+
+    // is_active may be bool (from API) or int (from SQLite)
+    final rawActive = json['is_active'];
+    final isActive = rawActive is bool ? rawActive : (rawActive as int?) == 1;
+
     return ProductDTO(
       id: json['id'] as String,
       categoryId: json['category_id'] as String,
-      names: Map<String, String>.from(jsonDecode(json['names'] as String) as Map),
-      descriptions: json['descriptions'] != null
-        ? Map<String, String>.from(jsonDecode(json['descriptions'] as String) as Map)
-        : null,
+      names: names,
+      descriptions: descriptions,
       priceCents: json['price_cents'] as int,
-      isActive: (json['is_active'] as int?) == 1,
+      isActive: isActive,
       iconName: json['icon_name'] as String?,
       updatedAt: json['updated_at'] as String,
     );

@@ -5,10 +5,15 @@ import '../models/sync_response.dart';
 import '../models/transaction_sync_response.dart';
 
 class NetworkService {
-  final String _baseUrl;
+  String _baseUrl;
   String? _authToken;
 
   NetworkService({String baseUrl = AppConfig.apiBaseUrl}) : _baseUrl = baseUrl;
+
+  /// Update the base URL (e.g. after setup)
+  void setBaseUrl(String baseUrl) {
+    _baseUrl = baseUrl;
+  }
 
   /// Set authentication token
   void setAuthToken(String? token) {
@@ -128,6 +133,16 @@ class NetworkService {
       return MembersSyncResponse.fromJson(response);
     } catch (e) {
       throw NetworkException('Sync members failed: $e');
+    }
+  }
+
+  /// Sync categories endpoint
+  Future<CategoriesSyncResponse> syncCategories() async {
+    try {
+      final response = await get(AppConfig.syncEndpointCategories);
+      return CategoriesSyncResponse.fromJson(response);
+    } catch (e) {
+      throw NetworkException('Sync categories failed: $e');
     }
   }
 

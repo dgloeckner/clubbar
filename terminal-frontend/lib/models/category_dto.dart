@@ -18,11 +18,21 @@ class CategoryDTO {
   });
 
   factory CategoryDTO.fromJson(Map<String, dynamic> json) {
+    // names may be a JSON string (from SQLite) or a Map (from API)
+    final rawNames = json['names'];
+    final names = rawNames is String
+        ? Map<String, String>.from(jsonDecode(rawNames) as Map)
+        : Map<String, String>.from(rawNames as Map);
+
+    // is_active may be bool (from API) or int (from SQLite)
+    final rawActive = json['is_active'];
+    final isActive = rawActive is bool ? rawActive : (rawActive as int?) == 1;
+
     return CategoryDTO(
       id: json['id'] as String,
-      names: Map<String, String>.from(jsonDecode(json['names'] as String) as Map),
+      names: names,
       displayOrder: json['display_order'] as int,
-      isActive: (json['is_active'] as int?) == 1,
+      isActive: isActive,
       iconName: json['icon_name'] as String?,
       updatedAt: json['updated_at'] as String,
     );

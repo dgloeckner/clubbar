@@ -102,11 +102,10 @@ void main() {
       when(() => mockNetworkService.syncMembers())
           .thenAnswer((_) async => MembersSyncResponse(members: []));
 
+      when(() => mockNetworkService.syncCategories())
+          .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
       when(() => mockNetworkService.syncProducts())
-          .thenAnswer((_) async => ProductsSyncResponse(
-                categories: [],
-                products: [],
-              ));
+          .thenAnswer((_) async => ProductsSyncResponse(products: []));
 
       final result = await syncService.syncAll();
 
@@ -117,11 +116,10 @@ void main() {
       when(() => mockNetworkService.syncMembers())
           .thenAnswer((_) async => MembersSyncResponse(members: []));
 
+      when(() => mockNetworkService.syncCategories())
+          .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
       when(() => mockNetworkService.syncProducts())
-          .thenAnswer((_) async => ProductsSyncResponse(
-                categories: [],
-                products: [],
-              ));
+          .thenAnswer((_) async => ProductsSyncResponse(products: []));
 
       expect(syncService.isSyncing, isFalse);
 
@@ -169,11 +167,10 @@ void main() {
       // Setup sync mocks
       when(() => mockNetworkService.syncMembers())
           .thenAnswer((_) async => MembersSyncResponse(members: []));
+      when(() => mockNetworkService.syncCategories())
+          .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
       when(() => mockNetworkService.syncProducts())
-          .thenAnswer((_) async => ProductsSyncResponse(
-                categories: [],
-                products: [],
-              ));
+          .thenAnswer((_) async => ProductsSyncResponse(products: []));
 
       // Return unsynced transactions
       final unsyncedTxns = [
@@ -241,11 +238,10 @@ void main() {
     test('syncAll handles rejected transactions gracefully', () async {
       when(() => mockNetworkService.syncMembers())
           .thenAnswer((_) async => MembersSyncResponse(members: []));
+      when(() => mockNetworkService.syncCategories())
+          .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
       when(() => mockNetworkService.syncProducts())
-          .thenAnswer((_) async => ProductsSyncResponse(
-                categories: [],
-                products: [],
-              ));
+          .thenAnswer((_) async => ProductsSyncResponse(products: []));
 
       final unsyncedTxns = [
         TransactionsLocalData(

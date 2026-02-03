@@ -26,8 +26,12 @@ class MemberDTO {
       firstName: json['first_name'] as String? ?? '',
       lastName: json['last_name'] as String? ?? '',
       preferredLanguage: json['preferred_language'] as String? ?? 'de',
-      isActive: (json['is_active'] as int?) == 1,
-      isSepaValid: (json['is_sepa_valid'] as int?) == 1,
+      isActive: json['is_active'] is bool
+          ? json['is_active'] as bool
+          : (json['is_active'] as int?) == 1,
+      isSepaValid: json['is_sepa_valid'] is bool
+          ? json['is_sepa_valid'] as bool
+          : (json['is_sepa_valid'] as int?) == 1,
       updatedAt: json['updated_at'] as String,
     );
   }

@@ -21,6 +21,7 @@ class ConfigService {
   String? _terminalId;
   String? _apiUrl;
   String? _apiToken;
+  bool _seedTestData = false;
 
   ConfigService({String? configDir}) : _configDirOverride = configDir;
 
@@ -32,6 +33,7 @@ class ConfigService {
   String? get terminalId => _terminalId;
   String? get apiUrl => _apiUrl;
   String? get apiToken => _apiToken;
+  bool get seedTestData => _seedTestData;
 
   Future<String> _getConfigDir() async {
     if (_configDirOverride != null) {
@@ -57,6 +59,7 @@ class ConfigService {
         _terminalId = json['terminalId'] as String?;
         _apiUrl = json['apiUrl'] as String?;
         _apiToken = json['apiToken'] as String?;
+        _seedTestData = json['seedTestData'] as bool? ?? false;
       } catch (_) {
         // Corrupt file — leave fields null
         _terminalId = null;
@@ -75,6 +78,9 @@ class ConfigService {
     }
     if (env.containsKey('TERMINAL_API_TOKEN')) {
       _apiToken = env['TERMINAL_API_TOKEN'];
+    }
+    if (env.containsKey('TERMINAL_SEED_TEST_DATA')) {
+      _seedTestData = env['TERMINAL_SEED_TEST_DATA']?.toLowerCase() == 'true';
     }
   }
 

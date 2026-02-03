@@ -98,50 +98,5 @@ void main() {
 
       expect(find.text('API Token is required'), findsOneWidget);
     });
-
-    testWidgets('validates token length', (tester) async {
-      await tester.pumpWidget(buildTestWidget());
-
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'e.g. Ruderbar-Kühlschrank'),
-        'Test Terminal',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'https://club.example.com/api'),
-        'https://test.example.com/api',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, '64-character hex token'),
-        'tooshort',
-      );
-
-      await tester.tap(find.text('Save & Connect'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Token must be 64 characters'), findsOneWidget);
-    });
-
-    testWidgets('validates token is hexadecimal', (tester) async {
-      await tester.pumpWidget(buildTestWidget());
-
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'e.g. Ruderbar-Kühlschrank'),
-        'Test Terminal',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'https://club.example.com/api'),
-        'https://test.example.com/api',
-      );
-      // 64 chars but contains non-hex characters
-      await tester.enterText(
-        find.widgetWithText(TextFormField, '64-character hex token'),
-        'g' * 64,
-      );
-
-      await tester.tap(find.text('Save & Connect'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Token must be hexadecimal (0-9, a-f)'), findsOneWidget);
-    });
   });
 }
