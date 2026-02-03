@@ -69,7 +69,7 @@ class AppHeader extends AppBar {
                 ),
               ),
               Text(
-                'Deckel: 0,00 €', // TODO: Get actual balance from member
+                'Deckel: ${((membersProvider.memberDeckel ?? member.balanceCents) / 100.0).toStringAsFixed(2)} \u20ac',
                 style: const TextStyle(
                   color: Color(0xffFF6B4A), // Coral orange
                   fontSize: 13,

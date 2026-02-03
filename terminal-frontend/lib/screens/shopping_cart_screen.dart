@@ -37,6 +37,7 @@ class ShoppingCartScreen extends StatelessWidget {
                   child: MemberBar(
                     member: selectedMember,
                     itemCount: cartProvider.itemCount,
+                    deckelCents: membersProvider.memberDeckel,
                     showBackButton: true,
                     onBackPressed: () => context.go('/products'),
                     onLogoutPressed: () {
@@ -65,10 +66,9 @@ class ShoppingCartScreen extends StatelessWidget {
           (sum, item) => sum + (item.priceCents * item.quantity),
         );
 
-        // Calculate new balance (current balance - cart total)
-        // For now using placeholder since member balance isn't implemented
-        final currentBalanceCents = 6110; // Placeholder: 61,10 €
-        final newBalanceCents = currentBalanceCents - totalCents;
+        // Calculate new balance (Deckel + cart total)
+        final currentDeckel = membersProvider.memberDeckel ?? 0;
+        final newBalanceCents = currentDeckel + totalCents;
 
         return Column(
           children: [
@@ -82,6 +82,7 @@ class ShoppingCartScreen extends StatelessWidget {
                 child: MemberBar(
                   member: selectedMember,
                   itemCount: cartProvider.itemCount,
+                  deckelCents: membersProvider.memberDeckel,
                   showBackButton: true,
                   onBackPressed: () => context.go('/products'),
                   onLogoutPressed: () {
@@ -357,6 +358,10 @@ class ShoppingCartScreen extends StatelessWidget {
                               }
                               return;
                             }
+
+                            // Recompute Deckel from database (now includes
+                            // the new unsynced transaction)
+                            await membersProvider.refreshDeckel();
 
                             if (cartProvider.lastTransactionId != null && context.mounted) {
                               context.go('/confirmation/${cartProvider.lastTransactionId}');

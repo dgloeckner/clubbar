@@ -87,6 +87,18 @@ class $MembersCacheTable extends MembersCache
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _balanceCentsMeta = const VerificationMeta(
+    'balanceCents',
+  );
+  @override
+  late final GeneratedColumn<int> balanceCents = GeneratedColumn<int>(
+    'balance_cents',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -107,6 +119,7 @@ class $MembersCacheTable extends MembersCache
     preferredLanguage,
     isActive,
     isSepaValid,
+    balanceCents,
     updatedAt,
   ];
   @override
@@ -172,6 +185,15 @@ class $MembersCacheTable extends MembersCache
     } else if (isInserting) {
       context.missing(_isSepaValidMeta);
     }
+    if (data.containsKey('balance_cents')) {
+      context.handle(
+        _balanceCentsMeta,
+        balanceCents.isAcceptableOrUnknown(
+          data['balance_cents']!,
+          _balanceCentsMeta,
+        ),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -217,6 +239,10 @@ class $MembersCacheTable extends MembersCache
         DriftSqlType.int,
         data['${effectivePrefix}is_sepa_valid'],
       )!,
+      balanceCents: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}balance_cents'],
+      )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}updated_at'],
@@ -239,6 +265,7 @@ class MembersCacheData extends DataClass
   final String preferredLanguage;
   final int isActive;
   final int isSepaValid;
+  final int balanceCents;
   final String updatedAt;
   const MembersCacheData({
     required this.id,
@@ -248,6 +275,7 @@ class MembersCacheData extends DataClass
     required this.preferredLanguage,
     required this.isActive,
     required this.isSepaValid,
+    required this.balanceCents,
     required this.updatedAt,
   });
   @override
@@ -266,6 +294,7 @@ class MembersCacheData extends DataClass
     map['preferred_language'] = Variable<String>(preferredLanguage);
     map['is_active'] = Variable<int>(isActive);
     map['is_sepa_valid'] = Variable<int>(isSepaValid);
+    map['balance_cents'] = Variable<int>(balanceCents);
     map['updated_at'] = Variable<String>(updatedAt);
     return map;
   }
@@ -285,6 +314,7 @@ class MembersCacheData extends DataClass
       preferredLanguage: Value(preferredLanguage),
       isActive: Value(isActive),
       isSepaValid: Value(isSepaValid),
+      balanceCents: Value(balanceCents),
       updatedAt: Value(updatedAt),
     );
   }
@@ -302,6 +332,7 @@ class MembersCacheData extends DataClass
       preferredLanguage: serializer.fromJson<String>(json['preferredLanguage']),
       isActive: serializer.fromJson<int>(json['isActive']),
       isSepaValid: serializer.fromJson<int>(json['isSepaValid']),
+      balanceCents: serializer.fromJson<int>(json['balanceCents']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
     );
   }
@@ -316,6 +347,7 @@ class MembersCacheData extends DataClass
       'preferredLanguage': serializer.toJson<String>(preferredLanguage),
       'isActive': serializer.toJson<int>(isActive),
       'isSepaValid': serializer.toJson<int>(isSepaValid),
+      'balanceCents': serializer.toJson<int>(balanceCents),
       'updatedAt': serializer.toJson<String>(updatedAt),
     };
   }
@@ -328,6 +360,7 @@ class MembersCacheData extends DataClass
     String? preferredLanguage,
     int? isActive,
     int? isSepaValid,
+    int? balanceCents,
     String? updatedAt,
   }) => MembersCacheData(
     id: id ?? this.id,
@@ -337,6 +370,7 @@ class MembersCacheData extends DataClass
     preferredLanguage: preferredLanguage ?? this.preferredLanguage,
     isActive: isActive ?? this.isActive,
     isSepaValid: isSepaValid ?? this.isSepaValid,
+    balanceCents: balanceCents ?? this.balanceCents,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   MembersCacheData copyWithCompanion(MembersCacheCompanion data) {
@@ -352,6 +386,9 @@ class MembersCacheData extends DataClass
       isSepaValid: data.isSepaValid.present
           ? data.isSepaValid.value
           : this.isSepaValid,
+      balanceCents: data.balanceCents.present
+          ? data.balanceCents.value
+          : this.balanceCents,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -366,6 +403,7 @@ class MembersCacheData extends DataClass
           ..write('preferredLanguage: $preferredLanguage, ')
           ..write('isActive: $isActive, ')
           ..write('isSepaValid: $isSepaValid, ')
+          ..write('balanceCents: $balanceCents, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -380,6 +418,7 @@ class MembersCacheData extends DataClass
     preferredLanguage,
     isActive,
     isSepaValid,
+    balanceCents,
     updatedAt,
   );
   @override
@@ -393,6 +432,7 @@ class MembersCacheData extends DataClass
           other.preferredLanguage == this.preferredLanguage &&
           other.isActive == this.isActive &&
           other.isSepaValid == this.isSepaValid &&
+          other.balanceCents == this.balanceCents &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -404,6 +444,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
   final Value<String> preferredLanguage;
   final Value<int> isActive;
   final Value<int> isSepaValid;
+  final Value<int> balanceCents;
   final Value<String> updatedAt;
   final Value<int> rowid;
   const MembersCacheCompanion({
@@ -414,6 +455,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     this.preferredLanguage = const Value.absent(),
     this.isActive = const Value.absent(),
     this.isSepaValid = const Value.absent(),
+    this.balanceCents = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -425,6 +467,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     required String preferredLanguage,
     this.isActive = const Value.absent(),
     required int isSepaValid,
+    this.balanceCents = const Value.absent(),
     required String updatedAt,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -439,6 +482,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     Expression<String>? preferredLanguage,
     Expression<int>? isActive,
     Expression<int>? isSepaValid,
+    Expression<int>? balanceCents,
     Expression<String>? updatedAt,
     Expression<int>? rowid,
   }) {
@@ -450,6 +494,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
       if (preferredLanguage != null) 'preferred_language': preferredLanguage,
       if (isActive != null) 'is_active': isActive,
       if (isSepaValid != null) 'is_sepa_valid': isSepaValid,
+      if (balanceCents != null) 'balance_cents': balanceCents,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -463,6 +508,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     Value<String>? preferredLanguage,
     Value<int>? isActive,
     Value<int>? isSepaValid,
+    Value<int>? balanceCents,
     Value<String>? updatedAt,
     Value<int>? rowid,
   }) {
@@ -474,6 +520,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
       preferredLanguage: preferredLanguage ?? this.preferredLanguage,
       isActive: isActive ?? this.isActive,
       isSepaValid: isSepaValid ?? this.isSepaValid,
+      balanceCents: balanceCents ?? this.balanceCents,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -503,6 +550,9 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
     if (isSepaValid.present) {
       map['is_sepa_valid'] = Variable<int>(isSepaValid.value);
     }
+    if (balanceCents.present) {
+      map['balance_cents'] = Variable<int>(balanceCents.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<String>(updatedAt.value);
     }
@@ -522,6 +572,7 @@ class MembersCacheCompanion extends UpdateCompanion<MembersCacheData> {
           ..write('preferredLanguage: $preferredLanguage, ')
           ..write('isActive: $isActive, ')
           ..write('isSepaValid: $isSepaValid, ')
+          ..write('balanceCents: $balanceCents, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -2232,6 +2283,7 @@ typedef $$MembersCacheTableCreateCompanionBuilder =
       required String preferredLanguage,
       Value<int> isActive,
       required int isSepaValid,
+      Value<int> balanceCents,
       required String updatedAt,
       Value<int> rowid,
     });
@@ -2244,6 +2296,7 @@ typedef $$MembersCacheTableUpdateCompanionBuilder =
       Value<String> preferredLanguage,
       Value<int> isActive,
       Value<int> isSepaValid,
+      Value<int> balanceCents,
       Value<String> updatedAt,
       Value<int> rowid,
     });
@@ -2329,6 +2382,11 @@ class $$MembersCacheTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get balanceCents => $composableBuilder(
+    column: $table.balanceCents,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
@@ -2404,6 +2462,11 @@ class $$MembersCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get balanceCents => $composableBuilder(
+    column: $table.balanceCents,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -2441,6 +2504,11 @@ class $$MembersCacheTableAnnotationComposer
 
   GeneratedColumn<int> get isSepaValid => $composableBuilder(
     column: $table.isSepaValid,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get balanceCents => $composableBuilder(
+    column: $table.balanceCents,
     builder: (column) => column,
   );
 
@@ -2511,6 +2579,7 @@ class $$MembersCacheTableTableManager
                 Value<String> preferredLanguage = const Value.absent(),
                 Value<int> isActive = const Value.absent(),
                 Value<int> isSepaValid = const Value.absent(),
+                Value<int> balanceCents = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MembersCacheCompanion(
@@ -2521,6 +2590,7 @@ class $$MembersCacheTableTableManager
                 preferredLanguage: preferredLanguage,
                 isActive: isActive,
                 isSepaValid: isSepaValid,
+                balanceCents: balanceCents,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),
@@ -2533,6 +2603,7 @@ class $$MembersCacheTableTableManager
                 required String preferredLanguage,
                 Value<int> isActive = const Value.absent(),
                 required int isSepaValid,
+                Value<int> balanceCents = const Value.absent(),
                 required String updatedAt,
                 Value<int> rowid = const Value.absent(),
               }) => MembersCacheCompanion.insert(
@@ -2543,6 +2614,7 @@ class $$MembersCacheTableTableManager
                 preferredLanguage: preferredLanguage,
                 isActive: isActive,
                 isSepaValid: isSepaValid,
+                balanceCents: balanceCents,
                 updatedAt: updatedAt,
                 rowid: rowid,
               ),

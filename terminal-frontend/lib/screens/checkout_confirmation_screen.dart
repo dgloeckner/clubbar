@@ -91,14 +91,14 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
   @override
   Widget build(BuildContext context) {
-    final selectedMember = context.watch<MembersProvider>().selectedMember;
+    final membersProvider = context.watch<MembersProvider>();
+    final selectedMember = membersProvider.selectedMember;
     final cartTotal = context.watch<CartProvider>().total;
     final memberName =
         selectedMember != null ? '${selectedMember.firstName} ${selectedMember.lastName}' : 'Member';
 
-    // Calculate balance after transaction (simplified - would be passed from backend in real app)
-    // For now, we'll show this as zero since balance updates come from backend sync
-    const newBalance = 0;
+    // Deckel already includes the transaction (refreshed after checkout)
+    final newBalance = membersProvider.memberDeckel ?? 0;
 
     // Body content only - MainLayout provides Scaffold and header
     return Center(

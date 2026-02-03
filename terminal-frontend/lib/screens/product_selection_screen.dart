@@ -65,6 +65,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                   child: MemberBar(
                     member: selectedMember,
                     itemCount: cartProvider.itemCount,
+                    deckelCents: membersProvider.memberDeckel,
                     onCartPressed: () => context.go('/cart'),
                     onLogoutPressed: () {
                       // Clear selected member and navigate to scan page

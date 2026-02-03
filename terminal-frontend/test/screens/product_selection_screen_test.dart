@@ -156,6 +156,7 @@ void main() {
         preferredLanguage: 'de',
         isActive: 1,
         isSepaValid: 1,
+        balanceCents: 0,
         updatedAt: '2024-01-01T00:00:00Z',
       );
 

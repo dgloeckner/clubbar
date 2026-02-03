@@ -40,6 +40,7 @@ void main() {
         preferredLanguage: 'de',
         isActive: 1,
         isSepaValid: 1,
+        balanceCents: 0,
         updatedAt: DateTime.now().toIso8601String(),
       );
 
@@ -79,6 +80,7 @@ void main() {
         preferredLanguage: 'de',
         isActive: 1,
         isSepaValid: 1,
+        balanceCents: 0,
         updatedAt: DateTime.now().toIso8601String(),
       );
 
@@ -111,6 +113,7 @@ void main() {
         preferredLanguage: 'de',
         isActive: 1,
         isSepaValid: 1,
+        balanceCents: 0,
         updatedAt: DateTime.now().toIso8601String(),
       );
 
@@ -141,6 +144,7 @@ void main() {
         preferredLanguage: 'de',
         isActive: 0,
         isSepaValid: 1,
+        balanceCents: 0,
         updatedAt: DateTime.now().toIso8601String(),
       );
 
@@ -170,6 +174,7 @@ void main() {
         preferredLanguage: 'de',
         isActive: 1,
         isSepaValid: 1,
+        balanceCents: 0,
         updatedAt: DateTime.now().toIso8601String(),
       );
 

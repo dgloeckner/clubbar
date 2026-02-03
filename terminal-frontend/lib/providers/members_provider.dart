@@ -7,6 +7,7 @@ class MembersProvider extends ChangeNotifier {
 
   List<MembersCacheData> _members = [];
   MembersCacheData? _selectedMember;
+  int? _memberDeckel;
   bool _isLoading = false;
   bool _isSyncing = false;
   String? _lastError;
@@ -16,6 +17,10 @@ class MembersProvider extends ChangeNotifier {
 
   List<MembersCacheData> get members => _members;
   MembersCacheData? get selectedMember => _selectedMember;
+
+  /// Effective balance: synced backend balance + unsynced local transactions
+  int? get memberDeckel => _memberDeckel;
+
   bool get isLoading => _isLoading;
   bool get isSyncing => _isSyncing;
   String? get lastError => _lastError;
@@ -31,21 +36,32 @@ class MembersProvider extends ChangeNotifier {
 
       if (member != null && error == null) {
         _selectedMember = member;
+        _memberDeckel = await _service.getEffectiveBalance(member);
         _lastError = null;
         _errorType = null;
       } else {
         _selectedMember = null;
+        _memberDeckel = null;
         _lastError = error;
         _errorType = null;
       }
     } catch (e) {
       _selectedMember = null;
+      _memberDeckel = null;
       _lastError = 'Error looking up member: $e';
       _errorType = e as Exception?;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Recompute effective balance from database
+  /// Call after checkout to reflect new unsynced transactions
+  Future<void> refreshDeckel() async {
+    if (_selectedMember == null) return;
+    _memberDeckel = await _service.getEffectiveBalance(_selectedMember!);
+    notifyListeners();
   }
 
   /// Set selected member directly
@@ -59,6 +75,7 @@ class MembersProvider extends ChangeNotifier {
   /// Clear selected member
   void clearSelectedMember() {
     _selectedMember = null;
+    _memberDeckel = null;
     notifyListeners();
   }
 

@@ -25,6 +25,7 @@ void main() {
         preferredLanguage: 'de',
         isActive: 1,
         isSepaValid: 1,
+        balanceCents: 0,
         updatedAt: '2025-02-01T10:00:00Z',
       );
 
@@ -76,6 +77,7 @@ void main() {
         preferredLanguage: 'de',
         isActive: 1,
         isSepaValid: 1,
+        balanceCents: 0,
         updatedAt: '2025-02-01T10:00:00Z',
       );
 

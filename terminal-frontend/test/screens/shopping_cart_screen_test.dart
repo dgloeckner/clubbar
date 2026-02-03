@@ -58,10 +58,13 @@ void main() {
         preferredLanguage: 'de',
         isActive: 1,
         isSepaValid: 1,
+        balanceCents: 0,
         updatedAt: '2025-02-01T10:00:00Z',
       );
       when(() => mockMembersProvider.selectedMember).thenReturn(testMember);
+      when(() => mockMembersProvider.memberDeckel).thenReturn(0);
       when(() => mockMembersProvider.clearSelectedMember()).thenReturn(null);
+      when(() => mockMembersProvider.refreshDeckel()).thenAnswer((_) async {});
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
     });

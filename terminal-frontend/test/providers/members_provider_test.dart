@@ -16,32 +16,45 @@ void main() {
       provider = MembersProvider(service: mockService);
     });
 
-    test('initial state is empty', () {
-      expect(provider.members, isEmpty);
-      expect(provider.selectedMember, isNull);
-      expect(provider.isLoading, isFalse);
-      expect(provider.isSyncing, isFalse);
-      expect(provider.lastError, isNull);
-    });
-
-    test('selectMemberByRfid sets selectedMember when found', () async {
-      final testMember = MembersCacheData(
-        id: 'member-1',
-        cardUid: 'card-123',
+    MembersCacheData createTestMember({
+      String id = 'member-1',
+      String cardUid = 'card-123',
+      int balanceCents = 0,
+    }) {
+      return MembersCacheData(
+        id: id,
+        cardUid: cardUid,
         firstName: 'John',
         lastName: 'Doe',
         preferredLanguage: 'de',
         isActive: 1,
         isSepaValid: 1,
+        balanceCents: balanceCents,
         updatedAt: DateTime.now().toIso8601String(),
       );
+    }
+
+    test('initial state is empty', () {
+      expect(provider.members, isEmpty);
+      expect(provider.selectedMember, isNull);
+      expect(provider.memberDeckel, isNull);
+      expect(provider.isLoading, isFalse);
+      expect(provider.isSyncing, isFalse);
+      expect(provider.lastError, isNull);
+    });
+
+    test('selectMemberByRfid sets selectedMember and memberDeckel', () async {
+      final testMember = createTestMember(balanceCents: 500);
 
       when(() => mockService.lookupByRfid('card-123'))
           .thenAnswer((_) async => (testMember, null));
+      when(() => mockService.getEffectiveBalance(testMember))
+          .thenAnswer((_) async => 200); // 500 synced - 300 unsynced
 
       await provider.selectMemberByRfid('card-123');
 
       expect(provider.selectedMember, equals(testMember));
+      expect(provider.memberDeckel, equals(200));
       expect(provider.lastError, isNull);
     });
 
@@ -52,6 +65,7 @@ void main() {
       await provider.selectMemberByRfid('invalid-card');
 
       expect(provider.selectedMember, isNull);
+      expect(provider.memberDeckel, isNull);
       expect(provider.lastError, equals('Member not found'));
     });
 
@@ -63,18 +77,11 @@ void main() {
       expect(provider.lastError, isNotNull);
 
       // Then succeed
-      final testMember = MembersCacheData(
-        id: 'member-1',
-        cardUid: 'card-123',
-        firstName: 'John',
-        lastName: 'Doe',
-        preferredLanguage: 'de',
-        isActive: 1,
-        isSepaValid: 1,
-        updatedAt: DateTime.now().toIso8601String(),
-      );
+      final testMember = createTestMember();
       when(() => mockService.lookupByRfid('card-123'))
           .thenAnswer((_) async => (testMember, null));
+      when(() => mockService.getEffectiveBalance(testMember))
+          .thenAnswer((_) async => 0);
 
       await provider.selectMemberByRfid('card-123');
 
@@ -82,40 +89,44 @@ void main() {
       expect(provider.selectedMember, equals(testMember));
     });
 
-    test('clearSelectedMember resets member', () async {
-      final testMember = MembersCacheData(
-        id: 'member-1',
-        cardUid: 'card-123',
-        firstName: 'John',
-        lastName: 'Doe',
-        preferredLanguage: 'de',
-        isActive: 1,
-        isSepaValid: 1,
-        updatedAt: DateTime.now().toIso8601String(),
-      );
+    test('refreshDeckel recomputes effective balance from service', () async {
+      final testMember = createTestMember(balanceCents: 1000);
+
       when(() => mockService.lookupByRfid('card-123'))
           .thenAnswer((_) async => (testMember, null));
+      when(() => mockService.getEffectiveBalance(testMember))
+          .thenAnswer((_) async => 1000);
+
+      await provider.selectMemberByRfid('card-123');
+      expect(provider.memberDeckel, equals(1000));
+
+      // After a checkout, unsynced txn added, refresh Deckel
+      when(() => mockService.getEffectiveBalance(testMember))
+          .thenAnswer((_) async => 700); // -300 from new transaction
+
+      await provider.refreshDeckel();
+
+      expect(provider.memberDeckel, equals(700));
+    });
+
+    test('clearSelectedMember resets member and Deckel', () async {
+      final testMember = createTestMember();
+      when(() => mockService.lookupByRfid('card-123'))
+          .thenAnswer((_) async => (testMember, null));
+      when(() => mockService.getEffectiveBalance(testMember))
+          .thenAnswer((_) async => 0);
 
       await provider.selectMemberByRfid('card-123');
       expect(provider.selectedMember, isNotNull);
+      expect(provider.memberDeckel, isNotNull);
 
       provider.clearSelectedMember();
       expect(provider.selectedMember, isNull);
+      expect(provider.memberDeckel, isNull);
     });
 
     test('refreshMembers updates members list', () async {
-      final members = [
-        MembersCacheData(
-          id: 'member-1',
-          cardUid: 'card-123',
-          firstName: 'John',
-          lastName: 'Doe',
-          preferredLanguage: 'de',
-          isActive: 1,
-          isSepaValid: 1,
-          updatedAt: DateTime.now().toIso8601String(),
-        ),
-      ];
+      final members = [createTestMember()];
 
       when(() => mockService.getAllMembers())
           .thenAnswer((_) async => members);

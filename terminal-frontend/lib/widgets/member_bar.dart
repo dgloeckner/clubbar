@@ -4,6 +4,7 @@ import 'package:ruderbar_terminal/database/database.dart';
 class MemberBar extends StatelessWidget {
   final MembersCacheData member;
   final int itemCount;
+  final int? deckelCents;
   final VoidCallback? onCartPressed;
   final VoidCallback? onBackPressed;
   final VoidCallback? onLogoutPressed;
@@ -12,6 +13,7 @@ class MemberBar extends StatelessWidget {
   const MemberBar({
     required this.member,
     required this.itemCount,
+    this.deckelCents,
     this.onCartPressed,
     this.onBackPressed,
     this.onLogoutPressed,
@@ -78,7 +80,7 @@ class MemberBar extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Deckel: 0,00 €', // TODO: Get actual balance from member
+                    'Deckel: ${((deckelCents ?? member.balanceCents) / 100.0).toStringAsFixed(2)} \u20ac',
                     style: const TextStyle(
                       color: Color(0xffFF6B4A),
                       fontSize: 17,

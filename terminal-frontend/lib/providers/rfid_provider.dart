@@ -47,6 +47,7 @@ class RfidProvider extends ChangeNotifier {
           preferredLanguage: mockMember.preferredLanguage,
           isActive: mockMember.isActive ? 1 : 0,
           isSepaValid: mockMember.isSepaValid ? 1 : 0,
+          balanceCents: 0,
           updatedAt: mockMember.updatedAt,
         );
 

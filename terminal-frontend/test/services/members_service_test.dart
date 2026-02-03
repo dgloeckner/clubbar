@@ -3,18 +3,27 @@ import 'package:mocktail/mocktail.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/models/member_dto.dart';
 import 'package:ruderbar_terminal/repository/members_repository.dart';
+import 'package:ruderbar_terminal/repository/transactions_repository.dart';
 import 'package:ruderbar_terminal/services/members_service.dart';
 
 class MockMembersRepository extends Mock implements MembersRepository {}
 
+class MockTransactionsRepository extends Mock
+    implements TransactionsRepository {}
+
 void main() {
   group('MembersService', () {
     late MockMembersRepository mockRepo;
+    late MockTransactionsRepository mockTxnRepo;
     late MembersService service;
 
     setUp(() {
       mockRepo = MockMembersRepository();
-      service = MembersService(repository: mockRepo);
+      mockTxnRepo = MockTransactionsRepository();
+      service = MembersService(
+        repository: mockRepo,
+        transactionsRepository: mockTxnRepo,
+      );
     });
 
     test('lookupByRfid returns member when found and valid', () async {
@@ -26,6 +35,7 @@ void main() {
         preferredLanguage: 'de',
         isActive: 1,
         isSepaValid: 1,
+        balanceCents: 0,
         updatedAt: DateTime.now().toIso8601String(),
       );
 
@@ -51,17 +61,6 @@ void main() {
     });
 
     test('lookupByRfid returns error when account inactive', () async {
-      final inactiveMember = MembersCacheData(
-        id: 'member-2',
-        cardUid: 'card-456',
-        firstName: 'Jane',
-        lastName: 'Smith',
-        preferredLanguage: 'de',
-        isActive: 0,
-        isSepaValid: 1,
-        updatedAt: DateTime.now().toIso8601String(),
-      );
-
       when(() => mockRepo.findByCardUid('card-456'))
           .thenAnswer((_) async => (null, 'Account inactive'));
 
@@ -81,6 +80,50 @@ void main() {
       expect(error, contains('SEPA'));
     });
 
+    test('getEffectiveBalance returns synced balance when no unsynced txns',
+        () async {
+      final testMember = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 500,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+
+      when(() => mockTxnRepo.getUnsyncedAmountForMember('member-1'))
+          .thenAnswer((_) async => 0);
+
+      final balance = await service.getEffectiveBalance(testMember);
+
+      expect(balance, equals(500));
+    });
+
+    test('getEffectiveBalance adds unsynced transactions to synced balance',
+        () async {
+      final testMember = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 1000,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+
+      when(() => mockTxnRepo.getUnsyncedAmountForMember('member-1'))
+          .thenAnswer((_) async => -300);
+
+      final balance = await service.getEffectiveBalance(testMember);
+
+      expect(balance, equals(700));
+    });
+
     test('getAllMembers returns list from repository', () async {
       final members = [
         MembersCacheData(
@@ -91,6 +134,7 @@ void main() {
           preferredLanguage: 'de',
           isActive: 1,
           isSepaValid: 1,
+          balanceCents: 0,
           updatedAt: DateTime.now().toIso8601String(),
         ),
       ];
