@@ -13,6 +13,7 @@ import 'package:ruderbar_terminal/providers/products_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/repository/members_repository.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
+import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/main.dart';
 
 class MockRuderbarDatabase extends Mock implements RuderbarDatabase {}
@@ -21,6 +22,7 @@ class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockCartService extends Mock implements CartService {}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockMembersRepository extends Mock implements MembersRepository {}
+class MockConfigService extends Mock implements ConfigService {}
 
 void main() {
   testWidgets('App initializes with Material 3 theme', (WidgetTester tester) async {
@@ -30,6 +32,7 @@ void main() {
     final mockCartService = MockCartService();
     final mockSyncProvider = MockSyncProvider();
     final mockMembersRepository = MockMembersRepository();
+    final mockConfigService = MockConfigService();
 
     // Build our app and trigger a frame.
     await tester.pumpWidget(
@@ -40,6 +43,7 @@ void main() {
         cartService: mockCartService,
         syncProvider: mockSyncProvider,
         membersRepository: mockMembersRepository,
+        configService: mockConfigService,
       ),
     );
 

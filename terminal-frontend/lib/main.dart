@@ -19,6 +19,7 @@ import 'package:ruderbar_terminal/services/members_service.dart';
 import 'package:ruderbar_terminal/services/products_service.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/sync_service.dart';
+import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/models/category_dto.dart';
 import 'package:ruderbar_terminal/models/product_dto.dart';
 import 'package:ruderbar_terminal/models/member_dto.dart';
@@ -197,6 +198,10 @@ void main() async {
     // App will run with default window size
   }
 
+  // Load terminal configuration (ADR-0019)
+  final configService = ConfigService();
+  await configService.load();
+
   // Initialize database
   final database = RuderbarDatabase();
 
@@ -210,8 +215,16 @@ void main() async {
   final syncRepo = SyncRepository(database);
 
   // Create services (business logic layer)
-  final networkService = NetworkService();
-  final membersService = MembersService(repository: membersRepo);
+  final networkService = NetworkService(
+    baseUrl: configService.apiUrl ?? AppConfig.apiBaseUrl,
+  );
+  if (configService.apiToken != null) {
+    networkService.setAuthToken(configService.apiToken!);
+  }
+  final membersService = MembersService(
+    repository: membersRepo,
+    transactionsRepository: transactionsRepo,
+  );
   final productsService = ProductsService(repository: productsRepo);
   final cartService = CartService(repository: transactionsRepo);
   final syncService = SyncService(
@@ -241,6 +254,7 @@ void main() async {
     cartService: cartService,
     syncProvider: syncProvider,
     membersRepository: membersRepo,
+    configService: configService,
   ));
 }
 
@@ -251,6 +265,7 @@ class RuderbarTerminalApp extends StatelessWidget {
   final CartService cartService;
   final SyncProvider syncProvider;
   final MembersRepository membersRepository;
+  final ConfigService configService;
 
   const RuderbarTerminalApp({
     super.key,
@@ -260,6 +275,7 @@ class RuderbarTerminalApp extends StatelessWidget {
     required this.cartService,
     required this.syncProvider,
     required this.membersRepository,
+    required this.configService,
   });
 
   @override
