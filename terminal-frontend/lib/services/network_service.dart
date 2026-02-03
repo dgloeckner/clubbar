@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/sync_response.dart';
+import '../models/transaction_sync_response.dart';
 
 class NetworkService {
   final String _baseUrl;
@@ -137,6 +138,20 @@ class NetworkService {
       return ProductsSyncResponse.fromJson(response);
     } catch (e) {
       throw NetworkException('Sync products failed: $e');
+    }
+  }
+
+  /// Sync transactions endpoint (POST batch upload)
+  Future<TransactionSyncResponse> syncTransactions(
+      List<Map<String, dynamic>> transactions) async {
+    try {
+      final response = await post(
+        AppConfig.syncEndpointTransactions,
+        {'transactions': transactions},
+      );
+      return TransactionSyncResponse.fromJson(response);
+    } catch (e) {
+      throw NetworkException('Sync transactions failed: $e');
     }
   }
 

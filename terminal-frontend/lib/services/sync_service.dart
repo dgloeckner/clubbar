@@ -129,7 +129,7 @@ class SyncService {
     }
   }
 
-  /// Sync unsynced transactions to backend
+  /// Sync unsynced transactions to backend via POST /sync/transactions
   Future<void> _syncTransactions() async {
     try {
       _logger.i('Syncing transactions');
@@ -140,12 +140,33 @@ class SyncService {
         return;
       }
 
-      // In production, send unsynced transactions to backend
-      // For now, just mark them as synced
-      final txnIds = unsyncedTxns.map((t) => t.id).toList();
-      await _transactionsRepo.markAsSynced(txnIds);
+      // Convert to API format per api/terminal.yaml
+      final payloads = unsyncedTxns.map((t) => {
+        'id': t.id,
+        'member_id': t.memberId,
+        'product_id': t.productId,
+        'amount_cents': t.amountCents,
+        'created_at': t.createdAt,
+      }).toList();
 
-      _logger.i('Transactions synced: ${txnIds.length} items');
+      // POST to backend
+      final response = await _networkService.syncTransactions(payloads);
+
+      // Atomically mark accepted transactions as synced and update balances
+      await _transactionsRepo.completeSyncAtomically(
+        acceptedIds: response.acceptedIds,
+        memberBalances: response.memberBalances,
+        membersRepo: _membersRepo,
+      );
+
+      _logger.i('Transactions synced: ${response.acceptedIds.length} accepted');
+
+      if (response.rejected.count > 0) {
+        _logger.w('Transactions rejected: ${response.rejected.count}');
+        for (final error in response.rejected.errors) {
+          _logger.w('  Rejected ${error.transactionId}: ${error.reason}');
+        }
+      }
     } catch (e) {
       _logger.e('Transactions sync failed', error: e);
       rethrow;

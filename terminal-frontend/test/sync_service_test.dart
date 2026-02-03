@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:ruderbar_terminal/config/app_config.dart';
+import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/models/sync_response.dart';
+import 'package:ruderbar_terminal/models/transaction_sync_response.dart';
 import 'package:ruderbar_terminal/repository/members_repository.dart';
 import 'package:ruderbar_terminal/repository/products_repository.dart';
 import 'package:ruderbar_terminal/repository/sync_repository.dart';
@@ -30,8 +32,11 @@ void main() {
     late SyncService syncService;
 
     setUpAll(() {
-      // Register fallback for Duration
       registerFallbackValue(Duration.zero);
+      registerFallbackValue(<Map<String, dynamic>>[]);
+      registerFallbackValue(<String>[]);
+      registerFallbackValue(<String, int>{});
+      registerFallbackValue(MockMembersRepository());
     });
 
     setUp(() {
@@ -158,6 +163,136 @@ void main() {
       final error = await syncService.getLastError();
 
       expect(error, equals(errorMsg));
+    });
+
+    test('syncAll posts unsynced transactions and completes atomically', () async {
+      // Setup sync mocks
+      when(() => mockNetworkService.syncMembers())
+          .thenAnswer((_) async => MembersSyncResponse(members: []));
+      when(() => mockNetworkService.syncProducts())
+          .thenAnswer((_) async => ProductsSyncResponse(
+                categories: [],
+                products: [],
+              ));
+
+      // Return unsynced transactions
+      final unsyncedTxns = [
+        TransactionsLocalData(
+          id: 'txn-1',
+          memberId: 'member-1',
+          productId: 'prod-1',
+          amountCents: -350,
+          transactionType: 'PURCHASE',
+          notes: null,
+          createdAt: '2025-02-01T12:00:00Z',
+          synced: 0,
+        ),
+        TransactionsLocalData(
+          id: 'txn-2',
+          memberId: 'member-2',
+          productId: 'prod-2',
+          amountCents: -300,
+          transactionType: 'PURCHASE',
+          notes: null,
+          createdAt: '2025-02-01T12:01:00Z',
+          synced: 0,
+        ),
+      ];
+      when(() => mockTransactionsRepo.getUnsyncedTransactions())
+          .thenAnswer((_) async => unsyncedTxns);
+
+      // Mock syncTransactions response
+      when(() => mockNetworkService.syncTransactions(any()))
+          .thenAnswer((_) async => TransactionSyncResponse(
+                acceptedIds: ['txn-1', 'txn-2'],
+                rejected: TransactionSyncRejected(count: 0, errors: []),
+                memberBalances: {'member-1': 4500, 'member-2': 1200},
+              ));
+
+      // Mock completeSyncAtomically
+      when(() => mockTransactionsRepo.completeSyncAtomically(
+            acceptedIds: any(named: 'acceptedIds'),
+            memberBalances: any(named: 'memberBalances'),
+            membersRepo: any(named: 'membersRepo'),
+          )).thenAnswer((_) async => {});
+
+      final result = await syncService.syncAll();
+
+      expect(result, equals(SyncResult.success));
+
+      // Verify syncTransactions was called with correct payloads
+      final captured = verify(() => mockNetworkService.syncTransactions(captureAny()))
+          .captured;
+      final payloads = captured.first as List<Map<String, dynamic>>;
+      expect(payloads.length, equals(2));
+      expect(payloads[0]['id'], 'txn-1');
+      expect(payloads[0]['member_id'], 'member-1');
+      expect(payloads[0]['amount_cents'], -350);
+      expect(payloads[1]['id'], 'txn-2');
+
+      // Verify completeSyncAtomically was called with correct args
+      verify(() => mockTransactionsRepo.completeSyncAtomically(
+            acceptedIds: ['txn-1', 'txn-2'],
+            memberBalances: {'member-1': 4500, 'member-2': 1200},
+            membersRepo: mockMembersRepo,
+          )).called(1);
+    });
+
+    test('syncAll handles rejected transactions gracefully', () async {
+      when(() => mockNetworkService.syncMembers())
+          .thenAnswer((_) async => MembersSyncResponse(members: []));
+      when(() => mockNetworkService.syncProducts())
+          .thenAnswer((_) async => ProductsSyncResponse(
+                categories: [],
+                products: [],
+              ));
+
+      final unsyncedTxns = [
+        TransactionsLocalData(
+          id: 'txn-1',
+          memberId: 'member-1',
+          productId: 'prod-1',
+          amountCents: -350,
+          transactionType: 'PURCHASE',
+          notes: null,
+          createdAt: '2025-02-01T12:00:00Z',
+          synced: 0,
+        ),
+      ];
+      when(() => mockTransactionsRepo.getUnsyncedTransactions())
+          .thenAnswer((_) async => unsyncedTxns);
+
+      when(() => mockNetworkService.syncTransactions(any()))
+          .thenAnswer((_) async => TransactionSyncResponse(
+                acceptedIds: [],
+                rejected: TransactionSyncRejected(
+                  count: 1,
+                  errors: [
+                    TransactionSyncError(
+                      transactionId: 'txn-1',
+                      reason: 'member_not_found',
+                    ),
+                  ],
+                ),
+                memberBalances: {},
+              ));
+
+      when(() => mockTransactionsRepo.completeSyncAtomically(
+            acceptedIds: any(named: 'acceptedIds'),
+            memberBalances: any(named: 'memberBalances'),
+            membersRepo: any(named: 'membersRepo'),
+          )).thenAnswer((_) async => {});
+
+      final result = await syncService.syncAll();
+
+      expect(result, equals(SyncResult.success));
+
+      // completeSyncAtomically still called (with empty accepted list)
+      verify(() => mockTransactionsRepo.completeSyncAtomically(
+            acceptedIds: [],
+            memberBalances: {},
+            membersRepo: mockMembersRepo,
+          )).called(1);
     });
 
     test('reset clears sync state', () async {
