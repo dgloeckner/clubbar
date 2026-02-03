@@ -8,7 +8,7 @@
  *   const Icon = getProductIcon('PilsIcon')
  *   <Icon size={20} />
  *
- *   const Icon = getCategoryIcon('CategoryIcon')
+ *   const Icon = getCategoryIcon('PilsIcon')
  *   <Icon size={20} />
  */
 
@@ -43,9 +43,24 @@ export const PRODUCT_ICON_NAMES = [
 export type ProductIconName = (typeof PRODUCT_ICON_NAMES)[number]
 
 /**
- * Category icon names - Separate set of category-specific icons
+ * All icon names - Universal set used for both products and categories.
+ * Categories use the same product icons (e.g. a "Drinks" category shows a beer icon).
  */
-export const CATEGORY_ICON_NAMES = [
+export const ALL_ICON_NAMES = PRODUCT_ICON_NAMES
+
+/**
+ * Category icon names - Categories use the universal (product) icon set.
+ * The old "CategoryIcon" variants are navigation UI elements, not category representations.
+ */
+export const CATEGORY_ICON_NAMES = PRODUCT_ICON_NAMES
+
+export type CategoryIconName = ProductIconName
+
+/**
+ * Navigation icon names - Generic UI icons for category navigation bars
+ * These are NOT for representing individual categories.
+ */
+export const NAVIGATION_ICON_NAMES = [
   'CategoryIcon',
   'CategoryTagsIcon',
   'CategoryLayersIcon',
@@ -53,7 +68,7 @@ export const CATEGORY_ICON_NAMES = [
   'CategoryListIcon',
 ] as const
 
-export type CategoryIconName = (typeof CATEGORY_ICON_NAMES)[number]
+export type NavigationIconName = (typeof NAVIGATION_ICON_NAMES)[number]
 
 /**
  * Product icon registry - Maps icon names to components
@@ -75,21 +90,15 @@ export const ProductIconRegistry: Record<ProductIconName, React.FC<IconProps>> =
 }
 
 /**
- * Category icon registry - Maps category-specific icon names to components
+ * Category icon registry - Categories use the universal product icon set
  */
-export const CategoryIconRegistry: Record<CategoryIconName, React.FC<IconProps>> = {
-  CategoryIcon: CategoryIcons.CategoryIcon,
-  CategoryTagsIcon: CategoryIcons.CategoryTagsIcon,
-  CategoryLayersIcon: CategoryIcons.CategoryLayersIcon,
-  CategoryFolderIcon: CategoryIcons.CategoryFolderIcon,
-  CategoryListIcon: CategoryIcons.CategoryListIcon,
-}
+export const CategoryIconRegistry: Record<CategoryIconName, React.FC<IconProps>> = ProductIconRegistry
 
 /**
- * Navigation category icons - Generic category representations
- * Reserved for category navigation bars and UI elements
+ * Navigation icon registry - Generic UI icons for category navigation bars
+ * These are NOT for representing individual categories.
  */
-export const NavigationCategoryIcons = {
+export const NavigationIconRegistry: Record<string, React.FC<IconProps>> = {
   CategoryIcon: CategoryIcons.CategoryIcon,
   CategoryTagsIcon: CategoryIcons.CategoryTagsIcon,
   CategoryLayersIcon: CategoryIcons.CategoryLayersIcon,
@@ -110,14 +119,14 @@ export function getProductIcon(iconName?: string | null): React.FC<IconProps> {
 }
 
 /**
- * Get category icon component by name with fallback to CategoryIcon
- * Uses category-specific icons from category-icons registry
+ * Get category icon component by name with fallback to PackageIcon
+ * Categories use the same universal product icon set.
  *
  * @param iconName - Icon name from database (nullable)
  * @returns React component for the icon
  */
 export function getCategoryIcon(iconName?: string | null): React.FC<IconProps> {
-  if (!iconName) return CategoryIcons.CategoryIcon
-  const icon = CategoryIconRegistry[iconName as CategoryIconName]
-  return icon || CategoryIcons.CategoryIcon
+  if (!iconName) return PackageIcon
+  const icon = ProductIconRegistry[iconName as ProductIconName]
+  return icon || PackageIcon
 }

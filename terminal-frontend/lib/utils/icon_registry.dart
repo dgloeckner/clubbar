@@ -82,27 +82,8 @@ String _getProductIconPath(String? iconName) {
   }
 }
 
-/// Map backend category icon enum name to SVG asset path
-/// Backend enum values: CategoryIcon, CategoryTagsIcon, CategoryLayersIcon,
-/// CategoryFolderIcon, CategoryListIcon, CategoryDrinksIcon, CategorySaunaIcon
+/// Map backend category icon name to SVG asset path.
+/// Categories use the same universal product icon set.
 String _getCategoryIconPath(String? iconName) {
-  switch (iconName) {
-    case 'CategoryIcon':
-      return 'assets/icons/categories/category_icon.svg';
-    case 'CategoryTagsIcon':
-      return 'assets/icons/categories/category_tags_icon.svg';
-    case 'CategoryLayersIcon':
-      return 'assets/icons/categories/category_layers_icon.svg';
-    case 'CategoryFolderIcon':
-      return 'assets/icons/categories/category_folder_icon.svg';
-    case 'CategoryListIcon':
-      return 'assets/icons/categories/category_list_icon.svg';
-    // Category-specific icons using product icon SVGs
-    case 'CategoryDrinksIcon':
-      return 'assets/icons/products/pils_icon.svg';
-    case 'CategorySaunaIcon':
-      return 'assets/icons/products/sauna_token_icon.svg';
-    default:
-      return 'assets/icons/categories/category_icon.svg'; // Fallback
-  }
+  return _getProductIconPath(iconName);
 }

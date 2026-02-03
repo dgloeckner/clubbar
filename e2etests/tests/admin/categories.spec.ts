@@ -570,10 +570,10 @@ test.describe('Admin Frontend - Categories Page', () => {
       await authenticatedCategoriesPage.openCreateModal()
       await authenticatedCategoriesPage.expectFormModalVisible()
 
-      // Select an icon
-      await authenticatedCategoriesPage.selectIcon('CategoryIcon')
+      // Select an icon (categories use universal product icons)
+      await authenticatedCategoriesPage.selectIcon('PilsIcon')
       let selectedIcon = await authenticatedCategoriesPage.getSelectedIconName()
-      expect(selectedIcon).toContain('CategoryIcon')
+      expect(selectedIcon).toContain('PilsIcon')
 
       // Clear icon
       await authenticatedCategoriesPage.clearIcon()
