@@ -11,6 +11,7 @@ export interface Member {
   first_name: string
   last_name: string
   iban?: string
+  account_holder_name?: string
   mandate_reference?: string
   mandate_signed_at?: string
   preferred_language: string
@@ -103,6 +104,7 @@ export async function createMember(data: {
   mandate_signed_at: string
   preferred_language: string
   email?: string
+  account_holder_name?: string
 }): Promise<Member> {
   const response = await post<Member>('/admin/members', data)
 

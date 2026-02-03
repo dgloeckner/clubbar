@@ -180,6 +180,7 @@ Stores all organization members with payment information.
 | email | VARCHAR(255) | NULL | Contact email address |
 | preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code for product display |
 | iban | VARCHAR(34) | NULL | SEPA bank account (ISO 13616 format + mod-97 checksum) |
+| account_holder_name | VARCHAR(70) | NULL | Account holder name if different from member (SEPA max 70) |
 | mandate_reference | VARCHAR(35) | UNIQUE, NULL | SEPA mandate ID; default = UUID without hyphens |
 | mandate_signed_at | DATE | NULL | Mandate signature date |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Active (true) or blocked (false) |

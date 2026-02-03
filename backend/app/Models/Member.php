@@ -62,6 +62,7 @@ class Member extends Model
         'preferred_language',
         'is_active',
         'iban',
+        'account_holder_name',
         'mandate_reference',
         'mandate_signed_at',
         'deleted_at',

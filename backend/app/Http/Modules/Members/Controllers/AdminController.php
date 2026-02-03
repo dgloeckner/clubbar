@@ -98,6 +98,7 @@ class AdminController extends Controller
         $iban = $request->iban();
         $mandateReference = $request->mandateReference();
         $mandateSignedAt = $request->mandateSignedAt();
+        $accountHolderName = $request->accountHolderName();
 
         // Delegate to service (Pattern 004: Service Layer)
         $member = $this->membersService->createMember(
@@ -109,7 +110,8 @@ class AdminController extends Controller
             $language,
             $iban,
             $mandateReference,
-            $mandateSignedAt
+            $mandateSignedAt,
+            $accountHolderName
         );
 
         // Return created member as JSON (Pattern 003: DTO serialization)
@@ -165,6 +167,7 @@ class AdminController extends Controller
                 'iban' => $request->iban(),
                 'mandateReference' => $request->mandateReference(),
                 'mandateSignedAt' => $request->mandateSignedAt(),
+                'accountHolderName' => $request->accountHolderName(),
             ], fn($value) => $value !== null);
 
             // Delegate to service (Pattern 004: Service Layer)

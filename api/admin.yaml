@@ -2581,6 +2581,11 @@ components:
           type: string
           nullable: true
           description: Full IBAN (unmasked in detail view)
+        account_holder_name:
+          type: string
+          nullable: true
+          maxLength: 70
+          description: Account holder name if different from member. Used in SEPA XML.
         mandate_reference:
           type: string
           nullable: true
@@ -2628,6 +2633,10 @@ components:
           description: ISO 13616 IBAN
           minLength: 15
           maxLength: 34
+        account_holder_name:
+          type: string
+          maxLength: 70
+          description: Account holder name if different from member (for divergent payer)
         mandate_signed_at:
           type: string
           format: date
@@ -2656,6 +2665,10 @@ components:
           type: string
           minLength: 15
           maxLength: 34
+        account_holder_name:
+          type: string
+          maxLength: 70
+          nullable: true
         mandate_reference:
           type: string
           maxLength: 35

@@ -4,6 +4,7 @@ namespace App\Http\Modules\Settlements\Services;
 
 use App\Http\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Models\Settlement;
+use App\Shared\Utils\SepaSanitizer;
 use Illuminate\Database\Eloquent\Collection;
 
 /**
@@ -146,16 +147,18 @@ final readonly class SepaExportService
 
             // Add transfer to the payment
             try {
-                $memberName = $this->sanitizeName($member->first_name . ' ' . $member->last_name);
+                $memberName = $this->sanitizeName(
+                    $member->account_holder_name ?? ($member->first_name . ' ' . $member->last_name)
+                );
                 $iban = $this->sanitizeIban($member->iban);
 
                 $transferInfo = [
                     'amount' => $totalAmountCents, // Amount in cents
                     'debtorIban' => $iban,
                     'debtorName' => $memberName,
-                    'debtorMandate' => $member->mandate_reference,
+                    'debtorMandate' => SepaSanitizer::sanitizeMandateReference($member->mandate_reference),
                     'debtorMandateSignDate' => $member->mandate_signed_at,
-                    'remittanceInformation' => 'Settlement ' . $settlement->id,
+                    'remittanceInformation' => SepaSanitizer::sanitizeRemittance('Settlement ' . $settlement->id),
                 ];
 
                 $sepaDocument->addTransfer(
@@ -209,43 +212,26 @@ final readonly class SepaExportService
     }
 
     /**
-     * Sanitize name for SEPA XML (remove umlauts and special chars)
+     * Sanitize name for SEPA XML.
      *
-     * SEPA XML requires specific character set. This method converts:
-     * - ä → ae, ö → oe, ü → ue, ß → ss
-     * - Removes other special characters
+     * Delegates to SepaSanitizer for EPC-compliant character handling.
      *
      * @param string $name The name to sanitize
-     * @return string Sanitized name (max 70 chars as per SEPA standard)
+     * @return string Sanitized name (max 70 chars per SEPA standard)
      */
     public function sanitizeName(string $name): string
     {
-        // Replace umlauts
-        $sanitized = str_replace(
-            ['ä', 'ö', 'ü', 'ß', 'Ä', 'Ö', 'Ü'],
-            ['ae', 'oe', 'ue', 'ss', 'AE', 'OE', 'UE'],
-            $name,
-        );
-
-        // Remove other problematic characters, keep only ASCII + spaces
-        $sanitized = preg_replace('/[^\w\s\-\.\/\,]/u', '', $sanitized);
-
-        // Limit to 70 characters (SEPA limit)
-        $sanitized = substr($sanitized, 0, 70);
-
-        return trim($sanitized);
+        return SepaSanitizer::sanitizeName($name);
     }
 
     /**
-     * Sanitize IBAN for SEPA XML
-     *
-     * Removes spaces and converts to uppercase (standard format)
+     * Sanitize IBAN for SEPA XML (uppercase, no spaces).
      *
      * @param string $iban The IBAN to sanitize
      * @return string Normalized IBAN
      */
     public function sanitizeIban(string $iban): string
     {
-        return strtoupper(str_replace(' ', '', $iban));
+        return SepaSanitizer::sanitizeIban($iban);
     }
 }

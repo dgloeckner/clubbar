@@ -162,6 +162,7 @@ class MembersService extends BaseService
             isSepaValid: !empty($model->iban) && !empty($model->mandate_reference),
             ibanMasked: $model->iban ? substr($model->iban, 0, 2) . '****' . substr($model->iban, -4) : null,
             iban: $model->iban,
+            accountHolderName: $model->account_holder_name,
             mandateReference: $model->mandate_reference,
             mandateSignedAt: $model->mandate_signed_at?->format('Y-m-d'),
             deletedAt: $model->deleted_at ? new DateTimeImmutable($model->deleted_at->format('c')) : null,
@@ -205,6 +206,7 @@ class MembersService extends BaseService
             isSepaValid: !empty($member->iban) && !empty($member->mandate_reference),
             ibanMasked: $member->iban ? substr($member->iban, 0, 2) . '****' . substr($member->iban, -4) : null,
             iban: $member->iban,
+            accountHolderName: $member->account_holder_name,
             mandateReference: $member->mandate_reference,
             mandateSignedAt: $member->mandate_signed_at?->format('Y-m-d'),
             deletedAt: $member->deleted_at ? new DateTimeImmutable($member->deleted_at->format('c')) : null,
@@ -236,6 +238,7 @@ class MembersService extends BaseService
         ?string $iban = null,
         ?string $mandateReference = null,
         ?string $mandateSignedAt = null,
+        ?string $accountHolderName = null,
     ): MemberAdminDto {
         // Create member in database
         $member = $this->membersRepository->create([
@@ -247,6 +250,7 @@ class MembersService extends BaseService
             'preferred_language' => $language->value,
             'is_active' => true,
             'iban' => $iban,
+            'account_holder_name' => $accountHolderName,
             'mandate_reference' => $mandateReference,
             'mandate_signed_at' => $mandateSignedAt,
         ]);
@@ -266,6 +270,7 @@ class MembersService extends BaseService
                 'preferred_language' => $language->value,
                 'is_active' => true,
                 'iban' => $iban ? (substr($iban, 0, 2) . '****' . substr($iban, -4)) : null,
+                'account_holder_name' => $accountHolderName,
                 'mandate_reference' => $mandateReference,
                 'mandate_signed_at' => $mandateSignedAt,
             ],
@@ -285,6 +290,7 @@ class MembersService extends BaseService
             isSepaValid: !empty($member->iban) && !empty($member->mandate_reference),
             ibanMasked: $member->iban ? substr($member->iban, 0, 2) . '****' . substr($member->iban, -4) : null,
             iban: $member->iban,
+            accountHolderName: $member->account_holder_name,
             mandateReference: $member->mandate_reference,
             mandateSignedAt: $member->mandate_signed_at?->format('Y-m-d'),
             deletedAt: $member->deleted_at ? new DateTimeImmutable($member->deleted_at->format('c')) : null,
@@ -344,6 +350,9 @@ class MembersService extends BaseService
         if (isset($updateData['mandateSignedAt'])) {
             $dbUpdateData['mandate_signed_at'] = $updateData['mandateSignedAt'];
         }
+        if (isset($updateData['accountHolderName'])) {
+            $dbUpdateData['account_holder_name'] = $updateData['accountHolderName'];
+        }
 
         // Update in database
         $member = $this->membersRepository->updateById($memberId, $dbUpdateData);
@@ -374,6 +383,7 @@ class MembersService extends BaseService
             isSepaValid: !empty($member->iban) && !empty($member->mandate_reference),
             ibanMasked: $member->iban ? substr($member->iban, 0, 2) . '****' . substr($member->iban, -4) : null,
             iban: $member->iban,
+            accountHolderName: $member->account_holder_name,
             mandateReference: $member->mandate_reference,
             mandateSignedAt: $member->mandate_signed_at?->format('Y-m-d'),
             deletedAt: $member->deleted_at ? new DateTimeImmutable($member->deleted_at->format('c')) : null,
@@ -504,6 +514,10 @@ class MembersService extends BaseService
             isActive: $member->is_active,
             isSepaValid: false,
             ibanMasked: null,
+            iban: null,
+            accountHolderName: null,
+            mandateReference: null,
+            mandateSignedAt: null,
             deletedAt: $member->deleted_at ? new DateTimeImmutable($member->deleted_at->format('c')) : null,
             createdAt: new DateTimeImmutable($member->created_at->format('c')),
             updatedAt: new DateTimeImmutable($member->updated_at->format('c')),

@@ -36,6 +36,7 @@ final class CreateMemberRequest extends FormRequest
                 Rule::enum(SupportedLanguage::class),
             ],
             'iban' => ['nullable', 'string', 'min:15', 'max:34'],
+            'account_holder_name' => ['nullable', 'string', 'max:70'],
             'mandate_reference' => ['nullable', 'string', 'min:1', 'max:35'],
             'mandate_signed_at' => ['nullable', 'date_format:Y-m-d'],
         ];
@@ -126,6 +127,16 @@ final class CreateMemberRequest extends FormRequest
     public function iban(): ?string
     {
         return $this->validated('iban');
+    }
+
+    /**
+     * Get typed account holder name (nullable)
+     *
+     * @return string|null
+     */
+    public function accountHolderName(): ?string
+    {
+        return $this->validated('account_holder_name');
     }
 
     /**

@@ -117,6 +117,7 @@ class MembersRepository extends BaseRepository
             'email' => 'deleted@example.com',
             'phone' => null,
             'iban' => null,
+            'account_holder_name' => null,
             'mandate_reference' => null,
             'card_uid' => null,
             'is_active' => false,

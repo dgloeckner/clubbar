@@ -43,6 +43,7 @@ final class UpdateMemberRequest extends FormRequest
             'is_active' => ['nullable', 'boolean'],
             // SEPA fields: allow clearing by removing min requirement (empty string = clear field)
             'iban' => ['nullable', 'string', 'max:34'],
+            'account_holder_name' => ['nullable', 'string', 'max:70'],
             'mandate_reference' => ['nullable', 'string', 'max:35'],
             'mandate_signed_at' => ['nullable', 'date_format:Y-m-d'],
         ];
@@ -141,6 +142,16 @@ final class UpdateMemberRequest extends FormRequest
     public function iban(): ?string
     {
         return $this->validated('iban');
+    }
+
+    /**
+     * Get typed account holder name (nullable)
+     *
+     * @return string|null
+     */
+    public function accountHolderName(): ?string
+    {
+        return $this->validated('account_holder_name');
     }
 
     /**

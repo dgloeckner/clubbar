@@ -259,6 +259,94 @@ test.describe('Admin Members CRUD Endpoints', () => {
     expect(body.error).toBe('not_found');
   });
 
+  // Account Holder Name (divergent SEPA payer)
+  test('POST /api/admin/members creates member with account_holder_name', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'Anna',
+        last_name: 'Klein',
+        email: 'anna.klein@example.com',
+        preferred_language: 'de',
+        iban: 'DE89370400440532013000',
+        mandate_signed_at: '2025-01-15',
+        account_holder_name: 'Maria Klein',
+      },
+    });
+
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+    expect(body.first_name).toBe('Anna');
+    expect(body.last_name).toBe('Klein');
+    expect(body.account_holder_name).toBe('Maria Klein');
+  });
+
+  test('POST /api/admin/members creates member without account_holder_name (null)', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'Ben',
+        last_name: 'Groß',
+        email: 'ben.gross@example.com',
+        preferred_language: 'de',
+      },
+    });
+
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+    expect(body.account_holder_name).toBeNull();
+  });
+
+  test('PATCH /api/admin/members/{id} sets account_holder_name', async ({ authenticatedRequest }) => {
+    // Create member without account_holder_name
+    const createResponse = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'Chris',
+        last_name: 'Müller',
+        email: 'chris.mueller@example.com',
+        preferred_language: 'de',
+      },
+    });
+
+    expect(createResponse.status()).toBe(201);
+    const created = await createResponse.json();
+    expect(created.account_holder_name).toBeNull();
+
+    // Update with account_holder_name
+    const updateResponse = await authenticatedRequest.patch(`/api/admin/members/${created.id}`, {
+      data: {
+        account_holder_name: 'Sabine Müller',
+      },
+    });
+
+    expect(updateResponse.ok()).toBeTruthy();
+
+    const updated = await updateResponse.json();
+    expect(updated.account_holder_name).toBe('Sabine Müller');
+
+    // Verify persistence via GET
+    const getResponse = await authenticatedRequest.get(`/api/admin/members/${created.id}`);
+    const fetched = await getResponse.json();
+    expect(fetched.account_holder_name).toBe('Sabine Müller');
+  });
+
+  test('POST /api/admin/members validates account_holder_name max length', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post('/api/admin/members', {
+      data: {
+        first_name: 'MaxLen',
+        last_name: 'Test',
+        email: 'maxlen@example.com',
+        preferred_language: 'de',
+        account_holder_name: 'A'.repeat(71), // 71 chars, exceeds 70 limit
+      },
+    });
+
+    expect(response.status()).toBe(422);
+
+    const body = await response.json();
+    expect(body.messages.account_holder_name).toBeDefined();
+  });
+
   test('All CRUD endpoints return JSON content type', async ({ authenticatedRequest }) => {
     const data = {
       first_name: 'JsonTest',

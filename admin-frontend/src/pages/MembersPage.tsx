@@ -54,6 +54,7 @@ export function MembersPage() {
     last_name: '',
     email: '',
     iban: '',
+    account_holder_name: '',
     mandate_reference: '',
     mandate_signed_at: '',
     preferred_language: 'de',
@@ -124,7 +125,7 @@ export function MembersPage() {
       // Reset form and page to trigger reload via useEffect
       setShowModal(false)
       setEditingMember(null)
-      setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de' })
+      setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de' })
       setPage(1)  // This triggers useEffect which will reload members with current filter/sort
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save member')
@@ -198,6 +199,7 @@ export function MembersPage() {
       last_name: member.last_name,
       email: member.email || '',
       iban: member.iban || '',
+      account_holder_name: member.account_holder_name || '',
       mandate_reference: member.mandate_reference || '',
       mandate_signed_at: member.mandate_signed_at || '',
       preferred_language: member.preferred_language || 'de',
@@ -340,7 +342,7 @@ export function MembersPage() {
             data-testid="members-create-button"
             onClick={() => {
               setEditingMember(null)
-              setFormData({ first_name: '', last_name: '', email: '', iban: '', mandate_signed_at: '', preferred_language: 'de' })
+              setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de' })
               setShowModal(true)
             }}
             style={{
@@ -674,6 +676,32 @@ export function MembersPage() {
                     fontFamily: 'monospace',
                   }}
                 />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                  Account Holder Name
+                </label>
+                <input
+                  data-testid="members-form-account-holder-name-input"
+                  type="text"
+                  value={formData.account_holder_name}
+                  onChange={(e) => setFormData({ ...formData, account_holder_name: e.target.value })}
+                  placeholder="Only if different from member"
+                  maxLength={70}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <span style={{ fontSize: '12px', color: theme.colors.text.secondary, marginTop: '4px', display: 'block' }}>
+                  Only fill if the account holder differs from the member (e.g., parent pays for child)
+                </span>
               </div>
 
               <div>
