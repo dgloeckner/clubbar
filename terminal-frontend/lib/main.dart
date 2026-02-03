@@ -299,7 +299,7 @@ class RuderbarTerminalApp extends StatelessWidget {
               brightness: Brightness.dark,
             ),
           ),
-          routerConfig: createAppRouter(context),
+          routerConfig: createAppRouter(context, configService: configService),
         ),
       ),
     );

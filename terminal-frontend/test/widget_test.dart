@@ -33,6 +33,7 @@ void main() {
     final mockSyncProvider = MockSyncProvider();
     final mockMembersRepository = MockMembersRepository();
     final mockConfigService = MockConfigService();
+    when(() => mockConfigService.isConfigured).thenReturn(true);
 
     // Build our app and trigger a frame.
     await tester.pumpWidget(
