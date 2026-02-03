@@ -46,19 +46,17 @@ class ProductsRepository extends BaseRepository
      * Find products modified since timestamp (for Terminal delta sync).
      *
      * Terminal API calls this to fetch products changed since last sync.
-     * Returns only products from active categories.
+     * Returns ALL products (active and inactive) so the terminal can update
+     * its local cache — the terminal filters is_active for display.
+     * Per API spec: "Inactive products: Returned with is_active: false."
      * Used for GET /api/sync/products?since={timestamp}
      *
      * @param int $sinceTimestamp Unix timestamp
-     * @return Collection Products modified since timestamp, only from active categories
+     * @return Collection Products modified since timestamp
      */
     public function findModifiedSince(int $sinceTimestamp): Collection
     {
         return $this->query()
-            ->where('products.is_active', true)
-            ->whereHas('category', function ($q) {
-                $q->where('is_active', true);
-            })
             ->where('products.updated_at', '>=', date('Y-m-d H:i:s', $sinceTimestamp))
             ->orderBy('products.updated_at', 'asc')
             ->get();

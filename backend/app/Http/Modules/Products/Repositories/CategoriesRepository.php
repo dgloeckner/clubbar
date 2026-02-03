@@ -45,15 +45,17 @@ class CategoriesRepository extends BaseRepository
      * Find categories modified since timestamp (for Terminal delta sync).
      *
      * Terminal API calls this to fetch categories changed since last sync.
+     * Returns ALL categories (active and inactive) so the terminal can update
+     * its local cache — the terminal filters is_active for display.
+     * Per API spec: "Inactive categories: Returned with is_active: false."
      * Used for GET /api/sync/categories?since={timestamp}
      *
      * @param int $sinceTimestamp Unix timestamp
-     * @return Collection Active categories modified since timestamp, ordered by display_order
+     * @return Collection Categories modified since timestamp, ordered by display_order
      */
     public function findModifiedSince(int $sinceTimestamp): Collection
     {
         return $this->query()
-            ->where('is_active', true)
             ->where('updated_at', '>=', date('Y-m-d H:i:s', $sinceTimestamp))
             ->orderBy('display_order', 'asc')
             ->get();
