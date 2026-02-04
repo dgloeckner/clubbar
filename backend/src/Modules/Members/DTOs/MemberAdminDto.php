@@ -66,10 +66,20 @@ final readonly class MemberAdminDto
             'iban_masked' => $this->ibanMasked,
             'account_holder_name' => $this->accountHolderName,
             'mandate_reference' => $this->mandateReference,
-            'mandate_signed_at' => $this->mandateSignedAt,
-            'deleted_at' => $this->deletedAt,
-            'created_at' => $this->createdAt,
-            'updated_at' => $this->updatedAt,
+            'mandate_signed_at' => $this->formatTimestamp($this->mandateSignedAt),
+            'deleted_at' => $this->formatTimestamp($this->deletedAt),
+            'created_at' => $this->formatTimestamp($this->createdAt),
+            'updated_at' => $this->formatTimestamp($this->updatedAt),
         ];
+    }
+
+    private function formatTimestamp(?string $timestamp): ?string
+    {
+        if (!$timestamp) {
+            return null;
+        }
+
+        $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $timestamp);
+        return $dt ? $dt->format('Y-m-d\TH:i:s\Z') : $timestamp;
     }
 }

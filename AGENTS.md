@@ -25,6 +25,103 @@ npm test -- --reporter=json > test-results.json
 cp test-results.json test-results-$(date +%Y%m%d-%H%M%S).json
 ```
 
+### Test Execution Monitoring
+
+**CRITICAL RULE**: Monitor test output during execution. If more than 10 tests fail, **STOP immediately** and begin systematic root cause analysis.
+
+**Why**: Mass test failures (>10) indicate systemic issues (backend down, database misconfigured, authentication broken, etc.) rather than individual test problems. Continuing wastes time and obscures the root cause.
+
+#### Monitoring During Execution
+
+**Watch test output in real-time**:
+```bash
+# Run tests and monitor output
+cd e2etests
+npm test -- --reporter=json | tee test-results.json
+
+# In separate terminal: Monitor failure count in real-time
+watch -n 2 'cat test-results.json | jq ".stats.failed // 0"'
+```
+
+**Quick failure count check** (if JSON output is being written):
+```bash
+# Check current failure count
+cat test-results.json | jq '.stats.failed // 0'
+
+# If result is > 10, stop the test run immediately (Ctrl+C)
+```
+
+#### When Failure Threshold is Hit (>10 failures)
+
+**Stop execution immediately** and follow this protocol:
+
+1. **Stop the test run**: Press Ctrl+C to terminate
+2. **Preserve partial results**:
+   ```bash
+   cp test-results.json test-results-partial-$(date +%Y%m%d-%H%M%S).json
+   ```
+3. **Check failure count**:
+   ```bash
+   cat test-results-partial-*.json | jq '.stats'
+   ```
+4. **Identify systemic patterns**:
+   ```bash
+   # Extract all error messages
+   cat test-results-partial-*.json | jq -r '.suites[].tests[] | select(.status=="fail") | .error.message' | sort | uniq -c | sort -rn
+
+   # Look for common patterns:
+   # - "connection refused" → Backend not running
+   # - "timeout" → Backend overloaded or hung
+   # - "401 unauthorized" → Auth token expired/invalid
+   # - "404" → API routes not registered
+   ```
+5. **Check backend health**:
+   ```bash
+   # Is backend running?
+   docker compose ps | grep backend
+
+   # Health check
+   curl -s http://localhost:8080/api/health | jq .
+
+   # Check for errors in logs
+   docker compose exec backend tail -50 /app/storage/logs/laravel.log | grep -i "error\|exception"
+   ```
+6. **Apply systematic-debugging skill**: Use the superpowers systematic-debugging skill to diagnose and fix the root cause
+7. **Resume testing**: Only after fixing systemic issue, run full test suite again
+
+#### Common Systemic Issues
+
+| Failure Pattern | Root Cause | Fix |
+|----------------|------------|-----|
+| All tests "connection refused" | Backend not running | `docker compose up -d` |
+| All tests timeout | Backend hung or overloaded | Restart: `docker compose restart backend` |
+| All tests "401 unauthorized" | Auth setup broken | Check `e2etests/auth.setup.ts`, regenerate tokens |
+| All tests "404" | Routes not registered | Check `backend/routes/api.php`, restart PHP |
+| All tests "database error" | Database migration missing | Run migrations: `docker compose exec backend php artisan migrate` |
+| Tests failing with same error message | Code error affecting all endpoints | Check Laravel logs, fix code, restart PHP |
+
+#### Resuming Full Test Execution
+
+**Only resume full test suite after**:
+- Root cause identified and fixed
+- Backend health check passes
+- 3-5 tests run individually and pass
+- Backend logs show no errors
+
+```bash
+# Verify backend is healthy
+curl -s http://localhost:8080/api/health | jq .
+
+# Run small subset first
+npm test -- --grep "health" --reporter=json > verify-fix.json
+
+# Check results
+cat verify-fix.json | jq '.stats'
+
+# If clean, run full suite
+npm test -- --reporter=json > test-results.json
+```
+
 ### Analyzing Test Results
 
 **Parse failures systematically**:
@@ -287,24 +384,27 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail") | .error
 ## Best Practices for Agents
 
 1. **Always preserve test results**: Never run tests without capturing JSON output
-2. **Parse before proposing fixes**: Understand the failure pattern before debugging
-3. **Correlate across stack**: Test results + backend logs + HTTP codes = complete picture
-4. **Follow patterns**: Use E2E patterns (001-008) and backend patterns consistently
-5. **Invoke superpowers skills**: For TDD, debugging, planning - don't reinvent workflows
-6. **Verify before committing**: Use `verification-before-completion` skill, confirm tests pass with 4 workers
-7. **Document findings**: When debugging, document root cause in test results or memory files
+2. **Monitor test execution**: Stop immediately if >10 tests fail; indicates systemic issue
+3. **Parse before proposing fixes**: Understand the failure pattern before debugging
+4. **Correlate across stack**: Test results + backend logs + HTTP codes = complete picture
+5. **Follow patterns**: Use E2E patterns (001-008) and backend patterns consistently
+6. **Invoke superpowers skills**: For TDD, debugging, planning - don't reinvent workflows
+7. **Verify before committing**: Use `verification-before-completion` skill, confirm tests pass with 4 workers
+8. **Document findings**: When debugging, document root cause in test results or memory files
 
 ---
 
 ## Anti-Patterns (What NOT to Do)
 
 ❌ **Running tests without JSON reporter**: Loses failure details, makes debugging harder
+❌ **Continuing test execution with >10 failures**: Wastes time; stop and fix systemic issue first
 ❌ **Proposing fixes before analyzing test results**: Guessing at root cause wastes time
 ❌ **Ignoring backend logs**: Test failures often have clear explanations in Laravel logs
 ❌ **Committing without verification**: Untested code breaks CI/CD and future development
 ❌ **Reinventing TDD/debugging workflows**: Use superpowers skills instead
 ❌ **Assuming tests pass after code changes**: Always run and verify, especially with 4 workers
 ❌ **Debugging in parallel mode first**: Start with 1 worker to isolate actual errors from resource contention
+❌ **Fixing individual tests when many are failing**: Fix the systemic issue first, then re-run all tests
 
 ---
 
@@ -314,4 +414,9 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail") | .error
 
 **Superpowers Skills Purpose**: General development workflows (TDD, brainstorming, planning, debugging methodology).
 
-**Key Takeaway**: Use JSON reporter for all test runs, parse results systematically, correlate with backend logs, and invoke superpowers skills for high-level workflows.
+**Key Takeaways**:
+1. **Monitor test execution**: Stop immediately if >10 tests fail; indicates systemic issue requiring root cause analysis
+2. **Use JSON reporter**: Always capture test results for systematic analysis
+3. **Parse before fixing**: Understand failure patterns before proposing solutions
+4. **Correlate across stack**: Test results + backend logs + HTTP codes = complete picture
+5. **Invoke superpowers skills**: For TDD, debugging, planning workflows

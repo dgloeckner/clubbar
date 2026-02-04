@@ -61,9 +61,18 @@ class AdminController
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
-        $category = $this->categoriesService->updateCategory($categoryId, $body, $adminId);
-
-        return $this->json($response, $category->toArray());
+        try {
+            $category = $this->categoriesService->updateCategory($categoryId, $body, $adminId);
+            return $this->json($response, $category->toArray());
+        } catch (\RuntimeException $e) {
+            if (str_contains($e->getMessage(), 'not found')) {
+                return $this->json($response, [
+                    'error' => 'not_found',
+                    'message' => $e->getMessage()
+                ], 404);
+            }
+            throw $e;
+        }
     }
 
     public function toggleCategoryStatus(Request $request, Response $response, array $args): Response
@@ -78,9 +87,18 @@ class AdminController
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
-        $category = $this->categoriesService->toggleStatus($categoryId, (bool) $body['is_active'], $adminId);
-
-        return $this->json($response, $category->toArray());
+        try {
+            $category = $this->categoriesService->toggleStatus($categoryId, (bool) $body['is_active'], $adminId);
+            return $this->json($response, $category->toArray());
+        } catch (\RuntimeException $e) {
+            if (str_contains($e->getMessage(), 'not found')) {
+                return $this->json($response, [
+                    'error' => 'not_found',
+                    'message' => $e->getMessage()
+                ], 404);
+            }
+            throw $e;
+        }
     }
 
     public function deleteCategory(Request $request, Response $response, array $args): Response

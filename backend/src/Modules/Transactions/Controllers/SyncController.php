@@ -25,7 +25,7 @@ class SyncController
 
         $result = $this->transactionsService->processBatch($transactions);
 
-        return $this->json($response, $result->toArray());
+        return $this->json($response, $result->toArray(), 201);
     }
 
     public function transactionHistory(Request $request, Response $response, array $args): Response
@@ -38,7 +38,11 @@ class SyncController
 
         $transactions = $this->transactionsService->getRecentTransactions($memberId, $limit, $offset, $since);
 
-        return $this->json($response, ['transactions' => $transactions]);
+        return $this->json($response, [
+            'member_id' => $memberId,
+            'count' => count($transactions),
+            'transactions' => $transactions,
+        ]);
     }
 
     private function json(Response $response, mixed $data, int $status = 200): Response

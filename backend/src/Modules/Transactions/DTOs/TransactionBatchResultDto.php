@@ -17,8 +17,10 @@ final readonly class TransactionBatchResultDto
     {
         return [
             'accepted_ids' => $this->acceptedIds,
-            'rejected_count' => $this->rejectedCount,
-            'errors' => $this->errors,
+            'rejected' => [
+                'count' => $this->rejectedCount,
+                'errors' => $this->errors,
+            ],
             'member_balances' => $this->memberBalances,
         ];
     }
