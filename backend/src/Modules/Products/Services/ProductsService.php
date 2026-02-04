@@ -12,6 +12,8 @@ use App\Shared\Enums\EntityType;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Products\Repositories\CategoriesRepository;
 use App\Shared\Services\AuditService;
+use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\BusinessRuleException;
 
 class ProductsService
 {
@@ -41,8 +43,8 @@ class ProductsService
     public function createProduct(array $validated, ?string $adminUserId = null): ProductDto
     {
         $category = $this->categoriesRepository->findById($validated['category_id']);
-        if (!$category) throw new \RuntimeException('Category not found');
-        if (!(bool) $category['is_active']) throw new \RuntimeException('Category is inactive');
+        if (!$category) throw NotFoundException::forResource('Category', $body['category_id'] ?? 'unknown');
+        if (!(bool) $category['is_active']) throw new BusinessRuleException('Category is inactive');
 
         $row = $this->productsRepository->create($validated);
 
@@ -60,7 +62,7 @@ class ProductsService
     public function updateProduct(string $productId, array $validated, ?string $adminUserId = null): ProductDto
     {
         $old = $this->productsRepository->findById($productId);
-        if (!$old) throw new \RuntimeException("Product not found: $productId");
+        if (!$old) throw NotFoundException::forResource('Product', $productId);
 
         $row = $this->productsRepository->updateById($productId, $validated);
 
@@ -79,7 +81,7 @@ class ProductsService
     public function deleteProduct(string $productId, ?string $adminUserId = null): bool
     {
         $old = $this->productsRepository->findById($productId);
-        if (!$old) throw new \RuntimeException("Product not found: $productId");
+        if (!$old) throw NotFoundException::forResource('Product', $productId);
 
         $this->auditService->log(
             action: AuditAction::DELETE,
@@ -95,7 +97,7 @@ class ProductsService
     public function toggleStatus(string $productId, bool $isActive, ?string $adminUserId = null): ProductDto
     {
         $row = $this->productsRepository->updateById($productId, ['is_active' => $isActive]);
-        if (!$row) throw new \RuntimeException("Product not found: $productId");
+        if (!$row) throw NotFoundException::forResource('Product', $productId);
 
         $this->auditService->log(
             action: $isActive ? AuditAction::ACTIVATE : AuditAction::DEACTIVATE,

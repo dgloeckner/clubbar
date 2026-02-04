@@ -9,6 +9,12 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use App\Shared\Logging\Logger;
+use App\Shared\Exceptions\AppException;
+use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\ValidationException;
+use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\DuplicateResourceException;
+use App\Shared\Exceptions\InvalidCredentialsException;
 use Slim\Psr7\Response;
 
 class ErrorHandler implements MiddlewareInterface
@@ -30,18 +36,33 @@ class ErrorHandler implements MiddlewareInterface
                 'trace' => $this->debug ? $e->getTraceAsString() : null,
             ]);
 
-            $status = match (true) {
-                $e instanceof \Slim\Exception\HttpNotFoundException => 404,
-                $e instanceof \Slim\Exception\HttpMethodNotAllowedException => 405,
-                $e instanceof \InvalidArgumentException => 422,
-                str_contains($e->getMessage(), 'not found') => 404,
-                str_contains($e->getMessage(), 'already exists') => 409,
-                str_contains($e->getMessage(), 'Cannot deactivate') => 409,
-                str_contains($e->getMessage(), 'Cannot ') => 400,
-                default => 500,
-            };
+            // Type-safe exception handling
+            if ($e instanceof AppException) {
+                $status = $e->getHttpStatusCode();
+                $body = [
+                    'error' => $e->getErrorCode(),
+                    'message' => $e->getMessage()
+                ];
 
-            $body = ['error' => $this->errorCode($status, $e), 'message' => $e->getMessage()];
+                // Add validation errors if available
+                if ($e instanceof ValidationException) {
+                    $body['errors'] = $e->getErrors();
+                }
+            } else {
+                // Fallback for non-AppException types
+                $status = match (true) {
+                    $e instanceof \Slim\Exception\HttpNotFoundException => 404,
+                    $e instanceof \Slim\Exception\HttpMethodNotAllowedException => 405,
+                    $e instanceof \InvalidArgumentException => 422,
+                    default => 500,
+                };
+
+                $body = [
+                    'error' => $this->errorCode($status, $e),
+                    'message' => $e->getMessage()
+                ];
+            }
+
             if ($this->debug) {
                 $body['trace'] = $e->getTraceAsString();
             }

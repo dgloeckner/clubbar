@@ -10,6 +10,7 @@ use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\DTOs\SyncResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Exceptions\NotFoundException;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\Services\AuditService;
@@ -40,7 +41,7 @@ class MembersService
         ]);
 
         if (!$member) {
-            throw new \RuntimeException("Member not found: $memberId");
+            throw NotFoundException::forResource('Member', $memberId);
         }
 
         return MemberDto::fromRow($member);
@@ -58,7 +59,7 @@ class MembersService
     {
         $member = $this->membersRepository->findById($memberId);
         if (!$member) {
-            throw new \RuntimeException("Member not found: $memberId");
+            throw NotFoundException::forResource('Member', $memberId);
         }
         return MemberAdminDto::fromRow($member);
     }
@@ -110,7 +111,7 @@ class MembersService
     {
         $oldMember = $this->membersRepository->findById($memberId);
         if (!$oldMember) {
-            throw new \RuntimeException("Member not found: $memberId");
+            throw NotFoundException::forResource('Member', $memberId);
         }
 
         $dbUpdateData = [];
@@ -147,7 +148,7 @@ class MembersService
     {
         $member = $this->membersRepository->findById($memberId);
         if (!$member) {
-            throw new \RuntimeException("Member not found: $memberId");
+            throw NotFoundException::forResource('Member', $memberId);
         }
 
         $success = $this->membersRepository->deleteById($memberId);
@@ -167,7 +168,7 @@ class MembersService
     {
         $oldMember = $this->membersRepository->findById($memberId);
         if (!$oldMember) {
-            throw new \RuntimeException("Member not found: $memberId");
+            throw NotFoundException::forResource('Member', $memberId);
         }
 
         $this->membersRepository->anonymize($memberId);

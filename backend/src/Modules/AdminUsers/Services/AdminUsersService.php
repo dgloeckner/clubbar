@@ -10,6 +10,9 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Shared\Services\AuditService;
+use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\InvalidCredentialsException;
 
 class AdminUsersService
 {
@@ -82,16 +85,16 @@ class AdminUsersService
     public function deactivateAdminUser(string $id, string $currentAdminId): AdminUserDto
     {
         if ($id === $currentAdminId) {
-            throw new \RuntimeException('Cannot deactivate own account');
+            throw new BusinessRuleException('Cannot deactivate own account');
         }
 
         $activeCount = $this->adminUsersRepository->countActive();
         if ($activeCount <= 1) {
-            throw new \RuntimeException('Cannot deactivate the last active admin');
+            throw new BusinessRuleException('Cannot deactivate the last active admin');
         }
 
         $admin = $this->adminUsersRepository->updateById($id, ['is_active' => 0]);
-        if (!$admin) throw new \RuntimeException("Admin user not found: $id");
+        if (!$admin) throw NotFoundException::forResource('AdminUser', $id);
 
         $this->auditService->log(
             action: AuditAction::DEACTIVATE,
@@ -107,7 +110,7 @@ class AdminUsersService
     public function reactivateAdminUser(string $id, ?string $currentAdminId = null): AdminUserDto
     {
         $admin = $this->adminUsersRepository->updateById($id, ['is_active' => 1]);
-        if (!$admin) throw new \RuntimeException("Admin user not found: $id");
+        if (!$admin) throw NotFoundException::forResource('AdminUser', $id);
 
         $this->auditService->log(
             action: AuditAction::ACTIVATE,
@@ -126,7 +129,7 @@ class AdminUsersService
         $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
 
         $admin = $this->adminUsersRepository->updateById($targetAdminId, ['password' => $hash]);
-        if (!$admin) throw new \RuntimeException("Admin user not found: $targetAdminId");
+        if (!$admin) throw NotFoundException::forResource('AdminUser', $targetAdminId);
 
         $this->auditService->log(
             action: AuditAction::UPDATE,
@@ -142,10 +145,10 @@ class AdminUsersService
     public function changeOwnPassword(string $adminId, string $currentPassword, string $newPassword): void
     {
         $admin = $this->adminUsersRepository->findById($adminId);
-        if (!$admin) throw new \RuntimeException("Admin user not found: $adminId");
+        if (!$admin) throw NotFoundException::forResource('AdminUser', $adminId);
 
         if (!password_verify($currentPassword, $admin['password_hash'])) {
-            throw new \RuntimeException('Current password is incorrect');
+            throw new InvalidCredentialsException('Current password is incorrect');
         }
 
         $hash = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]);
