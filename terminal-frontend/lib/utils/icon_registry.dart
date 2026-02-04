@@ -77,6 +77,34 @@ String _getProductIconPath(String? iconName) {
       return 'assets/icons/products/sauna_time_icon.svg';
     case 'SaunaCabinIcon':
       return 'assets/icons/products/sauna_cabin_icon.svg';
+    case 'WeizenNewIcon':
+      return 'assets/icons/products/weizen_new_icon.svg';
+    case 'LimonadeIcon':
+      return 'assets/icons/products/limonade_icon.svg';
+    case 'ApfelschorleIcon':
+      return 'assets/icons/products/apfelschorle_icon.svg';
+    case 'OrangensaftIcon':
+      return 'assets/icons/products/orangensaft_icon.svg';
+    case 'BembelIcon':
+      return 'assets/icons/products/bembel_icon.svg';
+    case 'CoffeeMugIcon':
+      return 'assets/icons/products/coffee_mug_icon.svg';
+    case 'RotweinIcon':
+      return 'assets/icons/products/rotwein_icon.svg';
+    case 'WeissweinIcon':
+      return 'assets/icons/products/weisswein_icon.svg';
+    case 'SaunaAufgussIcon':
+      return 'assets/icons/products/sauna_aufguss_icon.svg';
+    case 'SaunaIceIcon':
+      return 'assets/icons/products/sauna_ice_icon.svg';
+    case 'SaunaShowerIcon':
+      return 'assets/icons/products/sauna_shower_icon.svg';
+    case 'SaunaTowelIcon':
+      return 'assets/icons/products/sauna_towel_icon.svg';
+    case 'SaunaWellnessIcon':
+      return 'assets/icons/products/sauna_wellness_icon.svg';
+    case 'SaunaWhiskIcon':
+      return 'assets/icons/products/sauna_whisk_icon.svg';
     default:
       return 'assets/icons/products/pils_icon.svg'; // Fallback
   }

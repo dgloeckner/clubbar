@@ -11,6 +11,20 @@ import 'schema/sync_state.dart';
 
 part 'database.g.dart';
 
+/// Add a column only if it doesn't already exist in the table.
+Future<void> _addColumnIfNotExists(
+    Migrator m, String table, String column, String type) async {
+  final db = m.database;
+  final result = await db.customSelect(
+    'PRAGMA table_info($table)',
+  ).get();
+  final hasColumn = result.any((row) => row.read<String>('name') == column);
+  if (!hasColumn) {
+    await db.customStatement(
+        'ALTER TABLE "$table" ADD COLUMN "$column" $type NULL');
+  }
+}
+
 @DriftDatabase(tables: [
   MembersCache,
   CategoriesCache,
@@ -22,7 +36,24 @@ class RuderbarDatabase extends _$RuderbarDatabase {
   RuderbarDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (Migrator m) async {
+          await m.createAll();
+        },
+        onUpgrade: (Migrator m, int from, int to) async {
+          if (from < 2) {
+            // Add icon_name column to categories_cache and products_cache.
+            // Column may already exist if DB was created after schema change.
+            await _addColumnIfNotExists(
+                m, 'categories_cache', 'icon_name', 'TEXT');
+            await _addColumnIfNotExists(
+                m, 'products_cache', 'icon_name', 'TEXT');
+          }
+        },
+      );
 
   static QueryExecutor _openConnection() {
     // Initialize sqlite3 for FFI (macOS/Linux)

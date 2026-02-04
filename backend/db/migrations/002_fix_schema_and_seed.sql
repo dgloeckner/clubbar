@@ -8,9 +8,9 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- 1. Fix admin_users: rename password_hash → password
+-- 1. Verify admin_users schema has password_hash column
 -- ---------------------------------------------------------------------------
-ALTER TABLE admin_users CHANGE COLUMN password_hash password VARCHAR(255) NOT NULL;
+-- Column is named password_hash (not password) for security and clarity
 
 -- ---------------------------------------------------------------------------
 -- 2. Fix sessions table: replace Laravel session driver schema with
@@ -36,11 +36,11 @@ CREATE TABLE sessions (
 --    Password: password123
 --    Hash generated with: password_hash('password123', PASSWORD_BCRYPT, ['cost' => 12])
 -- ---------------------------------------------------------------------------
-INSERT IGNORE INTO admin_users (id, email, password, display_name, locale, is_active, created_at, updated_at)
+INSERT IGNORE INTO admin_users (id, email, password_hash, display_name, locale, is_active, created_at, updated_at)
 VALUES (
     '33e4567-e89b-12d3-a456-426614174000',
     'admin@example.com',
-    '$2y$12$b4DD2dnVYgoYYWgNAQi8eORC2K0RjqBDAQT2NnDDkvCHZy0mSNUuy',
+    '$2y$12$Pp5DqCBrNhBDThRmWYwPlegkBrYSDKxoGguH1K2XnUlVzQxoUPygG',
     'Admin User',
     'de',
     1,

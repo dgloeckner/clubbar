@@ -144,7 +144,7 @@ class AdminUsersService
         $admin = $this->adminUsersRepository->findById($adminId);
         if (!$admin) throw new \RuntimeException("Admin user not found: $adminId");
 
-        if (!password_verify($currentPassword, $admin['password'])) {
+        if (!password_verify($currentPassword, $admin['password_hash'])) {
             throw new \RuntimeException('Current password is incorrect');
         }
 

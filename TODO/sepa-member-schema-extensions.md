@@ -55,10 +55,6 @@ Typical cases at FRGS:
 
 The `account_holder_name` field must contain the actual name on the bank account. This is a SEPA requirement — the direct debit XML must reference the real account holder, not the club member.
 
-### Members Without SEPA Mandate
-
-Not every member wants direct debit. Some pay cash at the bar or settle by bank transfer. Making `iban` nullable allows creating member records without payment information. The system should still track their tab and provide a balance, but exclude them from the direct debit export.
-
 ### Mandate Changes (Bank Switch)
 
 When a member changes their bank account:

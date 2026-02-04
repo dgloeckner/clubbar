@@ -25,6 +25,11 @@ class TransactionsService
         $affectedMemberIds = [];
 
         foreach ($transactions as $tx) {
+            if (empty($tx['member_id'])) {
+                $errors[] = ['id' => $tx['id'] ?? null, 'error' => 'member_id is required'];
+                continue;
+            }
+
             $member = $this->membersRepository->findById($tx['member_id']);
             if (!$member) {
                 $errors[] = ['id' => $tx['id'], 'error' => 'Member not found'];

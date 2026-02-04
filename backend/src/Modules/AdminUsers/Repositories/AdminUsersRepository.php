@@ -50,7 +50,7 @@ class AdminUsersRepository
         $now = date('Y-m-d H:i:s');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO admin_users (id, email, password, display_name, locale, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id,
@@ -69,7 +69,14 @@ class AdminUsersRepository
 
     public function updateById(string $id, array $data): ?array
     {
-        $allowed = ['email', 'password', 'display_name', 'locale', 'is_active', 'last_login_at'];
+        $allowed = ['email', 'password_hash', 'display_name', 'locale', 'is_active', 'last_login_at'];
+
+        // Handle password field -> password_hash mapping
+        if (isset($data['password']) && !isset($data['password_hash'])) {
+            $data['password_hash'] = $data['password'];
+            unset($data['password']);
+        }
+
         [$set, $values] = SafeQuery::buildUpdate($data, $allowed);
         $values[] = date('Y-m-d H:i:s');
         $values[] = $id;

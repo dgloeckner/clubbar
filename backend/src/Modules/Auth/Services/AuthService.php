@@ -23,7 +23,7 @@ class AuthService
             return null;
         }
 
-        if (!password_verify($password, $admin['password'])) {
+        if (!password_verify($password, $admin['password_hash'])) {
             $this->logger->info('Login failed: invalid password', ['email' => $email]);
             return null;
         }
