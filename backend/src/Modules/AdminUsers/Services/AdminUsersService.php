@@ -148,7 +148,7 @@ class AdminUsersService
             throw new \RuntimeException('Current password is incorrect');
         }
 
-        $hash = password_hash($newPassword, PASSWORD_BCRYPT);
+        $hash = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]);
         $this->adminUsersRepository->updateById($adminId, ['password' => $hash]);
 
         $this->auditService->log(
