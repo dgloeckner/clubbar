@@ -11,6 +11,7 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Products\Repositories\CategoriesRepository;
+use App\Shared\Services\AuditService;
 
 class ProductsService
 {

@@ -42,7 +42,7 @@ class AdminController
             'settlement_date' => ['required', 'date'],
             'execution_date' => ['required', 'date'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $settlement = $this->settlementsService->createSettlement(
@@ -79,7 +79,7 @@ class AdminController
         $settlement = $this->settlementsService->getSettlement($id);
 
         if (!$settlement) {
-            return $this->json($response, ['error' => 'Settlement not found'], 404);
+            return $this->json($response, ['error' => 'not_found', 'message' => 'Settlement not found'], 404);
         }
 
         return $this->json($response, $settlement->toArray());
@@ -93,7 +93,7 @@ class AdminController
 
         $this->settlementsService->cancelSettlement($id, $adminId, $body['reason'] ?? null);
 
-        return $this->json($response, ['message' => 'Settlement cancelled']);
+        return $response->withStatus(204);
     }
 
     public function exportSepa(Request $request, Response $response, array $args): Response
@@ -119,7 +119,7 @@ class AdminController
         $settlement = $this->settlementsService->getSettlement($id);
 
         if (!$settlement) {
-            return $this->json($response, ['error' => 'Settlement not found'], 404);
+            return $this->json($response, ['error' => 'not_found', 'message' => 'Settlement not found'], 404);
         }
 
         $csv = $this->buildSettlementCsv($settlement->toArray());
@@ -137,7 +137,7 @@ class AdminController
         $settlement = $this->settlementsService->getSettlement($id);
 
         if (!$settlement) {
-            return $this->json($response, ['error' => 'Settlement not found'], 404);
+            return $this->json($response, ['error' => 'not_found', 'message' => 'Settlement not found'], 404);
         }
 
         $data = $settlement->toArray();

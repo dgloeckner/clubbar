@@ -9,6 +9,7 @@ use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Shared\Services\AuditService;
 
 class AdminUsersService
 {

@@ -30,7 +30,7 @@ class AuthController
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $admin = $this->authService->authenticate($body['email'], $body['password']);
@@ -41,11 +41,12 @@ class AuthController
                 entityType: EntityType::ADMIN_USER,
                 entityId: $body['email'],
             );
-            return $this->json($response, ['error' => 'Invalid credentials'], 401);
+            return $this->json($response, ['error' => 'invalid_credentials', 'message' => 'Invalid credentials'], 401);
         }
 
-        // Start session
+        // Start session with custom name
         if (session_status() === PHP_SESSION_NONE) {
+            session_name('_session');
             session_start();
         }
         $_SESSION['admin_user_id'] = $admin['id'];
@@ -58,10 +59,14 @@ class AuthController
         );
 
         return $this->json($response, [
-            'id' => $admin['id'],
-            'email' => $admin['email'],
-            'display_name' => $admin['display_name'],
-            'locale' => $admin['locale'] ?? 'de',
+            'message' => 'Login successful',
+            'admin' => [
+                'id' => $admin['id'],
+                'email' => $admin['email'],
+                'display_name' => $admin['display_name'],
+                'locale' => $admin['locale'] ?? 'de',
+                'last_login_at' => $admin['last_login_at'] ?? null,
+            ],
         ]);
     }
 
@@ -82,7 +87,7 @@ class AuthController
             session_destroy();
         }
 
-        return $this->json($response, ['message' => 'Logged out']);
+        return $this->json($response, ['message' => 'Logout successful']);
     }
 
     public function profile(Request $request, Response $response): Response
@@ -90,19 +95,22 @@ class AuthController
         $adminId = $request->getAttribute('admin_user_id');
 
         if (!$adminId) {
-            return $this->json($response, ['error' => 'Not authenticated'], 401);
+            return $this->json($response, ['error' => 'admin_not_authenticated'], 401);
         }
 
         $admin = $this->authService->getActiveAdmin($adminId);
         if (!$admin) {
-            return $this->json($response, ['error' => 'Admin not found or inactive'], 401);
+            return $this->json($response, ['error' => 'admin_not_authenticated'], 401);
         }
 
         return $this->json($response, [
-            'id' => $admin['id'],
-            'email' => $admin['email'],
-            'display_name' => $admin['display_name'],
-            'locale' => $admin['locale'] ?? 'de',
+            'admin' => [
+                'id' => $admin['id'],
+                'email' => $admin['email'],
+                'display_name' => $admin['display_name'],
+                'locale' => $admin['locale'] ?? 'de',
+                'last_login_at' => $admin['last_login_at'] ?? null,
+            ],
         ]);
     }
 
@@ -119,7 +127,7 @@ class AuthController
             'current_password' => ['required', 'string'],
             'new_password' => ['required', 'string', 'min:8'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $this->adminUsersService->changeOwnPassword($adminId, $body['current_password'], $body['new_password']);

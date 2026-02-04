@@ -42,7 +42,7 @@ class AdminController
             'display_name' => ['required', 'string', 'max:100'],
             'locale' => ['required', 'string', 'in:de,en,fr'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $result = $this->adminUsersService->createAdminUser(
@@ -64,10 +64,10 @@ class AdminController
         $admin = $this->adminUsersService->findAdminUserById($id);
 
         if (!$admin) {
-            return $this->json($response, ['error' => 'Admin user not found'], 404);
+            return $this->json($response, ['error' => 'not_found', 'message' => 'Admin user not found'], 404);
         }
 
-        return $this->json($response, $admin->toArray());
+        return $this->json($response, ['admin' => $admin->toArray()]);
     }
 
     public function update(Request $request, Response $response, array $args): Response
@@ -79,10 +79,10 @@ class AdminController
         $admin = $this->adminUsersService->updateAdminUser($id, $body, $adminId);
 
         if (!$admin) {
-            return $this->json($response, ['error' => 'Admin user not found'], 404);
+            return $this->json($response, ['error' => 'not_found', 'message' => 'Admin user not found'], 404);
         }
 
-        return $this->json($response, $admin->toArray());
+        return $this->json($response, ['admin' => $admin->toArray()]);
     }
 
     public function destroy(Request $request, Response $response, array $args): Response
@@ -90,9 +90,9 @@ class AdminController
         $id = $args['id'];
         $adminId = $request->getAttribute('admin_user_id');
 
-        $this->adminUsersService->deactivateAdminUser($id, $adminId);
+        $admin = $this->adminUsersService->deactivateAdminUser($id, $adminId);
 
-        return $this->json($response, ['message' => 'Admin user deactivated']);
+        return $this->json($response, ['admin' => $admin->toArray()]);
     }
 
     public function reactivate(Request $request, Response $response, array $args): Response
@@ -102,7 +102,7 @@ class AdminController
 
         $admin = $this->adminUsersService->reactivateAdminUser($id, $adminId);
 
-        return $this->json($response, $admin->toArray());
+        return $this->json($response, ['admin' => $admin->toArray()]);
     }
 
     public function resetPassword(Request $request, Response $response, array $args): Response

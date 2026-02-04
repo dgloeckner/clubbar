@@ -23,7 +23,7 @@ class SyncController
 
         $result = $this->categoriesService->syncSince($since);
 
-        return $this->json($response, $result->toArray());
+        return $this->json($response, $result->toArray('categories'));
     }
 
     public function products(Request $request, Response $response): Response
@@ -33,7 +33,7 @@ class SyncController
 
         $result = $this->productsService->syncSince($since);
 
-        return $this->json($response, $result->toArray());
+        return $this->json($response, $result->toArray('products'));
     }
 
     private function json(Response $response, mixed $data, int $status = 200): Response

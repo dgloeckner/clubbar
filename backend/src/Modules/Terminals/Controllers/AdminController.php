@@ -37,7 +37,7 @@ class AdminController
             'name' => ['required', 'string', 'max:100'],
             'device_id' => ['required', 'string'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $result = $this->terminalsService->createTerminal($body['name'], $body['device_id'], $adminId);

@@ -6,6 +6,7 @@ namespace App\Modules\Settlements\Repositories;
 
 use PDO;
 use App\Shared\Logging\Logger;
+use App\Shared\Repository\SafeQuery;
 
 class SepaConfigRepository
 {

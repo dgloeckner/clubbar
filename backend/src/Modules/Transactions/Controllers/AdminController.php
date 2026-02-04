@@ -64,7 +64,7 @@ class AdminController
             'amount_cents' => ['required', 'integer'],
             'reason' => ['required', 'string'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $result = $this->transactionsService->recordCorrection(

@@ -24,7 +24,7 @@ class AdminController
     {
         $categories = $this->categoriesService->listCategories();
 
-        return $this->json($response, $categories);
+        return $this->json($response, ['categories' => $categories]);
     }
 
     public function storeCategory(Request $request, Response $response): Response
@@ -35,7 +35,7 @@ class AdminController
         if (!$this->validator->validate($body, [
             'names' => ['required', 'array'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $category = $this->categoriesService->createCategory($body, $adminId);
@@ -63,7 +63,7 @@ class AdminController
         if (!$this->validator->validate($body, [
             'is_active' => ['required', 'boolean'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $category = $this->categoriesService->toggleStatus($categoryId, (bool) $body['is_active'], $adminId);
@@ -78,7 +78,7 @@ class AdminController
 
         $this->categoriesService->deleteCategory($categoryId, $adminId);
 
-        return $this->json($response, ['message' => 'Category deleted']);
+        return $response->withStatus(204);
     }
 
     public function reorderCategories(Request $request, Response $response): Response
@@ -89,7 +89,7 @@ class AdminController
         if (!$this->validator->validate($body, [
             'category_ids' => ['required', 'array'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $this->categoriesService->reorderCategories($body['category_ids'], $adminId);
@@ -130,7 +130,7 @@ class AdminController
             'category_id' => ['required', 'uuid'],
             'price_cents' => ['required', 'integer'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $product = $this->productsService->createProduct($body, $adminId);
@@ -158,7 +158,7 @@ class AdminController
         if (!$this->validator->validate($body, [
             'is_active' => ['required', 'boolean'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $product = $this->productsService->toggleStatus($productId, (bool) $body['is_active'], $adminId);
@@ -173,7 +173,7 @@ class AdminController
 
         $this->productsService->deleteProduct($productId, $adminId);
 
-        return $this->json($response, ['message' => 'Product deleted']);
+        return $response->withStatus(204);
     }
 
     private function json(Response $response, mixed $data, int $status = 200): Response

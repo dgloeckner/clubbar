@@ -47,7 +47,7 @@ class AdminController
             'email' => ['required', 'email'],
             'preferred_language' => ['required', 'string', 'in:de,en,fr'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $language = SupportedLanguage::from($body['preferred_language']);

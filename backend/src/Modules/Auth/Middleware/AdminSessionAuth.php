@@ -18,17 +18,18 @@ class AdminSessionAuth implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_name('_session');
             session_start();
         }
 
         $adminId = $_SESSION['admin_user_id'] ?? null;
         if (!$adminId) {
-            return $this->unauthorized('Not authenticated');
+            return $this->unauthorized();
         }
 
         $admin = $this->adminUsersRepository->findById($adminId);
         if (!$admin || !(bool) $admin['is_active']) {
-            return $this->unauthorized('Session invalid');
+            return $this->unauthorized();
         }
 
         // Attach admin data to request attributes
@@ -38,10 +39,10 @@ class AdminSessionAuth implements MiddlewareInterface
         return $handler->handle($request);
     }
 
-    private function unauthorized(string $message): ResponseInterface
+    private function unauthorized(): ResponseInterface
     {
         $response = new Response(401);
-        $response->getBody()->write(json_encode(['error' => 'unauthorized', 'message' => $message]));
+        $response->getBody()->write(json_encode(['error' => 'admin_not_authenticated']));
         return $response->withHeader('Content-Type', 'application/json');
     }
 }

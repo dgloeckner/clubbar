@@ -12,6 +12,7 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Shared\Services\AuditService;
 
 class MembersService
 {

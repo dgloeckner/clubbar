@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use App\Config\Env;
+use App\Shared\Config\Env;
 use App\Db\MigrationRunner;
 
 Env::load(__DIR__ . '/../.env');

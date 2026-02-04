@@ -8,6 +8,7 @@ use App\Modules\Settlements\DTOs\SepaConfigDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
+use App\Shared\Services\AuditService;
 
 class SepaConfigService
 {

@@ -37,7 +37,7 @@ class SepaConfigController
             'creditor_id' => ['required', 'string'],
             'creditor_iban' => ['required', 'string'],
         ])) {
-            return $this->json($response, ['error' => 'Validation failed', 'details' => $this->validator->errors()], 422);
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $config = $this->sepaConfigService->updateConfig($body, $adminId);

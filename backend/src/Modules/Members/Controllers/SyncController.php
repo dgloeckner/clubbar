@@ -22,7 +22,7 @@ class SyncController
 
         $result = $this->membersService->syncSince($since);
 
-        return $this->json($response, $result->toArray());
+        return $this->json($response, $result->toArray('members'));
     }
 
     public function updateLanguage(Request $request, Response $response, array $args): Response

@@ -13,6 +13,7 @@ use App\Shared\Enums\EntityType;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
+use App\Shared\Services\AuditService;
 use PDO;
 
 class SettlementsService

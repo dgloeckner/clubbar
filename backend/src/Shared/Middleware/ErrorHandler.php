@@ -31,13 +31,17 @@ class ErrorHandler implements MiddlewareInterface
             ]);
 
             $status = match (true) {
+                $e instanceof \Slim\Exception\HttpNotFoundException => 404,
+                $e instanceof \Slim\Exception\HttpMethodNotAllowedException => 405,
                 $e instanceof \InvalidArgumentException => 422,
                 str_contains($e->getMessage(), 'not found') => 404,
                 str_contains($e->getMessage(), 'already exists') => 409,
+                str_contains($e->getMessage(), 'Cannot deactivate') => 409,
+                str_contains($e->getMessage(), 'Cannot ') => 400,
                 default => 500,
             };
 
-            $body = ['error' => $this->errorCode($status), 'message' => $e->getMessage()];
+            $body = ['error' => $this->errorCode($status, $e), 'message' => $e->getMessage()];
             if ($this->debug) {
                 $body['trace'] = $e->getTraceAsString();
             }
@@ -48,14 +52,15 @@ class ErrorHandler implements MiddlewareInterface
         }
     }
 
-    private function errorCode(int $status): string
+    private function errorCode(int $status, \Throwable $e): string
     {
-        return match ($status) {
-            400 => 'bad_request',
-            401 => 'unauthorized',
-            404 => 'not_found',
-            409 => 'conflict',
-            422 => 'validation_error',
+        return match (true) {
+            $status === 409 => 'business_rule_violation',
+            $status === 400 => 'invalid_request',
+            $status === 401 => 'unauthorized',
+            $status === 404 => 'not_found',
+            $status === 422 && $e instanceof \InvalidArgumentException => 'validation_failed',
+            $status === 422 => 'validation_failed',
             default => 'internal_error',
         };
     }
