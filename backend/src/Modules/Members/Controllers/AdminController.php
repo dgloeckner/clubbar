@@ -124,9 +124,9 @@ class AdminController
     public function export(Request $request, Response $response, array $args): Response
     {
         $memberId = $args['memberId'];
-        $member = $this->membersService->getMember($memberId);
+        $exportData = $this->membersService->exportMember($memberId);
 
-        return $this->json($response, ['member' => $member->toArray()]);
+        return $this->json($response, $exportData);
     }
 
     public function anonymize(Request $request, Response $response, array $args): Response

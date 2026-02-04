@@ -13,12 +13,14 @@ use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\NotFoundException;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Services\AuditService;
 
 class MembersService
 {
     public function __construct(
         private MembersRepository $membersRepository,
+        private TransactionsRepository $transactionsRepository,
         private AuditService $auditService,
     ) {}
 
@@ -62,6 +64,19 @@ class MembersService
             throw NotFoundException::forResource('Member', $memberId);
         }
         return MemberAdminDto::fromRow($member);
+    }
+
+    public function exportMember(string $memberId): array
+    {
+        $member = $this->getMember($memberId);
+        $transactions = $this->transactionsRepository->findByMemberId($memberId, limit: 1000);
+
+        return [
+            'member' => $member->toArray(),
+            'transactions' => $transactions,
+            'bookings' => [], // Future: Settlement bookings will be added here
+            'export_timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+        ];
     }
 
     public function createMember(
