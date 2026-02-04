@@ -121,8 +121,8 @@ class MembersService
             'mandateReference' => 'mandate_reference', 'mandateSignedAt' => 'mandate_signed_at',
         ];
         foreach ($map as $camel => $snake) {
-            if (array_key_exists($camel, $updateData)) {
-                $dbUpdateData[$snake] = $updateData[$camel];
+            if (array_key_exists($snake, $updateData)) {
+                $dbUpdateData[$snake] = $updateData[$snake];
             }
         }
 

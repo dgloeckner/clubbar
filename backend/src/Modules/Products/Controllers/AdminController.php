@@ -34,6 +34,9 @@ class AdminController
 
         if (!$this->validator->validate($body, [
             'names' => ['required', 'array'],
+            'display_order' => ['nullable', 'integer'],
+            'is_active' => ['nullable', 'boolean'],
+            'icon_name' => ['nullable', 'string', 'max:50'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
@@ -48,6 +51,15 @@ class AdminController
         $categoryId = $args['categoryId'];
         $body = $request->getParsedBody() ?? [];
         $adminId = $request->getAttribute('admin_user_id');
+
+        if (!$this->validator->validate($body, [
+            'names' => ['nullable', 'array'],
+            'display_order' => ['nullable', 'integer'],
+            'is_active' => ['nullable', 'boolean'],
+            'icon_name' => ['nullable', 'string', 'max:50'],
+        ])) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
 
         $category = $this->categoriesService->updateCategory($categoryId, $body, $adminId);
 
@@ -129,7 +141,7 @@ class AdminController
             'names' => ['required', 'array'],
             'category_id' => ['required', 'uuid'],
             'price_cents' => ['required', 'integer'],
-        ])) {
+            'icon_name' => ['nullable', 'string', 'max:50'],        ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 

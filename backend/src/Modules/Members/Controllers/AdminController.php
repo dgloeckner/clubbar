@@ -22,6 +22,22 @@ class AdminController
         $params = $request->getQueryParams();
         $limit = (int) ($params['limit'] ?? 50);
         $offset = (int) ($params['offset'] ?? 0);
+
+        // Validate limit
+        if ($limit > 100) {
+            return $this->json($response, [
+                'error' => 'invalid_request',
+                'messages' => ['limit' => ['Limit cannot exceed 100']]
+            ], 400);
+        }
+
+        if (isset($params['limit']) && !is_numeric($params['limit'])) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'messages' => ['limit' => ['Limit must be numeric']]
+            ], 400);
+        }
+
         $sortKey = $params['sort_key'] ?? 'created_at';
         $sortOrder = $params['sort_order'] ?? 'desc';
         $search = $params['search'] ?? null;
@@ -33,7 +49,13 @@ class AdminController
 
         $result = $this->membersService->listMembers($limit, $offset, $filters, $sortKey, $sortOrder, $search);
 
-        return $this->json($response, $result->toArray());
+        // Add has_more field to pagination
+        $responseData = $result->toArray();
+        if (isset($responseData['pagination'])) {
+            $responseData['pagination']['has_more'] = ($offset + $limit) < $result->total;
+        }
+
+        return $this->json($response, $responseData);
     }
 
     public function store(Request $request, Response $response): Response
@@ -46,6 +68,7 @@ class AdminController
             'last_name' => ['required', 'string', 'max:100'],
             'email' => ['required', 'email'],
             'preferred_language' => ['required', 'string', 'in:de,en,fr'],
+            'account_holder_name' => ['nullable', 'string', 'max:70'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }

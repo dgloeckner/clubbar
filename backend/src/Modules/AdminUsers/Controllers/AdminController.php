@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\AdminUsers\Controllers;
 
 use App\Modules\AdminUsers\Services\AdminUsersService;
+use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Shared\Validation\Validator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -13,23 +14,36 @@ class AdminController
 {
     public function __construct(
         private AdminUsersService $adminUsersService,
+        private AdminUsersRepository $adminUsersRepository,
         private Validator $validator,
     ) {}
 
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        $limit = (int) ($params['limit'] ?? 50);
-        $offset = (int) ($params['offset'] ?? 0);
+
+        // Convert page-based to offset-based pagination
+        $page = (int) ($params['page'] ?? 1);
+        $perPage = (int) ($params['per_page'] ?? 20);
+        $offset = ($page - 1) * $perPage;
 
         $filters = [];
-        if (isset($params['is_active'])) {
-            $filters['is_active'] = $params['is_active'];
+        if (isset($params['filters']['is_active'])) {
+            $filters['is_active'] = $params['filters']['is_active'];
         }
 
-        $result = $this->adminUsersService->listAdminUsers($limit, $offset, $filters);
+        $result = $this->adminUsersService->listAdminUsers($perPage, $offset, $filters);
 
-        return $this->json($response, $result->toArray());
+        // Wrap response to match expected format
+        return $this->json($response, [
+            'data' => $result->items,
+            'pagination' => [
+                'total' => $result->total,
+                'page' => $page,
+                'per_page' => $perPage,
+                'has_more' => ($offset + $perPage) < $result->total,
+            ],
+        ]);
     }
 
     public function store(Request $request, Response $response): Response
@@ -43,6 +57,15 @@ class AdminController
             'locale' => ['required', 'string', 'in:de,en,fr'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        // Check for duplicate email
+        $existing = $this->adminUsersRepository->findByEmail($body['email']);
+        if ($existing) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'messages' => ['email' => ['Email already exists']]
+            ], 422);
         }
 
         $result = $this->adminUsersService->createAdminUser(
@@ -75,6 +98,35 @@ class AdminController
         $id = $args['id'];
         $body = $request->getParsedBody() ?? [];
         $adminId = $request->getAttribute('admin_user_id');
+
+        // Add validation
+        if (!$this->validator->validate($body, [
+            'email' => ['nullable', 'email'],
+            'display_name' => ['nullable', 'string', 'max:100'],
+            'locale' => ['nullable', 'string', 'in:de,en,fr'],
+        ])) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        // Check for duplicate email
+        $existing = $this->adminUsersRepository->findByEmail($body['email']);
+        if ($existing) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'messages' => ['email' => ['Email already exists']]
+            ], 422);
+        }
+
+        // Check email uniqueness if provided
+        if (isset($body['email'])) {
+            $existing = $this->adminUsersRepository->findByEmail($body['email']);
+            if ($existing && $existing['id'] !== $id) {
+                return $this->json($response, [
+                    'error' => 'validation_failed',
+                    'messages' => ['email' => ['Email already exists']]
+                ], 422);
+            }
+        }
 
         $admin = $this->adminUsersService->updateAdminUser($id, $body, $adminId);
 
