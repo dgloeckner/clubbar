@@ -43,8 +43,14 @@ class Validator
             'integer'  => (!is_numeric($value) && $value !== null) ? "{$field} must be an integer" : null,
             'numeric'  => (!is_numeric($value) && $value !== null) ? "{$field} must be numeric" : null,
             'email'    => ($value && !filter_var($value, FILTER_VALIDATE_EMAIL)) ? "{$field} must be a valid email" : null,
-            'min'      => (is_string($value) && strlen($value) < (int)$param) ? "{$field} must be at least {$param} characters" : null,
-            'max'      => (is_string($value) && strlen($value) > (int)$param) ? "{$field} must be at most {$param} characters" : null,
+            'min'      => (is_string($value) && strlen($value) < (int)$param) ? "{$field} must be at least {$param} characters" :
+                          (is_numeric($value) && $value < (int)$param) ? "{$field} must be at least {$param}" : null,
+            'max'      => (is_string($value) && strlen($value) > (int)$param) ? "{$field} must be at most {$param} characters" :
+                          (is_numeric($value) && $value > (int)$param) ? "{$field} must be at most {$param}" : null,
+            'gt'       => (is_numeric($value) && $value <= (int)$param) ? "{$field} must be greater than {$param}" : null,
+            'gte'      => (is_numeric($value) && $value < (int)$param) ? "{$field} must be at least {$param}" : null,
+            'lt'       => (is_numeric($value) && $value >= (int)$param) ? "{$field} must be less than {$param}" : null,
+            'lte'      => (is_numeric($value) && $value > (int)$param) ? "{$field} must be at most {$param}" : null,
             'boolean'  => (!is_bool($value) && $value !== null && $value !== 0 && $value !== 1 && $value !== '0' && $value !== '1') ? "{$field} must be a boolean" : null,
             'uuid'     => ($value && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $value)) ? "{$field} must be a valid UUID" : null,
             'date'     => ($value && !strtotime($value)) ? "{$field} must be a valid date" : null,

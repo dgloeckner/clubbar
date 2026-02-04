@@ -153,7 +153,7 @@ class AdminController
         if (!$this->validator->validate($body, [
             'names' => ['required', 'array'],
             'category_id' => ['required', 'uuid'],
-            'price_cents' => ['required', 'integer'],
+            'price_cents' => ['required', 'integer', 'gt:0'],
             'icon_name' => ['nullable', 'string', 'max:50'],        ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
