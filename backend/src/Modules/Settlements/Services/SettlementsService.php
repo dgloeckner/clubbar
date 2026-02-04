@@ -11,6 +11,8 @@ use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
+use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\BusinessRuleException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Services\AuditService;
@@ -84,13 +86,13 @@ class SettlementsService
             // Validate no conflicts
             $conflicts = $this->settlementsRepository->hasConflicts($transactionIds);
             if (!empty($conflicts)) {
-                throw new \RuntimeException('Some transactions are already settled');
+                throw new BusinessRuleException('Some transactions are already settled');
             }
 
             // Fetch transactions
             $transactions = $this->transactionsRepository->findUnsettledByIds($transactionIds);
             if (empty($transactions)) {
-                throw new \RuntimeException('No valid unsettled transactions found');
+                throw new BusinessRuleException('No valid unsettled transactions found');
             }
 
             $totalAmount = array_sum(array_column($transactions, 'amount_cents'));
@@ -163,8 +165,8 @@ class SettlementsService
     public function cancelSettlement(string $settlementId, string $adminUserId, ?string $reason = null): bool
     {
         $settlement = $this->settlementsRepository->findById($settlementId);
-        if (!$settlement) throw new \RuntimeException("Settlement not found: $settlementId");
-        if ($settlement['exported_at']) throw new \RuntimeException('Cannot cancel exported settlement');
+        if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
+        if ($settlement['exported_at']) throw new BusinessRuleException('Cannot cancel exported settlement');
 
         $result = $this->settlementsRepository->cancelSettlement($settlementId, $adminUserId);
 

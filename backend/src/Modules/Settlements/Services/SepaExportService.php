@@ -7,6 +7,8 @@ namespace App\Modules\Settlements\Services;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
+use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\BusinessRuleException;
 
 class SepaExportService
 {
@@ -20,14 +22,14 @@ class SepaExportService
     {
         $config = $this->sepaConfigRepository->getConfig();
         if (!$config || empty($config['creditor_id']) || empty($config['creditor_name']) || empty($config['creditor_iban'])) {
-            throw new \RuntimeException('SEPA configuration incomplete');
+            throw new BusinessRuleException('SEPA configuration incomplete');
         }
 
         $settlement = $this->settlementsRepository->findById($settlementId);
-        if (!$settlement) throw new \RuntimeException("Settlement not found: $settlementId");
+        if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
 
         $items = $this->settlementsRepository->findItemsBySettlementId($settlementId);
-        if (empty($items)) throw new \RuntimeException('Settlement has no items');
+        if (empty($items)) throw new BusinessRuleException('Settlement has no items');
 
         // Group by member
         $memberTotals = [];
@@ -111,14 +113,14 @@ class SepaExportService
     {
         $dom = new \DOMDocument();
         if (!$dom->loadXML($xml)) {
-            throw new \RuntimeException('Generated SEPA XML is malformed');
+            throw new BusinessRuleException('Generated SEPA XML is malformed');
         }
 
         $xpath = new \DOMXPath($dom);
         $xpath->registerNamespace('pain', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.09');
 
         if (!$xpath->query('//pain:GrpHdr')->length) {
-            throw new \RuntimeException('SEPA XML missing GrpHdr element');
+            throw new BusinessRuleException('SEPA XML missing GrpHdr element');
         }
     }
 }

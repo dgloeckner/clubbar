@@ -11,6 +11,8 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Shared\Services\AuditService;
+use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\DuplicateResourceException;
 
 class TerminalsService
 {
@@ -30,14 +32,14 @@ class TerminalsService
     public function getTerminal(string $terminalId): TerminalDto
     {
         $terminal = $this->terminalsRepository->findById($terminalId);
-        if (!$terminal) throw new \RuntimeException("Terminal not found: $terminalId");
+        if (!$terminal) throw NotFoundException::forResource('Terminal', $terminalId);
         return TerminalDto::fromRow($terminal);
     }
 
     public function createTerminal(string $name, string $deviceId, ?string $adminUserId = null): array
     {
         $existing = $this->terminalsRepository->findByDeviceId($deviceId);
-        if ($existing) throw new \RuntimeException('Device ID already exists');
+        if ($existing) throw new DuplicateResourceException('Device ID already exists');
 
         $plainToken = TokenService::generateTerminalToken();
         $hash = TokenService::hashToken($plainToken);
@@ -70,7 +72,7 @@ class TerminalsService
         if ($isActive !== null) $data['is_active'] = $isActive ? 1 : 0;
 
         $terminal = $this->terminalsRepository->updateById($terminalId, $data);
-        if (!$terminal) throw new \RuntimeException("Terminal not found: $terminalId");
+        if (!$terminal) throw NotFoundException::forResource('Terminal', $terminalId);
 
         $this->auditService->log(
             action: AuditAction::UPDATE,
@@ -106,7 +108,7 @@ class TerminalsService
             'last_sync_at' => null,
         ]);
 
-        if (!$terminal) throw new \RuntimeException("Terminal not found: $terminalId");
+        if (!$terminal) throw NotFoundException::forResource('Terminal', $terminalId);
 
         $this->auditService->log(
             action: AuditAction::UPDATE,

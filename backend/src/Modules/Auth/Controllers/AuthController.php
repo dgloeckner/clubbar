@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Auth\Controllers;
 
 use App\Modules\Auth\Services\AuthService;
+use App\Shared\Exceptions\InvalidCredentialsException;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Shared\Services\AuditService;
 use App\Shared\Enums\AuditAction;
@@ -133,11 +134,9 @@ class AuthController
 
         try {
             $this->adminUsersService->changeOwnPassword($adminId, $body['current_password'], $body['new_password']);
-        } catch (\RuntimeException $e) {
-            if (str_contains($e->getMessage(), 'password is incorrect')) {
-                return $this->json($response, ['error' => 'invalid_credentials', 'message' => $e->getMessage()], 401);
-            }
-            throw $e;
+        } catch (InvalidCredentialsException $e) {
+            return $this->json($response, ['error' => $e->getErrorCode(), 'message' => $e->getMessage()], $e->getHttpStatusCode());
+            
         }
 
         return $this->json($response, ['message' => 'Password changed']);

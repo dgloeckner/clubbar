@@ -7,6 +7,7 @@ namespace App\Modules\Transactions\Services;
 use App\Modules\Transactions\DTOs\TransactionBatchResultDto;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
+use App\Shared\Exceptions\NotFoundException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\Logging\Logger;
 
@@ -63,7 +64,7 @@ class TransactionsService
     {
         $member = $this->membersRepository->findById($memberId);
         if (!$member) {
-            throw new \RuntimeException("Member not found: $memberId");
+            throw NotFoundException::forResource('Member', $memberId);
         }
 
         $id = $this->generateUuid();
