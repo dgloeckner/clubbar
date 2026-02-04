@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-use App\Controller\AdminUsersController;
-use App\Controller\AuditLogController;
-use App\Controller\AuthController;
-use App\Controller\DashboardController;
-use App\Controller\HealthController;
-use App\Controller\MembersAdminController;
-use App\Controller\MembersSyncController;
-use App\Controller\ProductsAdminController;
-use App\Controller\ProductsSyncController;
-use App\Controller\SepaConfigController;
-use App\Controller\SettlementsController;
-use App\Controller\TerminalsController;
-use App\Controller\TransactionsAdminController;
-use App\Controller\TransactionsSyncController;
-use App\Middleware\AdminSessionAuth;
-use App\Middleware\TerminalTokenAuth;
+use App\Shared\Controllers\HealthController;
+use App\Modules\Auth\Controllers\AuthController;
+use App\Modules\Members\Controllers\AdminController as MembersAdminController;
+use App\Modules\Members\Controllers\SyncController as MembersSyncController;
+use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
+use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
+use App\Modules\Transactions\Controllers\AdminController as TransactionsAdminController;
+use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncController;
+use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
+use App\Modules\Settlements\Controllers\SepaConfigController;
+use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
+use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
+use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
+use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminController;
+use App\Modules\Auth\Middleware\AdminSessionAuth;
+use App\Modules\Auth\Middleware\TerminalTokenAuth;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
 
@@ -49,7 +49,7 @@ return function (App $app): void {
     // Admin endpoints (session auth)
     $app->group('/api/admin', function (RouteCollectorProxy $group) {
         // Dashboard
-        $group->get('/dashboard', [DashboardController::class, 'show']);
+        $group->get('/dashboard', [DashboardAdminController::class, 'show']);
 
         // Members
         $group->get('/members', [MembersAdminController::class, 'index']);
@@ -82,38 +82,38 @@ return function (App $app): void {
         $group->post('/members/{memberId}/transactions/correction', [TransactionsAdminController::class, 'recordCorrection']);
 
         // Admin users
-        $group->get('/admin-users', [AdminUsersController::class, 'index']);
-        $group->post('/admin-users', [AdminUsersController::class, 'store']);
-        $group->get('/admin-users/{id}', [AdminUsersController::class, 'show']);
-        $group->patch('/admin-users/{id}', [AdminUsersController::class, 'update']);
-        $group->delete('/admin-users/{id}', [AdminUsersController::class, 'destroy']);
-        $group->post('/admin-users/{id}/reactivate', [AdminUsersController::class, 'reactivate']);
-        $group->post('/admin-users/{id}/reset-password', [AdminUsersController::class, 'resetPassword']);
+        $group->get('/admin-users', [AdminUsersAdminController::class, 'index']);
+        $group->post('/admin-users', [AdminUsersAdminController::class, 'store']);
+        $group->get('/admin-users/{id}', [AdminUsersAdminController::class, 'show']);
+        $group->patch('/admin-users/{id}', [AdminUsersAdminController::class, 'update']);
+        $group->delete('/admin-users/{id}', [AdminUsersAdminController::class, 'destroy']);
+        $group->post('/admin-users/{id}/reactivate', [AdminUsersAdminController::class, 'reactivate']);
+        $group->post('/admin-users/{id}/reset-password', [AdminUsersAdminController::class, 'resetPassword']);
 
         // Audit log
-        $group->get('/audit-log', [AuditLogController::class, 'index']);
+        $group->get('/audit-log', [AuditLogAdminController::class, 'index']);
 
         // Settlements
-        $group->post('/settlements/preview', [SettlementsController::class, 'preview']);
-        $group->post('/settlements', [SettlementsController::class, 'store']);
-        $group->get('/settlements', [SettlementsController::class, 'index']);
-        $group->get('/settlements/{id}', [SettlementsController::class, 'show']);
-        $group->delete('/settlements/{id}', [SettlementsController::class, 'destroy']);
-        $group->get('/settlements/{id}/export-sepa', [SettlementsController::class, 'exportSepa']);
-        $group->get('/settlements/{id}/export-csv', [SettlementsController::class, 'exportCsv']);
-        $group->get('/settlements/{id}/export-transactions', [SettlementsController::class, 'exportTransactionsCsv']);
+        $group->post('/settlements/preview', [SettlementsAdminController::class, 'preview']);
+        $group->post('/settlements', [SettlementsAdminController::class, 'store']);
+        $group->get('/settlements', [SettlementsAdminController::class, 'index']);
+        $group->get('/settlements/{id}', [SettlementsAdminController::class, 'show']);
+        $group->delete('/settlements/{id}', [SettlementsAdminController::class, 'destroy']);
+        $group->get('/settlements/{id}/export-sepa', [SettlementsAdminController::class, 'exportSepa']);
+        $group->get('/settlements/{id}/export-csv', [SettlementsAdminController::class, 'exportCsv']);
+        $group->get('/settlements/{id}/export-transactions', [SettlementsAdminController::class, 'exportTransactionsCsv']);
 
         // SEPA config
         $group->get('/sepa-config', [SepaConfigController::class, 'show']);
         $group->put('/sepa-config', [SepaConfigController::class, 'update']);
 
         // Terminals
-        $group->get('/terminals', [TerminalsController::class, 'index']);
-        $group->post('/terminals', [TerminalsController::class, 'store']);
-        $group->get('/terminals/{id}', [TerminalsController::class, 'show']);
-        $group->patch('/terminals/{id}', [TerminalsController::class, 'update']);
-        $group->delete('/terminals/{id}', [TerminalsController::class, 'destroy']);
-        $group->post('/terminals/{id}/rotate-token', [TerminalsController::class, 'rotateToken']);
-        $group->post('/terminals/{id}/revoke', [TerminalsController::class, 'revoke']);
+        $group->get('/terminals', [TerminalsAdminController::class, 'index']);
+        $group->post('/terminals', [TerminalsAdminController::class, 'store']);
+        $group->get('/terminals/{id}', [TerminalsAdminController::class, 'show']);
+        $group->patch('/terminals/{id}', [TerminalsAdminController::class, 'update']);
+        $group->delete('/terminals/{id}', [TerminalsAdminController::class, 'destroy']);
+        $group->post('/terminals/{id}/rotate-token', [TerminalsAdminController::class, 'rotateToken']);
+        $group->post('/terminals/{id}/revoke', [TerminalsAdminController::class, 'revoke']);
     })->add(AdminSessionAuth::class);
 };

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use App\Config\Env;
-use App\Config\AppConfig;
-use App\Logging\Logger;
+use App\Shared\Config\Env;
+use App\Shared\Config\AppConfig;
+use App\Shared\Logging\Logger;
 use App\ServiceFactory;
 use Slim\Factory\AppFactory;
 

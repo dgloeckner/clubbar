@@ -4,56 +4,114 @@ declare(strict_types=1);
 
 namespace App;
 
-use App\Config\AppConfig;
-use App\Config\Env;
-use App\Logging\Logger;
-use App\Validation\Validator;
-use App\Repository\AdminUsersRepository;
-use App\Repository\AuditLogRepository;
-use App\Repository\CategoriesRepository;
-use App\Repository\MembersRepository;
-use App\Repository\ProductsRepository;
-use App\Repository\SepaConfigRepository;
-use App\Repository\SessionRepository;
-use App\Repository\SettlementsRepository;
-use App\Repository\TerminalsRepository;
-use App\Repository\TransactionsRepository;
-use App\Service\AdminUsersService;
-use App\Service\AuditService;
-use App\Service\AuthService;
-use App\Service\CategoriesService;
-use App\Service\MembersService;
-use App\Service\ProductsService;
-use App\Service\SepaConfigService;
-use App\Service\SepaExportService;
-use App\Service\SettlementsService;
-use App\Service\TerminalsService;
-use App\Service\TransactionsService;
-use App\Controller\AdminUsersController;
-use App\Controller\AuditLogController;
-use App\Controller\AuthController;
-use App\Controller\DashboardController;
-use App\Controller\HealthController;
-use App\Controller\MembersAdminController;
-use App\Controller\MembersSyncController;
-use App\Controller\ProductsAdminController;
-use App\Controller\ProductsSyncController;
-use App\Controller\SepaConfigController;
-use App\Controller\SettlementsController;
-use App\Controller\TerminalsController;
-use App\Controller\TransactionsAdminController;
-use App\Controller\TransactionsSyncController;
-use App\Middleware\AdminSessionAuth;
-use App\Middleware\CorsMiddleware;
-use App\Middleware\ErrorHandler;
-use App\Middleware\JsonBodyParser;
-use App\Middleware\TerminalTokenAuth;
+use App\Shared\Config\AppConfig;
+use App\Shared\Config\Env;
+use App\Shared\Logging\Logger;
+use App\Shared\Validation\Validator;
+
+// Repositories
+use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\AuditLog\Repositories\AuditLogRepository;
+use App\Modules\Products\Repositories\CategoriesRepository;
+use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Products\Repositories\ProductsRepository;
+use App\Modules\Settlements\Repositories\SepaConfigRepository;
+use App\Modules\Auth\Repositories\SessionRepository;
+use App\Modules\Settlements\Repositories\SettlementsRepository;
+use App\Modules\Terminals\Repositories\TerminalsRepository;
+use App\Modules\Transactions\Repositories\TransactionsRepository;
+
+// Services
+use App\Modules\AdminUsers\Services\AdminUsersService;
+use App\Shared\Services\AuditService;
+use App\Modules\Auth\Services\AuthService;
+use App\Modules\Auth\Services\TokenService;
+use App\Modules\Products\Services\CategoriesService;
+use App\Shared\Services\HealthCheckService;
+use App\Modules\Members\Services\MembersService;
+use App\Modules\Products\Services\ProductsService;
+use App\Modules\Settlements\Services\SepaConfigService;
+use App\Modules\Settlements\Services\SepaExportService;
+use App\Modules\Settlements\Services\SettlementsService;
+use App\Modules\Terminals\Services\TerminalsService;
+use App\Modules\Transactions\Services\TransactionsService;
+
+// Controllers
+use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
+use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
+use App\Modules\Auth\Controllers\AuthController;
+use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminController;
+use App\Shared\Controllers\HealthController;
+use App\Modules\Members\Controllers\AdminController as MembersAdminController;
+use App\Modules\Members\Controllers\SyncController as MembersSyncController;
+use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
+use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
+use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
+use App\Modules\Settlements\Controllers\SepaConfigController;
+use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
+use App\Modules\Transactions\Controllers\AdminController as TransactionsAdminController;
+use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncController;
+
+// Middleware
+use App\Modules\Auth\Middleware\AdminSessionAuth;
+use App\Modules\Auth\Middleware\TerminalTokenAuth;
+use App\Shared\Middleware\CorsMiddleware;
+use App\Shared\Middleware\ErrorHandler;
+use App\Shared\Middleware\JsonBodyParser;
+
 use PDO;
 use Psr\Container\ContainerInterface;
 
 class ServiceFactory implements ContainerInterface
 {
     private array $instances = [];
+
+    /**
+     * Maps FQCN to getter method names, since multiple modules have identically-named
+     * classes (e.g. AdminController). Slim resolves controllers via ContainerInterface::get($fqcn).
+     */
+    private const FQCN_MAP = [
+        // Shared
+        HealthController::class => 'getHealthController',
+
+        // Members
+        MembersAdminController::class => 'getMembersAdminController',
+        MembersSyncController::class => 'getMembersSyncController',
+
+        // Products
+        ProductsAdminController::class => 'getProductsAdminController',
+        ProductsSyncController::class => 'getProductsSyncController',
+
+        // Transactions
+        TransactionsAdminController::class => 'getTransactionsAdminController',
+        TransactionsSyncController::class => 'getTransactionsSyncController',
+
+        // Settlements
+        SettlementsAdminController::class => 'getSettlementsAdminController',
+        SepaConfigController::class => 'getSepaConfigController',
+
+        // AdminUsers
+        AdminUsersAdminController::class => 'getAdminUsersAdminController',
+
+        // AuditLog
+        AuditLogAdminController::class => 'getAuditLogAdminController',
+
+        // Terminals
+        TerminalsAdminController::class => 'getTerminalsAdminController',
+
+        // Dashboard
+        DashboardAdminController::class => 'getDashboardAdminController',
+
+        // Auth
+        AuthController::class => 'getAuthController',
+
+        // Middleware
+        AdminSessionAuth::class => 'getAdminSessionAuth',
+        TerminalTokenAuth::class => 'getTerminalTokenAuth',
+        CorsMiddleware::class => 'getCorsMiddleware',
+        JsonBodyParser::class => 'getJsonBodyParser',
+        ErrorHandler::class => 'getErrorHandler',
+    ];
 
     public function __construct(
         private PDO $pdo,
@@ -272,19 +330,19 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(TransactionsSyncController::class, fn() => new TransactionsSyncController($this->getTransactionsService()));
     }
 
-    public function getAdminUsersController(): AdminUsersController
+    public function getAdminUsersAdminController(): AdminUsersAdminController
     {
-        return $this->resolve(AdminUsersController::class, fn() => new AdminUsersController($this->getAdminUsersService(), $this->getValidator()));
+        return $this->resolve(AdminUsersAdminController::class, fn() => new AdminUsersAdminController($this->getAdminUsersService(), $this->getValidator()));
     }
 
-    public function getAuditLogController(): AuditLogController
+    public function getAuditLogAdminController(): AuditLogAdminController
     {
-        return $this->resolve(AuditLogController::class, fn() => new AuditLogController($this->getAuditLogRepository()));
+        return $this->resolve(AuditLogAdminController::class, fn() => new AuditLogAdminController($this->getAuditLogRepository()));
     }
 
-    public function getSettlementsController(): SettlementsController
+    public function getSettlementsAdminController(): SettlementsAdminController
     {
-        return $this->resolve(SettlementsController::class, fn() => new SettlementsController($this->getSettlementsService(), $this->getSepaExportService(), $this->getValidator()));
+        return $this->resolve(SettlementsAdminController::class, fn() => new SettlementsAdminController($this->getSettlementsService(), $this->getSepaExportService(), $this->getValidator()));
     }
 
     public function getSepaConfigController(): SepaConfigController
@@ -292,14 +350,14 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(SepaConfigController::class, fn() => new SepaConfigController($this->getSepaConfigService(), $this->getValidator()));
     }
 
-    public function getTerminalsController(): TerminalsController
+    public function getTerminalsAdminController(): TerminalsAdminController
     {
-        return $this->resolve(TerminalsController::class, fn() => new TerminalsController($this->getTerminalsService(), $this->getValidator()));
+        return $this->resolve(TerminalsAdminController::class, fn() => new TerminalsAdminController($this->getTerminalsService(), $this->getValidator()));
     }
 
-    public function getDashboardController(): DashboardController
+    public function getDashboardAdminController(): DashboardAdminController
     {
-        return $this->resolve(DashboardController::class, fn() => new DashboardController(
+        return $this->resolve(DashboardAdminController::class, fn() => new DashboardAdminController(
             $this->getMembersRepository(),
             $this->getTransactionsRepository(),
             $this->getSettlementsRepository(),
@@ -310,13 +368,13 @@ class ServiceFactory implements ContainerInterface
 
     public function has(string $id): bool
     {
-        return method_exists($this, 'get' . $this->classNameFromId($id));
+        return isset(self::FQCN_MAP[$id]);
     }
 
     public function get(string $id): mixed
     {
-        $method = 'get' . $this->classNameFromId($id);
-        if (method_exists($this, $method)) {
+        if (isset(self::FQCN_MAP[$id])) {
+            $method = self::FQCN_MAP[$id];
             return $this->$method();
         }
         throw new \RuntimeException("Service not found: {$id}");
@@ -327,11 +385,5 @@ class ServiceFactory implements ContainerInterface
     private function resolve(string $key, callable $factory): mixed
     {
         return $this->instances[$key] ??= $factory();
-    }
-
-    private function classNameFromId(string $id): string
-    {
-        $parts = explode('\\', $id);
-        return end($parts);
     }
 }
