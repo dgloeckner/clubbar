@@ -72,7 +72,7 @@ class AuditLogRepository
 
         $dataParams = array_merge($params, [$limit, $offset]);
         $stmt = $this->db->prepare(
-            "SELECT al.*, au.display_name as admin_display_name FROM audit_log al LEFT JOIN admin_users au ON al.admin_user_id = au.id {$whereClause} ORDER BY al.created_at DESC LIMIT ? OFFSET ?"
+            "SELECT al.*, au.display_name as admin_user_name FROM audit_log al LEFT JOIN admin_users au ON al.admin_user_id = au.id {$whereClause} ORDER BY al.created_at DESC LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
 
