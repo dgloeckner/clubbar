@@ -6,6 +6,7 @@ namespace App\Modules\Products\Controllers;
 
 use App\Modules\Products\Services\CategoriesService;
 use App\Modules\Products\Services\ProductsService;
+use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Validation\Validator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -64,14 +65,11 @@ class AdminController
         try {
             $category = $this->categoriesService->updateCategory($categoryId, $body, $adminId);
             return $this->json($response, $category->toArray());
-        } catch (\RuntimeException $e) {
-            if (str_contains($e->getMessage(), 'not found')) {
-                return $this->json($response, [
-                    'error' => 'not_found',
-                    'message' => $e->getMessage()
-                ], 404);
-            }
-            throw $e;
+        } catch (NotFoundException $e) {
+            return $this->json($response, [
+                'error' => $e->getErrorCode(),
+                'message' => $e->getMessage()
+            ], $e->getHttpStatusCode());
         }
     }
 
@@ -90,14 +88,11 @@ class AdminController
         try {
             $category = $this->categoriesService->toggleStatus($categoryId, (bool) $body['is_active'], $adminId);
             return $this->json($response, $category->toArray());
-        } catch (\RuntimeException $e) {
-            if (str_contains($e->getMessage(), 'not found')) {
-                return $this->json($response, [
-                    'error' => 'not_found',
-                    'message' => $e->getMessage()
-                ], 404);
-            }
-            throw $e;
+        } catch (NotFoundException $e) {
+            return $this->json($response, [
+                'error' => $e->getErrorCode(),
+                'message' => $e->getMessage()
+            ], $e->getHttpStatusCode());
         }
     }
 

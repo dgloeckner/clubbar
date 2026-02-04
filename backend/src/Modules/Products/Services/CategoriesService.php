@@ -8,6 +8,7 @@ use App\Modules\Products\DTOs\CategoryDto;
 use App\Shared\DTOs\SyncResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Exceptions\NotFoundException;
 use App\Modules\Products\Repositories\CategoriesRepository;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Shared\Services\AuditService;
@@ -57,7 +58,7 @@ class CategoriesService
     public function updateCategory(string $categoryId, array $validated, ?string $adminUserId = null): CategoryDto
     {
         $old = $this->categoriesRepository->findById($categoryId);
-        if (!$old) throw new \RuntimeException("Category not found: $categoryId");
+        if (!$old) throw NotFoundException::forResource('Category', $categoryId);
 
         $row = $this->categoriesRepository->updateById($categoryId, $validated);
 
@@ -76,7 +77,7 @@ class CategoriesService
     public function toggleStatus(string $categoryId, bool $isActive, ?string $adminUserId = null): CategoryDto
     {
         $row = $this->categoriesRepository->updateById($categoryId, ['is_active' => $isActive]);
-        if (!$row) throw new \RuntimeException("Category not found: $categoryId");
+        if (!$row) throw NotFoundException::forResource('Category', $categoryId);
 
         $this->auditService->log(
             action: $isActive ? AuditAction::ACTIVATE : AuditAction::DEACTIVATE,
@@ -96,7 +97,7 @@ class CategoriesService
         }
 
         $old = $this->categoriesRepository->findById($categoryId);
-        if (!$old) throw new \RuntimeException("Category not found: $categoryId");
+        if (!$old) throw NotFoundException::forResource('Category', $categoryId);
 
         $this->auditService->log(
             action: AuditAction::DELETE,
