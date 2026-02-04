@@ -514,7 +514,7 @@ test.describe('Products API - Terminal Sync', () => {
     expect(body.has_more).toBeDefined();
   });
 
-  test('GET /api/sync/products returns only active products', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+  test('GET /api/sync/products returns all products including inactive', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
 
     const category = await createCategory(authenticatedRequest);
 
@@ -539,10 +539,15 @@ test.describe('Products API - Terminal Sync', () => {
     const response = await authenticatedTerminalRequest.get('/api/sync/products');
     const body = await response.json();
 
-    // All returned products should be active
-    for (const product of body.products) {
-      expect(product.is_active).toBe(true);
-    }
+    // Sync should return ALL products (both active and inactive) so UI can track state
+    const activeInResponse = body.products.find((p: any) => p.id === activeProduct.id);
+    const inactiveInResponse = body.products.find((p: any) => p.id === inactiveProduct.id);
+
+    expect(activeInResponse).toBeDefined();
+    expect(activeInResponse.is_active).toBe(true);
+
+    expect(inactiveInResponse).toBeDefined();
+    expect(inactiveInResponse.is_active).toBe(false);
   });
 
   test('GET /api/sync/products returns only products from active categories', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
