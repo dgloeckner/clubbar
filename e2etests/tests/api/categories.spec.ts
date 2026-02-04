@@ -323,7 +323,7 @@ test.describe('Categories API - Terminal Sync', () => {
     expect(body.has_more).toBeDefined();
   });
 
-  test('GET /api/sync/categories returns only active categories', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+  test('GET /api/sync/categories returns all categories including inactive', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     // Create and deactivate a category
     const createResponse = await authenticatedRequest.post('/api/admin/categories', {
       data: createValidCategory(),
@@ -337,10 +337,11 @@ test.describe('Categories API - Terminal Sync', () => {
     const response = await authenticatedTerminalRequest.get('/api/sync/categories');
     const body = await response.json();
 
-    // All returned categories should be active
-    for (const cat of body.categories) {
-      expect(cat.is_active).toBe(true);
-    }
+    // Sync should return ALL categories (both active and inactive) so UI can track state
+    const inactiveInResponse = body.categories.find((c: any) => c.id === category.id);
+
+    expect(inactiveInResponse).toBeDefined();
+    expect(inactiveInResponse.is_active).toBe(false);
   });
 
   test('GET /api/sync/categories respects since parameter', async ({ authenticatedTerminalRequest }) => {

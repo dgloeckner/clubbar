@@ -34,7 +34,7 @@ class AdminController
         $adminId = $request->getAttribute('admin_user_id');
 
         if (!$this->validator->validate($body, [
-            'names' => ['required', 'array'],
+            'names' => ['required', 'array', 'min:1'],
             'display_order' => ['nullable', 'integer'],
             'is_active' => ['nullable', 'boolean'],
             'icon_name' => ['nullable', 'string', 'max:50'],
@@ -54,7 +54,7 @@ class AdminController
         $adminId = $request->getAttribute('admin_user_id');
 
         if (!$this->validator->validate($body, [
-            'names' => ['nullable', 'array'],
+            'names' => ['nullable', 'array', 'min:1'],
             'display_order' => ['nullable', 'integer'],
             'is_active' => ['nullable', 'boolean'],
             'icon_name' => ['nullable', 'string', 'max:50'],
