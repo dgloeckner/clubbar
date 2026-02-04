@@ -215,7 +215,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getMembersService(): MembersService
     {
-        return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getAuditService()));
+        return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService()));
     }
 
     public function getProductsService(): ProductsService
