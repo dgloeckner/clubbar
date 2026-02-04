@@ -8,5 +8,5 @@ ALTER DATABASE ruderbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 GRANT ALL PRIVILEGES ON ruderbar.* TO 'ruderbar'@'%';
 FLUSH PRIVILEGES;
 
--- Note: Laravel migrations will create the actual tables
--- Run: docker-compose exec backend php artisan migrate
+-- Note: SQL migrations create the actual tables via the install endpoint
+-- Run: curl "http://localhost:8080/install.php?action=migrate&key=dev-install-key"

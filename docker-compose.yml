@@ -27,10 +27,9 @@ services:
       retries: 5
 
   # =============================================================================
-  # Backend - PHP 8.3 + Apache (serversideup/php image, code mounted)
+  # Backend - PHP 8.3 + Apache (Slim 4, code mounted)
   # Setup: cd backend && composer install && cd ..
   # Start:  UID=$(id -u) GID=$(id -g) docker compose up -d
-  # Docs:   backend/DOCKER_SETUP.md, backend/FILE_PERMISSIONS.md
   # =============================================================================
   backend:
     image: webdevops/php-apache:8.3
@@ -51,27 +50,33 @@ services:
       PHP_POST_MAX_SIZE: "100M"
       PHP_OPCACHE_ENABLE: "0"  # Disabled for development
 
-      # Laravel Configuration
+      # Application Configuration
       APP_ENV: local
-      APP_DEBUG: true
-      APP_KEY: base64:6i7N5vhbwJd1aAuAMK2e5UhDwaaBIJ04lkodIjrQmZ0=
+      APP_DEBUG: "true"
       APP_URL: http://localhost:8080
 
       # Database Configuration
-      DB_CONNECTION: mysql
       DB_HOST: database
       DB_PORT: 3306
-      DB_DATABASE: ruderbar
-      DB_USERNAME: ruderbar
-      DB_PASSWORD: ruderbar
+      DB_NAME: ruderbar
+      DB_USER: ruderbar
+      DB_PASS: ruderbar
 
-      # Laravel Automations (disabled for Phase 1)
-      AUTORUN_ENABLED: "false"
+      # Session & Auth
+      SESSION_MAX_AGE: 7200
+      SESSION_REGEN_INTERVAL: 900
+      API_TOKEN_TTL_DAYS: 90
+
+      # CORS
+      CORS_ORIGINS: "*"
+
+      # Installation
+      INSTALL_KEY: dev-install-key
     ports:
       - "8080:80"
     volumes:
       - ./backend:/app
-      - ./docker/apache-laravel.conf:/opt/docker/etc/httpd/vhost.common.d/01-laravel.conf:ro
+      - ./docker/apache-slim.conf:/opt/docker/etc/httpd/vhost.common.d/01-slim.conf:ro
     depends_on:
       database:
         condition: service_healthy
