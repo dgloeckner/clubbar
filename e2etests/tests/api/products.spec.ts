@@ -772,7 +772,7 @@ test.describe('Products API - Price Sorting', () => {
     console.log('Created products with IDs:', productIds);
 
     // Query with price_asc sort filtered to this category
-    const response = await authenticatedRequest.get(`/api/admin/products?sort=price&order=asc&category_id=${category.id}`);
+    const response = await authenticatedRequest.get(`/api/admin/products?sort_by=price_asc&category_id=${category.id}`);
     const body = await response.json();
 
     console.log('Total items:', body.total);
@@ -816,7 +816,7 @@ test.describe('Products API - Price Sorting', () => {
     }
 
     // Query with price_desc sort filtered to this category
-    const response = await authenticatedRequest.get(`/api/admin/products?sort=price&order=desc&category_id=${category.id}`);
+    const response = await authenticatedRequest.get(`/api/admin/products?sort_by=price_desc&category_id=${category.id}`);
     const body = await response.json();
 
     expect(response.ok()).toBeTruthy();
@@ -860,12 +860,12 @@ test.describe('Products API - Price Sorting', () => {
     ).json();
 
     // Query with price_asc - cheap should come first (filtered to category)
-    const ascResponse = await authenticatedRequest.get(`/api/admin/products?sort=price&order=asc&category_id=${category.id}`);
+    const ascResponse = await authenticatedRequest.get(`/api/admin/products?sort_by=price_asc&category_id=${category.id}`);
     const ascBody = await ascResponse.json();
     const ascProducts = ascBody.items.filter((p: any) => [cheapProduct.id, expensiveProduct.id].includes(p.id));
 
     // Query with price_desc - expensive should come first (filtered to category)
-    const descResponse = await authenticatedRequest.get(`/api/admin/products?sort=price&order=desc&category_id=${category.id}`);
+    const descResponse = await authenticatedRequest.get(`/api/admin/products?sort_by=price_desc&category_id=${category.id}`);
     const descBody = await descResponse.json();
     const descProducts = descBody.items.filter((p: any) => [cheapProduct.id, expensiveProduct.id].includes(p.id));
 

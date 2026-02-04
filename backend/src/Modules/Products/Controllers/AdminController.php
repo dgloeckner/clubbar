@@ -127,22 +127,39 @@ class AdminController
     public function listProducts(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        $limit = (int) ($params['limit'] ?? 50);
-        $offset = (int) ($params['offset'] ?? 0);
-        $sortBy = $params['sort_by'] ?? 'created_at';
-        $sortOrder = $params['sort_order'] ?? 'desc';
+        $limit = (int) ($params['per_page'] ?? $params['limit'] ?? 50);
+        $offset = (int) ($params['page'] ?? 1);
+        $offset = ($offset - 1) * $limit; // Convert page number to offset
+
+        // Parse combined sort_by parameter (e.g., "price_asc" => sortBy="price", sortOrder="asc")
+        $sortByParam = $params['sort_by'] ?? 'name_asc';
+        [$sortBy, $sortOrder] = $this->parseSortBy($sortByParam);
 
         $filters = [];
         if (isset($params['category_id'])) {
             $filters['category_id'] = $params['category_id'];
         }
-        if (isset($params['is_active'])) {
-            $filters['is_active'] = $params['is_active'];
+        if (isset($params['status'])) {
+            $filters['status'] = $params['status'];
         }
 
         $result = $this->productsService->listProducts($limit, $offset, $filters, $sortBy, $sortOrder);
 
         return $this->json($response, $result->toArray());
+    }
+
+    private function parseSortBy(string $sortBy): array
+    {
+        // Map combined sort parameters to [field, direction]
+        $map = [
+            'name_asc' => ['name', 'asc'],
+            'name_desc' => ['name', 'desc'],
+            'price_asc' => ['price', 'asc'],
+            'price_desc' => ['price', 'desc'],
+            'category' => ['category', 'asc'],
+        ];
+
+        return $map[$sortBy] ?? ['created_at', 'desc'];
     }
 
     public function storeProduct(Request $request, Response $response): Response
