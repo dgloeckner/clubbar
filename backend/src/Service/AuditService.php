@@ -1,0 +1,56 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Service;
+
+use App\Enum\AuditAction;
+use App\Enum\EntityType;
+use App\Repository\AuditLogRepository;
+
+class AuditService
+{
+    public function __construct(
+        private AuditLogRepository $auditLogRepository,
+    ) {}
+
+    public function log(
+        AuditAction $action,
+        EntityType $entityType,
+        string $entityId,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $adminUserId = null,
+        ?string $ipAddress = null,
+        ?string $userAgent = null,
+    ): void {
+        $this->auditLogRepository->insert([
+            'admin_user_id' => $adminUserId,
+            'action' => $action->value,
+            'entity_type' => $entityType->value,
+            'entity_id' => $entityId,
+            'old_values' => $this->maskSensitiveFields($oldValues),
+            'new_values' => $this->maskSensitiveFields($newValues),
+            'ip_address' => $ipAddress ?? ($_SERVER['REMOTE_ADDR'] ?? null),
+            'user_agent' => $userAgent ?? ($_SERVER['HTTP_USER_AGENT'] ?? null),
+        ]);
+    }
+
+    private function maskSensitiveFields(?array $values): ?array
+    {
+        if ($values === null) return null;
+
+        $sensitive = ['password', 'api_token', 'api_token_hash'];
+        foreach ($sensitive as $field) {
+            if (isset($values[$field])) {
+                $values[$field] = '[MASKED]';
+            }
+        }
+
+        if (isset($values['iban']) && $values['iban'] !== '[MASKED]') {
+            $values['iban'] = IbanMasker::mask($values['iban']);
+        }
+
+        return $values;
+    }
+}
