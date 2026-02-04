@@ -127,7 +127,28 @@ class AdminController
     public function listProducts(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
+
+        // Validate query parameters
+        $validationData = [
+            'per_page' => $params['per_page'] ?? null,
+            'page' => $params['page'] ?? null,
+            'status' => $params['status'] ?? null,
+            'category_id' => $params['category_id'] ?? null,
+            'sort_by' => $params['sort_by'] ?? null,
+        ];
+
+        if (!$this->validator->validate($validationData, [
+            'per_page' => ['nullable', 'integer', 'gt:0'],
+            'page' => ['nullable', 'integer', 'gt:0'],
+            'status' => ['nullable', 'in:all,active,inactive'],
+            'category_id' => ['nullable', 'uuid'],
+            'sort_by' => ['nullable', 'in:name_asc,name_desc,price_asc,price_desc,category'],
+        ])) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
         $limit = (int) ($params['per_page'] ?? $params['limit'] ?? 50);
+        $limit = min($limit, 100); // Enforce maximum limit
         $offset = (int) ($params['page'] ?? 1);
         $offset = ($offset - 1) * $limit; // Convert page number to offset
 
