@@ -83,7 +83,7 @@ class SepaExportService
                     'amount' => $amountEur,
                     'debtorIban' => $this->sanitizeIban($member['iban']),
                     'debtorBic' => 'NOTPROVIDED',
-                    'debtorName' => $this->sanitizeName($member['first_name'] . ' ' . $member['last_name']),
+                    'debtorName' => $this->sanitizeName($member['account_holder_name'] ?? ($member['first_name'] . ' ' . $member['last_name'])),
                     'debtorMandate' => $member['mandate_reference'],
                     'debtorMandateSignDate' => $member['mandate_signed_at'] ?? $settlement['settlement_date'],
                     'remittanceInformation' => 'Settlement ' . $settlement['settlement_date'],
@@ -99,15 +99,12 @@ class SepaExportService
 
     public function sanitizeName(string $name): string
     {
-        $replacements = ['ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'Ä' => 'Ae', 'Ö' => 'Oe', 'Ü' => 'Ue', 'ß' => 'ss'];
-        $name = strtr($name, $replacements);
-        $name = preg_replace('/[^a-zA-Z0-9 .\-\/]/', '', $name);
-        return substr($name, 0, 70);
+        return SepaSanitizer::sanitizeName($name);
     }
 
     public function sanitizeIban(string $iban): string
     {
-        return strtoupper(preg_replace('/\s+/', '', $iban));
+        return SepaSanitizer::sanitizeIban($iban);
     }
 
     private function validateSepaXml(string $xml): void

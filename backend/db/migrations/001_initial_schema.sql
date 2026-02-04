@@ -45,6 +45,7 @@ CREATE TABLE members (
     phone VARCHAR(20) NULL,
     preferred_language VARCHAR(10) NOT NULL DEFAULT 'de',
     iban VARCHAR(34) NULL,
+    account_holder_name VARCHAR(70) NULL,
     mandate_reference VARCHAR(35) NULL UNIQUE,
     mandate_signed_at DATE NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,

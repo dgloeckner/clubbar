@@ -41,8 +41,8 @@ class MembersRepository
         $now = date('Y-m-d H:i:s');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, is_active, iban, mandate_reference, mandate_signed_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, is_active, iban, account_holder_name, mandate_reference, mandate_signed_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id,
@@ -54,6 +54,7 @@ class MembersRepository
             $data['preferred_language'] ?? 'de',
             $data['is_active'] ?? true ? 1 : 0,
             $data['iban'] ?? null,
+            $data['account_holder_name'] ?? null,
             $data['mandate_reference'] ?? null,
             $data['mandate_signed_at'] ?? null,
             $now,
@@ -66,7 +67,7 @@ class MembersRepository
 
     public function updateById(string $id, array $data): ?array
     {
-        $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'phone', 'preferred_language', 'is_active', 'iban', 'mandate_reference', 'mandate_signed_at', 'deleted_at'];
+        $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'phone', 'preferred_language', 'is_active', 'iban', 'account_holder_name', 'mandate_reference', 'mandate_signed_at', 'deleted_at'];
         [$set, $values] = SafeQuery::buildUpdate($data, $allowed);
         $values[] = date('Y-m-d H:i:s');
         $values[] = $id;
@@ -107,7 +108,7 @@ class MembersRepository
     {
         $now = date('Y-m-d H:i:s');
         $stmt = $this->db->prepare(
-            'UPDATE members SET first_name = ?, last_name = ?, email = ?, phone = NULL, iban = NULL, mandate_reference = NULL, card_uid = NULL, is_active = 0, deleted_at = ?, updated_at = ? WHERE id = ?'
+            'UPDATE members SET first_name = ?, last_name = ?, email = ?, phone = NULL, iban = NULL, account_holder_name = NULL, mandate_reference = NULL, card_uid = NULL, is_active = 0, deleted_at = ?, updated_at = ? WHERE id = ?'
         );
         return $stmt->execute(['DELETED', 'DELETED', 'deleted@example.com', $now, $now, $id]);
     }

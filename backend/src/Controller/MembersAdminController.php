@@ -60,6 +60,7 @@ class MembersAdminController
             cardUid: $body['card_uid'] ?? null,
             language: $language,
             iban: $body['iban'] ?? null,
+            accountHolderName: $body['account_holder_name'] ?? null,
             mandateReference: $body['mandate_reference'] ?? null,
             mandateSignedAt: $body['mandate_signed_at'] ?? null,
             adminUserId: $adminId,

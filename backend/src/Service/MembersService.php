@@ -70,6 +70,7 @@ class MembersService
         ?string $cardUid,
         SupportedLanguage $language,
         ?string $iban = null,
+        ?string $accountHolderName = null,
         ?string $mandateReference = null,
         ?string $mandateSignedAt = null,
         ?string $adminUserId = null,
@@ -83,6 +84,7 @@ class MembersService
             'preferred_language' => $language->value,
             'is_active' => true,
             'iban' => $iban,
+            'account_holder_name' => $accountHolderName,
             'mandate_reference' => $mandateReference,
             'mandate_signed_at' => $mandateSignedAt,
         ]);
@@ -114,8 +116,8 @@ class MembersService
         $map = [
             'firstName' => 'first_name', 'lastName' => 'last_name', 'email' => 'email',
             'phone' => 'phone', 'cardUid' => 'card_uid', 'preferredLanguage' => 'preferred_language',
-            'isActive' => 'is_active', 'iban' => 'iban', 'mandateReference' => 'mandate_reference',
-            'mandateSignedAt' => 'mandate_signed_at',
+            'isActive' => 'is_active', 'iban' => 'iban', 'accountHolderName' => 'account_holder_name',
+            'mandateReference' => 'mandate_reference', 'mandateSignedAt' => 'mandate_signed_at',
         ];
         foreach ($map as $camel => $snake) {
             if (array_key_exists($camel, $updateData)) {
