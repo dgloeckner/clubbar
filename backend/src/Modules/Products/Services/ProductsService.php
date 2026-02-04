@@ -14,6 +14,7 @@ use App\Modules\Products\Repositories\CategoriesRepository;
 use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\ValidationException;
 
 class ProductsService
 {
@@ -43,7 +44,7 @@ class ProductsService
     public function createProduct(array $validated, ?string $adminUserId = null): ProductDto
     {
         $category = $this->categoriesRepository->findById($validated['category_id']);
-        if (!$category) throw NotFoundException::forResource('Category', $body['category_id'] ?? 'unknown');
+        if (!$category) throw new ValidationException('Invalid category_id', ['category_id' => ['Category not found']]);
         if (!(bool) $category['is_active']) throw new BusinessRuleException('Category is inactive');
 
         $row = $this->productsRepository->create($validated);
@@ -63,6 +64,13 @@ class ProductsService
     {
         $old = $this->productsRepository->findById($productId);
         if (!$old) throw NotFoundException::forResource('Product', $productId);
+
+        // Validate category_id if provided
+        if (isset($validated['category_id'])) {
+            $category = $this->categoriesRepository->findById($validated['category_id']);
+            if (!$category) throw NotFoundException::forResource('Category', $validated['category_id']);
+            if (!(bool) $category['is_active']) throw new BusinessRuleException('Category is inactive');
+        }
 
         $row = $this->productsRepository->updateById($productId, $validated);
 
