@@ -50,6 +50,8 @@ class Validator
             'date'     => ($value && !strtotime($value)) ? "{$field} must be a valid date" : null,
             'array'    => ($value !== null && !is_array($value)) ? "{$field} must be an array" : null,
             'json'     => ($value !== null && !is_array($value) && json_decode((string)$value) === null) ? "{$field} must be valid JSON" : null,
+            'regex'    => ($value !== null && $param && !preg_match($param, (string)$value)) ? "{$field} format is invalid" : null,
+            'same'     => ($value !== null && $param && $value !== ($data[$param] ?? null)) ? "{$field} must match {$param}" : null,
             'nullable' => null,
             'in'       => ($value !== null && $param && !in_array((string)$value, explode(',', $param), true)) ? "{$field} must be one of: {$param}" : null,
             default    => null,

@@ -65,9 +65,11 @@ class MigrationRunner
             $this->db->commit();
             $this->log[] = ['status' => 'DONE', 'message' => 'All migrations applied'];
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+                $this->log[] = ['status' => 'ROLLBACK', 'message' => 'Transaction rolled back'];
+            }
             $this->log[] = ['status' => 'FAIL', 'message' => $e->getMessage()];
-            $this->log[] = ['status' => 'ROLLBACK', 'message' => 'Transaction rolled back'];
         }
 
         return $this->log;

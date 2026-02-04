@@ -353,56 +353,141 @@ test.describe("Admin Users API", () => {
   });
 
   // ========== CHANGE OWN PASSWORD ==========
+  //
+  // Test Data Isolation: These tests create unique admin users to test password
+  // changes, ensuring the shared seeded admin (admin@example.com) is never modified.
+  // This enables safe parallel test execution.
 
   test("should reject incorrect current password", async ({
     authenticatedRequest,
+    playwright,
   }) => {
-    const response = await authenticatedRequest.patch(
-      `${API_BASE}/auth/change-password`,
+    // Create unique test admin
+    const timestamp = Date.now();
+    const createResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users`,
       {
         data: {
-          current_password: "wrongpassword",
-          new_password: "NewPass1234",
-          new_password_confirmation: "NewPass1234",
+          email: `pwtest-${timestamp}@test.example.com`,
+          display_name: "Password Test Admin",
+          locale: "de",
         },
       }
     );
+    expect(createResponse.status()).toBe(201);
+    const { admin, password } = await createResponse.json();
+
+    // Create a new API context that persists cookies
+    const context = await playwright.request.newContext();
+
+    // Authenticate as this new admin
+    const loginResponse = await context.post(`${API_BASE}/auth/login`, {
+      data: {
+        email: admin.email,
+        password: password,
+      },
+    });
+    expect(loginResponse.status()).toBe(200);
+
+    // Test password change with incorrect current password (cookie is automatically persisted)
+    const response = await context.patch(`${API_BASE}/auth/change-password`, {
+      data: {
+        current_password: "wrongpassword",
+        new_password: "NewPass1234",
+        new_password_confirmation: "NewPass1234",
+      },
+    });
 
     expect(response.status()).toBe(401);
+    await context.dispose();
   });
 
   test("should validate new password complexity", async ({
     authenticatedRequest,
+    playwright,
   }) => {
-    const response = await authenticatedRequest.patch(
-      `${API_BASE}/auth/change-password`,
+    // Create unique test admin
+    const timestamp = Date.now();
+    const createResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users`,
       {
         data: {
-          current_password: "password123",
-          new_password: "lowercase1234", // No uppercase
-          new_password_confirmation: "lowercase1234",
+          email: `pwtest-${timestamp}@test.example.com`,
+          display_name: "Password Test Admin",
+          locale: "de",
         },
       }
     );
+    expect(createResponse.status()).toBe(201);
+    const { admin, password } = await createResponse.json();
+
+    // Create a new API context that persists cookies
+    const context = await playwright.request.newContext();
+
+    // Authenticate as this new admin
+    const loginResponse = await context.post(`${API_BASE}/auth/login`, {
+      data: {
+        email: admin.email,
+        password: password,
+      },
+    });
+    expect(loginResponse.status()).toBe(200);
+
+    // Test password change with weak password (no uppercase)
+    const response = await context.patch(`${API_BASE}/auth/change-password`, {
+      data: {
+        current_password: password,
+        new_password: "lowercase1234", // No uppercase
+        new_password_confirmation: "lowercase1234",
+      },
+    });
 
     expect(response.status()).toBe(422);
+    await context.dispose();
   });
 
   test("should validate new password minimum length", async ({
     authenticatedRequest,
+    playwright,
   }) => {
-    const response = await authenticatedRequest.patch(
-      `${API_BASE}/auth/change-password`,
+    // Create unique test admin
+    const timestamp = Date.now();
+    const createResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/admin-users`,
       {
         data: {
-          current_password: "password123",
-          new_password: "Pass1", // Too short
-          new_password_confirmation: "Pass1",
+          email: `pwtest-${timestamp}@test.example.com`,
+          display_name: "Password Test Admin",
+          locale: "de",
         },
       }
     );
+    expect(createResponse.status()).toBe(201);
+    const { admin, password } = await createResponse.json();
+
+    // Create a new API context that persists cookies
+    const context = await playwright.request.newContext();
+
+    // Authenticate as this new admin
+    const loginResponse = await context.post(`${API_BASE}/auth/login`, {
+      data: {
+        email: admin.email,
+        password: password,
+      },
+    });
+    expect(loginResponse.status()).toBe(200);
+
+    // Test password change with short password
+    const response = await context.patch(`${API_BASE}/auth/change-password`, {
+      data: {
+        current_password: password,
+        new_password: "Pass1", // Too short
+        new_password_confirmation: "Pass1",
+      },
+    });
 
     expect(response.status()).toBe(422);
+    await context.dispose();
   });
 
   test("should require authentication for change password", async ({

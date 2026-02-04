@@ -125,12 +125,20 @@ class AuthController
 
         if (!$this->validator->validate($body, [
             'current_password' => ['required', 'string'],
-            'new_password' => ['required', 'string', 'min:8'],
+            'new_password' => ['required', 'string', 'min:8', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'],
+            'new_password_confirmation' => ['required', 'same:new_password'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
-        $this->adminUsersService->changeOwnPassword($adminId, $body['current_password'], $body['new_password']);
+        try {
+            $this->adminUsersService->changeOwnPassword($adminId, $body['current_password'], $body['new_password']);
+        } catch (\RuntimeException $e) {
+            if (str_contains($e->getMessage(), 'password is incorrect')) {
+                return $this->json($response, ['error' => 'invalid_credentials', 'message' => $e->getMessage()], 401);
+            }
+            throw $e;
+        }
 
         return $this->json($response, ['message' => 'Password changed']);
     }
