@@ -38,11 +38,14 @@ $factory = new ServiceFactory($pdo, $config, $logger);
 AppFactory::setContainer($factory);
 $app = AppFactory::create();
 
+// Add routing middleware first
+$app->addRoutingMiddleware();
+
 // Global middleware (outer to inner execution order)
+// Error handler MUST be the outermost middleware to catch routing errors
 $app->add($factory->getErrorHandler());
 $app->add($factory->getJsonBodyParser());
 $app->add($factory->getCorsMiddleware());
-$app->addRoutingMiddleware();
 
 // Register routes
 $routes = require __DIR__ . '/../src/routes.php';
