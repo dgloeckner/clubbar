@@ -168,7 +168,7 @@ class AdminController
         $adminId = $request->getAttribute('admin_user_id');
 
         if (!$this->validator->validate($body, [
-            'names' => ['required', 'array'],
+            'names' => ['required', 'array', 'min:1'],
             'category_id' => ['required', 'uuid'],
             'price_cents' => ['required', 'integer', 'gt:0'],
             'icon_name' => ['nullable', 'string', 'max:50'],        ])) {
@@ -188,7 +188,7 @@ class AdminController
 
         if (!empty($body)) {
             $rules = [];
-            if (isset($body['names'])) $rules['names'] = ['array'];
+            if (isset($body['names'])) $rules['names'] = ['array', 'min:1'];
             if (isset($body['category_id'])) $rules['category_id'] = ['uuid'];
             if (isset($body['price_cents'])) $rules['price_cents'] = ['integer', 'gt:0'];
             if (isset($body['icon_name'])) $rules['icon_name'] = ['nullable', 'string', 'max:50'];

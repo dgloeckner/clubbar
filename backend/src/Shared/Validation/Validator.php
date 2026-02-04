@@ -76,6 +76,10 @@ class Validator
             return "{$field} must be at least {$param}";
         }
 
+        if (is_array($value) && count($value) < (int)$param) {
+            return "{$field} must contain at least {$param} items";
+        }
+
         return null;
     }
 
