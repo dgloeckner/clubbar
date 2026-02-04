@@ -57,7 +57,7 @@ return function (App $app): void {
         $group->get('/members/{memberId}', [MembersAdminController::class, 'show']);
         $group->patch('/members/{memberId}', [MembersAdminController::class, 'update']);
         $group->delete('/members/{memberId}', [MembersAdminController::class, 'destroy']);
-        $group->get('/members/{memberId}/export', [MembersAdminController::class, 'export']);
+        $group->post('/members/{memberId}/export', [MembersAdminController::class, 'export']);
         $group->post('/members/{memberId}/anonymize', [MembersAdminController::class, 'anonymize']);
 
         // Categories
