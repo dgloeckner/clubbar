@@ -4,23 +4,49 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use App\Config\Env;
+use App\Config\AppConfig;
+use App\Logging\Logger;
+use App\ServiceFactory;
 use Slim\Factory\AppFactory;
-use Psr\Http\Message\ResponseInterface as Response;
-use Psr\Http\Message\ServerRequestInterface as Request;
 
+// Load environment
+$envFile = __DIR__ . '/../.env';
+if (file_exists($envFile)) {
+    Env::load($envFile);
+}
+
+// Build core dependencies
+$config = new AppConfig();
+$logger = new Logger($config->logDir, $config->debug ? 'DEBUG' : 'INFO');
+
+$pdo = new PDO(
+    sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', Env::get('DB_HOST'), Env::get('DB_NAME')),
+    Env::get('DB_USER'),
+    Env::get('DB_PASS'),
+    [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+    ]
+);
+
+// Wire the service factory (DI container)
+$factory = new ServiceFactory($pdo, $config, $logger);
+
+// Create Slim app with our container
+AppFactory::setContainer($factory);
 $app = AppFactory::create();
-$app->addBodyParsingMiddleware();
+
+// Global middleware (outer to inner execution order)
+$app->add($factory->getErrorHandler());
+$app->add($factory->getJsonBodyParser());
+$app->add($factory->getCorsMiddleware());
 $app->addRoutingMiddleware();
-$app->addErrorMiddleware(true, true, true);
 
-// Temporary health check to verify Slim works
-$app->get('/api/health', function (Request $request, Response $response) {
-    $data = [
-        'status' => 'ok',
-        'timestamp' => (new DateTimeImmutable())->format('Y-m-d\TH:i:s\Z'),
-    ];
-    $response->getBody()->write(json_encode($data));
-    return $response->withHeader('Content-Type', 'application/json');
-});
+// Register routes
+$routes = require __DIR__ . '/../src/routes.php';
+$routes($app);
 
+// Run
 $app->run();
