@@ -35,7 +35,7 @@ class AdminUsersService
     public function createAdminUser(string $email, string $displayName, string $locale, ?string $currentAdminId = null): array
     {
         $password = $this->generateRandomPassword();
-        $hash = password_hash($password, PASSWORD_BCRYPT);
+        $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
 
         $admin = $this->adminUsersRepository->create([
             'email' => $email,
@@ -123,7 +123,7 @@ class AdminUsersService
     public function resetAdminPassword(string $targetAdminId, ?string $currentAdminId = null): array
     {
         $password = $this->generateRandomPassword();
-        $hash = password_hash($password, PASSWORD_BCRYPT);
+        $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
 
         $admin = $this->adminUsersRepository->updateById($targetAdminId, ['password' => $hash]);
         if (!$admin) throw new \RuntimeException("Admin user not found: $targetAdminId");
