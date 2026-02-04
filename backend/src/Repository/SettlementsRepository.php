@@ -161,6 +161,11 @@ class SettlementsRepository
         return (int) $this->db->query('SELECT COUNT(*) FROM settlements WHERE is_cancelled = 0')->fetchColumn();
     }
 
+    public function countPending(): int
+    {
+        return (int) $this->db->query('SELECT COUNT(*) FROM settlements WHERE is_cancelled = 0 AND exported_at IS NULL')->fetchColumn();
+    }
+
     private function generateUuid(): string
     {
         $data = random_bytes(16);

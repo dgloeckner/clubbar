@@ -1,0 +1,47 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Middleware;
+
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use App\Repository\AdminUsersRepository;
+use Slim\Psr7\Response;
+
+class AdminSessionAuth implements MiddlewareInterface
+{
+    public function __construct(private AdminUsersRepository $adminUsersRepository) {}
+
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        $adminId = $_SESSION['admin_user_id'] ?? null;
+        if (!$adminId) {
+            return $this->unauthorized('Not authenticated');
+        }
+
+        $admin = $this->adminUsersRepository->findById($adminId);
+        if (!$admin || !(bool) $admin['is_active']) {
+            return $this->unauthorized('Session invalid');
+        }
+
+        // Attach admin data to request attributes
+        $request = $request->withAttribute('admin_user_id', $adminId);
+        $request = $request->withAttribute('admin_user', $admin);
+
+        return $handler->handle($request);
+    }
+
+    private function unauthorized(string $message): ResponseInterface
+    {
+        $response = new Response(401);
+        $response->getBody()->write(json_encode(['error' => 'unauthorized', 'message' => $message]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+}

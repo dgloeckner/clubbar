@@ -91,6 +91,11 @@ class MembersRepository
         return (int) $this->db->query('SELECT COUNT(*) FROM members')->fetchColumn();
     }
 
+    public function countActive(): int
+    {
+        return (int) $this->db->query('SELECT COUNT(*) FROM members WHERE is_active = 1')->fetchColumn();
+    }
+
     public function exists(string $id): bool
     {
         $stmt = $this->db->prepare('SELECT 1 FROM members WHERE id = ? LIMIT 1');
