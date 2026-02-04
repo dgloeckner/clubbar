@@ -169,6 +169,18 @@ class AdminController
         $body = $request->getParsedBody() ?? [];
         $adminId = $request->getAttribute('admin_user_id');
 
+        if (!empty($body)) {
+            $rules = [];
+            if (isset($body['names'])) $rules['names'] = ['array'];
+            if (isset($body['category_id'])) $rules['category_id'] = ['uuid'];
+            if (isset($body['price_cents'])) $rules['price_cents'] = ['integer', 'gt:0'];
+            if (isset($body['icon_name'])) $rules['icon_name'] = ['nullable', 'string', 'max:50'];
+
+            if (!empty($rules) && !$this->validator->validate($body, $rules)) {
+                return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            }
+        }
+
         $product = $this->productsService->updateProduct($productId, $body, $adminId);
 
         return $this->json($response, $product->toArray());
