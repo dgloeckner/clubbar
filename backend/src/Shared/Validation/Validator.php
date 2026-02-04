@@ -43,10 +43,8 @@ class Validator
             'integer'  => (!is_numeric($value) && $value !== null) ? "{$field} must be an integer" : null,
             'numeric'  => (!is_numeric($value) && $value !== null) ? "{$field} must be numeric" : null,
             'email'    => ($value && !filter_var($value, FILTER_VALIDATE_EMAIL)) ? "{$field} must be a valid email" : null,
-            'min'      => (is_string($value) && strlen($value) < (int)$param) ? "{$field} must be at least {$param} characters" :
-                          (is_numeric($value) && $value < (int)$param) ? "{$field} must be at least {$param}" : null,
-            'max'      => (is_string($value) && strlen($value) > (int)$param) ? "{$field} must be at most {$param} characters" :
-                          (is_numeric($value) && $value > (int)$param) ? "{$field} must be at most {$param}" : null,
+            'min'      => $this->validateMin($field, $value, $param),
+            'max'      => $this->validateMax($field, $value, $param),
             'gt'       => (is_numeric($value) && $value <= (int)$param) ? "{$field} must be greater than {$param}" : null,
             'gte'      => (is_numeric($value) && $value < (int)$param) ? "{$field} must be at least {$param}" : null,
             'lt'       => (is_numeric($value) && $value >= (int)$param) ? "{$field} must be less than {$param}" : null,
@@ -62,5 +60,39 @@ class Validator
             'in'       => ($value !== null && $param && !in_array((string)$value, explode(',', $param), true)) ? "{$field} must be one of: {$param}" : null,
             default    => null,
         };
+    }
+
+    private function validateMin(string $field, mixed $value, ?string $param): ?string
+    {
+        if ($param === null) {
+            return null;
+        }
+
+        if (is_string($value) && strlen($value) < (int)$param) {
+            return "{$field} must be at least {$param} characters";
+        }
+
+        if (is_numeric($value) && $value < (int)$param) {
+            return "{$field} must be at least {$param}";
+        }
+
+        return null;
+    }
+
+    private function validateMax(string $field, mixed $value, ?string $param): ?string
+    {
+        if ($param === null) {
+            return null;
+        }
+
+        if (is_string($value) && strlen($value) > (int)$param) {
+            return "{$field} must be at most {$param} characters";
+        }
+
+        if (is_numeric($value) && $value > (int)$param) {
+            return "{$field} must be at most {$param}";
+        }
+
+        return null;
     }
 }

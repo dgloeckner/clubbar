@@ -44,6 +44,11 @@ async function createCategory(authenticatedRequest) {
       },
     },
   });
+
+  if (!response.ok()) {
+    throw new Error(`Failed to create category: ${response.status()} - ${await response.text()}`);
+  }
+
   return await response.json();
 }
 
@@ -335,7 +340,10 @@ test.describe('Products API - Update', () => {
     const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id),
     });
+
+    expect(createResponse.ok()).toBeTruthy();
     const product = await createResponse.json();
+    expect(product.id).toBeDefined();
 
     const response = await authenticatedRequest.patch(`/api/admin/products/${product.id}`, {
       data: { price_cents: 0 },

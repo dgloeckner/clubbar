@@ -191,6 +191,12 @@ export const test = base.extend<AuthFixtures>({
       },
     });
 
+    // Verify login succeeded
+    if (!loginResponse.ok()) {
+      const errorBody = await loginResponse.text();
+      throw new Error(`Admin login failed with status ${loginResponse.status()}: ${errorBody}`);
+    }
+
     // Extract session cookie from Set-Cookie header
     const setCookieHeader = loginResponse.headers()["set-cookie"];
     let fullCookieString = Array.isArray(setCookieHeader)
@@ -199,6 +205,10 @@ export const test = base.extend<AuthFixtures>({
 
     // Extract just the name=value part (remove expires, path, httponly, etc.)
     const cookieString = fullCookieString.split(";")[0];
+
+    if (!cookieString) {
+      throw new Error('No session cookie received from login response');
+    }
 
     // Create authenticated request wrapper
     const authenticatedRequest = new AuthenticatedRequestContext(
