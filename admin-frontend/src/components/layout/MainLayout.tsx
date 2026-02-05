@@ -117,8 +117,8 @@ export function MainLayout({ children }: MainLayoutProps) {
               alt="Ruderbar Logo"
               data-testid="header-logo"
               style={{
-                width: '40px',
-                height: '40px',
+                width: '60px',
+                height: '60px',
               }}
             />
             <div>
