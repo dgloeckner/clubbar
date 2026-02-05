@@ -120,11 +120,24 @@ export function MembersPage() {
         await createMember(formData)
       }
 
-      // Reset form and page to trigger reload via useEffect
+      // Reset form
       setShowModal(false)
       setEditingMember(null)
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de' })
-      setPage(1)  // This triggers useEffect which will reload members with current filter/sort
+
+      // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
+      const filter: { is_active?: boolean } = {}
+      if (filterIsActive === 'active') {
+        filter.is_active = true
+      } else if (filterIsActive === 'inactive') {
+        filter.is_active = false
+      }
+
+      const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
+      setMembers(response.items)
+      setTotalMembers(response.total)
+
+      setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save member')
     } finally {
@@ -526,9 +539,11 @@ export function MembersPage() {
               background: theme.colors.bg.secondary,
               borderRadius: theme.borderRadius.lg,
               padding: theme.spacing.xl,
-              maxWidth: '500px',
+              maxWidth: '900px',
               width: '90%',
               boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -569,7 +584,7 @@ export function MembersPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>
+            <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   First Name *
@@ -741,7 +756,7 @@ export function MembersPage() {
                 />
               </div>
 
-              <div>
+              <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   Language *
                 </label>
@@ -753,7 +768,7 @@ export function MembersPage() {
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end', marginTop: theme.spacing.lg }}>
+              <div style={{ gridColumn: '1 / -1', display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end', marginTop: theme.spacing.lg }}>
                 <button
                   data-testid="members-form-cancel-button"
                   type="button"

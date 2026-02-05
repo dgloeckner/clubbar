@@ -49,6 +49,8 @@ export class MembersPage extends BasePage {
   private readonly lastNameInput = () => this.page.getByTestId('members-form-last-name-input')
   private readonly emailInput = () => this.page.getByTestId('members-form-email-input')
   private readonly ibanInput = () => this.page.getByTestId('members-form-iban-input')
+  private readonly accountHolderNameInput = () => this.page.getByTestId('members-form-account-holder-name-input')
+  private readonly mandateReferenceInput = () => this.page.getByTestId('members-form-mandate-reference-input')
   private readonly mandateDateInput = () => this.page.getByTestId('members-form-mandate-date-input')
   private readonly languageSelect = () => this.page.getByTestId('members-form-language-select')
   private readonly formSubmitBtn = () => this.page.getByTestId('members-form-submit-button')
@@ -111,6 +113,11 @@ export class MembersPage extends BasePage {
 
   async expectErrorMessageVisible() {
     await expect(this.errorMessage()).toBeVisible()
+  }
+
+  async waitForLoadingToComplete() {
+    // Wait for loading indicator to disappear
+    await expect(this.loadingIndicator()).not.toBeVisible({ timeout: 10000 })
   }
 
   async expectMemberRowVisible(memberId: string) {
@@ -275,6 +282,39 @@ export class MembersPage extends BasePage {
     await editBtn.click()
   }
 
+  async clickEditButtonAtRowIndex(rowIndex: number) {
+    // Click edit button on member at specific row index
+    const editButtons = this.page.locator('[data-testid^="members-table-action-edit-"]')
+    await editButtons.nth(rowIndex).click()
+  }
+
+  async clickEditButtonForMember(firstName: string) {
+    // Find member by first name and click edit button
+    const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
+    const count = await nameLocators.count()
+
+    for (let i = 0; i < count; i++) {
+      const text = await nameLocators.nth(i).textContent()
+      if (text && text.includes(firstName)) {
+        // Extract member ID from the name cell's test ID
+        const nameCell = nameLocators.nth(i)
+        const testId = await nameCell.getAttribute('data-testid')
+
+        if (testId) {
+          const memberId = testId.replace('members-table-cell-name-', '')
+
+          // Click the edit button for this member
+          const editButton = this.page.getByTestId(`members-table-action-edit-${memberId}`)
+          await expect(editButton).toBeVisible()
+          await editButton.click()
+          return
+        }
+      }
+    }
+
+    throw new Error(`Member with first name "${firstName}" not found in table`)
+  }
+
   async editMember(memberId: string, firstName: string, lastName: string, iban: string, mandateDate: string, email?: string, language?: string) {
     await this.openEditModalForMember(memberId)
     await this.expectFormModalVisible()
@@ -339,6 +379,22 @@ export class MembersPage extends BasePage {
 
   async getFormMandateDateValue(): Promise<string> {
     return await this.mandateDateInput().inputValue() || ''
+  }
+
+  async getFormAccountHolderNameValue(): Promise<string> {
+    return await this.accountHolderNameInput().inputValue() || ''
+  }
+
+  async getFormMandateReferenceValue(): Promise<string> {
+    return await this.mandateReferenceInput().inputValue() || ''
+  }
+
+  async fillAccountHolderName(name: string) {
+    await this.accountHolderNameInput().fill(name)
+  }
+
+  async fillMandateReference(reference: string) {
+    await this.mandateReferenceInput().fill(reference.toUpperCase())
   }
 
   async selectLanguage(language: string) {
