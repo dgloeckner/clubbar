@@ -6,25 +6,98 @@ import { test, expect } from '../../fixtures/auth.fixture';
  *
  * Tests the POST /api/sync/transactions endpoint per Terminal API spec.
  * Batch uploads purchase transactions from terminal to backend.
+ *
+ * Uses E2E Pattern 001: Test Data Isolation
+ * - Each test creates unique test data
+ * - Tests are independent and can run in parallel
+ * - No shared or mutated state between tests
  */
 
-test.describe('Transactions Upload Endpoint', () => {
-  const validMemberId = '123e4567-e89b-12d3-a456-426614174000';
-  const validProductId = '987f6543-e21a-11d3-b456-426614174999';
+// Helper to create test member
+async function createMember(authenticatedRequest) {
+  const uniqueId = randomUUID().substring(0, 8);
+  const ibanSuffix = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0');
 
-  function createValidTransaction(overrides = {}) {
-    return {
-      id: randomUUID(),
-      member_id: validMemberId,
-      product_id: validProductId,
-      amount_cents: 350,
-      created_at: new Date().toISOString(),
-      ...overrides,
-    };
+  // Format date for MySQL (YYYY-MM-DD HH:MM:SS)
+  const now = new Date();
+  const mandateDate = now.toISOString().slice(0, 19).replace('T', ' ');
+
+  const response = await authenticatedRequest.post('/api/admin/members', {
+    data: {
+      first_name: `Test${uniqueId}`,
+      last_name: `Member${uniqueId}`,
+      email: `test${uniqueId}@example.com`,
+      iban: `DE89370400440532${ibanSuffix}`,
+      mandate_signed_at: mandateDate,
+      preferred_language: 'de',
+    },
+  });
+
+  if (!response.ok()) {
+    throw new Error(`Failed to create member: ${response.status()} - ${await response.text()}`);
   }
 
-  test('POST /api/sync/transactions accepts single transaction', async ({ authenticatedTerminalRequest }) => {
-    const transaction = createValidTransaction();
+  return await response.json();
+}
+
+// Helper to create test category
+async function createCategory(authenticatedRequest) {
+  const response = await authenticatedRequest.post('/api/admin/categories', {
+    data: {
+      names: {
+        de: `Kategorie ${randomUUID().substring(0, 8)}`,
+        en: `Category ${randomUUID().substring(0, 8)}`,
+      },
+    },
+  });
+
+  if (!response.ok()) {
+    throw new Error(`Failed to create category: ${response.status()} - ${await response.text()}`);
+  }
+
+  return await response.json();
+}
+
+// Helper to create test product
+async function createProduct(authenticatedRequest) {
+  const category = await createCategory(authenticatedRequest);
+
+  const response = await authenticatedRequest.post('/api/admin/products', {
+    data: {
+      names: {
+        de: `Produkt ${randomUUID().substring(0, 8)}`,
+        en: `Product ${randomUUID().substring(0, 8)}`,
+      },
+      price_cents: 350,
+      category_id: category.id,
+    },
+  });
+
+  if (!response.ok()) {
+    throw new Error(`Failed to create product: ${response.status()} - ${await response.text()}`);
+  }
+
+  return await response.json();
+}
+
+// Helper to create valid transaction with specific member and product
+function createValidTransaction(memberId: string, productId: string, overrides = {}) {
+  return {
+    id: randomUUID(),
+    member_id: memberId,
+    product_id: productId,
+    amount_cents: 350,
+    created_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+test.describe('Transactions Upload Endpoint', () => {
+
+  test('POST /api/sync/transactions accepts single transaction', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id);
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
@@ -44,11 +117,13 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(body.rejected.errors).toEqual([]);
   });
 
-  test('POST /api/sync/transactions accepts batch of transactions', async ({ authenticatedTerminalRequest }) => {
+  test('POST /api/sync/transactions accepts batch of transactions', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
     const transactions = [
-      createValidTransaction(),
-      createValidTransaction({ amount_cents: 500 }),
-      createValidTransaction({ amount_cents: 280 }),
+      createValidTransaction(member.id, product.id),
+      createValidTransaction(member.id, product.id, { amount_cents: 500 }),
+      createValidTransaction(member.id, product.id, { amount_cents: 280 }),
     ];
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
@@ -105,8 +180,10 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(body.details.length).toBeGreaterThan(0);
   });
 
-  test('POST /api/sync/transactions rejects negative amount_cents', async ({ authenticatedTerminalRequest }) => {
-    const transaction = createValidTransaction({ amount_cents: -100 });
+  test('POST /api/sync/transactions rejects negative amount_cents', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, { amount_cents: -100 });
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
@@ -118,8 +195,10 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(body.error).toBe('validation_failed');
   });
 
-  test('POST /api/sync/transactions rejects zero amount_cents', async ({ authenticatedTerminalRequest }) => {
-    const transaction = createValidTransaction({ amount_cents: 0 });
+  test('POST /api/sync/transactions rejects zero amount_cents', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, { amount_cents: 0 });
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
@@ -131,8 +210,10 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(body.error).toBe('validation_failed');
   });
 
-  test('POST /api/sync/transactions returns JSON content type', async ({ authenticatedTerminalRequest }) => {
-    const transaction = createValidTransaction();
+  test('POST /api/sync/transactions returns JSON content type', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id);
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
@@ -142,9 +223,11 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(contentType).toContain('application/json');
   });
 
-  test('POST /api/sync/transactions accepts max batch size', async ({ authenticatedTerminalRequest }) => {
+  test('POST /api/sync/transactions accepts max batch size', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
     // Create batch of 100 transactions (max allowed)
-    const transactions = Array.from({ length: 100 }, () => createValidTransaction());
+    const transactions = Array.from({ length: 100 }, () => createValidTransaction(member.id, product.id));
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions },
@@ -156,9 +239,11 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(body.accepted_ids.length).toBe(100);
   });
 
-  test('POST /api/sync/transactions rejects batch exceeding max size', async ({ authenticatedTerminalRequest }) => {
+  test('POST /api/sync/transactions rejects batch exceeding max size', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
     // Create batch of 101 transactions (exceeds max)
-    const transactions = Array.from({ length: 101 }, () => createValidTransaction());
+    const transactions = Array.from({ length: 101 }, () => createValidTransaction(member.id, product.id));
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions },
@@ -177,8 +262,10 @@ test.describe('Transactions Upload Endpoint', () => {
    * Tests for ADR-0023: Terminal Balance State Management
    * POST /sync/transactions response includes member_balances object
    */
-  test('POST /api/sync/transactions includes member_balances in response', async ({ authenticatedTerminalRequest }) => {
-    const transaction = createValidTransaction();
+  test('POST /api/sync/transactions includes member_balances in response', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id);
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
@@ -193,12 +280,10 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(typeof body.member_balances).toBe('object');
   });
 
-  test('POST /api/sync/transactions calculates correct balance for member', async ({ authenticatedTerminalRequest }) => {
-    // Use existing member to avoid FK constraint issues
-    // Use unique transaction ID to ensure idempotency
-    const testMemberId = '323e4567-e89b-12d3-a456-426614174002';
-    const transaction = createValidTransaction({
-      member_id: testMemberId,
+  test('POST /api/sync/transactions calculates correct balance for member', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, {
       amount_cents: 123 // Unique amount to distinguish from other tests
     });
 
@@ -210,20 +295,19 @@ test.describe('Transactions Upload Endpoint', () => {
 
     const body = await response.json();
 
-    // Member balance should include the transaction amount we just sent
-    // (may include previous transactions from DB, so just verify the amount is at least the transaction)
-    expect(body.member_balances[testMemberId]).toBeGreaterThanOrEqual(123);
+    // Member balance should be exactly the transaction amount (new member, first transaction)
+    expect(body.member_balances[member.id]).toBe(123);
   });
 
-  test('POST /api/sync/transactions calculates cumulative balance for multiple transactions', async ({ authenticatedTerminalRequest }) => {
-    // Use existing members to avoid FK constraint issues (Pattern 001: Test isolation via unique transaction IDs)
-    const testMemberId = '423e4567-e89b-12d3-a456-426614174003'; // Susan Johnson
-    const amountIncrease = 350 + 500 + 200; // Expected increase from this batch
+  test('POST /api/sync/transactions calculates cumulative balance for multiple transactions', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const totalAmount = 350 + 500 + 200;
 
     const transactions = [
-      createValidTransaction({ member_id: testMemberId, amount_cents: 350 }),
-      createValidTransaction({ member_id: testMemberId, amount_cents: 500 }),
-      createValidTransaction({ member_id: testMemberId, amount_cents: 200 }), // additional purchase
+      createValidTransaction(member.id, product.id, { amount_cents: 350 }),
+      createValidTransaction(member.id, product.id, { amount_cents: 500 }),
+      createValidTransaction(member.id, product.id, { amount_cents: 200 }),
     ];
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
@@ -234,23 +318,23 @@ test.describe('Transactions Upload Endpoint', () => {
 
     const body = await response.json();
 
-    // Verify balance calculation includes the transaction amounts
-    expect(body.member_balances[testMemberId]).toBeGreaterThanOrEqual(amountIncrease);
-    expect(typeof body.member_balances[testMemberId]).toBe('number');
+    // Verify balance is exactly the sum of all transactions (new member)
+    expect(body.member_balances[member.id]).toBe(totalAmount);
+    expect(typeof body.member_balances[member.id]).toBe('number');
   });
 
-  test('POST /api/sync/transactions calculates separate balances for multiple members', async ({ authenticatedTerminalRequest }) => {
-    // Use existing members from database (Pattern 001: Test isolation via unique transaction IDs)
-    const memberId1 = '323e4567-e89b-12d3-a456-426614174002'; // Peter Müller
-    const memberId2 = '423e4567-e89b-12d3-a456-426614174003'; // Susan Johnson
+  test('POST /api/sync/transactions calculates separate balances for multiple members', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member1 = await createMember(authenticatedRequest);
+    const member2 = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
 
-    const expectedIncrease1 = 350 + 200;
-    const expectedIncrease2 = 500;
+    const expectedBalance1 = 350 + 200;
+    const expectedBalance2 = 500;
 
     const transactions = [
-      createValidTransaction({ member_id: memberId1, amount_cents: 350 }),
-      createValidTransaction({ member_id: memberId2, amount_cents: 500 }),
-      createValidTransaction({ member_id: memberId1, amount_cents: 200 }),
+      createValidTransaction(member1.id, product.id, { amount_cents: 350 }),
+      createValidTransaction(member2.id, product.id, { amount_cents: 500 }),
+      createValidTransaction(member1.id, product.id, { amount_cents: 200 }),
     ];
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
@@ -262,21 +346,23 @@ test.describe('Transactions Upload Endpoint', () => {
     const body = await response.json();
 
     // Verify both members have balances calculated
-    expect(body.member_balances).toHaveProperty(memberId1);
-    expect(body.member_balances).toHaveProperty(memberId2);
+    expect(body.member_balances).toHaveProperty(member1.id);
+    expect(body.member_balances).toHaveProperty(member2.id);
 
-    // Verify balances include amounts from this transaction
-    expect(body.member_balances[memberId1]).toBeGreaterThanOrEqual(expectedIncrease1);
-    expect(body.member_balances[memberId2]).toBeGreaterThanOrEqual(expectedIncrease2);
+    // Verify balances are exactly the transaction amounts (new members)
+    expect(body.member_balances[member1.id]).toBe(expectedBalance1);
+    expect(body.member_balances[member2.id]).toBe(expectedBalance2);
 
     // Verify balances are numbers not strings
-    expect(typeof body.member_balances[memberId1]).toBe('number');
-    expect(typeof body.member_balances[memberId2]).toBe('number');
+    expect(typeof body.member_balances[member1.id]).toBe('number');
+    expect(typeof body.member_balances[member2.id]).toBe('number');
   });
 
-  test('POST /api/sync/transactions returns zero balance for empty transaction', async ({ authenticatedTerminalRequest }) => {
+  test('POST /api/sync/transactions returns zero balance for empty transaction', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
     // Note: This might be rejected by validation, but if allowed, balance should be 0
-    const transaction = createValidTransaction({ amount_cents: 0 });
+    const transaction = createValidTransaction(member.id, product.id, { amount_cents: 0 });
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: { transactions: [transaction] },
@@ -294,26 +380,37 @@ test.describe('Transactions Upload Endpoint', () => {
  * GET /api/terminal/transactions/{member_id} endpoint
  */
 test.describe('Transaction History Endpoint', () => {
-  const memberId = '123e4567-e89b-12d3-a456-426614174000';
-  const productId = '987f6543-e21a-11d3-b456-426614174999';
-
-  test('GET /api/terminal/transactions/{member_id} returns transaction list', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}`);
+  test('GET /api/terminal/transactions/{member_id} returns transaction list', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}`);
 
     expect(response.ok()).toBeTruthy();
 
     const body = await response.json();
 
     // Validate response structure per ADR-0024 spec
-    expect(body.member_id).toBe(memberId);
+    expect(body.member_id).toBe(member.id);
     expect(body.count).toBeDefined();
     expect(typeof body.count).toBe('number');
     expect(body.transactions).toBeDefined();
     expect(Array.isArray(body.transactions)).toBeTruthy();
   });
 
-  test('GET /api/terminal/transactions/{member_id} returns transactions in descending order', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=10`);
+  test('GET /api/terminal/transactions/{member_id} returns transactions in descending order', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+
+    // Upload multiple transactions with different timestamps
+    await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: {
+        transactions: [
+          createValidTransaction(member.id, product.id, { amount_cents: 100 }),
+          createValidTransaction(member.id, product.id, { amount_cents: 200 }),
+        ],
+      },
+    });
+
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=10`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -329,8 +426,9 @@ test.describe('Transaction History Endpoint', () => {
     }
   });
 
-  test('GET /api/terminal/transactions/{member_id} respects limit parameter', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=5`);
+  test('GET /api/terminal/transactions/{member_id} respects limit parameter', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=5`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -340,15 +438,16 @@ test.describe('Transaction History Endpoint', () => {
     expect(body.transactions.length).toBeLessThanOrEqual(5);
   });
 
-  test('GET /api/terminal/transactions/{member_id} supports offset parameter', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=10&offset=5`);
+  test('GET /api/terminal/transactions/{member_id} supports offset parameter', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=10&offset=5`);
 
     expect(response.ok()).toBeTruthy();
 
     const body = await response.json();
 
     // Should return valid response
-    expect(body.member_id).toBe(memberId);
+    expect(body.member_id).toBe(member.id);
     expect(Array.isArray(body.transactions)).toBeTruthy();
   });
 
@@ -363,69 +462,76 @@ test.describe('Transaction History Endpoint', () => {
     expect(body.error).toBeDefined();
   });
 
-  test('GET /api/terminal/transactions/{member_id} returns 401 without authorization', async ({ request }) => {
+  test('GET /api/terminal/transactions/{member_id} returns 401 without authorization', async ({ authenticatedRequest, request }) => {
+    const member = await createMember(authenticatedRequest);
     // Make request without Bearer token
-    const response = await request.get(`/api/terminal/transactions/${memberId}`);
+    const response = await request.get(`/api/terminal/transactions/${member.id}`);
 
     expect(response.status()).toBe(401);
   });
 
-  test('GET /api/terminal/transactions/{member_id} returns correct transaction fields', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=1`);
+  test('GET /api/terminal/transactions/{member_id} returns correct transaction fields', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+
+    // Upload a transaction first
+    await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: {
+        transactions: [createValidTransaction(member.id, product.id)],
+      },
+    });
+
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=1`);
 
     expect(response.ok()).toBeTruthy();
 
     const body = await response.json();
 
-    // If there are transactions, verify structure
-    if (body.transactions.length > 0) {
-      const tx = body.transactions[0];
+    // Verify transaction structure
+    expect(body.transactions.length).toBeGreaterThan(0);
+    const tx = body.transactions[0];
 
-      // Verify required fields per ADR-0024 spec
-      expect(tx.id).toBeDefined();
-      expect(tx.amount_cents).toBeDefined();
-      expect(typeof tx.amount_cents).toBe('number');
-      expect(tx.type).toBeDefined(); // 'purchase' or 'correction'
-      expect(tx.product_id).toBeDefined(); // may be null for corrections
-      expect(tx.product_name).toBeDefined(); // should be translated to member's language
-      expect(tx.created_at).toBeDefined();
-    }
+    // Verify required fields per ADR-0024 spec
+    expect(tx.id).toBeDefined();
+    expect(tx.amount_cents).toBeDefined();
+    expect(typeof tx.amount_cents).toBe('number');
+    expect(tx.type).toBeDefined(); // 'purchase' or 'correction'
+    expect(tx.product_id).toBeDefined(); // may be null for corrections
+    expect(tx.product_name).toBeDefined(); // should be translated to member's language
+    expect(tx.created_at).toBeDefined();
   });
 
-  test('GET /api/terminal/transactions/{member_id} returns product_name in member language', async ({ authenticatedTerminalRequest }) => {
+  test('GET /api/terminal/transactions/{member_id} returns product_name in member language', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+
     // This test verifies product names are translated
     // First, create a transaction with a product
     const postResponse = await authenticatedTerminalRequest.post('/api/sync/transactions', {
       data: {
-        transactions: [{
-          id: randomUUID(),
-          member_id: memberId,
-          product_id: productId,
-          amount_cents: 350,
-          created_at: new Date().toISOString(),
-        }],
+        transactions: [createValidTransaction(member.id, product.id)],
       },
     });
 
     expect(postResponse.ok()).toBeTruthy();
 
     // Now fetch transaction history
-    const getResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=1`);
+    const getResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=1`);
 
     expect(getResponse.ok()).toBeTruthy();
 
     const body = await getResponse.json();
 
     // Verify product_name is present and not empty (translated)
-    if (body.transactions.length > 0) {
-      const tx = body.transactions[0];
-      expect(tx.product_name).toBeDefined();
-      expect(typeof tx.product_name).toBe('string');
-    }
+    expect(body.transactions.length).toBeGreaterThan(0);
+    const tx = body.transactions[0];
+    expect(tx.product_name).toBeDefined();
+    expect(typeof tx.product_name).toBe('string');
   });
 
-  test('GET /api/terminal/transactions/{member_id} handles missing product gracefully', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=50`);
+  test('GET /api/terminal/transactions/{member_id} handles missing product gracefully', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=50`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -437,8 +543,9 @@ test.describe('Transaction History Endpoint', () => {
     }
   });
 
-  test('GET /api/terminal/transactions/{member_id} returns default limit of 50 if not specified', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}`);
+  test('GET /api/terminal/transactions/{member_id} returns default limit of 50 if not specified', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}`);
 
     expect(response.ok()).toBeTruthy();
 
@@ -456,10 +563,9 @@ test.describe('Transaction History Endpoint', () => {
  * POST /api/admin/members/{memberId}/transactions/correct
  */
 test.describe('Manual Corrections Endpoint', () => {
-  const testMemberId = '123e4567-e89b-12d3-a456-426614174000';
-
   test('POST /api/admin/members/{id}/transactions/correct creates correction transaction', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+    const member = await createMember(authenticatedRequest);
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: -350,
         reason: 'Refund for duplicate charge',
@@ -472,7 +578,7 @@ test.describe('Manual Corrections Endpoint', () => {
 
     // Verify response structure
     expect(body.id).toBeDefined();
-    expect(body.member_id).toBe(testMemberId);
+    expect(body.member_id).toBe(member.id);
     expect(body.amount_cents).toBe(-350);
     expect(body.transaction_type).toBe('correction');
     expect(body.notes).toBe('Refund for duplicate charge');
@@ -481,7 +587,8 @@ test.describe('Manual Corrections Endpoint', () => {
   });
 
   test('POST /api/admin/members/{id}/transactions/correct accepts positive amount', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+    const member = await createMember(authenticatedRequest);
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: 500,
         reason: 'Manual charge for damaged item',
@@ -497,7 +604,8 @@ test.describe('Manual Corrections Endpoint', () => {
   });
 
   test('POST /api/admin/members/{id}/transactions/correct rejects zero amount', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+    const member = await createMember(authenticatedRequest);
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: 0,
         reason: 'Invalid zero amount',
@@ -512,7 +620,8 @@ test.describe('Manual Corrections Endpoint', () => {
   });
 
   test('POST /api/admin/members/{id}/transactions/correct rejects missing reason', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+    const member = await createMember(authenticatedRequest);
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: -350,
         // missing reason
@@ -543,9 +652,10 @@ test.describe('Manual Corrections Endpoint', () => {
   });
 
   test('POST /api/admin/members/{id}/transactions/correct rejects reason exceeding 255 chars', async ({ authenticatedRequest }) => {
+    const member = await createMember(authenticatedRequest);
     const longReason = 'A'.repeat(256);
 
-    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: -350,
         reason: longReason,
@@ -559,8 +669,9 @@ test.describe('Manual Corrections Endpoint', () => {
   });
 
   test('POST /api/admin/members/{id}/transactions/correct creates transaction appearing in history', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
     // Record a correction
-    const correctionResponse = await authenticatedRequest.post(`/api/admin/members/${testMemberId}/transactions/correct`, {
+    const correctionResponse = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: -250,
         reason: 'Test correction for history verification',
@@ -575,7 +686,7 @@ test.describe('Manual Corrections Endpoint', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     // Fetch transaction history (with terminal auth)
-    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${testMemberId}?limit=1`);
+    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=1`);
 
     expect(historyResponse.ok()).toBeTruthy();
 
@@ -589,10 +700,10 @@ test.describe('Manual Corrections Endpoint', () => {
   });
 
   test('POST /api/admin/members/{id}/transactions/correct updates member balance', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
-    const testMemberId2 = '223e4567-e89b-12d3-a456-426614174001';
+    const member = await createMember(authenticatedRequest);
 
     // Record a correction
-    const response = await authenticatedRequest.post(`/api/admin/members/${testMemberId2}/transactions/correct`, {
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: 1000,
         reason: 'Balance adjustment test',
@@ -607,7 +718,7 @@ test.describe('Manual Corrections Endpoint', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     // Fetch transaction history to verify balance includes correction
-    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${testMemberId2}?limit=100`);
+    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=100`);
 
     expect(historyResponse.ok()).toBeTruthy();
 
@@ -629,8 +740,6 @@ test.describe('Manual Corrections Endpoint', () => {
 test.describe('Transaction Export Endpoint', () => {
   const fromDate = '2026-01-01';
   const toDate = '2026-01-31';
-  const testMemberId = '123e4567-e89b-12d3-a456-426614174000';
-  const testProductId = '987f6543-e21a-11d3-b456-426614174999';
 
   test('GET /api/admin/transactions/export returns CSV data', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get('/api/admin/transactions/export', {
@@ -695,11 +804,12 @@ test.describe('Transaction Export Endpoint', () => {
   });
 
   test('GET /api/admin/transactions/export filters by member_id', async ({ authenticatedRequest }) => {
+    const member = await createMember(authenticatedRequest);
     const response = await authenticatedRequest.get('/api/admin/transactions/export', {
       params: {
         from_date: fromDate,
         to_date: toDate,
-        member_id: testMemberId,
+        member_id: member.id,
       },
     });
 
