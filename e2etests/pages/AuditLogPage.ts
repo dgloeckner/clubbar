@@ -2,23 +2,15 @@
  * Audit Log Page Object
  * Encapsulates interactions with the audit log page
  * Implements Pattern 006: Page Object Model
+ * Implements Pattern 008: Playwright Assertions (no try-catch visibility checks)
  */
 
-import { Page, expect } from '@playwright/test'
+import { Page, Locator, expect } from '@playwright/test'
 import { BasePage } from './BasePage'
 
 export class AuditLogPage extends BasePage {
   constructor(page: Page) {
     super(page)
-  }
-
-  /**
-   * Provide access to page for advanced test scenarios (e.g., extracting test IDs from elements)
-   * Tests can access via: auditLogPage.getPageForAdvancedQueries()
-   * Or use the typed accessor: (auditLogPage as any).page
-   */
-  getPageForAdvancedQueries(): Page {
-    return this['page']
   }
 
   /**
@@ -38,8 +30,17 @@ export class AuditLogPage extends BasePage {
   }
 
   async expectPageTitle() {
-    const heading = this.page.locator('h1')
-    await expect(heading).toContainText('Audit-Log')
+    await expect(this.page.getByRole('heading', { name: 'Audit-Log' })).toBeVisible()
+  }
+
+  /**
+   * PRIVATE: API response waiter for audit-log endpoint
+   * Sets up listener BEFORE action to avoid race conditions (Pattern from JournalPage)
+   */
+  private waitForAuditLogResponse() {
+    return this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/audit-log') && resp.status() === 200
+    )
   }
 
   /**
@@ -64,48 +65,57 @@ export class AuditLogPage extends BasePage {
 
   /**
    * FILTER INTERACTIONS
+   * All filter methods use waitForResponse instead of waitForTimeout
    */
 
   async setDateFromFilter(date: string) {
-    // date format: YYYY-MM-DD
+    const responsePromise = this.waitForAuditLogResponse()
     await this.page.getByTestId('audit-log-filter-date-from').fill(date)
-    // Wait for table to update
-    await this.page.waitForTimeout(800) // Debounce delay + some buffer
+    await responsePromise
   }
 
   async setDateToFilter(date: string) {
+    const responsePromise = this.waitForAuditLogResponse()
     await this.page.getByTestId('audit-log-filter-date-to').fill(date)
-    await this.page.waitForTimeout(800)
+    await responsePromise
   }
 
   async filterByAdmin(adminId: string) {
+    const responsePromise = this.waitForAuditLogResponse()
     const select = this.page.getByTestId('audit-log-filter-admin')
     await select.selectOption(adminId)
-    await this.page.waitForTimeout(500)
+    await responsePromise
   }
 
   async filterByAction(action: string) {
+    const responsePromise = this.waitForAuditLogResponse()
     const select = this.page.getByTestId('audit-log-filter-action')
     await select.selectOption(action)
-    await this.page.waitForTimeout(500)
+    await responsePromise
   }
 
   async filterByEntityType(entityType: string) {
+    const responsePromise = this.waitForAuditLogResponse()
     const select = this.page.getByTestId('audit-log-filter-entity-type')
     await select.selectOption(entityType)
-    await this.page.waitForTimeout(500)
+    await responsePromise
   }
 
   async search(text: string) {
+    // Search has a 500ms debounce, so we wait for the response after debounce fires
+    const responsePromise = this.waitForAuditLogResponse()
     const input = this.page.getByTestId('audit-log-search-input')
+    await input.clear()
     await input.fill(text)
-    await this.page.waitForTimeout(800) // Debounce delay
+    await responsePromise
   }
 
   async clearSearch() {
+    const responsePromise = this.waitForAuditLogResponse()
     const input = this.page.getByTestId('audit-log-search-input')
+    await input.clear()
     await input.fill('')
-    await this.page.waitForTimeout(800)
+    await responsePromise
   }
 
   /**
@@ -117,15 +127,23 @@ export class AuditLogPage extends BasePage {
     return text || '0'
   }
 
+  async getResultsCountNumber(): Promise<number> {
+    const text = await this.getResultsCount()
+    const match = text.match(/(\d+)/)
+    return match ? parseInt(match[1], 10) : 0
+  }
+
   async goToPage(pageNumber: number) {
+    const responsePromise = this.waitForAuditLogResponse()
     await this.page.getByTestId(`pagination-page-${pageNumber}`).click()
-    await this.page.waitForTimeout(500)
+    await responsePromise
   }
 
   async setPageSize(size: number) {
+    const responsePromise = this.waitForAuditLogResponse()
     const select = this.page.getByTestId('pagination-page-size-select')
     await select.selectOption(size.toString())
-    await this.page.waitForTimeout(500)
+    await responsePromise
   }
 
   /**
@@ -133,10 +151,10 @@ export class AuditLogPage extends BasePage {
    */
 
   async sortByTimestamp() {
-    // Click on the sortable header for timestamp
+    const responsePromise = this.waitForAuditLogResponse()
     const header = this.page.locator('[data-testid="audit-log-table"] th').first()
     await header.click()
-    await this.page.waitForTimeout(500)
+    await responsePromise
   }
 
   /**
@@ -145,12 +163,10 @@ export class AuditLogPage extends BasePage {
 
   async expandDetails(entryId: number) {
     await this.page.getByTestId(`audit-log-expand-button-${entryId}`).click()
-    await this.page.waitForTimeout(300)
   }
 
   async collapseDetails(entryId: number) {
     await this.page.getByTestId(`audit-log-expand-button-${entryId}`).click()
-    await this.page.waitForTimeout(300)
   }
 
   async expectDetailsVisible(entryId: number) {
@@ -158,21 +174,17 @@ export class AuditLogPage extends BasePage {
   }
 
   async expectDetailsHidden(entryId: number) {
-    // Details row should not be visible
-    const detailsRow = this.page.getByTestId(`audit-log-details-row-${entryId}`)
-    const isVisible = await detailsRow.isVisible().catch(() => false)
-    expect(isVisible).toBe(false)
+    // Pattern 008: Use expect().not.toBeVisible() instead of try-catch
+    await expect(this.page.getByTestId(`audit-log-details-row-${entryId}`)).not.toBeVisible()
   }
 
   async getOldValues(entryId: number): Promise<string> {
-    const detailsRow = this.page.getByTestId(`audit-log-details-row-${entryId}`)
-    const preElement = detailsRow.locator('pre').first()
+    const preElement = this.page.getByTestId(`audit-log-old-values-${entryId}`)
     return await preElement.textContent() || ''
   }
 
   async getNewValues(entryId: number): Promise<string> {
-    const detailsRow = this.page.getByTestId(`audit-log-details-row-${entryId}`)
-    const preElement = detailsRow.locator('pre').nth(1)
+    const preElement = this.page.getByTestId(`audit-log-new-values-${entryId}`)
     return await preElement.textContent() || ''
   }
 
@@ -214,6 +226,66 @@ export class AuditLogPage extends BasePage {
     const row = this.page.locator('[data-testid^="audit-log-table-row-"]').nth(rowIndex)
     const cell = row.locator('[data-testid^="audit-log-ip-"]')
     return await cell.textContent() || ''
+  }
+
+  /**
+   * HELPER METHODS FOR TEST-DRIVEN LOOKUPS
+   */
+
+  /**
+   * Find a row by entity_id text content
+   * Returns the row locator or null if not found
+   */
+  findRowByEntityId(entityId: string): Locator {
+    return this.page.locator('[data-testid^="audit-log-table-row-"]', {
+      has: this.page.locator(`[data-testid^="audit-log-entity-id-"]`, { hasText: entityId }),
+    })
+  }
+
+  /**
+   * Extract the numeric entry ID from a row's data-testid attribute
+   */
+  async getEntryIdFromRow(rowLocator: Locator): Promise<number> {
+    const testId = await rowLocator.getAttribute('data-testid')
+    if (!testId) throw new Error('Row does not have a data-testid attribute')
+    return parseInt(testId.replace('audit-log-table-row-', ''), 10)
+  }
+
+  /**
+   * Get all cell values for a specific entry by its numeric ID
+   */
+  async getRowCellValues(entryId: number): Promise<{
+    timestamp: string
+    admin: string
+    action: string
+    entityType: string
+    entityId: string
+    ipAddress: string
+  }> {
+    return {
+      timestamp: await this.page.getByTestId(`audit-log-timestamp-${entryId}`).textContent() || '',
+      admin: await this.page.getByTestId(`audit-log-admin-${entryId}`).textContent() || '',
+      action: await this.page.getByTestId(`audit-log-action-${entryId}`).textContent() || '',
+      entityType: await this.page.getByTestId(`audit-log-entity-type-${entryId}`).textContent() || '',
+      entityId: await this.page.getByTestId(`audit-log-entity-id-${entryId}`).textContent() || '',
+      ipAddress: await this.page.getByTestId(`audit-log-ip-${entryId}`).textContent() || '',
+    }
+  }
+
+  /**
+   * Assert that an entry with the given entity_id is visible in the table
+   */
+  async expectEntryExists(entityId: string) {
+    const row = this.findRowByEntityId(entityId)
+    await expect(row.first()).toBeVisible()
+  }
+
+  /**
+   * Get the first entry ID from the first visible row
+   */
+  async getFirstEntryId(): Promise<number> {
+    const firstRow = this.page.locator('[data-testid^="audit-log-table-row-"]').first()
+    return this.getEntryIdFromRow(firstRow)
   }
 
   /**

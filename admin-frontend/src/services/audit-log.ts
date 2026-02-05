@@ -8,7 +8,7 @@ import { get } from './api'
 export interface AuditLogEntry {
   id: number
   admin_user_id: string | null
-  admin_user_email: string | null
+  admin_user_name: string | null
   action: string
   entity_type: string
   entity_id: string | null

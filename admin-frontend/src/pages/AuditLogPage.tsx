@@ -3,7 +3,7 @@
  * Displays audit trail of all administrative actions in the system
  */
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { theme } from '../styles/design-system'
 import { useLoading } from '../context/LoadingContext'
 import { getAuditLogs, getAvailableActions, getAvailableEntityTypes, AuditLogEntry } from '../services/audit-log'
@@ -80,8 +80,8 @@ export function AuditLogPage() {
     // For now, extract from loaded entries
     const adminSet = new Map<string, string>()
     entries.forEach(entry => {
-      if (entry.admin_user_id && entry.admin_user_email) {
-        adminSet.set(entry.admin_user_id, entry.admin_user_email)
+      if (entry.admin_user_id && entry.admin_user_name) {
+        adminSet.set(entry.admin_user_id, entry.admin_user_name)
       }
     })
     setAdmins(Array.from(adminSet.entries()).map(([id, email]) => ({ id, email })))
@@ -90,23 +90,7 @@ export function AuditLogPage() {
   return (
     <div data-testid="audit-log-page" style={{ padding: '20px' }}>
       {/* Page Header */}
-      <div style={{ marginBottom: theme.spacing.xl }}>
-        <h1 style={{
-          margin: 0,
-          fontSize: theme.typography.fontSize['2xl'],
-          fontWeight: theme.typography.fontWeight.bold,
-          color: theme.colors.text.primary,
-        }}>
-          Audit-Log
-        </h1>
-        <p style={{
-          margin: `${theme.spacing.sm} 0 0 0`,
-          fontSize: theme.typography.fontSize.sm,
-          color: theme.colors.text.secondary,
-        }}>
-          System audit trail - all administrative actions and data changes
-        </p>
-      </div>
+      <h1 style={{ margin: '0 0 20px 0' }}>Audit-Log</h1>
 
       {/* Filters Row */}
       <div style={{
@@ -340,108 +324,108 @@ export function AuditLogPage() {
               </thead>
               <tbody>
                 {entries.map((entry) => (
-                  <tr key={`row-${entry.id}`} data-testid={`audit-log-table-row-${entry.id}`} style={getRowStyle(true)}>
-                    <td style={{ padding: '12px 16px' }} data-testid={`audit-log-timestamp-${entry.id}`}>
-                      {formatDateTime(entry.created_at)}
-                    </td>
-                    <td style={{ padding: '12px 16px' }} data-testid={`audit-log-admin-${entry.id}`}>
-                      {entry.admin_user_email || '(Failed Login)'}
-                    </td>
-                    <td style={{ padding: '12px 16px' }} data-testid={`audit-log-action-${entry.id}`}>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: 4,
-                        fontSize: 12,
-                        fontWeight: 500,
-                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                        color: theme.colors.semantic.primary,
-                        display: 'inline-block',
-                      }}>
-                        {entry.action}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px' }} data-testid={`audit-log-entity-type-${entry.id}`}>
-                      {entry.entity_type || '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '12px' }} data-testid={`audit-log-entity-id-${entry.id}`}>
-                      {entry.entity_id ? entry.entity_id.substring(0, 8) : '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: '12px' }} data-testid={`audit-log-ip-${entry.id}`}>
-                      {entry.ip_address || '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      <button
-                        data-testid={`audit-log-expand-button-${entry.id}`}
-                        onClick={() => setExpandedRowId(expandedRowId === entry.id ? null : entry.id)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
+                  <React.Fragment key={`row-${entry.id}`}>
+                    <tr data-testid={`audit-log-table-row-${entry.id}`} style={getRowStyle(true)}>
+                      <td style={{ padding: '12px 16px' }} data-testid={`audit-log-timestamp-${entry.id}`}>
+                        {formatDateTime(entry.created_at)}
+                      </td>
+                      <td style={{ padding: '12px 16px' }} data-testid={`audit-log-admin-${entry.id}`}>
+                        {entry.admin_user_name || '(Failed Login)'}
+                      </td>
+                      <td style={{ padding: '12px 16px' }} data-testid={`audit-log-action-${entry.id}`}>
+                        <span style={{
+                          padding: '4px 8px',
+                          borderRadius: 4,
+                          fontSize: 12,
+                          fontWeight: 500,
+                          backgroundColor: 'rgba(59, 130, 246, 0.2)',
                           color: theme.colors.semantic.primary,
-                          cursor: 'pointer',
-                          padding: theme.spacing.sm,
-                        }}
-                        title={expandedRowId === entry.id ? 'Hide details' : 'Show details'}
-                      >
-                        {expandedRowId === entry.id ? '▼' : '▶'}
-                      </button>
-                    </td>
-                  </tr>
+                          display: 'inline-block',
+                        }}>
+                          {entry.action}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px' }} data-testid={`audit-log-entity-type-${entry.id}`}>
+                        {entry.entity_type || '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '12px' }} data-testid={`audit-log-entity-id-${entry.id}`}>
+                        {entry.entity_id || '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: '12px' }} data-testid={`audit-log-ip-${entry.id}`}>
+                        {entry.ip_address || '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <button
+                          data-testid={`audit-log-expand-button-${entry.id}`}
+                          onClick={() => setExpandedRowId(expandedRowId === entry.id ? null : entry.id)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: theme.colors.semantic.primary,
+                            cursor: 'pointer',
+                            padding: theme.spacing.sm,
+                          }}
+                          title={expandedRowId === entry.id ? 'Hide details' : 'Show details'}
+                        >
+                          {expandedRowId === entry.id ? '▼' : '▶'}
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedRowId === entry.id && (
+                      <tr data-testid={`audit-log-details-row-${entry.id}`}>
+                        <td colSpan={7} style={{
+                          background: tableColors.rowInactiveBg,
+                          padding: theme.spacing.lg,
+                          borderTop: `1px solid ${tableColors.border}`,
+                        }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.spacing.lg }}>
+                            {entry.old_values && (
+                              <div>
+                                <h4 style={{ margin: `0 0 ${theme.spacing.sm} 0`, color: theme.colors.text.primary }}>Before</h4>
+                                <pre data-testid={`audit-log-old-values-${entry.id}`} style={{
+                                  background: theme.colors.bg.input,
+                                  padding: theme.spacing.md,
+                                  borderRadius: theme.borderRadius.md,
+                                  overflow: 'auto',
+                                  maxHeight: '300px',
+                                  fontSize: '12px',
+                                  color: theme.colors.text.secondary,
+                                }}>
+                                  {JSON.stringify(entry.old_values, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            {entry.new_values && (
+                              <div>
+                                <h4 style={{ margin: `0 0 ${theme.spacing.sm} 0`, color: theme.colors.text.primary }}>After</h4>
+                                <pre data-testid={`audit-log-new-values-${entry.id}`} style={{
+                                  background: theme.colors.bg.input,
+                                  padding: theme.spacing.md,
+                                  borderRadius: theme.borderRadius.md,
+                                  overflow: 'auto',
+                                  maxHeight: '300px',
+                                  fontSize: '12px',
+                                  color: theme.colors.text.secondary,
+                                }}>
+                                  {JSON.stringify(entry.new_values, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            {!entry.old_values && !entry.new_values && (
+                              <div style={{ gridColumn: '1 / -1', color: theme.colors.text.secondary }}>
+                                No value changes recorded
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Expandable Details Row */}
-          {expandedRowId !== null && entries.find(e => e.id === expandedRowId) && (
-            <div
-              data-testid={`audit-log-details-row-${expandedRowId}`}
-              style={{
-                background: tableColors.rowInactiveBg,
-                padding: theme.spacing.lg,
-                borderTop: `1px solid ${tableColors.border}`,
-              }}
-            >
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.spacing.lg }}>
-                {entries.find(e => e.id === expandedRowId)?.old_values && (
-                  <div>
-                    <h4 style={{ margin: `0 0 ${theme.spacing.sm} 0`, color: theme.colors.text.primary }}>Before</h4>
-                    <pre style={{
-                      background: theme.colors.bg.input,
-                      padding: theme.spacing.md,
-                      borderRadius: theme.borderRadius.md,
-                      overflow: 'auto',
-                      maxHeight: '300px',
-                      fontSize: '12px',
-                      color: theme.colors.text.secondary,
-                    }}>
-                      {JSON.stringify(entries.find(e => e.id === expandedRowId)?.old_values, null, 2)}
-                    </pre>
-                  </div>
-                )}
-                {entries.find(e => e.id === expandedRowId)?.new_values && (
-                  <div>
-                    <h4 style={{ margin: `0 0 ${theme.spacing.sm} 0`, color: theme.colors.text.primary }}>After</h4>
-                    <pre style={{
-                      background: theme.colors.bg.input,
-                      padding: theme.spacing.md,
-                      borderRadius: theme.borderRadius.md,
-                      overflow: 'auto',
-                      maxHeight: '300px',
-                      fontSize: '12px',
-                      color: theme.colors.text.secondary,
-                    }}>
-                      {JSON.stringify(entries.find(e => e.id === expandedRowId)?.new_values, null, 2)}
-                    </pre>
-                  </div>
-                )}
-                {!entries.find(e => e.id === expandedRowId)?.old_values && !entries.find(e => e.id === expandedRowId)?.new_values && (
-                  <div style={{ gridColumn: '1 / -1', color: theme.colors.text.secondary }}>
-                    No value changes recorded
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </>
       )}
 
