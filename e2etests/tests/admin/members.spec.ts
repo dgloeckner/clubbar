@@ -283,6 +283,62 @@ test.describe('Admin Frontend - Members Page', () => {
    * UC-A12: Search & Filter Members
    */
   test.describe('UC-A12: Search & Filter Members', () => {
+    test('E2E: should filter members by search text with existing members', async ({ authenticatedMembersPage }) => {
+      // CRITICAL: TRUE E2E test that verifies search integration WITHOUT creating new members
+      // ========================================================================
+      // Expected Flow:
+      // 1. Get full list of members (unfiltered count)
+      // 2. Get first member's name from the list
+      // 3. Enter search term in input field
+      // 4. Frontend sends GET /api/admin/members?search=term
+      // 5. Backend filters members by name/email
+      // 6. API returns filtered results
+      // 7. UI updates to show only matching members
+      // 8. Verify: filtered count is less than or equal to total
+      // 9. Verify: search term appears in results
+      // 10. Clear search and verify count returns to original
+      // ========================================================================
+
+      // Step 1: Get baseline count (unfiltered)
+      const initialCount = await authenticatedMembersPage.getMemberRowCount()
+
+      // Only run test if members exist
+      if (initialCount === 0) {
+        console.log('Skipping search test - no members exist to search')
+        return
+      }
+
+      // Step 2: Get first member's name to use as search term
+      const firstMemberName = await authenticatedMembersPage.getMemberNameAtRowIndex(0)
+      expect(firstMemberName).toBeTruthy()
+
+      // Extract first name (format: "FirstName LastName")
+      const firstName = firstMemberName.trim().split(' ')[0]
+
+      // Step 3: Enter search term (E2E: input → API call with ?search= param)
+      await authenticatedMembersPage.search(firstName)
+
+      // Step 4: Verify search input field updated
+      const searchValue = await authenticatedMembersPage.getSearchValue()
+      expect(searchValue).toBe(firstName)
+
+      // Step 5: Verify filtered results (E2E: backend filtered, UI updated)
+      const filteredCount = await authenticatedMembersPage.getMemberRowCount()
+      expect(filteredCount).toBeGreaterThanOrEqual(1) // At least one match
+      expect(filteredCount).toBeLessThanOrEqual(initialCount) // Filtered count <= total
+
+      // Step 6: Verify the searched member appears in filtered results
+      const memberInFilteredList = await authenticatedMembersPage.getMemberFirstNameInTable(firstName)
+      expect(memberInFilteredList).toContain(firstName)
+
+      // Step 7: Clear search (E2E: API call without ?search= param)
+      await authenticatedMembersPage.clearSearch()
+
+      // Step 8: Verify all members returned (count restored)
+      const countAfterClear = await authenticatedMembersPage.getMemberRowCount()
+      expect(countAfterClear).toBe(initialCount)
+    })
+
     test('should search members by text', async ({ authenticatedMembersPage }) => {
       const searchTerm = `search-${Date.now()}`
 
