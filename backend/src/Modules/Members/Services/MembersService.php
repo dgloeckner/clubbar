@@ -138,7 +138,12 @@ class MembersService
         ];
         foreach ($map as $camel => $snake) {
             if (array_key_exists($snake, $updateData)) {
-                $dbUpdateData[$snake] = $updateData[$snake];
+                $value = $updateData[$snake];
+                // Convert boolean to int for database (PDO can convert false to empty string)
+                if ($snake === 'is_active' && is_bool($value)) {
+                    $value = (int) $value;
+                }
+                $dbUpdateData[$snake] = $value;
             }
         }
 

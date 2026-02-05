@@ -99,6 +99,7 @@ class AdminController
         $body = $request->getParsedBody() ?? [];
         $adminId = $request->getAttribute('admin_user_id');
 
+
         $member = $this->membersService->updateMember($memberId, $body, $adminId);
 
         return $this->json($response, $member->toArray());
