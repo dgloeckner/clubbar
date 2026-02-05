@@ -16,7 +16,6 @@ import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { StatusFilterPills } from '../components/forms/StatusFilterPills'
-import { SortDropdown } from '../components/tables/SortDropdown'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
@@ -47,7 +46,6 @@ export function MembersPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<'first_name' | 'last_name' | 'created_at'>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [sortByValue, setSortByValue] = useState('created_at-desc') // For sort dropdown
   const [filterIsActive, setFilterIsActive] = useState<'all' | 'active' | 'inactive'>('all')
   const [formData, setFormData] = useState({
     first_name: '',
@@ -313,27 +311,6 @@ export function MembersPage() {
             testId="members-filter-status"
           />
 
-          {/* Sort Dropdown Component */}
-          <SortDropdown
-            options={[
-              { value: 'created_at-desc', label: 'Newest first', direction: 'desc' },
-              { value: 'created_at-asc', label: 'Oldest first', direction: 'asc' },
-              { value: 'first_name-asc', label: 'First Name (A-Z)', direction: 'asc' },
-              { value: 'first_name-desc', label: 'First Name (Z-A)', direction: 'desc' },
-              { value: 'last_name-asc', label: 'Last Name (A-Z)', direction: 'asc' },
-              { value: 'last_name-desc', label: 'Last Name (Z-A)', direction: 'desc' },
-            ]}
-            value={sortByValue}
-            onChange={(value) => {
-              const [key, direction] = value.split('-')
-              setSortKey(key as 'first_name' | 'last_name' | 'created_at')
-              setSortDirection(direction as 'asc' | 'desc')
-              setSortByValue(value)
-              setPage(1)
-            }}
-            testId="members-sort"
-          />
-
           {/* Create button */}
           <button
             data-testid="members-create-button"
@@ -407,7 +384,6 @@ export function MembersPage() {
                       onSort={(key: string, direction: 'asc' | 'desc') => {
                         setSortKey(key as 'first_name' | 'last_name' | 'created_at')
                         setSortDirection(direction)
-                        setSortByValue(`${key}-${direction}`)
                         setPage(1)
                       }}
                     />
@@ -420,7 +396,6 @@ export function MembersPage() {
                       onSort={(key: string, direction: 'asc' | 'desc') => {
                         setSortKey(key as 'first_name' | 'last_name' | 'created_at')
                         setSortDirection(direction)
-                        setSortByValue(`${key}-${direction}`)
                         setPage(1)
                       }}
                     />

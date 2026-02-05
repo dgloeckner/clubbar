@@ -523,6 +523,12 @@ export class MembersPage extends BasePage {
    * CREATED DATE COLUMN INTERACTIONS
    */
 
+  async expectSortDropdownHidden() {
+    // Pattern 008: Verify dropdown is not present (removed as obsolete)
+    const dropdown = this.page.getByTestId('members-sort-trigger')
+    await expect(dropdown).not.toBeVisible()
+  }
+
   async expectCreatedColumnHeaderVisible() {
     // Pattern 008: Use expect() for visibility assertions
     const header = this.page.locator('th:has-text("Created")')

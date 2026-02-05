@@ -407,6 +407,11 @@ test.describe('Admin Frontend - Members Page', () => {
    * Sorting by Created Date Column
    */
   test.describe('Sorting by Created Date', () => {
+    test('should NOT display sort dropdown (obsolete with sortable headers)', async ({ authenticatedMembersPage }) => {
+      // With sortable table headers, the dropdown is no longer needed
+      await authenticatedMembersPage.expectSortDropdownHidden()
+    })
+
     test('should display Created column header', async ({ authenticatedMembersPage }) => {
       // Pattern 006: Page object provides method to check for column header
       await authenticatedMembersPage.expectCreatedColumnHeaderVisible()
