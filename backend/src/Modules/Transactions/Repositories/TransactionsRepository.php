@@ -163,4 +163,22 @@ class TransactionsRepository
         $stmt->execute([$days]);
         return (int) $stmt->fetchColumn();
     }
+
+    /**
+     * Calculate total amount of unsettled transactions (outstanding balance)
+     */
+    public function sumUnsettledAmountCents(): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COALESCE(SUM(t.amount_cents), 0)
+             FROM transactions t
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM settlement_items si
+                 JOIN settlements s ON si.settlement_id = s.id
+                 WHERE si.transaction_id = t.id AND s.is_cancelled = 0
+             )'
+        );
+        $stmt->execute();
+        return (int) $stmt->fetchColumn();
+    }
 }

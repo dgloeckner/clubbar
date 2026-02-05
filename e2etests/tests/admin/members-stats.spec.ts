@@ -26,15 +26,10 @@ test.describe('Members Page - Statistics', () => {
     await membersPage.navigate()
     await membersPage.expectPageVisible()
 
-    // Wait for dashboard API call to complete and log the response
-    const dashboardResponse = await page.waitForResponse((response) => response.url().includes('/api/admin/dashboard') && response.status() === 200)
-    const dashboardData = await dashboardResponse.json()
-    console.log('DEBUG: Dashboard API response:', JSON.stringify(dashboardData))
+    // Wait for stats to load
+    await page.waitForTimeout(2000)
 
-    const memberCountText = await membersPage.getMemberCount()
-    console.log('DEBUG: Initial member count text:', memberCountText)
-    const initialCount = parseInt(memberCountText, 10)
-    console.log('DEBUG: Initial member count parsed:', initialCount)
+    const initialCount = parseInt(await membersPage.getMemberCount(), 10)
 
     // Create test members (3 active, 2 inactive)
     const timestamp = Date.now()
@@ -85,8 +80,8 @@ test.describe('Members Page - Statistics', () => {
     await membersPage.navigate()
     await membersPage.expectPageVisible()
 
-    // Wait for dashboard API call to complete
-    await page.waitForResponse((response) => response.url().includes('/api/admin/dashboard') && response.status() === 200)
+    // Wait for stats to load
+    await page.waitForTimeout(2000)
 
     // Assert: Verify active members count increased by at least 3
     // (may be more if other tests run in parallel)
@@ -101,12 +96,15 @@ test.describe('Members Page - Statistics', () => {
     await membersPage.navigate()
     await membersPage.expectPageVisible()
 
-    // Wait for dashboard API call to complete
-    await page.waitForResponse((response) => response.url().includes('/api/admin/dashboard') && response.status() === 200)
+    // Wait for stats to load
+    await page.waitForTimeout(2000)
 
     const initialBalanceText = await membersPage.getOpenBalance()
     const initialBalanceMatch = initialBalanceText.match(/[\d.,]+/)
-    const initialBalanceStr = initialBalanceMatch ? initialBalanceMatch[0].replace(',', '.') : '0'
+    // German number format: 3.843,15 means 3,843.15 (. is thousand separator, , is decimal)
+    const initialBalanceStr = initialBalanceMatch
+      ? initialBalanceMatch[0].replace(/\./g, '').replace(',', '.')
+      : '0'
     const initialBalanceCents = Math.round(parseFloat(initialBalanceStr) * 100)
 
     // Create member with transactions
@@ -197,16 +195,20 @@ test.describe('Members Page - Statistics', () => {
     await membersPage.navigate()
     await membersPage.expectPageVisible()
 
-    // Wait for dashboard API call to complete
-    await page.waitForResponse((response) => response.url().includes('/api/admin/dashboard') && response.status() === 200)
+    // Wait for stats to update
+    await page.waitForTimeout(2000)
 
-    // Assert: Verify balance increased by 1050 cents (10.50 EUR)
+    // Assert: Verify balance increased by at least 1050 cents (10.50 EUR)
+    // (may be more if other tests run in parallel)
     const finalBalanceText = await membersPage.getOpenBalance()
     const finalBalanceMatch = finalBalanceText.match(/[\d.,]+/)
-    const finalBalanceStr = finalBalanceMatch ? finalBalanceMatch[0].replace(',', '.') : '0'
+    // German number format: 3.843,15 means 3,843.15 (. is thousand separator, , is decimal)
+    const finalBalanceStr = finalBalanceMatch
+      ? finalBalanceMatch[0].replace(/\./g, '').replace(',', '.')
+      : '0'
     const finalBalanceCents = Math.round(parseFloat(finalBalanceStr) * 100)
 
-    expect(finalBalanceCents).toBe(initialBalanceCents + 1050)
+    expect(finalBalanceCents).toBeGreaterThanOrEqual(initialBalanceCents + 1050)
   })
 
   test('should display last settlement date', async ({ page }) => {
@@ -234,12 +236,23 @@ test.describe('Members Page - Statistics', () => {
     expect(memberResponse.ok()).toBeTruthy()
     const member = await memberResponse.json()
 
+    // Create category first
+    const categoryResponse = await page.request.post('http://localhost:8080/api/admin/categories', {
+      data: {
+        names: { de: `Category${uniqueId}`, en: `Category${uniqueId}` },
+        sort_order: 1,
+        is_active: true,
+      },
+    })
+    expect(categoryResponse.ok()).toBeTruthy()
+    const category = await categoryResponse.json()
+
     // Create product
     const productResponse = await page.request.post('http://localhost:8080/api/admin/products', {
       data: {
         names: { de: `Product${uniqueId}`, en: `Product${uniqueId}` },
         price_cents: 500,
-        category_id: null,
+        category_id: category.id,
         is_active: true,
       },
     })
@@ -254,30 +267,41 @@ test.describe('Members Page - Statistics', () => {
       amount_cents: 500,
       created_at: new Date().toISOString(),
     }
+    // Sync transactions require terminal API authentication (Bearer token)
     const syncResponse = await page.request.post('http://localhost:8080/api/sync/transactions', {
+      headers: {
+        'Authorization': 'Bearer test-terminal-token-do-not-use-in-production-0a1b2c3d4e5f6g7h',
+      },
       data: { transactions: [transaction] },
     })
     expect(syncResponse.ok()).toBeTruthy()
 
-    // Create settlement
+    // Create settlement with the transaction
     const settlementDate = new Date().toISOString().slice(0, 10)
     const executionDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
     const settlementResponse = await page.request.post('http://localhost:8080/api/admin/settlements', {
       data: {
+        transaction_ids: [transaction.id],
         settlement_date: settlementDate,
         execution_date: executionDate,
         description: `Test Settlement ${uniqueId}`,
       },
     })
+
+    if (!settlementResponse.ok()) {
+      const errorBody = await settlementResponse.text()
+      console.log('Settlement creation failed:', settlementResponse.status(), errorBody)
+    }
+
     expect(settlementResponse.ok()).toBeTruthy()
 
     // Act: Navigate to members page
     await membersPage.navigate()
     await membersPage.expectPageVisible()
 
-    // Wait for dashboard API call to complete
-    await page.waitForResponse((response) => response.url().includes('/api/admin/dashboard') && response.status() === 200)
+    // Wait for stats to load
+    await page.waitForTimeout(2000)
 
     // Assert: Verify last settlement date is displayed
     const settlementDateText = await membersPage.getLastSettlementDate()

@@ -24,6 +24,23 @@ class SettlementsRepository
         return $stmt->fetch() ?: null;
     }
 
+    /**
+     * Get the most recent settlement (non-cancelled)
+     */
+    public function getLatest(): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT s.*, a.display_name as admin_display_name
+             FROM settlements s
+             LEFT JOIN admin_users a ON s.created_by_admin_id = a.id
+             WHERE s.is_cancelled = 0
+             ORDER BY s.created_at DESC
+             LIMIT 1'
+        );
+        $stmt->execute();
+        return $stmt->fetch() ?: null;
+    }
+
     public function findItemsBySettlementId(string $settlementId): array
     {
         $stmt = $this->db->prepare(

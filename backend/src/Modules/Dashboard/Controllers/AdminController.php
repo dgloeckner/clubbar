@@ -27,11 +27,12 @@ class AdminController
         $totalRevenueCents = $this->transactionsRepository->sumRecentAmountCents(days: 30);
         $pendingSettlements = $this->settlementsRepository->countPending();
 
-        // For now, use null for last settlement date (TODO: implement getLatest)
-        $lastSettlementDate = null;
+        // Get latest settlement date
+        $latestSettlement = $this->settlementsRepository->getLatest();
+        $lastSettlementDate = $latestSettlement ? $latestSettlement['created_at'] : null;
 
-        // For now, use total revenue as outstanding balance (TODO: implement sumUnsettledAmountCents)
-        $outstandingBalanceCents = $totalRevenueCents;
+        // Calculate outstanding balance (unsettled transactions)
+        $outstandingBalanceCents = $this->transactionsRepository->sumUnsettledAmountCents();
 
         // Build dashboard DTO with proper structure
         $dto = new DashboardDto(
@@ -40,13 +41,13 @@ class AdminController
                 'inactive_members' => $totalMembers - $activeMembers,
                 'outstanding_balance_cents' => $outstandingBalanceCents,
                 'todays_revenue_cents' => $this->transactionsRepository->sumRecentAmountCents(days: 1),
-                'terminal_count' => 0, // TODO: Implement terminal counting
-                'active_terminals' => 0, // TODO: Implement active terminal counting
-                'settled_members' => 0, // TODO: Implement settled members counting
-                'sepa_issue_count' => 0, // TODO: Implement SEPA issue counting
+                'terminal_count' => 0, // Future: Implement terminal counting
+                'active_terminals' => 0, // Future: Implement active terminal counting
+                'settled_members' => 0, // Future: Implement settled members counting
+                'sepa_issue_count' => 0, // Future: Implement SEPA issue counting
             ],
-            recentTransactions: [], // TODO: Implement recent transactions
-            terminalStatus: [], // TODO: Implement terminal status
+            recentTransactions: [], // Future: Implement recent transactions
+            terminalStatus: [], // Future: Implement terminal status
             systemStatus: [
                 'last_settlement_date' => $lastSettlementDate,
                 'pending_settlement_count' => $pendingSettlements,
@@ -54,7 +55,7 @@ class AdminController
                 'total_transactions' => $recentTransactions,
                 'database_health' => 'ok',
             ],
-            alerts: [], // TODO: Implement alerts
+            alerts: [], // Future: Implement alerts
         );
 
         return $this->json($response, $dto->toArray());
