@@ -518,4 +518,30 @@ export class MembersPage extends BasePage {
 
     throw new Error(`Member with first name "${firstName}" not found in table`)
   }
+
+  /**
+   * CREATED DATE COLUMN INTERACTIONS
+   */
+
+  async expectCreatedColumnHeaderVisible() {
+    // Pattern 008: Use expect() for visibility assertions
+    const header = this.page.locator('th:has-text("Created")')
+    await expect(header).toBeVisible()
+  }
+
+  async clickCreatedColumnHeader() {
+    // Click the "Created" column header to toggle sort
+    const header = this.page.locator('th:has-text("Created")')
+    await expect(header).toBeVisible()
+    await header.click()
+
+    // Wait for API to process sort change
+    await this.page.waitForTimeout(500)
+  }
+
+  async getMemberCreatedDateAtRowIndex(rowIndex: number): Promise<string> {
+    // Get created date at specific row index
+    const dateCell = this.page.locator('[data-testid^="members-table-cell-created-"]').nth(rowIndex)
+    return await dateCell.textContent() || ''
+  }
 }

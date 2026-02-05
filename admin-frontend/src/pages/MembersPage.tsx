@@ -412,6 +412,19 @@ export function MembersPage() {
                       }}
                     />
                   </th>
+                  <th style={{ ...headerCellBaseStyle, width: '120px' }}>
+                    <SortableTableHeader
+                      label="Created"
+                      sortKey="created_at"
+                      currentSort={{ key: sortKey, direction: sortDirection }}
+                      onSort={(key: string, direction: 'asc' | 'desc') => {
+                        setSortKey(key as 'first_name' | 'last_name' | 'created_at')
+                        setSortDirection(direction)
+                        setSortByValue(`${key}-${direction}`)
+                        setPage(1)
+                      }}
+                    />
+                  </th>
                   <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>Actions</th>
                 </tr>
               </thead>
@@ -456,6 +469,9 @@ export function MembersPage() {
                     </td>
                     <TableCell testId={`members-table-cell-name-${member.id}`}>
                       {member.first_name} {member.last_name}
+                    </TableCell>
+                    <TableCell testId={`members-table-cell-created-${member.id}`}>
+                      {formatDate(member.created_at.split('T')[0])}
                     </TableCell>
                     <TableCell align="center">
                       <button
