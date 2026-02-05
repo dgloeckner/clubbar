@@ -15,7 +15,7 @@ import { getDashboardMetrics } from '../services/dashboard'
 import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
-import { StatusFilter } from '../components/tables/StatusFilter'
+import { StatusFilterPills } from '../components/forms/StatusFilterPills'
 import { SortDropdown } from '../components/tables/SortDropdown'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { TableCell } from '../components/tables/TableCell'
@@ -307,7 +307,7 @@ export function MembersPage() {
           }}
         >
           {/* Status Filter Component */}
-          <StatusFilter
+          <StatusFilterPills
             value={filterIsActive}
             onChange={(status) => {
               setFilterIsActive(status)
