@@ -70,8 +70,8 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
               src="/logo.svg"
               alt="Ruderbar Logo"
               style={{
-                width: '64px',
-                height: '64px',
+                width: '120px',
+                height: '120px',
               }}
             />
           </div>
