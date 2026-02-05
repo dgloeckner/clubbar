@@ -35,9 +35,11 @@ class AdminController
         // Support both filters[is_active] (nested) and is_active (direct) formats
         $filters = [];
         if (isset($params['filters']['is_active'])) {
-            $filters['is_active'] = $params['filters']['is_active'];
+            // Convert string "true"/"false" to boolean
+            $filters['is_active'] = filter_var($params['filters']['is_active'], FILTER_VALIDATE_BOOLEAN);
         } elseif (isset($params['is_active'])) {
-            $filters['is_active'] = $params['is_active'];
+            // Convert string "true"/"false" to boolean
+            $filters['is_active'] = filter_var($params['is_active'], FILTER_VALIDATE_BOOLEAN);
         }
 
         $result = $this->membersService->listMembers($limit, $offset, $filters, $sortKey, $sortOrder, $search);
