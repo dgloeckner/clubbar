@@ -144,48 +144,37 @@ test.describe('Admin Frontend - Members Page', () => {
       await authenticatedMembersPage.expectFormModalHidden()
     })
 
-    test('E2E: should create member with complete backend integration', async ({ authenticatedMembersPage, page, context }) => {
-      // CRITICAL: This is a template for true E2E testing per CLAUDE.md
+    test('E2E: should create member and verify all fields persisted', async ({ authenticatedMembersPage, page }) => {
+      // CRITICAL: TRUE E2E test verifying complete create integration
       // ========================================================================
-      // "E2E tests MUST verify complete end-to-end integration through entire stack"
-      //
-      // Expected Flow (when backend API is working):
-      // 1. Frontend form filled with valid data
-      // 2. User clicks Save
-      // 3. API request sent to POST /admin/members
+      // Expected Flow:
+      // 1. Get baseline member count
+      // 2. Fill form with all field values
+      // 3. Submit form (POST /api/admin/members)
       // 4. Backend validates and saves to database
-      // 5. API returns 201 Created with member data
+      // 5. API returns 201 Created
       // 6. Form closes (indicates success)
-      // 7. UI updates: new member appears in list
-      // 8. Member count increases
-      // 9. No error messages shown
-      //
-      // TODO: Uncomment steps 3-9 once backend API is fully operational
-      // Current status: Steps 1-2 working, step 3+ failing due to API issues
-      // Debug: docker compose logs backend | grep -A 5 "POST /api/admin/members"
+      // 7. UI reloads and count increases
+      // 8. New member appears in list
+      // 9. Re-open member to verify ALL fields persisted
       // ========================================================================
 
+      const timestamp = Date.now()
       const testData = {
-        firstName: `EE2E${Date.now()}`, // Prefix for easy identification in list
-        lastName: 'CreatedTest',
-        iban: 'DE89370400440532013001',
-        mandateDate: new Date().toISOString().split('T')[0],
-        email: `e2e-${Date.now()}@example.com`,
+        firstName: `Create${timestamp}`,
+        lastName: `NewMember${timestamp}`,
+        iban: 'DE89370400440532013050',
+        mandateDate: '2025-02-01',
+        email: `create-${timestamp}@example.com`,
+        accountHolderName: `Holder${timestamp}`,
+        mandateReference: `REF${timestamp}`,
         language: 'de',
       }
 
-      // DEBUG: Listen for page errors and console messages
-      page.on('pageerror', (error) => {
-        console.error('Page error:', error)
-      })
+      // Step 1: Get baseline count before creating member
+      const initialCount = await authenticatedMembersPage.getMemberRowCount()
 
-      page.on('console', (msg) => {
-        if (msg.type() === 'error') {
-          console.error('Console error:', msg.text())
-        }
-      })
-
-      // ✅ STEP 1: User fills form (WORKING)
+      // Step 2: Open create modal and fill all fields
       await authenticatedMembersPage.openCreateModal()
       await authenticatedMembersPage.expectFormModalVisible()
 
@@ -198,7 +187,11 @@ test.describe('Admin Frontend - Members Page', () => {
         testData.language
       )
 
-      // ✅ STEP 2: Verify form correctly filled (WORKING)
+      // Fill optional fields
+      await authenticatedMembersPage.fillAccountHolderName(testData.accountHolderName)
+      await authenticatedMembersPage.fillMandateReference(testData.mandateReference)
+
+      // Step 3: Verify form fields are filled correctly (before submit)
       expect(await authenticatedMembersPage.getFormFirstNameValue()).toBe(testData.firstName)
       expect(await authenticatedMembersPage.getFormLastNameValue()).toBe(testData.lastName)
       expect(await authenticatedMembersPage.getFormIbanValue()).toBe(testData.iban.toUpperCase())
@@ -206,24 +199,49 @@ test.describe('Admin Frontend - Members Page', () => {
       expect(await authenticatedMembersPage.getFormEmailValue()).toBe(testData.email)
       expect(await authenticatedMembersPage.getFormLanguageValue()).toBe(testData.language)
 
-      // ✅ STEP 3: Submit form - END-TO-END backend integration verification
-      // This is the critical test: form submission triggers:
-      // 1. API request to POST /api/admin/members with form data
-      // 2. Backend validation and database write
-      // 3. Form closes on API success (201 Created response)
-      // 4. Members list reloads to show newly created member
-      //
-      // NOTE: This test verifies complete end-to-end integration.
-      // The error context confirms the created member appears in the table
-      // with correct first_name, last_name, and email, proving backend persistence.
+      // Step 4: Submit form (E2E: POST to backend, database save)
       await authenticatedMembersPage.submitForm()
 
-      // ✅ STEP 4: Verify form closes (CRITICAL: indicates successful backend save)
-      // Form only closes when:
-      // - POST request receives 201 Created response
-      // - Backend saved member to database
-      // - Frontend received success and updated state
-      // If this fails, POST request failed or received error response
+      // Step 5: Verify form closes (indicates API success)
+      await authenticatedMembersPage.expectFormModalHidden()
+
+      // Step 6: Give UI a moment to start reloading
+      await page.waitForTimeout(500)
+
+      // Step 7: Verify page is still accessible (no crash/navigation)
+      await expect(page.locator('[data-testid="members-page"]')).toBeVisible()
+
+      // Step 8: Wait a bit more for list to reload
+      await page.waitForTimeout(1500)
+
+      // Step 9: Search for created member (handles pagination)
+      // Note: We search instead of checking count because list is paginated (20 items/page)
+      // and sorted by created_at desc, so new member should be on page 1 but we search to be safe
+      await authenticatedMembersPage.search(testData.firstName)
+      await authenticatedMembersPage.waitForLoadingToComplete()
+
+      // Step 10: Verify created member appears in table
+      const createdMemberRow = await authenticatedMembersPage.getMemberFirstNameInTable(testData.firstName)
+      expect(createdMemberRow).toBeTruthy()
+      expect(createdMemberRow).toContain(testData.firstName)
+      expect(createdMemberRow).toContain(testData.lastName)
+
+      // Step 11: Re-open edit modal to verify persistence (CRITICAL E2E check)
+      await authenticatedMembersPage.clickEditButtonForMember(testData.firstName)
+      await authenticatedMembersPage.expectFormModalVisible()
+
+      // Step 12: Verify ALL fields show persisted values from database
+      expect(await authenticatedMembersPage.getFormFirstNameValue()).toBe(testData.firstName)
+      expect(await authenticatedMembersPage.getFormLastNameValue()).toBe(testData.lastName)
+      expect(await authenticatedMembersPage.getFormEmailValue()).toBe(testData.email)
+      expect(await authenticatedMembersPage.getFormIbanValue()).toBe(testData.iban.toUpperCase())
+      expect(await authenticatedMembersPage.getFormAccountHolderNameValue()).toBe(testData.accountHolderName)
+      expect(await authenticatedMembersPage.getFormMandateReferenceValue()).toBe(testData.mandateReference.toUpperCase())
+      expect(await authenticatedMembersPage.getFormMandateDateValue()).toBe(testData.mandateDate)
+      expect(await authenticatedMembersPage.getFormLanguageValue()).toBe(testData.language)
+
+      // Step 13: Close modal
+      await authenticatedMembersPage.cancelForm()
       await authenticatedMembersPage.expectFormModalHidden()
     })
 
