@@ -10,6 +10,88 @@ This document defines **project-specific agent workflows** that complement the s
 
 ---
 
+## E2E Testing Patterns (CRITICAL)
+
+**When working on Playwright tests, ALWAYS reference the patterns in `e2etests/patterns/` directory.**
+
+### Pattern Directory Structure
+
+All E2E testing patterns are documented in `e2etests/patterns/`:
+- **README.md**: Complete index, quick start guide, and pattern overview
+- **Pattern 001**: Test Data Isolation (unique data per test, no shared state)
+- **Pattern 002**: Authentication Isolation (session vs bearer token separation)
+- **Pattern 003**: Database-Agnostic Assertions (search by ID, not position)
+- **Pattern 004**: Parallel Execution Safety (4 workers by default)
+- **Pattern 005**: Using Test IDs (data-testid) (semantic selectors)
+- **Pattern 006**: Page Object Model (encapsulate interactions)
+- **Pattern 007**: Page Object Fixtures (inject page objects)
+- **Pattern 008**: Playwright Assertions & Auto-Waiting (use expect(), not try-catch)
+
+### When to Reference E2E Patterns
+
+**ALWAYS reference patterns when**:
+- Creating new Playwright tests
+- Debugging test failures (especially intermittent failures)
+- Reviewing test code
+- Converting UI-only tests to full E2E tests
+- Fixing tests that fail in parallel (4 workers) but pass serially (1 worker)
+
+### Critical Pattern Requirements
+
+**Pattern 008 (Playwright Assertions)**:
+- ✅ Use `await expect(locator).toBeVisible()` for visibility checks
+- ❌ NEVER use `try-catch` with `.isVisible()` for visibility checks
+- **Why**: Playwright's error messages are far superior and immediately show what went wrong
+
+**Pattern 001 (Test Data Isolation)**:
+- ✅ Create unique test data per test (use timestamps, UUIDs, or incremental counters)
+- ❌ NEVER share test data across tests
+- ❌ NEVER hardcode IDs or names that could collide
+- **Why**: Prevents test failures in parallel execution (4 workers)
+
+**End-to-End Integration Requirement**:
+- E2E tests MUST verify complete integration: UI → API → Backend → Database
+- For create/save operations: Verify form closes → no error → data in list → count increased
+- For delete/update operations: Verify data actually changed/removed in UI and database
+- **Not E2E**: Tests that only verify UI behavior without confirming backend persistence
+
+### Quick Start Workflow
+
+```bash
+# 1. Read pattern documentation first
+cat e2etests/patterns/README.md
+
+# 2. Reference specific pattern when implementing
+cat e2etests/patterns/001-test-data-isolation.md
+
+# 3. Create test following patterns
+# (implement test in tests/api/ or tests/ui/)
+
+# 4. Run test with 4 workers (default)
+cd e2etests
+npm test -- tests/api/your-test.spec.ts --workers=4
+
+# 5. If test fails in parallel, check isolation (Pattern 001, 002, 003)
+npm test -- tests/api/your-test.spec.ts --workers=1
+
+# 6. Verify test passes with 4 workers before committing
+npm test -- tests/api/your-test.spec.ts --workers=4
+```
+
+### Pattern Violation Symptoms
+
+| Symptom | Likely Pattern Violation | Fix |
+|---------|-------------------------|-----|
+| Test passes with 1 worker, fails with 4 | Pattern 001 (data isolation) | Use unique data per test |
+| Auth errors in some tests | Pattern 002 (auth isolation) | Check auth.setup.ts, separate session/bearer |
+| Test assumes data position in list | Pattern 003 (database-agnostic) | Search by ID, not array index |
+| Visibility check has poor error message | Pattern 008 (assertions) | Replace try-catch with expect() |
+| Page interaction code duplicated | Pattern 006, 007 (page objects) | Extract to page object class/fixture |
+
+**CRITICAL**: Before creating or modifying Playwright tests, read `e2etests/patterns/README.md` to understand all patterns and their purpose.
+
+---
+
 ## Test Result Analysis (Playwright)
 
 **CRITICAL**: Always use Playwright's JSON reporter to preserve test results and analyze failures systematically. Don't lose test results!
