@@ -112,16 +112,15 @@ export function MainLayout({ children }: MainLayoutProps) {
               textDecoration: 'none',
             }}
           >
-            <div
-              data-testid="header-logo-emoji"
+            <img
+              src="/logo.svg"
+              alt="Ruderbar Logo"
+              data-testid="header-logo"
               style={{
-                fontSize: theme.typography.fontSize['2xl'],
-                fontWeight: theme.typography.fontWeight.bold,
-                color: theme.colors.semantic.primary,
+                width: '40px',
+                height: '40px',
               }}
-            >
-              🚣
-            </div>
+            />
             <div>
               <h1
                 data-testid="header-brand-name"
