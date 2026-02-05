@@ -138,11 +138,8 @@ export function MembersPage() {
   const handleStatusToggle = async (member: Member) => {
     try {
       setIsLoading(true)
-      const updatedData = {
-        ...member,
-        is_active: !member.is_active,
-      }
-      await updateMember(member.id, updatedData)
+      // Only send the field that needs to be updated
+      await updateMember(member.id, { is_active: !member.is_active })
 
       // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
       const filter: { is_active?: boolean } = {}
