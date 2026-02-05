@@ -154,9 +154,9 @@ class SettlementsService
         return SettlementDto::fromRow($settlement, $itemDtos);
     }
 
-    public function listSettlements(int $limit, int $offset, ?string $status = null, string $sortKey = 'created_at', string $sortOrder = 'desc'): PaginatedResultDto
+    public function listSettlements(int $limit, int $offset, ?string $status = null, string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $dateFrom = null, ?string $dateTo = null): PaginatedResultDto
     {
-        $result = $this->settlementsRepository->listPaginated($limit, $offset, $status, $sortKey, $sortOrder);
+        $result = $this->settlementsRepository->listPaginated($limit, $offset, $status, $sortKey, $sortOrder, $dateFrom, $dateTo);
         $items = array_map(fn($row) => SettlementDto::fromRow($row)->toArray(), $result['items']);
 
         return new PaginatedResultDto(items: $items, total: $result['total'], limit: $limit, offset: $offset);
@@ -166,7 +166,6 @@ class SettlementsService
     {
         $settlement = $this->settlementsRepository->findById($settlementId);
         if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
-        if ($settlement['exported_at']) throw new BusinessRuleException('Cannot cancel exported settlement');
 
         $result = $this->settlementsRepository->cancelSettlement($settlementId, $adminUserId);
 

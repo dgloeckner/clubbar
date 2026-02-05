@@ -72,14 +72,27 @@ export async function getSettlements(
   params.sort = sortKey
   params.order = sortOrder
 
-  const response = await get<SettlementsResponse>('/admin/settlements', {
+  const response = await get<any>('/admin/settlements', {
     params,
   })
 
   // Handle both wrapped and unwrapped responses
   if (response && typeof response === 'object') {
-    if ('data' in response && Array.isArray((response as any).data)) {
-      return response as unknown as SettlementsResponse
+    // Format: { data: [...], pagination: { ... } }
+    if ('data' in response && Array.isArray(response.data)) {
+      return response as SettlementsResponse
+    }
+    // Format: { items: [...], total: N, limit: N, offset: N }
+    if ('items' in response && Array.isArray(response.items)) {
+      return {
+        data: response.items as Settlement[],
+        pagination: {
+          total: response.total ?? 0,
+          per_page: perPage,
+          current_page: page,
+          last_page: Math.ceil((response.total ?? 0) / perPage),
+        },
+      }
     }
   }
 

@@ -56,6 +56,15 @@ export class JournalPage extends BasePage {
   private readonly concludeSettlementBtn = () => this.page.getByTestId('journal-settlement-conclude-btn')
   private readonly successMessage = () => this.page.getByTestId('journal-success-message')
 
+  // Correction modal elements
+  private readonly createCorrectionBtn = () => this.page.getByTestId('journal-create-correction-btn')
+  private readonly correctionModal = () => this.page.getByTestId('journal-correction-modal')
+  private readonly correctionMemberSelect = () => this.page.getByTestId('journal-correction-member-select')
+  private readonly correctionAmountInput = () => this.page.getByTestId('journal-correction-amount-input')
+  private readonly correctionReasonInput = () => this.page.getByTestId('journal-correction-reason-input')
+  private readonly correctionSubmitBtn = () => this.page.getByTestId('journal-correction-submit-btn')
+  private readonly correctionError = () => this.page.getByTestId('journal-correction-error')
+
   constructor(page: Page) {
     super(page)
   }
@@ -98,6 +107,14 @@ export class JournalPage extends BasePage {
 
   async expectErrorVisible() {
     await expect(this.errorMessage()).toBeVisible()
+  }
+
+  async expectCorrectionModalVisible() {
+    await expect(this.correctionModal()).toBeVisible()
+  }
+
+  async expectCorrectionModalHidden() {
+    await expect(this.correctionModal()).not.toBeVisible()
   }
 
   /**
@@ -191,47 +208,65 @@ export class JournalPage extends BasePage {
    */
 
   async search(query: string) {
+    // Set up response listener BEFORE triggering the search
+    const encodedQuery = encodeURIComponent(query)
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/transactions') && resp.url().includes(encodedQuery) && resp.status() === 200
+    )
+    // Clear first to ensure change event fires even if query is the same
+    await this.searchInput().clear()
     await this.searchInput().fill(query)
-    // Wait for debounce and request to complete
-    await this.page.waitForLoadState('networkidle')
+    await responsePromise
   }
 
   async selectPeriod(period: '1m' | '3m' | '6m' | '1y' | '2y' | 'all') {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/transactions') && resp.status() === 200
+    )
     await this.periodPickerButton(period).click()
-    // Wait for request to complete with new date range
-    await this.page.waitForLoadState('networkidle')
+    await responsePromise
   }
 
   async filterByType(type: 'all' | 'purchase' | 'correction') {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/transactions') && resp.status() === 200
+    )
     await this.typeFilterButton(type).click()
-    // Wait for request
-    await this.page.waitForLoadState('networkidle')
+    await responsePromise
   }
 
   async sortBy(field: 'date' | 'type' | 'member' | 'amount') {
+    const sortKeyMap = { date: 'created_at', type: 'type', member: 'member', amount: 'amount' }
     const headerMap = {
       date: this.headerDate(),
       type: this.headerType(),
       member: this.headerMember(),
       amount: this.headerAmount(),
     }
+    // Set up response listener BEFORE clicking to avoid race condition
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/transactions') && resp.url().includes(`sort=${sortKeyMap[field]}`) && resp.status() === 200
+    )
     await headerMap[field].click()
-    // Wait for request and re-sort
-    await this.page.waitForLoadState('networkidle')
+    await responsePromise
   }
 
   async goToPage(pageNumber: number) {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/transactions') && resp.status() === 200
+    )
     const pageButton = this.page.getByTestId(`journal-page-${pageNumber}`)
     await pageButton.click()
-    // Wait for request
-    await this.page.waitForLoadState('networkidle')
+    await responsePromise
   }
 
   async goToNextPage() {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/transactions') && resp.status() === 200
+    )
     const nextBtn = this.page.getByTestId('journal-next')
     await nextBtn.click()
-    // Wait for request
-    await this.page.waitForLoadState('networkidle')
+    await responsePromise
   }
 
   /**
@@ -321,9 +356,17 @@ export class JournalPage extends BasePage {
   }
 
   async filterBySettlementStatus(status: 'all' | 'open' | 'settled') {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/transactions') && resp.status() === 200
+    )
     await this.settlementStatusFilter(status).click()
-    // Wait for filter to apply
-    await this.page.waitForLoadState('networkidle')
+    await responsePromise
+  }
+
+  async selectTransactionById(transactionId: string) {
+    const checkbox = this.page.getByTestId(`journal-select-checkbox-${transactionId}`)
+    await checkbox.check()
+    await this.page.waitForTimeout(100)
   }
 
   async selectTransactionsByMemberName(memberName: string) {
@@ -347,17 +390,60 @@ export class JournalPage extends BasePage {
     return await checkboxes.count()
   }
 
-  async concludeSettlement() {
+  async concludeSettlement(): Promise<string> {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/settlements') && resp.status() === 201
+    )
     await this.concludeSettlementBtn().click()
-    // Wait for settlement creation request to complete
-    await this.page.waitForLoadState('networkidle')
-    // Wait a bit for any success message to appear
-    await this.page.waitForTimeout(1000)
+    const response = await responsePromise
+    const body = await response.json()
+    return body.id
   }
 
   async getSuccessMessage(): Promise<string | null> {
     try {
       const text = await this.successMessage().textContent({ timeout: 5000 })
+      return text?.trim() || null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * CORRECTION MODAL INTERACTIONS
+   */
+
+  async openCorrectionModal() {
+    await this.createCorrectionBtn().click()
+  }
+
+  async fillCorrectionForm(memberId: string, amountEur: string, reason: string) {
+    // Wait for member dropdown to have options (members load async via getMembers())
+    // Use 'attached' state since native <select> options are not considered "visible" by Playwright
+    await this.correctionMemberSelect().locator('option:not([value=""])').first().waitFor({ state: 'attached', timeout: 5000 })
+    await this.correctionMemberSelect().selectOption({ value: memberId })
+    await this.correctionAmountInput().fill(amountEur)
+    await this.correctionReasonInput().fill(reason)
+  }
+
+  async submitCorrectionForm() {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/transactions/correction') && resp.ok()
+    )
+    await this.correctionSubmitBtn().click()
+    await responsePromise
+  }
+
+  async createCorrection(memberId: string, amountEur: string, reason: string) {
+    await this.openCorrectionModal()
+    await this.expectCorrectionModalVisible()
+    await this.fillCorrectionForm(memberId, amountEur, reason)
+    await this.submitCorrectionForm()
+  }
+
+  async getCorrectionError(): Promise<string | null> {
+    try {
+      const text = await this.correctionError().textContent({ timeout: 3000 })
       return text?.trim() || null
     } catch {
       return null

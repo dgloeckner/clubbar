@@ -18,7 +18,7 @@ class SepaConfigController
 
     public function show(Request $request, Response $response): Response
     {
-        $config = $this->sepaConfigService->getConfig(masked: true);
+        $config = $this->sepaConfigService->getConfig(masked: false);
 
         if (!$config) {
             return $this->json($response, ['error' => 'SEPA configuration not found'], 404);

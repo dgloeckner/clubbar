@@ -26,13 +26,23 @@ export class SettlementsPage extends BasePage {
   private readonly manualSettlementBtn = () => this.page.getByTestId('manual-settlement-button')
   private readonly typeFilter = () => this.page.getByTestId('settlement-type-filter')
 
-  // Settlement list columns
-  private readonly settlementCreated = (settlementId: string) =>
-    this.page.getByTestId(`settlement-created-${settlementId}`)
-  private readonly settlementMemberCount = (settlementId: string) =>
-    this.page.getByTestId(`settlement-member-count-${settlementId}`)
-  private readonly settlementTotalAmount = (settlementId: string) =>
-    this.page.getByTestId(`settlement-total-amount-${settlementId}`)
+  // Settlement list columns (match actual component test IDs)
+  private readonly settlementRow = (settlementId: string) =>
+    this.page.getByTestId(`settlements-table-row-${settlementId}`)
+  private readonly settlementDate = (settlementId: string) =>
+    this.page.getByTestId(`settlements-table-cell-date-${settlementId}`)
+  private readonly settlementCreatedBy = (settlementId: string) =>
+    this.page.getByTestId(`settlements-table-cell-created-by-${settlementId}`)
+  private readonly settlementMembers = (settlementId: string) =>
+    this.page.getByTestId(`settlements-table-cell-members-${settlementId}`)
+  private readonly settlementAmount = (settlementId: string) =>
+    this.page.getByTestId(`settlements-table-cell-amount-${settlementId}`)
+  private readonly settlementPrice = (settlementId: string) =>
+    this.page.getByTestId(`settlements-price-${settlementId}`)
+  private readonly settlementStatus = (settlementId: string) =>
+    this.page.getByTestId(`settlements-table-cell-status-${settlementId}`)
+  private readonly settlementStatusBadge = (settlementId: string) =>
+    this.page.getByTestId(`settlements-badge-status-${settlementId}`)
 
   // SEPA settlement creation locators
   private readonly transactionSelection = () => this.page.getByTestId('settlement-transaction-selection')
@@ -167,7 +177,7 @@ export class SettlementsPage extends BasePage {
 
   async getSettlementCreatedDate(settlementId: string): Promise<string | null> {
     try {
-      return await this.settlementCreated(settlementId).textContent()
+      return await this.settlementDate(settlementId).textContent()
     } catch {
       return null
     }
@@ -175,7 +185,7 @@ export class SettlementsPage extends BasePage {
 
   async getSettlementMemberCount(settlementId: string): Promise<string | null> {
     try {
-      return await this.settlementMemberCount(settlementId).textContent()
+      return await this.settlementMembers(settlementId).textContent()
     } catch {
       return null
     }
@@ -183,10 +193,22 @@ export class SettlementsPage extends BasePage {
 
   async getSettlementTotalAmount(settlementId: string): Promise<string | null> {
     try {
-      return await this.settlementTotalAmount(settlementId).textContent()
+      return await this.settlementPrice(settlementId).textContent()
     } catch {
       return null
     }
+  }
+
+  async getSettlementStatusText(settlementId: string): Promise<string | null> {
+    try {
+      return await this.settlementStatusBadge(settlementId).textContent()
+    } catch {
+      return null
+    }
+  }
+
+  async expectSettlementRowVisible(settlementId: string) {
+    await expect(this.settlementRow(settlementId)).toBeVisible()
   }
 
 

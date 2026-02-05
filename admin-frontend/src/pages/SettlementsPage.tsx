@@ -108,9 +108,11 @@ export function SettlementsPage() {
 
   const handleExportSepa = async (settlementId: string) => {
     try {
-      // Trigger SEPA XML download
+      // Trigger SEPA XML download (backend marks settlement as exported)
       const url = `/api/admin/settlements/${settlementId}/export-sepa`
       window.open(url, '_blank')
+      // Reload list after short delay so status updates to "Exported"
+      setTimeout(() => loadSettlements(), 1000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to export SEPA XML')
     }
@@ -158,7 +160,8 @@ export function SettlementsPage() {
 
     return (
       <div data-testid="settlements-page">
-        <Card title="Abrechnungen" subtitle="Settlement history and management">
+        <h1 style={{ margin: '0 0 20px 0' }}>Abrechnungen</h1>
+        <Card>
           {/* Toolbar */}
           <div
             data-testid="settlements-toolbar"
@@ -495,11 +498,11 @@ export function SettlementsPage() {
                             <button
                               data-testid={`settlements-undo-btn-${settlement.id}`}
                               onClick={() => handleUndoSettlement(settlement.id)}
-                              disabled={settlement.is_cancelled || settlement.exported_at !== null}
+                              disabled={settlement.is_cancelled}
                               style={{
                                 padding: '4px 8px',
                                 backgroundColor:
-                                  settlement.is_cancelled || settlement.exported_at !== null
+                                  settlement.is_cancelled
                                     ? '#6b7280'
                                     : '#ef4444',
                                 color: '#ffffff',
@@ -508,18 +511,18 @@ export function SettlementsPage() {
                                 fontSize: 12,
                                 fontWeight: 500,
                                 cursor:
-                                  settlement.is_cancelled || settlement.exported_at !== null
+                                  settlement.is_cancelled
                                     ? 'not-allowed'
                                     : 'pointer',
                                 transition: 'background-color 0.15s',
                               }}
                               onMouseEnter={(e) => {
-                                if (!(settlement.is_cancelled || settlement.exported_at !== null)) {
+                                if (!settlement.is_cancelled) {
                                   e.currentTarget.style.backgroundColor = '#dc2626'
                                 }
                               }}
                               onMouseLeave={(e) => {
-                                if (!(settlement.is_cancelled || settlement.exported_at !== null)) {
+                                if (!settlement.is_cancelled) {
                                   e.currentTarget.style.backgroundColor = '#ef4444'
                                 }
                               }}

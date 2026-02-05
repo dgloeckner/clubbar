@@ -274,6 +274,7 @@ export function JournalPage() {
   const handleEnterEditMode = () => {
     setSettlementMode('edit')
     setSelectedTransactionIds(new Set())
+    setSettlementStatus('open')
   }
 
   const handleSettleAll = async () => {
@@ -342,7 +343,8 @@ export function JournalPage() {
 
   return (
     <div data-testid="journal-page">
-      <Card title="Buchungsjournal" subtitle="Transaction journal and booking log">
+      <h1 style={{ margin: '0 0 20px 0' }}>Buchungsjournal</h1>
+      <Card>
         {/* Action buttons bar */}
         <div
           data-testid="journal-actions-bar"
@@ -695,12 +697,18 @@ export function JournalPage() {
                     <tr
                       key={tx.id}
                       data-testid={`journal-table-row-${tx.id}`}
+                      onClick={() => {
+                        if (settlementMode === 'edit' && !tx.is_settled) {
+                          handleToggleTransaction(tx.id)
+                        }
+                      }}
                       style={{
                         borderBottom: tableColors.rowActiveBorder,
                         backgroundColor: selectedTransactionIds.has(tx.id)
                           ? 'rgba(59, 130, 246, 0.1)'
                           : tableColors.rowActiveBg,
                         transition: 'background-color 150ms',
+                        cursor: settlementMode === 'edit' && !tx.is_settled ? 'pointer' : 'default',
                       }}
                     >
                       {/* Checkbox column (only in edit mode) */}
@@ -716,6 +724,7 @@ export function JournalPage() {
                             data-testid={`journal-select-checkbox-${tx.id}`}
                             checked={selectedTransactionIds.has(tx.id)}
                             onChange={() => handleToggleTransaction(tx.id)}
+                            onClick={(e) => e.stopPropagation()}
                             disabled={tx.is_settled}
                           />
                         </td>
@@ -758,12 +767,13 @@ export function JournalPage() {
                       >
                         <span
                           style={{
-                            padding: '4px 8px',
-                            borderRadius: 4,
+                            display: 'inline-block',
+                            padding: '4px 12px',
+                            borderRadius: 12,
                             fontSize: 12,
-                            fontWeight: 500,
-                            backgroundColor: getTransactionTypeColor(tx.type).split(' ')[0],
-                            color: getTransactionTypeColor(tx.type).split(' ')[1],
+                            fontWeight: 600,
+                            backgroundColor: getTransactionTypeColor(tx.type).bg,
+                            color: getTransactionTypeColor(tx.type).text,
                           }}
                         >
                           {formatTransactionType(tx.type)}

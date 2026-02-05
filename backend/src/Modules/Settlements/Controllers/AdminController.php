@@ -62,13 +62,24 @@ class AdminController
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        $limit = (int) ($params['limit'] ?? 50);
-        $offset = (int) ($params['offset'] ?? 0);
-        $status = $params['status'] ?? null;
-        $sortKey = $params['sort_key'] ?? 'created_at';
-        $sortOrder = $params['sort_order'] ?? 'desc';
 
-        $result = $this->settlementsService->listSettlements($limit, $offset, $status, $sortKey, $sortOrder);
+        // Accept both frontend format (page/per_page) and backend format (limit/offset)
+        $page = (int) ($params['page'] ?? 1);
+        $perPage = (int) ($params['per_page'] ?? $params['limit'] ?? 20);
+        $limit = $perPage;
+        $offset = ($page - 1) * $perPage;
+
+        $status = $params['status'] ?? null;
+
+        // Accept both 'sort'/'order' (frontend) and 'sort_key'/'sort_order' (backend)
+        $sortKey = $params['sort'] ?? $params['sort_key'] ?? 'created_at';
+        $sortOrder = $params['order'] ?? $params['sort_order'] ?? 'desc';
+
+        // Date filters
+        $dateFrom = $params['date_from'] ?? null;
+        $dateTo = $params['date_to'] ?? null;
+
+        $result = $this->settlementsService->listSettlements($limit, $offset, $status, $sortKey, $sortOrder, $dateFrom, $dateTo);
 
         return $this->json($response, $result->toArray());
     }

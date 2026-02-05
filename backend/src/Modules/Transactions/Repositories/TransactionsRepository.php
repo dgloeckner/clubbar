@@ -116,7 +116,7 @@ class TransactionsRepository
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $sortMap = ['created_at' => 't.created_at', 'amount' => 't.amount_cents', 'type' => 't.transaction_type', 'member_name' => 'm.last_name'];
+        $sortMap = ['created_at' => 't.created_at', 'amount' => 't.amount_cents', 'type' => 't.transaction_type', 'member_name' => 'm.last_name', 'member' => 'm.last_name'];
         $sortCol = $sortMap[$sortKey] ?? 't.created_at';
         $dir = SafeQuery::direction($sortOrder);
 
@@ -126,11 +126,18 @@ class TransactionsRepository
 
         $dataParams = array_merge($params, [$limit, $offset]);
         $stmt = $this->db->prepare(
-            "SELECT t.*, m.first_name, m.last_name, m.email, p.names as product_names FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
+            "SELECT t.*, CONCAT(m.first_name, ' ', m.last_name) as member_name, m.first_name, m.last_name, m.email, p.names as product_names, (SELECT s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0 LIMIT 1) as settlement_date FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
 
-        return ['items' => $stmt->fetchAll(), 'total' => $total];
+        $items = $stmt->fetchAll();
+        foreach ($items as &$item) {
+            $item['type'] = $item['transaction_type'] ?? null;
+            $item['description'] = $item['notes'] ?? null;
+        }
+        unset($item);
+
+        return ['items' => $items, 'total' => $total];
     }
 
     public function findUnsettledByIds(array $transactionIds): array

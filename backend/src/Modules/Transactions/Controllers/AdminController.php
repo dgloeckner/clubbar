@@ -19,14 +19,23 @@ class AdminController
     public function getTransactions(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        $limit = (int) ($params['limit'] ?? 50);
-        $offset = (int) ($params['offset'] ?? 0);
-        $sortKey = $params['sort_key'] ?? 'created_at';
-        $sortOrder = $params['sort_order'] ?? 'desc';
+
+        // Accept both frontend format (page/per_page) and backend format (limit/offset)
+        $page = (int) ($params['page'] ?? 1);
+        $perPage = (int) ($params['per_page'] ?? $params['limit'] ?? 20);
+        $limit = $perPage;
+        $offset = ($page - 1) * $perPage;
+
+        // Accept both 'sort'/'order' (frontend) and 'sort_key'/'sort_order' (backend)
+        $sortKey = $params['sort'] ?? $params['sort_key'] ?? 'created_at';
+        $sortOrder = $params['order'] ?? $params['sort_order'] ?? 'desc';
 
         $filters = [];
         if (isset($params['member_id'])) {
             $filters['member_id'] = $params['member_id'];
+        }
+        if (isset($params['type'])) {
+            $filters['transaction_type'] = $params['type'];
         }
         if (isset($params['transaction_type'])) {
             $filters['transaction_type'] = $params['transaction_type'];
@@ -36,6 +45,13 @@ class AdminController
         }
         if (isset($params['date_to'])) {
             $filters['date_to'] = $params['date_to'];
+        }
+        if (isset($params['search'])) {
+            $filters['search'] = $params['search'];
+        }
+        if (isset($params['settlement_status']) && $params['settlement_status'] !== 'all') {
+            $settlementMap = ['open' => 'unsettled', 'settled' => 'settled'];
+            $filters['settlement_status'] = $settlementMap[$params['settlement_status']] ?? $params['settlement_status'];
         }
 
         $result = $this->transactionsService->getTransactions($limit, $offset, $filters, $sortKey, $sortOrder);

@@ -33,7 +33,8 @@ const API_BASE = "http://localhost:8080/api";
  */
 interface TestTransactionsFixture {
   createMember(firstName?: string, lastName?: string, baseEmail?: string): Promise<any>;
-  createSyncTransaction(memberId: string, amountCents?: number, notes?: string): Promise<string>;
+  createProduct(nameDe: string, priceCents: number, nameEn?: string): Promise<any>;
+  createSyncTransaction(memberId: string, amountCents?: number, notes?: string, productId?: string): Promise<string>;
   createCorrection(
     memberId: string,
     amountCents?: number,
@@ -182,9 +183,16 @@ class TerminalRequestContext {
 }
 
 export const test = base.extend<AuthFixtures>({
-  authenticatedRequest: async ({ request }, use) => {
+  authenticatedRequest: async ({ playwright }, use) => {
+    // Create a fresh request context without storageState to avoid
+    // sending existing session cookies that prevent Set-Cookie from being returned
+    const freshRequest = await playwright.request.newContext({
+      baseURL: API_BASE,
+      storageState: { cookies: [], origins: [] },
+    });
+
     // Login and get session cookie
-    const loginResponse = await request.post(`${API_BASE}/auth/login`, {
+    const loginResponse = await freshRequest.post(`${API_BASE}/auth/login`, {
       data: {
         email: TEST_CREDENTIALS.admin.email,
         password: TEST_CREDENTIALS.admin.password,
@@ -207,18 +215,37 @@ export const test = base.extend<AuthFixtures>({
     const cookieString = fullCookieString.split(";")[0];
 
     if (!cookieString) {
+      // Fallback: try headersArray() which preserves duplicate headers
+      const headersArray = loginResponse.headersArray();
+      const setCookieFromArray = headersArray.find(h => h.name.toLowerCase() === 'set-cookie');
+      if (setCookieFromArray) {
+        const fallbackCookie = setCookieFromArray.value.split(';')[0];
+        if (fallbackCookie) {
+          const authenticatedRequest = new AuthenticatedRequestContext(
+            freshRequest,
+            fallbackCookie
+          ) as any;
+          authenticatedRequest.cookieString = fallbackCookie;
+          await use(authenticatedRequest);
+          await freshRequest.dispose();
+          return;
+        }
+      }
       throw new Error('No session cookie received from login response');
     }
 
     // Create authenticated request wrapper
     const authenticatedRequest = new AuthenticatedRequestContext(
-      request,
+      freshRequest,
       cookieString
     ) as any;
     authenticatedRequest.cookieString = cookieString;
 
     // Provide the authenticated request to the test
     await use(authenticatedRequest);
+
+    // Cleanup
+    await freshRequest.dispose();
   },
 
   authenticatedTerminalRequest: async ({ request }, use) => {
@@ -250,8 +277,44 @@ export const test = base.extend<AuthFixtures>({
         return await response.json();
       },
 
-      async createSyncTransaction(memberId: string, amountCents = 2500, notes = 'Test transaction') {
-        const txnData = createSyncTransaction(memberId, amountCents, notes);
+      async createProduct(nameDe: string, priceCents: number, nameEn?: string) {
+        // Create a category first (products require one)
+        const timestamp = Date.now();
+        const catResponse = await authenticatedRequest.post(`${API_BASE}/admin/categories`, {
+          data: {
+            names: { de: `Kat_${timestamp}`, en: `Cat_${timestamp}` },
+          },
+        });
+
+        if (catResponse.status() !== 201) {
+          const error = await catResponse.json();
+          throw new Error(`Failed to create category: ${JSON.stringify(error)}`);
+        }
+
+        const category = await catResponse.json();
+
+        // Create the product
+        const names: Record<string, string> = { de: nameDe };
+        if (nameEn) names.en = nameEn;
+
+        const prodResponse = await authenticatedRequest.post(`${API_BASE}/admin/products`, {
+          data: {
+            names,
+            price_cents: priceCents,
+            category_id: category.id,
+          },
+        });
+
+        if (prodResponse.status() !== 201) {
+          const error = await prodResponse.json();
+          throw new Error(`Failed to create product: ${JSON.stringify(error)}`);
+        }
+
+        return await prodResponse.json();
+      },
+
+      async createSyncTransaction(memberId: string, amountCents = 2500, notes = 'Test transaction', productId?: string) {
+        const txnData = createSyncTransaction(memberId, amountCents, notes, productId);
         const response = await authenticatedTerminalRequest.post(`${API_BASE}/sync/transactions`, {
           data: {
             transactions: [txnData],
@@ -275,7 +338,7 @@ export const test = base.extend<AuthFixtures>({
       ) {
         const correctionData = createCorrection(amountCents, notes, reason);
         const response = await authenticatedRequest.post(
-          `${API_BASE}/admin/members/${memberId}/transactions/correct`,
+          `${API_BASE}/admin/members/${memberId}/transactions/correction`,
           {
             data: correctionData,
           }
@@ -287,7 +350,7 @@ export const test = base.extend<AuthFixtures>({
         }
 
         const result = await response.json();
-        return result.id;
+        return result.transaction?.id || result.id;
       },
 
       async createSettlement(transactionIds: string[], daysFromNow = 7) {

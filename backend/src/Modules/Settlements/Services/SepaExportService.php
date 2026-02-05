@@ -9,6 +9,7 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Utils\SepaSanitizer;
 
 class SepaExportService
 {
@@ -42,20 +43,12 @@ class SepaExportService
         }
 
         // Build SEPA XML using digitick/sepa-xml
-        $groupHeader = new \Digitick\Sepa\GroupHeader(
-            $settlement['sepa_message_id'] ?? 'MSG-' . $settlement['id'],
-            $this->sanitizeName($config['creditor_name'])
-        );
-
-        $sepaFile = new \Digitick\Sepa\PaymentInformation(
-            'PMT-' . $settlement['id'],
-            $this->sanitizeIban($config['creditor_iban']),
-            'BIC',
-            $this->sanitizeName($config['creditor_name'])
-        );
+        $messageId = $settlement['sepa_message_id'] ?? 'MSG-' . $settlement['id'];
+        $creditorName = $this->sanitizeName($config['creditor_name']);
 
         $directDebit = \Digitick\Sepa\TransferFile\Factory\TransferFileFacadeFactory::createDirectDebit(
-            $groupHeader,
+            $messageId,
+            $creditorName,
             'pain.008.001.09'
         );
 
@@ -76,13 +69,13 @@ class SepaExportService
             $member = $this->membersRepository->findById($entry['member_id']);
             if (!$member || empty($member['iban']) || empty($member['mandate_reference'])) continue;
 
-            $amountEur = abs($entry['amount_cents']) / 100;
-            if ($amountEur <= 0) continue;
+            $amountCents = abs($entry['amount_cents']);
+            if ($amountCents <= 0) continue;
 
             $directDebit->addTransfer(
                 'PMT-' . $settlement['id'],
                 [
-                    'amount' => $amountEur,
+                    'amount' => $amountCents,
                     'debtorIban' => $this->sanitizeIban($member['iban']),
                     'debtorBic' => 'NOTPROVIDED',
                     'debtorName' => $this->sanitizeName($member['account_holder_name'] ?? ($member['first_name'] . ' ' . $member['last_name'])),

@@ -107,18 +107,20 @@ export interface SyncTransactionData {
  * @param memberId - Member UUID to charge
  * @param amountCents - Amount in cents (e.g., 2500 for €25.00)
  * @param notes - Transaction notes/description
+ * @param productId - Optional real product UUID (if omitted, generates placeholder)
  * @returns Transaction data ready for sync API
  */
 export const createSyncTransaction = (
   memberId: string,
   amountCents: number = 2500,
-  notes: string = 'Test transaction'
+  notes: string = 'Test transaction',
+  productId?: string
 ): SyncTransactionData => {
   return {
     id: generateUUID(),
     member_id: memberId,
     type: 'product',
-    product_id: generateUUID(), // Placeholder product UUID
+    product_id: productId ?? generateUUID(),
     quantity: 1,
     unit_price_cents: amountCents,
     amount_cents: amountCents,

@@ -596,13 +596,57 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
    * 6. Verify date/time format is correct
    */
   test('should display settlement date column with correct format', async ({ page, authenticatedJournalPage }) => {
-    // === ARRANGE ===
+    // === ARRANGE: Create own test data for isolation (Pattern 001) ===
+    const testId = `journal-settle-date-${Date.now()}`
+
+    // Create member
+    const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
+      data: {
+        first_name: `SettleDate${testId}`,
+        last_name: 'Test',
+        email: `sd-${testId}@example.com`,
+        iban: 'DE89370400440532013099',
+        mandate_signed_at: new Date().toISOString().split('T')[0],
+        preferred_language: 'de',
+      },
+    })
+    const memberId = (await memberResponse.json()).id
+
+    // Create 2 transactions: one will be settled, one stays open
+    const tx1Response = await page.request.post(
+      `http://localhost:8080/api/admin/members/${memberId}/transactions/correction`,
+      { data: { amount_cents: 1000, reason: `Settle date test settled ${testId}` } }
+    )
+    const tx1Id = (await tx1Response.json()).transaction.id
+
+    const tx2Response = await page.request.post(
+      `http://localhost:8080/api/admin/members/${memberId}/transactions/correction`,
+      { data: { amount_cents: 2000, reason: `Settle date test open ${testId}` } }
+    )
+
+    // Settle only the first transaction
+    const today = new Date().toISOString().split('T')[0]
+    const execDate = new Date()
+    execDate.setDate(execDate.getDate() + 7)
+    await page.request.post('http://localhost:8080/api/admin/settlements', {
+      data: {
+        transaction_ids: [tx1Id],
+        settlement_date: today,
+        execution_date: execDate.toISOString().split('T')[0],
+      },
+    })
+
+    // === ACT ===
     console.log('Navigating to journal page...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
-    // === ACT & ASSERT ===
+    // Search for our test data
+    await authenticatedJournalPage.search(testId)
+    await authenticatedJournalPage.waitForTableToLoad()
+
+    // === ASSERT ===
     // 1. Verify settlement date column header exists
     console.log('Verifying settlement date column header exists...')
     const settlementDateHeader = page.getByTestId('journal-header-settlement-date')
@@ -613,122 +657,68 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
 
     // 2. Check "all" transactions - should have mix of settled and unsettled
     console.log('\nChecking transactions in "All" filter...')
-    const allFilterBtn = page.getByTestId('journal-settlement-status-filter-all')
-    await expect(allFilterBtn).toBeVisible()
-    await allFilterBtn.click()
-    await authenticatedJournalPage.waitForTableToLoad()
+    const count = await authenticatedJournalPage.getTransactionCount()
+    expect(count).toBe(2)
 
     let hasSettled = false
     let hasUnsettled = false
 
-    const allRows = await page.locator('[data-testid^="journal-table-row-"]').all()
-    console.log(`Checking ${allRows.length} transactions...`)
-
-    for (const row of allRows) {
-      const testIdAttr = await row.getAttribute('data-testid')
+    for (let i = 0; i < count; i++) {
+      const row = await authenticatedJournalPage.getTransactionRow(i)
+      const rowEl = page.locator('[data-testid^="journal-table-row-"]').nth(i)
+      const testIdAttr = await rowEl.getAttribute('data-testid')
       const transactionId = testIdAttr?.replace('journal-table-row-', '')
       if (!transactionId) continue
 
-      const settlementDateCell = row.locator(`[data-testid="journal-table-cell-settlement-date-${transactionId}"]`)
+      const settlementDateCell = rowEl.locator(`[data-testid="journal-table-cell-settlement-date-${transactionId}"]`)
       const cellText = await settlementDateCell.textContent()
 
       if (cellText === '—') {
         hasUnsettled = true
+        console.log(`  Unsettled: "${row.details}" → "—"`)
       } else if (cellText && cellText.trim() !== '') {
         hasSettled = true
-        // Verify format for settled transaction
-        console.log(`  Settled transaction date: "${cellText}"`)
-        const hasDate = /\d{2}\/\d{2}\/\d{4}/.test(cellText)
-        const hasTime = /\d{2}:\d{2}:\d{2}/.test(cellText)
-        expect(hasDate, `Date format should be MM/DD/YYYY, got: "${cellText}"`).toBeTruthy()
-        expect(hasTime, `Time format should be HH:MM:SS, got: "${cellText}"`).toBeTruthy()
+        console.log(`  Settled: "${row.details}" → "${cellText}"`)
+        // Verify date/time format
+        expect(cellText, `Date format should be MM/DD/YYYY`).toMatch(/\d{2}\/\d{2}\/\d{4}/)
+        expect(cellText, `Time format should be HH:MM:SS`).toMatch(/\d{2}:\d{2}:\d{2}/)
       }
     }
 
-    console.log(`  Found settled transactions: ${hasSettled}`)
-    console.log(`  Found unsettled transactions: ${hasUnsettled}`)
+    expect(hasSettled, 'Should have at least one settled transaction').toBeTruthy()
+    expect(hasUnsettled, 'Should have at least one unsettled transaction').toBeTruthy()
 
-    // 3. Filter by "settled" - all should show date and time
-    console.log('\nFiltering by "settled" transactions...')
-    const settledFilterBtn = page.getByTestId('journal-settlement-status-filter-settled')
-    await expect(settledFilterBtn).toBeVisible()
-    await settledFilterBtn.click()
+    // 3. Filter by "settled" - settled transaction should show date
+    console.log('\nFiltering by "settled"...')
+    await authenticatedJournalPage.filterBySettlementStatus('settled')
     await authenticatedJournalPage.waitForTableToLoad()
 
-    const settledRows = await page.locator('[data-testid^="journal-table-row-"]').all()
-    console.log(`Found ${settledRows.length} settled transactions`)
-    expect(settledRows.length, 'Should have at least one settled transaction').toBeGreaterThan(0)
+    const settledCount = await authenticatedJournalPage.getTransactionCount()
+    expect(settledCount, 'Should have 1 settled transaction').toBe(1)
 
-    // Verify all settled transactions show date and time
-    for (const row of settledRows) {
-      const testIdAttr = await row.getAttribute('data-testid')
-      const transactionId = testIdAttr?.replace('journal-table-row-', '')
-      if (!transactionId) continue
+    const settledRowEl = page.locator('[data-testid^="journal-table-row-"]').first()
+    const settledTxId = (await settledRowEl.getAttribute('data-testid'))?.replace('journal-table-row-', '')
+    const settledDateCell = settledRowEl.locator(`[data-testid="journal-table-cell-settlement-date-${settledTxId}"]`)
+    const settledDateText = await settledDateCell.textContent()
+    expect(settledDateText, 'Settlement date should not be dash').not.toBe('—')
+    expect(settledDateText, 'Date format MM/DD/YYYY').toMatch(/\d{2}\/\d{2}\/\d{4}/)
+    console.log(`  ✅ Settled transaction date: "${settledDateText}"`)
 
-      const settlementDateCell = row.locator(`[data-testid="journal-table-cell-settlement-date-${transactionId}"]`)
-      const cellText = await settlementDateCell.textContent()
-
-      expect(cellText, 'Settled transaction should have settlement date').toBeTruthy()
-      expect(cellText, 'Settlement date should not be dash').not.toBe('—')
-
-      // Verify date/time format
-      const dateMatch = cellText?.match(/(\d{2})\/(\d{2})\/(\d{4})/)
-      const timeMatch = cellText?.match(/(\d{2}):(\d{2}):(\d{2})/)
-
-      expect(dateMatch, `Date should be MM/DD/YYYY format, got: "${cellText}"`).toBeTruthy()
-      expect(timeMatch, `Time should be HH:MM:SS format, got: "${cellText}"`).toBeTruthy()
-
-      if (dateMatch && timeMatch) {
-        const [, month, day, year] = dateMatch
-        const [, hours, minutes, seconds] = timeMatch
-
-        // Validate date ranges
-        expect(parseInt(month), 'Month should be 01-12').toBeGreaterThanOrEqual(1)
-        expect(parseInt(month), 'Month should be 01-12').toBeLessThanOrEqual(12)
-        expect(parseInt(day), 'Day should be 01-31').toBeGreaterThanOrEqual(1)
-        expect(parseInt(day), 'Day should be 01-31').toBeLessThanOrEqual(31)
-        expect(parseInt(year), 'Year should be valid').toBeGreaterThan(2020)
-
-        // Validate time ranges
-        expect(parseInt(hours), 'Hours should be 00-23').toBeGreaterThanOrEqual(0)
-        expect(parseInt(hours), 'Hours should be 00-23').toBeLessThan(24)
-        expect(parseInt(minutes), 'Minutes should be 00-59').toBeGreaterThanOrEqual(0)
-        expect(parseInt(minutes), 'Minutes should be 00-59').toBeLessThan(60)
-        expect(parseInt(seconds), 'Seconds should be 00-59').toBeGreaterThanOrEqual(0)
-        expect(parseInt(seconds), 'Seconds should be 00-59').toBeLessThan(60)
-
-        console.log(`  ✅ Valid settlement date: ${month}/${day}/${year} ${hours}:${minutes}:${seconds}`)
-      }
-    }
-
-    // 4. Filter by "open" - all should show dash
-    console.log('\nFiltering by "open" (unsettled) transactions...')
-    const openFilterBtn = page.getByTestId('journal-settlement-status-filter-open')
-    await expect(openFilterBtn).toBeVisible()
-    await openFilterBtn.click()
+    // 4. Filter by "open" - open transaction should show dash
+    console.log('\nFiltering by "open"...')
+    await authenticatedJournalPage.filterBySettlementStatus('open')
     await authenticatedJournalPage.waitForTableToLoad()
 
-    const openRows = await page.locator('[data-testid^="journal-table-row-"]').all()
-    console.log(`Found ${openRows.length} open transactions`)
-    expect(openRows.length, 'Should have at least one unsettled transaction').toBeGreaterThan(0)
+    const openCount = await authenticatedJournalPage.getTransactionCount()
+    expect(openCount, 'Should have 1 open transaction').toBe(1)
 
-    // Verify all open transactions show dash (sample first few to avoid timeout)
-    let dashCount = 0
-    const maxToCheck = Math.min(3, openRows.length) // Only check first 3 to avoid timeouts
-    for (let i = 0; i < maxToCheck; i++) {
-      const row = openRows[i]
-      const testIdAttr = await row.getAttribute('data-testid')
-      const transactionId = testIdAttr?.replace('journal-table-row-', '')
-      if (!transactionId) continue
+    const openRowEl = page.locator('[data-testid^="journal-table-row-"]').first()
+    const openTxId = (await openRowEl.getAttribute('data-testid'))?.replace('journal-table-row-', '')
+    const openDateCell = openRowEl.locator(`[data-testid="journal-table-cell-settlement-date-${openTxId}"]`)
+    const openDateText = await openDateCell.textContent()
+    expect(openDateText, 'Open transaction should show dash').toBe('—')
+    console.log(`  ✅ Open transaction shows "—"`)
 
-      const settlementDateCell = row.locator(`[data-testid="journal-table-cell-settlement-date-${transactionId}"]`)
-      const cellText = await settlementDateCell.textContent({timeout: 5000})
-
-      expect(cellText?.trim(), 'Open transaction should show dash').toBe('—')
-      dashCount++
-    }
-
-    console.log(`  ✅ All ${dashCount} open transactions show "—"`)
     console.log('\n✅ Settlement date column verification complete!')
   })
 })
@@ -795,6 +785,10 @@ test.describe('Journal Page - Sorting', () => {
     console.log('Navigating to journal...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
+    await authenticatedJournalPage.waitForTableToLoad()
+
+    // Search for our test data to isolate from parallel tests
+    await authenticatedJournalPage.search(testId)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Default should be date descending (newest first)
@@ -1007,11 +1001,11 @@ test.describe('Journal Page - Sorting', () => {
     // === ARRANGE ===
     const testId = `journal-sort-member-${Date.now()}`
 
-    // Create 3 members with names that sort differently
+    // Create 3 members with last names that sort differently (backend sorts by last_name)
     const memberNames = [
-      { first: `Alpha${testId}`, last: 'Member' },
-      { first: `Charlie${testId}`, last: 'Member' },
-      { first: `Bravo${testId}`, last: 'Member' },
+      { first: `SortTest${testId}`, last: `Alpha${testId}` },
+      { first: `SortTest${testId}`, last: `Charlie${testId}` },
+      { first: `SortTest${testId}`, last: `Bravo${testId}` },
     ]
 
     console.log('Creating members for member sort test...')
@@ -1021,7 +1015,7 @@ test.describe('Journal Page - Sorting', () => {
       const memberData = {
         first_name: name.first,
         last_name: name.last,
-        email: `${name.first.toLowerCase()}-${testId}@example.com`,
+        email: `${name.first.substring(0, 5).toLowerCase()}-${testId}@example.com`,
         iban: `DE8937040044053201${3012 + memberIds.length}`,
         mandate_signed_at: new Date().toISOString().split('T')[0],
         preferred_language: 'de',
@@ -1030,16 +1024,21 @@ test.describe('Journal Page - Sorting', () => {
       const response = await page.request.post('http://localhost:8080/api/admin/members', {
         data: memberData,
       })
+      if (!response.ok()) {
+        console.error(`Member creation failed (${response.status()}):`, await response.text())
+      }
+      expect(response.ok(), `Member creation for ${name.first} should succeed (${response.status()})`).toBeTruthy()
       const memberId = (await response.json()).id
       memberIds.push(memberId)
 
       // Create a transaction for this member
-      await page.request.post(`http://localhost:8080/api/admin/members/${memberId}/transactions/correction`, {
+      const txResponse = await page.request.post(`http://localhost:8080/api/admin/members/${memberId}/transactions/correction`, {
         data: {
           amount_cents: 1000,
-          reason: 'Member sort test',
+          reason: `Member sort test ${testId}`,
         },
       })
+      expect(txResponse.ok(), `Transaction for ${name.first} should succeed (${txResponse.status()})`).toBeTruthy()
     }
 
     console.log('Created members:', memberNames.map((n) => n.first).join(', '))
@@ -1504,10 +1503,8 @@ test.describe('Journal Page - Search and Filtering', () => {
     expect(foundOpen, 'Should find unsettled transaction in "open" filter').toBeGreaterThanOrEqual(1)
     expect(foundSettled, 'Should NOT find settled transactions in "open" filter').toBe(0)
 
-    // Test 2: Search and filter by "settled"
+    // Test 2: Filter by "settled" (search is still active from above)
     console.log('Testing "settled" filter with search...')
-    await authenticatedJournalPage.search(memberData.first_name)
-    await authenticatedJournalPage.waitForTableToLoad()
     await authenticatedJournalPage.filterBySettlementStatus('settled')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -1532,10 +1529,8 @@ test.describe('Journal Page - Search and Filtering', () => {
     expect(foundSettled, 'Should find settled transactions in "settled" filter').toBeGreaterThanOrEqual(2)
     expect(foundOpen, 'Should NOT find unsettled transaction in "settled" filter').toBe(0)
 
-    // Test 3: Search and filter by "all"
+    // Test 3: Filter by "all" (search is still active from above)
     console.log('Testing "all" filter with search...')
-    await authenticatedJournalPage.search(memberData.first_name)
-    await authenticatedJournalPage.waitForTableToLoad()
     await authenticatedJournalPage.filterBySettlementStatus('all')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -1553,5 +1548,93 @@ test.describe('Journal Page - Search and Filtering', () => {
 
     expect(totalFound, 'Should find all transactions in "all" filter').toBeGreaterThanOrEqual(3)
     console.log('✅ Settlement status filtering works correctly')
+  })
+})
+
+/**
+ * Create Correction via Modal Tests
+ *
+ * Tests the correction creation workflow using the journal page modal.
+ * Verifies full E2E flow: open modal → fill form → submit → verify in table.
+ */
+test.describe('Journal Page - Create Correction via Modal', () => {
+  /**
+   * Test 16: Create correction via modal and verify it appears in journal
+   *
+   * E2E Verification Flow:
+   * 1. Create member with valid SEPA data via API
+   * 2. Navigate to journal page
+   * 3. Open correction modal
+   * 4. Fill form (select member, amount, reason)
+   * 5. Submit form
+   * 6. Verify modal closes without error
+   * 7. Search for correction by unique reason
+   * 8. Verify exactly 1 transaction with correct type, member, amount, details
+   */
+  test('should create correction via modal and display in journal', async ({
+    page,
+    authenticatedJournalPage,
+  }) => {
+    // === ARRANGE ===
+    const testId = `journal-modal-corr-${Date.now()}`
+    const memberData = {
+      // First name starts with "A" to ensure member appears in first 100 results
+      // (backend caps getMembers at 100 per page, sorted by first_name asc)
+      first_name: `ACorr${testId}`,
+      last_name: 'Test',
+      email: `mc-${testId}@example.com`,
+      iban: 'DE89370400440532013000',
+      mandate_signed_at: new Date().toISOString().split('T')[0],
+      preferred_language: 'de',
+    }
+
+    // Create member via API
+    console.log('Creating test member...')
+    const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
+      data: memberData,
+    })
+    expect(memberResponse.ok(), 'Member creation should succeed').toBeTruthy()
+    const memberId = (await memberResponse.json()).id
+    console.log('Created member:', memberId)
+
+    const reason = `Modal correction test ${testId}`
+    const amountEur = '42.50'
+
+    // === ACT ===
+    console.log('Navigating to journal page...')
+    await authenticatedJournalPage.navigate()
+    await authenticatedJournalPage.expectPageVisible()
+    await authenticatedJournalPage.waitForTableToLoad()
+
+    console.log('Creating correction via modal...')
+    await authenticatedJournalPage.createCorrection(memberId, amountEur, reason)
+
+    // === ASSERT ===
+    // Modal should close (no error)
+    await authenticatedJournalPage.expectCorrectionModalHidden()
+
+    const correctionError = await authenticatedJournalPage.getCorrectionError()
+    expect(correctionError, 'Should have no correction error').toBeNull()
+
+    // Search for the unique testId to find our correction
+    console.log(`Searching for: ${testId}`)
+    await authenticatedJournalPage.search(testId)
+    await authenticatedJournalPage.waitForTableToLoad()
+
+    // Verify exactly 1 transaction
+    const txCount = await authenticatedJournalPage.getTransactionCount()
+    console.log(`Found ${txCount} transactions`)
+    expect(txCount, 'Should find exactly 1 transaction').toBe(1)
+
+    // Verify row details
+    const row = await authenticatedJournalPage.getTransactionRow(0)
+    console.log('Transaction row:', row)
+
+    expect(row.type.toLowerCase(), 'Type should be correction').toBe('correction')
+    expect(row.member, 'Member name should match').toContain(memberData.first_name)
+    expect(row.amount, 'Amount should contain 42.50').toContain('42.50')
+    expect(row.details, 'Details should contain reason').toContain(reason)
+
+    console.log('✅ Correction created via modal and verified in journal')
   })
 })

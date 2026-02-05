@@ -44,7 +44,13 @@ class SettlementsRepository
     public function findItemsBySettlementId(string $settlementId): array
     {
         $stmt = $this->db->prepare(
-            'SELECT si.*, m.first_name, m.last_name FROM settlement_items si LEFT JOIN members m ON si.member_id = m.id WHERE si.settlement_id = ? ORDER BY m.last_name ASC'
+            'SELECT si.*, m.first_name, m.last_name, t.transaction_type, t.notes AS transaction_notes, t.product_id, t.created_at AS transaction_created_at, p.names AS product_names, p.price_cents AS product_price_cents
+             FROM settlement_items si
+             LEFT JOIN members m ON si.member_id = m.id
+             LEFT JOIN transactions t ON si.transaction_id = t.id
+             LEFT JOIN products p ON t.product_id = p.id
+             WHERE si.settlement_id = ?
+             ORDER BY m.last_name ASC, t.created_at ASC'
         );
         $stmt->execute([$settlementId]);
         return $stmt->fetchAll();
@@ -131,13 +137,22 @@ class SettlementsRepository
         return $stmt->execute([$now, $now, $id]);
     }
 
-    public function listPaginated(int $limit, int $offset, ?string $status = null, string $sortKey = 'created_at', string $sortOrder = 'desc'): array
+    public function listPaginated(int $limit, int $offset, ?string $status = null, string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $dateFrom = null, ?string $dateTo = null): array
     {
         $where = [];
         $params = [];
 
         if ($status === 'active') { $where[] = 's.is_cancelled = 0'; }
         elseif ($status === 'cancelled') { $where[] = 's.is_cancelled = 1'; }
+
+        if ($dateFrom) {
+            $where[] = 's.created_at >= ?';
+            $params[] = $dateFrom . ' 00:00:00';
+        }
+        if ($dateTo) {
+            $where[] = 's.created_at <= ?';
+            $params[] = $dateTo . ' 23:59:59';
+        }
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
         $dir = SafeQuery::direction($sortOrder);

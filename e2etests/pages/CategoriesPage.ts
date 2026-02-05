@@ -31,6 +31,7 @@ export class CategoriesPage extends BasePage {
   private readonly createBtn = () => this.page.getByTestId('categories-create-button')
   private readonly emptyState = () => this.page.getByTestId('categories-empty-state')
   private readonly errorMessage = () => this.page.getByTestId('categories-error-message')
+  private readonly loadingIndicator = () => this.page.getByTestId('categories-loading-indicator')
 
   // Modal locators (PRIVATE)
   private readonly formModal = () => this.page.getByTestId('categories-form-modal')
@@ -111,13 +112,17 @@ export class CategoriesPage extends BasePage {
     await expect(this.page.getByTestId(`categories-table-row-${categoryId}`)).toBeVisible()
   }
 
+  async waitForLoadingToComplete() {
+    await expect(this.loadingIndicator()).not.toBeVisible({ timeout: 10000 })
+    // Wait for network to be idle to ensure all data has loaded
+    await this.page.waitForLoadState('networkidle', { timeout: 5000 })
+  }
+
   /**
    * TABLE INTERACTIONS
    */
 
   async getCategoryCount(): Promise<number> {
-    // Wait for any pending DOM updates (helps in parallel test scenarios)
-    await this.page.waitForTimeout(200)
     return await this.tableRows().count()
   }
 
@@ -202,16 +207,19 @@ export class CategoriesPage extends BasePage {
     // Click the submit button
     await this.formSubmitBtn().click()
 
-    // Wait for the modal to start closing (form processing)
-    // This helps us catch both the creation POST and the subsequent GET
-    await this.page.waitForTimeout(100)
+    // Wait for form to close (indicates API call started)
+    await this.expectFormModalHidden()
 
-    // Wait for all network activity to settle
-    // This should catch both the POST request and the GET request for reloading
-    await this.page.waitForLoadState('networkidle', { timeout: 15000 })
+    // Wait for loading to complete (list reload)
+    await this.waitForLoadingToComplete()
 
-    // Additional wait to ensure state updates propagate
-    await this.page.waitForTimeout(200)
+    // Ensure table or empty state is visible
+    try {
+      await expect(this.table()).toBeVisible({ timeout: 2000 })
+    } catch {
+      // If no table, empty state should be visible
+      await expect(this.emptyState()).toBeVisible({ timeout: 2000 })
+    }
   }
 
   async cancelForm() {
@@ -271,17 +279,7 @@ export class CategoriesPage extends BasePage {
     }
 
     await this.submitForm()
-    await this.expectFormModalHidden()
-
-    // After modal closes, wait for categories to actually load in the table
-    // This ensures the GET /admin/categories request completes
-    await this.page.waitForLoadState('networkidle', { timeout: 15000 })
-
-    // Wait for the table to have updated rows (checks DOM stability)
-    await this.page.waitForTimeout(500)
-
-    // Verify table is still visible and has updated
-    await expect(this.table()).toBeVisible()
+    // submitForm already waits for loading to complete
   }
 
   async editCategory(categoryId: string, names: { [lang: string]: string }) {
@@ -298,12 +296,7 @@ export class CategoriesPage extends BasePage {
     }
 
     await this.submitForm()
-    await this.expectFormModalHidden()
-
-    // After modal closes, wait for categories to actually load in the table
-    // This ensures the GET /admin/categories request completes
-    await this.page.waitForLoadState('networkidle', { timeout: 10000 })
-    await this.page.waitForTimeout(300)
+    // submitForm already waits for loading to complete
   }
 
   /**
@@ -318,11 +311,11 @@ export class CategoriesPage extends BasePage {
     await this.confirmOkBtn().click()
     await this.expectConfirmDialogHidden()
 
-    // Wait for all network activity to settle (includes PATCH and GET requests)
-    await this.page.waitForLoadState('networkidle', { timeout: 15000 })
+    // Wait for loading to complete (list reload)
+    await this.waitForLoadingToComplete()
 
-    // Additional wait to ensure state updates propagate
-    await this.page.waitForTimeout(300)
+    // Ensure table is visible
+    await expect(this.table()).toBeVisible({ timeout: 2000 })
   }
 
   async cancelStatusChange() {
@@ -342,11 +335,15 @@ export class CategoriesPage extends BasePage {
     await this.confirmOkBtn().click()
     await this.expectConfirmDialogHidden()
 
-    // Wait for all network activity to settle (includes DELETE and GET requests)
-    await this.page.waitForLoadState('networkidle', { timeout: 15000 })
+    // Wait for loading to complete (list reload)
+    await this.waitForLoadingToComplete()
 
-    // Additional wait to ensure state updates propagate
-    await this.page.waitForTimeout(300)
+    // Ensure table or empty state is visible
+    try {
+      await expect(this.table()).toBeVisible({ timeout: 2000 })
+    } catch {
+      await expect(this.emptyState()).toBeVisible({ timeout: 2000 })
+    }
   }
 
   async cancelDelete() {

@@ -363,28 +363,7 @@ export function SettingsPage() {
 
   return (
     <div data-testid="settings-page" style={{ maxWidth: '800px' }}>
-      {/* Page Header */}
-      <div style={{ marginBottom: theme.spacing.xl }}>
-        <h1
-          style={{
-            margin: 0,
-            fontSize: theme.typography.fontSize['2xl'],
-            fontWeight: theme.typography.fontWeight.bold,
-            color: theme.colors.text.primary,
-          }}
-        >
-          Einstellungen
-        </h1>
-        <p
-          style={{
-            margin: `${theme.spacing.sm} 0 0 0`,
-            fontSize: theme.typography.fontSize.sm,
-            color: theme.colors.text.secondary,
-          }}
-        >
-          System configuration and preferences
-        </p>
-      </div>
+      <h1 style={{ margin: '0 0 20px 0' }}>Einstellungen</h1>
 
       {/* Tabs Navigation */}
       <div style={{ marginBottom: theme.spacing.xl }}>

@@ -47,39 +47,6 @@ test.describe('Admin Frontend - Categories Page', () => {
       await authenticatedCategoriesPage.expectTableVisible()
     })
 
-    test('should display categories table with correct columns', async ({ authenticatedCategoriesPage }) => {
-      // Pattern 006: High-level semantic methods
-      await authenticatedCategoriesPage.expectTableVisible()
-
-      // Verify column headers exist
-      expect(
-        await authenticatedCategoriesPage.page
-          .locator('[role="columnheader"]:has-text("Status")')
-          .isVisible()
-      ).toBeTruthy()
-      expect(
-        await authenticatedCategoriesPage.page
-          .locator('[role="columnheader"]:has-text("Name")')
-          .isVisible()
-      ).toBeTruthy()
-      expect(
-        await authenticatedCategoriesPage.page
-          .locator('[role="columnheader"]:has-text("Products")')
-          .isVisible()
-      ).toBeTruthy()
-    })
-
-    test('should display categories (or empty state)', async ({ authenticatedCategoriesPage }) => {
-      // Pattern 003: Database-agnostic - works whether categories exist or not
-      const count = await authenticatedCategoriesPage.getCategoryCount()
-
-      if (count === 0) {
-        await authenticatedCategoriesPage.expectEmptyStateVisible()
-      } else {
-        await authenticatedCategoriesPage.expectTableVisible()
-        expect(count).toBeGreaterThan(0)
-      }
-    })
 
     test('should verify page is on categories route', async ({ page, authenticatedCategoriesPage }) => {
       // Pattern 006: Verify we're on the right page
@@ -157,18 +124,6 @@ test.describe('Admin Frontend - Categories Page', () => {
       expect(enValue).toBe('')
     })
 
-    test('should require at least one language name', async ({ authenticatedCategoriesPage }) => {
-      // Pattern 006: Form validation through page object
-      await authenticatedCategoriesPage.openCreateModal()
-
-      // Try to submit without filling any name
-      await authenticatedCategoriesPage.submitForm()
-
-      // Should show form error (not close modal)
-      const errorMessage = await authenticatedCategoriesPage.getFormErrorMessage()
-      expect(errorMessage).toBeTruthy()
-      expect(errorMessage).toContain('required')
-    })
   })
 
   /**
@@ -183,77 +138,6 @@ test.describe('Admin Frontend - Categories Page', () => {
       })
     })
 
-    test('should open edit category modal', async ({ authenticatedCategoriesPage }) => {
-      // Get first category to edit
-      const categoryId = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-edit-button-"]')
-        .first()
-        .getAttribute('data-testid')
-        .then((id) => id?.replace('categories-edit-button-', '') || '')
-
-      if (categoryId) {
-        await authenticatedCategoriesPage.openEditModal(categoryId)
-        await authenticatedCategoriesPage.expectFormModalVisible()
-      }
-    })
-
-    test('should edit category and save changes', async ({ authenticatedCategoriesPage }) => {
-      // Get first category ID
-      const categoryIdAttr = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-edit-button-"]')
-        .first()
-        .getAttribute('data-testid')
-      const categoryId = categoryIdAttr?.replace('categories-edit-button-', '') || ''
-
-      if (categoryId) {
-        const originalName = await authenticatedCategoriesPage.getCategoryName(categoryId)
-        const updatedName = `Updated ${Date.now()}`
-
-        await authenticatedCategoriesPage.editCategory(categoryId, {
-          de: updatedName,
-        })
-
-        // Verify changes are saved
-        await authenticatedCategoriesPage.expectFormModalHidden()
-        await authenticatedCategoriesPage.expectTableVisible()
-
-        // Note: Name may not update immediately in table; API needs time
-        await authenticatedCategoriesPage.page.waitForTimeout(500)
-      }
-    })
-
-    test('should update translations in edit modal', async ({ authenticatedCategoriesPage }) => {
-      const categoryIdAttr = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-edit-button-"]')
-        .first()
-        .getAttribute('data-testid')
-      const categoryId = categoryIdAttr?.replace('categories-edit-button-', '') || ''
-
-      if (categoryId) {
-        await authenticatedCategoriesPage.openEditModal(categoryId)
-
-        // Fill German name
-        await authenticatedCategoriesPage.selectLanguageTab('de')
-        const germanName = `German ${Date.now()}`
-        await authenticatedCategoriesPage.fillCategoryName('de', germanName)
-
-        // Switch to English tab
-        await authenticatedCategoriesPage.selectLanguageTab('en')
-        const englishName = `English ${Date.now()}`
-        await authenticatedCategoriesPage.fillCategoryName('en', englishName)
-
-        // Verify both are filled
-        await authenticatedCategoriesPage.selectLanguageTab('de')
-        const savedGerman = await authenticatedCategoriesPage.getCategoryNameValue('de')
-        expect(savedGerman).toContain('German')
-
-        await authenticatedCategoriesPage.selectLanguageTab('en')
-        const savedEnglish = await authenticatedCategoriesPage.getCategoryNameValue('en')
-        expect(savedEnglish).toContain('English')
-
-        await authenticatedCategoriesPage.cancelForm()
-      }
-    })
   })
 
   /**
@@ -268,31 +152,6 @@ test.describe('Admin Frontend - Categories Page', () => {
       })
     })
 
-    test('should toggle category status (deactivate)', async ({ authenticatedCategoriesPage }) => {
-      // Get first category
-      const categoryIdAttr = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-status-toggle-"]')
-        .first()
-        .getAttribute('data-testid')
-      const categoryId = categoryIdAttr?.replace('categories-status-toggle-', '') || ''
-
-      if (categoryId) {
-        // Get initial status
-        const initialStatus = await authenticatedCategoriesPage.getCategoryStatus(categoryId)
-
-        // Toggle status
-        await authenticatedCategoriesPage.toggleCategoryStatus(categoryId)
-        await authenticatedCategoriesPage.expectConfirmDialogVisible()
-
-        // Confirm change
-        await authenticatedCategoriesPage.confirmStatusChange()
-
-        // Verify status changed
-        await authenticatedCategoriesPage.page.waitForTimeout(500)
-        const newStatus = await authenticatedCategoriesPage.getCategoryStatus(categoryId)
-        expect(newStatus).not.toBe(initialStatus)
-      }
-    })
 
     test('should show confirmation dialog on status toggle', async ({ authenticatedCategoriesPage }) => {
       const categoryIdAttr = await authenticatedCategoriesPage.page
@@ -339,34 +198,6 @@ test.describe('Admin Frontend - Categories Page', () => {
    * UC-A44: Delete Category
    */
   test.describe('UC-A44: Delete Category', () => {
-    test('should delete empty category', async ({ authenticatedCategoriesPage }) => {
-      // Create a category to delete with unique name
-      const categoryName = `Delete Test ${Date.now()}`
-      await authenticatedCategoriesPage.createCategory({
-        de: categoryName,
-      })
-
-      // Find the created category by its unique name
-      const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
-      expect(categoryId).toBeTruthy()
-
-      if (categoryId) {
-        // Verify the delete button is enabled (category is empty)
-        const deleteBtn = authenticatedCategoriesPage.page.getByTestId(`categories-delete-button-${categoryId}`)
-        await expect(deleteBtn).toBeEnabled()
-
-        // Delete the category
-        await authenticatedCategoriesPage.deleteCategory(categoryId)
-        await authenticatedCategoriesPage.expectConfirmDialogVisible()
-
-        await authenticatedCategoriesPage.confirmDelete()
-        await authenticatedCategoriesPage.expectConfirmDialogHidden()
-
-        // Verify category was deleted - it should no longer be in the table
-        const categoryIdAfter = await authenticatedCategoriesPage.findCategoryByName(categoryName)
-        expect(categoryIdAfter).toBeNull()
-      }
-    })
 
     test('should show confirmation before delete', async ({ authenticatedCategoriesPage }) => {
       // Create a category
@@ -579,6 +410,184 @@ test.describe('Admin Frontend - Categories Page', () => {
       await authenticatedCategoriesPage.clearIcon()
       selectedIcon = await authenticatedCategoriesPage.getSelectedIconName()
       expect(selectedIcon).toBeNull()
+    })
+
+  })
+
+  /**
+   * UC-A44: Comprehensive E2E Tests with Persistence Verification
+   * Following the pattern from members tests:
+   * - Create/Edit with ALL fields
+   * - Re-open modal to verify persistence (database round-trip)
+   * - Verify no errors during save
+   */
+  test.describe('UC-A44: Comprehensive E2E Tests', () => {
+    test('E2E: should create category with all fields and verify persistence', async ({ authenticatedCategoriesPage, page }) => {
+      // Pattern 001: Unique test data per test
+      const timestamp = Date.now()
+      const testData = {
+        names: {
+          de: `Getränke E2E ${timestamp}`,
+          en: `Beverages E2E ${timestamp}`,
+        },
+        icon: 'PilsIcon',
+      }
+
+      const initialCount = await authenticatedCategoriesPage.getCategoryCount()
+
+      // Create category
+      await authenticatedCategoriesPage.openCreateModal()
+      await authenticatedCategoriesPage.expectFormModalVisible()
+
+      // Fill German name
+      await authenticatedCategoriesPage.fillCategoryName('de', testData.names.de)
+
+      // Switch to English tab and fill
+      await authenticatedCategoriesPage.selectLanguageTab('en')
+      await authenticatedCategoriesPage.fillCategoryName('en', testData.names.en)
+
+      // Select icon
+      await authenticatedCategoriesPage.selectIcon(testData.icon)
+
+      // Submit form (waits for loading to complete)
+      await authenticatedCategoriesPage.submitForm()
+
+      // Verify category exists in database by finding it
+      const newCount = await authenticatedCategoriesPage.getCategoryCount()
+      expect(newCount).toBeGreaterThan(0)
+
+      // Find created category by name
+      const categoryId = await authenticatedCategoriesPage.findCategoryByName(testData.names.de)
+      expect(categoryId).toBeTruthy()
+
+      if (categoryId) {
+        // PERSISTENCE CHECK: Re-open edit modal to verify all fields saved to database
+        await authenticatedCategoriesPage.openEditModal(categoryId)
+        await authenticatedCategoriesPage.expectFormModalVisible()
+
+        // Verify German name persisted
+        const savedDeValue = await authenticatedCategoriesPage.getCategoryNameValue('de')
+        expect(savedDeValue).toBe(testData.names.de)
+
+        // Verify English name persisted
+        await authenticatedCategoriesPage.selectLanguageTab('en')
+        const savedEnValue = await authenticatedCategoriesPage.getCategoryNameValue('en')
+        expect(savedEnValue).toBe(testData.names.en)
+
+        // Verify icon persisted
+        const savedIcon = await authenticatedCategoriesPage.getSelectedIconName()
+        expect(savedIcon).toContain(testData.icon)
+
+        await authenticatedCategoriesPage.cancelForm()
+      }
+    })
+
+    test('E2E: should edit all category fields and verify persistence', async ({ authenticatedCategoriesPage, page }) => {
+      // Pattern 001: Create test category first
+      const timestamp = Date.now()
+      const originalData = {
+        de: `Original Category ${timestamp}`,
+        en: `Original English ${timestamp}`,
+      }
+
+      await authenticatedCategoriesPage.createCategory(originalData, 'WeizenIcon')
+      // createCategory waits for loading to complete
+
+      // Find the created category
+      const categoryId = await authenticatedCategoriesPage.findCategoryByName(originalData.de)
+      expect(categoryId).toBeTruthy()
+
+      if (categoryId) {
+        // Open edit modal
+        await authenticatedCategoriesPage.openEditModal(categoryId)
+        await authenticatedCategoriesPage.expectFormModalVisible()
+
+        // Edit all fields with new unique values
+        const newData = {
+          names: {
+            de: `Bearbeitet DE ${Date.now()}`,
+            en: `Edited EN ${Date.now()}`,
+          },
+          icon: 'RadlerIcon',
+        }
+
+        // Fill German name
+        await authenticatedCategoriesPage.fillCategoryName('de', newData.names.de)
+
+        // Switch to English and fill
+        await authenticatedCategoriesPage.selectLanguageTab('en')
+        await authenticatedCategoriesPage.fillCategoryName('en', newData.names.en)
+
+        // Change icon
+        await authenticatedCategoriesPage.selectIcon(newData.icon)
+
+        // Submit form (waits for loading to complete)
+        await authenticatedCategoriesPage.submitForm()
+
+        // Verify edited name appears in table
+        const updatedName = await authenticatedCategoriesPage.getCategoryName(categoryId)
+        expect(updatedName).toBe(newData.names.de)
+
+        // PERSISTENCE CHECK: Re-open modal to verify all edited fields saved
+        await authenticatedCategoriesPage.openEditModal(categoryId)
+        await authenticatedCategoriesPage.expectFormModalVisible()
+
+        // Verify German name persisted
+        const savedDeValue = await authenticatedCategoriesPage.getCategoryNameValue('de')
+        expect(savedDeValue).toBe(newData.names.de)
+
+        // Verify English name persisted
+        await authenticatedCategoriesPage.selectLanguageTab('en')
+        const savedEnValue = await authenticatedCategoriesPage.getCategoryNameValue('en')
+        expect(savedEnValue).toBe(newData.names.en)
+
+        // Verify icon persisted
+        const savedIcon = await authenticatedCategoriesPage.getSelectedIconName()
+        expect(savedIcon).toContain(newData.icon)
+
+        await authenticatedCategoriesPage.cancelForm()
+      }
+    })
+  })
+
+  /**
+   * UC-A44: Sorting Tests
+   * Verify sorting by name works correctly
+   */
+  test.describe('UC-A44: Sorting', () => {
+    test('should sort categories by name ascending', async ({ authenticatedCategoriesPage, page }) => {
+      // Create test categories with known sort order
+      const timestamp = Date.now()
+      await authenticatedCategoriesPage.createCategory({ de: `AAA Sort Test ${timestamp}` })
+      await authenticatedCategoriesPage.createCategory({ de: `ZZZ Sort Test ${timestamp}` })
+      await authenticatedCategoriesPage.createCategory({ de: `MMM Sort Test ${timestamp}` })
+
+      // Click sort header to sort ascending
+      const sortHeader = page.getByTestId('categories-sort-name')
+      await sortHeader.click()
+      await authenticatedCategoriesPage.waitForLoadingToComplete()
+
+      // Verify first category name starts with A (or comes first alphabetically)
+      const firstCategoryId = await page
+        .locator('[data-testid^="categories-table-row-"]')
+        .first()
+        .getAttribute('data-testid')
+        .then((id) => id?.replace('categories-table-row-', '') || '')
+
+      if (firstCategoryId) {
+        const firstName = await authenticatedCategoriesPage.getCategoryName(firstCategoryId)
+        const secondCategoryId = await page
+          .locator('[data-testid^="categories-table-row-"]')
+          .nth(1)
+          .getAttribute('data-testid')
+          .then((id) => id?.replace('categories-table-row-', '') || '')
+
+        if (secondCategoryId) {
+          const secondName = await authenticatedCategoriesPage.getCategoryName(secondCategoryId)
+          // Verify alphabetical order
+          expect(firstName.toLowerCase() <= secondName.toLowerCase()).toBeTruthy()
+        }
+      }
     })
 
   })

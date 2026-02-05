@@ -300,7 +300,7 @@ export function CategoriesPage() {
 
       {/* Loading State */}
       {loading ? (
-        <div style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+        <div data-testid="categories-loading-indicator" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
           Loading categories...
         </div>
       ) : categories.length === 0 ? (

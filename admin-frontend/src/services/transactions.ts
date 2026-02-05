@@ -161,12 +161,20 @@ export async function getTransactions(
 
   // Backend returns data directly or wrapped in data property
   // Check if response has items (direct return) or data property (wrapped)
+  const mapItems = (result: TransactionsListResponse): TransactionsListResponse => {
+    result.items = result.items.map(item => ({
+      ...item,
+      is_settled: !!item.settlement_date,
+    }))
+    return result
+  }
+
   if (response && typeof response === 'object') {
     if ('items' in response && Array.isArray(response.items)) {
-      return response as TransactionsListResponse
+      return mapItems(response as TransactionsListResponse)
     }
     if ('data' in response && response.data && typeof response.data === 'object' && 'items' in response.data) {
-      return response.data as TransactionsListResponse
+      return mapItems(response.data as TransactionsListResponse)
     }
   }
 
@@ -195,7 +203,7 @@ export async function createCorrection(
   reason: string
 ): Promise<Transaction & { member_id: string }> {
   const response = await post<any>(
-    `/admin/members/${memberId}/transactions/correct`,
+    `/admin/members/${memberId}/transactions/correction`,
     {
       amount_cents: amountCents,
       reason,
@@ -230,17 +238,17 @@ export function formatTransactionType(type: 'purchase' | 'correction'): string {
 }
 
 /**
- * Get badge color for transaction type
+ * Get badge colors for transaction type
  *
  * @param type Transaction type
- * @returns Tailwind color class
+ * @returns Background and text colors for badge styling
  */
-export function getTransactionTypeColor(type: 'purchase' | 'correction'): string {
-  const colors: Record<'purchase' | 'correction', string> = {
-    purchase: 'bg-blue-100 text-blue-800',
-    correction: 'bg-orange-100 text-orange-800',
+export function getTransactionTypeColor(type: 'purchase' | 'correction'): { bg: string; text: string } {
+  const colors: Record<'purchase' | 'correction', { bg: string; text: string }> = {
+    purchase: { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6' },
+    correction: { bg: 'rgba(251, 146, 60, 0.1)', text: '#f97316' },
   }
-  return colors[type] || 'bg-gray-100 text-gray-800'
+  return colors[type] || { bg: 'rgba(107, 114, 128, 0.1)', text: '#64748b' }
 }
 
 /**
