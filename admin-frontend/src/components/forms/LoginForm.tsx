@@ -61,11 +61,19 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
         <div style={{ textAlign: 'center', marginBottom: theme.spacing['2xl'] }}>
           <div
             style={{
-              fontSize: '48px',
+              display: 'flex',
+              justifyContent: 'center',
               marginBottom: theme.spacing.md,
             }}
           >
-            🚣
+            <img
+              src="/logo.svg"
+              alt="Ruderbar Logo"
+              style={{
+                width: '64px',
+                height: '64px',
+              }}
+            />
           </div>
           <h1
             style={{
