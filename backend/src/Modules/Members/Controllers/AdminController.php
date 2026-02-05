@@ -20,30 +20,23 @@ class AdminController
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        $limit = (int) ($params['limit'] ?? 50);
-        $offset = (int) ($params['offset'] ?? 0);
 
-        // Validate limit
-        if ($limit > 100) {
-            return $this->json($response, [
-                'error' => 'invalid_request',
-                'messages' => ['limit' => ['Limit cannot exceed 100']]
-            ], 400);
-        }
+        // Support both page/per_page (frontend) and limit/offset (direct) formats
+        $limit = (int) ($params['per_page'] ?? $params['limit'] ?? 50);
+        $limit = min($limit, 100); // Enforce maximum limit
+        $page = (int) ($params['page'] ?? 1);
+        $offset = ($page - 1) * $limit; // Convert page number to offset
 
-        if (isset($params['limit']) && !is_numeric($params['limit'])) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'messages' => ['limit' => ['Limit must be numeric']]
-            ], 400);
-        }
-
-        $sortKey = $params['sort_key'] ?? 'created_at';
-        $sortOrder = $params['sort_order'] ?? 'desc';
+        // Support both sort/order (frontend) and sort_key/sort_order (direct) formats
+        $sortKey = $params['sort'] ?? $params['sort_key'] ?? 'created_at';
+        $sortOrder = $params['order'] ?? $params['sort_order'] ?? 'desc';
         $search = $params['search'] ?? null;
 
+        // Support both filters[is_active] (nested) and is_active (direct) formats
         $filters = [];
-        if (isset($params['is_active'])) {
+        if (isset($params['filters']['is_active'])) {
+            $filters['is_active'] = $params['filters']['is_active'];
+        } elseif (isset($params['is_active'])) {
             $filters['is_active'] = $params['is_active'];
         }
 
