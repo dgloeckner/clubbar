@@ -444,18 +444,47 @@ test.describe('Admin Frontend - Members Page', () => {
       const countAfterEdit = await authenticatedMembersPage.getMemberRowCount()
       expect(countAfterEdit).toBe(memberCount) // Count should remain the same
 
-      // Step 11: Search for edited member in table (database persistence verified)
+      // Step 11: Use search to find edited member (handles pagination)
+      await authenticatedMembersPage.search(newData.firstName)
+      await authenticatedMembersPage.waitForLoadingToComplete()
+
+      // Step 12: Verify edited member appears in search results
       const editedMemberRow = await authenticatedMembersPage.getMemberFirstNameInTable(newData.firstName)
       expect(editedMemberRow).toBeTruthy()
       expect(editedMemberRow).toContain(newData.firstName)
       expect(editedMemberRow).toContain(newData.lastName)
 
-      // Step 12: Verify original member name is gone (replaced by edited name)
+      // Clear search to return to full list
+      await authenticatedMembersPage.clearSearch()
+      await authenticatedMembersPage.waitForLoadingToComplete()
+
+      // Step 13: Verify original member name is gone (replaced by edited name)
       if (originalFirstName !== newData.firstName) {
         const originalMemberRow = await authenticatedMembersPage.getMemberFirstNameInTable(originalFirstName)
         // Original name should not exist if we successfully edited it
         expect(originalMemberRow).toBeNull()
       }
+
+      // Step 14: Re-open edit modal to verify persistence (CRITICAL E2E check)
+      // Search for member first to ensure it's visible
+      await authenticatedMembersPage.search(newData.firstName)
+      await authenticatedMembersPage.waitForLoadingToComplete()
+
+      await authenticatedMembersPage.clickEditButtonForMember(newData.firstName)
+      await authenticatedMembersPage.expectFormModalVisible()
+
+      // Step 15: Verify ALL edited fields show persisted values from database
+      expect(await authenticatedMembersPage.getFormFirstNameValue()).toBe(newData.firstName)
+      expect(await authenticatedMembersPage.getFormLastNameValue()).toBe(newData.lastName)
+      expect(await authenticatedMembersPage.getFormEmailValue()).toBe(newData.email)
+      expect(await authenticatedMembersPage.getFormIbanValue()).toBe(newData.iban.toUpperCase())
+      expect(await authenticatedMembersPage.getFormAccountHolderNameValue()).toBe(newData.accountHolderName)
+      expect(await authenticatedMembersPage.getFormMandateReferenceValue()).toBe(newData.mandateReference.toUpperCase())
+      expect(await authenticatedMembersPage.getFormMandateDateValue()).toBe(newData.mandateDate)
+
+      // Step 16: Close modal without saving
+      await authenticatedMembersPage.cancelForm()
+      await authenticatedMembersPage.expectFormModalHidden()
     })
 
     test('should display empty table initially (no seed data)', async ({ authenticatedMembersPage }) => {
