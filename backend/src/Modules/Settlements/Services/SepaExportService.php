@@ -81,7 +81,7 @@ class SepaExportService
                     'debtorName' => $this->sanitizeName($member['account_holder_name'] ?? ($member['first_name'] . ' ' . $member['last_name'])),
                     'debtorMandate' => $member['mandate_reference'],
                     'debtorMandateSignDate' => $member['mandate_signed_at'] ?? $settlement['settlement_date'],
-                    'remittanceInformation' => 'Settlement ' . $settlement['settlement_date'],
+                    'remittanceInformation' => $this->buildRemittanceInfo($config, $settlement['settlement_date']),
                 ]
             );
         }
@@ -90,6 +90,15 @@ class SepaExportService
         $this->validateSepaXml($xml);
 
         return $xml;
+    }
+
+    private function buildRemittanceInfo(array $config, string $settlementDate): string
+    {
+        $prefix = $config['payment_reference_prefix'] ?? null;
+        if ($prefix) {
+            return SepaSanitizer::sanitizeName($prefix) . ' ' . $settlementDate;
+        }
+        return 'Settlement ' . $settlementDate;
     }
 
     public function sanitizeName(string $name): string

@@ -238,93 +238,91 @@ export function SepaConfigTab({
           />
         )}
 
-        {/* Creditor ID Field */}
-        <FormField
-          label="Gläubiger ID (Creditor ID)"
-          fieldKey="creditor_id"
-          value={formData.creditor_id}
-          placeholder="e.g., DE01ZZZ09999999999"
-          helperText="Unique SEPA creditor identifier (max 35 chars)"
-          maxLength={35}
-          showCharCounter={true}
-        />
-
-        {/* Section Header: Creditor Information */}
-        <h3
+        {/* 2-Column Grid for form fields */}
+        <div
           style={{
-            margin: `${theme.spacing.lg} 0 ${theme.spacing.md} 0`,
-            fontSize: theme.typography.fontSize.base,
-            fontWeight: theme.typography.fontWeight.semibold,
-            color: theme.colors.text.primary,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: theme.spacing.lg,
           }}
         >
-          Creditor Information
-        </h3>
+          {/* Creditor ID Field */}
+          <FormField
+            label="Gläubiger ID (Creditor ID)"
+            fieldKey="creditor_id"
+            value={formData.creditor_id}
+            placeholder="z.B. DE01ZZZ09999999999"
+            helperText="SEPA Gläubiger-Identifikationsnummer (max 35 Zeichen)"
+            maxLength={35}
+            showCharCounter={true}
+          />
 
-        {/* Creditor Name Field */}
-        <FormField
-          label="Gläubiger Name (Creditor Name)"
-          fieldKey="creditor_name"
-          value={formData.creditor_name}
-          placeholder="e.g., Rowing Club Name"
-          helperText="Your organization name (max 70 chars)"
-          maxLength={70}
-          showCharCounter={true}
-        />
+          {/* Creditor Name Field */}
+          <FormField
+            label="Gläubiger Name (Creditor Name)"
+            fieldKey="creditor_name"
+            value={formData.creditor_name}
+            placeholder="z.B. Ruderverein Musterstadt e.V."
+            helperText="Name der Organisation (max 70 Zeichen)"
+            maxLength={70}
+            showCharCounter={true}
+          />
 
-        {/* Creditor IBAN Field */}
-        <FormField
-          label="Gläubiger IBAN (Creditor IBAN)"
-          fieldKey="creditor_iban"
-          value={formData.creditor_iban}
-          placeholder="e.g., DE89370400440532013000"
-          monospace={true}
-          helperText="Bank account IBAN (15-34 characters, mod-97 validated)"
-          showValidation={true}
-        />
+          {/* Creditor IBAN Field */}
+          <FormField
+            label="Gläubiger IBAN (Creditor IBAN)"
+            fieldKey="creditor_iban"
+            value={formData.creditor_iban}
+            placeholder="z.B. DE89370400440532013000"
+            monospace={true}
+            helperText="Bankkonto IBAN (15-34 Zeichen)"
+            showValidation={true}
+          />
 
-        {/* Section Header: Address */}
-        <h3
-          style={{
-            margin: `${theme.spacing.lg} 0 ${theme.spacing.md} 0`,
-            fontSize: theme.typography.fontSize.base,
-            fontWeight: theme.typography.fontWeight.semibold,
-            color: theme.colors.text.primary,
-          }}
-        >
-          Address
-        </h3>
+          {/* Street Address Field */}
+          <FormField
+            label="Straße (Street Address)"
+            fieldKey="creditor_address_street"
+            value={formData.creditor_address_street}
+            placeholder="z.B. Hauptstraße 123"
+            helperText="Straße und Hausnummer (max 70 Zeichen)"
+            maxLength={70}
+            showCharCounter={true}
+          />
 
-        {/* Street Address Field */}
-        <FormField
-          label="Straße (Street Address)"
-          fieldKey="creditor_address_street"
-          value={formData.creditor_address_street}
-          placeholder="e.g., Mainstreet 123"
-          helperText="Organization street address (max 70 chars)"
-          maxLength={70}
-          showCharCounter={true}
-        />
+          {/* City Field */}
+          <FormField
+            label="Stadt (City)"
+            fieldKey="creditor_address_city"
+            value={formData.creditor_address_city}
+            placeholder="z.B. München"
+            helperText="Stadtname (max 70 Zeichen)"
+            maxLength={70}
+            showCharCounter={true}
+          />
 
-        {/* City Field */}
-        <FormField
-          label="Stadt (City)"
-          fieldKey="creditor_address_city"
-          value={formData.creditor_address_city}
-          placeholder="e.g., Munich"
-          helperText="City name (max 70 chars)"
-          maxLength={70}
-          showCharCounter={true}
-        />
+          {/* Country Code Field */}
+          <FormField
+            label="Ländercode (Country Code)"
+            fieldKey="creditor_address_country"
+            value={formData.creditor_address_country}
+            placeholder="z.B. DE"
+            helperText="2-stelliger ISO-Ländercode (DE, AT, CH)"
+          />
 
-        {/* Country Code Field */}
-        <FormField
-          label="Ländercode (Country Code)"
-          fieldKey="creditor_address_country"
-          value={formData.creditor_address_country}
-          placeholder="e.g., DE"
-          helperText="2-letter ISO country code (DE, AT, CH, etc.)"
-        />
+          {/* Payment Reference Prefix Field - spans both columns */}
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FormField
+              label="Verwendungszweck-Präfix (Payment Reference Prefix)"
+              fieldKey="payment_reference_prefix"
+              value={formData.payment_reference_prefix}
+              placeholder="z.B. Ruderbar Abrechnung"
+              helperText="Präfix für den Verwendungszweck. Das Abrechnungsdatum wird automatisch angehängt."
+              maxLength={100}
+              showCharCounter={true}
+            />
+          </div>
+        </div>
 
         {/* Action Buttons */}
         <div

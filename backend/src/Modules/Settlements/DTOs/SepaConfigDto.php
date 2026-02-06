@@ -13,6 +13,7 @@ final readonly class SepaConfigDto
         public ?string $creditorAddressStreet,
         public ?string $creditorAddressCity,
         public ?string $creditorAddressCountry,
+        public ?string $paymentReferencePrefix,
         public bool $isConfigured,
     ) {}
 
@@ -37,6 +38,7 @@ final readonly class SepaConfigDto
             creditorAddressStreet: $row['creditor_address_street'] ?? null,
             creditorAddressCity: $row['creditor_address_city'] ?? null,
             creditorAddressCountry: $row['creditor_address_country'] ?? null,
+            paymentReferencePrefix: $row['payment_reference_prefix'] ?? null,
             isConfigured: $isConfigured,
         );
     }
@@ -58,6 +60,7 @@ final readonly class SepaConfigDto
             'creditor_address_street' => $this->creditorAddressStreet,
             'creditor_address_city' => $this->creditorAddressCity,
             'creditor_address_country' => $this->creditorAddressCountry,
+            'payment_reference_prefix' => $this->paymentReferencePrefix,
             'is_configured' => $this->isConfigured,
         ];
     }

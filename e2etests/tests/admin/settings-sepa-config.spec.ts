@@ -48,6 +48,9 @@ test.describe('SEPA Configuration Settings', () => {
     // Pattern 008: Use expect() for clear error messages
     await authenticatedSettingsPage.expectPageVisible()
     await authenticatedSettingsPage.expectSepaTabVisible()
+
+    // Click SEPA tab to switch to it (default is admin-users)
+    await authenticatedSettingsPage.clickSepaTab()
     await authenticatedSettingsPage.expectFormVisible()
   })
 
@@ -69,6 +72,7 @@ test.describe('SEPA Configuration Settings', () => {
   test('should save new SEPA configuration successfully', async ({ authenticatedSettingsPage }) => {
     // Arrange: Navigate to settings
     await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
 
     // Check initial state - fields should be empty if not configured
     const initialIban = await authenticatedSettingsPage.getIbanValue()
@@ -106,6 +110,7 @@ test.describe('SEPA Configuration Settings', () => {
     // Verify: Reload page and check that data persists and is masked
     await authenticatedSettingsPage.page.reload({ waitUntil: 'domcontentloaded' })
     await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
 
     // After reload, creditor_id should be disabled (immutability)
     const isNowDisabled = await authenticatedSettingsPage.isCreditorIdDisabled()
@@ -132,6 +137,7 @@ test.describe('SEPA Configuration Settings', () => {
   test('should prevent submission with empty required fields', async ({ authenticatedSettingsPage }) => {
     // Arrange: Navigate to settings
     await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
 
     // Verify form is visible and ready
     await authenticatedSettingsPage.expectFormVisible()
@@ -189,6 +195,7 @@ test.describe('SEPA Configuration Settings', () => {
   test('should show warning when creditor_id exists but can be edited', async ({ authenticatedSettingsPage }) => {
     // Arrange: Navigate to settings
     await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
 
     // Check if config exists
     const existingIban = await authenticatedSettingsPage.getIbanValue()
@@ -239,6 +246,7 @@ test.describe('SEPA Configuration Settings', () => {
   test('should reset form to original values when cancel is clicked', async ({ authenticatedSettingsPage }) => {
     // Arrange: Navigate to settings
     await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
 
     // Get original values
     const originalName = await authenticatedSettingsPage.getCreditorNameValue()
@@ -279,6 +287,7 @@ test.describe('SEPA Configuration Settings', () => {
   test('should auto-uppercase country code input', async ({ authenticatedSettingsPage }) => {
     // Arrange: Navigate to settings
     await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
 
     // Act: Enter lowercase country code
     await authenticatedSettingsPage.fillSepaConfig({

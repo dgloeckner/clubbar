@@ -208,17 +208,19 @@ export interface SepaConfig {
   creditor_address_street: string
   creditor_address_city: string
   creditor_address_country: string
+  payment_reference_prefix: string
   created_at: string
   updated_at: string
 }
 
 export interface UpdateSepaConfigRequest {
-  creditor_id: string
-  creditor_name: string
-  creditor_iban: string
-  creditor_address_street: string
-  creditor_address_city: string
-  creditor_address_country: string
+  creditor_id?: string
+  creditor_name?: string
+  creditor_iban?: string
+  creditor_address_street?: string
+  creditor_address_city?: string
+  creditor_address_country?: string
+  payment_reference_prefix?: string
 }
 
 /**
