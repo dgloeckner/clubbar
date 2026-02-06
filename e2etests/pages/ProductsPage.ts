@@ -34,12 +34,17 @@ export class ProductsPage extends BasePage {
   private readonly emptyState = () => this.page.getByTestId('products-empty-state')
   private readonly errorMessage = () => this.page.getByTestId('products-error-message')
   private readonly globalLoadingIndicator = () => this.page.getByTestId('products-global-loading')
+  private readonly searchInput = () => this.page.getByTestId('products-search-input')
 
   // Modal locators (PRIVATE)
   private readonly formModal = () => this.page.getByTestId('products-form-modal')
   private readonly formModalContent = () => this.page.getByTestId('products-form-modal-content')
   private readonly formTitle = () => this.page.getByTestId('products-form-title')
-  private readonly nameInput = () => this.page.getByTestId('products-form-name-input')
+  // Language tabs for multilingual name input
+  private readonly nameTabDe = () => this.page.getByTestId('products-form-name-tab-de')
+  private readonly nameTabEn = () => this.page.getByTestId('products-form-name-tab-en')
+  private readonly nameInputDe = () => this.page.getByTestId('products-form-name-input-de')
+  private readonly nameInputEn = () => this.page.getByTestId('products-form-name-input-en')
   private readonly categorySelect = () => this.page.getByTestId('products-form-category-select')
   private readonly priceInput = () => this.page.getByTestId('products-form-price-input')
   private readonly iconSelectTrigger = () => this.page.getByTestId('products-form-icon-select-trigger')
@@ -302,9 +307,49 @@ export class ProductsPage extends BasePage {
     await this.createBtn().click()
   }
 
+  /**
+   * Fill product form with a single-language name (German by default)
+   */
   async fillProductForm(name: string, price: string) {
-    await this.nameInput().fill(name)
+    await this.nameTabDe().click()
+    await expect(this.nameInputDe()).toBeVisible({ timeout: 5000 })
+    await this.nameInputDe().fill(name)
     await this.priceInput().fill(price)
+  }
+
+  /**
+   * Fill product form with multilingual names
+   */
+  async fillProductFormMultilingual(names: { de?: string; en?: string }, price: string) {
+    if (names.de) {
+      await this.nameTabDe().click()
+      await expect(this.nameInputDe()).toBeVisible({ timeout: 5000 })
+      await this.nameInputDe().fill(names.de)
+    }
+    if (names.en) {
+      await this.nameTabEn().click()
+      await expect(this.nameInputEn()).toBeVisible({ timeout: 5000 })
+      await this.nameInputEn().fill(names.en)
+    }
+    await this.priceInput().fill(price)
+  }
+
+  /**
+   * Get the current value of the German name input
+   */
+  async getFormNameDe(): Promise<string> {
+    await this.nameTabDe().click()
+    await expect(this.nameInputDe()).toBeVisible({ timeout: 5000 })
+    return await this.nameInputDe().inputValue()
+  }
+
+  /**
+   * Get the current value of the English name input
+   */
+  async getFormNameEn(): Promise<string> {
+    await this.nameTabEn().click()
+    await expect(this.nameInputEn()).toBeVisible({ timeout: 5000 })
+    return await this.nameInputEn().inputValue()
   }
 
   async selectCategory(categoryId: string) {
@@ -317,8 +362,15 @@ export class ProductsPage extends BasePage {
     const dropdown = this.page.getByTestId('products-form-category-select-dropdown')
     await expect(dropdown).toBeVisible({ timeout: 5000 })
 
-    // Wait for the specific option to appear
+    // Wait for the specific option to appear - it may need scrolling into view
     const option = this.page.getByTestId(`products-form-category-select-option-${categoryId}`)
+
+    // First try to find it, scrolling if needed
+    try {
+      await option.scrollIntoViewIfNeeded({ timeout: 5000 })
+    } catch {
+      // If scrolling fails, the option might be rendered but not scrolled, try waiting longer
+    }
     await expect(option).toBeVisible({ timeout: 10000 })
 
     // Click the option button for the category
@@ -372,8 +424,15 @@ export class ProductsPage extends BasePage {
   }
 
   async submitForm() {
+    // Set up response promise BEFORE clicking to capture the products list reload
+    const productsReloadPromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/products') && resp.request().method() === 'GET',
+      { timeout: 15000 }
+    )
     await this.formSubmitBtn().click()
-    // Wait for API call to complete
+    // Wait for products list reload response (triggered after form submission)
+    await productsReloadPromise
+    // Wait for loading indicator to clear
     await this.waitForLoadingToComplete()
   }
 
@@ -452,8 +511,12 @@ export class ProductsPage extends BasePage {
    * FORM FIELD HELPERS
    */
 
+  /**
+   * Get the current value of the active name input (German tab by default)
+   */
   async getFormNameValue(): Promise<string> {
-    return await this.nameInput().inputValue() || ''
+    await this.nameTabDe().click()
+    return await this.nameInputDe().inputValue() || ''
   }
 
   async getFormPriceValue(): Promise<string> {
@@ -566,6 +629,168 @@ export class ProductsPage extends BasePage {
   async getProductStatus(productId: string): Promise<'active' | 'inactive'> {
     const statusText = await this.statusToggle(productId).first().textContent()
     return statusText?.includes('Active') ? 'active' : 'inactive'
+  }
+
+  /**
+   * SORTING INTERACTIONS (Pattern 006: Semantic actions)
+   */
+
+  private readonly sortHeaderName = () => this.page.getByTestId('products-table-header-name')
+  private readonly sortHeaderPrice = () => this.page.getByTestId('products-table-header-price')
+  private readonly sortHeaderCategory = () => this.page.getByTestId('products-table-header-category')
+  private readonly categoryFilterTrigger = () => this.page.getByTestId('products-search-sort-category-trigger')
+  private readonly categoryFilterDropdown = () => this.page.getByTestId('products-search-sort-category-dropdown')
+  private readonly categoryFilterOptionAll = () => this.page.getByTestId('products-search-sort-category-option-all')
+  private readonly categoryFilterOption = (categoryId: string) =>
+    this.page.getByTestId(`products-search-sort-category-option-${categoryId}`)
+
+  // Status filter locators (PRIVATE)
+  private readonly statusFilterPills = () => this.page.getByTestId('products-filter-status')
+  private readonly statusFilterAll = () => this.page.getByTestId('products-filter-status-all')
+  private readonly statusFilterActive = () => this.page.getByTestId('products-filter-status-active')
+  private readonly statusFilterInactive = () => this.page.getByTestId('products-filter-status-inactive')
+
+  /**
+   * Click a sort header and wait for the API response.
+   * Uses waitForResponse to avoid race conditions with React's useEffect.
+   */
+  async sortBy(field: 'name' | 'price' | 'category') {
+    const header = field === 'name'
+      ? this.sortHeaderName()
+      : field === 'price'
+        ? this.sortHeaderPrice()
+        : this.sortHeaderCategory()
+
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/products') && resp.url().includes('sort_by='),
+      { timeout: 10000 }
+    )
+    await header.click()
+    await responsePromise
+    await this.waitForLoadingToComplete()
+  }
+
+  /**
+   * Get all product names in current display order.
+   * Returns array of name strings matching table row order.
+   */
+  async getAllProductNamesInOrder(): Promise<string[]> {
+    const rows = await this.tableRows().all()
+    const names: string[] = []
+    for (const row of rows) {
+      const nameCell = row.locator('[data-testid*="products-table-cell-name-"]')
+      const text = await nameCell.textContent()
+      names.push(text?.trim() || '')
+    }
+    return names
+  }
+
+  /**
+   * Get all product prices in current display order.
+   * Returns array of price strings (e.g. "5,00 €") matching table row order.
+   */
+  async getAllProductPricesInOrder(): Promise<string[]> {
+    const rows = await this.tableRows().all()
+    const prices: string[] = []
+    for (const row of rows) {
+      const priceCell = row.locator('[data-testid*="products-table-cell-price-"]')
+      const text = await priceCell.textContent()
+      prices.push(text?.trim() || '')
+    }
+    return prices
+  }
+
+  /**
+   * Filter products by category using the category filter dropdown.
+   * Waits for API response after selection.
+   */
+  async filterByCategory(categoryId: string) {
+    await this.categoryFilterTrigger().click()
+    await expect(this.categoryFilterDropdown()).toBeVisible({ timeout: 5000 })
+
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/products') && resp.url().includes(`category_id=${categoryId}`),
+      { timeout: 10000 }
+    )
+    await this.categoryFilterOption(categoryId).click()
+    await responsePromise
+    await this.waitForLoadingToComplete()
+  }
+
+  /**
+   * Reset category filter to "All Categories".
+   * Waits for API response after selection.
+   */
+  async filterByAllCategories() {
+    await this.categoryFilterTrigger().click()
+    await expect(this.categoryFilterDropdown()).toBeVisible({ timeout: 5000 })
+
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/products'),
+      { timeout: 10000 }
+    )
+    await this.categoryFilterOptionAll().click()
+    await responsePromise
+    await this.waitForLoadingToComplete()
+  }
+
+  /**
+   * STATUS FILTER INTERACTIONS (Pattern 006: Semantic actions)
+   */
+
+  /**
+   * Filter products by status (all, active, inactive).
+   * Clicks the status pill and waits for API response.
+   */
+  async filterByStatus(status: 'all' | 'active' | 'inactive') {
+    const pill = status === 'all'
+      ? this.statusFilterAll()
+      : status === 'active'
+        ? this.statusFilterActive()
+        : this.statusFilterInactive()
+
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/products'),
+      { timeout: 10000 }
+    )
+    await pill.click()
+    await responsePromise
+    await this.waitForLoadingToComplete()
+  }
+
+  /**
+   * SEARCH INTERACTIONS (Pattern 006: Semantic actions)
+   */
+
+  /**
+   * Search for products by name. Clears existing value first to ensure
+   * the change event fires even if searching for the same term.
+   * Waits for debounced API response with the search term in URL.
+   */
+  async search(term: string) {
+    await this.searchInput().clear()
+    // Wait for any pending requests to settle
+    await this.page.waitForTimeout(100)
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/products') && resp.url().includes(`search=${encodeURIComponent(term)}`),
+      { timeout: 10000 }
+    )
+    await this.searchInput().fill(term)
+    await responsePromise
+    await this.waitForLoadingToComplete()
+  }
+
+  /**
+   * Clear the search input and wait for unfiltered results.
+   */
+  async clearSearch() {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/products'),
+      { timeout: 10000 }
+    )
+    await this.searchInput().clear()
+    await responsePromise
+    await this.waitForLoadingToComplete()
   }
 
   /**

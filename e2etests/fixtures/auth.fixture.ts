@@ -8,6 +8,7 @@ import {
 } from "../utils/transactions";
 import { ProfilePage } from "../pages/ProfilePage";
 import { MainLayoutPage } from "../pages/MainLayoutPage";
+import { ProductsPage } from "../pages/ProductsPage";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -56,6 +57,7 @@ interface AuthFixtures {
   testTransactions: TestTransactionsFixture;
   profilePage: ProfilePage;
   mainLayoutPage: MainLayoutPage;
+  productsPage: ProductsPage;
 }
 
 /**
@@ -382,6 +384,10 @@ export const test = base.extend<AuthFixtures>({
 
   mainLayoutPage: async ({ page }, use) => {
     await use(new MainLayoutPage(page));
+  },
+
+  productsPage: async ({ page }, use) => {
+    await use(new ProductsPage(page));
   },
 });
 

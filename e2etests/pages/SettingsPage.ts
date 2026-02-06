@@ -63,8 +63,12 @@ export class SettingsPage {
       // Loading indicator may not appear, that's ok
     }
 
-    // Wait for form to be visible
-    await this.sepaForm.waitFor({ state: 'visible' })
+    // Wait for either admin users table OR sepa form to be visible (depends on which tab is active)
+    // Default tab is admin-users, so wait for either content
+    await Promise.race([
+      this.page.getByTestId('settings-admin-users-table').waitFor({ state: 'visible', timeout: 10000 }),
+      this.sepaForm.waitFor({ state: 'visible', timeout: 10000 }),
+    ])
   }
 
   /**
@@ -268,6 +272,17 @@ export class SettingsPage {
     await expect(this.sepaTab).toBeVisible()
   }
 
+  /**
+   * Click SEPA tab to switch to that tab
+   */
+  async clickSepaTab() {
+    await this.sepaTab.click()
+    // Wait for SEPA form to appear
+    await this.sepaForm.waitFor({ state: 'visible' })
+    // Wait a moment for form data to load from API
+    await this.page.waitForTimeout(300)
+  }
+
   // ==================== Admin Users Tab ====================
 
   /**
@@ -311,7 +326,9 @@ export class SettingsPage {
       await this.page.getByTestId('settings-admin-create-display-name').fill(data.display_name)
     }
     if (data.locale) {
-      await this.page.getByTestId('settings-admin-create-locale').selectOption(data.locale)
+      // LanguageSelector is a custom dropdown, not a native select
+      await this.page.getByTestId('settings-admin-create-locale-trigger').click()
+      await this.page.getByTestId(`settings-admin-create-locale-option-${data.locale}`).click()
     }
   }
 
@@ -462,7 +479,9 @@ export class SettingsPage {
       await nameInput.fill(data.display_name)
     }
     if (data.locale) {
-      await this.page.getByTestId('settings-admin-edit-locale').selectOption(data.locale)
+      // LanguageSelector is a custom dropdown, not a native select
+      await this.page.getByTestId('settings-admin-edit-locale-trigger').click()
+      await this.page.getByTestId(`settings-admin-edit-locale-option-${data.locale}`).click()
     }
   }
 
