@@ -195,11 +195,17 @@
     "transactionCount": "Transactions",
     "totalAmount": "Total Amount",
     "status": "Status",
+    "active": "Active",
     "pending": "Pending",
     "completed": "Completed",
     "cancelled": "Cancelled",
+    "exported": "Exported",
     "exportSepa": "SEPA Export",
-    "noSettlements": "No settlements found"
+    "exportCsv": "CSV Export",
+    "exportTransactions": "Transactions",
+    "noSettlements": "No settlements found",
+    "createdBy": "Created By",
+    "undoConfirm": "Undo this settlement? All transactions will return to Open state."
   },
   "statistics": {
     "title": "Statistics",
@@ -212,7 +218,20 @@
     "thisMonth": "This Month",
     "lastMonth": "Last Month",
     "thisYear": "This Year",
-    "custom": "Custom"
+    "custom": "Custom",
+    "loadingStats": "Loading statistics...",
+    "totalRevenue": "Total Revenue",
+    "soldItems": "Sold Items",
+    "topProduct": "Top Product",
+    "timesSold": "× sold",
+    "revenuePerDay": "Revenue per Day",
+    "noDataForMonth": "No data for this month",
+    "product": "Product",
+    "member": "Member",
+    "sales": "Sales",
+    "purchases": "Purchases",
+    "noProductData": "No product data",
+    "noMemberData": "No member data"
   },
   "settings": {
     "title": "Settings",
