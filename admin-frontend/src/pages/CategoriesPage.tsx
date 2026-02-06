@@ -18,9 +18,10 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { get, post, patch, del } from '../services/api'
 import { theme } from '../styles/design-system'
-import { getLocalizedName } from '../utils/i18n-helpers'
+import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { EditIcon, TrashIcon, PlusIcon } from '../components/icons'
 import { IconSelect } from '../components/forms/IconSelect'
+import { LanguageTabsInput } from '../components/forms/LanguageTabsInput'
 import { StatusFilterPills } from '../components/forms/StatusFilterPills'
 import { getCategoryIcon } from '../components/icons/IconRegistry'
 import { IconCell } from '../components/tables/IconCell'
@@ -55,8 +56,7 @@ export function CategoriesPage() {
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
-  const [activeLanguage, setActiveLanguage] = useState('de')
-  const [formData, setFormData] = useState<{ [lang: string]: string }>({ de: '', en: '' })
+  const [formData, setFormData] = useState<{ de: string; en: string }>({ de: '', en: '' })
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -139,9 +139,8 @@ export function CategoriesPage() {
     setFormError(null)
 
     // Validation: at least one language name required
-    const hasAtLeastOneName = Object.values(formData).some((name) => name.trim())
-    if (!hasAtLeastOneName) {
-      setFormError('At least one language name is required')
+    if (!hasAnyName(formData)) {
+      setFormError(t('validation.atLeastOneLanguage'))
       return
     }
 
@@ -149,7 +148,7 @@ export function CategoriesPage() {
       // Filter out empty language names - backend requires all values to be non-empty
       const nonEmptyNames = Object.entries(formData)
         .filter(([, name]) => name.trim())
-        .reduce((acc, [lang, name]) => ({ ...acc, [lang]: name }), {})
+        .reduce((acc, [lang, name]) => ({ ...acc, [lang]: name.trim() }), {})
 
       if (modalMode === 'create') {
         const result = await post('/admin/categories', {
@@ -396,9 +395,8 @@ export function CategoriesPage() {
                       onClick={() => {
                         setModalMode('edit')
                         setSelectedCategory(category)
-                        setFormData(category.names)
+                        setFormData({ de: category.names.de || '', en: category.names.en || '' })
                         setSelectedIcon(category.icon_name || null)
-                        setActiveLanguage('de')
                         setFormError(null)
                         setShowModal(true)
                       }}
@@ -504,78 +502,17 @@ export function CategoriesPage() {
               </div>
             )}
 
-            {/* Language Tabs */}
+            {/* Category Name with Language Tabs */}
             <div style={{ marginBottom: theme.spacing.lg }}>
-              <div style={{ display: 'flex', gap: theme.spacing.md, borderBottom: `1px solid ${theme.colors.border.light}` }}>
-                {['de', 'en'].map((lang) => (
-                  <button
-                    key={lang}
-                    data-testid={`categories-form-lang-tab-${lang}`}
-                    onClick={() => setActiveLanguage(lang)}
-                    style={{
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      border: 'none',
-                      background: 'transparent',
-                      color: activeLanguage === lang ? theme.colors.semantic.primary : theme.colors.text.secondary,
-                      borderBottom: activeLanguage === lang ? `2px solid ${theme.colors.semantic.primary}` : 'none',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: activeLanguage === lang ? '600' : '400',
-                      transition: 'all 150ms',
-                    }}
-                  >
-                    {lang.toUpperCase()}
-                  </button>
-                ))}
-              </div>
+              <LanguageTabsInput
+                values={formData}
+                onChange={setFormData}
+                label={t('categories.categoryName')}
+                placeholder={t('categories.categoryName')}
+                required
+                testIdPrefix="categories-form-name"
+              />
             </div>
-
-            {/* Language Content */}
-            {['de', 'en'].map((lang) => (
-              <div
-                key={lang}
-                data-testid={`categories-form-lang-content-${lang}`}
-                style={{ display: activeLanguage === lang ? 'block' : 'none' }}
-              >
-                <div style={{ marginBottom: theme.spacing.lg }}>
-                  <label
-                    style={{
-                      display: 'block',
-                      marginBottom: theme.spacing.sm,
-                      color: theme.colors.text.primary,
-                      fontSize: '14px',
-                      fontWeight: '500',
-                    }}
-                  >
-                    {t('categories.categoryName')} ({lang.toUpperCase()})
-                  </label>
-                  <input
-                    data-testid={`categories-form-name-input-${lang}`}
-                    type="text"
-                    placeholder={t('categories.categoryName')}
-                    value={formData[lang] || ''}
-                    onChange={(e) => setFormData({ ...formData, [lang]: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: theme.spacing.md,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      background: theme.colors.bg.primary,
-                      color: theme.colors.text.primary,
-                      boxSizing: 'border-box',
-                      fontSize: '14px',
-                      transition: 'all 150ms',
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = theme.colors.semantic.primary
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = theme.colors.border.light
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
 
             <IconSelect
               value={selectedIcon}
