@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useLoading } from '../context/LoadingContext'
 import { getSepaConfig, updateSepaConfig } from '../services/sepa-config'
@@ -17,6 +18,7 @@ import { EditAdminModal } from '../components/modals/EditAdminModal'
 import { PasswordDisplayModal } from '../components/modals/PasswordDisplayModal'
 
 export function SettingsPage() {
+  const { t } = useTranslation()
   const { setIsLoading } = useLoading()
 
   // State management
@@ -33,6 +35,7 @@ export function SettingsPage() {
     creditor_address_street: '',
     creditor_address_city: '',
     creditor_address_country: '',
+    payment_reference_prefix: '',
   })
   const [formData, setFormData] = useState<UpdateSepaConfigRequest>({
     creditor_id: '',
@@ -41,6 +44,7 @@ export function SettingsPage() {
     creditor_address_street: '',
     creditor_address_city: '',
     creditor_address_country: '',
+    payment_reference_prefix: '',
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
@@ -81,6 +85,7 @@ export function SettingsPage() {
             creditor_address_street: config.creditor_address_street,
             creditor_address_city: config.creditor_address_city,
             creditor_address_country: config.creditor_address_country,
+            payment_reference_prefix: config.payment_reference_prefix,
           }
           setFormData(formValues)
           setOriginalFormData(formValues)
@@ -155,7 +160,7 @@ export function SettingsPage() {
   }
 
   const handleDeactivateAdmin = async (id: string) => {
-    if (!window.confirm('Are you sure you want to deactivate this admin user?')) return
+    if (!window.confirm(t('settings.deactivateAdminConfirm'))) return
     try {
       await deactivateAdminUser(id)
       await loadAdminUsers()
@@ -356,14 +361,14 @@ export function SettingsPage() {
   if (loading) {
     return (
       <div data-testid="settings-page-loading" style={{ textAlign: 'center', padding: theme.spacing.xl }}>
-        Loading settings...
+        {t('settings.loadingSettings')}
       </div>
     )
   }
 
   return (
-    <div data-testid="settings-page" style={{ maxWidth: '800px' }}>
-      <h1 style={{ margin: '0 0 20px 0' }}>Einstellungen</h1>
+    <div data-testid="settings-page" style={{ padding: '20px' }}>
+      <h1 style={{ margin: '0 0 20px 0' }}>{t('settings.title')}</h1>
 
       {/* Tabs Navigation */}
       <div style={{ marginBottom: theme.spacing.xl }}>
@@ -382,7 +387,7 @@ export function SettingsPage() {
               <circle cx="18.5" cy="7" r="4" />
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
             </svg>
-            Admin-Benutzer
+            {t('settings.adminUsers')}
           </button>
           <button
             data-testid="settings-tab-sepa"
@@ -393,7 +398,7 @@ export function SettingsPage() {
               <rect x="2" y="5" width="20" height="14" rx="2" />
               <line x1="2" y1="10" x2="22" y2="10" />
             </svg>
-            SEPA-Konfiguration
+            {t('settings.sepaConfig')}
           </button>
         </div>
       </div>

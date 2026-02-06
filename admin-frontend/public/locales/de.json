@@ -241,7 +241,10 @@
     "creditorName": "Gläubiger-Name",
     "creditorIban": "Gläubiger-IBAN",
     "creditorBic": "BIC",
-    "paymentReferencePrefix": "Verwendungszweck-Präfix"
+    "paymentReferencePrefix": "Verwendungszweck-Präfix",
+    "adminUsers": "Admin-Benutzer",
+    "loadingSettings": "Lade Einstellungen...",
+    "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?"
   },
   "auditLog": {
     "title": "Audit-Log",

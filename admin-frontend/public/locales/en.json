@@ -241,7 +241,10 @@
     "creditorName": "Creditor Name",
     "creditorIban": "Creditor IBAN",
     "creditorBic": "BIC",
-    "paymentReferencePrefix": "Payment Reference Prefix"
+    "paymentReferencePrefix": "Payment Reference Prefix",
+    "adminUsers": "Admin Users",
+    "loadingSettings": "Loading settings...",
+    "deactivateAdminConfirm": "Are you sure you want to deactivate this admin user?"
   },
   "auditLog": {
     "title": "Audit Log",
