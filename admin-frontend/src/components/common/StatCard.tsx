@@ -75,6 +75,7 @@ export function StatCard({ icon, label, value, color = 'blue' }: StatCardProps) 
           style={{
             fontSize: '28px',
             fontWeight: theme.typography.fontWeight.bold,
+            fontFamily: 'JetBrains Mono, monospace',
             color: theme.colors.text.primary,
           }}
         >

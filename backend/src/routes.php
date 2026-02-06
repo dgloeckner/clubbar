@@ -31,6 +31,7 @@ return function (App $app): void {
     $app->group('/api/auth', function (RouteCollectorProxy $group) {
         $group->post('/logout', [AuthController::class, 'logout']);
         $group->get('/profile', [AuthController::class, 'profile']);
+        $group->patch('/profile', [AuthController::class, 'updateProfile']);
         $group->patch('/change-password', [AuthController::class, 'changePassword']);
     })->add(AdminSessionAuth::class);
 
@@ -50,6 +51,7 @@ return function (App $app): void {
     $app->group('/api/admin', function (RouteCollectorProxy $group) {
         // Dashboard
         $group->get('/dashboard', [DashboardAdminController::class, 'show']);
+        $group->get('/statistics/monthly', [DashboardAdminController::class, 'monthlyStats']);
 
         // Members
         $group->get('/members', [MembersAdminController::class, 'index']);

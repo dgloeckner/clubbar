@@ -257,6 +257,7 @@ export function StatisticsPage() {
                 style={{
                   fontSize: '36px',
                   fontWeight: 700,
+                  fontFamily: 'JetBrains Mono, monospace',
                   color: '#22c55e',
                   textShadow: '0 2px 10px rgba(34, 197, 94, 0.3)',
                 }}
@@ -284,6 +285,7 @@ export function StatisticsPage() {
                 style={{
                   fontSize: '36px',
                   fontWeight: 700,
+                  fontFamily: 'JetBrains Mono, monospace',
                   color: '#3b82f6',
                   textShadow: '0 2px 10px rgba(59, 130, 246, 0.3)',
                 }}
@@ -449,7 +451,7 @@ export function StatisticsPage() {
                         <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right' }}>
                           {product.sold_count.toLocaleString(i18n.language === 'de' ? 'de-DE' : 'en-US')}
                         </td>
-                        <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right', fontWeight: 500 }}>
+                        <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right', fontWeight: 500, fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatters.formatPrice(product.revenue_cents)}
                         </td>
                       </tr>
@@ -503,7 +505,7 @@ export function StatisticsPage() {
                         <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right' }}>
                           {member.purchase_count.toLocaleString(i18n.language === 'de' ? 'de-DE' : 'en-US')}
                         </td>
-                        <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right', fontWeight: 500 }}>
+                        <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right', fontWeight: 500, fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatters.formatPrice(member.revenue_cents)}
                         </td>
                       </tr>
