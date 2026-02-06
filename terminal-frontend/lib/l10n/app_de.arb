@@ -1,0 +1,237 @@
+{
+  "@@locale": "de",
+
+  "@_IDLE_SCREEN": {},
+  "idleTitle": "Durstig?",
+  "@idleTitle": {
+    "description": "Main title on idle/waiting screen"
+  },
+  "idleSubtitle": "Halte deine Karte an den Scanner",
+  "@idleSubtitle": {
+    "description": "Instruction to scan RFID card"
+  },
+  "demoScanCard": "Demo: Karte scannen",
+  "@demoScanCard": {
+    "description": "Demo button to simulate card scan"
+  },
+
+  "@_SETUP_SCREEN": {},
+  "setupTitle": "Terminal-Einrichtung",
+  "@setupTitle": {
+    "description": "Setup screen title"
+  },
+  "setupSubtitle": "Verbinde dieses Terminal mit dem Ruderbar-Backend.",
+  "@setupSubtitle": {
+    "description": "Setup screen subtitle"
+  },
+  "terminalIdLabel": "Terminal-ID",
+  "@terminalIdLabel": {
+    "description": "Label for terminal ID field"
+  },
+  "terminalIdRequired": "Terminal-ID ist erforderlich",
+  "@terminalIdRequired": {
+    "description": "Validation error for empty terminal ID"
+  },
+  "apiUrlLabel": "API-URL",
+  "@apiUrlLabel": {
+    "description": "Label for API URL field"
+  },
+  "apiUrlRequired": "API-URL ist erforderlich",
+  "@apiUrlRequired": {
+    "description": "Validation error for empty API URL"
+  },
+  "apiUrlInvalid": "Gib eine gültige URL ein (z.B. https://club.example.com/api)",
+  "@apiUrlInvalid": {
+    "description": "Validation error for invalid API URL format"
+  },
+  "apiTokenLabel": "API-Token",
+  "@apiTokenLabel": {
+    "description": "Label for API token field"
+  },
+  "apiTokenRequired": "API-Token ist erforderlich",
+  "@apiTokenRequired": {
+    "description": "Validation error for empty API token"
+  },
+  "saveAndConnect": "Speichern & Verbinden",
+  "@saveAndConnect": {
+    "description": "Button to save settings and connect to backend"
+  },
+  "connectionFailed": "Verbindung fehlgeschlagen: {error}",
+  "@connectionFailed": {
+    "description": "Error message when connection fails",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "example": "Network error"
+      }
+    }
+  },
+
+  "@_SHOPPING_CART": {},
+  "cartEmpty": "Dein Warenkorb ist leer",
+  "@cartEmpty": {
+    "description": "Message shown when cart is empty"
+  },
+  "cartTotal": "Gesamt",
+  "@cartTotal": {
+    "description": "Label for cart total"
+  },
+  "cartNewBalance": "Neuer Kontostand: {balance}",
+  "@cartNewBalance": {
+    "description": "Shows new balance after checkout",
+    "placeholders": {
+      "balance": {
+        "type": "String",
+        "example": "€12.50"
+      }
+    }
+  },
+  "cartEachPrice": "{price} pro Stück",
+  "@cartEachPrice": {
+    "description": "Unit price label",
+    "placeholders": {
+      "price": {
+        "type": "String",
+        "example": "€2.50"
+      }
+    }
+  },
+  "checkout": "Bezahlen",
+  "@checkout": {
+    "description": "Checkout button label"
+  },
+  "memberNotSelected": "Kein Mitglied ausgewählt",
+  "@memberNotSelected": {
+    "description": "Error when trying to checkout without member"
+  },
+
+  "@_CHECKOUT_CONFIRMATION": {},
+  "checkoutSuccess": "Buchung erfolgreich!",
+  "@checkoutSuccess": {
+    "description": "Success message after checkout"
+  },
+  "checkoutNewBalance": "Neuer Kontostand: {balance}",
+  "@checkoutNewBalance": {
+    "description": "Shows new balance on confirmation screen",
+    "placeholders": {
+      "balance": {
+        "type": "String",
+        "example": "€12.50"
+      }
+    }
+  },
+  "redirectingIn": "Weiterleitung in {seconds} {seconds, plural, =1{Sekunde} other{Sekunden}}...",
+  "@redirectingIn": {
+    "description": "Countdown message before redirecting",
+    "placeholders": {
+      "seconds": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+
+  "@_MEMBER_DETAILS": {},
+  "memberActive": "Aktiv",
+  "@memberActive": {
+    "description": "Label for active member status"
+  },
+  "memberInactive": "Inaktiv",
+  "@memberInactive": {
+    "description": "Label for inactive member status"
+  },
+  "sepaYes": "Ja",
+  "@sepaYes": {
+    "description": "Yes label for SEPA status"
+  },
+  "sepaNo": "Nein",
+  "@sepaNo": {
+    "description": "No label for SEPA status"
+  },
+  "noMemberSelected": "Kein Mitglied ausgewählt",
+  "@noMemberSelected": {
+    "description": "Message when no member is selected"
+  },
+
+  "@_MEMBER_BAR": {},
+  "welcomeMember": "Willkommen, {name}",
+  "@welcomeMember": {
+    "description": "Greeting message with member name",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Max"
+      }
+    }
+  },
+  "balance": "Kontostand",
+  "@balance": {
+    "description": "Label for member balance"
+  },
+  "viewDetails": "Details",
+  "@viewDetails": {
+    "description": "Button to view member details"
+  },
+  "logout": "Abmelden",
+  "@logout": {
+    "description": "Logout button label"
+  },
+
+  "@_ERROR_MODAL": {},
+  "errorTitle": "Fehler",
+  "@errorTitle": {
+    "description": "Error modal title"
+  },
+  "dismiss": "Schließen",
+  "@dismiss": {
+    "description": "Dismiss button label"
+  },
+  "retry": "Erneut versuchen",
+  "@retry": {
+    "description": "Retry button label"
+  },
+
+  "@_PRODUCT_SELECTION": {},
+  "categoryDefault": "Kategorie",
+  "@categoryDefault": {
+    "description": "Default category name when translation missing"
+  },
+  "productDefault": "Produkt",
+  "@productDefault": {
+    "description": "Default product name when translation missing"
+  },
+  "noProducts": "Keine Produkte verfügbar",
+  "@noProducts": {
+    "description": "Message when no products in category"
+  },
+  "noCategories": "Keine Kategorien verfügbar",
+  "@noCategories": {
+    "description": "Message when no categories available"
+  },
+  "noProductsInCategory": "Keine Produkte in dieser Kategorie",
+  "@noProductsInCategory": {
+    "description": "Message when selected category has no products"
+  },
+
+  "@_COMMON": {},
+  "loading": "Laden...",
+  "@loading": {
+    "description": "Loading indicator text"
+  },
+  "cancel": "Abbrechen",
+  "@cancel": {
+    "description": "Cancel button label"
+  },
+  "save": "Speichern",
+  "@save": {
+    "description": "Save button label"
+  },
+  "continueShopping": "Weiter einkaufen",
+  "@continueShopping": {
+    "description": "Button to continue shopping"
+  },
+  "scanCard": "Karte scannen",
+  "@scanCard": {
+    "description": "Button to scan card"
+  }
+}

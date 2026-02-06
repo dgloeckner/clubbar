@@ -310,6 +310,22 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Future Plans
 
+### Flutter Terminal i18n (📋 READY TO IMPLEMENT)
+- **Link**: [flutter-i18n.md](./flutter-i18n.md)
+- **Goal**: Add multi-language support (German/English) to Flutter terminal frontend
+- **Status**: Plan complete, ready for implementation
+- **Scope**: 8 phases
+  - Phase 1: Setup Flutter localization infrastructure (ARB files, code generation)
+  - Phase 2: Create LocaleProvider for member-driven language selection
+  - Phase 3: Configure MaterialApp with localization delegates
+  - Phase 4: Replace ~50 hardcoded strings in 6 screens
+  - Phase 5: Update widgets with localized strings
+  - Phase 6: Locale-aware formatting (currency, dates)
+  - Phase 7: Testing (unit + widget tests)
+  - Phase 8: Documentation and ADR
+- **Key Feature**: Terminal automatically displays in member's preferred language
+- **Dependencies**: `flutter_localizations` (SDK), `intl_utils` (dev)
+
 ### Transactions Module Refactoring (📍 PRIORITY — Architecture Compliance)
 - **Link**: [transactions-module-refactor.md](./transactions-module-refactor.md)
 - **Goal**: Refactor WIP Transactions module to follow ADR-0018 modular architecture and backend patterns

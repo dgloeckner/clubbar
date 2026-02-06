@@ -1,0 +1,57 @@
+{
+  "@@locale": "en",
+
+  "idleTitle": "Thirsty?",
+  "idleSubtitle": "Hold your card to the scanner",
+  "demoScanCard": "Demo: Scan Card",
+
+  "setupTitle": "Terminal Setup",
+  "setupSubtitle": "Connect this terminal to the Ruderbar backend.",
+  "terminalIdLabel": "Terminal ID",
+  "terminalIdRequired": "Terminal ID is required",
+  "apiUrlLabel": "API URL",
+  "apiUrlRequired": "API URL is required",
+  "apiUrlInvalid": "Enter a valid URL (e.g. https://club.example.com/api)",
+  "apiTokenLabel": "API Token",
+  "apiTokenRequired": "API Token is required",
+  "saveAndConnect": "Save & Connect",
+  "connectionFailed": "Connection failed: {error}",
+
+  "cartEmpty": "Your cart is empty",
+  "cartTotal": "Total",
+  "cartNewBalance": "New Balance: {balance}",
+  "cartEachPrice": "{price} each",
+  "checkout": "Checkout",
+  "memberNotSelected": "Member not selected",
+
+  "checkoutSuccess": "Transaction successful!",
+  "checkoutNewBalance": "New Balance: {balance}",
+  "redirectingIn": "Redirecting in {seconds} {seconds, plural, =1{second} other{seconds}}...",
+
+  "memberActive": "Active",
+  "memberInactive": "Inactive",
+  "sepaYes": "Yes",
+  "sepaNo": "No",
+  "noMemberSelected": "No member selected",
+
+  "welcomeMember": "Welcome, {name}",
+  "balance": "Balance",
+  "viewDetails": "Details",
+  "logout": "Log out",
+
+  "errorTitle": "Error",
+  "dismiss": "Dismiss",
+  "retry": "Retry",
+
+  "categoryDefault": "Category",
+  "productDefault": "Product",
+  "noProducts": "No products available",
+  "noCategories": "No categories available",
+  "noProductsInCategory": "No products in this category",
+
+  "loading": "Loading...",
+  "cancel": "Cancel",
+  "save": "Save",
+  "continueShopping": "Continue Shopping",
+  "scanCard": "Scan Card"
+}

@@ -13,6 +13,7 @@ import 'package:ruderbar_terminal/providers/products_provider.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/providers/rfid_provider.dart';
+import 'package:ruderbar_terminal/providers/locale_provider.dart';
 import 'package:ruderbar_terminal/repository/members_repository.dart';
 import 'package:ruderbar_terminal/repository/products_repository.dart';
 import 'package:ruderbar_terminal/repository/transactions_repository.dart';
@@ -308,6 +309,7 @@ class RuderbarTerminalApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<NetworkService>.value(value: networkService),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider<MembersProvider>(create: (_) => membersProvider),
         ChangeNotifierProvider<ProductsProvider>(create: (_) => productsProvider),
