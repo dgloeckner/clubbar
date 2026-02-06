@@ -12,12 +12,11 @@
  * - Pattern 002: Authentication Isolation (authenticatedRequest fixture)
  * - Pattern 005: Using Test IDs (data-testid)
  * - Pattern 006: Page Object Model (ProfilePage, MainLayoutPage)
+ * - Pattern 007: Page Object Fixtures (injected POMs)
  * - Pattern 008: Playwright Assertions (expect API)
  */
 
 import { test } from '../../fixtures/auth.fixture'
-import { ProfilePage } from '../../pages/ProfilePage'
-import { MainLayoutPage } from '../../pages/MainLayoutPage'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -35,53 +34,42 @@ test.describe('i18n Language Switching', () => {
     })
   })
 
-  test('should display navigation in German by default', async ({ page }) => {
-    const layout = new MainLayoutPage(page)
-
+  test('should display navigation in German by default', async ({ page, mainLayoutPage }) => {
     await page.reload()
-    await layout.waitForNavigation()
-    await layout.expectNavigationInLanguage('de')
+    await mainLayoutPage.waitForNavigation()
+    await mainLayoutPage.expectNavigationInLanguage('de')
   })
 
-  test('should switch to English when language changed in profile', async ({ page }) => {
-    const layout = new MainLayoutPage(page)
-    const profilePage = new ProfilePage(page)
-
+  test('should switch to English when language changed in profile', async ({ page, mainLayoutPage, profilePage }) => {
     await page.reload()
-    await layout.waitForNavigation()
+    await mainLayoutPage.waitForNavigation()
 
     await profilePage.navigate()
     await profilePage.changeLanguage('en')
 
-    await layout.expectNavigationInLanguage('en')
+    await mainLayoutPage.expectNavigationInLanguage('en')
   })
 
-  test('should persist language after page refresh', async ({ page }) => {
-    const layout = new MainLayoutPage(page)
-    const profilePage = new ProfilePage(page)
-
+  test('should persist language after page refresh', async ({ page, mainLayoutPage, profilePage }) => {
     await page.reload()
 
     await profilePage.navigate()
     await profilePage.changeLanguage('en')
-    await layout.expectNavigationInLanguage('en')
+    await mainLayoutPage.expectNavigationInLanguage('en')
 
     await page.reload()
-    await layout.waitForNavigation()
-    await layout.expectNavigationInLanguage('en')
+    await mainLayoutPage.waitForNavigation()
+    await mainLayoutPage.expectNavigationInLanguage('en')
   })
 
-  test('should switch back to German', async ({ page }) => {
-    const layout = new MainLayoutPage(page)
-    const profilePage = new ProfilePage(page)
-
+  test('should switch back to German', async ({ page, mainLayoutPage, profilePage }) => {
     await page.reload()
 
     await profilePage.navigate()
     await profilePage.changeLanguage('en')
-    await layout.expectNavigationInLanguage('en')
+    await mainLayoutPage.expectNavigationInLanguage('en')
 
     await profilePage.changeLanguage('de')
-    await layout.expectNavigationInLanguage('de')
+    await mainLayoutPage.expectNavigationInLanguage('de')
   })
 })

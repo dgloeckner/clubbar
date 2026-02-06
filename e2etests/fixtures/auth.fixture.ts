@@ -6,6 +6,8 @@ import {
   createCorrection,
   createSettlement,
 } from "../utils/transactions";
+import { ProfilePage } from "../pages/ProfilePage";
+import { MainLayoutPage } from "../pages/MainLayoutPage";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -52,6 +54,8 @@ interface AuthFixtures {
     token: string;
   };
   testTransactions: TestTransactionsFixture;
+  profilePage: ProfilePage;
+  mainLayoutPage: MainLayoutPage;
 }
 
 /**
@@ -370,6 +374,14 @@ export const test = base.extend<AuthFixtures>({
     };
 
     await use(fixture);
+  },
+
+  profilePage: async ({ page }, use) => {
+    await use(new ProfilePage(page));
+  },
+
+  mainLayoutPage: async ({ page }, use) => {
+    await use(new MainLayoutPage(page));
   },
 });
 
