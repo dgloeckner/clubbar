@@ -1,7 +1,7 @@
 /**
  * Statistics Page Object
  *
- * Encapsulates all interactions with the statistics/dashboard page.
+ * Encapsulates all interactions with the monthly statistics page.
  * Implements E2E Testing Pattern 006: Page Object Model
  *
  * **CRITICAL PATTERN PRINCIPLES:**
@@ -17,53 +17,33 @@ import { BasePage } from './BasePage'
 export class StatisticsPage extends BasePage {
   // Main page locators (PRIVATE)
   private readonly page_main = () => this.page.getByTestId('statistics-page')
-  private readonly dashboard = () => this.page.getByTestId('statistics-dashboard')
-  private readonly refreshBtn = () => this.page.getByTestId('dashboard-refresh-button')
 
-  // Dashboard sections
-  private readonly metricsSection = () => this.page.getByTestId('dashboard-metrics')
-  private readonly alertsSection = () => this.page.getByTestId('dashboard-alerts')
-  private readonly recentSection = () => this.page.getByTestId('dashboard-recent-transactions')
-  private readonly actionsSection = () => this.page.getByTestId('dashboard-quick-actions')
-  private readonly statusSection = () => this.page.getByTestId('dashboard-system-status')
+  // Month switcher
+  private readonly monthSwitcher = () => this.page.getByTestId('month-switcher')
+  private readonly monthLabel = () => this.page.getByTestId('month-label')
+  private readonly monthPrevBtn = () => this.page.getByTestId('month-prev')
+  private readonly monthNextBtn = () => this.page.getByTestId('month-next')
 
-  // Metric cards
-  private readonly metricActiveMembersCard = () => this.page.getByTestId('metric-active-members')
-  private readonly metricBalanceCard = () => this.page.getByTestId('metric-outstanding-balance')
-  private readonly metricRevenueCard = () => this.page.getByTestId('metric-today-revenue')
-  private readonly metricTerminalCard = () => this.page.getByTestId('metric-terminal-status')
+  // Summary boxes
+  private readonly summaryBoxes = () => this.page.getByTestId('summary-boxes')
+  private readonly boxTotalRevenue = () => this.page.getByTestId('box-total-revenue')
+  private readonly boxSoldItems = () => this.page.getByTestId('box-sold-items')
+  private readonly boxTopProduct = () => this.page.getByTestId('box-top-product')
+  private readonly valueTotalRevenue = () => this.page.getByTestId('value-total-revenue')
+  private readonly valueSoldItems = () => this.page.getByTestId('value-sold-items')
+  private readonly valueTopProductName = () => this.page.getByTestId('value-top-product-name')
+  private readonly valueTopProductCount = () => this.page.getByTestId('value-top-product-count')
 
-  // Alerts
-  private readonly sepaAlert = () => this.page.getByTestId('alert-sepa-invalid')
+  // Revenue chart
+  private readonly revenueChart = () => this.page.getByTestId('revenue-chart')
 
-  // Recent transactions
-  private readonly recentTable = () => this.page.getByTestId('recent-transactions-table')
-  private readonly transactionRows = () => this.page.locator('[data-testid="transaction-row"]')
+  // Top products
+  private readonly topProducts = () => this.page.getByTestId('top-products')
+  private readonly productRows = () => this.page.locator('[data-testid^="product-row-"]')
 
-  // Quick actions
-  private readonly newMemberBtn = () => this.page.getByTestId('quick-action-new-member')
-  private readonly newSettlementBtn = () => this.page.getByTestId('quick-action-new-settlement')
-  private readonly viewReportsBtn = () => this.page.getByTestId('quick-action-view-reports')
-
-  // System status
-  private readonly terminalConnectivity = () => this.page.getByTestId('status-terminal-connectivity')
-  private readonly lastSettlement = () => this.page.getByTestId('status-last-settlement')
-
-  // Reports view
-  private readonly reportsView = () => this.page.getByTestId('reports-view')
-  private readonly reportsButton = () => this.page.getByTestId('dashboard-reports-button')
-  private readonly reportTypeSelector = () => this.page.getByTestId('report-type-selector')
-  private readonly reportDateFilter = () => this.page.getByTestId('report-date-range-filter')
-  private readonly reportTable = () => this.page.getByTestId('report-table')
-  private readonly reportChart = () => this.page.getByTestId('report-chart')
-
-  // Member ranking view
-  private readonly rankingView = () => this.page.getByTestId('member-ranking-view')
-  private readonly rankingButton = () => this.page.getByTestId('dashboard-member-ranking-button')
-  private readonly rankingTable = () => this.page.getByTestId('member-ranking-table')
-  private readonly rankingRows = () => this.page.locator('[data-testid="member-ranking-row"]')
-  private readonly displayModeToggle = () => this.page.getByTestId('ranking-display-mode-toggle')
-  private readonly topNSelector = () => this.page.getByTestId('ranking-top-n-selector')
+  // Top members
+  private readonly topMembers = () => this.page.getByTestId('top-members')
+  private readonly memberRows = () => this.page.locator('[data-testid^="member-row-"]')
 
   constructor(page: Page) {
     super(page)
@@ -77,6 +57,13 @@ export class StatisticsPage extends BasePage {
   }
 
   /**
+   * Wait for statistics data to load
+   */
+  async waitForDataLoad() {
+    await this.page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+  }
+
+  /**
    * VISIBILITY EXPECTATIONS
    */
 
@@ -84,243 +71,180 @@ export class StatisticsPage extends BasePage {
     await expect(this.page_main()).toBeVisible()
   }
 
-  async expectDashboardVisible() {
-    await expect(this.dashboard()).toBeVisible()
+  async expectMonthSwitcherVisible() {
+    await expect(this.monthSwitcher()).toBeVisible()
   }
 
-  async expectReportsViewVisible() {
-    await expect(this.reportsView()).toBeVisible()
+  async expectSummaryBoxesVisible() {
+    await expect(this.summaryBoxes()).toBeVisible()
   }
 
-  async expectRankingViewVisible() {
-    await expect(this.rankingView()).toBeVisible()
+  async expectRevenueChartVisible() {
+    await expect(this.revenueChart()).toBeVisible()
+  }
+
+  async expectTopProductsVisible() {
+    await expect(this.topProducts()).toBeVisible()
+  }
+
+  async expectTopMembersVisible() {
+    await expect(this.topMembers()).toBeVisible()
   }
 
   /**
-   * DASHBOARD INTERACTIONS (UC-A80)
+   * MONTH NAVIGATION
    */
 
-  async getActiveMembers(): Promise<string | null> {
+  async getCurrentMonth(): Promise<string | null> {
     try {
-      return await this.metricActiveMembersCard()
-        .locator('[data-testid="metric-value"]')
-        .textContent()
+      return await this.monthLabel().textContent()
     } catch {
       return null
     }
   }
 
-  async getOutstandingBalance(): Promise<string | null> {
+  async goToPreviousMonth() {
+    const responsePromise = this.page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+    await this.monthPrevBtn().click()
+    await responsePromise
+  }
+
+  async goToNextMonth() {
+    const responsePromise = this.page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+    await this.monthNextBtn().click()
+    await responsePromise
+  }
+
+  async isNextMonthDisabled(): Promise<boolean> {
+    return await this.monthNextBtn().isDisabled()
+  }
+
+  /**
+   * SUMMARY BOX VALUES
+   */
+
+  async getTotalRevenue(): Promise<string | null> {
     try {
-      return await this.metricBalanceCard()
-        .locator('[data-testid="metric-value"]')
-        .textContent()
+      return await this.valueTotalRevenue().textContent()
     } catch {
       return null
     }
   }
 
-  async getTodayRevenue(): Promise<string | null> {
+  async getSoldItemsCount(): Promise<string | null> {
     try {
-      return await this.metricRevenueCard()
-        .locator('[data-testid="metric-value"]')
-        .textContent()
+      return await this.valueSoldItems().textContent()
     } catch {
       return null
     }
   }
 
-  async getTerminalStatus(): Promise<string | null> {
+  async getTopProductName(): Promise<string | null> {
     try {
-      return await this.metricTerminalCard().textContent()
+      return await this.valueTopProductName().textContent()
     } catch {
       return null
     }
   }
 
-  async getSEPAAlertVisible(): Promise<boolean> {
-    return await this.sepaAlert().isVisible().catch(() => false)
-  }
-
-  async getSEPAAlertText(): Promise<string | null> {
+  async getTopProductSoldCount(): Promise<string | null> {
     try {
-      return await this.sepaAlert().textContent()
+      return await this.valueTopProductCount().textContent()
     } catch {
       return null
     }
   }
 
-  async getRecentTransactionCount(): Promise<number> {
-    return await this.transactionRows().count()
+  /**
+   * TOP PRODUCTS
+   */
+
+  async getTopProductsCount(): Promise<number> {
+    return await this.productRows().count()
   }
 
-  async getRecentTransactions(): Promise<
+  async getTopProductsList(): Promise<
     Array<{
-      time: string
-      member: string
-      product: string
-      amount: string
+      rank: number
+      name: string
+      soldCount: string
+      revenue: string
     }>
   > {
-    const rows = this.transactionRows()
+    const rows = this.productRows()
     const count = await rows.count()
-    const transactions = []
+    const products = []
 
     for (let i = 0; i < count; i++) {
       const row = rows.nth(i)
-      const time = await row.locator('[data-testid="transaction-time"]').textContent()
-      const member = await row.locator('[data-testid="transaction-member"]').textContent()
-      const product = await row.locator('[data-testid="transaction-product"]').textContent()
-      const amount = await row.locator('[data-testid="transaction-amount"]').textContent()
+      const cells = row.locator('td')
 
-      if (time && member && product && amount) {
-        transactions.push({
-          time,
-          member,
-          product,
-          amount,
+      const rank = await cells.nth(0).textContent()
+      const name = await cells.nth(1).textContent()
+      const soldCount = await cells.nth(2).textContent()
+      const revenue = await cells.nth(3).textContent()
+
+      if (rank && name && soldCount && revenue) {
+        products.push({
+          rank: parseInt(rank, 10),
+          name: name.trim(),
+          soldCount: soldCount.trim(),
+          revenue: revenue.trim(),
         })
       }
     }
 
-    return transactions
-  }
-
-  async refreshDashboard() {
-    await this.refreshBtn().click()
-    await this.page.waitForLoadState('networkidle')
+    return products
   }
 
   /**
-   * QUICK ACTIONS
+   * TOP MEMBERS
    */
 
-  async clickNewMember() {
-    await this.newMemberBtn().click()
-    await this.page.waitForLoadState('networkidle')
+  async getTopMembersCount(): Promise<number> {
+    return await this.memberRows().count()
   }
 
-  async clickNewSettlement() {
-    await this.newSettlementBtn().click()
-    await this.page.waitForLoadState('networkidle')
-  }
-
-  async clickViewReports() {
-    await this.viewReportsBtn().click()
-    await this.page.waitForLoadState('networkidle')
-  }
-
-  /**
-   * SYSTEM STATUS
-   */
-
-  async getTerminalConnectivityStatus(): Promise<string | null> {
-    try {
-      return await this.terminalConnectivity().textContent()
-    } catch {
-      return null
-    }
-  }
-
-  async getLastSettlementDate(): Promise<string | null> {
-    try {
-      return await this.lastSettlement().textContent()
-    } catch {
-      return null
-    }
-  }
-
-  /**
-   * REPORTS VIEW (UC-A50)
-   */
-
-  async openReports() {
-    await this.reportsButton().click()
-    await this.page.waitForLoadState('networkidle')
-  }
-
-  async selectReportType(type: 'revenue' | 'consumption' | 'transactions') {
-    const option = this.page.getByTestId(`report-type-${type}`)
-    await option.click()
-    await this.page.waitForLoadState('networkidle')
-  }
-
-  async setReportDateRange(fromDate: string, toDate: string) {
-    const dateFilter = this.reportDateFilter()
-    const dateFilterVisible = await dateFilter.isVisible().catch(() => false)
-
-    if (dateFilterVisible) {
-      const fromInput = dateFilter.locator('[data-testid="date-from"]')
-      const toInput = dateFilter.locator('[data-testid="date-to"]')
-
-      await fromInput.fill(fromDate)
-      await toInput.fill(toDate)
-      await this.page.waitForLoadState('networkidle')
-    }
-  }
-
-  async toggleReportView(view: 'chart' | 'table') {
-    const toggle = this.page.getByTestId(`report-view-toggle-${view}`)
-    await toggle.click()
-    await this.waitForDebounce(300)
-  }
-
-  /**
-   * MEMBER RANKING VIEW (UC-A51)
-   */
-
-  async openMemberRanking() {
-    await this.rankingButton().click()
-    await this.page.waitForLoadState('networkidle')
-  }
-
-  async setRankingDisplayMode(mode: 'named' | 'anonymized') {
-    const option = this.page.getByTestId(`ranking-mode-${mode}`)
-    await option.click()
-    await this.waitForDebounce(300)
-  }
-
-  async setTopN(count: number | 'all') {
-    const selector = this.topNSelector()
-    const value = count === 'all' ? 'all' : count.toString()
-    await selector.selectOption(value)
-    await this.page.waitForLoadState('networkidle')
-  }
-
-  async getMemberRankingCount(): Promise<number> {
-    return await this.rankingRows().count()
-  }
-
-  async getMemberRankings(): Promise<
+  async getTopMembersList(): Promise<
     Array<{
-      rank: string
-      member: string
-      total: string
-      count: string
+      rank: number
+      name: string
+      purchaseCount: string
+      revenue: string
     }>
   > {
-    const rows = this.rankingRows()
+    const rows = this.memberRows()
     const count = await rows.count()
-    const rankings = []
+    const members = []
 
     for (let i = 0; i < count; i++) {
       const row = rows.nth(i)
-      const rank = await row.locator('[data-testid="ranking-rank"]').textContent()
-      const member = await row.locator('[data-testid="ranking-member"]').textContent()
-      const total = await row.locator('[data-testid="ranking-total"]').textContent()
-      const txnCount = await row.locator('[data-testid="ranking-count"]').textContent()
+      const cells = row.locator('td')
 
-      if (rank && member && total && txnCount) {
-        rankings.push({
-          rank,
-          member,
-          total,
-          count: txnCount,
+      const rank = await cells.nth(0).textContent()
+      const name = await cells.nth(1).textContent()
+      const purchaseCount = await cells.nth(2).textContent()
+      const revenue = await cells.nth(3).textContent()
+
+      if (rank && name && purchaseCount && revenue) {
+        members.push({
+          rank: parseInt(rank, 10),
+          name: name.trim(),
+          purchaseCount: purchaseCount.trim(),
+          revenue: revenue.trim(),
         })
       }
     }
 
-    return rankings
+    return members
+  }
+
+  /**
+   * CHART INTERACTIONS
+   */
+
+  async getChartBarCount(): Promise<number> {
+    return await this.page.locator('[data-testid^="chart-bar-"]').count()
   }
 
   /**
@@ -331,7 +255,7 @@ export class StatisticsPage extends BasePage {
     return this.getCurrentUrl().includes('/statistics')
   }
 
-  async isDashboardLoaded(): Promise<boolean> {
-    return await this.dashboard().isVisible().catch(() => false)
+  async isDataLoaded(): Promise<boolean> {
+    return await this.summaryBoxes().isVisible().catch(() => false)
   }
 }

@@ -35,7 +35,7 @@ final readonly class CategoryDto
     {
         $data = [
             'id' => $this->id,
-            'names' => $this->names,
+            'names' => $this->names ?: new \stdClass(),
             'display_order' => $this->displayOrder,
             'is_active' => $this->isActive,
             'icon_name' => $this->iconName,

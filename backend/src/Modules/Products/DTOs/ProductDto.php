@@ -37,8 +37,8 @@ final readonly class ProductDto
     {
         return [
             'id' => $this->id,
-            'names' => $this->names,
-            'descriptions' => $this->descriptions,
+            'names' => $this->names ?: new \stdClass(),
+            'descriptions' => $this->descriptions ?: new \stdClass(),
             'price_cents' => $this->priceCents,
             'category_id' => $this->categoryId,
             'is_active' => $this->isActive,

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Auth\Controllers;
 
 use App\Modules\Auth\Services\AuthService;
-use App\Shared\Exceptions\InvalidCredentialsException;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Shared\Services\AuditService;
 use App\Shared\Enums\AuditAction;
@@ -115,6 +114,35 @@ class AuthController
         ]);
     }
 
+    public function updateProfile(Request $request, Response $response): Response
+    {
+        $adminId = $request->getAttribute('admin_user_id');
+        if (!$adminId) {
+            return $this->json($response, ['error' => 'Not authenticated'], 401);
+        }
+
+        $body = $request->getParsedBody() ?? [];
+
+        if (!$this->validator->validate($body, [
+            'email' => ['nullable', 'email'],
+            'display_name' => ['nullable', 'string', 'max:255'],
+            'locale' => ['nullable', 'in:de,en'],
+        ])) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        $admin = $this->adminUsersService->updateAdminUser($adminId, $body, $adminId);
+
+        if (!$admin) {
+            return $this->json($response, ['error' => 'update_failed', 'message' => 'Failed to update profile'], 500);
+        }
+
+        return $this->json($response, [
+            'message' => 'Profile updated',
+            'admin' => $admin->toArray(),
+        ]);
+    }
+
     public function changePassword(Request $request, Response $response): Response
     {
         $adminId = $request->getAttribute('admin_user_id');
@@ -125,19 +153,13 @@ class AuthController
         $body = $request->getParsedBody() ?? [];
 
         if (!$this->validator->validate($body, [
-            'current_password' => ['required', 'string'],
             'new_password' => ['required', 'string', 'min:8', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'],
             'new_password_confirmation' => ['required', 'same:new_password'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
-        try {
-            $this->adminUsersService->changeOwnPassword($adminId, $body['current_password'], $body['new_password']);
-        } catch (InvalidCredentialsException $e) {
-            return $this->json($response, ['error' => $e->getErrorCode(), 'message' => $e->getMessage()], $e->getHttpStatusCode());
-            
-        }
+        $this->adminUsersService->changeOwnPassword($adminId, $body['new_password']);
 
         return $this->json($response, ['message' => 'Password changed']);
     }

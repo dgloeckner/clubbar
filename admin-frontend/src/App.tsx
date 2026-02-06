@@ -19,6 +19,7 @@ import { SettlementsPage } from './pages/SettlementsPage'
 import { StatisticsPage } from './pages/StatisticsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AuditLogPage } from './pages/AuditLogPage'
+import { ProfilePage } from './pages/ProfilePage'
 
 // Layout
 import { MainLayout } from './components/layout/MainLayout'
@@ -140,6 +141,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AuditLogPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
           </ProtectedRoute>
         }
       />

@@ -129,13 +129,16 @@ class ProductsRepository
             $params[] = $filters['category_id'];
         }
         if (isset($filters['search'])) {
+            // For JSON_SEARCH, use unescaped LIKE pattern since JSON_SEARCH
+            // handles wildcards internally. Don't use escapeLike() here as it
+            // escapes _ which is valid in user input we want to match literally.
             $where[] = "JSON_SEARCH(p.names, 'one', ?) IS NOT NULL";
-            $params[] = '%' . SafeQuery::escapeLike($filters['search']) . '%';
+            $params[] = '%' . $filters['search'] . '%';
         }
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $sortMap = ['name' => "JSON_UNQUOTE(JSON_EXTRACT(p.names, '$.de'))", 'price' => 'p.price_cents', 'category' => 'c.display_order', 'created_at' => 'p.created_at'];
+        $sortMap = ['name' => "JSON_UNQUOTE(JSON_EXTRACT(p.names, '$.de'))", 'price' => 'p.price_cents', 'category' => "JSON_UNQUOTE(JSON_EXTRACT(c.names, '$.de'))", 'created_at' => 'p.created_at'];
         $sortCol = $sortMap[$sortBy] ?? 'p.created_at';
         $dir = SafeQuery::direction($sortOrder);
 

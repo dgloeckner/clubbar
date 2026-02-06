@@ -12,7 +12,6 @@ use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
-use App\Shared\Exceptions\InvalidCredentialsException;
 
 class AdminUsersService
 {
@@ -142,14 +141,10 @@ class AdminUsersService
         return ['admin' => AdminUserDto::fromRow($admin), 'password' => $password];
     }
 
-    public function changeOwnPassword(string $adminId, string $currentPassword, string $newPassword): void
+    public function changeOwnPassword(string $adminId, string $newPassword): void
     {
         $admin = $this->adminUsersRepository->findById($adminId);
         if (!$admin) throw NotFoundException::forResource('AdminUser', $adminId);
-
-        if (!password_verify($currentPassword, $admin['password_hash'])) {
-            throw new InvalidCredentialsException('Current password is incorrect');
-        }
 
         $hash = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]);
         $this->adminUsersRepository->updateById($adminId, ['password' => $hash]);

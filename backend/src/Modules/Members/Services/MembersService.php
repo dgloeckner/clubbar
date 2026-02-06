@@ -30,8 +30,8 @@ class MembersService
         $members = array_map(fn($row) => MemberDto::fromRow($row), $rows);
 
         $cursor = !empty($rows)
-            ? end($rows)['updated_at']
-            : date('Y-m-d\TH:i:s\Z');
+            ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
+            : time();
 
         return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
     }

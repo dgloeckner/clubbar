@@ -29,7 +29,9 @@ class ProductsService
         $rows = $this->productsRepository->findModifiedSince($since);
         $products = array_map(fn($row) => ProductDto::fromRow($row), $rows);
 
-        $cursor = !empty($rows) ? end($rows)['updated_at'] : date('Y-m-d\TH:i:s\Z');
+        $cursor = !empty($rows)
+            ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
+            : time();
         return new SyncResultDto(items: $products, cursor: $cursor, hasMore: false);
     }
 

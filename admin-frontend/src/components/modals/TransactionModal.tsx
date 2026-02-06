@@ -134,7 +134,7 @@ export function TransactionModal({
                 color: theme.colors.text.secondary,
               }}
             >
-              Current Balance: <strong>{formatPrice(currentBalance)}</strong>
+              Current Balance: <strong style={{ fontFamily: 'JetBrains Mono, monospace' }}>{formatPrice(currentBalance)}</strong>
             </p>
           </div>
 
@@ -351,7 +351,7 @@ export function TransactionModal({
                         style={{
                           padding: theme.spacing.md,
                           textAlign: 'right',
-                          fontFamily: 'monospace',
+                          fontFamily: 'JetBrains Mono, monospace',
                           color:
                             transaction.amount_cents < 0
                               ? theme.colors.semantic.success
@@ -367,7 +367,7 @@ export function TransactionModal({
                         style={{
                           padding: theme.spacing.md,
                           textAlign: 'right',
-                          fontFamily: 'monospace',
+                          fontFamily: 'JetBrains Mono, monospace',
                           color:
                             transaction.running_total_cents > 0
                               ? theme.colors.semantic.success

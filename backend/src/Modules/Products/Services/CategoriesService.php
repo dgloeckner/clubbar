@@ -26,7 +26,9 @@ class CategoriesService
         $rows = $this->categoriesRepository->findModifiedSince($since);
         $categories = array_map(fn($row) => CategoryDto::fromRow($row), $rows);
 
-        $cursor = !empty($rows) ? end($rows)['updated_at'] : date('Y-m-d\TH:i:s\Z');
+        $cursor = !empty($rows)
+            ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
+            : time();
         return new SyncResultDto(items: $categories, cursor: $cursor, hasMore: false);
     }
 

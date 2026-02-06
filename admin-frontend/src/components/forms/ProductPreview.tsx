@@ -75,6 +75,7 @@ export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
         style={{
           fontSize: '16px',
           fontWeight: '700',
+          fontFamily: 'JetBrains Mono, monospace',
           color: '#14b8a6',
           marginTop: '4px',
         }}

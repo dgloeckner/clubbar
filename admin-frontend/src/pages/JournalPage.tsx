@@ -55,7 +55,7 @@ const defaultPageSize = 20
 
 export function JournalPage() {
   const { t } = useTranslation()
-  useFormatters() // Initialize formatters for potential future use
+  const { formatPrice, intlLocale } = useFormatters()
 
   // Data state
   const [state, setState] = useState<JournalPageState>({
@@ -742,14 +742,14 @@ export function JournalPage() {
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <div>
-                            {new Date(tx.created_at).toLocaleDateString('en-US', {
+                            {new Date(tx.created_at).toLocaleDateString(intlLocale, {
                               year: 'numeric',
                               month: '2-digit',
                               day: '2-digit',
                             })}
                           </div>
                           <div style={{ fontSize: '12px', color: tableColors.cellSecondaryText }}>
-                            {new Date(tx.created_at).toLocaleTimeString('en-US', {
+                            {new Date(tx.created_at).toLocaleTimeString(intlLocale, {
                               hour: '2-digit',
                               minute: '2-digit',
                               second: '2-digit',
@@ -846,10 +846,12 @@ export function JournalPage() {
                         style={{
                           padding: tableSpacing.cellPadding,
                           color: getAmountColor(tx.amount_cents),
-                          fontWeight: 500,
+                          fontWeight: 700,
+                          fontFamily: 'JetBrains Mono, monospace',
+                          fontSize: '14px',
                         }}
                       >
-                        €{(tx.amount_cents / 100).toFixed(2)}
+                        {formatPrice(tx.amount_cents)}
                       </td>
 
                       {/* Settlement Date */}
@@ -863,14 +865,14 @@ export function JournalPage() {
                         {tx.settlement_date ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <div>
-                              {new Date(tx.settlement_date).toLocaleDateString('en-US', {
+                              {new Date(tx.settlement_date).toLocaleDateString(intlLocale, {
                                 year: 'numeric',
                                 month: '2-digit',
                                 day: '2-digit',
                               })}
                             </div>
                             <div style={{ fontSize: '12px', color: tableColors.cellSecondaryText }}>
-                              {new Date(tx.settlement_date).toLocaleTimeString('en-US', {
+                              {new Date(tx.settlement_date).toLocaleTimeString(intlLocale, {
                                 hour: '2-digit',
                                 minute: '2-digit',
                                 second: '2-digit',

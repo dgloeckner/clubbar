@@ -357,7 +357,9 @@ export function SettlementsPage() {
                           style={{
                             padding: tableSpacing.cellPadding,
                             color: tableColors.cellText,
-                            fontWeight: 500,
+                            fontWeight: 700,
+                            fontFamily: 'JetBrains Mono, monospace',
+                            fontSize: '14px',
                             textAlign: 'right',
                           }}
                         >

@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'schema/members_cache.dart';
@@ -61,14 +63,19 @@ class RuderbarDatabase extends _$RuderbarDatabase {
       sqfliteFfiInit();
     }
 
-    // Use NativeDatabase for proper FFI/sqflite integration
-    final file = File('ruderbar_terminal.db');
+    // Use LazyDatabase for async path resolution
+    return LazyDatabase(() async {
+      // Get the app support directory for persistent storage
+      final appDir = await getApplicationSupportDirectory();
+      final dbPath = p.join(appDir.path, 'ruderbar_terminal.db');
+      final file = File(dbPath);
 
-    return NativeDatabase(
-      file,
-      setup: (db) {
-        db.execute('PRAGMA foreign_keys = ON');
-      },
-    );
+      return NativeDatabase(
+        file,
+        setup: (db) {
+          db.execute('PRAGMA foreign_keys = ON');
+        },
+      );
+    });
   }
 }

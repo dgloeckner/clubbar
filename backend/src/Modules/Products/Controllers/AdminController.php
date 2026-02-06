@@ -135,6 +135,7 @@ class AdminController
             'status' => $params['status'] ?? null,
             'category_id' => $params['category_id'] ?? null,
             'sort_by' => $params['sort_by'] ?? null,
+            'search' => $params['search'] ?? null,
         ];
 
         if (!$this->validator->validate($validationData, [
@@ -142,7 +143,8 @@ class AdminController
             'page' => ['nullable', 'integer', 'gt:0'],
             'status' => ['nullable', 'in:all,active,inactive'],
             'category_id' => ['nullable', 'uuid'],
-            'sort_by' => ['nullable', 'in:name_asc,name_desc,price_asc,price_desc,category'],
+            'sort_by' => ['nullable', 'in:name_asc,name_desc,price_asc,price_desc,category_asc,category_desc'],
+            'search' => ['nullable', 'string'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
@@ -163,6 +165,9 @@ class AdminController
         if (isset($params['status'])) {
             $filters['status'] = $params['status'];
         }
+        if (!empty($params['search'])) {
+            $filters['search'] = $params['search'];
+        }
 
         $result = $this->productsService->listProducts($limit, $offset, $filters, $sortBy, $sortOrder);
 
@@ -177,7 +182,8 @@ class AdminController
             'name_desc' => ['name', 'desc'],
             'price_asc' => ['price', 'asc'],
             'price_desc' => ['price', 'desc'],
-            'category' => ['category', 'asc'],
+            'category_asc' => ['category', 'asc'],
+            'category_desc' => ['category', 'desc'],
         ];
 
         return $map[$sortBy] ?? ['created_at', 'desc'];
