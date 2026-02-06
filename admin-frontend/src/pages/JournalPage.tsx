@@ -18,8 +18,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { Card } from '../components/common/Card'
+import { useTranslation } from 'react-i18next'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
+import { useFormatters } from '../hooks/useFormatters'
 import { SettlementStatusFilter } from '../components/forms/SettlementStatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { onLoadingStateChange } from '../services/api'
@@ -53,6 +54,9 @@ interface JournalPageState {
 const defaultPageSize = 20
 
 export function JournalPage() {
+  const { t } = useTranslation()
+  const formatters = useFormatters()
+
   // Data state
   const [state, setState] = useState<JournalPageState>({
     transactions: [],
@@ -343,8 +347,7 @@ export function JournalPage() {
 
   return (
     <div data-testid="journal-page">
-      <h1 style={{ margin: '0 0 20px 0' }}>Buchungsjournal</h1>
-      <Card>
+      <h1 style={{ margin: '0 0 20px 0' }}>{t('journal.title')}</h1>
         {/* Action buttons bar */}
         <div
           data-testid="journal-actions-bar"
@@ -377,7 +380,7 @@ export function JournalPage() {
               e.currentTarget.style.backgroundColor = '#3b82f6'
             }}
           >
-            + Correction
+            + {t('journal.correction')}
           </button>
 
           {/* Settlement Controls */}
@@ -404,7 +407,7 @@ export function JournalPage() {
                   e.currentTarget.style.backgroundColor = '#3b82f6'
                 }}
               >
-                + Settlement (selected)
+                + {t('journal.settlementSelected')}
               </button>
               <button
                 data-testid="journal-settlement-all-btn"
@@ -427,7 +430,7 @@ export function JournalPage() {
                   e.currentTarget.style.backgroundColor = '#10b981'
                 }}
               >
-                + Settlement (all)
+                + {t('journal.settlementAll')}
               </button>
             </div>
           )}
@@ -460,7 +463,7 @@ export function JournalPage() {
                   }
                 }}
               >
-                Conclude Settlement ({selectedTransactionIds.size})
+                {t('journal.concludeSettlement')} ({selectedTransactionIds.size})
               </button>
               <button
                 data-testid="journal-settlement-cancel-btn"
@@ -483,7 +486,7 @@ export function JournalPage() {
                   e.currentTarget.style.backgroundColor = '#ef4444'
                 }}
               >
-                Cancel Settlement
+                {t('journal.cancelSettlement')}
               </button>
             </div>
           )}
@@ -510,7 +513,7 @@ export function JournalPage() {
               color: tableColors.cellSecondaryText,
             }}
           >
-            {state.totalItems} Transactions gefunden
+            {state.totalItems} {t('statistics.transactions')} {t('common.found')}
           </div>
 
           {/* Center-left: Search input */}
@@ -520,7 +523,7 @@ export function JournalPage() {
             onChange={(e) => {
               handleSearch(e.target.value)
             }}
-            placeholder="Search members or details..."
+            placeholder={t('common.searchPlaceholder')}
             data-testid="journal-search-input"
             style={{
               flex: 1,
@@ -570,7 +573,7 @@ export function JournalPage() {
               color: tableColors.cellSecondaryText,
             }}
           >
-            Loading transactions...
+            {t('common.loading')}
           </div>
         ) : state.error ? (
           <div
@@ -594,7 +597,7 @@ export function JournalPage() {
               color: tableColors.cellSecondaryText,
             }}
           >
-            No transactions found
+            {t('journal.noTransactions')}
           </div>
         ) : (
           <div
@@ -640,7 +643,7 @@ export function JournalPage() {
                       title="Click to sort by date"
                       data-testid="journal-header-date"
                     >
-                      Date {sortKey === 'created_at' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      {t('journal.date')} {sortKey === 'created_at' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                     <th
                       style={{
@@ -652,7 +655,7 @@ export function JournalPage() {
                       title="Click to sort by type"
                       data-testid="journal-header-type"
                     >
-                      Type {sortKey === 'type' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      {t('journal.type')} {sortKey === 'type' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                     <th
                       style={{
@@ -664,13 +667,13 @@ export function JournalPage() {
                       title="Click to sort by member"
                       data-testid="journal-header-member"
                     >
-                      Member {sortKey === 'member' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      {t('journal.member')} {sortKey === 'member' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                     <th
                       style={headerCellBaseStyle}
                       data-testid="journal-header-details"
                     >
-                      Details
+                      {t('journal.details')}
                     </th>
                     <th
                       style={{
@@ -682,13 +685,13 @@ export function JournalPage() {
                       title="Click to sort by amount"
                       data-testid="journal-header-amount"
                     >
-                      Amount {sortKey === 'amount' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      {t('common.amount')} {sortKey === 'amount' && (sortDirection === 'asc' ? '↑' : '↓')}
                     </th>
                     <th
                       style={headerCellBaseStyle}
                       data-testid="journal-header-settlement-date"
                     >
-                      Settlement Date
+                      {t('journal.settlementDate')}
                     </th>
                   </tr>
                 </thead>
@@ -936,7 +939,7 @@ export function JournalPage() {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 data-testid="journal-correction-modal-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
-                Add Correction
+                {t('journal.addCorrection')}
               </h2>
 
               {correctionError && (
@@ -960,7 +963,7 @@ export function JournalPage() {
                 {/* Member Selection */}
                 <div>
                   <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                    Member *
+                    {t('journal.member')} *
                   </label>
                   <select
                     data-testid="journal-correction-member-select"
@@ -968,7 +971,7 @@ export function JournalPage() {
                     onChange={(e) => setCorrectionForm({ ...correctionForm, memberId: e.target.value })}
                     style={{
                       width: '100%',
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      padding: `${theme.spacing.md} 28px ${theme.spacing.md} ${theme.spacing.lg}`,
                       background: theme.colors.bg.input,
                       border: `1px solid ${theme.colors.border.light}`,
                       borderRadius: theme.borderRadius.md,
@@ -976,9 +979,16 @@ export function JournalPage() {
                       fontSize: theme.typography.fontSize.sm,
                       boxSizing: 'border-box',
                       cursor: 'pointer',
+                      outline: 'none',
+                      appearance: 'none',
+                      WebkitAppearance: 'none',
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 10px center',
+                      backgroundSize: '12px',
                     }}
                   >
-                    <option value="">Select a member...</option>
+                    <option value="">{t('journal.selectMember')}</option>
                     {members.map((member) => (
                       <option key={member.id} value={member.id}>
                         {member.first_name} {member.last_name} {!member.is_sepa_valid && '⚠ No SEPA'}
@@ -990,7 +1000,7 @@ export function JournalPage() {
                 {/* Amount */}
                 <div>
                   <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                    Amount (EUR) *
+                    {t('journal.amountEur')} *
                   </label>
                   <input
                     data-testid="journal-correction-amount-input"
@@ -1011,20 +1021,20 @@ export function JournalPage() {
                     }}
                   />
                   <div style={{ fontSize: '11px', color: theme.colors.text.secondary, marginTop: '4px' }}>
-                    Positive = charge, Negative = credit
+                    {t('journal.amountHint')}
                   </div>
                 </div>
 
                 {/* Reason */}
                 <div>
                   <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                    Reason *
+                    {t('journal.reason')} *
                   </label>
                   <textarea
                     data-testid="journal-correction-reason-input"
                     value={correctionForm.reason}
                     onChange={(e) => setCorrectionForm({ ...correctionForm, reason: e.target.value })}
-                    placeholder="e.g., Refund for damaged item, Price adjustment, etc."
+                    placeholder={t('journal.reasonPlaceholder')}
                     maxLength={255}
                     style={{
                       width: '100%',
@@ -1059,7 +1069,7 @@ export function JournalPage() {
                       opacity: correctionLoading ? 0.6 : 1,
                     }}
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                   <button
                     onClick={handleSubmitCorrection}
@@ -1077,14 +1087,13 @@ export function JournalPage() {
                       opacity: correctionLoading ? 0.6 : 1,
                     }}
                   >
-                    {correctionLoading ? 'Saving...' : 'Add Correction'}
+                    {correctionLoading ? t('journal.saving') : t('journal.addCorrection')}
                   </button>
                 </div>
               </div>
             </div>
           </div>
         )}
-      </Card>
     </div>
   )
 }
