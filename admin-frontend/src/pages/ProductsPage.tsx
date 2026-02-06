@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { get, post, patch, del, onLoadingStateChange } from '../services/api'
 import { CategorySelect } from '../components/forms/CategorySelect'
 import { IconSelect } from '../components/forms/IconSelect'
@@ -20,6 +21,7 @@ import { getProductIcon } from '../components/icons/IconRegistry'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { CategoryFilter } from '../components/tables/CategoryFilter'
+import { StatusFilterPills } from '../components/forms/StatusFilterPills'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { IconCell } from '../components/tables/IconCell'
 import { PriceCell } from '../components/tables/PriceCell'
@@ -33,6 +35,8 @@ import {
   headerRowStyle,
   getRowStyle,
 } from '../styles/tableTokens'
+import { getLocalizedName } from '../utils/i18n-helpers'
+import { useFormatters } from '../hooks/useFormatters'
 
 interface Product {
   id: string
@@ -55,6 +59,8 @@ interface Category {
 
 
 export function ProductsPage() {
+  const { t, i18n } = useTranslation()
+  const { formatPrice } = useFormatters()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -79,6 +85,8 @@ export function ProductsPage() {
   const [sortKey, setSortKey] = useState<'name' | 'price' | 'category'>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [filterCategory, setFilterCategory] = useState<string | null>(null) // Category filter: null = all
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
+  const [search, setSearch] = useState('')
   const [totalItems, setTotalItems] = useState(0) // From API
 
   // Subscribe to global loading state on mount
@@ -94,10 +102,11 @@ export function ProductsPage() {
     loadCategories()
   }, [])
 
-  // Load products when pagination/sorting/filtering state changes
+  // Load products when pagination/sorting/filtering/search state changes
   useEffect(() => {
-    loadProducts()
-  }, [currentPage, pageSize, sortKey, sortDirection, filterCategory])
+    const timer = setTimeout(loadProducts, search ? 500 : 0)
+    return () => clearTimeout(timer)
+  }, [currentPage, pageSize, sortKey, sortDirection, filterCategory, filterStatus, search])
 
   async function loadCategories() {
     try {
@@ -118,9 +127,10 @@ export function ProductsPage() {
         params: {
           page: currentPage,
           per_page: pageSize,
-          sort: sortKey,
-          order: sortDirection,
-          ...(filterCategory && { category_id: filterCategory }), // Only include if not null
+          sort_by: `${sortKey}_${sortDirection}`,
+          ...(filterCategory && { category_id: filterCategory }),
+          ...(filterStatus !== 'all' && { status: filterStatus }),
+          ...(search && { search }),
         },
       })
       console.log('Products API response:', response)
@@ -254,20 +264,22 @@ export function ProductsPage() {
   }
 
   async function handleDelete(product: Product) {
+    const productName = getLocalizedName(product.names, i18n.language)
     setConfirmDialog({
       type: 'delete',
       productId: product.id,
-      message: `Delete "${product.names.de || product.names.en || 'Product'}"? This will permanently remove the product from the database and cannot be undone.`,
+      message: t('products.deleteConfirm', { name: productName }),
     })
   }
 
   async function handleStatusToggle(product: Product) {
     if (product.is_active) {
       // Deactivating requires confirmation
+      const productName = getLocalizedName(product.names, i18n.language)
       setConfirmDialog({
         type: 'status',
         productId: product.id,
-        message: `Deactivate "${product.names.de || product.names.en || 'Product'}"? This will hide it from the terminal.`,
+        message: t('products.deactivateConfirm', { name: productName }),
       })
     } else {
       // Activating is immediate (no confirmation)
@@ -374,7 +386,7 @@ export function ProductsPage() {
   if (loading && products.length === 0) {
     return (
       <div style={{ padding: '20px' }}>
-        <div>Loading products...</div>
+        <div>{t('common.loading')}</div>
       </div>
     )
   }
@@ -398,7 +410,7 @@ export function ProductsPage() {
         />
       )}
 
-      <h1>Products</h1>
+      <h1>{t('products.title')}</h1>
 
       {error && (
         <div
@@ -426,15 +438,54 @@ export function ProductsPage() {
           flexWrap: 'wrap',
         }}
       >
-        {/* Left: Summary */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span data-testid="products-count-summary" style={{ color: '#cbd5e1', fontSize: 14 }}>
-            <strong style={{ color: '#e2e8f0' }}>{totalItems}</strong> Produkte gefunden
+        {/* Left: Summary + Search */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+          <span data-testid="products-count-summary" style={{ color: '#cbd5e1', fontSize: 14, whiteSpace: 'nowrap' }}>
+            <strong style={{ color: '#e2e8f0' }}>{totalItems}</strong> {t('products.title')} {t('common.found')}
           </span>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setCurrentPage(1)
+            }}
+            placeholder={t('common.searchPlaceholder')}
+            data-testid="products-search-input"
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              backgroundColor: '#0d1829',
+              border: '1px solid #2d3748',
+              borderRadius: 8,
+              color: '#e2e8f0',
+              fontSize: '14px',
+              fontFamily: 'inherit',
+              maxWidth: '400px',
+              height: '40px',
+              boxSizing: 'border-box',
+              verticalAlign: 'middle',
+              transition: 'all 0.15s',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)'
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = '#2d3748'
+            }}
+          />
         </div>
 
-        {/* Right: Category filter + Create button */}
+        {/* Right: Status filter + Category filter + Create button */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <StatusFilterPills
+            value={filterStatus}
+            onChange={(status) => {
+              setFilterStatus(status)
+              setCurrentPage(1)
+            }}
+            testId="products-filter-status"
+          />
           <CategoryFilter
             categories={categories}
             value={filterCategory}
@@ -465,7 +516,7 @@ export function ProductsPage() {
               whiteSpace: 'nowrap',
             }}
           >
-            Create Product
+            {t('products.createProduct')}
           </button>
         </div>
       </div>
@@ -484,11 +535,11 @@ export function ProductsPage() {
                   width: '60px',
                 }}
               >
-                AKTIV
+                {t('common.active').toUpperCase()}
               </th>
               <th style={{ ...headerCellBaseStyle, textAlign: 'left' }}>
                 <SortableTableHeader
-                  label="Produkt"
+                  label={t('journal.product')}
                   sortKey="name"
                   currentSort={{ key: sortKey, direction: sortDirection }}
                   onSort={handleSort}
@@ -497,7 +548,7 @@ export function ProductsPage() {
               </th>
               <th style={{ ...headerCellBaseStyle, textAlign: 'left' }}>
                 <SortableTableHeader
-                  label="Preis"
+                  label={t('common.price')}
                   sortKey="price"
                   currentSort={{ key: sortKey, direction: sortDirection }}
                   onSort={handleSort}
@@ -506,7 +557,7 @@ export function ProductsPage() {
               </th>
               <th style={{ ...headerCellBaseStyle, textAlign: 'left' }}>
                 <SortableTableHeader
-                  label="Kategorie"
+                  label={t('common.category')}
                   sortKey="category"
                   currentSort={{ key: sortKey, direction: sortDirection }}
                   onSort={handleSort}
@@ -514,7 +565,7 @@ export function ProductsPage() {
                 />
               </th>
               <th style={{ ...headerCellBaseStyle, textAlign: 'center' }}>
-                Aktionen
+                {t('common.actions')}
               </th>
             </tr>
           </thead>
@@ -542,7 +593,7 @@ export function ProductsPage() {
                 />
                 <IconCell
                   icon={getProductIcon(product.icon_name)}
-                  label={product.names.de || product.names.en || 'Unnamed Product'}
+                  label={getLocalizedName(product.names, i18n.language)}
                   iconTestId={`products-table-cell-icon-${product.id}`}
                   labelTestId={`products-table-cell-name-${product.id}`}
                 />
@@ -553,7 +604,7 @@ export function ProductsPage() {
                 <BadgeCell
                   label={(() => {
                     const category = categories.find((c) => c.id === product.category_id)
-                    return category ? category.names.de || category.names.en || 'Unknown' : 'Unknown'
+                    return category ? getLocalizedName(category.names, i18n.language) : ''
                   })()}
                   testId={`products-table-cell-category-${product.id}`}
                 />
@@ -595,7 +646,7 @@ export function ProductsPage() {
             color: '#94a3b8',
           }}
         >
-          No products found
+          {t('products.noProducts')}
         </div>
       )}
 
@@ -633,7 +684,7 @@ export function ProductsPage() {
             {/* Left Column: Form */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
               <h2 data-testid="products-form-title" style={{ marginTop: 0, marginBottom: '16px', color: '#e2e8f0' }}>
-                {modalMode === 'create' ? 'Create Product' : 'Edit Product'}
+                {modalMode === 'create' ? t('products.createProduct') : t('products.editProduct')}
               </h2>
 
               {formError && (
@@ -663,12 +714,12 @@ export function ProductsPage() {
                     fontWeight: '500',
                   }}
                 >
-                  Product Name
+                  {t('products.productName')}
                 </label>
                 <input
                   data-testid="products-form-name-input"
                   type="text"
-                  placeholder="Product name"
+                  placeholder={t('products.productName')}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   style={{
@@ -690,7 +741,7 @@ export function ProductsPage() {
                 value={selectedCategory}
                 onChange={setSelectedCategory}
                 testId="products-form-category-select"
-                label="Category *"
+                label={`${t('common.category')} *`}
                 required
               />
 
@@ -704,7 +755,7 @@ export function ProductsPage() {
                     fontWeight: '500',
                   }}
                 >
-                  Price (€)
+                  {t('common.price')} (€)
                 </label>
                 <input
                   data-testid="products-form-price-input"
@@ -732,7 +783,7 @@ export function ProductsPage() {
                 onChange={setSelectedIcon}
                 iconType="product"
                 testId="products-form-icon-select"
-                label="Icon (optional)"
+                label={`${t('products.icon')} (${t('common.optional')})`}
               />
 
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: 'auto' }}>
@@ -751,7 +802,7 @@ export function ProductsPage() {
                     fontWeight: '500',
                   }}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   data-testid="products-form-submit-button"
@@ -767,7 +818,7 @@ export function ProductsPage() {
                     fontWeight: '500',
                   }}
                 >
-                  {modalMode === 'create' ? 'Create Product' : 'Save Changes'}
+                  {modalMode === 'create' ? t('products.createProduct') : t('common.saveChanges')}
                 </button>
               </div>
               </form>
@@ -776,7 +827,7 @@ export function ProductsPage() {
             {/* Right Column: Preview */}
             <div style={{ width: '160px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '12px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Terminal Preview
+                {t('common.terminalPreview')}
               </div>
               <ProductPreview
                 name={formData.name}
@@ -855,7 +906,7 @@ export function ProductsPage() {
                   fontWeight: '500',
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
 
               <button
@@ -872,7 +923,7 @@ export function ProductsPage() {
                   fontWeight: '500',
                 }}
               >
-                {confirmDialog.type === 'delete' ? 'Delete' : 'Deactivate'}
+                {confirmDialog.type === 'delete' ? t('common.delete') : t('common.deactivate')}
               </button>
             </div>
           </div>

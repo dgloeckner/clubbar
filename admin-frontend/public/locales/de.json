@@ -46,7 +46,22 @@
     "entries": "Einträge",
     "sortBy": "Sortieren nach",
     "ascending": "Aufsteigend",
-    "descending": "Absteigend"
+    "descending": "Absteigend",
+    "found": "gefunden",
+    "searchPlaceholder": "Suchen...",
+    "saveChanges": "Änderungen speichern",
+    "deactivate": "Deaktivieren",
+    "activate": "Aktivieren",
+    "undo": "Rückgängig",
+    "export": "Exportieren",
+    "add": "Hinzufügen",
+    "required": "erforderlich",
+    "optional": "optional",
+    "terminalPreview": "Terminal-Vorschau",
+    "before": "Vorher",
+    "after": "Nachher",
+    "noData": "Keine Daten",
+    "noChanges": "Keine Änderungen gespeichert"
   },
   "auth": {
     "email": "E-Mail",

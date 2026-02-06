@@ -46,7 +46,22 @@
     "entries": "entries",
     "sortBy": "Sort by",
     "ascending": "Ascending",
-    "descending": "Descending"
+    "descending": "Descending",
+    "found": "found",
+    "searchPlaceholder": "Search...",
+    "saveChanges": "Save Changes",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "undo": "Undo",
+    "export": "Export",
+    "add": "Add",
+    "required": "required",
+    "optional": "optional",
+    "terminalPreview": "Terminal Preview",
+    "before": "Before",
+    "after": "After",
+    "noData": "No data",
+    "noChanges": "No value changes recorded"
   },
   "auth": {
     "email": "Email",
