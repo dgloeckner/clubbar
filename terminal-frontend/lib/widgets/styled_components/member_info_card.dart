@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:ruderbar_terminal/utils/formatters.dart';
 
 class MemberInfoCard extends StatelessWidget {
   final MembersCacheData member;
   final int balanceCents;
+  final String locale;
 
   const MemberInfoCard({
     super.key,
     required this.member,
     required this.balanceCents,
+    required this.locale,
   });
 
   Color _getBalanceColor() {
@@ -23,7 +26,6 @@ class MemberInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final balanceEuros = balanceCents / 100.0;
     final initials = '${member.firstName?[0] ?? '?'}${member.lastName?[0] ?? '?'}'
         .toUpperCase();
 
@@ -78,7 +80,7 @@ class MemberInfoCard extends StatelessWidget {
 
                 // Balance/Deckel with color coding
                 Text(
-                  'Deckel: €${balanceEuros.toStringAsFixed(2)}',
+                  'Deckel: ${formatPrice(balanceCents, locale)}',
                   style: TextStyle(
                     color: _getBalanceColor(),
                     fontSize: AppFontSizes.base,

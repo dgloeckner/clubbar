@@ -194,6 +194,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
             return ProductCard(
               product: product,
               productName: name,
+              locale: memberLang,
               quantity: quantity,
               onTap: () => cartProvider.addItem(
                 product.id,

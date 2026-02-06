@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:ruderbar_terminal/utils/formatters.dart';
 
 enum PriceFontSize { small, medium, large }
 
 class PriceDisplay extends StatelessWidget {
   final int priceCents;
+  final String locale;
   final PriceFontSize fontSize;
   final bool fullWidth;
 
   const PriceDisplay({
     super.key,
     required this.priceCents,
+    required this.locale,
     this.fontSize = PriceFontSize.medium,
     this.fullWidth = false,
   });
@@ -28,8 +31,7 @@ class PriceDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final priceEuros = priceCents / 100.0;
-    final text = '€${priceEuros.toStringAsFixed(2)}';
+    final text = formatPrice(priceCents, locale);
 
     return SizedBox(
       width: fullWidth ? double.infinity : null,

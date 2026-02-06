@@ -149,6 +149,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                 // Total amount using PriceDisplay
                 PriceDisplay(
                   priceCents: cartTotal,
+                  locale: locale,
                   fontSize: PriceFontSize.large,
                   fullWidth: true,
                 ),

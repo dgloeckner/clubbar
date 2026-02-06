@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:ruderbar_terminal/utils/formatters.dart';
 import 'package:ruderbar_terminal/utils/icon_registry.dart';
 
 class ProductCard extends StatefulWidget {
   final ProductsCacheData product;
   final String productName;
+  final String locale;
   final VoidCallback onTap;
   final int quantity;
 
@@ -13,6 +15,7 @@ class ProductCard extends StatefulWidget {
     super.key,
     required this.product,
     required this.productName,
+    required this.locale,
     required this.onTap,
     this.quantity = 0,
   });
@@ -59,8 +62,6 @@ class _ProductCardState extends State<ProductCard>
 
   @override
   Widget build(BuildContext context) {
-    final priceEuros = widget.product.priceCents / 100.0;
-
     final isInCart = widget.quantity > 0;
 
     return GestureDetector(
@@ -115,7 +116,7 @@ class _ProductCardState extends State<ProductCard>
 
                     // Price (cyan, bold, larger font)
                     Text(
-                      '€${priceEuros.toStringAsFixed(2)}',
+                      formatPrice(widget.product.priceCents, widget.locale),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Color(0xff0ea5e9),
