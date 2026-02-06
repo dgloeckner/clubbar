@@ -53,17 +53,13 @@ export function MainLayout({ children }: MainLayoutProps) {
   const isActive = (path: string): boolean => location.pathname === path
 
   const navItems = [
-    { label: t('nav.members'), path: '/members', icon: <UsersIcon size={20} /> },
-    { label: t('nav.products'), path: '/products', icon: <PackageIcon size={20} /> },
-    { label: t('nav.categories'), path: '/categories', icon: <NavigationIconRegistry.CategoryIcon size={20} /> },
-    {
-      label: t('nav.journal'),
-      path: '/journal',
-      icon: <BookIcon size={20} />,
-    },
-    { label: t('nav.settlements'), path: '/settlements', icon: <ReceiptIcon size={20} /> },
-    { label: t('nav.statistics'), path: '/statistics', icon: <ChartIcon size={20} /> },
-    { label: t('nav.settings'), path: '/settings', icon: <SettingsIcon size={20} /> },
+    { label: t('nav.members'), path: '/members', icon: <UsersIcon size={20} />, testId: 'nav-members' },
+    { label: t('nav.products'), path: '/products', icon: <PackageIcon size={20} />, testId: 'nav-products' },
+    { label: t('nav.categories'), path: '/categories', icon: <NavigationIconRegistry.CategoryIcon size={20} />, testId: 'nav-categories' },
+    { label: t('nav.journal'), path: '/journal', icon: <BookIcon size={20} />, testId: 'nav-journal' },
+    { label: t('nav.settlements'), path: '/settlements', icon: <ReceiptIcon size={20} />, testId: 'nav-settlements' },
+    { label: t('nav.statistics'), path: '/statistics', icon: <ChartIcon size={20} />, testId: 'nav-statistics' },
+    { label: t('nav.settings'), path: '/settings', icon: <SettingsIcon size={20} />, testId: 'nav-settings' },
     { label: t('nav.auditLog'), path: '/audit-log', icon: <AuditLogIcon size={20} />, testId: 'nav-audit-log' },
   ]
 

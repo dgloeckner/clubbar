@@ -9,10 +9,10 @@ import { Page } from '@playwright/test'
 import { BasePage } from './BasePage'
 
 export class LoginPage extends BasePage {
-  // Locators as private properties
-  private readonly emailInput = () => this.page.getByRole('textbox', { name: /email/i })
-  private readonly passwordInput = () => this.page.getByRole('textbox', { name: /password/i })
-  private readonly loginBtn = () => this.page.getByRole('button', { name: /login/i })
+  // Locators as private properties - using data-testid for i18n compatibility
+  private readonly emailInput = () => this.page.locator('[data-testid="login-email-input"]')
+  private readonly passwordInput = () => this.page.locator('[data-testid="login-password-input"]')
+  private readonly loginBtn = () => this.page.locator('[data-testid="login-submit-button"]')
   private readonly errorMessage = () => this.page.locator('[class*="error"], [style*="error"]')
   private readonly heading = () => this.page.locator('h1:has-text("Ruderbar")')
 
