@@ -96,6 +96,18 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get memberDetails => 'Mitgliedsdetails';
+
+  @override
+  String get firstName => 'Vorname';
+
+  @override
+  String get lastName => 'Nachname';
+
+  @override
+  String get accountStatus => 'Kontostatus';
+
+  @override
   String get memberActive => 'Aktiv';
 
   @override
@@ -147,6 +159,30 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get noProductsInCategory => 'Keine Produkte in dieser Kategorie';
+
+  @override
+  String get statusOnline => 'Online';
+
+  @override
+  String get statusOffline => 'Offline';
+
+  @override
+  String get statusError => 'Fehler';
+
+  @override
+  String get never => 'Nie';
+
+  @override
+  String get lastSync => 'Letzte Synchronisation';
+
+  @override
+  String get lastTransactionSync => 'Letzte Transaktions-Sync';
+
+  @override
+  String get retryCount => 'Wiederholungsversuche';
+
+  @override
+  String get errorDetails => 'Fehlerdetails';
 
   @override
   String get loading => 'Laden...';

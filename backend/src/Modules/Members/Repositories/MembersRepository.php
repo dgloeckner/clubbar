@@ -29,10 +29,13 @@ class MembersRepository
 
     public function findModifiedSince(int $sinceTimestamp): array
     {
+        // Convert milliseconds to seconds for date() function
+        $sinceSeconds = (int) ($sinceTimestamp / 1000);
+
         $stmt = $this->db->prepare(
             'SELECT * FROM members WHERE updated_at >= ? ORDER BY updated_at ASC'
         );
-        $stmt->execute([date('Y-m-d H:i:s', $sinceTimestamp)]);
+        $stmt->execute([date('Y-m-d H:i:s', $sinceSeconds)]);
         return $stmt->fetchAll();
     }
 

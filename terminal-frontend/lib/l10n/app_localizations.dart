@@ -236,6 +236,30 @@ abstract class AppLocalizations {
   /// **'Weiterleitung in {seconds} {seconds, plural, =1{Sekunde} other{Sekunden}}...'**
   String redirectingIn(int seconds);
 
+  /// Member details screen title
+  ///
+  /// In de, this message translates to:
+  /// **'Mitgliedsdetails'**
+  String get memberDetails;
+
+  /// Label for first name
+  ///
+  /// In de, this message translates to:
+  /// **'Vorname'**
+  String get firstName;
+
+  /// Label for last name
+  ///
+  /// In de, this message translates to:
+  /// **'Nachname'**
+  String get lastName;
+
+  /// Label for account status
+  ///
+  /// In de, this message translates to:
+  /// **'Kontostatus'**
+  String get accountStatus;
+
   /// Label for active member status
   ///
   /// In de, this message translates to:
@@ -337,6 +361,54 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Keine Produkte in dieser Kategorie'**
   String get noProductsInCategory;
+
+  /// Connection status: online
+  ///
+  /// In de, this message translates to:
+  /// **'Online'**
+  String get statusOnline;
+
+  /// Connection status: offline
+  ///
+  /// In de, this message translates to:
+  /// **'Offline'**
+  String get statusOffline;
+
+  /// Connection status: error
+  ///
+  /// In de, this message translates to:
+  /// **'Fehler'**
+  String get statusError;
+
+  /// Used for timestamps that never occurred
+  ///
+  /// In de, this message translates to:
+  /// **'Nie'**
+  String get never;
+
+  /// Label for last sync timestamp
+  ///
+  /// In de, this message translates to:
+  /// **'Letzte Synchronisation'**
+  String get lastSync;
+
+  /// Label for last transaction sync timestamp
+  ///
+  /// In de, this message translates to:
+  /// **'Letzte Transaktions-Sync'**
+  String get lastTransactionSync;
+
+  /// Label for retry count
+  ///
+  /// In de, this message translates to:
+  /// **'Wiederholungsversuche'**
+  String get retryCount;
+
+  /// Label for error details section
+  ///
+  /// In de, this message translates to:
+  /// **'Fehlerdetails'**
+  String get errorDetails;
 
   /// Loading indicator text
   ///

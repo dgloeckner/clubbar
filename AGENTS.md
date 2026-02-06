@@ -389,17 +389,237 @@ docker compose exec database mysql -u ruderbar -p ruderbar -e "SHOW TABLES; SELE
 
 ---
 
+## Library Documentation Lookup (Context7 MCP)
+
+**Purpose**: Access up-to-date documentation and code examples for any library or framework used in the project.
+
+### When to Use Context7 MCP
+
+**ALWAYS use context7 when**:
+- Implementing features with unfamiliar libraries (Playwright, PHPUnit, React Testing Library, etc.)
+- Debugging library-specific errors or unexpected behavior
+- Finding best practices for framework-specific patterns
+- Verifying API signatures before implementing (reduces trial-and-error)
+- Learning how to use new library features or methods
+
+**Examples of good use cases**:
+- "How do I properly use Playwright's expect() for async assertions?"
+- "What's the correct Laravel validation syntax for IBAN format?"
+- "How do I mock API responses in React Testing Library?"
+- "What's the proper PHPUnit syntax for testing exceptions?"
+
+### How to Use Context7 MCP
+
+**Two-step process**:
+
+1. **Resolve library ID** (unless library ID is already known):
+   ```
+   Use: mcp__context7__resolve-library-id
+   Parameters:
+   - libraryName: "playwright" (or "react", "laravel", etc.)
+   - query: "How do I wait for API responses in Playwright tests?"
+   ```
+
+2. **Query documentation**:
+   ```
+   Use: mcp__context7__query-docs
+   Parameters:
+   - libraryId: "/microsoft/playwright" (from step 1)
+   - query: "How do I wait for API responses in Playwright tests?"
+   ```
+
+**Important**: Max 3 calls per question. If you can't find what you need after 3 calls, use the best information available.
+
+### Integration with Project Workflows
+
+#### Workflow: E2E Test Implementation with Context7
+
+**Before implementing Playwright tests**:
+
+1. **Read project patterns first**:
+   ```bash
+   cat e2etests/patterns/README.md
+   cat e2etests/patterns/008-playwright-assertions.md
+   ```
+
+2. **Query Context7 for up-to-date Playwright docs** (if needed):
+   - Resolve library ID: `mcp__context7__resolve-library-id` with libraryName="playwright"
+   - Query specific pattern: `mcp__context7__query-docs` with query like:
+     - "How to wait for API response with specific URL pattern?"
+     - "How to properly assert visibility with auto-retry?"
+     - "How to handle authentication in Playwright fixtures?"
+
+3. **Implement test** following both:
+   - Project patterns (e2etests/patterns/)
+   - Library best practices (from Context7)
+
+4. **Run and verify**:
+   ```bash
+   npm test -- tests/api/new-test.spec.ts --workers=4 --reporter=json > results.json
+   ```
+
+#### Workflow: Backend Pattern Implementation with Context7
+
+**When implementing Laravel features**:
+
+1. **Read backend pattern first**:
+   ```bash
+   cat backend/patterns/001-form-requests.md
+   ```
+
+2. **Query Context7 for Laravel-specific details**:
+   - Example queries:
+     - "How to create custom validation rules in Laravel?"
+     - "How to properly use Laravel service providers for dependency injection?"
+     - "What's the best practice for Laravel repository pattern?"
+
+3. **Implement following both**:
+   - Project pattern structure (backend/patterns/)
+   - Laravel framework conventions (from Context7)
+
+4. **Test integration**:
+   ```bash
+   # Restart PHP
+   docker compose exec backend supervisorctl restart php-fpm:php-fpmd
+
+   # Run E2E tests
+   npm test -- --grep "feature name" --reporter=json > results.json
+   ```
+
+### Common Library Queries for Ruderbar Project
+
+**Playwright (E2E Testing)**:
+- Library ID: `/microsoft/playwright`
+- Common queries:
+  - "How to wait for network response matching URL pattern?"
+  - "How to use expect() with async locators?"
+  - "How to create reusable fixtures for page objects?"
+  - "How to run tests in parallel safely?"
+  - "How to handle authentication in Playwright setup?"
+
+**Laravel (Backend)**:
+- Library ID: `/laravel/laravel`
+- Common queries:
+  - "How to create custom validation rules?"
+  - "How to use service providers for dependency injection?"
+  - "How to properly handle database transactions in tests?"
+  - "What's the best practice for repository pattern in Laravel?"
+  - "How to create custom middleware for API authentication?"
+
+**React (Admin Frontend)**:
+- Library ID: `/facebook/react`
+- Common queries:
+  - "How to properly use useEffect for data fetching?"
+  - "How to handle form state with controlled components?"
+  - "What's the best practice for context providers?"
+  - "How to test React components with Testing Library?"
+
+**PHPUnit (Backend Testing)**:
+- Library ID: `/sebastianbergmann/phpunit`
+- Common queries:
+  - "How to properly test exceptions in PHPUnit?"
+  - "How to create test doubles (mocks/stubs)?"
+  - "What's the best practice for testing database interactions?"
+  - "How to use data providers for parameterized tests?"
+
+### Best Practices for Context7 Usage
+
+**DO**:
+- ✅ Query Context7 BEFORE implementing unfamiliar patterns
+- ✅ Use specific, detailed queries (include context about what you're building)
+- ✅ Combine Context7 results with project patterns (Context7 = library best practices, project patterns = project-specific structure)
+- ✅ Query once per implementation phase (reduces calls, maximizes value)
+- ✅ Include your actual use case in the query (e.g., "How to wait for API response in Playwright when testing form submission?")
+
+**DON'T**:
+- ❌ Query Context7 for information already in project patterns
+- ❌ Make generic queries like "how to use Playwright" (be specific)
+- ❌ Query more than 3 times per question (use best available info after 3 calls)
+- ❌ Ignore project patterns in favor of Context7 docs (project patterns take precedence for project-specific conventions)
+- ❌ Query for basic syntax you already know
+
+### Debugging with Context7
+
+**When encountering library-specific errors**:
+
+1. **Check error message first**:
+   ```bash
+   # Playwright errors
+   cat test-results.json | jq '.suites[].tests[] | select(.status=="fail") | .error.message'
+
+   # Laravel errors
+   docker compose exec backend tail -50 /app/storage/logs/laravel.log
+   ```
+
+2. **If error is library-specific** (e.g., "locator.isVisible is not a function", "Undefined method 'validate'"):
+   - Query Context7 with the specific error pattern
+   - Example: "Why does Playwright throw 'locator.isVisible is not a function'?"
+   - Or: "How to properly use Laravel validation in Form Requests?"
+
+3. **Apply fix from Context7 + project patterns**:
+   - Context7 provides the correct library API
+   - Project patterns provide the structure
+
+4. **Verify fix**:
+   ```bash
+   # Re-run test
+   npm test -- --grep "test name" --reporter=json > fixed-results.json
+   ```
+
+### Example: Complete Workflow with Context7
+
+**Scenario**: Implementing a new Playwright test for settlements API with filtering
+
+**Step 1: Read project patterns**
+```bash
+cat e2etests/patterns/README.md
+cat e2etests/patterns/008-playwright-assertions.md
+```
+
+**Step 2: Query Context7 for Playwright best practices**
+```
+mcp__context7__resolve-library-id
+- libraryName: "playwright"
+- query: "How to wait for API response matching URL pattern when testing filtered list?"
+
+mcp__context7__query-docs
+- libraryId: "/microsoft/playwright"
+- query: "How to use page.waitForResponse() with URL pattern and verify response body?"
+```
+
+**Step 3: Implement test** combining:
+- Pattern 008 (use expect() for assertions)
+- Pattern 001 (unique test data)
+- Context7 guidance (proper waitForResponse syntax)
+
+**Step 4: Run and verify**
+```bash
+npm test -- tests/api/settlements.spec.ts --workers=4 --reporter=json > results.json
+cat results.json | jq '.stats'
+```
+
+**Step 5: Debug if needed**
+```bash
+# If test fails, check error
+cat results.json | jq '.suites[].tests[] | select(.status=="fail") | .error'
+
+# Query Context7 if error is Playwright-specific
+# Fix and re-run
+```
+
+---
+
 ## Integration with Superpowers Skills
 
 **How AGENTS.md complements superpowers**:
 
 | Superpowers Skill | AGENTS.md Addition |
 |-------------------|-------------------|
-| `test-driven-development` | JSON reporter workflow for tracking test progress |
-| `systematic-debugging` | Playwright test result parsing, backend log correlation |
-| `brainstorming` | No addition (skill is complete) |
-| `writing-plans` | No addition (skill is complete) |
-| `executing-plans` | Backend/E2E pattern integration workflow |
+| `test-driven-development` | JSON reporter workflow for tracking test progress; Context7 for library-specific test patterns |
+| `systematic-debugging` | Playwright test result parsing, backend log correlation, Context7 for library-specific error debugging |
+| `brainstorming` | Context7 for discovering library capabilities when designing features |
+| `writing-plans` | Context7 for verifying library API availability before planning implementation |
+| `executing-plans` | Backend/E2E pattern integration workflow; Context7 for library best practices |
 | `verification-before-completion` | JSON reporter verification commands |
 | `dispatching-parallel-agents` | Parallel test execution pattern |
 | `subagent-driven-development` | Test isolation debugging workflow |
@@ -461,6 +681,51 @@ cat test-results.json | jq '.suites[].tests | group_by(.status) | map({status: .
 cat test-results.json | jq '.suites[].tests[] | select(.status=="fail") | .error.message'
 ```
 
+### Context7 MCP Quick Reference
+
+**Common library IDs** (use with `mcp__context7__query-docs`):
+```
+Playwright: /microsoft/playwright
+Laravel: /laravel/laravel
+React: /facebook/react
+PHPUnit: /sebastianbergmann/phpunit
+```
+
+**Query pattern** (when library ID is unknown):
+```
+1. mcp__context7__resolve-library-id
+   - libraryName: "playwright"
+   - query: "Your specific question about what you're trying to do"
+
+2. mcp__context7__query-docs
+   - libraryId: (from step 1)
+   - query: "Your specific question about what you're trying to do"
+```
+
+**Example queries by scenario**:
+```
+Playwright test implementation:
+- "How to wait for API response matching specific URL pattern?"
+- "How to properly use expect() with locators for visibility assertions?"
+- "How to create reusable fixtures for page objects?"
+
+Laravel backend implementation:
+- "How to create custom validation rules in Laravel?"
+- "How to properly use repository pattern with dependency injection?"
+- "How to handle database transactions in service layer?"
+
+Debugging library errors:
+- "Why does Playwright throw 'locator.isVisible is not a function'?"
+- "What's the correct syntax for Laravel Form Request validation?"
+- "How to properly mock dependencies in PHPUnit?"
+```
+
+**Best practices**:
+- Query BEFORE implementing (not after errors occur)
+- Be specific in queries (include your use case)
+- Max 3 calls per question
+- Combine Context7 results with project patterns
+
 ---
 
 ## Best Practices for Agents
@@ -471,8 +736,9 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail") | .error
 4. **Correlate across stack**: Test results + backend logs + HTTP codes = complete picture
 5. **Follow patterns**: Use E2E patterns (001-008) and backend patterns consistently
 6. **Invoke superpowers skills**: For TDD, debugging, planning - don't reinvent workflows
-7. **Verify before committing**: Use `verification-before-completion` skill, confirm tests pass with 4 workers
-8. **Document findings**: When debugging, document root cause in test results or memory files
+7. **Query Context7 before implementing**: Get up-to-date library docs BEFORE writing unfamiliar code; reduces trial-and-error
+8. **Verify before committing**: Use `verification-before-completion` skill, confirm tests pass with 4 workers
+9. **Document findings**: When debugging, document root cause in test results or memory files
 
 ---
 
@@ -487,14 +753,20 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail") | .error
 ❌ **Assuming tests pass after code changes**: Always run and verify, especially with 4 workers
 ❌ **Debugging in parallel mode first**: Start with 1 worker to isolate actual errors from resource contention
 ❌ **Fixing individual tests when many are failing**: Fix the systemic issue first, then re-run all tests
+❌ **Implementing unfamiliar library patterns without Context7**: Trial-and-error wastes time; query docs first
+❌ **Querying Context7 for info in project patterns**: Project patterns are the source of truth for project conventions
+❌ **Making >3 Context7 calls per question**: Use best available info after 3 calls; don't over-query
+❌ **Ignoring Context7 library best practices**: Combining project patterns + library best practices = highest quality code
 
 ---
 
 ## Summary
 
-**AGENTS.md Purpose**: Project-specific test analysis, debugging commands, and agent coordination patterns.
+**AGENTS.md Purpose**: Project-specific test analysis, debugging commands, agent coordination patterns, and library documentation workflows.
 
 **Superpowers Skills Purpose**: General development workflows (TDD, brainstorming, planning, debugging methodology).
+
+**Context7 MCP Purpose**: Up-to-date library documentation and code examples for framework-specific implementation.
 
 **Key Takeaways**:
 1. **Monitor test execution**: Stop immediately if >10 tests fail; indicates systemic issue requiring root cause analysis
@@ -502,3 +774,4 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail") | .error
 3. **Parse before fixing**: Understand failure patterns before proposing solutions
 4. **Correlate across stack**: Test results + backend logs + HTTP codes = complete picture
 5. **Invoke superpowers skills**: For TDD, debugging, planning workflows
+6. **Query Context7 before implementing**: Get library-specific best practices BEFORE writing unfamiliar code; reduces trial-and-error and improves code quality
