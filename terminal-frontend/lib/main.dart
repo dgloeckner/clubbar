@@ -258,7 +258,11 @@ void main() async {
   );
 
   // Create providers (UI state management)
-  final membersProvider = MembersProvider(service: membersService);
+  final localeProvider = LocaleProvider();
+  final membersProvider = MembersProvider(
+    service: membersService,
+    localeProvider: localeProvider,
+  );
   final productsProvider = ProductsProvider(service: productsService);
 
   // Load products into provider (after seeding database)
@@ -272,6 +276,7 @@ void main() async {
 
   runApp(RuderbarTerminalApp(
     database: database,
+    localeProvider: localeProvider,
     membersProvider: membersProvider,
     productsProvider: productsProvider,
     cartService: cartService,
@@ -284,6 +289,7 @@ void main() async {
 
 class RuderbarTerminalApp extends StatelessWidget {
   final RuderbarDatabase database;
+  final LocaleProvider localeProvider;
   final MembersProvider membersProvider;
   final ProductsProvider productsProvider;
   final CartService cartService;
@@ -295,6 +301,7 @@ class RuderbarTerminalApp extends StatelessWidget {
   const RuderbarTerminalApp({
     super.key,
     required this.database,
+    required this.localeProvider,
     required this.membersProvider,
     required this.productsProvider,
     required this.cartService,
@@ -309,9 +316,9 @@ class RuderbarTerminalApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<NetworkService>.value(value: networkService),
-        ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider<MembersProvider>(create: (_) => membersProvider),
+        ChangeNotifierProvider<MembersProvider>.value(value: membersProvider),
         ChangeNotifierProvider<ProductsProvider>(create: (_) => productsProvider),
         ChangeNotifierProvider(create: (_) => CartProvider(service: cartService)),
         ChangeNotifierProvider<SyncProvider>(create: (_) => syncProvider),

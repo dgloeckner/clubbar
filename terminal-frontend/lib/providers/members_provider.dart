@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/services/members_service.dart';
+import 'package:ruderbar_terminal/providers/locale_provider.dart';
 
 class MembersProvider extends ChangeNotifier {
   final MembersService _service;
+  final LocaleProvider? _localeProvider;
 
   List<MembersCacheData> _members = [];
   MembersCacheData? _selectedMember;
@@ -13,7 +15,11 @@ class MembersProvider extends ChangeNotifier {
   String? _lastError;
   Exception? _errorType;
 
-  MembersProvider({required MembersService service}) : _service = service;
+  MembersProvider({
+    required MembersService service,
+    LocaleProvider? localeProvider,
+  })  : _service = service,
+        _localeProvider = localeProvider;
 
   List<MembersCacheData> get members => _members;
   MembersCacheData? get selectedMember => _selectedMember;
@@ -39,6 +45,9 @@ class MembersProvider extends ChangeNotifier {
         _memberDeckel = await _service.getEffectiveBalance(member);
         _lastError = null;
         _errorType = null;
+
+        // Update app locale based on member's preferred language
+        _localeProvider?.setLocaleFromMember(member.preferredLanguage);
       } else {
         _selectedMember = null;
         _memberDeckel = null;
@@ -70,6 +79,10 @@ class MembersProvider extends ChangeNotifier {
     _memberDeckel = await _service.getEffectiveBalance(member);
     _lastError = null;
     _errorType = null;
+
+    // Update app locale based on member's preferred language
+    _localeProvider?.setLocaleFromMember(member.preferredLanguage);
+
     notifyListeners();
   }
 
@@ -77,6 +90,10 @@ class MembersProvider extends ChangeNotifier {
   void clearSelectedMember() {
     _selectedMember = null;
     _memberDeckel = null;
+
+    // Reset locale to default (German)
+    _localeProvider?.resetToDefault();
+
     notifyListeners();
   }
 

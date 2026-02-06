@@ -8,6 +8,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:ruderbar_terminal/database/database.dart';
+import 'package:ruderbar_terminal/providers/locale_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/providers/products_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
@@ -18,6 +19,7 @@ import 'package:ruderbar_terminal/services/network_service.dart';
 import 'package:ruderbar_terminal/main.dart';
 
 class MockRuderbarDatabase extends Mock implements RuderbarDatabase {}
+class MockLocaleProvider extends Mock implements LocaleProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
 class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockCartService extends Mock implements CartService {}
@@ -29,6 +31,7 @@ class MockNetworkService extends Mock implements NetworkService {}
 void main() {
   testWidgets('App initializes with Material 3 theme', (WidgetTester tester) async {
     final mockDatabase = MockRuderbarDatabase();
+    final mockLocaleProvider = MockLocaleProvider();
     final mockMembersProvider = MockMembersProvider();
     final mockProductsProvider = MockProductsProvider();
     final mockCartService = MockCartService();
@@ -43,6 +46,7 @@ void main() {
     await tester.pumpWidget(
       RuderbarTerminalApp(
         database: mockDatabase,
+        localeProvider: mockLocaleProvider,
         membersProvider: mockMembersProvider,
         productsProvider: mockProductsProvider,
         cartService: mockCartService,
