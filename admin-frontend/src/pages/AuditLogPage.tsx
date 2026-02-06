@@ -4,6 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useLoading } from '../context/LoadingContext'
 import { getAuditLogs, getAvailableActions, getAvailableEntityTypes, AuditLogEntry } from '../services/audit-log'
@@ -20,6 +21,7 @@ import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { formatDateTime } from '../styles/design-system'
 
 export function AuditLogPage() {
+  const { t } = useTranslation()
   const { setIsLoading } = useLoading()
 
   // State management
@@ -90,7 +92,7 @@ export function AuditLogPage() {
   return (
     <div data-testid="audit-log-page" style={{ padding: '20px' }}>
       {/* Page Header */}
-      <h1 style={{ margin: '0 0 20px 0' }}>Audit-Log</h1>
+      <h1 style={{ margin: '0 0 20px 0' }}>{t('auditLog.title')}</h1>
 
       {/* Filters Row */}
       <div style={{
@@ -105,7 +107,7 @@ export function AuditLogPage() {
         <div style={{ display: 'flex', gap: theme.spacing.sm, alignItems: 'flex-end' }}>
           <div>
             <label style={{ display: 'block', fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>
-              From
+              {t('auditLog.from')}
             </label>
             <input
               type="date"
@@ -127,7 +129,7 @@ export function AuditLogPage() {
           </div>
           <div>
             <label style={{ display: 'block', fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>
-              To
+              {t('auditLog.to')}
             </label>
             <input
               type="date"
@@ -152,7 +154,7 @@ export function AuditLogPage() {
         {/* Admin Filter */}
         <div>
           <label style={{ display: 'block', fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>
-            Admin
+            {t('auditLog.admin')}
           </label>
           <select
             value={selectedAdmin}
@@ -162,15 +164,23 @@ export function AuditLogPage() {
             }}
             data-testid="audit-log-filter-admin"
             style={{
-              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+              padding: `${theme.spacing.sm} 28px ${theme.spacing.sm} ${theme.spacing.md}`,
               background: theme.colors.bg.input,
               border: `1px solid ${theme.colors.border.light}`,
               borderRadius: theme.borderRadius.md,
               color: theme.colors.text.primary,
               fontSize: theme.typography.fontSize.sm,
+              cursor: 'pointer',
+              outline: 'none',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 8px center',
+              backgroundSize: '12px',
             }}
           >
-            <option value="">All Admins</option>
+            <option value="">{t('auditLog.allAdmins')}</option>
             {admins.map(admin => (
               <option key={admin.id} value={admin.id}>{admin.email}</option>
             ))}
@@ -180,7 +190,7 @@ export function AuditLogPage() {
         {/* Action Filter */}
         <div>
           <label style={{ display: 'block', fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>
-            Action
+            {t('auditLog.action')}
           </label>
           <select
             value={selectedAction}
@@ -190,15 +200,23 @@ export function AuditLogPage() {
             }}
             data-testid="audit-log-filter-action"
             style={{
-              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+              padding: `${theme.spacing.sm} 28px ${theme.spacing.sm} ${theme.spacing.md}`,
               background: theme.colors.bg.input,
               border: `1px solid ${theme.colors.border.light}`,
               borderRadius: theme.borderRadius.md,
               color: theme.colors.text.primary,
               fontSize: theme.typography.fontSize.sm,
+              cursor: 'pointer',
+              outline: 'none',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 8px center',
+              backgroundSize: '12px',
             }}
           >
-            <option value="">All Actions</option>
+            <option value="">{t('auditLog.allActions')}</option>
             {getAvailableActions().map(action => (
               <option key={action} value={action}>{action}</option>
             ))}
@@ -208,7 +226,7 @@ export function AuditLogPage() {
         {/* Entity Type Filter */}
         <div>
           <label style={{ display: 'block', fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>
-            Entity Type
+            {t('auditLog.entityType')}
           </label>
           <select
             value={selectedEntityType}
@@ -218,15 +236,23 @@ export function AuditLogPage() {
             }}
             data-testid="audit-log-filter-entity-type"
             style={{
-              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+              padding: `${theme.spacing.sm} 28px ${theme.spacing.sm} ${theme.spacing.md}`,
               background: theme.colors.bg.input,
               border: `1px solid ${theme.colors.border.light}`,
               borderRadius: theme.borderRadius.md,
               color: theme.colors.text.primary,
               fontSize: theme.typography.fontSize.sm,
+              cursor: 'pointer',
+              outline: 'none',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 8px center',
+              backgroundSize: '12px',
             }}
           >
-            <option value="">All Entity Types</option>
+            <option value="">{t('auditLog.allEntityTypes')}</option>
             {getAvailableEntityTypes().map(type => (
               <option key={type} value={type}>{type}</option>
             ))}
@@ -236,7 +262,7 @@ export function AuditLogPage() {
         {/* Search Input */}
         <div style={{ flex: 1, minWidth: '200px' }}>
           <label style={{ display: 'block', fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary, marginBottom: theme.spacing.xs }}>
-            Search
+            {t('common.search')}
           </label>
           <input
             type="text"
@@ -245,7 +271,7 @@ export function AuditLogPage() {
               setSearchText(e.target.value)
               setPage(1)
             }}
-            placeholder="Search entity ID, email, IP..."
+            placeholder={t('auditLog.searchPlaceholder')}
             data-testid="audit-log-search-input"
             style={{
               width: '100%',
@@ -269,7 +295,7 @@ export function AuditLogPage() {
         color: theme.colors.text.secondary,
       }}>
         <span data-testid="audit-log-results-count">
-          <strong style={{ color: theme.colors.text.primary }}>{totalEntries}</strong> entries found
+          <strong style={{ color: theme.colors.text.primary }}>{totalEntries}</strong> {t('auditLog.entriesFound')}
         </span>
       </div>
 
@@ -292,11 +318,11 @@ export function AuditLogPage() {
       {/* Loading State */}
       {loading ? (
         <div data-testid="audit-log-loading" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
-          Loading audit log...
+          {t('auditLog.loading')}
         </div>
       ) : entries.length === 0 ? (
         <div data-testid="audit-log-empty-state" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
-          No audit log entries found
+          {t('auditLog.noEntries')}
         </div>
       ) : (
         <>
@@ -306,7 +332,7 @@ export function AuditLogPage() {
                 <tr style={headerRowStyle}>
                   <th style={{ ...headerCellBaseStyle, width: '200px' }}>
                     <SortableTableHeader
-                      label="Timestamp"
+                      label={t('auditLog.timestamp')}
                       sortKey="created_at"
                       currentSort={{ key: 'created_at', direction: sortDirection }}
                       onSort={() => {
@@ -314,12 +340,12 @@ export function AuditLogPage() {
                       }}
                     />
                   </th>
-                  <th style={{ ...headerCellBaseStyle, width: '150px' }}>Admin</th>
-                  <th style={{ ...headerCellBaseStyle, width: '120px' }}>Action</th>
-                  <th style={{ ...headerCellBaseStyle, width: '150px' }}>Entity Type</th>
-                  <th style={{ ...headerCellBaseStyle, width: '200px' }}>Entity ID</th>
-                  <th style={{ ...headerCellBaseStyle, width: '120px' }}>IP Address</th>
-                  <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>Details</th>
+                  <th style={{ ...headerCellBaseStyle, width: '150px' }}>{t('auditLog.admin')}</th>
+                  <th style={{ ...headerCellBaseStyle, width: '120px' }}>{t('auditLog.action')}</th>
+                  <th style={{ ...headerCellBaseStyle, width: '150px' }}>{t('auditLog.entityType')}</th>
+                  <th style={{ ...headerCellBaseStyle, width: '200px' }}>{t('auditLog.entityId')}</th>
+                  <th style={{ ...headerCellBaseStyle, width: '120px' }}>{t('auditLog.ipAddress')}</th>
+                  <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>{t('auditLog.details')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -330,7 +356,7 @@ export function AuditLogPage() {
                         {formatDateTime(entry.created_at)}
                       </td>
                       <td style={{ padding: '12px 16px' }} data-testid={`audit-log-admin-${entry.id}`}>
-                        {entry.admin_user_name || '(Failed Login)'}
+                        {entry.admin_user_name || t('auditLog.failedLogin')}
                       </td>
                       <td style={{ padding: '12px 16px' }} data-testid={`audit-log-action-${entry.id}`}>
                         <span style={{
@@ -365,7 +391,7 @@ export function AuditLogPage() {
                             cursor: 'pointer',
                             padding: theme.spacing.sm,
                           }}
-                          title={expandedRowId === entry.id ? 'Hide details' : 'Show details'}
+                          title={expandedRowId === entry.id ? t('auditLog.hideDetails') : t('auditLog.showDetails')}
                         >
                           {expandedRowId === entry.id ? '▼' : '▶'}
                         </button>
@@ -381,7 +407,7 @@ export function AuditLogPage() {
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.spacing.lg }}>
                             {entry.old_values && (
                               <div>
-                                <h4 style={{ margin: `0 0 ${theme.spacing.sm} 0`, color: theme.colors.text.primary }}>Before</h4>
+                                <h4 style={{ margin: `0 0 ${theme.spacing.sm} 0`, color: theme.colors.text.primary }}>{t('common.before')}</h4>
                                 <pre data-testid={`audit-log-old-values-${entry.id}`} style={{
                                   background: theme.colors.bg.input,
                                   padding: theme.spacing.md,
@@ -397,7 +423,7 @@ export function AuditLogPage() {
                             )}
                             {entry.new_values && (
                               <div>
-                                <h4 style={{ margin: `0 0 ${theme.spacing.sm} 0`, color: theme.colors.text.primary }}>After</h4>
+                                <h4 style={{ margin: `0 0 ${theme.spacing.sm} 0`, color: theme.colors.text.primary }}>{t('common.after')}</h4>
                                 <pre data-testid={`audit-log-new-values-${entry.id}`} style={{
                                   background: theme.colors.bg.input,
                                   padding: theme.spacing.md,
@@ -413,7 +439,7 @@ export function AuditLogPage() {
                             )}
                             {!entry.old_values && !entry.new_values && (
                               <div style={{ gridColumn: '1 / -1', color: theme.colors.text.secondary }}>
-                                No value changes recorded
+                                {t('common.noChanges')}
                               </div>
                             )}
                           </div>
