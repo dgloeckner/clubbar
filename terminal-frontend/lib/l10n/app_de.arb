@@ -132,6 +132,22 @@
   },
 
   "@_MEMBER_DETAILS": {},
+  "memberDetails": "Mitgliedsdetails",
+  "@memberDetails": {
+    "description": "Member details screen title"
+  },
+  "firstName": "Vorname",
+  "@firstName": {
+    "description": "Label for first name"
+  },
+  "lastName": "Nachname",
+  "@lastName": {
+    "description": "Label for last name"
+  },
+  "accountStatus": "Kontostatus",
+  "@accountStatus": {
+    "description": "Label for account status"
+  },
   "memberActive": "Aktiv",
   "@memberActive": {
     "description": "Label for active member status"

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 
 class MemberDetailsScreen extends StatelessWidget {
@@ -7,13 +8,15 @@ class MemberDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Consumer<MembersProvider>(
       builder: (context, membersProvider, child) {
         final member = membersProvider.selectedMember;
 
         if (member == null) {
-          return const Center(
-            child: Text('No member selected'),
+          return Center(
+            child: Text(l10n.noMemberSelected),
           );
         }
 
@@ -24,7 +27,7 @@ class MemberDetailsScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Member Details',
+                  l10n.memberDetails,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 24),
@@ -34,11 +37,11 @@ class MemberDetailsScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildDetailRow('First Name', member.firstName ?? 'N/A'),
+                        _buildDetailRow(l10n.firstName, member.firstName ?? 'N/A'),
                         const SizedBox(height: 12),
-                        _buildDetailRow('Last Name', member.lastName ?? 'N/A'),
+                        _buildDetailRow(l10n.lastName, member.lastName ?? 'N/A'),
                         const SizedBox(height: 12),
-                        _buildDetailRow('Account Status', member.isActive == 1 ? 'Active' : 'Inactive'),
+                        _buildDetailRow(l10n.accountStatus, member.isActive == 1 ? l10n.memberActive : l10n.memberInactive),
                       ],
                     ),
                   ),

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
 import 'dart:convert';
 import 'package:ruderbar_terminal/database/database.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/products_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
@@ -21,12 +22,12 @@ class ProductSelectionScreen extends StatefulWidget {
 class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   int _selectedCategoryIndex = 0;
 
-  String _getCategoryName(CategoriesCacheData category, String language) {
+  String _getCategoryName(CategoriesCacheData category, String language, String fallback) {
     try {
       final names = jsonDecode(category.names) as Map<String, dynamic>;
-      return names[language] ?? names['de'] ?? 'Category';
+      return names[language] ?? names['de'] ?? fallback;
     } catch (_) {
-      return 'Category';
+      return fallback;
     }
   }
 
@@ -38,16 +39,18 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Consumer3<ProductsProvider, CartProvider, MembersProvider>(
       builder: (context, productsProvider, cartProvider, membersProvider, child) {
         final categories = productsProvider.categories;
         final selectedMember = membersProvider.selectedMember;
 
         if (categories.isEmpty) {
-          return const Center(
+          return Center(
             child: Text(
-              'No categories available',
-              style: TextStyle(color: Colors.white),
+              l10n.noCategories,
+              style: const TextStyle(color: Colors.white),
             ),
           );
         }
@@ -90,7 +93,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                           ),
                           child: CategoryChip(
                             category: categories[index],
-                            categoryName: _getCategoryName(categories[index], memberLang),
+                            categoryName: _getCategoryName(categories[index], memberLang, l10n.categoryDefault),
                             selected: _selectedCategoryIndex == index,
                             onSelected: () {
                               setState(() {
@@ -134,15 +137,16 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     ProductsProvider productsProvider,
     CartProvider cartProvider,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     final products = productsProvider.products
         .where((p) => p.categoryId == category.id)
         .toList();
 
     if (products.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'No products in this category',
-          style: TextStyle(color: Color(0xff94a3b8)),
+          l10n.noProductsInCategory,
+          style: const TextStyle(color: Color(0xff94a3b8)),
         ),
       );
     }

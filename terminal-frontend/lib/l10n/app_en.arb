@@ -28,6 +28,10 @@
   "checkoutNewBalance": "New Balance: {balance}",
   "redirectingIn": "Redirecting in {seconds} {seconds, plural, =1{second} other{seconds}}...",
 
+  "memberDetails": "Member Details",
+  "firstName": "First Name",
+  "lastName": "Last Name",
+  "accountStatus": "Account Status",
   "memberActive": "Active",
   "memberInactive": "Inactive",
   "sepaYes": "Yes",
