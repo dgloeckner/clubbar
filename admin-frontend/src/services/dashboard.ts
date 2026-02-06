@@ -36,9 +36,11 @@ export interface DashboardResponse {
  * Get aggregated dashboard metrics
  */
 export async function getDashboardMetrics(): Promise<DashboardResponse> {
-  const response = await get<DashboardResponse>('/admin/dashboard')
+  const apiResponse = await get<DashboardResponse>('/admin/dashboard')
 
-  // Backend returns data directly
+  // Backend returns data directly or wrapped in ApiResponse
+  // Handle both cases
+  const response = apiResponse as unknown as (DashboardResponse & { data?: DashboardResponse })
   if (response && typeof response === 'object') {
     if ('metrics' in response && response.metrics) {
       return response as DashboardResponse

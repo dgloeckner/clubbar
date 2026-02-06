@@ -15,7 +15,7 @@
  * />
  */
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { EditIcon, TrashIcon } from '../icons'
 import { tableSpacing, getButtonStyle } from '../../styles/tableTokens'
 

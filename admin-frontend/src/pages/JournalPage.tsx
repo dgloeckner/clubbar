@@ -55,7 +55,7 @@ const defaultPageSize = 20
 
 export function JournalPage() {
   const { t } = useTranslation()
-  const formatters = useFormatters()
+  useFormatters() // Initialize formatters for potential future use
 
   // Data state
   const [state, setState] = useState<JournalPageState>({

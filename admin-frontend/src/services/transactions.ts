@@ -169,12 +169,13 @@ export async function getTransactions(
     return result
   }
 
-  if (response && typeof response === 'object') {
-    if ('items' in response && Array.isArray(response.items)) {
-      return mapItems(response as TransactionsListResponse)
+  const typedResponse = response as unknown as (TransactionsListResponse & { data?: TransactionsListResponse })
+  if (typedResponse && typeof typedResponse === 'object') {
+    if ('items' in typedResponse && Array.isArray(typedResponse.items)) {
+      return mapItems(typedResponse as TransactionsListResponse)
     }
-    if ('data' in response && response.data && typeof response.data === 'object' && 'items' in response.data) {
-      return mapItems(response.data as TransactionsListResponse)
+    if ('data' in typedResponse && typedResponse.data && typeof typedResponse.data === 'object' && 'items' in typedResponse.data) {
+      return mapItems(typedResponse.data as TransactionsListResponse)
     }
   }
 
@@ -202,7 +203,7 @@ export async function createCorrection(
   amountCents: number,
   reason: string
 ): Promise<Transaction & { member_id: string }> {
-  const response = await post<any>(
+  const apiResponse = await post<any>(
     `/admin/members/${memberId}/transactions/correction`,
     {
       amount_cents: amountCents,
@@ -210,11 +211,12 @@ export async function createCorrection(
     }
   )
 
-  if (!response) {
+  if (!apiResponse) {
     throw new Error('No response from correction API')
   }
 
   // Handle wrapped response
+  const response = apiResponse as unknown as ((Transaction & { member_id: string }) & { data?: Transaction & { member_id: string } })
   if ('data' in response && response.data) {
     return response.data as Transaction & { member_id: string }
   }

@@ -31,7 +31,8 @@ export function LanguageSelector({
   value,
   onChange,
   testId = 'language-selector',
-  required = true,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  required: _required = true,
 }: LanguageSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)

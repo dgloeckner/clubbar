@@ -20,7 +20,7 @@ import React from 'react'
 import { tableSpacing, tableColors } from '../../styles/tableTokens'
 
 interface IconCellProps {
-  icon: React.FC<{ size: number }>
+  icon: React.FC<{ size?: number }>
   label: string
   iconSize?: number
   iconTestId?: string

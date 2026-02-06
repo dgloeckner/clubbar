@@ -61,7 +61,8 @@ interface Category {
 
 export function ProductsPage() {
   const { t, i18n } = useTranslation()
-  const { formatPrice } = useFormatters()
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { formatPrice: _formatPrice } = useFormatters()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)

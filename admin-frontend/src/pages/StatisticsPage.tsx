@@ -79,9 +79,16 @@ export function StatisticsPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await get<MonthlyStats>(`/admin/statistics/monthly?month=${selectedMonth}`)
+      const apiResponse = await get<MonthlyStats>(`/admin/statistics/monthly?month=${selectedMonth}`)
+      // Cast to any to handle both response formats at runtime
+      const response = apiResponse as any
       if (response && typeof response === 'object') {
-        setStats(response as MonthlyStats)
+        // Handle both wrapped and unwrapped responses
+        if ('month' in response) {
+          setStats(response as MonthlyStats)
+        } else if ('data' in response && response.data) {
+          setStats(response.data as MonthlyStats)
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load statistics')

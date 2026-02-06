@@ -31,7 +31,7 @@ export interface ChangePasswordRequest {
  */
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
   try {
-    const response = await post<{
+    const apiResponse = await post<{
       message: string
       admin: {
         id: string
@@ -40,6 +40,18 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
         locale: string
       }
     }>('/auth/login', credentials)
+
+    // Backend returns data directly or wrapped in ApiResponse
+    // Handle both cases by checking for data property
+    const response = (apiResponse.data ?? apiResponse) as unknown as {
+      message: string
+      admin?: {
+        id: string
+        email: string
+        display_name: string
+        locale: string
+      }
+    }
 
     // Backend returns { message, admin: { id, email, display_name, locale } }
     if (response.admin) {
@@ -114,7 +126,9 @@ export function isAuthenticated(): boolean {
  * Get current user's profile from API
  */
 export async function getProfile(): Promise<AdminProfile> {
-  const response = await get<{ admin: AdminProfile }>('/auth/profile')
+  const apiResponse = await get<{ admin: AdminProfile }>('/auth/profile')
+  // Handle both wrapped and unwrapped responses
+  const response = (apiResponse.data ?? apiResponse) as unknown as { admin: AdminProfile }
   return response.admin
 }
 
@@ -122,7 +136,10 @@ export async function getProfile(): Promise<AdminProfile> {
  * Update current user's profile
  */
 export async function updateProfile(data: UpdateProfileRequest): Promise<AdminProfile> {
-  const response = await patch<{ admin: AdminProfile; message: string }>('/auth/profile', data)
+  const apiResponse = await patch<{ admin: AdminProfile; message: string }>('/auth/profile', data)
+
+  // Handle both wrapped and unwrapped responses
+  const response = (apiResponse.data ?? apiResponse) as unknown as { admin: AdminProfile; message: string }
 
   // Update localStorage with new values
   if (response.admin) {

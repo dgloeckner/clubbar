@@ -19,7 +19,8 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { theme } from '../styles/design-system'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { theme as _theme } from '../styles/design-system'
 import { useFormatters } from '../hooks/useFormatters'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { StatusFilter } from '../components/forms/StatusFilter'

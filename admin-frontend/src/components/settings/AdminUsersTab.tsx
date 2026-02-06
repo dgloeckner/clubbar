@@ -141,7 +141,7 @@ export function AdminUsersTab({
               </tr>
             </thead>
             <tbody>
-              {users.map((admin, index) => (
+              {users.map((admin) => (
                 <tr
                   key={admin.id}
                   data-testid={`settings-admin-user-row-${admin.id}`}

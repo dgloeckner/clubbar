@@ -9,7 +9,7 @@ import { theme } from '../styles/design-system'
 import { useLoading } from '../context/LoadingContext'
 import { getSepaConfig, updateSepaConfig } from '../services/sepa-config'
 import { getAdminUsers, createAdminUser, updateAdminUser, deactivateAdminUser, reactivateAdminUser, resetAdminPassword } from '../services/admin-users'
-import { SepaConfig, UpdateSepaConfigRequest, AdminUser, CreateAdminUserRequest, UpdateAdminUserRequest } from '../types'
+import { SepaConfig, UpdateSepaConfigRequest, AdminUser } from '../types'
 import { AxiosError } from 'axios'
 import { SepaConfigTab } from '../components/settings/SepaConfigTab'
 import { AdminUsersTab } from '../components/settings/AdminUsersTab'
@@ -54,12 +54,20 @@ export function SettingsPage() {
   const [showCreateAdminModal, setShowCreateAdminModal] = useState(false)
   const [showEditAdminModal, setShowEditAdminModal] = useState(false)
   const [editingAdmin, setEditingAdmin] = useState<AdminUser | null>(null)
-  const [createAdminFormData, setCreateAdminFormData] = useState({
+  const [createAdminFormData, setCreateAdminFormData] = useState<{
+    email: string
+    display_name: string
+    locale: 'de' | 'en'
+  }>({
     email: '',
     display_name: '',
     locale: 'de',
   })
-  const [editAdminFormData, setEditAdminFormData] = useState({
+  const [editAdminFormData, setEditAdminFormData] = useState<{
+    email: string
+    display_name: string
+    locale: 'de' | 'en'
+  }>({
     email: '',
     display_name: '',
     locale: 'de',
@@ -330,8 +338,8 @@ export function SettingsPage() {
     setError(null)
   }
 
-  // Check if creditor_id is already set (for warning display)
-  const isCreditorIdSet = !!existingConfig
+  // isCreditorIdSet is available for warning display if needed
+  // const isCreditorIdSet = !!existingConfig
 
   // Tab styles (prototype styling: button group container)
   const tabContainerStyle = {
@@ -431,7 +439,7 @@ export function SettingsPage() {
             setEditAdminFormData({
               email: admin.email,
               display_name: admin.display_name,
-              locale: admin.locale,
+              locale: (admin.locale === 'en' ? 'en' : 'de') as 'de' | 'en',
             })
             setShowEditAdminModal(true)
           }}
@@ -446,10 +454,17 @@ export function SettingsPage() {
         isOpen={showCreateAdminModal}
         formData={createAdminFormData}
         onFormChange={(field, value) => {
-          setCreateAdminFormData((prev) => ({
-            ...prev,
-            [field]: value,
-          }))
+          if (field === 'locale') {
+            setCreateAdminFormData((prev) => ({
+              ...prev,
+              locale: value as 'de' | 'en',
+            }))
+          } else {
+            setCreateAdminFormData((prev) => ({
+              ...prev,
+              [field]: value,
+            }))
+          }
         }}
         onSubmit={handleCreateAdmin}
         onClose={() => setShowCreateAdminModal(false)}
@@ -459,10 +474,17 @@ export function SettingsPage() {
         isOpen={showEditAdminModal}
         formData={editAdminFormData}
         onFormChange={(field, value) => {
-          setEditAdminFormData((prev) => ({
-            ...prev,
-            [field]: value,
-          }))
+          if (field === 'locale') {
+            setEditAdminFormData((prev) => ({
+              ...prev,
+              locale: value as 'de' | 'en',
+            }))
+          } else {
+            setEditAdminFormData((prev) => ({
+              ...prev,
+              [field]: value,
+            }))
+          }
         }}
         onSubmit={handleUpdateAdmin}
         onClose={() => setShowEditAdminModal(false)}

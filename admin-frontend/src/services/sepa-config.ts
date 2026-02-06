@@ -4,7 +4,7 @@
  */
 
 import { get, put } from './api'
-import { SepaConfig, UpdateSepaConfigRequest, ApiResponse } from '../types'
+import { SepaConfig, UpdateSepaConfigRequest } from '../types'
 
 /**
  * Get SEPA configuration

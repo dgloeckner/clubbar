@@ -72,11 +72,12 @@ export async function getSettlements(
   params.sort = sortKey
   params.order = sortOrder
 
-  const response = await get<any>('/admin/settlements', {
+  const apiResponse = await get<any>('/admin/settlements', {
     params,
   })
 
   // Handle both wrapped and unwrapped responses
+  const response = apiResponse as unknown as (SettlementsResponse & { items?: Settlement[]; total?: number })
   if (response && typeof response === 'object') {
     // Format: { data: [...], pagination: { ... } }
     if ('data' in response && Array.isArray(response.data)) {
@@ -160,11 +161,18 @@ export async function createSettlement(
     notes,
   }
 
-  const response = await post<Settlement>('/admin/settlements', payload)
+  const apiResponse = await post<Settlement>('/admin/settlements', payload)
 
   // Handle both wrapped and unwrapped responses
-  if (response && typeof response === 'object' && 'id' in response) {
-    return response as Settlement
+  // Cast to any to handle both response formats at runtime
+  const response = apiResponse as any
+  if (response && typeof response === 'object') {
+    if ('id' in response && 'settlement_date' in response) {
+      return response as Settlement
+    }
+    if ('data' in response && response.data) {
+      return response.data as Settlement
+    }
   }
 
   throw new Error('Invalid response from settlement creation API')

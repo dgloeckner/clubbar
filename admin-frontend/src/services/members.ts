@@ -57,10 +57,11 @@ export async function getMembers(
     params['filters[is_active]'] = filter.is_active ? 'true' : 'false'
   }
 
-  const response = await get<MembersResponse>('/admin/members', { params })
+  const apiResponse = await get<MembersResponse>('/admin/members', { params })
 
   // Backend returns data directly, not wrapped in ApiResponse
   // Check if response has items (unwrapped) or data property (wrapped)
+  const response = apiResponse as unknown as (MembersResponse & { data?: MembersResponse })
   if (response && typeof response === 'object') {
     if ('items' in response && Array.isArray(response.items)) {
       return response as MembersResponse
@@ -77,9 +78,11 @@ export async function getMembers(
  * Get a single member by ID
  */
 export async function getMember(id: string): Promise<Member> {
-  const response = await get<Member>(`/admin/members/${id}`)
+  const apiResponse = await get<Member>(`/admin/members/${id}`)
 
-  // Backend returns member object directly
+  // Backend returns member object directly or wrapped in ApiResponse
+  // Cast to any to handle both response formats at runtime
+  const response = apiResponse as any
   if (response && typeof response === 'object') {
     if ('id' in response && 'first_name' in response) {
       return response as Member
@@ -106,9 +109,11 @@ export async function createMember(data: {
   email?: string
   account_holder_name?: string
 }): Promise<Member> {
-  const response = await post<Member>('/admin/members', data)
+  const apiResponse = await post<Member>('/admin/members', data)
 
   // Backend returns member object directly, not wrapped in ApiResponse
+  // Cast to any to handle both response formats at runtime
+  const response = apiResponse as any
   if (response && typeof response === 'object') {
     if ('id' in response && 'first_name' in response) {
       return response as Member
@@ -125,9 +130,11 @@ export async function createMember(data: {
  * Update an existing member
  */
 export async function updateMember(id: string, data: Partial<Member>): Promise<Member> {
-  const response = await patch<Member>(`/admin/members/${id}`, data)
+  const apiResponse = await patch<Member>(`/admin/members/${id}`, data)
 
   // Backend returns member object directly
+  // Cast to any to handle both response formats at runtime
+  const response = apiResponse as any
   if (response && typeof response === 'object') {
     if ('id' in response && 'first_name' in response) {
       return response as Member
@@ -144,9 +151,11 @@ export async function updateMember(id: string, data: Partial<Member>): Promise<M
  * Deactivate a member (soft delete)
  */
 export async function deactivateMember(id: string): Promise<Member> {
-  const response = await patch<Member>(`/admin/members/${id}`, { is_active: false })
+  const apiResponse = await patch<Member>(`/admin/members/${id}`, { is_active: false })
 
   // Backend returns member object directly
+  // Cast to any to handle both response formats at runtime
+  const response = apiResponse as any
   if (response && typeof response === 'object') {
     if ('id' in response && 'first_name' in response) {
       return response as Member
