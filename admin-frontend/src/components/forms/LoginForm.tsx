@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { Button } from '../common/Button'
 import { Input } from '../common/Input'
@@ -16,6 +17,7 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
@@ -24,15 +26,15 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
     const errors: Record<string, string> = {}
 
     if (!email) {
-      errors.email = 'Email is required'
+      errors.email = t('validation.required')
     } else if (!email.includes('@')) {
-      errors.email = 'Please enter a valid email'
+      errors.email = t('validation.invalidEmail')
     }
 
     if (!password) {
-      errors.password = 'Password is required'
+      errors.password = t('validation.required')
     } else if (password.length < 6) {
-      errors.password = 'Password must be at least 6 characters'
+      errors.password = t('validation.minLength', { min: 6 })
     }
 
     setValidationErrors(errors)
@@ -115,7 +117,7 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
 
           <Input
             data-testid="login-email-input"
-            label="Email"
+            label={t('auth.email')}
             type="email"
             value={email}
             onChange={(e) => {
@@ -131,7 +133,7 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
 
           <Input
             data-testid="login-password-input"
-            label="Password"
+            label={t('auth.password')}
             type="password"
             value={password}
             onChange={(e) => {
@@ -152,7 +154,7 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
             style={{ width: '100%' }}
             data-testid="login-submit-button"
           >
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? t('auth.loggingIn') : t('auth.login')}
           </Button>
         </form>
 
