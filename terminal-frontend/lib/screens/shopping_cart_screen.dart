@@ -5,16 +5,12 @@ import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:ruderbar_terminal/utils/formatters.dart';
 import 'package:ruderbar_terminal/utils/icon_registry.dart';
 import 'package:ruderbar_terminal/widgets/member_bar.dart';
 
 class ShoppingCartScreen extends StatelessWidget {
   const ShoppingCartScreen({super.key});
-
-  String _formatPrice(int cents) {
-    final euros = cents / 100.0;
-    return euros.toStringAsFixed(2);
-  }
 
   static const double _horizontalPadding = 16.0;
   static const double _verticalSpacing = 12.0;
@@ -26,6 +22,7 @@ class ShoppingCartScreen extends StatelessWidget {
     return Consumer2<CartProvider, MembersProvider>(
       builder: (context, cartProvider, membersProvider, child) {
         final selectedMember = membersProvider.selectedMember;
+        final locale = selectedMember?.preferredLanguage ?? 'de';
 
         if (cartProvider.items.isEmpty) {
           return Column(
@@ -102,8 +99,8 @@ class ShoppingCartScreen extends StatelessWidget {
                 itemCount: cartProvider.items.length,
                 itemBuilder: (context, index) {
                   final item = cartProvider.items[index];
-                  final unitPriceFormatted = _formatPrice(item.priceCents);
-                  final lineTotalFormatted = _formatPrice(item.priceCents * item.quantity);
+                  final unitPriceFormatted = formatPrice(item.priceCents, locale);
+                  final lineTotalFormatted = formatPrice(item.priceCents * item.quantity, locale);
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -312,7 +309,7 @@ class ShoppingCartScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            l10n.cartNewBalance('€${_formatPrice(newBalanceCents)}'),
+                            l10n.cartNewBalance(formatPrice(newBalanceCents, locale)),
                             style: const TextStyle(
                               color: Color(0xff22c55e),
                               fontSize: AppFontSizes.xl,
@@ -322,7 +319,7 @@ class ShoppingCartScreen extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        '€${_formatPrice(totalCents)}',
+                        formatPrice(totalCents, locale),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 48,

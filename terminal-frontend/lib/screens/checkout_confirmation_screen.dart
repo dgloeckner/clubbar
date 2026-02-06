@@ -6,6 +6,7 @@ import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:ruderbar_terminal/utils/formatters.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/price_display.dart';
 
 class CheckoutConfirmationScreen extends StatefulWidget {
@@ -76,9 +77,8 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     super.dispose();
   }
 
-  String _getBalanceDisplayText(int balanceCents, AppLocalizations l10n) {
-    final balanceEuros = balanceCents / 100.0;
-    return l10n.checkoutNewBalance('€${balanceEuros.toStringAsFixed(2)}');
+  String _getBalanceDisplayText(int balanceCents, AppLocalizations l10n, String locale) {
+    return l10n.checkoutNewBalance(formatPrice(balanceCents, locale));
   }
 
   Color _getBalanceColor(int balanceCents) {
@@ -95,6 +95,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     final l10n = AppLocalizations.of(context)!;
     final membersProvider = context.watch<MembersProvider>();
     final selectedMember = membersProvider.selectedMember;
+    final locale = selectedMember?.preferredLanguage ?? 'de';
     final cartTotal = context.watch<CartProvider>().total;
     final memberName =
         selectedMember != null ? '${selectedMember.firstName} ${selectedMember.lastName}' : 'Member';
@@ -167,7 +168,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
                 // Balance after transaction (color-coded)
                 Text(
-                  _getBalanceDisplayText(newBalance, l10n),
+                  _getBalanceDisplayText(newBalance, l10n, locale),
                   style: TextStyle(
                     color: _getBalanceColor(newBalance),
                     fontSize: AppFontSizes.base,
