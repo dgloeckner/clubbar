@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/rfid_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
@@ -24,6 +25,8 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     // Body content only - MainLayout provides Scaffold and header
     return Container(
       // Radial gradient glow from center (from prototype)
@@ -53,7 +56,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
 
                 // Welcome text (30% larger than xxxl)
                 Text(
-                  'Durstig?',
+                  l10n.idleTitle,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Color(0xfff1f5f9), // Primary text
@@ -65,7 +68,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
 
                 // Subtitle (30% larger than base)
                 Text(
-                  'Halte deine Karte an den Scanner',
+                  l10n.idleSubtitle,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Color(0xff94a3b8), // Secondary text
@@ -93,9 +96,9 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                           borderRadius: BorderRadius.circular(AppBorderRadius.md),
                         ),
                       ),
-                      child: const Text(
-                        'Demo: Scan Card',
-                        style: TextStyle(
+                      child: Text(
+                        l10n.demoScanCard,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: AppFontSizes.base,
                           fontWeight: FontWeight.w600,

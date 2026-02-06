@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/network_service.dart';
@@ -32,27 +33,27 @@ class _SetupScreenState extends State<SetupScreen> {
     super.dispose();
   }
 
-  String? _validateTerminalId(String? value) {
+  String? _validateTerminalId(String? value, AppLocalizations l10n) {
     if (value == null || value.trim().isEmpty) {
-      return 'Terminal ID is required';
+      return l10n.terminalIdRequired;
     }
     return null;
   }
 
-  String? _validateApiUrl(String? value) {
+  String? _validateApiUrl(String? value, AppLocalizations l10n) {
     if (value == null || value.trim().isEmpty) {
-      return 'API URL is required';
+      return l10n.apiUrlRequired;
     }
     final uri = Uri.tryParse(value.trim());
     if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
-      return 'Enter a valid URL (e.g. https://club.example.com/api)';
+      return l10n.apiUrlInvalid;
     }
     return null;
   }
 
-  String? _validateApiToken(String? value) {
+  String? _validateApiToken(String? value, AppLocalizations l10n) {
     if (value == null || value.trim().isEmpty) {
-      return 'API Token is required';
+      return l10n.apiTokenRequired;
     }
     return null;
   }
@@ -94,13 +95,19 @@ class _SetupScreenState extends State<SetupScreen> {
         context.go('/idle');
       }
     } on NetworkException catch (e) {
-      setState(() {
-        _errorMessage = 'Connection failed: ${e.message}';
-      });
+      if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
+        setState(() {
+          _errorMessage = l10n.connectionFailed(e.message);
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Connection failed: $e';
-      });
+      if (mounted) {
+        final l10n = AppLocalizations.of(context)!;
+        setState(() {
+          _errorMessage = l10n.connectionFailed(e.toString());
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -112,6 +119,8 @@ class _SetupScreenState extends State<SetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0a1628),
       body: Center(
@@ -126,20 +135,20 @@ class _SetupScreenState extends State<SetupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Title
-                  const Text(
-                    'Terminal Setup',
+                  Text(
+                    l10n.setupTitle,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Color(0xfff1f5f9),
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  const Text(
-                    'Connect this terminal to the Ruderbar backend.',
+                  Text(
+                    l10n.setupSubtitle,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Color(0xff94a3b8),
                       fontSize: AppFontSizes.lg,
                     ),
@@ -147,11 +156,11 @@ class _SetupScreenState extends State<SetupScreen> {
                   const SizedBox(height: AppSpacing.xxxl),
 
                   // Terminal ID field
-                  _buildLabel('Terminal ID'),
+                  _buildLabel(l10n.terminalIdLabel),
                   const SizedBox(height: AppSpacing.xs),
                   TextFormField(
                     controller: _terminalIdController,
-                    validator: _validateTerminalId,
+                    validator: (value) => _validateTerminalId(value, l10n),
                     style: const TextStyle(color: Color(0xfff1f5f9)),
                     decoration: _inputDecoration(
                       hintText: 'e.g. Ruderbar-Kühlschrank',
@@ -160,11 +169,11 @@ class _SetupScreenState extends State<SetupScreen> {
                   const SizedBox(height: AppSpacing.xl),
 
                   // API URL field
-                  _buildLabel('API URL'),
+                  _buildLabel(l10n.apiUrlLabel),
                   const SizedBox(height: AppSpacing.xs),
                   TextFormField(
                     controller: _apiUrlController,
-                    validator: _validateApiUrl,
+                    validator: (value) => _validateApiUrl(value, l10n),
                     style: const TextStyle(color: Color(0xfff1f5f9)),
                     keyboardType: TextInputType.url,
                     decoration: _inputDecoration(
@@ -174,11 +183,11 @@ class _SetupScreenState extends State<SetupScreen> {
                   const SizedBox(height: AppSpacing.xl),
 
                   // API Token field
-                  _buildLabel('API Token'),
+                  _buildLabel(l10n.apiTokenLabel),
                   const SizedBox(height: AppSpacing.xs),
                   TextFormField(
                     controller: _apiTokenController,
-                    validator: _validateApiToken,
+                    validator: (value) => _validateApiToken(value, l10n),
                     style: const TextStyle(color: Color(0xfff1f5f9)),
                     obscureText: true,
                     decoration: _inputDecoration(
@@ -223,9 +232,9 @@ class _SetupScreenState extends State<SetupScreen> {
                                 color: Colors.white,
                               ),
                             )
-                          : const Text(
-                              'Save & Connect',
-                              style: TextStyle(
+                          : Text(
+                              l10n.saveAndConnect,
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: AppFontSizes.lg,
                                 fontWeight: FontWeight.w600,
