@@ -21,10 +21,10 @@ class ProductSelectionScreen extends StatefulWidget {
 class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   int _selectedCategoryIndex = 0;
 
-  String _getCategoryName(CategoriesCacheData category) {
+  String _getCategoryName(CategoriesCacheData category, String language) {
     try {
       final names = jsonDecode(category.names) as Map<String, dynamic>;
-      return names['de'] ?? 'Category';
+      return names[language] ?? names['de'] ?? 'Category';
     } catch (_) {
       return 'Category';
     }
@@ -81,23 +81,26 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 child: Row(
                   children: List.generate(
                     categories.length,
-                    (index) => Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: index < categories.length - 1 ? _gridSpacing : 0,
+                    (index) {
+                      final memberLang = selectedMember?.preferredLanguage ?? 'de';
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            right: index < categories.length - 1 ? _gridSpacing : 0,
+                          ),
+                          child: CategoryChip(
+                            category: categories[index],
+                            categoryName: _getCategoryName(categories[index], memberLang),
+                            selected: _selectedCategoryIndex == index,
+                            onSelected: () {
+                              setState(() {
+                                _selectedCategoryIndex = index;
+                              });
+                            },
+                          ),
                         ),
-                        child: CategoryChip(
-                          category: categories[index],
-                          categoryName: _getCategoryName(categories[index]),
-                          selected: _selectedCategoryIndex == index,
-                          onSelected: () {
-                            setState(() {
-                              _selectedCategoryIndex = index;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -144,6 +147,9 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       );
     }
 
+    // Get member's preferred language
+    final memberLang = context.read<MembersProvider>().selectedMember?.preferredLanguage ?? 'de';
+
     // Use LayoutBuilder to get actual available dimensions
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -173,7 +179,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
           itemCount: products.length,
           itemBuilder: (context, index) {
             final product = products[index];
-            final name = productsProvider.getTranslatedName(product, 'de');
+            final name = productsProvider.getTranslatedName(product, memberLang);
 
             // Get quantity from cart if product is already there
             final cartItem = cartProvider.items.firstWhereOrNull(
@@ -190,7 +196,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 name,
                 product.priceCents,
                 1,
-                'de',
+                memberLang,
                 iconName: product.iconName,
               ),
             );
