@@ -18,8 +18,9 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
-import { Card } from '../components/common/Card'
+import { useFormatters } from '../hooks/useFormatters'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { StatusFilter } from '../components/forms/StatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
@@ -35,8 +36,6 @@ import {
 import {
   getSettlements,
   getSettlementStatus,
-  formatPrice,
-  formatDate,
   undoSettlement,
   downloadTransactionsCsv,
   Settlement,
@@ -46,6 +45,8 @@ import {
 const defaultPageSize = 20
 
 export function SettlementsPage() {
+  const { t } = useTranslation()
+  const formatters = useFormatters()
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [totalItems, setTotalItems] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -137,7 +138,7 @@ export function SettlementsPage() {
   }
 
   const handleUndoSettlement = async (settlementId: string) => {
-    if (!confirm('Undo this settlement? All transactions will return to Open state.')) {
+    if (!confirm(t('settlements.undoConfirm'))) {
       return
     }
 
@@ -160,8 +161,7 @@ export function SettlementsPage() {
 
     return (
       <div data-testid="settlements-page">
-        <h1 style={{ margin: '0 0 20px 0' }}>Abrechnungen</h1>
-        <Card>
+        <h1 style={{ margin: '0 0 20px 0' }}>{t('settlements.title')}</h1>
           {/* Toolbar */}
           <div
             data-testid="settlements-toolbar"
@@ -183,7 +183,7 @@ export function SettlementsPage() {
                 color: tableColors.cellSecondaryText,
               }}
             >
-              {totalItems} Settlements gefunden
+              {totalItems} {t('settlements.title')} {t('common.found')}
             </div>
 
             {/* Right: Period picker + Status filter */}
@@ -231,7 +231,7 @@ export function SettlementsPage() {
                 color: tableColors.cellSecondaryText,
               }}
             >
-              Loading settlements...
+              {t('common.loading')}
             </div>
           ) : settlements.length === 0 ? (
             /* Empty state */
@@ -243,7 +243,7 @@ export function SettlementsPage() {
                 color: tableColors.cellSecondaryText,
               }}
             >
-              No settlements found
+              {t('settlements.noSettlements')}
             </div>
           ) : (
             /* Table */
@@ -272,7 +272,7 @@ export function SettlementsPage() {
                         title="Click to sort by date"
                         data-testid="settlements-header-date"
                       >
-                        Date {sortKey === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
+                        {t('common.date')} {sortKey === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </th>
                       <th
                         style={{
@@ -291,12 +291,12 @@ export function SettlementsPage() {
                         title="Click to sort by created by"
                         data-testid="settlements-header-created-by"
                       >
-                        Created By {sortKey === 'created_by' && (sortOrder === 'asc' ? '↑' : '↓')}
+                        {t('settlements.createdBy')} {sortKey === 'created_by' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </th>
-                      <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>Members</th>
-                      <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>Amount</th>
-                      <th style={headerCellBaseStyle}>Status</th>
-                      <th style={{ ...headerCellBaseStyle, textAlign: 'center' }}>Actions</th>
+                      <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('settlements.memberCount')}</th>
+                      <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('common.amount')}</th>
+                      <th style={headerCellBaseStyle}>{t('settlements.status')}</th>
+                      <th style={{ ...headerCellBaseStyle, textAlign: 'center' }}>{t('common.actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -324,7 +324,7 @@ export function SettlementsPage() {
                             color: tableColors.cellText,
                           }}
                         >
-                          {formatDate(settlement.created_at)}
+                          {formatters.formatDate(settlement.created_at)}
                         </td>
 
                         {/* Created By */}
@@ -361,7 +361,7 @@ export function SettlementsPage() {
                           }}
                         >
                           <span data-testid={`settlements-price-${settlement.id}`}>
-                            {formatPrice(settlement.total_amount_cents)}
+                            {formatters.formatPrice(settlement.total_amount_cents)}
                           </span>
                         </td>
 
@@ -386,9 +386,9 @@ export function SettlementsPage() {
                               color: '#ffffff',
                             }}
                           >
-                            {status(settlement) === 'exported' ? 'Exported' :
-                             status(settlement) === 'cancelled' ? 'Cancelled' :
-                             'Active'}
+                            {status(settlement) === 'exported' ? t('settlements.exported') :
+                             status(settlement) === 'cancelled' ? t('settlements.cancelled') :
+                             t('settlements.active')}
                           </span>
                         </td>
 
@@ -558,7 +558,6 @@ export function SettlementsPage() {
               )}
             </>
           )}
-        </Card>
       </div>
     )
 }
