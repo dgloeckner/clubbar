@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
@@ -20,6 +21,8 @@ class ShoppingCartScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Consumer2<CartProvider, MembersProvider>(
       builder: (context, cartProvider, membersProvider, child) {
         final selectedMember = membersProvider.selectedMember;
@@ -46,11 +49,11 @@ class ShoppingCartScreen extends StatelessWidget {
                     },
                   ),
                 ),
-              const Expanded(
+              Expanded(
                 child: Center(
                   child: Text(
-                    'Your cart is empty',
-                    style: TextStyle(
+                    l10n.cartEmpty,
+                    style: const TextStyle(
                       color: Color(0xff94a3b8),
                       fontSize: AppFontSizes.lg,
                     ),
@@ -140,7 +143,7 @@ class ShoppingCartScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '€$unitPriceFormatted each',
+                                l10n.cartEachPrice('€$unitPriceFormatted'),
                                 style: const TextStyle(
                                   color: Color(0xff0ea5e9),
                                   fontSize: AppFontSizes.base,
@@ -299,9 +302,9 @@ class ShoppingCartScreen extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Total',
-                            style: TextStyle(
+                          Text(
+                            l10n.cartTotal,
+                            style: const TextStyle(
                               color: Color(0xff94a3b8),
                               fontSize: AppFontSizes.xxl,
                               fontWeight: FontWeight.w500,
@@ -309,7 +312,7 @@ class ShoppingCartScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'New Balance: €${_formatPrice(newBalanceCents)}',
+                            l10n.cartNewBalance('€${_formatPrice(newBalanceCents)}'),
                             style: const TextStyle(
                               color: Color(0xff22c55e),
                               fontSize: AppFontSizes.xl,
@@ -337,9 +340,9 @@ class ShoppingCartScreen extends StatelessWidget {
 
                             if (selectedMember == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Member not selected'),
-                                  backgroundColor: Color(0xffef4444),
+                                SnackBar(
+                                  content: Text(l10n.memberNotSelected),
+                                  backgroundColor: const Color(0xffef4444),
                                 ),
                               );
                               return;
@@ -373,19 +376,19 @@ class ShoppingCartScreen extends StatelessWidget {
                         color: const Color(0xff22c55e),
                         borderRadius: BorderRadius.circular(AppBorderRadius.lg),
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.check,
                               color: Colors.black,
                               size: 24,
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
-                              'Checkout',
-                              style: TextStyle(
+                              l10n.checkout,
+                              style: const TextStyle(
                                 color: Colors.black,
                                 fontSize: AppFontSizes.xl,
                                 fontWeight: FontWeight.w600,

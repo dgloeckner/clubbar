@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
@@ -75,9 +76,9 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     super.dispose();
   }
 
-  String _getBalanceDisplayText(int balanceCents) {
+  String _getBalanceDisplayText(int balanceCents, AppLocalizations l10n) {
     final balanceEuros = balanceCents / 100.0;
-    return 'New Balance: €${balanceEuros.toStringAsFixed(2)}';
+    return l10n.checkoutNewBalance('€${balanceEuros.toStringAsFixed(2)}');
   }
 
   Color _getBalanceColor(int balanceCents) {
@@ -91,6 +92,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final membersProvider = context.watch<MembersProvider>();
     final selectedMember = membersProvider.selectedMember;
     final cartTotal = context.watch<CartProvider>().total;
@@ -122,7 +124,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
                 // "Payment Successful" title
                 Text(
-                  'Payment Successful',
+                  l10n.checkoutSuccess,
                   style: TextStyle(
                     color: hexToColor(AppColors.textPrimary),
                     fontSize: AppFontSizes.xxxl,
@@ -165,7 +167,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
                 // Balance after transaction (color-coded)
                 Text(
-                  _getBalanceDisplayText(newBalance),
+                  _getBalanceDisplayText(newBalance, l10n),
                   style: TextStyle(
                     color: _getBalanceColor(newBalance),
                     fontSize: AppFontSizes.base,
@@ -176,7 +178,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
                 // Auto-dismiss countdown message
                 Text(
-                  'Redirecting in $_secondsRemaining second${_secondsRemaining != 1 ? 's' : ''}...',
+                  l10n.redirectingIn(_secondsRemaining),
                   style: TextStyle(
                     color: hexToColor(AppColors.textMuted),
                     fontSize: AppFontSizes.base,
