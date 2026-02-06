@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/config/app_config.dart';
 import 'package:ruderbar_terminal/config/app_router.dart';
 import 'package:ruderbar_terminal/database/database.dart';
@@ -325,17 +327,30 @@ class RuderbarTerminalApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider, membersRepository)),
       ],
       child: Builder(
-        builder: (context) => MaterialApp.router(
-          title: AppConfig.appName,
-          theme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF3B82F6),
-              brightness: Brightness.dark,
+        builder: (context) {
+          final localeProvider = context.watch<LocaleProvider>();
+
+          return MaterialApp.router(
+            title: AppConfig.appName,
+            theme: ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFF3B82F6),
+                brightness: Brightness.dark,
+              ),
             ),
-          ),
-          routerConfig: createAppRouter(context, configService: configService),
-        ),
+            // Localization configuration
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: LocaleProvider.supportedLocales,
+            locale: localeProvider.locale,
+            routerConfig: createAppRouter(context, configService: configService),
+          );
+        },
       ),
     );
   }
