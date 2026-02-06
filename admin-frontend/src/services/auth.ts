@@ -3,8 +3,28 @@
  * Handles login, logout, and session management
  */
 
-import { post } from './api'
+import { post, get, patch } from './api'
 import { LoginCredentials, AuthResponse } from '../types'
+import { changeLanguage } from '../i18n/config'
+
+export interface AdminProfile {
+  id: string
+  email: string
+  display_name: string
+  locale: string
+  last_login_at: string | null
+}
+
+export interface UpdateProfileRequest {
+  email?: string
+  display_name?: string
+  locale?: string
+}
+
+export interface ChangePasswordRequest {
+  new_password: string
+  new_password_confirmation: string
+}
 
 /**
  * Login with credentials
@@ -28,6 +48,10 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
       localStorage.setItem('email', response.admin.email)
       localStorage.setItem('display_name', response.admin.display_name)
       localStorage.setItem('locale', response.admin.locale)
+
+      // Sync i18n language with user's saved preference
+      const userLocale = response.admin.locale || 'de'
+      changeLanguage(userLocale)
     }
 
     return {
@@ -84,4 +108,35 @@ export function getCurrentSession() {
  */
 export function isAuthenticated(): boolean {
   return !!localStorage.getItem('admin_id')
+}
+
+/**
+ * Get current user's profile from API
+ */
+export async function getProfile(): Promise<AdminProfile> {
+  const response = await get<{ admin: AdminProfile }>('/auth/profile')
+  return response.admin
+}
+
+/**
+ * Update current user's profile
+ */
+export async function updateProfile(data: UpdateProfileRequest): Promise<AdminProfile> {
+  const response = await patch<{ admin: AdminProfile; message: string }>('/auth/profile', data)
+
+  // Update localStorage with new values
+  if (response.admin) {
+    localStorage.setItem('email', response.admin.email)
+    localStorage.setItem('display_name', response.admin.display_name)
+    localStorage.setItem('locale', response.admin.locale)
+  }
+
+  return response.admin
+}
+
+/**
+ * Change current user's password
+ */
+export async function changePassword(data: ChangePasswordRequest): Promise<void> {
+  await patch<{ message: string }>('/auth/change-password', data)
 }
