@@ -281,7 +281,8 @@
     "languageHint": "Sprache für die Benutzeroberfläche",
     "passwordChanged": "Passwort erfolgreich geändert",
     "profileUpdated": "Profil erfolgreich aktualisiert",
-    "saveFailed": "Speichern fehlgeschlagen"
+    "saveFailed": "Speichern fehlgeschlagen",
+    "lastLogin": "Letzter Login"
   },
   "languages": {
     "de": "Deutsch",

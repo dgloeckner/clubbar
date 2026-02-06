@@ -281,7 +281,8 @@
     "languageHint": "Language for the user interface",
     "passwordChanged": "Password changed successfully",
     "profileUpdated": "Profile updated successfully",
-    "saveFailed": "Save failed"
+    "saveFailed": "Save failed",
+    "lastLogin": "Last Login"
   },
   "languages": {
     "de": "Deutsch",
