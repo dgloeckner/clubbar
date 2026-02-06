@@ -4,12 +4,13 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/common/StatCard'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useLoading } from '../context/LoadingContext'
+import { useFormatters } from '../hooks/useFormatters'
 import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon } from '../components/icons'
-import { formatPrice, formatDate } from '../styles/design-system'
 import { getMembers, createMember, updateMember, deactivateMember, Member } from '../services/members'
 import { getDashboardMetrics } from '../services/dashboard'
 import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
@@ -30,6 +31,8 @@ import {
 } from '../styles/tableTokens'
 
 export function MembersPage() {
+  const { t } = useTranslation()
+  const formatters = useFormatters()
   const breakpoint = useBreakpoint()
   const { setIsLoading } = useLoading()
   const [members, setMembers] = useState<Member[]>([])
@@ -237,25 +240,25 @@ export function MembersPage() {
       >
         <StatCard
           icon={<UsersIcon />}
-          label="Mitglieder"
+          label={t('members.title')}
           value={activeMembersCount}
           color="green"
         />
         <StatCard
           icon={<BankIcon />}
-          label="Offene Posten"
-          value={formatPrice(totalBalance)}
+          label={t('common.balance')}
+          value={formatters.formatPrice(totalBalance)}
           color="blue"
         />
         <StatCard
           icon={<CalendarIcon />}
-          label="Letzte Abrechnung"
-          value={lastSettlementDate ? formatDate(lastSettlementDate.split('T')[0]) : '—'}
+          label={t('settlements.settlementDate')}
+          value={lastSettlementDate ? formatters.formatDate(lastSettlementDate.split('T')[0]) : '—'}
           color="blue"
         />
       </div>
 
-      <h1 style={{ margin: '0 0 20px 0' }}>Mitglieder</h1>
+      <h1 style={{ margin: '0 0 20px 0' }}>{t('members.title')}</h1>
 
       {/* Search bar + filters + create button (compact row) */}
       <div
@@ -270,7 +273,7 @@ export function MembersPage() {
       >
         {/* Members count summary - LEFT */}
         <span data-testid="members-count-summary" style={{ color: theme.colors.text.secondary, fontSize: '14px', whiteSpace: 'nowrap' }}>
-          <strong style={{ color: theme.colors.text.primary }}>{totalMembers}</strong> Mitglieder gefunden
+          <strong style={{ color: theme.colors.text.primary }}>{totalMembers}</strong> {t('members.title')} {t('common.found')}
         </span>
 
         {/* Search input */}
@@ -281,7 +284,7 @@ export function MembersPage() {
             setSearch(e.target.value)
             setPage(1)
           }}
-          placeholder="Search members..."
+          placeholder={t('common.searchPlaceholder')}
           data-testid="members-search-input"
           style={{
             flex: 1,
@@ -348,7 +351,7 @@ export function MembersPage() {
             }}
           >
             <PlusIcon size={18} />
-            <span>Hinzufügen</span>
+            <span>{t('common.add')}</span>
           </button>
         </div>
       </div>
@@ -371,11 +374,11 @@ export function MembersPage() {
 
         {loading ? (
           <div data-testid="members-loading" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
-            Loading members...
+            {t('common.loading')}
           </div>
         ) : members.length === 0 ? (
           <div data-testid="members-empty-state" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
-            No members found
+            {t('members.noMembers')}
           </div>
         ) : (
           <div data-testid="members-table-wrapper" style={tableWrapperStyles}>
@@ -385,13 +388,13 @@ export function MembersPage() {
             >
               <thead>
                 <tr style={headerRowStyle}>
-                  <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>Status</th>
+                  <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>{t('common.status')}</th>
                   <th style={{ ...headerCellBaseStyle, width: '100px', textAlign: 'center' }} data-testid="members-table-header-sepa">
                     SEPA
                   </th>
                   <th style={headerCellBaseStyle}>
                     <SortableTableHeader
-                      label="Name"
+                      label={t('common.name')}
                       sortKey="first_name"
                       currentSort={{ key: sortKey, direction: sortDirection }}
                       onSort={(key: string, direction: 'asc' | 'desc') => {
@@ -403,7 +406,7 @@ export function MembersPage() {
                   </th>
                   <th style={{ ...headerCellBaseStyle, width: '120px' }}>
                     <SortableTableHeader
-                      label="Created"
+                      label={t('members.memberSince')}
                       sortKey="created_at"
                       currentSort={{ key: sortKey, direction: sortDirection }}
                       onSort={(key: string, direction: 'asc' | 'desc') => {
@@ -413,7 +416,7 @@ export function MembersPage() {
                       }}
                     />
                   </th>
-                  <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>Actions</th>
+                  <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -452,14 +455,14 @@ export function MembersPage() {
                           display: 'inline-block',
                         }}
                       >
-                        {member.is_sepa_valid ? 'Valid' : 'Missing'}
+                        {member.is_sepa_valid ? t('members.valid') : t('members.missing')}
                       </span>
                     </td>
                     <TableCell testId={`members-table-cell-name-${member.id}`}>
                       {member.first_name} {member.last_name}
                     </TableCell>
                     <TableCell testId={`members-table-cell-created-${member.id}`}>
-                      {formatDate(member.created_at.split('T')[0])}
+                      {formatters.formatDate(member.created_at.split('T')[0])}
                     </TableCell>
                     <TableCell align="center">
                       <button
@@ -548,7 +551,7 @@ export function MembersPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 data-testid="members-form-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
-              {editingMember ? 'Edit Member' : 'New Member'}
+              {editingMember ? t('members.editMember') : t('members.createMember')}
             </h2>
 
             {/* SEPA Status Indicator */}
@@ -573,11 +576,11 @@ export function MembersPage() {
                 </span>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14, color: theme.colors.text.primary }}>
-                    {editingMember.is_sepa_valid ? 'SEPA Mandate Valid' : 'SEPA Mandate Missing'}
+                    {editingMember.is_sepa_valid ? t('members.sepaValid') : t('members.sepaMissing')}
                   </div>
                   {!editingMember.is_sepa_valid && (
                     <div style={{ fontSize: 12, color: theme.colors.text.secondary, marginTop: 4 }}>
-                      Member needs IBAN and mandate reference to create transactions.
+                      {t('members.sepaMissingHint')}
                     </div>
                   )}
                 </div>
@@ -587,7 +590,7 @@ export function MembersPage() {
             <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  First Name *
+                  {t('members.firstName')} *
                 </label>
                 <input
                   data-testid="members-form-first-name-input"
@@ -611,7 +614,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  Last Name *
+                  {t('members.lastName')} *
                 </label>
                 <input
                   data-testid="members-form-last-name-input"
@@ -635,7 +638,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  Email
+                  {t('members.email')}
                 </label>
                 <input
                   data-testid="members-form-email-input"
@@ -657,7 +660,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  IBAN <span style={{ color: theme.colors.semantic.danger }}>*</span>
+                  {t('members.iban')} <span style={{ color: theme.colors.semantic.danger }}>*</span>
                 </label>
                 <input
                   data-testid="members-form-iban-input"
@@ -683,7 +686,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  Account Holder Name
+                  {t('members.accountHolderName')}
                 </label>
                 <input
                   data-testid="members-form-account-holder-name-input"
@@ -703,13 +706,13 @@ export function MembersPage() {
                   }}
                 />
                 <span style={{ fontSize: '12px', color: theme.colors.text.secondary, marginTop: '4px', display: 'block' }}>
-                  Only fill if the account holder differs from the member (e.g., parent pays for child)
+                  {t('members.accountHolderHint')}
                 </span>
               </div>
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  Mandate Reference (SEPA) <span style={{ color: theme.colors.semantic.danger }}>*</span>
+                  {t('members.mandateReference')} <span style={{ color: theme.colors.semantic.danger }}>*</span>
                 </label>
                 <input
                   data-testid="members-form-mandate-reference-input"
@@ -735,7 +738,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  Mandate Date (SEPA) <span style={{ color: theme.colors.semantic.danger }}>*</span>
+                  {t('members.mandateSignedAt')} <span style={{ color: theme.colors.semantic.danger }}>*</span>
                 </label>
                 <input
                   data-testid="members-form-mandate-date-input"
@@ -758,7 +761,7 @@ export function MembersPage() {
 
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  Language *
+                  {t('members.preferredLanguage')} *
                 </label>
                 <LanguageSelector
                   value={formData.preferred_language as 'de' | 'en'}
@@ -784,7 +787,7 @@ export function MembersPage() {
                     fontWeight: theme.typography.fontWeight.semibold,
                   }}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   data-testid="members-form-submit-button"
@@ -800,7 +803,7 @@ export function MembersPage() {
                     fontWeight: theme.typography.fontWeight.semibold,
                   }}
                 >
-                  Save
+                  {t('common.save')}
                 </button>
               </div>
             </form>
@@ -839,10 +842,10 @@ export function MembersPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 data-testid="members-delete-confirm-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.lg }}>
-              Confirm Delete
+              {t('members.deleteMember')}
             </h2>
             <p data-testid="members-delete-confirm-message" style={{ color: theme.colors.text.secondary, marginBottom: theme.spacing.lg }}>
-              Are you sure you want to deactivate this member? This action cannot be undone.
+              {t('members.deleteConfirm')}
             </p>
 
             <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end' }}>
@@ -860,7 +863,7 @@ export function MembersPage() {
                   fontWeight: theme.typography.fontWeight.semibold,
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 data-testid="members-delete-confirm-ok"
@@ -876,7 +879,7 @@ export function MembersPage() {
                   fontWeight: theme.typography.fontWeight.semibold,
                 }}
               >
-                Delete
+                {t('common.delete')}
               </button>
             </div>
           </div>
