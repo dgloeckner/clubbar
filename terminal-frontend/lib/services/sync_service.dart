@@ -113,11 +113,29 @@ class SyncService {
   /// Sync members from backend
   Future<void> _syncMembers() async {
     try {
-      _logger.i('Syncing members');
-      final response = await _networkService.syncMembers();
+      // Get last sync cursor for delta sync (stored as string, parse to int)
+      final cursorStr = await _syncRepo.getLastMembersSyncCursor();
+      final since = cursorStr != null ? int.tryParse(cursorStr) : null;
+
+      _logger.i('Syncing members${since != null ? " (since=$since)" : " (full)"}');
+      final response = await _networkService.syncMembers(since: since);
+
+      // Handle 304 Not Modified
+      if (response == null) {
+        _logger.i('Members: not modified');
+        return;
+      }
 
       // Upsert members into local database
       await _membersRepo.upsertMembers(response.members);
+
+      // Store cursor for next delta sync (API returns int, store as string)
+      if (response.cursor != null) {
+        await _syncRepo.setLastMembersSyncCursor(response.cursor.toString());
+        _logger.i('Members: cursor updated to ${response.cursor}');
+      } else {
+        _logger.w('Members: no cursor in response');
+      }
 
       // Update sync timestamp
       final now = DateTime.now();
@@ -133,10 +151,28 @@ class SyncService {
   /// Sync categories from backend
   Future<void> _syncCategories() async {
     try {
-      _logger.i('Syncing categories');
-      final response = await _networkService.syncCategories();
+      // Get last sync cursor for delta sync (stored as string, parse to int)
+      final cursorStr = await _syncRepo.getLastCategoriesSyncCursor();
+      final since = cursorStr != null ? int.tryParse(cursorStr) : null;
+
+      _logger.i('Syncing categories${since != null ? " (since=$since)" : " (full)"}');
+      final response = await _networkService.syncCategories(since: since);
+
+      // Handle 304 Not Modified
+      if (response == null) {
+        _logger.i('Categories: not modified');
+        return;
+      }
 
       await _productsRepo.upsertCategories(response.categories);
+
+      // Store cursor for next delta sync (API returns int, store as string)
+      if (response.cursor != null) {
+        await _syncRepo.setLastCategoriesSyncCursor(response.cursor.toString());
+        _logger.i('Categories: cursor updated to ${response.cursor}');
+      } else {
+        _logger.w('Categories: no cursor in response');
+      }
 
       _logger.i('Categories synced: ${response.categories.length} items');
     } catch (e, stackTrace) {
@@ -148,10 +184,28 @@ class SyncService {
   /// Sync products from backend
   Future<void> _syncProducts() async {
     try {
-      _logger.i('Syncing products');
-      final response = await _networkService.syncProducts();
+      // Get last sync cursor for delta sync (stored as string, parse to int)
+      final cursorStr = await _syncRepo.getLastProductsSyncCursor();
+      final since = cursorStr != null ? int.tryParse(cursorStr) : null;
+
+      _logger.i('Syncing products${since != null ? " (since=$since)" : " (full)"}');
+      final response = await _networkService.syncProducts(since: since);
+
+      // Handle 304 Not Modified
+      if (response == null) {
+        _logger.i('Products: not modified');
+        return;
+      }
 
       await _productsRepo.upsertProducts(response.products);
+
+      // Store cursor for next delta sync (API returns int, store as string)
+      if (response.cursor != null) {
+        await _syncRepo.setLastProductsSyncCursor(response.cursor.toString());
+        _logger.i('Products: cursor updated to ${response.cursor}');
+      } else {
+        _logger.w('Products: no cursor in response');
+      }
 
       // Update sync timestamp
       final now = DateTime.now();

@@ -1,14 +1,31 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:logger/logger.dart';
 import '../config/app_config.dart';
 import '../models/sync_response.dart';
 import '../models/transaction_sync_response.dart';
 
+/// Response wrapper that includes HTTP metadata
+class HttpResponse<T> {
+  final int statusCode;
+  final T? data;
+  final bool notModified;
+
+  HttpResponse({
+    required this.statusCode,
+    this.data,
+    this.notModified = false,
+  });
+}
+
 class NetworkService {
   String _baseUrl;
   String? _authToken;
+  final Logger _logger;
 
-  NetworkService({String baseUrl = AppConfig.apiBaseUrl}) : _baseUrl = baseUrl;
+  NetworkService({String baseUrl = AppConfig.apiBaseUrl, Logger? logger})
+      : _baseUrl = baseUrl,
+        _logger = logger ?? Logger();
 
   /// Update the base URL (e.g. after setup)
   void setBaseUrl(String baseUrl) {
@@ -57,7 +74,33 @@ class NetworkService {
     try {
       final uri = Uri.parse('$_baseUrl$endpoint');
       final response = await http.get(uri, headers: _buildHeaders());
+      _logger.d('GET $endpoint -> HTTP ${response.statusCode}');
       return _handleResponse(response);
+    } catch (e) {
+      throw NetworkException('GET request failed: $e');
+    }
+  }
+
+  /// GET request with full HTTP response info (for sync endpoints)
+  Future<HttpResponse<dynamic>> getWithStatus(String endpoint, {Map<String, String>? extraHeaders}) async {
+    try {
+      final uri = Uri.parse('$_baseUrl$endpoint');
+      final headers = _buildHeaders();
+      if (extraHeaders != null) {
+        headers.addAll(extraHeaders);
+      }
+      final response = await http.get(uri, headers: headers);
+      _logger.i('GET $endpoint -> HTTP ${response.statusCode} (${response.contentLength ?? response.body.length} bytes)');
+
+      // Handle 304 Not Modified
+      if (response.statusCode == 304) {
+        return HttpResponse(statusCode: 304, notModified: true);
+      }
+
+      return HttpResponse(
+        statusCode: response.statusCode,
+        data: _handleResponse(response),
+      );
     } catch (e) {
       throw NetworkException('GET request failed: $e');
     }
@@ -143,31 +186,69 @@ class NetworkService {
     }
   }
 
+  /// Build endpoint URL with optional since parameter
+  String _buildSyncEndpoint(String endpoint, {int? since}) {
+    if (since != null && since > 0) {
+      return '$endpoint?since=$since';
+    }
+    return endpoint;
+  }
+
   /// Sync members endpoint
-  Future<MembersSyncResponse> syncMembers() async {
+  /// [since] - Unix timestamp for delta sync (only items modified after this time)
+  /// Returns null if server returns 304 Not Modified
+  Future<MembersSyncResponse?> syncMembers({int? since, String? ifNoneMatch}) async {
     try {
-      final response = await get(AppConfig.syncEndpointMembers);
-      return MembersSyncResponse.fromJson(response);
+      final headers = ifNoneMatch != null ? {'If-None-Match': ifNoneMatch} : null;
+      final endpoint = _buildSyncEndpoint(AppConfig.syncEndpointMembers, since: since);
+      final response = await getWithStatus(endpoint, extraHeaders: headers);
+
+      if (response.notModified) {
+        _logger.i('Members: 304 Not Modified');
+        return null;
+      }
+
+      return MembersSyncResponse.fromJson(response.data);
     } catch (e) {
       throw NetworkException('Sync members failed: $e');
     }
   }
 
   /// Sync categories endpoint
-  Future<CategoriesSyncResponse> syncCategories() async {
+  /// [since] - Unix timestamp for delta sync (only items modified after this time)
+  /// Returns null if server returns 304 Not Modified
+  Future<CategoriesSyncResponse?> syncCategories({int? since, String? ifNoneMatch}) async {
     try {
-      final response = await get(AppConfig.syncEndpointCategories);
-      return CategoriesSyncResponse.fromJson(response);
+      final headers = ifNoneMatch != null ? {'If-None-Match': ifNoneMatch} : null;
+      final endpoint = _buildSyncEndpoint(AppConfig.syncEndpointCategories, since: since);
+      final response = await getWithStatus(endpoint, extraHeaders: headers);
+
+      if (response.notModified) {
+        _logger.i('Categories: 304 Not Modified');
+        return null;
+      }
+
+      return CategoriesSyncResponse.fromJson(response.data);
     } catch (e) {
       throw NetworkException('Sync categories failed: $e');
     }
   }
 
   /// Sync products endpoint
-  Future<ProductsSyncResponse> syncProducts() async {
+  /// [since] - Unix timestamp for delta sync (only items modified after this time)
+  /// Returns null if server returns 304 Not Modified
+  Future<ProductsSyncResponse?> syncProducts({int? since, String? ifNoneMatch}) async {
     try {
-      final response = await get(AppConfig.syncEndpointProducts);
-      return ProductsSyncResponse.fromJson(response);
+      final headers = ifNoneMatch != null ? {'If-None-Match': ifNoneMatch} : null;
+      final endpoint = _buildSyncEndpoint(AppConfig.syncEndpointProducts, since: since);
+      final response = await getWithStatus(endpoint, extraHeaders: headers);
+
+      if (response.notModified) {
+        _logger.i('Products: 304 Not Modified');
+        return null;
+      }
+
+      return ProductsSyncResponse.fromJson(response.data);
     } catch (e) {
       throw NetworkException('Sync products failed: $e');
     }

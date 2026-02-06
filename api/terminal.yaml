@@ -920,11 +920,11 @@ components:
             $ref: '#/components/schemas/Member'
           description: Array of member records (modified since `since` timestamp)
         cursor:
-          type: string
-          format: date-time
+          type: integer
+          format: int64
           description: |
-            Next sync cursor. Terminal should store this timestamp and use as `since`
-            parameter in next sync request. Ensures no missed updates.
+            Next sync cursor (Unix timestamp in milliseconds). Terminal should store this
+            and use directly as `since` parameter in next sync request. No parsing needed.
         count:
           type: integer
           minimum: 0
@@ -961,7 +961,7 @@ components:
             deleted_at: '2025-01-21T10:00:00Z'
             created_at: '2024-07-01T12:30:00Z'
             updated_at: '2025-01-21T10:00:00Z'
-        cursor: '2025-01-20T14:23:45Z'
+        cursor: 1737383025
         count: 2
         has_more: false
 
@@ -978,11 +978,11 @@ components:
             $ref: '#/components/schemas/Category'
           description: Array of category records (modified since `since` timestamp)
         cursor:
-          type: string
-          format: date-time
+          type: integer
+          format: int64
           description: |
-            Next sync cursor. Terminal should store this timestamp and use as `since`
-            parameter in next sync request.
+            Next sync cursor (Unix timestamp in milliseconds). Terminal should store this
+            and use directly as `since` parameter in next sync request. No parsing needed.
         count:
           type: integer
           minimum: 0
@@ -1017,7 +1017,7 @@ components:
             is_active: true
             created_at: '2024-01-01T00:00:00Z'
             updated_at: '2025-01-10T10:15:30Z'
-        cursor: '2025-01-10T10:15:30Z'
+        cursor: 1736504130
         count: 2
         has_more: false
 
@@ -1034,11 +1034,11 @@ components:
             $ref: '#/components/schemas/Product'
           description: Array of product records (modified since `since` timestamp)
         cursor:
-          type: string
-          format: date-time
+          type: integer
+          format: int64
           description: |
-            Next sync cursor. Terminal should store this timestamp and use as `since`
-            parameter in next sync request.
+            Next sync cursor (Unix timestamp in milliseconds). Terminal should store this
+            and use directly as `since` parameter in next sync request. No parsing needed.
         count:
           type: integer
           minimum: 0
@@ -1083,7 +1083,7 @@ components:
             is_active: true
             created_at: '2024-01-01T00:00:00Z'
             updated_at: '2025-01-10T10:15:30Z'
-        cursor: '2025-01-10T10:15:30Z'
+        cursor: 1736504130
         count: 2
         has_more: false
 
@@ -1399,7 +1399,8 @@ x-internal-notes: |
   ORDER BY updated_at ASC
   LIMIT {limit}
 
-  # Return cursor as max(updated_at) from result set
+  # Return cursor as UNIX_TIMESTAMP(max(updated_at)) from result set
+  # Cursor is int64 (Unix timestamp in milliseconds) - clients store and reuse directly
   # has_more = (COUNT > 0 AND COUNT == limit)
   ```
 
@@ -1411,7 +1412,8 @@ x-internal-notes: |
   ORDER BY updated_at ASC
   LIMIT {limit}
 
-  # Return cursor as max(updated_at) from result set
+  # Return cursor as UNIX_TIMESTAMP(max(updated_at)) from result set
+  # Cursor is int64 (Unix timestamp in milliseconds) - clients store and reuse directly
   # has_more = (COUNT > 0 AND COUNT == limit)
   ```
 
@@ -1423,7 +1425,8 @@ x-internal-notes: |
   ORDER BY updated_at ASC
   LIMIT {limit}
 
-  # Return cursor as max(updated_at) from result set
+  # Return cursor as UNIX_TIMESTAMP(max(updated_at)) from result set
+  # Cursor is int64 (Unix timestamp in milliseconds) - clients store and reuse directly
   # has_more = (COUNT > 0 AND COUNT == limit)
   ```
 

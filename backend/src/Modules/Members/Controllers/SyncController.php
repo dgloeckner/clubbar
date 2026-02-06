@@ -18,9 +18,11 @@ class SyncController
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        $since = isset($params['since']) ? (int) $params['since'] : 0;
+        // Client sends milliseconds, convert to seconds for DB query
+        $sinceMs = isset($params['since']) ? (int) $params['since'] : 0;
+        $sinceSec = (int) ($sinceMs / 1000);
 
-        $result = $this->membersService->syncSince($since);
+        $result = $this->membersService->syncSince($sinceSec);
 
         return $this->json($response, $result->toArray('members'));
     }

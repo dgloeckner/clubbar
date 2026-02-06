@@ -4,7 +4,7 @@ import 'product_dto.dart';
 
 class MembersSyncResponse {
   final List<MemberDTO> members;
-  final String? cursor; // For pagination
+  final int? cursor; // Unix timestamp for pagination
 
   MembersSyncResponse({
     required this.members,
@@ -16,14 +16,14 @@ class MembersSyncResponse {
       members: (json['members'] as List<dynamic>)
           .map((item) => MemberDTO.fromJson(item as Map<String, dynamic>))
           .toList(),
-      cursor: json['cursor'] as String?,
+      cursor: json['cursor'] as int?,
     );
   }
 }
 
 class CategoriesSyncResponse {
   final List<CategoryDTO> categories;
-  final String? cursor;
+  final int? cursor; // Unix timestamp for pagination
 
   CategoriesSyncResponse({
     required this.categories,
@@ -35,14 +35,14 @@ class CategoriesSyncResponse {
       categories: (json['categories'] as List<dynamic>)
           .map((item) => CategoryDTO.fromJson(item as Map<String, dynamic>))
           .toList(),
-      cursor: json['cursor'] as String?,
+      cursor: json['cursor'] as int?,
     );
   }
 }
 
 class ProductsSyncResponse {
   final List<ProductDTO> products;
-  final String? cursor;
+  final int? cursor; // Unix timestamp for pagination
 
   ProductsSyncResponse({
     required this.products,
@@ -54,7 +54,7 @@ class ProductsSyncResponse {
       products: (json['products'] as List<dynamic>)
           .map((item) => ProductDTO.fromJson(item as Map<String, dynamic>))
           .toList(),
-      cursor: json['cursor'] as String?,
+      cursor: json['cursor'] as int?,
     );
   }
 }

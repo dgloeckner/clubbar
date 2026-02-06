@@ -44,6 +44,36 @@ class SyncRepository {
     return setSyncState('last_products_sync_time', timestamp);
   }
 
+  /// Get last sync cursor for categories (ISO 8601 string from API response)
+  Future<String?> getLastCategoriesSyncCursor() async {
+    return getSyncState('last_categories_sync_cursor');
+  }
+
+  /// Set last sync cursor for categories
+  Future<void> setLastCategoriesSyncCursor(String cursor) async {
+    return setSyncState('last_categories_sync_cursor', cursor);
+  }
+
+  /// Get last sync cursor for members (ISO 8601 string from API response)
+  Future<String?> getLastMembersSyncCursor() async {
+    return getSyncState('last_members_sync_cursor');
+  }
+
+  /// Set last sync cursor for members
+  Future<void> setLastMembersSyncCursor(String cursor) async {
+    return setSyncState('last_members_sync_cursor', cursor);
+  }
+
+  /// Get last sync cursor for products (ISO 8601 string from API response)
+  Future<String?> getLastProductsSyncCursor() async {
+    return getSyncState('last_products_sync_cursor');
+  }
+
+  /// Set last sync cursor for products
+  Future<void> setLastProductsSyncCursor(String cursor) async {
+    return setSyncState('last_products_sync_cursor', cursor);
+  }
+
   /// Get last successful sync timestamp (overall)
   Future<String?> getLastSyncTime() async {
     return getSyncState('last_sync_time');
@@ -82,10 +112,6 @@ class SyncRepository {
 
   /// Clear sync error message
   Future<void> clearLastSyncError() async {
-    await _db.delete(_db.syncState).go(
-      // Delete where key = 'last_sync_error'
-    );
-    // Actually delete this specific key
     await (_db.delete(_db.syncState)
           ..where((s) => s.key.equals('last_sync_error')))
         .go();
