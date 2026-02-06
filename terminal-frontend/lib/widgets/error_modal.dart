@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 
 void showErrorModal(
   BuildContext context,
   String message, {
   VoidCallback? onRetry,
 }) {
+  final l10n = AppLocalizations.of(context)!;
+
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
@@ -13,14 +16,14 @@ void showErrorModal(
         color: Theme.of(context).colorScheme.error,
         size: 32,
       ),
-      title: const Text('Error'),
+      title: Text(l10n.errorTitle),
       content: Text(message),
       actions: [
         TextButton(
           onPressed: () {
             Navigator.of(context).pop();
           },
-          child: const Text('Dismiss'),
+          child: Text(l10n.dismiss),
         ),
         if (onRetry != null)
           TextButton(
@@ -28,7 +31,7 @@ void showErrorModal(
               Navigator.of(context).pop();
               onRetry();
             },
-            child: const Text('Retry'),
+            child: Text(l10n.retry),
           ),
       ],
     ),

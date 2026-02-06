@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 
 class RuderbarHeader extends StatefulWidget implements PreferredSizeWidget {
@@ -59,14 +60,15 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
     }
   }
 
-  String _badgeText() {
+  String _badgeText(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     switch (widget.connectionStatus) {
       case ConnectionStatus.online:
-        return 'Online';
+        return l10n.statusOnline;
       case ConnectionStatus.offline:
-        return 'Offline';
+        return l10n.statusOffline;
       case ConnectionStatus.error:
-        return 'Error';
+        return l10n.statusError;
     }
   }
 
@@ -115,7 +117,7 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    _badgeText(),
+                    _badgeText(context),
                     style: TextStyle(
                       color: color.withOpacity(0.7),
                       fontSize: 12,

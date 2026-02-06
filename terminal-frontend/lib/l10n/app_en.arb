@@ -53,6 +53,15 @@
   "noCategories": "No categories available",
   "noProductsInCategory": "No products in this category",
 
+  "statusOnline": "Online",
+  "statusOffline": "Offline",
+  "statusError": "Error",
+  "never": "Never",
+  "lastSync": "Last sync",
+  "lastTransactionSync": "Last transaction sync",
+  "retryCount": "Retry count",
+  "errorDetails": "Error details",
+
   "loading": "Loading...",
   "cancel": "Cancel",
   "save": "Save",

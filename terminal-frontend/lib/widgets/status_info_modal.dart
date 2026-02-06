@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 
 void showStatusInfoModal(BuildContext context) {
@@ -54,19 +55,19 @@ class _StatusInfoDialog extends StatelessWidget {
     }
   }
 
-  String _statusTitle() {
+  String _statusTitle(AppLocalizations l10n) {
     switch (connectionStatus) {
       case ConnectionStatus.online:
-        return 'Online';
+        return l10n.statusOnline;
       case ConnectionStatus.offline:
-        return 'Offline';
+        return l10n.statusOffline;
       case ConnectionStatus.error:
-        return 'Error';
+        return l10n.statusError;
     }
   }
 
-  String _formatTimestamp(DateTime? dt) {
-    if (dt == null) return 'Never';
+  String _formatTimestamp(DateTime? dt, AppLocalizations l10n) {
+    if (dt == null) return l10n.never;
     final hours = dt.hour.toString().padLeft(2, '0');
     final minutes = dt.minute.toString().padLeft(2, '0');
     final seconds = dt.second.toString().padLeft(2, '0');
@@ -75,23 +76,25 @@ class _StatusInfoDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return AlertDialog(
       icon: Icon(
         _statusIcon(),
         color: _statusColor(),
         size: 32,
       ),
-      title: Text(_statusTitle()),
+      title: Text(_statusTitle(l10n)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _infoRow('Last sync', _formatTimestamp(lastSyncTime)),
+          _infoRow(l10n.lastSync, _formatTimestamp(lastSyncTime, l10n)),
           const SizedBox(height: 8),
-          _infoRow('Last transaction sync', _formatTimestamp(lastTransactionSync)),
+          _infoRow(l10n.lastTransactionSync, _formatTimestamp(lastTransactionSync, l10n)),
           if (retryCount > 0) ...[
             const SizedBox(height: 8),
-            _infoRow('Retry count', '$retryCount'),
+            _infoRow(l10n.retryCount, '$retryCount'),
           ],
           if (lastError != null &&
               connectionStatus != ConnectionStatus.online) ...[
@@ -99,7 +102,7 @@ class _StatusInfoDialog extends StatelessWidget {
             const Divider(),
             const SizedBox(height: 8),
             Text(
-              'Error details',
+              l10n.errorDetails,
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: Theme.of(context).colorScheme.onSurface,
@@ -119,7 +122,7 @@ class _StatusInfoDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Dismiss'),
+          child: Text(l10n.dismiss),
         ),
       ],
     );

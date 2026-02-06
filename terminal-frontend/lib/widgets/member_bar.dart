@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ruderbar_terminal/database/database.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 
 class MemberBar extends StatelessWidget {
   final MembersCacheData member;
@@ -23,6 +24,7 @@ class MemberBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final firstName = member.firstName ?? '';
     final lastName = member.lastName ?? '';
     final initials =
@@ -80,7 +82,7 @@ class MemberBar extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Deckel: ${((deckelCents ?? member.balanceCents) / 100.0).toStringAsFixed(2)} \u20ac',
+                    '${l10n.balance}: ${((deckelCents ?? member.balanceCents) / 100.0).toStringAsFixed(2)} \u20ac',
                     style: const TextStyle(
                       color: Color(0xffFF6B4A),
                       fontSize: 17,
