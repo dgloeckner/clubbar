@@ -31,7 +31,7 @@ class MembersService
 
         $cursor = !empty($rows)
             ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
-            : time();
+            : (int) (microtime(true) * 1000);
 
         return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
     }
