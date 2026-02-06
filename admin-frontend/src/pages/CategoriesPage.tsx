@@ -15,8 +15,10 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { get, post, patch, del } from '../services/api'
 import { theme } from '../styles/design-system'
+import { getLocalizedName } from '../utils/i18n-helpers'
 import { EditIcon, TrashIcon, PlusIcon } from '../components/icons'
 import { IconSelect } from '../components/forms/IconSelect'
 import { StatusFilterPills } from '../components/forms/StatusFilterPills'
@@ -46,6 +48,7 @@ interface Category {
 }
 
 export function CategoriesPage() {
+  const { t, i18n } = useTranslation()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -176,10 +179,10 @@ export function CategoriesPage() {
   }
 
   async function handleStatusToggle(category: Category) {
-    const categoryName = Object.values(category.names)[0] || 'Category'
+    const categoryName = getLocalizedName(category.names, i18n.language)
     const message = category.is_active
-      ? `Deactivate "${categoryName}"? All ${category.product_count} products in this category will no longer be visible in the terminal.`
-      : `Activate "${categoryName}"? All ${category.product_count} products in this category will become visible in the terminal again.`
+      ? t('categories.deactivateConfirm', { name: categoryName, count: category.product_count })
+      : t('categories.activateConfirm', { name: categoryName, count: category.product_count })
 
     setConfirmDialog({
       type: 'status',
@@ -190,14 +193,15 @@ export function CategoriesPage() {
 
   async function handleDelete(category: Category) {
     if (category.product_count > 0) {
-      setError(`Cannot delete category with ${category.product_count} products. Deactivate instead.`)
+      setError(t('categories.cannotDeleteWithProducts', { count: category.product_count }))
       return
     }
 
+    const categoryName = getLocalizedName(category.names, i18n.language)
     setConfirmDialog({
       type: 'delete',
       categoryId: category.id,
-      message: `Delete "${Object.values(category.names)[0] || 'Category'}"? This will permanently remove the category from the database and cannot be undone.`,
+      message: t('categories.deleteConfirm', { name: categoryName }),
     })
   }
 
@@ -226,7 +230,7 @@ export function CategoriesPage() {
 
   return (
     <div data-testid="categories-page" style={{ padding: '20px' }}>
-      <h1 style={{ margin: '0 0 20px 0' }}>Categories</h1>
+      <h1 style={{ margin: '0 0 20px 0' }}>{t('categories.title')}</h1>
 
       {error && (
         <div
@@ -257,7 +261,7 @@ export function CategoriesPage() {
       >
         {/* LEFT: Count summary */}
         <span data-testid="categories-count-summary" style={{ color: theme.colors.text.secondary, fontSize: '14px', whiteSpace: 'nowrap' }}>
-          <strong style={{ color: theme.colors.text.primary }}>{totalItems}</strong> Categories gefunden
+          <strong style={{ color: theme.colors.text.primary }}>{totalItems}</strong> {t('categories.title')} {t('common.found')}
         </span>
 
         {/* RIGHT: Filter + Create button */}
@@ -293,7 +297,7 @@ export function CategoriesPage() {
             }}
           >
             <PlusIcon size={18} />
-            <span>Erstellen</span>
+            <span>{t('common.create')}</span>
           </button>
         </div>
       </div>
@@ -301,7 +305,7 @@ export function CategoriesPage() {
       {/* Loading State */}
       {loading ? (
         <div data-testid="categories-loading-indicator" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
-          Loading categories...
+          {t('common.loading')}
         </div>
       ) : categories.length === 0 ? (
         <div
@@ -312,7 +316,7 @@ export function CategoriesPage() {
             color: theme.colors.text.secondary,
           }}
         >
-          No categories found. Create one to get started.
+          {t('categories.noCategories')}
         </div>
       ) : (
         <>
@@ -320,10 +324,10 @@ export function CategoriesPage() {
             <table data-testid="categories-table" style={tableElementStyles}>
             <thead>
               <tr style={headerRowStyle}>
-                <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>Status</th>
+                <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>{t('common.status')}</th>
                 <th style={headerCellBaseStyle}>
                   <SortableTableHeader
-                    label="Name"
+                    label={t('common.name')}
                     sortKey="name"
                     currentSort={{ key: sortKey, direction: sortDirection }}
                     onSort={(key: string, direction: 'asc' | 'desc') => {
@@ -334,9 +338,9 @@ export function CategoriesPage() {
                     testId="categories-sort-name"
                   />
                 </th>
-                <th style={headerCellBaseStyle}>Products</th>
-                <th style={headerCellBaseStyle}>Order</th>
-                <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>Actions</th>
+                <th style={headerCellBaseStyle}>{t('categories.productCount')}</th>
+                <th style={headerCellBaseStyle}>{t('categories.sortOrder')}</th>
+                <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -366,7 +370,7 @@ export function CategoriesPage() {
                   {/* Name */}
                   <IconCell
                     icon={getCategoryIcon(category.icon_name)}
-                    label={category.names.de || category.names.en || 'Unnamed'}
+                    label={getLocalizedName(category.names, i18n.language)}
                     iconTestId={`categories-table-cell-icon-${category.id}`}
                     labelTestId={`categories-table-cell-name-${category.id}`}
                   />
@@ -480,7 +484,7 @@ export function CategoriesPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 data-testid="categories-form-title" style={{ margin: '0 0 20px 0' }}>
-              {modalMode === 'create' ? 'Create Category' : 'Edit Category'}
+              {modalMode === 'create' ? t('categories.createCategory') : t('categories.editCategory')}
             </h2>
 
             {formError && (
@@ -543,12 +547,12 @@ export function CategoriesPage() {
                       fontWeight: '500',
                     }}
                   >
-                    Category Name ({lang.toUpperCase()})
+                    {t('categories.categoryName')} ({lang.toUpperCase()})
                   </label>
                   <input
                     data-testid={`categories-form-name-input-${lang}`}
                     type="text"
-                    placeholder={`Enter category name in ${lang === 'de' ? 'German' : 'English'}`}
+                    placeholder={t('categories.categoryName')}
                     value={formData[lang] || ''}
                     onChange={(e) => setFormData({ ...formData, [lang]: e.target.value })}
                     style={{
@@ -578,7 +582,7 @@ export function CategoriesPage() {
               onChange={setSelectedIcon}
               iconType="category"
               testId="categories-form-icon-select"
-              label="Icon (optional)"
+              label={`${t('products.icon')} (${t('common.optional')})`}
             />
 
             {/* Buttons */}
@@ -599,7 +603,7 @@ export function CategoriesPage() {
                   transition: 'all 150ms',
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 data-testid="categories-form-submit-button"
@@ -617,7 +621,7 @@ export function CategoriesPage() {
                   transition: 'all 150ms',
                 }}
               >
-                {modalMode === 'create' ? 'Create' : 'Save'}
+                {modalMode === 'create' ? t('common.create') : t('common.save')}
               </button>
             </div>
           </div>
@@ -654,7 +658,7 @@ export function CategoriesPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.lg }}>
-              {confirmDialog.type === 'delete' ? 'Delete Category' : 'Confirm Action'}
+              {confirmDialog.type === 'delete' ? t('categories.deleteCategory') : t('common.confirm')}
             </h2>
             <p
               data-testid="categories-confirm-message"
@@ -682,7 +686,7 @@ export function CategoriesPage() {
                   fontWeight: theme.typography.fontWeight.semibold,
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 data-testid="categories-confirm-ok"
@@ -698,7 +702,7 @@ export function CategoriesPage() {
                   fontWeight: theme.typography.fontWeight.semibold,
                 }}
               >
-                {confirmDialog.type === 'delete' ? 'Delete' : 'Confirm'}
+                {confirmDialog.type === 'delete' ? t('common.delete') : t('common.confirm')}
               </button>
             </div>
           </div>
