@@ -8,6 +8,9 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import { theme } from './styles/design-system'
 
+// Initialize i18n before React renders
+import './i18n/config'
+
 // Global styles
 const globalStyles = `
   * {
