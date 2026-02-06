@@ -4,6 +4,7 @@
  */
 
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { theme } from '../../styles/design-system'
 import { useAuth } from '../../context/AuthContext'
@@ -28,6 +29,7 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children }: MainLayoutProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const { displayName, logout } = useAuth()
@@ -51,18 +53,18 @@ export function MainLayout({ children }: MainLayoutProps) {
   const isActive = (path: string): boolean => location.pathname === path
 
   const navItems = [
-    { label: 'Mitglieder', path: '/members', icon: <UsersIcon size={20} /> },
-    { label: 'Produkte', path: '/products', icon: <PackageIcon size={20} /> },
-    { label: 'Kategorien', path: '/categories', icon: <NavigationIconRegistry.CategoryIcon size={20} /> },
+    { label: t('nav.members'), path: '/members', icon: <UsersIcon size={20} /> },
+    { label: t('nav.products'), path: '/products', icon: <PackageIcon size={20} /> },
+    { label: t('nav.categories'), path: '/categories', icon: <NavigationIconRegistry.CategoryIcon size={20} /> },
     {
-      label: 'Buchungsjournal',
+      label: t('nav.journal'),
       path: '/journal',
       icon: <BookIcon size={20} />,
     },
-    { label: 'Abrechnungen', path: '/settlements', icon: <ReceiptIcon size={20} /> },
-    { label: 'Statistik', path: '/statistics', icon: <ChartIcon size={20} /> },
-    { label: 'Einstellungen', path: '/settings', icon: <SettingsIcon size={20} /> },
-    { label: 'Audit-Log', path: '/audit-log', icon: <AuditLogIcon size={20} />, testId: 'nav-audit-log' },
+    { label: t('nav.settlements'), path: '/settlements', icon: <ReceiptIcon size={20} /> },
+    { label: t('nav.statistics'), path: '/statistics', icon: <ChartIcon size={20} /> },
+    { label: t('nav.settings'), path: '/settings', icon: <SettingsIcon size={20} /> },
+    { label: t('nav.auditLog'), path: '/audit-log', icon: <AuditLogIcon size={20} />, testId: 'nav-audit-log' },
   ]
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
@@ -166,7 +168,7 @@ export function MainLayout({ children }: MainLayoutProps) {
               }}
             >
               <LogoutIcon size={20} />
-              {!isSmallMobile && <span>Abmelden</span>}
+              {!isSmallMobile && <span>{t('nav.logout')}</span>}
             </button>
           )}
         </div>
@@ -236,26 +238,36 @@ export function MainLayout({ children }: MainLayoutProps) {
               marginLeft: 'auto',
             }}
           >
-            {/* User Badge - hide on tablet smaller than 768px */}
+            {/* User Badge - clickable link to profile - hide on tablet smaller than 768px */}
             {!isTablet && (
-              <div
+              <Link
+                to="/profile"
                 data-testid="header-user-badge"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: theme.spacing.md,
                   padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                  background: 'rgba(59, 130, 246, 0.15)',
+                  background: isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)',
                   border: `1px solid rgba(59, 130, 246, 0.3)`,
                   borderRadius: theme.borderRadius.full,
                   fontSize: theme.typography.fontSize.sm,
                   color: theme.colors.semantic.primary,
                   whiteSpace: 'nowrap',
+                  textDecoration: 'none',
+                  cursor: 'pointer',
+                  transition: `all ${theme.transitions.default}`,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.25)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)'
                 }}
               >
                 <UserIcon size={20} data-testid="header-user-icon" />
                 {displayName || 'Admin'}
-              </div>
+              </Link>
             )}
 
             {/* Logout Button */}
@@ -283,7 +295,7 @@ export function MainLayout({ children }: MainLayoutProps) {
               }}
             >
               <LogoutIcon size={20} />
-              <span>Abmelden</span>
+              <span>{t('nav.logout')}</span>
             </button>
           </div>
         )}
