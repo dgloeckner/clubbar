@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { get, post, patch, del, onLoadingStateChange } from '../services/api'
 import { CategorySelect } from '../components/forms/CategorySelect'
 import { IconSelect } from '../components/forms/IconSelect'
+import { LanguageTabsInput } from '../components/forms/LanguageTabsInput'
 import { ProductPreview } from '../components/forms/ProductPreview'
 import { getProductIcon } from '../components/icons/IconRegistry'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
@@ -35,7 +36,7 @@ import {
   headerRowStyle,
   getRowStyle,
 } from '../styles/tableTokens'
-import { getLocalizedName } from '../utils/i18n-helpers'
+import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { useFormatters } from '../hooks/useFormatters'
 
 interface Product {
@@ -71,7 +72,7 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
-  const [formData, setFormData] = useState({ name: '', price: '' })
+  const [formData, setFormData] = useState({ names: { de: '', en: '' }, price: '' })
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
     type: 'delete' | 'status'
@@ -160,7 +161,7 @@ export function ProductsPage() {
     setModalMode('edit')
     setEditingProduct(product)
     setFormData({
-      name: product.names.de || product.names.en || '',
+      names: { de: product.names.de || '', en: product.names.en || '' },
       price: (product.price_cents / 100).toFixed(2),
     })
     setSelectedCategory(product.category_id)
@@ -173,8 +174,8 @@ export function ProductsPage() {
     e.preventDefault()
     setFormError(null)
 
-    if (!formData.name.trim()) {
-      setFormError('Product name is required')
+    if (!hasAnyName(formData.names)) {
+      setFormError(t('validation.atLeastOneLanguage'))
       return
     }
 
@@ -190,8 +191,12 @@ export function ProductsPage() {
 
     try {
       const priceCents = Math.round(parseFloat(formData.price) * 100)
+      // Filter out empty language names - backend requires all values to be non-empty
+      const nonEmptyNames = Object.entries(formData.names)
+        .filter(([, name]) => name.trim())
+        .reduce((acc, [lang, name]) => ({ ...acc, [lang]: name.trim() }), {})
       const productData = {
-        names: { de: formData.name.trim() },
+        names: nonEmptyNames,
         price_cents: priceCents,
         category_id: selectedCategory,
         icon_name: selectedIcon,
@@ -201,7 +206,7 @@ export function ProductsPage() {
       const response = await post('/admin/products', productData)
       console.log('Product created successfully:', response)
 
-      setFormData({ name: '', price: '' })
+      setFormData({ names: { de: '', en: '' }, price: '' })
       setSelectedCategory('')
       setSelectedIcon(null)
       setModalMode('create')
@@ -223,8 +228,8 @@ export function ProductsPage() {
     e.preventDefault()
     setFormError(null)
 
-    if (!formData.name.trim()) {
-      setFormError('Product name is required')
+    if (!hasAnyName(formData.names)) {
+      setFormError(t('validation.atLeastOneLanguage'))
       return
     }
 
@@ -240,15 +245,19 @@ export function ProductsPage() {
 
     try {
       const priceCents = Math.round(parseFloat(formData.price) * 100)
+      // Filter out empty language names - backend requires all values to be non-empty
+      const nonEmptyNames = Object.entries(formData.names)
+        .filter(([, name]) => name.trim())
+        .reduce((acc, [lang, name]) => ({ ...acc, [lang]: name.trim() }), {})
 
       await patch(`/admin/products/${editingProduct!.id}`, {
-        names: { de: formData.name.trim() },
+        names: nonEmptyNames,
         price_cents: priceCents,
         category_id: selectedCategory,
         icon_name: selectedIcon,
       })
 
-      setFormData({ name: '', price: '' })
+      setFormData({ names: { de: '', en: '' }, price: '' })
       setSelectedCategory('')
       setSelectedIcon(null)
       setEditingProduct(null)
@@ -332,7 +341,7 @@ export function ProductsPage() {
 
   function handleCancel() {
     setShowModal(false)
-    setFormData({ name: '', price: '' })
+    setFormData({ names: { de: '', en: '' }, price: '' })
     setSelectedCategory('')
     setSelectedIcon(null)
     setFormError(null)
@@ -499,7 +508,7 @@ export function ProductsPage() {
             onClick={() => {
               setModalMode('create')
               setEditingProduct(null)
-              setFormData({ name: '', price: '' })
+              setFormData({ names: { de: '', en: '' }, price: '' })
               setSelectedCategory('')
               setFormError(null)
               setShowModal(true)
@@ -705,34 +714,13 @@ export function ProductsPage() {
 
               <form onSubmit={handleFormSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
               <div style={{ marginBottom: '16px' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '6px',
-                    color: '#e2e8f0',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                  }}
-                >
-                  {t('products.productName')}
-                </label>
-                <input
-                  data-testid="products-form-name-input"
-                  type="text"
+                <LanguageTabsInput
+                  values={formData.names}
+                  onChange={(names) => setFormData({ ...formData, names })}
+                  label={t('products.productName')}
                   placeholder={t('products.productName')}
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #4b5563',
-                    borderRadius: '6px',
-                    backgroundColor: '#1e293b',
-                    color: '#e2e8f0',
-                    fontSize: '14px',
-                    boxSizing: 'border-box',
-                  }}
                   required
+                  testIdPrefix="products-form-name"
                 />
               </div>
 
@@ -830,7 +818,7 @@ export function ProductsPage() {
                 {t('common.terminalPreview')}
               </div>
               <ProductPreview
-                name={formData.name}
+                name={getLocalizedName(formData.names, i18n.language)}
                 price={formData.price}
                 iconName={selectedIcon}
               />
