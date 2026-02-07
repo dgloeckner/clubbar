@@ -70,6 +70,9 @@ class RuderbarDatabase extends _$RuderbarDatabase {
       final dbPath = p.join(appDir.path, 'ruderbar_terminal.db');
       final file = File(dbPath);
 
+      // Log database location for debugging
+      print('📁 Database location: $dbPath');
+
       return NativeDatabase(
         file,
         setup: (db) {
