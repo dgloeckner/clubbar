@@ -14,6 +14,7 @@ final readonly class CategoryDto
         public ?string $iconName,
         public string $createdAt,
         public string $updatedAt,
+        public ?string $deletedAt = null,
         public ?int $productCount = null,
     ) {}
 
@@ -27,6 +28,7 @@ final readonly class CategoryDto
             iconName: $row['icon_name'] ?? null,
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],
+            deletedAt: $row['deleted_at'] ?? null,
             productCount: isset($row['product_count']) ? (int) $row['product_count'] : null,
         );
     }
@@ -41,6 +43,7 @@ final readonly class CategoryDto
             'icon_name' => $this->iconName,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
+            'deleted_at' => $this->deletedAt,
         ];
         if ($this->productCount !== null) {
             $data['product_count'] = $this->productCount;

@@ -16,6 +16,7 @@ final readonly class ProductDto
         public ?string $iconName,
         public string $createdAt,
         public string $updatedAt,
+        public ?string $deletedAt = null,
     ) {}
 
     public static function fromRow(array $row): self
@@ -30,6 +31,7 @@ final readonly class ProductDto
             iconName: $row['icon_name'] ?? null,
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],
+            deletedAt: $row['deleted_at'] ?? null,
         );
     }
 
@@ -45,6 +47,7 @@ final readonly class ProductDto
             'icon_name' => $this->iconName,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
+            'deleted_at' => $this->deletedAt,
         ];
     }
 }

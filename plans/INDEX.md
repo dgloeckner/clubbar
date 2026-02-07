@@ -310,6 +310,33 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Future Plans
 
+### Skill Development: Playwright-Testing (📋 READY TO IMPLEMENT)
+- **Link**: [skill-playwright-testing-tdd.md](./skill-playwright-testing-tdd.md)
+- **Goal**: Create skill for Playwright E2E test implementation, execution, and analysis using TDD approach
+- **Status**: Plan complete, pressure scenarios created, ready for RED phase execution
+- **Scope**: 5 phases (RED-GREEN-REFACTOR cycle)
+  - Phase 1 (RED): Run 4 baseline scenarios WITHOUT skill, document rationalizations
+  - Phase 2 (GREEN): Write minimal skill addressing baseline failures, test with scenarios
+  - Phase 3 (REFACTOR): Build rationalization table, close loopholes, re-test
+  - Phase 4 (DEPLOYMENT): Deploy to `~/.claude/skills/playwright-testing/`, verify integration
+- **Key Features**: JSON preservation, pattern enforcement, failure threshold (>10), Context7 integration, backend verification
+- **Estimated Timeline**: 6.5-9.5 hours total
+- **Output Location**: `~/.claude/skills/playwright-testing/SKILL.md`
+
+### Skill Development: PHP-Logs (📋 READY TO IMPLEMENT)
+- **Link**: [skill-php-logs-tdd.md](./skill-php-logs-tdd.md)
+- **Goal**: Create skill for Docker PHP log checking and analysis using TDD approach
+- **Status**: Plan complete, pressure scenarios created, ready for RED phase execution
+- **Scope**: 5 phases (RED-GREEN-REFACTOR cycle)
+  - Phase 1 (RED): Run 5 baseline scenarios WITHOUT skill, document shortcuts
+  - Phase 2 (GREEN): Write minimal skill addressing shortcuts, test with scenarios
+  - Phase 3 (REFACTOR): Build shortcuts table, close loopholes, re-test
+  - Phase 4 (DEPLOYMENT): Deploy to `~/.claude/skills/php-logs/`, verify integration with playwright-testing
+- **Key Features**: 5 log sources, Docker commands, grep analysis, timestamp correlation, dual output (console + file)
+- **Estimated Timeline**: 7-10 hours total
+- **Output Location**: `~/.claude/skills/php-logs/SKILL.md`
+- **Integration**: Works with playwright-testing skill (automatic invocation on test failures)
+
 ### Flutter Terminal i18n (📋 READY TO IMPLEMENT)
 - **Link**: [flutter-i18n.md](./flutter-i18n.md)
 - **Goal**: Add multi-language support (German/English) to Flutter terminal frontend

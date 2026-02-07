@@ -173,7 +173,11 @@ class MembersService
             throw NotFoundException::forResource('Member', $memberId);
         }
 
-        $success = $this->membersRepository->deleteById($memberId);
+        // Soft delete: set deleted_at timestamp
+        $this->membersRepository->updateById($memberId, [
+            'deleted_at' => date('Y-m-d H:i:s'),
+            'deleted_by_admin_id' => $adminUserId,
+        ]);
 
         $this->auditService->log(
             action: AuditAction::DELETE,
@@ -183,7 +187,7 @@ class MembersService
             adminUserId: $adminUserId,
         );
 
-        return $success;
+        return true;
     }
 
     public function anonymizeMember(string $memberId, ?string $adminUserId = null): MemberAdminDto

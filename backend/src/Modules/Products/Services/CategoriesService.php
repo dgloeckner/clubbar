@@ -104,6 +104,12 @@ class CategoriesService
         $old = $this->categoriesRepository->findById($categoryId);
         if (!$old) throw NotFoundException::forResource('Category', $categoryId);
 
+        // Soft delete: set deleted_at timestamp
+        $this->categoriesRepository->updateById($categoryId, [
+            'deleted_at' => date('Y-m-d H:i:s'),
+            'deleted_by_admin_id' => $adminUserId,
+        ]);
+
         $this->auditService->log(
             action: AuditAction::DELETE,
             entityType: EntityType::CATEGORY,
@@ -112,7 +118,7 @@ class CategoriesService
             adminUserId: $adminUserId,
         );
 
-        return $this->categoriesRepository->deleteById($categoryId);
+        return true;
     }
 
     public function reorderCategories(array $categoryIds, ?string $adminUserId = null): void

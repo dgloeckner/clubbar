@@ -96,6 +96,12 @@ class ProductsService
         $old = $this->productsRepository->findById($productId);
         if (!$old) throw NotFoundException::forResource('Product', $productId);
 
+        // Soft delete: set deleted_at timestamp
+        $this->productsRepository->updateById($productId, [
+            'deleted_at' => date('Y-m-d H:i:s'),
+            'deleted_by_admin_id' => $adminUserId,
+        ]);
+
         $this->auditService->log(
             action: AuditAction::DELETE,
             entityType: EntityType::PRODUCT,
@@ -104,7 +110,7 @@ class ProductsService
             adminUserId: $adminUserId,
         );
 
-        return $this->productsRepository->deleteById($productId);
+        return true;
     }
 
     public function toggleStatus(string $productId, bool $isActive, ?string $adminUserId = null): ProductDto
