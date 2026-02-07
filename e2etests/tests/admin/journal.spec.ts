@@ -119,6 +119,35 @@ async function syncTransactionsWithDates(
   return result.accepted_ids || []
 }
 
+/**
+ * Helper: Create a correction transaction via admin API
+ * Simplified correction creation for test isolation
+ */
+async function createCorrection(
+  page: any,
+  memberId: string,
+  amountCents: number,
+  reason: string
+): Promise<string> {
+  const response = await page.request.post(
+    `http://localhost:8080/api/admin/members/${memberId}/transactions/correction`,
+    {
+      data: {
+        amount_cents: amountCents,
+        reason,
+      },
+    }
+  )
+
+  if (!response.ok()) {
+    console.error('Correction creation failed:', await response.text())
+    throw new Error('Failed to create correction')
+  }
+
+  const result = await response.json()
+  return result.transaction.id
+}
+
 test.describe('Journal Page - Transaction Display', () => {
   /**
    * Test 1: Display transactions in table after creating them via API
@@ -162,24 +191,8 @@ test.describe('Journal Page - Transaction Display', () => {
 
     // Step 2: Create correction transaction (POST /api/admin/members/{id}/transactions/correction)
     console.log('Creating correction transaction...')
-    const correctionData = {
-      amount_cents: 5000, // €50.00
-      reason: 'E2E test correction transaction',
-    }
-
-    const txResponse = await page.request.post(
-      `http://localhost:8080/api/admin/members/${memberId}/transactions/correction`,
-      {
-        data: correctionData,
-      }
-    )
-
-    if (!txResponse.ok()) {
-      console.error('Failed to create transaction:', await txResponse.text())
-    }
-    expect(txResponse.ok(), 'Transaction creation should succeed').toBeTruthy()
-    const txJson = await txResponse.json()
-    console.log('Created transaction with ID:', txJson.transaction.id)
+    const txId = await createCorrection(page, memberId, 5000, 'E2E test correction transaction')
+    console.log('Created transaction with ID:', txId)
 
     // === ACT ===
     // Navigate to journal page (already authenticated by fixture)
@@ -247,18 +260,8 @@ test.describe('Journal Page - Transaction Display', () => {
 
     for (const amount of amounts) {
       console.log(`Creating transaction with amount ${amount}...`)
-      const txResponse = await page.request.post(
-        `http://localhost:8080/api/admin/members/${memberId}/transactions/correction`,
-        {
-          data: {
-            amount_cents: amount,
-            reason: `Multi-transaction test #${txIds.length + 1}`,
-          },
-        }
-      )
-      expect(txResponse.ok()).toBeTruthy()
-      const txData = await txResponse.json()
-      txIds.push(txData.transaction.id)
+      const txId = await createCorrection(page, memberId, amount, `Multi-transaction test #${txIds.length + 1}`)
+      txIds.push(txId)
     }
 
     console.log(`Created ${txIds.length} transactions`)
@@ -818,12 +821,7 @@ test.describe('Journal Page - Sorting', () => {
     console.log('Creating 3 transactions with different timestamps...')
     const txAmounts = [100, 200, 300]
     for (let i = 0; i < txAmounts.length; i++) {
-      await page.request.post(`http://localhost:8080/api/admin/members/${memberId}/transactions/correction`, {
-        data: {
-          amount_cents: txAmounts[i],
-          reason: `Sort test transaction ${i + 1}`,
-        },
-      })
+      await createCorrection(page, memberId, txAmounts[i], `Sort test transaction ${i + 1}`)
       // Small delay to ensure different created_at timestamps
       await page.waitForTimeout(100)
     }
@@ -942,12 +940,7 @@ test.describe('Journal Page - Sorting', () => {
     console.log('Creating transactions with amounts:', amounts)
 
     for (const amount of amounts) {
-      await page.request.post(`http://localhost:8080/api/admin/members/${memberId}/transactions/correction`, {
-        data: {
-          amount_cents: amount,
-          reason: `Amount sort test - €${amount / 100}`,
-        },
-      })
+      await createCorrection(page, memberId, amount, `Amount sort test - €${amount / 100}`)
     }
 
     // === ACT ===
@@ -1074,13 +1067,7 @@ test.describe('Journal Page - Sorting', () => {
       memberIds.push(memberId)
 
       // Create a transaction for this member
-      const txResponse = await page.request.post(`http://localhost:8080/api/admin/members/${memberId}/transactions/correction`, {
-        data: {
-          amount_cents: 1000,
-          reason: `Member sort test ${testId}`,
-        },
-      })
-      expect(txResponse.ok(), `Transaction for ${name.first} should succeed (${txResponse.status()})`).toBeTruthy()
+      await createCorrection(page, memberId, 1000, `Member sort test ${testId}`)
     }
 
     console.log('Created members:', memberNames.map((n) => n.first).join(', '))
@@ -1173,18 +1160,8 @@ test.describe('Journal Page - Sorting', () => {
 
     // Create 2 correction transactions
     console.log('Creating correction transactions...')
-    await page.request.post(`http://localhost:8080/api/admin/members/${memberId}/transactions/correction`, {
-      data: {
-        amount_cents: 1000,
-        reason: 'Type sort test - correction 1',
-      },
-    })
-    await page.request.post(`http://localhost:8080/api/admin/members/${memberId}/transactions/correction`, {
-      data: {
-        amount_cents: 2000,
-        reason: 'Type sort test - correction 2',
-      },
-    })
+    await createCorrection(page, memberId, 1000, 'Type sort test - correction 1')
+    await createCorrection(page, memberId, 2000, 'Type sort test - correction 2')
 
     // === ACT ===
     console.log('Navigating to journal...')
@@ -1281,19 +1258,8 @@ test.describe('Journal Page - Search and Filtering', () => {
 
     // Create transactions for both members
     console.log('Creating transactions for both members...')
-    await page.request.post(`http://localhost:8080/api/admin/members/${member1Id}/transactions/correction`, {
-      data: {
-        amount_cents: 1000,
-        reason: 'Search test - member 1',
-      },
-    })
-
-    await page.request.post(`http://localhost:8080/api/admin/members/${member2Id}/transactions/correction`, {
-      data: {
-        amount_cents: 2000,
-        reason: 'Search test - member 2',
-      },
-    })
+    await createCorrection(page, member1Id, 1000, 'Search test - member 1')
+    await createCorrection(page, member2Id, 2000, 'Search test - member 2')
 
     // === ACT ===
     console.log('Navigating to journal...')
@@ -1385,19 +1351,8 @@ test.describe('Journal Page - Search and Filtering', () => {
     const uniqueKeyword = `KEYWORD${testId}`
     console.log(`Creating transactions with unique keyword: ${uniqueKeyword}`)
 
-    await page.request.post(`http://localhost:8080/api/admin/members/${memberId}/transactions/correction`, {
-      data: {
-        amount_cents: 1000,
-        reason: `Transaction with ${uniqueKeyword} for testing`,
-      },
-    })
-
-    await page.request.post(`http://localhost:8080/api/admin/members/${memberId}/transactions/correction`, {
-      data: {
-        amount_cents: 2000,
-        reason: 'Transaction without the keyword',
-      },
-    })
+    await createCorrection(page, memberId, 1000, `Transaction with ${uniqueKeyword} for testing`)
+    await createCorrection(page, memberId, 2000, 'Transaction without the keyword')
 
     // === ACT ===
     console.log('Navigating to journal...')
