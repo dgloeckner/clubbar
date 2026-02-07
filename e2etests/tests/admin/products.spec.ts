@@ -426,7 +426,7 @@ test.describe('Products Page - Complete User Workflows', () => {
       const priceValue = await authenticatedProductsPage.getFormPriceValue()
 
       expect(nameValue).toContain(productName)
-      expect(priceValue).toContain('9,99')
+      expect(priceValue).toContain('9.99') // Form input uses US format (raw value)
 
       await authenticatedProductsPage.cancelForm()
     }

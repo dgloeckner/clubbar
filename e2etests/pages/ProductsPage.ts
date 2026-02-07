@@ -587,8 +587,16 @@ export class ProductsPage extends BasePage {
   }
 
   async confirmDelete() {
+    // Set up response promise BEFORE clicking to capture the products list reload
+    const productsReloadPromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/products') && resp.request().method() === 'GET',
+      { timeout: 15000 }
+    )
     await this.confirmOkBtn().click()
     await this.expectConfirmDialogHidden()
+    // Wait for products list to reload after deletion
+    await productsReloadPromise
+    await this.waitForLoadingToComplete()
   }
 
   async cancelDelete() {

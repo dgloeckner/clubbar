@@ -130,6 +130,9 @@ class ProductsRepository
         $where = [];
         $params = [];
 
+        // Always exclude soft-deleted products
+        $where[] = 'p.deleted_at IS NULL';
+
         if (isset($filters['status'])) {
             if ($filters['status'] === 'active') { $where[] = 'p.is_active = 1'; }
             elseif ($filters['status'] === 'inactive') { $where[] = 'p.is_active = 0'; }
@@ -146,7 +149,7 @@ class ProductsRepository
             $params[] = '%' . $filters['search'] . '%';
         }
 
-        $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+        $whereClause = 'WHERE ' . implode(' AND ', $where);
 
         $sortMap = ['name' => "JSON_UNQUOTE(JSON_EXTRACT(p.names, '$.de'))", 'price' => 'p.price_cents', 'category' => "JSON_UNQUOTE(JSON_EXTRACT(c.names, '$.de'))", 'created_at' => 'p.created_at'];
         $sortCol = $sortMap[$sortBy] ?? 'p.created_at';
