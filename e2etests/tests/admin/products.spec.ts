@@ -50,7 +50,7 @@ test.describe('Products Page - Complete User Workflows', () => {
 
     if (rowData) {
       expect(rowData.name).toContain(productName)
-      expect(rowData.price).toContain('5.99')
+      expect(rowData.price).toContain('5,99')
       expect(rowData.category).toBeTruthy() // Category must be set
       expect(rowData.isActive).toBe(true)
     }
@@ -114,7 +114,7 @@ test.describe('Products Page - Complete User Workflows', () => {
 
     if (rowData) {
       expect(rowData.name).toContain(productName)
-      expect(rowData.price).toContain('7.99')
+      expect(rowData.price).toContain('7,99')
       expect(rowData.category).toBeTruthy() // Has a category assigned
     }
   })
@@ -189,7 +189,7 @@ test.describe('Products Page - Complete User Workflows', () => {
 
     if (rowData) {
       expect(rowData.name).toContain(originalName)
-      expect(rowData.price).toContain('5.00')
+      expect(rowData.price).toContain('5,00')
       expect(rowData.category).toBeTruthy() // Category was set during creation
 
       // User edits product
@@ -201,7 +201,7 @@ test.describe('Products Page - Complete User Workflows', () => {
       expect(rowData).not.toBeNull()
       if (rowData) {
         expect(rowData.name).toContain(updatedName)
-        expect(rowData.price).toContain('9.99')
+        expect(rowData.price).toContain('9,99')
         expect(rowData.category).toBeTruthy() // Category still set
       }
     }
@@ -232,7 +232,7 @@ test.describe('Products Page - Complete User Workflows', () => {
     // Verify original values unchanged
     const rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
     expect(rowData.name).toContain(productName)
-    expect(rowData.price).toContain('3.00')
+    expect(rowData.price).toContain('3,00')
     expect(rowData.category).toBeTruthy() // Category unchanged
   })
 
@@ -426,7 +426,7 @@ test.describe('Products Page - Complete User Workflows', () => {
       const priceValue = await authenticatedProductsPage.getFormPriceValue()
 
       expect(nameValue).toContain(productName)
-      expect(priceValue).toContain('9.99')
+      expect(priceValue).toContain('9,99')
 
       await authenticatedProductsPage.cancelForm()
     }

@@ -46,9 +46,8 @@ export class CategoriesPage extends BasePage {
   private readonly formCancelBtn = () => this.page.getByTestId('categories-form-cancel-button')
 
   // Language tabs
-  private readonly languageTabs = () => this.page.locator('[data-testid^="categories-form-lang-tab-"]')
-  private readonly languageTabContent = (lang: string) =>
-    this.page.getByTestId(`categories-form-lang-content-${lang}`)
+  private readonly languageTabs = () => this.page.locator('[data-testid^="categories-form-name-tab-"]')
+  private readonly languageTab = (lang: string) => this.page.getByTestId(`categories-form-name-tab-${lang}`)
 
   // Confirmation dialog
   private readonly confirmDialog = () => this.page.getByTestId('categories-confirm-dialog')
@@ -188,19 +187,17 @@ export class CategoriesPage extends BasePage {
   }
 
   async fillCategoryName(language: string, name: string) {
-    const input = this.languageTabContent(language).getByTestId(`categories-form-name-input-${language}`)
+    const input = this.page.getByTestId(`categories-form-name-input-${language}`)
     await input.fill(name)
   }
 
   async getCategoryNameValue(language: string): Promise<string> {
-    const input = this.languageTabContent(language).getByTestId(
-      `categories-form-name-input-${language}`
-    )
+    const input = this.page.getByTestId(`categories-form-name-input-${language}`)
     return (await input.inputValue()) || ''
   }
 
   async selectLanguageTab(language: string) {
-    await this.page.getByTestId(`categories-form-lang-tab-${language}`).click()
+    await this.languageTab(language).click()
   }
 
   async submitForm() {

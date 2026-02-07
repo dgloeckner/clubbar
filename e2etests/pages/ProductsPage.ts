@@ -567,7 +567,7 @@ export class ProductsPage extends BasePage {
 
   async expectEditMode() {
     const title = await this.formTitle().textContent()
-    expect(title).toContain('Edit Product')
+    expect(title).toContain('Produkt bearbeiten') // German: Edit Product
   }
 
   /**
