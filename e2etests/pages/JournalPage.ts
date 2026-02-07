@@ -197,7 +197,8 @@ export class JournalPage extends BasePage {
 
   async getTotalItemsFromSummary(): Promise<number> {
     const text = await this.getCountSummaryText()
-    const match = text.match(/(\d+)\s+Transactions/)
+    // Accept both English "Transactions" and German "Buchungen"
+    const match = text.match(/(\d+)\s+(Transactions|Buchungen)/)
     return match ? parseInt(match[1], 10) : 0
   }
 

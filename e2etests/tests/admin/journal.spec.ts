@@ -221,7 +221,8 @@ test.describe('Journal Page - Transaction Display', () => {
     expect(row.member, 'Member name should match').toContain(memberData.first_name)
     expect(row.type.toLowerCase(), 'Transaction type should be correction').toBe('correction')
     expect(row.amount, 'Amount should be displayed').toBeTruthy()
-    expect(row.amount, 'Amount should be 50.00').toContain('50.00')
+    // Accept both English (50.00) and German (50,00) decimal formats
+    expect(row.amount.includes('50.00') || row.amount.includes('50,00'), 'Amount should be 50.00 or 50,00').toBeTruthy()
     expect(row.details, 'Details should contain reason').toContain('E2E test correction')
   })
 
@@ -347,7 +348,8 @@ test.describe('Journal Page - Transaction Display', () => {
 
       for (let i = 0; i < Math.min(totalCount, 50); i++) {
         const row = await authenticatedJournalPage.getTransactionRow(i)
-        if (row.member && row.member.includes(memberData.first_name) && row.amount.includes('123.45')) {
+        // Accept both English (123.45) and German (123,45) decimal formats
+        if (row.member && row.member.includes(memberData.first_name) && (row.amount.includes('123.45') || row.amount.includes('123,45'))) {
           // Found our transaction!
           foundCorrectTransaction = true
 
@@ -355,7 +357,8 @@ test.describe('Journal Page - Transaction Display', () => {
           expect(row.date, 'Date column should have data').toBeTruthy()
           expect(row.type, 'Type column should have data').toBeTruthy()
           expect(row.member, 'Member column should have member name').toContain(memberData.first_name)
-          expect(row.amount, 'Amount column should show 123.45').toContain('123.45')
+          // Accept both English (123.45) and German (123,45) decimal formats
+          expect(row.amount.includes('123.45') || row.amount.includes('123,45'), 'Amount column should show 123.45 or 123,45').toBeTruthy()
           expect(row.details, 'Details column should be present').toBeTruthy()
 
           // Verify type is correction
@@ -364,7 +367,7 @@ test.describe('Journal Page - Transaction Display', () => {
         }
       }
 
-      expect(foundCorrectTransaction, 'Should find our specific transaction with amount 123.45').toBeTruthy()
+      expect(foundCorrectTransaction, 'Should find our specific transaction with amount 123.45 or 123,45').toBeTruthy()
     }
   })
 
@@ -483,8 +486,8 @@ test.describe('Journal Page - Transaction Display', () => {
     const summaryText = await authenticatedJournalPage.getCountSummaryText()
     console.log('Count summary:', summaryText)
 
-    // Should show "X Transactions gefunden"
-    expect(summaryText, 'Summary should contain "Transactions"').toContain('Transactions')
+    // Accept both English "Transactions" and German "Buchungen"
+    expect(summaryText.includes('Transactions') || summaryText.includes('Buchungen'), 'Summary should contain "Transactions" or "Buchungen"').toBeTruthy()
 
     const totalCount = await authenticatedJournalPage.getTotalItemsFromSummary()
     expect(totalCount, 'Should have at least 1 transaction').toBeGreaterThanOrEqual(1)
@@ -962,7 +965,8 @@ test.describe('Journal Page - Sorting', () => {
     // === ASSERT ===
     // Verify amount header shows sort indicator
     const headerText = await authenticatedJournalPage.getHeaderText('amount')
-    expect(headerText, 'Amount header should show sort arrow').toMatch(/Amount\s+[↑↓]/)
+    // Accept both English "Amount" and German "Betrag"
+    expect(headerText.match(/Amount\s+[↑↓]/) || headerText.match(/Betrag\s+[↑↓]/), 'Amount/Betrag header should show sort arrow').toBeTruthy()
     console.log('Amount header text:', headerText)
 
     // Verify we have exactly our 5 transactions
@@ -1095,7 +1099,8 @@ test.describe('Journal Page - Sorting', () => {
     // === ASSERT ===
     // Verify member header shows sort indicator
     const headerText = await authenticatedJournalPage.getHeaderText('member')
-    expect(headerText, 'Member header should show sort arrow').toMatch(/Member\s+[↑↓]/)
+    // Accept both English "Member" and German "Mitglied"
+    expect(headerText.match(/Member\s+[↑↓]/) || headerText.match(/Mitglied\s+[↑↓]/), 'Member/Mitglied header should show sort arrow').toBeTruthy()
     console.log('Member header text:', headerText)
 
     // Get all member names (should only be our 3 after search)
@@ -1186,7 +1191,8 @@ test.describe('Journal Page - Sorting', () => {
     // === ASSERT ===
     // Verify type header shows sort indicator
     const headerText = await authenticatedJournalPage.getHeaderText('type')
-    expect(headerText, 'Type header should show sort arrow').toMatch(/Type\s+[↑↓]/)
+    // Accept both English "Type" and German "Typ"
+    expect(headerText.match(/Type\s+[↑↓]/) || headerText.match(/Typ\s+[↑↓]/), 'Type/Typ header should show sort arrow').toBeTruthy()
     console.log('Type header text:', headerText)
 
     // Get all transaction types (should only be our 2 after search)
@@ -1627,7 +1633,8 @@ test.describe('Journal Page - Create Correction via Modal', () => {
 
     expect(row.type.toLowerCase(), 'Type should be correction').toBe('correction')
     expect(row.member, 'Member name should match').toContain(memberData.first_name)
-    expect(row.amount, 'Amount should contain 42.50').toContain('42.50')
+    // Accept both English (42.50) and German (42,50) decimal formats
+    expect(row.amount.includes('42.50') || row.amount.includes('42,50'), 'Amount should contain 42.50 or 42,50').toBeTruthy()
     expect(row.details, 'Details should contain reason').toContain(reason)
 
     console.log('✅ Correction created via modal and verified in journal')
