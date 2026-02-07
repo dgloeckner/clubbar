@@ -298,4 +298,48 @@ class MembersRepositoryTest extends DatabaseTestCase
             $previousTimestamp = $currentTimestamp;
         }
     }
+
+    public function test_sync_cursor_prevents_race_condition_when_no_changes(): void
+    {
+        // Get current cursor
+        $cursor = time() * 1000;
+        
+        // Sync with cursor (no changes should exist after this timestamp)
+        $results = $this->membersRepository->findModifiedSince($cursor);
+        
+        // Should return empty (no items modified after cursor)
+        $this->assertEmpty($results, 'Should return no results when cursor is current time');
+        
+        // Verify query would catch items created AFTER cursor
+        // Create a member after the cursor timestamp
+        sleep(1);
+        $afterCursor = time() * 1000;
+        $testMemberId = $this->generateUuid();
+        $testMember = [
+            'id' => $testMemberId,
+            'card_uid' => '04:AA:BB:CC:DD:EE:99',
+            'first_name' => 'RaceTest',
+            'last_name' => 'Member',
+            'email' => 'race-test@example.com',
+            'preferred_language' => 'de',
+            'is_active' => 1,
+            'iban' => 'DE89370400440532013000',
+            'mandate_reference' => 'MANDATE' . substr($testMemberId, 0, 8),
+            'mandate_signed_at' => '2025-01-01',
+        ];
+        $this->membersRepository->create($testMember);
+        $this->testMemberIds[] = $testMemberId;
+        
+        // Query with original cursor should now find the new member
+        $resultsAfter = $this->membersRepository->findModifiedSince($cursor);
+        $found = false;
+        foreach ($resultsAfter as $result) {
+            if ($result['id'] === $testMemberId) {
+                $found = true;
+                break;
+            }
+        }
+        
+        $this->assertTrue($found, 'Member created after cursor should be found in next sync');
+    }
 }

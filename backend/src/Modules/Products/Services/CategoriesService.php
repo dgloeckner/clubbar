@@ -26,11 +26,14 @@ class CategoriesService
         $rows = $this->categoriesRepository->findModifiedSince($since);
         $categories = array_map(fn($row) => CategoryDto::fromRow($row), $rows);
 
+        // When no changes: return input cursor to avoid race condition
+        // (items created during query execution won't be lost)
         $cursor = !empty($rows)
             ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
-            : (int) (microtime(true) * 1000);
+            : $since;
         return new SyncResultDto(items: $categories, cursor: $cursor, hasMore: false);
     }
+
 
     public function listCategories(): array
     {

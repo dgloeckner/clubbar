@@ -29,11 +29,14 @@ class ProductsService
         $rows = $this->productsRepository->findModifiedSince($since);
         $products = array_map(fn($row) => ProductDto::fromRow($row), $rows);
 
+        // When no changes: return input cursor to avoid race condition
+        // (items created during query execution won't be lost)
         $cursor = !empty($rows)
             ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
-            : (int) (microtime(true) * 1000);
+            : $since;
         return new SyncResultDto(items: $products, cursor: $cursor, hasMore: false);
     }
+
 
     public function listProducts(int $limit, int $offset, array $filters = [], string $sortBy = 'created_at', string $sortOrder = 'desc'): PaginatedResultDto
     {

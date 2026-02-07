@@ -86,11 +86,11 @@ sequenceDiagram
         T->>T: Skip sync, retry later
     else Connected
         T->>B: 2. GET /sync/members?since={last_sync_ts}
-        B->>DB: SELECT * WHERE updated_at > since
-        DB-->>B: Changed members
-        B-->>T: Delta response
-        T->>T: UPSERT into members_cache
-        T->>T: Remove soft-deleted members
+        B->>DB: SELECT * WHERE updated_at > since OR (deleted_at > since AND deleted_at IS NOT NULL)
+        DB-->>B: Changed members + tombstones
+        B-->>T: Delta response with cursor
+        T->>T: Filter: deleted_at != null → remove from cache
+        T->>T: Filter: deleted_at == null → UPSERT into members_cache
 
         T->>B: 3. GET /sync/products?since={last_sync_ts}
         B->>DB: SELECT * WHERE updated_at > since
@@ -114,6 +114,148 @@ sequenceDiagram
 ```
 
 **See [ADR-0023: Terminal Balance State Management](./0023-terminal-balance-state-management.md) for details on step 5 balance update.**
+
+### Delta Sync Protocol Implementation
+
+#### Timestamp Protocol
+
+**Client-Server Protocol:**
+- Clients send `since` parameter in **milliseconds** (Unix timestamp * 1000)
+- Backend repositories convert to seconds only when needed for SQL `DATE()` function
+- Responses include `cursor` field (milliseconds) representing "all changes before this timestamp have been processed"
+
+**Cursor Semantics:**
+```
+cursor = timestamp of last item in result set (if results exist)
+         OR input `since` value (if no results)
+```
+
+**Rationale for returning input cursor when no results:**
+
+Race condition scenario if cursor advances to "current time":
+```
+1. Client queries at T1 (e.g., 10:00:00.000)
+2. Backend executes query (takes 50ms)
+3. New item created at T1+25ms (10:00:00.025) - after query started
+4. Backend returns cursor = T2 (10:00:00.050) - current time
+5. Client next sync uses since = T2
+6. Item created at T1+25ms is LOST (between T1 and T2, not captured)
+```
+
+Solution: Return input cursor when no results:
+```
+1. Client queries at T1 (10:00:00.000)
+2. Backend finds no results (no items modified after T1)
+3. Backend returns cursor = T1 (input value)
+4. New item created at T1+25ms (10:00:00.025)
+5. Client next sync uses since = T1
+6. Item is captured (created after T1)
+```
+
+**Performance impact**: Negligible. Index seeks on `(updated_at, deleted_at)` are O(log n), cheap even when re-checking the same time window.
+
+#### Query Operator Choice
+
+**Use `>` (strictly greater than), not `>=` (greater or equal):**
+
+```sql
+-- CORRECT: Only items strictly after cursor
+WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
+
+-- WRONG: Re-syncs items at exact cursor timestamp infinitely
+WHERE updated_at >= ? OR (deleted_at >= ? AND deleted_at IS NOT NULL)
+```
+
+**Rationale:**
+- Cursor represents "all changes up to and including this timestamp have been processed"
+- Using `>=` would re-sync the last item from previous batch in every subsequent sync
+- With `>`, items at exact cursor timestamp are excluded (already processed)
+
+#### Deletion Protocol (Tombstones)
+
+**Backend Schema:**
+```sql
+ALTER TABLE members ADD COLUMN deleted_at DATETIME DEFAULT NULL;
+ALTER TABLE members ADD COLUMN deleted_by_admin_id VARCHAR(36) DEFAULT NULL;
+ALTER TABLE categories ADD COLUMN deleted_at DATETIME DEFAULT NULL;
+ALTER TABLE categories ADD COLUMN deleted_by_admin_id VARCHAR(36) DEFAULT NULL;
+ALTER TABLE products ADD COLUMN deleted_at DATETIME DEFAULT NULL;
+ALTER TABLE products ADD COLUMN deleted_by_admin_id VARCHAR(36) DEFAULT NULL;
+
+CREATE INDEX idx_members_sync_combined ON members(updated_at, deleted_at);
+CREATE INDEX idx_categories_sync_combined ON categories(updated_at, deleted_at);
+CREATE INDEX idx_products_sync_combined ON products(updated_at, deleted_at);
+```
+
+**Sync Query Pattern:**
+```php
+public function findModifiedSince(int $sinceTimestamp): array
+{
+    $sinceSeconds = (int) ($sinceTimestamp / 1000);
+    $sinceDate = date('Y-m-d H:i:s', $sinceSeconds);
+
+    // Use > (not >=) to avoid re-syncing items at exact cursor
+    $stmt = $this->db->prepare(
+        'SELECT * FROM members
+         WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
+         ORDER BY COALESCE(updated_at, deleted_at) ASC'
+    );
+    $stmt->execute([$sinceDate, $sinceDate]);
+    return $stmt->fetchAll();
+}
+```
+
+**Service Layer Cursor Logic:**
+```php
+public function syncSince(int $since): SyncResultDto
+{
+    $rows = $this->membersRepository->findModifiedSince($since);
+    $members = array_map(fn($row) => MemberDto::fromRow($row), $rows);
+
+    // When no changes: return input cursor to avoid race condition
+    // (items created during query execution won't be lost)
+    $cursor = !empty($rows)
+        ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
+        : $since;  // NOT microtime(true) * 1000
+
+    return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
+}
+```
+
+**Terminal DTOs:**
+```dart
+// member_dto.dart, category_dto.dart, product_dto.dart
+final String? deletedAt;
+bool get isDeleted => deletedAt != null;
+
+// fromJson
+deletedAt: json['deleted_at'] as String?,
+
+// toJson
+'deleted_at': deletedAt,
+```
+
+**Terminal Sync Service:**
+```dart
+// Filter tombstones (deleted items) and remove from local cache
+final deletedMembers = response.members.where((m) => m.deletedAt != null).toList();
+final activeMembers = response.members.where((m) => m.deletedAt == null).toList();
+
+// Remove deleted members from local cache
+for (final deleted in deletedMembers) {
+    await _membersRepo.deleteById(deleted.id);
+}
+
+// Upsert active members
+await _membersRepo.upsertMembers(activeMembers);
+```
+
+**Why soft delete (tombstones) instead of hard delete:**
+- Terminals must learn about deletions during sync
+- Hard deletes (SQL DELETE) provide no mechanism for sync notification
+- Tombstones appear in delta sync results (deleted_at > since)
+- Terminal receives deleted items and removes them from local cache
+- Audit trail preserved (who deleted, when)
 
 ### Conflict Avoidance Strategy
 

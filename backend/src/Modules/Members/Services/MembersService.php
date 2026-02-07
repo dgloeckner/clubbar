@@ -29,9 +29,11 @@ class MembersService
         $rows = $this->membersRepository->findModifiedSince($since);
         $members = array_map(fn($row) => MemberDto::fromRow($row), $rows);
 
+        // When no changes: return input cursor to avoid race condition
+        // (items created during query execution won't be lost)
         $cursor = !empty($rows)
             ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
-            : (int) (microtime(true) * 1000);
+            : $since;
 
         return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
     }
