@@ -31,11 +31,16 @@ class MembersRepository
     {
         // Convert milliseconds to seconds for date() function
         $sinceSeconds = (int) ($sinceTimestamp / 1000);
+        $sinceDate = date('Y-m-d H:i:s', $sinceSeconds);
 
+        // Include both updated and deleted items (tombstones)
+        // This enables the terminal to remove deleted items from local cache
         $stmt = $this->db->prepare(
-            'SELECT * FROM members WHERE updated_at >= ? ORDER BY updated_at ASC'
+            'SELECT * FROM members
+             WHERE updated_at >= ? OR (deleted_at >= ? AND deleted_at IS NOT NULL)
+             ORDER BY COALESCE(updated_at, deleted_at) ASC'
         );
-        $stmt->execute([date('Y-m-d H:i:s', $sinceSeconds)]);
+        $stmt->execute([$sinceDate, $sinceDate]);
         return $stmt->fetchAll();
     }
 
