@@ -855,8 +855,8 @@ test.describe('Admin Frontend - Members Page', () => {
       // Step 6: Verify error contains relevant message about duplicate
       const errorText = await inlineError.textContent()
       expect(errorText).toBeTruthy()
-      // Laravel's default message is "The card uid has already been taken."
-      expect(errorText?.toLowerCase()).toContain('already')
+      // Check for translated error message (EN: "already" / DE: "bereits")
+      expect(errorText?.toLowerCase()).toMatch(/(already|bereits)/)
 
       // Step 7: Verify card_uid field has error styling (red border)
       const cardUidInput = page.locator('[data-testid="member-form-card-uid"]')

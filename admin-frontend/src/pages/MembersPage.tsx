@@ -172,13 +172,22 @@ export function MembersPage() {
         const data = axiosError.response.data as any
         // Backend returns { error: 'validation_failed', messages: { field: [errors] } }
         if (data.messages && typeof data.messages === 'object') {
-          // Map field errors
+          // Map field errors and translate them
           const mappedErrors: Record<string, string> = {}
           for (const [field, messages] of Object.entries(data.messages)) {
+            let errorMessage = ''
             if (Array.isArray(messages)) {
-              mappedErrors[field] = messages[0]
+              errorMessage = messages[0]
             } else if (typeof messages === 'string') {
-              mappedErrors[field] = messages
+              errorMessage = messages
+            }
+            
+            // Translate backend error messages to i18n
+            if (field === 'card_uid' && errorMessage.includes('already been taken')) {
+              mappedErrors[field] = t('members.errors.cardUidInUse')
+            } else {
+              // Use backend message as-is for other errors
+              mappedErrors[field] = errorMessage
             }
           }
           setFormErrors(mappedErrors)
