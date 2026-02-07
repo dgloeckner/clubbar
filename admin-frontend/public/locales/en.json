@@ -117,7 +117,29 @@
     "sepaMissing": "SEPA Mandate Missing",
     "sepaMissingHint": "Member needs IBAN and mandate reference to create transactions.",
     "valid": "Valid",
-    "missing": "Missing"
+    "missing": "Missing",
+    "form": {
+      "cardUid": "Card UID",
+      "cardUidPlaceholder": "e.g., 0003195661"
+    },
+    "table": {
+      "cardUid": "Card UID"
+    },
+    "filters": {
+      "status": {
+        "all": "All",
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "card": {
+        "all": "All",
+        "withCard": "With Card",
+        "withoutCard": "Without Card"
+      }
+    },
+    "validation": {
+      "invalidCardUid": "Invalid card UID format (8-20 hex characters required)"
+    }
   },
   "products": {
     "title": "Products",

@@ -117,7 +117,29 @@
     "sepaMissing": "SEPA-Mandat fehlt",
     "sepaMissingHint": "Mitglied benötigt IBAN und Mandatsreferenz für Buchungen.",
     "valid": "Gültig",
-    "missing": "Fehlt"
+    "missing": "Fehlt",
+    "form": {
+      "cardUid": "Karten-UID",
+      "cardUidPlaceholder": "z.B. 0003195661"
+    },
+    "table": {
+      "cardUid": "Karten-UID"
+    },
+    "filters": {
+      "status": {
+        "all": "Alle",
+        "active": "Aktiv",
+        "inactive": "Inaktiv"
+      },
+      "card": {
+        "all": "Alle",
+        "withCard": "Mit Karte",
+        "withoutCard": "Ohne Karte"
+      }
+    },
+    "validation": {
+      "invalidCardUid": "Ungültiges Karten-UID-Format (8-20 Hex-Zeichen erforderlich)"
+    }
   },
   "products": {
     "title": "Produkte",
