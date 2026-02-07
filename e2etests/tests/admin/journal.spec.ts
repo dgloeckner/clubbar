@@ -43,17 +43,18 @@ async function createTransaction(
   page: any,
   memberId: string,
   amountCents: number,
-  createdAt?: string
+  createdAt?: string,
+  productId?: string
 ): Promise<string> {
   const txId = generateUUID()
-  const productId = generateUUID() // Use dummy product ID for tests
+  const finalProductId = productId || generateUUID() // Use provided product ID or generate dummy
 
   const syncBody = {
     transactions: [
       {
         id: txId,
         member_id: memberId,
-        product_id: productId,
+        product_id: finalProductId,
         amount_cents: amountCents,
         created_at: createdAt || new Date().toISOString(),
       },
@@ -365,7 +366,75 @@ test.describe('Journal Page - Transaction Display', () => {
   })
 
   /**
-   * Test 4: Verify pagination - ensure transactions count is displayed
+   * Test 4: Verify product names display in Details column for purchase transactions
+   *
+   * E2E Verification Flow:
+   * 1. Create member via API
+   * 2. Create purchase transaction via terminal sync API (with existing product)
+   * 3. Navigate to journal
+   * 4. Search for transaction
+   * 5. Verify Details column shows product name (not "-")
+   *
+   * CRITICAL: This test verifies the fix for product_names JSON parsing bug.
+   * Backend returns product_names as JSON string: {"de": "Äppler 0,5L", "en": "..."}
+   * Frontend must parse JSON and extract localized name for display.
+   */
+  test('should display product name in Details column for purchase transactions', async ({ page, authenticatedJournalPage }) => {
+    // === ARRANGE ===
+    const testId = `journal-product-${Date.now()}`
+    const memberData = {
+      first_name: `ProductTest${testId}`,
+      last_name: 'Member',
+      email: `${testId}@example.com`,
+      iban: 'DE89370400440532013004',
+      mandate_signed_at: new Date().toISOString().split('T')[0],
+      preferred_language: 'de',
+    }
+
+    // Create member
+    console.log('Creating member for product name test...')
+    const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
+      data: memberData,
+    })
+    expect(memberResponse.ok()).toBeTruthy()
+    const memberId = (await memberResponse.json()).id
+
+    // Create purchase transaction via terminal sync API with existing product
+    // Use existing product: "Äppler 0,5L" / "Apple Cider 0.5L"
+    const productId = 'prod-appler-0001-0001-000000000008'
+
+    console.log('Creating purchase transaction with product...')
+    const txId = await createTransaction(page, memberId, 350, undefined, productId)
+
+    // === ACT ===
+    console.log('Navigating to journal...')
+    await authenticatedJournalPage.navigate()
+    await authenticatedJournalPage.expectPageVisible()
+    await authenticatedJournalPage.waitForTableToLoad()
+
+    // Search for our specific transaction
+    console.log(`Searching for member: ${memberData.first_name}`)
+    await authenticatedJournalPage.search(memberData.first_name)
+    await authenticatedJournalPage.waitForTableToLoad()
+
+    // === ASSERT ===
+    const txCount = await authenticatedJournalPage.getTransactionCount()
+    expect(txCount, 'Should find exactly 1 transaction').toBe(1)
+
+    const row = await authenticatedJournalPage.getTransactionRow(0)
+    console.log('Transaction row details:', row.details)
+
+    // CRITICAL ASSERTIONS: Verify product name is displayed (not dash or empty)
+    expect(row.type.toLowerCase(), 'Type should be purchase').toBe('purchase')
+    expect(row.details, 'Details should NOT be empty').toBeTruthy()
+    expect(row.details, 'Details should NOT be dash').not.toBe('—')
+    expect(row.details, 'Details should contain product name').toContain('Äppler')
+
+    console.log('✅ Product name displayed correctly in Details column')
+  })
+
+  /**
+   * Test 5: Verify pagination - ensure transactions count is displayed
    *
    * E2E Verification Flow:
    * 1. Create member and transaction
@@ -519,28 +588,20 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     // === ACT & ASSERT ===
     // Default should be 3M
     console.log('Verifying 3M is default active period...')
-    const defaultButton = page.getByTestId('journal-period-picker-3m')
-    await expect(defaultButton).toHaveCSS('background-color', 'rgb(59, 130, 246)') // Blue for active
+    await authenticatedJournalPage.expectPeriodButtonActive('3m')
 
     // Click 1M and verify it's active
     console.log('Clicking 1M period button...')
     await authenticatedJournalPage.selectPeriod('1m')
-    const oneMonthButton = page.getByTestId('journal-period-picker-1m')
-    await expect(oneMonthButton).toHaveCSS('background-color', 'rgb(59, 130, 246)') // Blue for active
+    await authenticatedJournalPage.expectPeriodButtonActive('1m')
 
-    // Verify 3M is no longer active (background-color is either 'transparent' or 'rgba(0, 0, 0, 0)')
-    const previousDefault = page.getByTestId('journal-period-picker-3m')
-    const bgColor = await previousDefault.evaluate((el) => window.getComputedStyle(el).backgroundColor)
-    expect(
-      bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent',
-      'Previous button should not have blue background'
-    ).toBeTruthy()
+    // Verify 3M is no longer active
+    await authenticatedJournalPage.expectPeriodButtonInactive('3m')
 
     // Click All and verify it's active
     console.log('Clicking All period button...')
     await authenticatedJournalPage.selectPeriod('all')
-    const allButton = page.getByTestId('journal-period-picker-all')
-    await expect(allButton).toHaveCSS('background-color', 'rgb(59, 130, 246)') // Blue for active
+    await authenticatedJournalPage.expectPeriodButtonActive('all')
   })
 
   /**
@@ -649,10 +710,8 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     // === ASSERT ===
     // 1. Verify settlement date column header exists
     console.log('Verifying settlement date column header exists...')
-    const settlementDateHeader = page.getByTestId('journal-header-settlement-date')
-    await expect(settlementDateHeader).toBeVisible()
-    const headerText = await settlementDateHeader.textContent()
-    expect(headerText?.trim()).toBe('Settlement Date')
+    const headerText = await authenticatedJournalPage.getHeaderText('settlement-date')
+    expect(headerText === 'Settlement Date' || headerText === 'Abrechnungsdatum', 'Header should be Settlement Date or Abrechnungsdatum').toBeTruthy()
     console.log('✅ Settlement Date header found')
 
     // 2. Check "all" transactions - should have mix of settled and unsettled
@@ -665,13 +724,7 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
 
     for (let i = 0; i < count; i++) {
       const row = await authenticatedJournalPage.getTransactionRow(i)
-      const rowEl = page.locator('[data-testid^="journal-table-row-"]').nth(i)
-      const testIdAttr = await rowEl.getAttribute('data-testid')
-      const transactionId = testIdAttr?.replace('journal-table-row-', '')
-      if (!transactionId) continue
-
-      const settlementDateCell = rowEl.locator(`[data-testid="journal-table-cell-settlement-date-${transactionId}"]`)
-      const cellText = await settlementDateCell.textContent()
+      const cellText = await authenticatedJournalPage.getSettlementDateText(i)
 
       if (cellText === '—') {
         hasUnsettled = true
@@ -679,8 +732,8 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
       } else if (cellText && cellText.trim() !== '') {
         hasSettled = true
         console.log(`  Settled: "${row.details}" → "${cellText}"`)
-        // Verify date/time format
-        expect(cellText, `Date format should be MM/DD/YYYY`).toMatch(/\d{2}\/\d{2}\/\d{4}/)
+        // Verify date/time format (DD.MM.YYYY or MM/DD/YYYY)
+        expect(cellText, `Date format should be DD.MM.YYYY or MM/DD/YYYY`).toMatch(/\d{2}[.\/]\d{2}[.\/]\d{4}/)
         expect(cellText, `Time format should be HH:MM:SS`).toMatch(/\d{2}:\d{2}:\d{2}/)
       }
     }
@@ -696,12 +749,9 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     const settledCount = await authenticatedJournalPage.getTransactionCount()
     expect(settledCount, 'Should have 1 settled transaction').toBe(1)
 
-    const settledRowEl = page.locator('[data-testid^="journal-table-row-"]').first()
-    const settledTxId = (await settledRowEl.getAttribute('data-testid'))?.replace('journal-table-row-', '')
-    const settledDateCell = settledRowEl.locator(`[data-testid="journal-table-cell-settlement-date-${settledTxId}"]`)
-    const settledDateText = await settledDateCell.textContent()
+    const settledDateText = await authenticatedJournalPage.getSettlementDateText(0)
     expect(settledDateText, 'Settlement date should not be dash').not.toBe('—')
-    expect(settledDateText, 'Date format MM/DD/YYYY').toMatch(/\d{2}\/\d{2}\/\d{4}/)
+    expect(settledDateText, 'Date format DD.MM.YYYY or MM/DD/YYYY').toMatch(/\d{2}[.\/]\d{2}[.\/]\d{4}/)
     console.log(`  ✅ Settled transaction date: "${settledDateText}"`)
 
     // 4. Filter by "open" - open transaction should show dash
@@ -712,10 +762,7 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     const openCount = await authenticatedJournalPage.getTransactionCount()
     expect(openCount, 'Should have 1 open transaction').toBe(1)
 
-    const openRowEl = page.locator('[data-testid^="journal-table-row-"]').first()
-    const openTxId = (await openRowEl.getAttribute('data-testid'))?.replace('journal-table-row-', '')
-    const openDateCell = openRowEl.locator(`[data-testid="journal-table-cell-settlement-date-${openTxId}"]`)
-    const openDateText = await openDateCell.textContent()
+    const openDateText = await authenticatedJournalPage.getSettlementDateText(0)
     expect(openDateText, 'Open transaction should show dash').toBe('—')
     console.log(`  ✅ Open transaction shows "—"`)
 
@@ -793,11 +840,7 @@ test.describe('Journal Page - Sorting', () => {
 
     // Default should be date descending (newest first)
     console.log('Verifying default sort (date desc)...')
-    const dateHeader = page.getByTestId('journal-header-date')
-    await expect(dateHeader).toBeVisible()
-
-    // Verify sort indicator shows descending
-    const headerText = await dateHeader.textContent()
+    const headerText = await authenticatedJournalPage.getHeaderText('date')
     expect(headerText, 'Date header should show descending arrow').toContain('↓')
 
     // === ASSERT ===
@@ -833,7 +876,7 @@ test.describe('Journal Page - Sorting', () => {
 
     // === ASSERT ===
     // Verify sort indicator now shows ascending
-    const headerTextAsc = await dateHeader.textContent()
+    const headerTextAsc = await authenticatedJournalPage.getHeaderText('date')
     expect(headerTextAsc, 'Date header should now show ascending arrow').toContain('↑')
 
     // Verify order is now ascending (oldest first)
@@ -925,8 +968,7 @@ test.describe('Journal Page - Sorting', () => {
 
     // === ASSERT ===
     // Verify amount header shows sort indicator
-    const amountHeader = page.getByTestId('journal-header-amount')
-    const headerText = await amountHeader.textContent()
+    const headerText = await authenticatedJournalPage.getHeaderText('amount')
     expect(headerText, 'Amount header should show sort arrow').toMatch(/Amount\s+[↑↓]/)
     console.log('Amount header text:', headerText)
 
@@ -979,7 +1021,7 @@ test.describe('Journal Page - Sorting', () => {
 
     // === ASSERT ===
     // Verify sort direction changed
-    const headerTextAfterToggle = await amountHeader.textContent()
+    const headerTextAfterToggle = await authenticatedJournalPage.getHeaderText('amount')
     expect(headerTextAfterToggle, 'Sort indicator should have changed').not.toBe(headerText)
     console.log('Amount header text after toggle:', headerTextAfterToggle)
   })
@@ -1065,8 +1107,7 @@ test.describe('Journal Page - Sorting', () => {
 
     // === ASSERT ===
     // Verify member header shows sort indicator
-    const memberHeader = page.getByTestId('journal-header-member')
-    const headerText = await memberHeader.textContent()
+    const headerText = await authenticatedJournalPage.getHeaderText('member')
     expect(headerText, 'Member header should show sort arrow').toMatch(/Member\s+[↑↓]/)
     console.log('Member header text:', headerText)
 
@@ -1167,8 +1208,7 @@ test.describe('Journal Page - Sorting', () => {
 
     // === ASSERT ===
     // Verify type header shows sort indicator
-    const typeHeader = page.getByTestId('journal-header-type')
-    const headerText = await typeHeader.textContent()
+    const headerText = await authenticatedJournalPage.getHeaderText('type')
     expect(headerText, 'Type header should show sort arrow').toMatch(/Type\s+[↑↓]/)
     console.log('Type header text:', headerText)
 

@@ -4,6 +4,8 @@
  */
 
 import { get, post } from './api'
+import { getCurrentLanguage } from '../i18n/config'
+import { getLocalizedName } from '../utils/i18n-helpers'
 
 export interface Transaction {
   id: string
@@ -162,10 +164,28 @@ export async function getTransactions(
   // Backend returns data directly or wrapped in data property
   // Check if response has items (direct return) or data property (wrapped)
   const mapItems = (result: TransactionsListResponse): TransactionsListResponse => {
-    result.items = result.items.map(item => ({
-      ...item,
-      is_settled: !!item.settlement_date,
-    }))
+    const currentLanguage = getCurrentLanguage()
+
+    result.items = result.items.map(item => {
+      // Parse product_names JSON string and extract localized name
+      let productName: string | null = null
+      const rawItem = item as any
+
+      if (rawItem.product_names && typeof rawItem.product_names === 'string') {
+        try {
+          const productNamesJson = JSON.parse(rawItem.product_names)
+          productName = getLocalizedName(productNamesJson, currentLanguage)
+        } catch (err) {
+          console.warn('Failed to parse product_names JSON:', rawItem.product_names, err)
+        }
+      }
+
+      return {
+        ...item,
+        product_name: productName,
+        is_settled: !!item.settlement_date,
+      }
+    })
     return result
   }
 

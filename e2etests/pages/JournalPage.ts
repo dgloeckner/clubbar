@@ -118,6 +118,24 @@ export class JournalPage extends BasePage {
   }
 
   /**
+   * Period button state assertions (Pattern 006: POM abstraction)
+   */
+
+  async expectPeriodButtonActive(period: '1m' | '3m' | '6m' | '1y' | '2y' | 'all') {
+    const button = this.periodPickerButton(period)
+    await expect(button).toHaveCSS('background-color', 'rgb(59, 130, 246)') // Blue for active
+  }
+
+  async expectPeriodButtonInactive(period: '1m' | '3m' | '6m' | '1y' | '2y' | 'all') {
+    const button = this.periodPickerButton(period)
+    const bgColor = await button.evaluate((el) => window.getComputedStyle(el).backgroundColor)
+    expect(
+      bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent',
+      `Period button ${period} should not have blue background`
+    ).toBeTruthy()
+  }
+
+  /**
    * DATA RETRIEVAL (no visibility checks, just read data)
    */
 
@@ -201,6 +219,48 @@ export class JournalPage extends BasePage {
     } catch (error) {
       return null
     }
+  }
+
+  /**
+   * Header text getters (Pattern 006: POM abstraction for header access)
+   */
+
+  async getHeaderText(header: 'date' | 'type' | 'member' | 'amount' | 'settlement-date'): Promise<string> {
+    const headerMap = {
+      date: this.headerDate(),
+      type: this.headerType(),
+      member: this.headerMember(),
+      amount: this.headerAmount(),
+      'settlement-date': this.page.getByTestId('journal-header-settlement-date'),
+    }
+    const text = await headerMap[header].textContent()
+    return text?.trim() || ''
+  }
+
+  /**
+   * Settlement date cell access (Pattern 006: POM abstraction for cell data)
+   */
+
+  async getSettlementDateText(rowIndex: number): Promise<string> {
+    const row = this.tableRows().nth(rowIndex)
+    const testIdAttr = await row.getAttribute('data-testid')
+    const transactionId = testIdAttr?.replace('journal-table-row-', '')
+
+    if (!transactionId) {
+      return ''
+    }
+
+    const settlementDateCell = row.locator(`[data-testid="journal-table-cell-settlement-date-${transactionId}"]`)
+    const text = await settlementDateCell.textContent()
+    return text?.trim() || ''
+  }
+
+  /**
+   * Row element access (Pattern 006: For edge cases needing cell-specific access)
+   */
+
+  getRowElement(rowIndex: number) {
+    return this.tableRows().nth(rowIndex)
   }
 
   /**
