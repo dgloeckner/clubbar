@@ -108,6 +108,7 @@ export async function createMember(data: {
   preferred_language: string
   email?: string
   account_holder_name?: string
+  card_uid?: string
 }): Promise<Member> {
   const apiResponse = await post<Member>('/admin/members', data)
 

@@ -60,6 +60,7 @@ export function MembersPage() {
     mandate_reference: '',
     mandate_signed_at: '',
     preferred_language: 'de',
+    card_uid: '',
   })
 
   // Load members
@@ -118,16 +119,22 @@ export function MembersPage() {
 
     try {
       setIsLoading(true)
+      // Build payload, omit card_uid if empty
+      const payload: any = { ...formData }
+      if (!formData.card_uid) {
+        delete payload.card_uid
+      }
+
       if (editingMember) {
-        await updateMember(editingMember.id, formData)
+        await updateMember(editingMember.id, payload)
       } else {
-        await createMember(formData)
+        await createMember(payload)
       }
 
       // Reset form
       setShowModal(false)
       setEditingMember(null)
-      setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de' })
+      setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
 
       // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
       const filter: { is_active?: boolean } = {}
@@ -215,6 +222,7 @@ export function MembersPage() {
       mandate_reference: member.mandate_reference || '',
       mandate_signed_at: member.mandate_signed_at || '',
       preferred_language: member.preferred_language || 'de',
+      card_uid: member.card_uid || '',
     })
     setShowModal(true)
   }
@@ -333,7 +341,7 @@ export function MembersPage() {
             data-testid="members-create-button"
             onClick={() => {
               setEditingMember(null)
-              setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de' })
+              setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
               setShowModal(true)
             }}
             style={{
@@ -657,6 +665,41 @@ export function MembersPage() {
                     boxSizing: 'border-box',
                   }}
                 />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                  {t('members.form.cardUid')}
+                  <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>
+                    ({t('common.optional')})
+                  </span>
+                </label>
+                <input
+                  data-testid="member-form-card-uid"
+                  type="text"
+                  value={formData.card_uid}
+                  onChange={(e) => {
+                    const value = e.target.value.toUpperCase().replace(/[^0-9A-F]/g, '')
+                    setFormData({ ...formData, card_uid: value })
+                  }}
+                  placeholder={t('members.form.cardUidPlaceholder')}
+                  maxLength={20}
+                  style={{
+                    width: '100%',
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.bg.input,
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    boxSizing: 'border-box',
+                    fontFamily: 'monospace',
+                  }}
+                />
+                {formData.card_uid && !/^[0-9A-F]{8,20}$/.test(formData.card_uid) && (
+                  <p style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                    {t('members.validation.invalidCardUid')}
+                  </p>
+                )}
               </div>
 
               <div>

@@ -656,4 +656,187 @@ test.describe('Admin Frontend - Members Page', () => {
       }
     })
   })
+
+  /**
+   * Card UID Field Tests
+   */
+  test.describe('Card UID Field', () => {
+    test('should create member with card_uid and persist to database', async ({ page, authenticatedMembersPage }) => {
+      // CRITICAL: TRUE E2E test verifying card_uid create integration
+      // ========================================================================
+      // Expected Flow:
+      // 1. Open create modal
+      // 2. Fill form including card_uid field
+      // 3. Submit form (POST /api/admin/members with card_uid)
+      // 4. Backend validates and saves card_uid to database
+      // 5. API returns 201 Created
+      // 6. Form closes (indicates success)
+      // 7. Search for created member
+      // 8. Re-open edit modal and verify card_uid persisted
+      // ========================================================================
+
+      const testId = `CardUID${Date.now()}`
+      const cardUid = '0003195661'
+
+      // Step 1: Open create modal
+      await authenticatedMembersPage.openCreateModal()
+      await authenticatedMembersPage.expectFormModalVisible()
+
+      // Step 2: Fill form including card_uid
+      await page.fill('[data-testid="members-form-first-name-input"]', testId)
+      await page.fill('[data-testid="members-form-last-name-input"]', 'Test')
+      await page.fill('[data-testid="members-form-email-input"]', `${testId}@test.com`)
+      await page.fill('[data-testid="members-form-iban-input"]', 'DE89370400440532013000')
+      await page.fill('[data-testid="members-form-mandate-reference-input"]', `MAN${testId}`)
+      await page.fill('[data-testid="members-form-mandate-date-input"]', '2024-01-15')
+      await page.fill('[data-testid="member-form-card-uid"]', cardUid)
+
+      // Step 3: Submit form (E2E: POST to backend)
+      await page.click('[data-testid="members-form-submit-button"]')
+
+      // Wait a moment to see if error appears
+      await page.waitForTimeout(1000)
+
+      // Check if there's an error message
+      const errorMsg = await page.locator('[data-testid="members-error-message"]').textContent().catch(() => null)
+      if (errorMsg) {
+        console.log('Error message visible:', errorMsg)
+      }
+
+      // Step 4: Verify form closes (indicates API success)
+      await page.waitForSelector('[data-testid="members-form-modal"]', { state: 'hidden' })
+
+      // Step 5: Wait for list to reload
+      await page.waitForTimeout(1500)
+
+      // Step 6: Search for created member (handles pagination)
+      await authenticatedMembersPage.search(testId)
+      await authenticatedMembersPage.waitForLoadingToComplete()
+
+      // Step 7: Verify member appears in table
+      const createdMemberRow = await authenticatedMembersPage.getMemberFirstNameInTable(testId)
+      expect(createdMemberRow).toBeTruthy()
+      expect(createdMemberRow).toContain(testId)
+
+      // Step 8: Re-open edit modal to verify card_uid persisted (CRITICAL E2E check)
+      await authenticatedMembersPage.clickEditButtonForMember(testId)
+      await authenticatedMembersPage.expectFormModalVisible()
+
+      // Step 9: Verify card_uid shows persisted value from database
+      const persistedCardUid = await page.inputValue('[data-testid="member-form-card-uid"]')
+      expect(persistedCardUid).toBe(cardUid.toUpperCase())
+
+      // Step 10: Close modal
+      await authenticatedMembersPage.cancelForm()
+      await authenticatedMembersPage.expectFormModalHidden()
+    })
+
+    test('should validate card_uid format - too short', async ({ page, authenticatedMembersPage }) => {
+      // Test: Card UID must be 8-20 hex characters
+      await authenticatedMembersPage.openCreateModal()
+
+      // Try invalid format (too short - less than 8 characters)
+      await page.fill('[data-testid="member-form-card-uid"]', '123')
+
+      // Blur to trigger validation
+      await page.locator('[data-testid="member-form-card-uid"]').blur()
+
+      // Wait for validation message to appear
+      await page.waitForTimeout(300)
+
+      // Verify validation error appears (partial match)
+      await expect(page.locator(':text("Invalid card UID format")')).toBeVisible()
+    })
+
+    test('should validate card_uid format - non-hex characters', async ({ page, authenticatedMembersPage }) => {
+      // Test: Card UID must contain only hex characters (0-9, A-F)
+      await authenticatedMembersPage.openCreateModal()
+
+      // Try invalid format (non-hex characters)
+      await page.fill('[data-testid="member-form-card-uid"]', '00031956XY')
+
+      // Blur to trigger validation
+      await page.locator('[data-testid="member-form-card-uid"]').blur()
+
+      // Wait for validation message
+      await page.waitForTimeout(300)
+
+      // Verify validation error appears (partial match)
+      await expect(page.locator(':text("Invalid card UID format")')).toBeVisible()
+    })
+
+    test('should accept valid card_uid format', async ({ page, authenticatedMembersPage }) => {
+      // Test: Valid card UID (8-20 hex characters) should not show error
+      await authenticatedMembersPage.openCreateModal()
+
+      // Enter valid card UID
+      await page.fill('[data-testid="member-form-card-uid"]', '0003195661')
+
+      // Blur to trigger validation
+      await page.locator('[data-testid="member-form-card-uid"]').blur()
+
+      // Wait a moment
+      await page.waitForTimeout(300)
+
+      // Verify NO validation error appears
+      await expect(page.locator(':text("Invalid card UID format")')).not.toBeVisible()
+    })
+
+    test('should auto-uppercase and strip non-hex characters', async ({ page, authenticatedMembersPage }) => {
+      // Test: Input should auto-format (uppercase, strip non-hex)
+      await authenticatedMembersPage.openCreateModal()
+
+      // Enter lowercase with non-hex characters
+      await page.fill('[data-testid="member-form-card-uid"]', 'abc123xyz')
+
+      // Get the actual value after auto-formatting
+      const formattedValue = await page.inputValue('[data-testid="member-form-card-uid"]')
+
+      // Verify: uppercase and non-hex stripped
+      expect(formattedValue).toBe('ABC123') // xyz should be stripped (not hex)
+    })
+
+    test('should allow empty card_uid (optional field)', async ({ page, authenticatedMembersPage }) => {
+      // Test: card_uid is optional - form should submit without it
+      const testId = `NoCard${Date.now()}`
+
+      await authenticatedMembersPage.openCreateModal()
+      await authenticatedMembersPage.expectFormModalVisible()
+
+      // Fill required fields WITHOUT card_uid
+      await page.fill('[data-testid="members-form-first-name-input"]', testId)
+      await page.fill('[data-testid="members-form-last-name-input"]', 'Test')
+      await page.fill('[data-testid="members-form-iban-input"]', 'DE89370400440532013001')
+      await page.fill('[data-testid="members-form-mandate-reference-input"]', `MAN${testId}`)
+      await page.fill('[data-testid="members-form-mandate-date-input"]', '2024-01-15')
+      // Language is already set to 'de' by default, no need to change
+
+      // Leave card_uid empty (default)
+      const cardUidValue = await page.inputValue('[data-testid="member-form-card-uid"]')
+      expect(cardUidValue).toBe('')
+
+      // Submit form
+      await page.click('[data-testid="members-form-submit-button"]')
+
+      // Wait a moment to see if error appears
+      await page.waitForTimeout(1000)
+
+      // Check if there's an error message
+      const errorMsg = await page.locator('[data-testid="members-error-message"]').textContent().catch(() => null)
+      if (errorMsg) {
+        console.log('Error message visible:', errorMsg)
+      }
+
+      // Verify form closes (indicates success)
+      await page.waitForSelector('[data-testid="members-form-modal"]', { state: 'hidden' })
+
+      // Verify member was created (no error occurred)
+      await page.waitForTimeout(1500)
+      await authenticatedMembersPage.search(testId)
+      await authenticatedMembersPage.waitForLoadingToComplete()
+
+      const createdMemberRow = await authenticatedMembersPage.getMemberFirstNameInTable(testId)
+      expect(createdMemberRow).toBeTruthy()
+    })
+  })
 })
