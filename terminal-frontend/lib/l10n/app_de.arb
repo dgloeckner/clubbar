@@ -283,5 +283,23 @@
   "scanCard": "Karte scannen",
   "@scanCard": {
     "description": "Button to scan card"
+  },
+
+  "@_RFID_ERRORS": {},
+  "rfidErrorUnknownCard": "Unbekannte Karte",
+  "@rfidErrorUnknownCard": {
+    "description": "Error when scanned card is not in database"
+  },
+  "rfidErrorAccountInactive": "Konto inaktiv",
+  "@rfidErrorAccountInactive": {
+    "description": "Error when member account is inactive"
+  },
+  "rfidErrorSepaMissing": "SEPA-Mandat fehlt",
+  "@rfidErrorSepaMissing": {
+    "description": "Error when member has no valid SEPA mandate"
+  },
+  "rfidErrorDatabaseError": "Datenbankfehler",
+  "@rfidErrorDatabaseError": {
+    "description": "Error when database query fails"
   }
 }

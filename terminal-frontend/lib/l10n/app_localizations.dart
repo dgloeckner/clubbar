@@ -439,6 +439,30 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Karte scannen'**
   String get scanCard;
+
+  /// Error when scanned card is not in database
+  ///
+  /// In de, this message translates to:
+  /// **'Unbekannte Karte'**
+  String get rfidErrorUnknownCard;
+
+  /// Error when member account is inactive
+  ///
+  /// In de, this message translates to:
+  /// **'Konto inaktiv'**
+  String get rfidErrorAccountInactive;
+
+  /// Error when member has no valid SEPA mandate
+  ///
+  /// In de, this message translates to:
+  /// **'SEPA-Mandat fehlt'**
+  String get rfidErrorSepaMissing;
+
+  /// Error when database query fails
+  ///
+  /// In de, this message translates to:
+  /// **'Datenbankfehler'**
+  String get rfidErrorDatabaseError;
 }
 
 class _AppLocalizationsDelegate

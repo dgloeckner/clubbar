@@ -66,5 +66,10 @@
   "cancel": "Cancel",
   "save": "Save",
   "continueShopping": "Continue Shopping",
-  "scanCard": "Scan Card"
+  "scanCard": "Scan Card",
+
+  "rfidErrorUnknownCard": "Unknown card",
+  "rfidErrorAccountInactive": "Account inactive",
+  "rfidErrorSepaMissing": "SEPA mandate missing",
+  "rfidErrorDatabaseError": "Database error"
 }

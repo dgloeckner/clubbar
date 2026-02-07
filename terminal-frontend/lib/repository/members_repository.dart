@@ -8,6 +8,7 @@ class MembersRepository {
   MembersRepository(this._db);
 
   /// Find member by card UID (fast lookup for terminal access)
+  /// Returns (member, errorKey) where errorKey is an i18n key (e.g., 'rfidErrorUnknownCard')
   Future<(MembersCacheData?, String?)> findByCardUid(String cardUid) async {
     try {
       final member = await (_db.select(_db.membersCache)
@@ -15,20 +16,20 @@ class MembersRepository {
           .getSingleOrNull();
 
       if (member == null) {
-        return (null, 'Unknown card');
+        return (null, 'rfidErrorUnknownCard');
       }
 
       if (member.isActive == 0) {
-        return (null, 'Account inactive');
+        return (null, 'rfidErrorAccountInactive');
       }
 
       if (member.isSepaValid == 0) {
-        return (null, 'SEPA mandate missing');
+        return (null, 'rfidErrorSepaMissing');
       }
 
       return (member, null);
     } catch (e) {
-      return (null, 'Database error: $e');
+      return (null, 'rfidErrorDatabaseError');
     }
   }
 

@@ -198,4 +198,16 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get scanCard => 'Karte scannen';
+
+  @override
+  String get rfidErrorUnknownCard => 'Unbekannte Karte';
+
+  @override
+  String get rfidErrorAccountInactive => 'Konto inaktiv';
+
+  @override
+  String get rfidErrorSepaMissing => 'SEPA-Mandat fehlt';
+
+  @override
+  String get rfidErrorDatabaseError => 'Datenbankfehler';
 }

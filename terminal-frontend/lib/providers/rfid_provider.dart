@@ -49,6 +49,7 @@ class RfidProvider extends ChangeNotifier {
   }
 
   /// Handle a card scan (lookup member by card UID and navigate).
+  /// Errors are i18n keys (e.g., 'rfidErrorUnknownCard') to be translated by UI.
   Future<void> handleCardScan(String cardUid) async {
     if (_isScanning || _context == null || !_context!.mounted) return;
 
@@ -57,8 +58,8 @@ class RfidProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Lookup member by card UID
-      final (member, error) = await _membersRepository.findByCardUid(cardUid);
+      // Lookup member by card UID (returns i18n error key if failed)
+      final (member, errorKey) = await _membersRepository.findByCardUid(cardUid);
 
       if (member != null) {
         // Success: member found, active, and SEPA valid
@@ -74,15 +75,15 @@ class RfidProvider extends ChangeNotifier {
           _context!.go('/products');
         }
       } else {
-        // Error: card not found, inactive, or SEPA missing
-        _error = error ?? 'Unknown error';
+        // Error: card not found, inactive, or SEPA missing (i18n key)
+        _error = errorKey ?? 'rfidErrorDatabaseError';
         _detectedMember = null;
         _membersProvider.setError(_error!);
         _isScanning = false;
         notifyListeners();
       }
     } catch (e) {
-      _error = 'Error: $e';
+      _error = 'rfidErrorDatabaseError';
       _detectedMember = null;
       _membersProvider.setError(_error!);
       _isScanning = false;
