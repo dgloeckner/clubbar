@@ -84,8 +84,9 @@ export function ProductsPage() {
   // Pagination, sorting, and filtering state
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
-  const [sortKey, setSortKey] = useState<'name' | 'price' | 'category'>('name')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  // Default to created_at descending so newest products appear first
+  const [sortKey, setSortKey] = useState<'name' | 'price' | 'category' | 'created_at'>('created_at')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterCategory, setFilterCategory] = useState<string | null>(null) // Category filter: null = all
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
   const [search, setSearch] = useState('')

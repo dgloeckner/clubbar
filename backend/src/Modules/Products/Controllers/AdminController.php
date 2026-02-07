@@ -143,7 +143,7 @@ class AdminController
             'page' => ['nullable', 'integer', 'gt:0'],
             'status' => ['nullable', 'in:all,active,inactive'],
             'category_id' => ['nullable', 'uuid'],
-            'sort_by' => ['nullable', 'in:name_asc,name_desc,price_asc,price_desc,category_asc,category_desc'],
+            'sort_by' => ['nullable', 'in:name_asc,name_desc,price_asc,price_desc,category_asc,category_desc,created_at_asc,created_at_desc'],
             'search' => ['nullable', 'string'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
@@ -155,7 +155,8 @@ class AdminController
         $offset = ($offset - 1) * $limit; // Convert page number to offset
 
         // Parse combined sort_by parameter (e.g., "price_asc" => sortBy="price", sortOrder="asc")
-        $sortByParam = $params['sort_by'] ?? 'name_asc';
+        // Default to created_at desc so newest products appear first
+        $sortByParam = $params['sort_by'] ?? 'created_at_desc';
         [$sortBy, $sortOrder] = $this->parseSortBy($sortByParam);
 
         $filters = [];
@@ -184,6 +185,8 @@ class AdminController
             'price_desc' => ['price', 'desc'],
             'category_asc' => ['category', 'asc'],
             'category_desc' => ['category', 'desc'],
+            'created_at_asc' => ['created_at', 'asc'],
+            'created_at_desc' => ['created_at', 'desc'],
         ];
 
         return $map[$sortBy] ?? ['created_at', 'desc'];
