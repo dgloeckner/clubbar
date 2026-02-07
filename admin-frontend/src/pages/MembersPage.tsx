@@ -51,6 +51,7 @@ export function MembersPage() {
   const [sortKey, setSortKey] = useState<'first_name' | 'last_name' | 'created_at' | 'card_uid'>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterIsActive, setFilterIsActive] = useState<'all' | 'active' | 'inactive'>('all')
+  const [filterCardUid, setFilterCardUid] = useState<'all' | 'with' | 'without'>('all')
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -71,11 +72,16 @@ export function MembersPage() {
         setIsLoading(true)
 
         // Build filter object
-        const filter: { is_active?: boolean } = {}
+        const filter: { is_active?: boolean; has_card_uid?: boolean } = {}
         if (filterIsActive === 'active') {
           filter.is_active = true
         } else if (filterIsActive === 'inactive') {
           filter.is_active = false
+        }
+        if (filterCardUid === 'with') {
+          filter.has_card_uid = true
+        } else if (filterCardUid === 'without') {
+          filter.has_card_uid = false
         }
 
         const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
@@ -94,7 +100,7 @@ export function MembersPage() {
 
     const timer = setTimeout(loadMembers, search ? 500 : 0) // Debounce search
     return () => clearTimeout(timer)
-  }, [page, search, filterIsActive, sortKey, sortDirection, setIsLoading])
+  }, [page, search, filterIsActive, filterCardUid, sortKey, sortDirection, setIsLoading])
 
   // Load dashboard metrics (active members count, outstanding balance, last settlement date)
   useEffect(() => {
@@ -137,11 +143,16 @@ export function MembersPage() {
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
 
       // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
-      const filter: { is_active?: boolean } = {}
+      const filter: { is_active?: boolean; has_card_uid?: boolean } = {}
       if (filterIsActive === 'active') {
         filter.is_active = true
       } else if (filterIsActive === 'inactive') {
         filter.is_active = false
+      }
+      if (filterCardUid === 'with') {
+        filter.has_card_uid = true
+      } else if (filterCardUid === 'without') {
+        filter.has_card_uid = false
       }
 
       const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
@@ -164,11 +175,17 @@ export function MembersPage() {
       await updateMember(member.id, { is_active: !member.is_active })
 
       // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
-      const filter: { is_active?: boolean } = {}
+      const filter: { is_active?: boolean; has_card_uid?: boolean } = {}
       if (filterIsActive === 'active') {
         filter.is_active = true
       } else if (filterIsActive === 'inactive') {
         filter.is_active = false
+      }
+
+      if (filterCardUid === 'with') {
+        filter.has_card_uid = true
+      } else if (filterCardUid === 'without') {
+        filter.has_card_uid = false
       }
 
       const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
@@ -190,11 +207,16 @@ export function MembersPage() {
       await deactivateMember(memberId)
 
       // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
-      const filter: { is_active?: boolean } = {}
+      const filter: { is_active?: boolean; has_card_uid?: boolean } = {}
       if (filterIsActive === 'active') {
         filter.is_active = true
       } else if (filterIsActive === 'inactive') {
         filter.is_active = false
+      }
+      if (filterCardUid === 'with') {
+        filter.has_card_uid = true
+      } else if (filterCardUid === 'without') {
+        filter.has_card_uid = false
       }
 
       const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
@@ -334,6 +356,11 @@ export function MembersPage() {
               setPage(1)
             }}
             testId="members-filter-status"
+            labels={{
+              all: t('members.filters.status.all'),
+              active: t('members.filters.status.active'),
+              inactive: t('members.filters.status.inactive'),
+            }}
           />
 
           {/* Create button */}
@@ -363,6 +390,81 @@ export function MembersPage() {
             <span>{t('common.add')}</span>
           </button>
         </div>
+      </div>
+
+      {/* Card Filter Pills */}
+      <div
+        style={{
+          display: 'flex',
+          gap: theme.spacing.sm,
+          padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+          borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
+          alignItems: 'center',
+        }}
+      >
+        <span style={{ fontSize: '14px', fontWeight: 500, color: theme.colors.text.primary, minWidth: '80px' }}>
+          {t('members.table.cardUid')}:
+        </span>
+        <button
+          data-testid="filter-card-all"
+          onClick={() => {
+            setFilterCardUid('all')
+            setPage(1)
+          }}
+          style={{
+            padding: '6px 16px',
+            border: `1px solid ${filterCardUid === 'all' ? theme.colors.semantic.primary : tableColors.rowActiveBorder}`,
+            backgroundColor: filterCardUid === 'all' ? `${theme.colors.semantic.primary}20` : 'transparent',
+            color: filterCardUid === 'all' ? theme.colors.semantic.primary : theme.colors.text.primary,
+            borderRadius: '20px',
+            fontSize: '13px',
+            fontWeight: 500,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+          }}
+        >
+          {t('members.filters.card.all')}
+        </button>
+        <button
+          data-testid="filter-card-with"
+          onClick={() => {
+            setFilterCardUid('with')
+            setPage(1)
+          }}
+          style={{
+            padding: '6px 16px',
+            border: `1px solid ${filterCardUid === 'with' ? theme.colors.semantic.primary : tableColors.rowActiveBorder}`,
+            backgroundColor: filterCardUid === 'with' ? `${theme.colors.semantic.primary}20` : 'transparent',
+            color: filterCardUid === 'with' ? theme.colors.semantic.primary : theme.colors.text.primary,
+            borderRadius: '20px',
+            fontSize: '13px',
+            fontWeight: 500,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+          }}
+        >
+          {t('members.filters.card.withCard')}
+        </button>
+        <button
+          data-testid="filter-card-without"
+          onClick={() => {
+            setFilterCardUid('without')
+            setPage(1)
+          }}
+          style={{
+            padding: '6px 16px',
+            border: `1px solid ${filterCardUid === 'without' ? theme.colors.semantic.primary : tableColors.rowActiveBorder}`,
+            backgroundColor: filterCardUid === 'without' ? `${theme.colors.semantic.primary}20` : 'transparent',
+            color: filterCardUid === 'without' ? theme.colors.semantic.primary : theme.colors.text.primary,
+            borderRadius: '20px',
+            fontSize: '13px',
+            fontWeight: 500,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+          }}
+        >
+          {t('members.filters.card.withoutCard')}
+        </button>
       </div>
 
         {/* Table */}

@@ -15,15 +15,27 @@ export interface StatusFilterPillsProps {
   value?: 'all' | 'active' | 'inactive'
   onChange?: (status: 'all' | 'active' | 'inactive') => void
   testId?: string
+  labels?: {
+    all: string
+    active: string
+    inactive: string
+  }
 }
 
-const STATUSES = [
-  { key: 'all', label: 'All' },
-  { key: 'active', label: 'Active' },
-  { key: 'inactive', label: 'Inactive' },
-] as const
+const DEFAULT_LABELS = {
+  all: 'All',
+  active: 'Active',
+  inactive: 'Inactive',
+}
 
-export function StatusFilterPills({ value = 'all', onChange, testId = 'status-filter-pills' }: StatusFilterPillsProps) {
+export function StatusFilterPills({ value = 'all', onChange, testId = 'status-filter-pills', labels }: StatusFilterPillsProps) {
+  const displayLabels = labels || DEFAULT_LABELS
+
+  const STATUSES = [
+    { key: 'all', label: displayLabels.all },
+    { key: 'active', label: displayLabels.active },
+    { key: 'inactive', label: displayLabels.inactive },
+  ] as const
   const handleClick = (status: 'all' | 'active' | 'inactive') => {
     if (onChange) {
       onChange(status)
