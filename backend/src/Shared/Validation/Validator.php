@@ -94,10 +94,16 @@ class Validator
             return null;
         }
 
-        if (is_string($value) && strlen($value) > (int)$param) {
-            return "{$field} must be at most {$param} characters";
+        // For string values, check string length (not numeric value)
+        // This prevents numeric strings like "0013466849" from being compared as numbers
+        if (is_string($value)) {
+            if (strlen($value) > (int)$param) {
+                return "{$field} must be at most {$param} characters";
+            }
+            return null;
         }
 
+        // For non-string numeric values (int, float), check numeric value
         if (is_numeric($value) && $value > (int)$param) {
             return "{$field} must be at most {$param}";
         }
