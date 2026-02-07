@@ -1,19 +1,24 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/repository/members_repository.dart';
 import 'package:ruderbar_terminal/models/member_dto.dart';
 import 'package:ruderbar_terminal/services/mock_rfid_service.dart';
+import 'package:ruderbar_terminal/services/real_rfid_service.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 
 class RfidProvider extends ChangeNotifier {
-  final MockRfidService _rfidService = MockRfidService();
+  final MockRfidService _mockRfidService = MockRfidService();
+  final RealRfidService _realRfidService = RealRfidService();
   final MembersProvider _membersProvider;
   final MembersRepository _membersRepository;
 
   MembersCacheData? _detectedMember;
   bool _isScanning = false;
   String? _error;
+  StreamSubscription<String>? _scanSubscription;
+  BuildContext? _context;
 
   RfidProvider(this._membersProvider, this._membersRepository);
 
@@ -21,7 +26,71 @@ class RfidProvider extends ChangeNotifier {
   bool get isScanning => _isScanning;
   String? get error => _error;
 
-  /// Simulate RFID card detection (called from UI when user taps detect button).
+  /// Start listening for real RFID card scans (automatic detection).
+  /// Call this when the idle screen mounts.
+  void startListening(BuildContext context) {
+    _context = context;
+    _scanSubscription = _realRfidService.cardScans.listen((cardUid) {
+      handleCardScan(cardUid);
+    });
+  }
+
+  /// Stop listening for RFID scans.
+  /// Call this when leaving the idle screen.
+  void stopListening() {
+    _scanSubscription?.cancel();
+    _scanSubscription = null;
+    _context = null;
+  }
+
+  /// Emit a card UID to the real RFID service (called by hidden TextField).
+  void emitScan(String cardUid) {
+    _realRfidService.emitScan(cardUid);
+  }
+
+  /// Handle a card scan (lookup member by card UID and navigate).
+  Future<void> handleCardScan(String cardUid) async {
+    if (_isScanning || _context == null || !_context!.mounted) return;
+
+    _isScanning = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      // Lookup member by card UID
+      final (member, error) = await _membersRepository.findByCardUid(cardUid);
+
+      if (member != null) {
+        // Success: member found, active, and SEPA valid
+        _detectedMember = member;
+        _error = null;
+        _membersProvider.setSelectedMember(member);
+
+        _isScanning = false;
+        notifyListeners();
+
+        // Navigate to product selection
+        if (_context!.mounted) {
+          _context!.go('/products');
+        }
+      } else {
+        // Error: card not found, inactive, or SEPA missing
+        _error = error ?? 'Unknown error';
+        _detectedMember = null;
+        _membersProvider.setError(_error!);
+        _isScanning = false;
+        notifyListeners();
+      }
+    } catch (e) {
+      _error = 'Error: $e';
+      _detectedMember = null;
+      _membersProvider.setError(_error!);
+      _isScanning = false;
+      notifyListeners();
+    }
+  }
+
+  /// Simulate RFID card detection (called from UI when user taps demo button).
   /// Uses a real synced member from the local DB if available, otherwise falls
   /// back to the hardcoded mock member (for offline-only development).
   Future<void> simulateCardDetection(BuildContext context, {String? cardUidOverride}) async {
@@ -41,7 +110,7 @@ class RfidProvider extends ChangeNotifier {
         member = activeMembers.first;
       } else {
         // No synced members yet — fall back to mock member for offline dev
-        final mockMember = await _rfidService.detectCard(cardUidOverride: cardUidOverride);
+        final mockMember = await _mockRfidService.detectCard(cardUidOverride: cardUidOverride);
         if (mockMember == null) {
           _error = 'Unknown card';
           _detectedMember = null;
@@ -101,5 +170,12 @@ class RfidProvider extends ChangeNotifier {
     _detectedMember = null;
     _error = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    stopListening();
+    _realRfidService.dispose();
+    super.dispose();
   }
 }
