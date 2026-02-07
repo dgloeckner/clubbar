@@ -44,7 +44,7 @@ class SyncRepository {
     return setSyncState('last_products_sync_time', timestamp);
   }
 
-  /// Get last sync cursor for categories (ISO 8601 string from API response)
+  /// Get last sync cursor for categories (Unix timestamp in milliseconds, stored as string)
   Future<String?> getLastCategoriesSyncCursor() async {
     return getSyncState('last_categories_sync_cursor');
   }
@@ -54,7 +54,7 @@ class SyncRepository {
     return setSyncState('last_categories_sync_cursor', cursor);
   }
 
-  /// Get last sync cursor for members (ISO 8601 string from API response)
+  /// Get last sync cursor for members (Unix timestamp in milliseconds, stored as string)
   Future<String?> getLastMembersSyncCursor() async {
     return getSyncState('last_members_sync_cursor');
   }
@@ -64,7 +64,7 @@ class SyncRepository {
     return setSyncState('last_members_sync_cursor', cursor);
   }
 
-  /// Get last sync cursor for products (ISO 8601 string from API response)
+  /// Get last sync cursor for products (Unix timestamp in milliseconds, stored as string)
   Future<String?> getLastProductsSyncCursor() async {
     return getSyncState('last_products_sync_cursor');
   }
