@@ -126,8 +126,18 @@ class SyncService {
         return;
       }
 
-      // Upsert members into local database
-      await _membersRepo.upsertMembers(response.members);
+      // Separate deleted members (tombstones) from active/updated members
+      final deletedMembers = response.members.where((m) => m.deletedAt != null).toList();
+      final activeMembers = response.members.where((m) => m.deletedAt == null).toList();
+
+      // Remove deleted members from local cache
+      for (final deleted in deletedMembers) {
+        await _membersRepo.deleteById(deleted.id);
+        _logger.i('Member deleted: ${deleted.id}');
+      }
+
+      // Upsert active members into local database
+      await _membersRepo.upsertMembers(activeMembers);
 
       // Store cursor for next delta sync (API returns int, store as string)
       if (response.cursor != null) {
@@ -164,7 +174,18 @@ class SyncService {
         return;
       }
 
-      await _productsRepo.upsertCategories(response.categories);
+      // Separate deleted categories (tombstones) from active/updated categories
+      final deletedCategories = response.categories.where((c) => c.deletedAt != null).toList();
+      final activeCategories = response.categories.where((c) => c.deletedAt == null).toList();
+
+      // Remove deleted categories from local cache
+      for (final deleted in deletedCategories) {
+        await _productsRepo.deleteCategoryById(deleted.id);
+        _logger.i('Category deleted: ${deleted.id}');
+      }
+
+      // Upsert active categories into local database
+      await _productsRepo.upsertCategories(activeCategories);
 
       // Store cursor for next delta sync (API returns int, store as string)
       if (response.cursor != null) {
@@ -197,7 +218,18 @@ class SyncService {
         return;
       }
 
-      await _productsRepo.upsertProducts(response.products);
+      // Separate deleted products (tombstones) from active/updated products
+      final deletedProducts = response.products.where((p) => p.deletedAt != null).toList();
+      final activeProducts = response.products.where((p) => p.deletedAt == null).toList();
+
+      // Remove deleted products from local cache
+      for (final deleted in deletedProducts) {
+        await _productsRepo.deleteProductById(deleted.id);
+        _logger.i('Product deleted: ${deleted.id}');
+      }
+
+      // Upsert active products into local database
+      await _productsRepo.upsertProducts(activeProducts);
 
       // Store cursor for next delta sync (API returns int, store as string)
       if (response.cursor != null) {
