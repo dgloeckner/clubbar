@@ -61,7 +61,9 @@
     "before": "Before",
     "after": "After",
     "noData": "No data",
-    "noChanges": "No value changes recorded"
+    "noChanges": "No value changes recorded",
+    "requiredForTerminal": "required for terminal access",
+    "sepa": "SEPA"
   },
   "auth": {
     "email": "Email",

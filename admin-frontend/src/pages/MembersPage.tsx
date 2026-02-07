@@ -827,7 +827,7 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.form.cardUid')}
                   <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>
-                    ({t('common.optional')})
+                    ({t('common.requiredForTerminal')})
                   </span>
                 </label>
                 <input
@@ -869,7 +869,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.iban')} <span style={{ color: theme.colors.semantic.danger }}>*</span>
+                  {t('members.iban')} <span style={{ color: theme.colors.semantic.danger }}>*</span> <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')})</span>
                 </label>
                 <input
                   data-testid="members-form-iban-input"
@@ -895,7 +895,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.accountHolderName')}
+                  {t('members.accountHolderName')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
                 </label>
                 <input
                   data-testid="members-form-account-holder-name-input"
@@ -921,7 +921,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.mandateReference')} <span style={{ color: theme.colors.semantic.danger }}>*</span>
+                  {t('members.mandateReference')} <span style={{ color: theme.colors.semantic.danger }}>*</span> <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')})</span>
                 </label>
                 <input
                   data-testid="members-form-mandate-reference-input"
@@ -947,7 +947,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.mandateSignedAt')} <span style={{ color: theme.colors.semantic.danger }}>*</span>
+                  {t('members.mandateSignedAt')} <span style={{ color: theme.colors.semantic.danger }}>*</span> <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')})</span>
                 </label>
                 <input
                   data-testid="members-form-mandate-date-input"
