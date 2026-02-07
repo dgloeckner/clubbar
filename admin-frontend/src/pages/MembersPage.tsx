@@ -48,7 +48,7 @@ export function MembersPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [sortKey, setSortKey] = useState<'first_name' | 'last_name' | 'created_at'>('created_at')
+  const [sortKey, setSortKey] = useState<'first_name' | 'last_name' | 'created_at' | 'card_uid'>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterIsActive, setFilterIsActive] = useState<'all' | 'active' | 'inactive'>('all')
   const [formData, setFormData] = useState({
@@ -407,7 +407,19 @@ export function MembersPage() {
                       sortKey="first_name"
                       currentSort={{ key: sortKey, direction: sortDirection }}
                       onSort={(key: string, direction: 'asc' | 'desc') => {
-                        setSortKey(key as 'first_name' | 'last_name' | 'created_at')
+                        setSortKey(key as 'first_name' | 'last_name' | 'created_at' | 'card_uid')
+                        setSortDirection(direction)
+                        setPage(1)
+                      }}
+                    />
+                  </th>
+                  <th style={{ ...headerCellBaseStyle, width: '150px' }}>
+                    <SortableTableHeader
+                      label={t('members.table.cardUid')}
+                      sortKey="card_uid"
+                      currentSort={{ key: sortKey, direction: sortDirection }}
+                      onSort={(key: string, direction: 'asc' | 'desc') => {
+                        setSortKey(key as 'first_name' | 'last_name' | 'created_at' | 'card_uid')
                         setSortDirection(direction)
                         setPage(1)
                       }}
@@ -419,7 +431,7 @@ export function MembersPage() {
                       sortKey="created_at"
                       currentSort={{ key: sortKey, direction: sortDirection }}
                       onSort={(key: string, direction: 'asc' | 'desc') => {
-                        setSortKey(key as 'first_name' | 'last_name' | 'created_at')
+                        setSortKey(key as 'first_name' | 'last_name' | 'created_at' | 'card_uid')
                         setSortDirection(direction)
                         setPage(1)
                       }}
@@ -469,6 +481,9 @@ export function MembersPage() {
                     </td>
                     <TableCell testId={`members-table-cell-name-${member.id}`}>
                       {member.first_name} {member.last_name}
+                    </TableCell>
+                    <TableCell testId="member-card-uid">
+                      {member.card_uid || '—'}
                     </TableCell>
                     <TableCell testId={`members-table-cell-created-${member.id}`}>
                       {formatters.formatDate(member.created_at.split('T')[0])}

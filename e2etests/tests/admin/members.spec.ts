@@ -676,7 +676,7 @@ test.describe('Admin Frontend - Members Page', () => {
       // ========================================================================
 
       const testId = `CardUID${Date.now()}`
-      const cardUid = '0003195661'
+      const cardUid = `000${Date.now().toString().slice(-8)}`
 
       // Step 1: Open create modal
       await authenticatedMembersPage.openCreateModal()
