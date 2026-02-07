@@ -136,6 +136,14 @@ class MembersRepository
             $where[] = 'preferred_language = ?';
             $params[] = $filters['language'];
         }
+        // Card UID filter
+        if (isset($filters['has_card_uid'])) {
+            if ($filters['has_card_uid']) {
+                $where[] = 'card_uid IS NOT NULL';
+            } else {
+                $where[] = 'card_uid IS NULL';
+            }
+        }
         if ($search) {
             $escaped = SafeQuery::escapeLike($search);
             $where[] = "(CONCAT(first_name, ' ', last_name) LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)";

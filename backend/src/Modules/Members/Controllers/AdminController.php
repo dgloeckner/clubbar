@@ -42,6 +42,11 @@ class AdminController
             $filters['is_active'] = filter_var($params['is_active'], FILTER_VALIDATE_BOOLEAN);
         }
 
+        // Card UID filter
+        if (isset($params['filters']['has_card_uid'])) {
+            $filters['has_card_uid'] = filter_var($params['filters']['has_card_uid'], FILTER_VALIDATE_BOOLEAN);
+        }
+
         $result = $this->membersService->listMembers($limit, $offset, $filters, $sortKey, $sortOrder, $search);
 
         // Add has_more field to pagination
