@@ -69,6 +69,7 @@ class AdminController
             'email' => ['required', 'email'],
             'preferred_language' => ['required', 'string', 'in:de,en,fr'],
             'account_holder_name' => ['nullable', 'string', 'max:70'],
+            'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/', 'unique:members,card_uid'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
@@ -106,6 +107,14 @@ class AdminController
         $body = $request->getParsedBody() ?? [];
         $adminId = $request->getAttribute('admin_user_id');
 
+        // Validate card_uid if provided
+        if (isset($body['card_uid'])) {
+            if (!$this->validator->validate($body, [
+                'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/', "unique:members,card_uid,{$memberId}"],
+            ])) {
+                return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            }
+        }
 
         $member = $this->membersService->updateMember($memberId, $body, $adminId);
 

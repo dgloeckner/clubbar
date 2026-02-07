@@ -136,7 +136,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getValidator(): Validator
     {
-        return $this->resolve(Validator::class, fn() => new Validator());
+        return $this->resolve(Validator::class, fn() => new Validator($this->pdo));
     }
 
     // --- Repositories ---

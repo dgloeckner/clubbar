@@ -8,6 +8,10 @@ class Validator
 {
     private array $errors = [];
 
+    public function __construct(
+        private \PDO $pdo
+    ) {}
+
     public function validate(array $data, array $rules): bool
     {
         $this->errors = [];
@@ -58,6 +62,7 @@ class Validator
             'same'     => ($value !== null && $param && $value !== ($data[$param] ?? null)) ? "{$field} must match {$param}" : null,
             'nullable' => null,
             'in'       => ($value !== null && $param && !in_array((string)$value, explode(',', $param), true)) ? "{$field} must be one of: {$param}" : null,
+            'unique'   => $this->validateUnique($field, $value, $param),
             default    => null,
         };
     }
@@ -95,6 +100,45 @@ class Validator
 
         if (is_numeric($value) && $value > (int)$param) {
             return "{$field} must be at most {$param}";
+        }
+
+        return null;
+    }
+
+    /**
+     * Validate unique constraint against database
+     * Format: unique:table,column,excludeId
+     * Example: unique:members,card_uid or unique:members,card_uid,123
+     */
+    private function validateUnique(string $field, mixed $value, ?string $param): ?string
+    {
+        if ($value === null || $value === '' || $param === null) {
+            return null;
+        }
+
+        $parts = explode(',', $param);
+        $table = $parts[0] ?? null;
+        $column = $parts[1] ?? null;
+        $excludeId = $parts[2] ?? null;
+
+        if (!$table || !$column) {
+            return null;
+        }
+
+        $sql = "SELECT COUNT(*) FROM {$table} WHERE {$column} = :value";
+        $params = ['value' => $value];
+
+        if ($excludeId) {
+            $sql .= " AND id != :exclude_id";
+            $params['exclude_id'] = $excludeId;
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $count = $stmt->fetchColumn();
+
+        if ($count > 0) {
+            return "The {$field} has already been taken";
         }
 
         return null;

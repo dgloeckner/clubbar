@@ -37,7 +37,7 @@ export async function getMembers(
   page: number = 1,
   perPage: number = 20,
   search?: string,
-  filter?: { is_active?: boolean },
+  filter?: { is_active?: boolean; has_card_uid?: boolean },
   sort: string = 'created_at',
   order: 'asc' | 'desc' = 'desc'
 ): Promise<MembersResponse> {
@@ -55,6 +55,9 @@ export async function getMembers(
   // Pass filters as nested object: filters[is_active]=true format
   if (filter?.is_active !== undefined) {
     params['filters[is_active]'] = filter.is_active ? 'true' : 'false'
+  }
+  if (filter?.has_card_uid !== undefined) {
+    params['filters[has_card_uid]'] = filter.has_card_uid ? 'true' : 'false'
   }
 
   const apiResponse = await get<MembersResponse>('/admin/members', { params })

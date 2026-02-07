@@ -13,6 +13,7 @@ import { useFormatters } from '../hooks/useFormatters'
 import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon } from '../components/icons'
 import { getMembers, createMember, updateMember, deactivateMember, Member } from '../services/members'
 import { getDashboardMetrics } from '../services/dashboard'
+import { AxiosError } from 'axios'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
@@ -63,6 +64,7 @@ export function MembersPage() {
     preferred_language: 'de',
     card_uid: '',
   })
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   // Load members
   useEffect(() => {
@@ -125,6 +127,9 @@ export function MembersPage() {
 
     try {
       setIsLoading(true)
+      // Clear previous form errors
+      setFormErrors({})
+
       // Build payload, omit card_uid if empty
       const payload: any = { ...formData }
       if (!formData.card_uid) {
@@ -161,7 +166,31 @@ export function MembersPage() {
 
       setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save member')
+      // Handle validation errors (422)
+      const axiosError = err as AxiosError
+      if (axiosError.response?.status === 422) {
+        const data = axiosError.response.data as any
+        // Backend returns { error: 'validation_failed', messages: { field: [errors] } }
+        if (data.messages && typeof data.messages === 'object') {
+          // Map field errors
+          const mappedErrors: Record<string, string> = {}
+          for (const [field, messages] of Object.entries(data.messages)) {
+            if (Array.isArray(messages)) {
+              mappedErrors[field] = messages[0]
+            } else if (typeof messages === 'string') {
+              mappedErrors[field] = messages
+            }
+          }
+          setFormErrors(mappedErrors)
+          // Don't close modal - keep it open so user can fix the error
+        } else if (data.error) {
+          setError(data.error)
+        } else {
+          setError('Validation failed')
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to save member')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -369,6 +398,7 @@ export function MembersPage() {
             onClick={() => {
               setEditingMember(null)
               setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
+              setFormErrors({})
               setShowModal(true)
             }}
             style={{
@@ -798,6 +828,10 @@ export function MembersPage() {
                   onChange={(e) => {
                     const value = e.target.value.toUpperCase().replace(/[^0-9A-F]/g, '')
                     setFormData({ ...formData, card_uid: value })
+                    // Clear error when user starts typing
+                    if (formErrors.card_uid) {
+                      setFormErrors({ ...formErrors, card_uid: '' })
+                    }
                   }}
                   placeholder={t('members.form.cardUidPlaceholder')}
                   maxLength={20}
@@ -805,7 +839,7 @@ export function MembersPage() {
                     width: '100%',
                     padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                     background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
+                    border: `1px solid ${formErrors.card_uid ? theme.colors.semantic.danger : theme.colors.border.light}`,
                     borderRadius: theme.borderRadius.md,
                     color: theme.colors.text.primary,
                     boxSizing: 'border-box',
@@ -815,6 +849,11 @@ export function MembersPage() {
                 {formData.card_uid && !/^[0-9A-F]{8,20}$/.test(formData.card_uid) && (
                   <p style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
                     {t('members.validation.invalidCardUid')}
+                  </p>
+                )}
+                {formErrors.card_uid && (
+                  <p data-testid="member-form-card-uid-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                    {formErrors.card_uid}
                   </p>
                 )}
               </div>

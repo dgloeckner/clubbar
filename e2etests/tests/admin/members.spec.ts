@@ -796,6 +796,87 @@ test.describe('Admin Frontend - Members Page', () => {
       expect(formattedValue).toBe('ABC123') // xyz should be stripped (not hex)
     })
 
+    test('should show inline error for duplicate card_uid', async ({ page, authenticatedMembersPage }) => {
+      // CRITICAL: E2E test for Task 8 - duplicate card_uid inline validation
+      // ========================================================================
+      // Expected Flow:
+      // 1. Create first member with card_uid
+      // 2. Try to create second member with same card_uid
+      // 3. Backend returns 422 with validation error
+      // 4. Frontend displays inline error below card_uid field
+      // 5. Modal stays open for user to fix the error
+      // ========================================================================
+
+      const testId = `DupCard${Date.now()}`
+      const timestamp = Date.now()
+      const duplicateCardUid = `DUP${timestamp.toString().slice(-12)}`.toUpperCase()
+
+      // Step 1: Create first member with card_uid
+      await authenticatedMembersPage.openCreateModal()
+      await authenticatedMembersPage.expectFormModalVisible()
+
+      await page.fill('[data-testid="members-form-first-name-input"]', `${testId}1`)
+      await page.fill('[data-testid="members-form-last-name-input"]', 'First')
+      await page.fill('[data-testid="members-form-email-input"]', `${testId}1@test.com`)
+      await page.fill('[data-testid="members-form-iban-input"]', 'DE89370400440532013000')
+      await page.fill('[data-testid="members-form-mandate-reference-input"]', `MAN${testId}1`)
+      await page.fill('[data-testid="members-form-mandate-date-input"]', '2024-01-15')
+      await page.fill('[data-testid="member-form-card-uid"]', duplicateCardUid)
+
+      await page.click('[data-testid="members-form-submit-button"]')
+
+      // Wait for form to close (success)
+      await page.waitForSelector('[data-testid="members-form-modal"]', { state: 'hidden' })
+
+      // Step 2: Try to create second member with same card_uid
+      await authenticatedMembersPage.openCreateModal()
+      await authenticatedMembersPage.expectFormModalVisible()
+
+      await page.fill('[data-testid="members-form-first-name-input"]', `${testId}2`)
+      await page.fill('[data-testid="members-form-last-name-input"]', 'Second')
+      await page.fill('[data-testid="members-form-email-input"]', `${testId}2@test.com`)
+      await page.fill('[data-testid="members-form-iban-input"]', 'DE89370400440532013001')
+      await page.fill('[data-testid="members-form-mandate-reference-input"]', `MAN${testId}2`)
+      await page.fill('[data-testid="members-form-mandate-date-input"]', '2024-01-15')
+      await page.fill('[data-testid="member-form-card-uid"]', duplicateCardUid)
+
+      await page.click('[data-testid="members-form-submit-button"]')
+
+      // Step 3: Wait for backend response (422 expected)
+      await page.waitForTimeout(1500)
+
+      // Step 4: Verify modal stays open (validation error occurred)
+      await authenticatedMembersPage.expectFormModalVisible()
+
+      // Step 5: Verify inline error appears under card_uid field
+      const inlineError = page.locator('[data-testid="member-form-card-uid-error"]')
+      await expect(inlineError).toBeVisible()
+
+      // Step 6: Verify error contains relevant message about duplicate
+      const errorText = await inlineError.textContent()
+      expect(errorText).toBeTruthy()
+      // Laravel's default message is "The card uid has already been taken."
+      expect(errorText?.toLowerCase()).toContain('already')
+
+      // Step 7: Verify card_uid field has error styling (red border)
+      const cardUidInput = page.locator('[data-testid="member-form-card-uid"]')
+      const borderColor = await cardUidInput.evaluate(el =>
+        window.getComputedStyle(el).borderColor
+      )
+      // Should have red border (semantic.danger color)
+      expect(borderColor).toContain('239') // rgb(239, 68, 68) = theme.colors.semantic.danger
+
+      // Step 8: Verify user can fix error by changing card_uid
+      await page.fill('[data-testid="member-form-card-uid"]', `000${Date.now().toString().slice(-8)}`)
+
+      // Error should clear when user types
+      await expect(inlineError).not.toBeVisible()
+
+      // Step 9: Cancel to clean up
+      await authenticatedMembersPage.cancelForm()
+      await authenticatedMembersPage.expectFormModalHidden()
+    })
+
     test('should allow empty card_uid (optional field)', async ({ page, authenticatedMembersPage }) => {
       // Test: card_uid is optional - form should submit without it
       const testId = `NoCard${Date.now()}`

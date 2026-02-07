@@ -139,6 +139,9 @@
     },
     "validation": {
       "invalidCardUid": "Invalid card UID format (8-20 hex characters required)"
+    },
+    "errors": {
+      "cardUidInUse": "This card UID is already assigned to another member"
     }
   },
   "products": {
