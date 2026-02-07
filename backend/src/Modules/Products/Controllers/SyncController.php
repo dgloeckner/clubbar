@@ -19,11 +19,10 @@ class SyncController
     public function categories(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        // Client sends milliseconds, convert to seconds for DB query
-        $sinceMs = isset($params['since']) ? (int) $params['since'] : 0;
-        $sinceSec = (int) ($sinceMs / 1000);
+        // Client sends milliseconds timestamp
+        $since = isset($params['since']) ? (int) $params['since'] : 0;
 
-        $result = $this->categoriesService->syncSince($sinceSec);
+        $result = $this->categoriesService->syncSince($since);
 
         return $this->json($response, $result->toArray('categories'));
     }
@@ -31,11 +30,10 @@ class SyncController
     public function products(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        // Client sends milliseconds, convert to seconds for DB query
-        $sinceMs = isset($params['since']) ? (int) $params['since'] : 0;
-        $sinceSec = (int) ($sinceMs / 1000);
+        // Client sends milliseconds timestamp
+        $since = isset($params['since']) ? (int) $params['since'] : 0;
 
-        $result = $this->productsService->syncSince($sinceSec);
+        $result = $this->productsService->syncSince($since);
 
         return $this->json($response, $result->toArray('products'));
     }

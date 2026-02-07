@@ -35,9 +35,10 @@ class CategoriesRepository
 
         // Include both updated and deleted items (tombstones)
         // This enables the terminal to remove deleted items from local cache
+        // Use > (not >=) to avoid re-syncing items at exactly the cursor timestamp
         $stmt = $this->db->prepare(
             'SELECT * FROM categories
-             WHERE updated_at >= ? OR (deleted_at >= ? AND deleted_at IS NOT NULL)
+             WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
              ORDER BY COALESCE(updated_at, deleted_at) ASC'
         );
         $stmt->execute([$sinceDate, $sinceDate]);
