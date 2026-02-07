@@ -117,10 +117,13 @@ test.describe('Admin Frontend - Categories Page', () => {
       // Pattern 006: Page object provides field getters
       await authenticatedCategoriesPage.openCreateModal()
 
+      // Check German tab (default active tab)
       const deValue = await authenticatedCategoriesPage.getCategoryNameValue('de')
-      const enValue = await authenticatedCategoriesPage.getCategoryNameValue('en')
-
       expect(deValue).toBe('')
+
+      // Switch to English tab and check
+      await authenticatedCategoriesPage.selectLanguageTab('en')
+      const enValue = await authenticatedCategoriesPage.getCategoryNameValue('en')
       expect(enValue).toBe('')
     })
 
