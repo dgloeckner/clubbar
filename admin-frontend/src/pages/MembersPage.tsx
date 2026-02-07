@@ -18,7 +18,6 @@ import { AxiosError } from 'axios'
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
-import { StatusFilterPills } from '../components/forms/StatusFilterPills'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
@@ -327,183 +326,277 @@ export function MembersPage() {
         />
       </div>
 
-      <h1 style={{ margin: '0 0 20px 0' }}>{t('members.title')}</h1>
-
-      {/* Search bar + filters + create button (compact row) */}
-      <div
-        style={{
-          display: 'flex',
-          gap: theme.spacing.md,
-          padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-          borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        {/* Members count summary - LEFT */}
-        <span data-testid="members-count-summary" style={{ color: theme.colors.text.secondary, fontSize: '14px', whiteSpace: 'nowrap' }}>
-          <strong style={{ color: theme.colors.text.primary }}>{totalMembers}</strong> {t('members.title')} {t('common.found')}
-        </span>
-
-        {/* Search input */}
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setPage(1)
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+        <div>
+          <h1 style={{ fontSize: '26px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>{t('members.title')}</h1>
+          <p data-testid="members-count-summary" style={{ margin: '4px 0 0', fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>
+            {totalMembers} {t('members.title')} {t('common.found')}
+          </p>
+        </div>
+        <button
+          data-testid="members-create-button"
+          onClick={() => {
+            setEditingMember(null)
+            setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
+            setFormErrors({})
+            setShowModal(true)
           }}
-          placeholder={t('common.searchPlaceholder')}
-          data-testid="members-search-input"
-          style={{
-            flex: 1,
-            padding: '8px 12px',
-            backgroundColor: '#0d1829',
-            border: '1px solid #2d3748',
-            borderRadius: 8,
-            color: '#e2e8f0',
-            fontSize: '14px',
-            fontFamily: 'inherit',
-            maxWidth: '400px',
-            height: '40px',
-            boxSizing: 'border-box',
-            verticalAlign: 'middle',
-            transition: 'all 0.15s',
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = 'rgba(59,130,246,0.5)'
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = '#2d3748'
-          }}
-        />
-
-        {/* Status Filter + Sort (right side) */}
-        <div
           style={{
             display: 'flex',
-            gap: theme.spacing.md,
             alignItems: 'center',
+            gap: '7px',
+            padding: '10px 20px',
+            borderRadius: '8px',
+            border: 'none',
+            background: '#3b82f6',
+            color: '#fff',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'background 0.15s',
           }}
         >
-          {/* Status Filter Component */}
-          <StatusFilterPills
-            value={filterIsActive}
-            onChange={(status) => {
-              setFilterIsActive(status)
-              setPage(1)
-            }}
-            testId="members-filter-status"
-            labels={{
-              all: t('members.filters.status.all'),
-              active: t('members.filters.status.active'),
-              inactive: t('members.filters.status.inactive'),
-            }}
-          />
-
-          {/* Create button */}
-          <button
-            data-testid="members-create-button"
-            onClick={() => {
-              setEditingMember(null)
-              setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
-              setFormErrors({})
-              setShowModal(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: theme.spacing.sm,
-              padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
-              background: theme.colors.semantic.primary,
-              border: 'none',
-              borderRadius: '6px',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <PlusIcon size={18} />
-            <span>{t('common.add')}</span>
-          </button>
-        </div>
+          <PlusIcon size={18} />
+          {t('common.add')}
+        </button>
       </div>
 
-      {/* Card Filter Pills */}
+      {/* Unified filter toolbar */}
       <div
         style={{
           display: 'flex',
-          gap: theme.spacing.sm,
-          padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-          borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
           alignItems: 'center',
+          gap: '16px',
+          flexWrap: 'wrap',
+          padding: '14px 18px',
+          background: 'rgba(255,255,255,0.03)',
+          borderRadius: '10px',
+          border: '1px solid rgba(255,255,255,0.06)',
+          marginBottom: '20px',
         }}
       >
-        <span style={{ fontSize: '14px', fontWeight: 500, color: theme.colors.text.primary, minWidth: '80px' }}>
-          {t('members.table.cardUid')}:
-        </span>
-        <button
-          data-testid="filter-card-all"
-          onClick={() => {
-            setFilterCardUid('all')
-            setPage(1)
-          }}
-          style={{
-            padding: '6px 16px',
-            border: `1px solid ${filterCardUid === 'all' ? theme.colors.semantic.primary : tableColors.rowActiveBorder}`,
-            backgroundColor: filterCardUid === 'all' ? `${theme.colors.semantic.primary}20` : 'transparent',
-            color: filterCardUid === 'all' ? theme.colors.semantic.primary : theme.colors.text.primary,
-            borderRadius: '20px',
-            fontSize: '13px',
-            fontWeight: 500,
-            cursor: 'pointer',
-            transition: 'all 0.15s',
-          }}
-        >
-          {t('members.filters.card.all')}
-        </button>
-        <button
-          data-testid="filter-card-with"
-          onClick={() => {
-            setFilterCardUid('with')
-            setPage(1)
-          }}
-          style={{
-            padding: '6px 16px',
-            border: `1px solid ${filterCardUid === 'with' ? theme.colors.semantic.primary : tableColors.rowActiveBorder}`,
-            backgroundColor: filterCardUid === 'with' ? `${theme.colors.semantic.primary}20` : 'transparent',
-            color: filterCardUid === 'with' ? theme.colors.semantic.primary : theme.colors.text.primary,
-            borderRadius: '20px',
-            fontSize: '13px',
-            fontWeight: 500,
-            cursor: 'pointer',
-            transition: 'all 0.15s',
-          }}
-        >
-          {t('members.filters.card.withCard')}
-        </button>
-        <button
-          data-testid="filter-card-without"
-          onClick={() => {
-            setFilterCardUid('without')
-            setPage(1)
-          }}
-          style={{
-            padding: '6px 16px',
-            border: `1px solid ${filterCardUid === 'without' ? theme.colors.semantic.primary : tableColors.rowActiveBorder}`,
-            backgroundColor: filterCardUid === 'without' ? `${theme.colors.semantic.primary}20` : 'transparent',
-            color: filterCardUid === 'without' ? theme.colors.semantic.primary : theme.colors.text.primary,
-            borderRadius: '20px',
-            fontSize: '13px',
-            fontWeight: 500,
-            cursor: 'pointer',
-            transition: 'all 0.15s',
-          }}
-        >
-          {t('members.filters.card.withoutCard')}
-        </button>
+        {/* Search */}
+        <div style={{ position: 'relative', flex: '0 1 260px', minWidth: '180px' }}>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', opacity: 0.35 }}
+          >
+            <circle cx="7" cy="7" r="5.5" stroke="#fff" strokeWidth="1.5" />
+            <path d="M11 11l3.5 3.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
+            placeholder={t('common.searchPlaceholder')}
+            data-testid="members-search-input"
+            style={{
+              width: '100%',
+              padding: '8px 12px 8px 32px',
+              borderRadius: '7px',
+              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'rgba(255,255,255,0.04)',
+              color: '#e2e8f0',
+              fontSize: '13px',
+              outline: 'none',
+            }}
+          />
+        </div>
+
+        {/* Divider */}
+        <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.08)' }} />
+
+        {/* Status filter group */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span
+            style={{
+              fontSize: '12px',
+              color: 'rgba(255,255,255,0.35)',
+              marginRight: '4px',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+            }}
+          >
+            Status
+          </span>
+          <button
+            data-testid="members-filter-status-all"
+            onClick={() => {
+              setFilterIsActive('all')
+              setPage(1)
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterIsActive === 'all' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+              color: filterIsActive === 'all' ? '#fff' : 'rgba(255,255,255,0.55)',
+            }}
+          >
+            {t('members.filters.status.all')}
+          </button>
+          <button
+            data-testid="members-filter-status-active"
+            onClick={() => {
+              setFilterIsActive('active')
+              setPage(1)
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterIsActive === 'active' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+              color: filterIsActive === 'active' ? '#fff' : 'rgba(255,255,255,0.55)',
+            }}
+          >
+            {t('members.filters.status.active')}
+          </button>
+          <button
+            data-testid="members-filter-status-inactive"
+            onClick={() => {
+              setFilterIsActive('inactive')
+              setPage(1)
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterIsActive === 'inactive' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+              color: filterIsActive === 'inactive' ? '#fff' : 'rgba(255,255,255,0.55)',
+            }}
+          >
+            {t('members.filters.status.inactive')}
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.08)' }} />
+
+        {/* Card filter group */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span
+            style={{
+              fontSize: '12px',
+              color: 'rgba(255,255,255,0.35)',
+              marginRight: '4px',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+            }}
+          >
+            Karte
+          </span>
+          <button
+            data-testid="filter-card-all"
+            onClick={() => {
+              setFilterCardUid('all')
+              setPage(1)
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterCardUid === 'all' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+              color: filterCardUid === 'all' ? '#fff' : 'rgba(255,255,255,0.55)',
+            }}
+          >
+            {t('members.filters.card.all')}
+          </button>
+          <button
+            data-testid="filter-card-with"
+            onClick={() => {
+              setFilterCardUid('with')
+              setPage(1)
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterCardUid === 'with' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+              color: filterCardUid === 'with' ? '#fff' : 'rgba(255,255,255,0.55)',
+            }}
+          >
+            {t('members.filters.card.withCard')}
+          </button>
+          <button
+            data-testid="filter-card-without"
+            onClick={() => {
+              setFilterCardUid('without')
+              setPage(1)
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterCardUid === 'without' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+              color: filterCardUid === 'without' ? '#fff' : 'rgba(255,255,255,0.55)',
+            }}
+          >
+            {t('members.filters.card.withoutCard')}
+          </button>
+        </div>
+
+        {/* Clear filters */}
+        {((filterIsActive !== 'all') || (filterCardUid !== 'all') || search) && (
+          <>
+            <div style={{ flex: 1 }} />
+            <button
+              onClick={() => {
+                setSearch('')
+                setFilterIsActive('all')
+                setFilterCardUid('all')
+                setPage(1)
+              }}
+              data-testid="members-clear-filters"
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.45)',
+                fontSize: '12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <span style={{ fontSize: '14px', lineHeight: 1 }}>×</span> Filter zurücksetzen
+            </button>
+          </>
+        )}
       </div>
 
         {/* Table */}
