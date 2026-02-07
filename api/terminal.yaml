@@ -131,12 +131,13 @@ paths:
           in: query
           required: true
           schema:
-            type: string
-            format: date-time
+            type: integer
+            format: int64
           description: |
-            ISO 8601 timestamp. Return members with `updated_at >= since`.
-            On first sync, use epoch (1970-01-01T00:00:00Z) or current time.
-          example: '2025-01-23T14:00:00Z'
+            Unix timestamp in milliseconds. Return members with `updated_at >= since`.
+            On first sync, omit parameter or use 0.
+            Use the `cursor` value from previous response directly.
+          example: 1738761600000
         - name: limit
           in: query
           required: false
@@ -187,12 +188,13 @@ paths:
           in: query
           required: true
           schema:
-            type: string
-            format: date-time
+            type: integer
+            format: int64
           description: |
-            ISO 8601 timestamp. Return categories with `updated_at >= since`.
-            On first sync, use epoch (1970-01-01T00:00:00Z) or current time.
-          example: '2025-01-23T14:00:00Z'
+            Unix timestamp in milliseconds. Return categories with `updated_at >= since`.
+            On first sync, omit parameter or use 0.
+            Use the `cursor` value from previous response directly.
+          example: 1738761600000
         - name: limit
           in: query
           required: false
@@ -251,12 +253,13 @@ paths:
           in: query
           required: true
           schema:
-            type: string
-            format: date-time
+            type: integer
+            format: int64
           description: |
-            ISO 8601 timestamp. Return products with `updated_at >= since`.
-            On first sync, use epoch (1970-01-01T00:00:00Z) or current time.
-          example: '2025-01-23T14:00:00Z'
+            Unix timestamp in milliseconds. Return products with `updated_at >= since`.
+            On first sync, omit parameter or use 0.
+            Use the `cursor` value from previous response directly.
+          example: 1738761600000
         - name: limit
           in: query
           required: false
