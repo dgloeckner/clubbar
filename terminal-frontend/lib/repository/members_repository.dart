@@ -64,6 +64,13 @@ class MembersRepository {
         .write(MembersCacheCompanion(balanceCents: Value(balanceCents)));
   }
 
+  /// Delete member by ID (for tombstone handling)
+  Future<void> deleteById(String memberId) async {
+    await (_db.delete(_db.membersCache)
+          ..where((m) => m.id.equals(memberId)))
+        .go();
+  }
+
   /// Clear all member cache (for logout or reset)
   Future<void> clearCache() async {
     await _db.delete(_db.membersCache).go();

@@ -82,6 +82,20 @@ class ProductsRepository {
     }
   }
 
+  /// Delete category by ID (for tombstone handling)
+  Future<void> deleteCategoryById(String categoryId) async {
+    await (_db.delete(_db.categoriesCache)
+          ..where((c) => c.id.equals(categoryId)))
+        .go();
+  }
+
+  /// Delete product by ID (for tombstone handling)
+  Future<void> deleteProductById(String productId) async {
+    await (_db.delete(_db.productsCache)
+          ..where((p) => p.id.equals(productId)))
+        .go();
+  }
+
   /// Clear all product/category cache
   Future<void> clearCache() async {
     await _db.delete(_db.productsCache).go();
