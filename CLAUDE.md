@@ -137,7 +137,7 @@ test('should create member and persist without errors', async ({ page, authentic
   expect(newCount).toBe(initialCount + 1)
 
   // Optional: Verify backend logs show success (if needed)
-  // docker compose exec backend tail -20 /app/storage/logs/laravel.log
+  // docker compose exec backend tail -20 /app/logs/$(date +%Y-%m-%d).log | jq .
 })
 ```
 
@@ -165,13 +165,14 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
 
 **When tests fail or requests behave unexpectedly, follow this checklist:**
 
-1. **Check Laravel Application Logs**
+1. **Check Application Logs** (JSON format, daily files)
    ```bash
-   docker compose exec backend tail -100 /app/storage/logs/laravel.log
+   TODAY=$(date +%Y-%m-%d)
+   docker compose exec backend tail -100 /app/logs/$TODAY.log | jq .
    ```
-   - Look for `ERROR` and `Exception` entries
-   - Stack traces show exact line numbers where failures occur
-   - Type errors (e.g., Carbon vs DateTimeImmutable) appear here first
+   - Look for `"level":"ERROR"` and `"level":"CRITICAL"` entries
+   - JSON format: `{ts, level, channel, msg, ctx}`
+   - Stack traces and context data in `ctx` field
    - Source of truth for debugging application-level issues
 
 2. **Check HTTP Access Logs & Status Codes**
@@ -288,8 +289,9 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
    # 1. Check backend is running and healthy
    curl http://localhost:8080/api/health
 
-   # 2. Check recent PHP/API errors
-   docker compose exec backend tail -100 /app/storage/logs/laravel.log | grep -A 10 "ERROR\|Exception"
+   # 2. Check recent application errors (JSON logs)
+   TODAY=$(date +%Y-%m-%d)
+   docker compose exec backend cat /app/logs/$TODAY.log | jq 'select(.level == "ERROR" or .level == "CRITICAL")'
 
    # 3. Check HTTP response codes from the API
    docker compose logs backend | tail -50 | grep "POST\|PUT\|PATCH\|DELETE"
@@ -408,8 +410,9 @@ npm test -- --grep "feature name" --workers=4
 cd e2etests
 npm test -- tests/api/filename.spec.ts --workers=1
 
-# Check Laravel logs:
-docker compose exec backend tail -100 /app/storage/logs/laravel.log
+# Check application logs (JSON):
+TODAY=$(date +%Y-%m-%d)
+docker compose exec backend tail -100 /app/logs/$TODAY.log | jq .
 
 # Fix the issue, restart PHP, try again
 # Once test passes with 1 worker, verify it passes with 4 workers:

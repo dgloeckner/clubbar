@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\AuditLog\Controllers;
 
+use App\Modules\AuditLog\DTOs\AuditLogDto;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -39,11 +40,20 @@ class AdminController
         if (isset($params['search'])) {
             $filters['search'] = $params['search'];
         }
+        if (isset($params['filters']['entity_id'])) {
+            $filters['entity_id'] = $params['filters']['entity_id'];
+        }
 
         $result = $this->auditLogRepository->listWithFilters($limit, $offset, $filters);
 
+        // Convert raw database rows to DTOs (Backend Pattern 004)
+        $items = array_map(
+            fn($row) => AuditLogDto::fromRow($row)->toArray(),
+            $result['items']
+        );
+
         return $this->json($response, [
-            'items' => $result['items'],
+            'items' => $items,
             'total' => $result['total'],
             'limit' => $limit,
             'offset' => $offset,

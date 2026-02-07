@@ -1,5 +1,6 @@
 import { test, expect } from '../../fixtures/auth.fixture';
 import { randomUUID } from 'crypto';
+import type { APIRequestContext } from '@playwright/test';
 
 /**
  * Products API - Category Filtering Tests
@@ -42,7 +43,7 @@ function createValidProduct(categoryId: string, overrides = {}) {
 }
 
 // Helper to create category
-async function createCategory(authenticatedRequest, nameSuffix: string = '') {
+async function createCategory(authenticatedRequest: APIRequestContext, nameSuffix: string = '') {
   const response = await authenticatedRequest.post('/api/admin/categories', {
     data: {
       names: {

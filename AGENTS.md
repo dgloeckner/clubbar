@@ -726,6 +726,48 @@ Debugging library errors:
 - Max 3 calls per question
 - Combine Context7 results with project patterns
 
+### PHP Logs Skill (Docker Backend Debugging)
+
+**When to invoke**: After test failures, backend errors, or when correlating Playwright failures with backend logs.
+
+**Skill**: `php-logs` (automatically available in Claude Code)
+
+**What it does**:
+- Checks ALL 4 log sources (Application JSON, PHP-FPM, Apache, Docker)
+- Parses JSON logs with jq for error patterns
+- Saves analyzed output to timestamped files (`logs/php-YYYYMMDD-HHMMSS.log`)
+- Correlates timestamps with test execution
+- Provides both console output AND file preservation
+
+**Key commands** (from skill):
+```bash
+# All 4 sources checked by default
+TODAY=$(date +%Y-%m-%d)
+docker compose exec backend tail -100 /app/logs/$TODAY.log | jq .
+docker compose exec backend tail -100 /opt/docker/var/log/php-fpm-error.log
+docker compose exec backend tail -100 /var/log/apache2/error.log
+docker compose logs backend --tail=100
+
+# Analysis (JSON parsing with jq)
+docker compose exec backend cat /app/logs/$TODAY.log | \
+  jq 'select(.level == "ERROR") | {ts, msg, ctx}'
+
+# Preservation (timestamped file)
+mkdir -p logs
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+docker compose exec backend cat /app/logs/$TODAY.log | \
+  jq 'select(.level == "ERROR" or .level == "CRITICAL")' | \
+  tee logs/php-$TIMESTAMP.log
+```
+
+**Integration with Playwright**: Automatically invoked when >10 tests fail (when playwright-testing skill is implemented).
+
+**Red flags the skill counters**:
+- "Application logs have everything" → Checks all 4 sources
+- "Console output is enough" → Saves to timestamped file
+- "Manual JSON reading" → Uses jq to parse/filter
+- "Recent logs are fine" → Filters by precise timestamp
+
 ---
 
 ## Best Practices for Agents

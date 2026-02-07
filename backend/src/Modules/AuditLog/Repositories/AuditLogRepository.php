@@ -58,6 +58,10 @@ class AuditLogRepository
             $where[] = 'al.admin_user_id = ?';
             $params[] = $filters['admin_user_id'];
         }
+        if (isset($filters['entity_id'])) {
+            $where[] = 'al.entity_id = ?';
+            $params[] = $filters['entity_id'];
+        }
         if (isset($filters['search'])) {
             $escaped = SafeQuery::escapeLike($filters['search']);
             $where[] = '(al.entity_id LIKE ? OR al.ip_address LIKE ?)';
