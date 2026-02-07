@@ -7,6 +7,7 @@ class MemberDTO {
   final bool isActive;
   final bool isSepaValid;
   final String updatedAt;
+  final String? deletedAt; // GDPR anonymization timestamp
 
   MemberDTO({
     required this.id,
@@ -17,7 +18,11 @@ class MemberDTO {
     required this.isActive,
     required this.isSepaValid,
     required this.updatedAt,
+    this.deletedAt,
   });
+
+  /// Returns true if member has been anonymized (GDPR deletion)
+  bool get isDeleted => deletedAt != null;
 
   factory MemberDTO.fromJson(Map<String, dynamic> json) {
     return MemberDTO(
@@ -33,6 +38,7 @@ class MemberDTO {
           ? json['is_sepa_valid'] as bool
           : (json['is_sepa_valid'] as int?) == 1,
       updatedAt: json['updated_at'] as String,
+      deletedAt: json['deleted_at'] as String?,
     );
   }
 
@@ -45,5 +51,6 @@ class MemberDTO {
     'is_active': isActive ? 1 : 0,
     'is_sepa_valid': isSepaValid ? 1 : 0,
     'updated_at': updatedAt,
+    'deleted_at': deletedAt,
   };
 }

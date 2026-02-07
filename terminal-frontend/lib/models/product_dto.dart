@@ -9,6 +9,7 @@ class ProductDTO {
   final bool isActive;
   final String? iconName;
   final String updatedAt;
+  final String? deletedAt; // Soft deletion timestamp
 
   ProductDTO({
     required this.id,
@@ -19,7 +20,11 @@ class ProductDTO {
     required this.isActive,
     this.iconName,
     required this.updatedAt,
+    this.deletedAt,
   });
+
+  /// Returns true if product has been deleted
+  bool get isDeleted => deletedAt != null;
 
   factory ProductDTO.fromJson(Map<String, dynamic> json) {
     // names may be a JSON string (from SQLite) or a Map (from API)
@@ -50,6 +55,7 @@ class ProductDTO {
       isActive: isActive,
       iconName: json['icon_name'] as String?,
       updatedAt: json['updated_at'] as String,
+      deletedAt: json['deleted_at'] as String?,
     );
   }
 
@@ -62,5 +68,6 @@ class ProductDTO {
     'is_active': isActive ? 1 : 0,
     'icon_name': iconName,
     'updated_at': updatedAt,
+    'deleted_at': deletedAt,
   };
 }
