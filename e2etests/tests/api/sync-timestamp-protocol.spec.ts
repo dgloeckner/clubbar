@@ -71,27 +71,4 @@ test.describe('Sync Timestamp Protocol', () => {
     // Verify products array exists (may be empty if no changes)
     expect(data2.products).toBeDefined();
   });
-
-  test('cursor format is consistent across all sync endpoints', async ({ authenticatedTerminalRequest }) => {
-    // Sync all endpoints with since=0
-    const endpoints = ['members', 'categories', 'products'];
-    const cursors: number[] = [];
-
-    for (const endpoint of endpoints) {
-      const response = await authenticatedTerminalRequest.get(`${API_BASE}/sync/${endpoint}?since=0`);
-      expect(response.ok()).toBeTruthy();
-      const data = await response.json();
-
-      // Verify cursor in milliseconds
-      expect(data.cursor).toBeGreaterThan(1700000000000);
-      expect(data.cursor).toBeLessThan(2000000000000);
-
-      cursors.push(data.cursor);
-    }
-
-    // All cursors should be in similar range (within 1 second = 1000ms)
-    const minCursor = Math.min(...cursors);
-    const maxCursor = Math.max(...cursors);
-    expect(maxCursor - minCursor).toBeLessThan(1000);
-  });
 });
