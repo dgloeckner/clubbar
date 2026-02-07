@@ -90,7 +90,7 @@ class ProductsRepository
         $fields = [];
         $values = [];
 
-        $allowed = ['category_id', 'names', 'descriptions', 'price_cents', 'is_active', 'icon_name'];
+        $allowed = ['category_id', 'names', 'descriptions', 'price_cents', 'is_active', 'icon_name', 'deleted_at', 'deleted_by_admin_id'];
         foreach ($data as $key => $value) {
             if (!in_array($key, $allowed, true)) continue;
             if (($key === 'names' || $key === 'descriptions') && is_array($value)) {

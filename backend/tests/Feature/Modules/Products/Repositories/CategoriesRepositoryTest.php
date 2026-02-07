@@ -136,4 +136,97 @@ class CategoriesRepositoryTest extends DatabaseTestCase
 
         $this->assertTrue($found, "Bug #2: Category should be found after milliseconds-to-seconds conversion fix (year 57123 bug)");
     }
+
+    public function test_findModifiedSince_includes_deleted_categories_tombstones(): void
+    {
+        // Create test category
+        $testCategoryId = $this->generateUuid();
+        $testCategory = [
+            'id' => $testCategoryId,
+            'names' => json_encode(['de' => 'Tombstone Category', 'en' => 'Tombstone Category']),
+            'display_order' => 100,
+            'is_active' => 1,
+        ];
+        $this->categoriesRepository->create($testCategory);
+        $this->testCategoryIds[] = $testCategoryId;
+
+        // Get timestamp before deletion
+        $beforeDelete = time() * 1000;
+        sleep(1);
+
+        // Soft delete the category
+        $this->categoriesRepository->updateById($testCategoryId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        // Query with timestamp before deletion
+        $results = $this->categoriesRepository->findModifiedSince($beforeDelete);
+
+        // Should include the deleted category (tombstone)
+        $found = false;
+        foreach ($results as $result) {
+            if ($result['id'] === $testCategoryId) {
+                $found = true;
+                $this->assertNotNull($result['deleted_at'], 'Deleted category should have deleted_at set');
+                break;
+            }
+        }
+
+        $this->assertTrue($found, 'Deleted category (tombstone) should be included in sync results');
+    }
+
+    public function test_findModifiedSince_includes_both_updated_and_deleted_categories(): void
+    {
+        // Create two test categories
+        $updatedCategoryId = $this->generateUuid();
+        $deletedCategoryId = $this->generateUuid();
+
+        $this->categoriesRepository->create([
+            'id' => $updatedCategoryId,
+            'names' => json_encode(['de' => 'Updated Category', 'en' => 'Updated Category']),
+            'display_order' => 101,
+            'is_active' => 1,
+        ]);
+
+        $this->categoriesRepository->create([
+            'id' => $deletedCategoryId,
+            'names' => json_encode(['de' => 'Deleted Category', 'en' => 'Deleted Category']),
+            'display_order' => 102,
+            'is_active' => 1,
+        ]);
+
+        $this->testCategoryIds[] = $updatedCategoryId;
+        $this->testCategoryIds[] = $deletedCategoryId;
+
+        // Get timestamp before modifications
+        $beforeModifications = time() * 1000;
+        sleep(1);
+
+        // Update one category
+        $this->categoriesRepository->updateById($updatedCategoryId, [
+            'names' => json_encode(['de' => 'Updated Name', 'en' => 'Updated Name'])
+        ]);
+
+        // Delete the other category
+        $this->categoriesRepository->updateById($deletedCategoryId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        // Query with timestamp before modifications
+        $results = $this->categoriesRepository->findModifiedSince($beforeModifications);
+
+        // Should include both
+        $foundUpdated = false;
+        $foundDeleted = false;
+
+        foreach ($results as $result) {
+            if ($result['id'] === $updatedCategoryId) {
+                $foundUpdated = true;
+                $this->assertNull($result['deleted_at']);
+            }
+            if ($result['id'] === $deletedCategoryId) {
+                $foundDeleted = true;
+                $this->assertNotNull($result['deleted_at']);
+            }
+        }
+
+        $this->assertTrue($foundUpdated, 'Updated category should be included');
+        $this->assertTrue($foundDeleted, 'Deleted category (tombstone) should be included');
+    }
 }

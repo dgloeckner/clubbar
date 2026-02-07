@@ -144,4 +144,158 @@ class MembersRepositoryTest extends DatabaseTestCase
             $this->assertGreaterThan(2020, $year, "Year should be recent, got {$year} for member {$result['id']}");
         }
     }
+
+    public function test_findModifiedSince_includes_deleted_members_tombstones(): void
+    {
+        // Create test member
+        $testMemberId = $this->generateUuid();
+        $testMember = [
+            'id' => $testMemberId,
+            'card_uid' => '04:AA:BB:CC:DD:EE:22',
+            'first_name' => 'Tombstone',
+            'last_name' => 'Test',
+            'email' => 'tombstone-test@example.com',
+            'preferred_language' => 'de',
+            'is_active' => 1,
+            'iban' => 'DE89370400440532013000',
+            'mandate_reference' => 'MANDATE' . substr($testMemberId, 0, 8),
+            'mandate_signed_at' => '2025-01-01',
+        ];
+        $this->membersRepository->create($testMember);
+        $this->testMemberIds[] = $testMemberId;
+
+        // Get timestamp before deletion
+        $beforeDelete = time() * 1000;
+        sleep(1); // Ensure deleted_at is after created_at
+
+        // Soft delete the member (set deleted_at)
+        $this->membersRepository->updateById($testMemberId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        // Query with timestamp before deletion
+        $results = $this->membersRepository->findModifiedSince($beforeDelete);
+
+        // Should include the deleted member (tombstone)
+        $found = false;
+        foreach ($results as $result) {
+            if ($result['id'] === $testMemberId) {
+                $found = true;
+                $this->assertNotNull($result['deleted_at'], 'Deleted member should have deleted_at set');
+                break;
+            }
+        }
+
+        $this->assertTrue($found, 'Deleted member (tombstone) should be included in sync results');
+    }
+
+    public function test_findModifiedSince_includes_both_updated_and_deleted_members(): void
+    {
+        // Create two test members
+        $updatedMemberId = $this->generateUuid();
+        $deletedMemberId = $this->generateUuid();
+
+        $updatedMember = [
+            'id' => $updatedMemberId,
+            'card_uid' => '04:AA:BB:CC:DD:EE:33',
+            'first_name' => 'Updated',
+            'last_name' => 'Member',
+            'email' => 'updated-member@example.com',
+            'preferred_language' => 'de',
+            'is_active' => 1,
+            'iban' => 'DE89370400440532013000',
+            'mandate_reference' => 'MANDATE' . substr($updatedMemberId, 0, 8),
+            'mandate_signed_at' => '2025-01-01',
+        ];
+
+        $deletedMember = [
+            'id' => $deletedMemberId,
+            'card_uid' => '04:AA:BB:CC:DD:EE:44',
+            'first_name' => 'Deleted',
+            'last_name' => 'Member',
+            'email' => 'deleted-member@example.com',
+            'preferred_language' => 'de',
+            'is_active' => 1,
+            'iban' => 'DE89370400440532013000',
+            'mandate_reference' => 'MANDATE' . substr($deletedMemberId, 0, 8),
+            'mandate_signed_at' => '2025-01-01',
+        ];
+
+        $this->membersRepository->create($updatedMember);
+        $this->membersRepository->create($deletedMember);
+        $this->testMemberIds[] = $updatedMemberId;
+        $this->testMemberIds[] = $deletedMemberId;
+
+        // Get timestamp before modifications
+        $beforeModifications = time() * 1000;
+        sleep(1);
+
+        // Update one member
+        $this->membersRepository->updateById($updatedMemberId, ['first_name' => 'UpdatedName']);
+
+        // Delete the other member
+        $this->membersRepository->updateById($deletedMemberId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        // Query with timestamp before modifications
+        $results = $this->membersRepository->findModifiedSince($beforeModifications);
+
+        // Should include both the updated member and the deleted member (tombstone)
+        $foundUpdated = false;
+        $foundDeleted = false;
+
+        foreach ($results as $result) {
+            if ($result['id'] === $updatedMemberId) {
+                $foundUpdated = true;
+                $this->assertNull($result['deleted_at'], 'Updated member should not have deleted_at');
+                $this->assertEquals('UpdatedName', $result['first_name']);
+            }
+            if ($result['id'] === $deletedMemberId) {
+                $foundDeleted = true;
+                $this->assertNotNull($result['deleted_at'], 'Deleted member should have deleted_at set');
+            }
+        }
+
+        $this->assertTrue($foundUpdated, 'Updated member should be included in sync results');
+        $this->assertTrue($foundDeleted, 'Deleted member (tombstone) should be included in sync results');
+    }
+
+    public function test_findModifiedSince_orders_by_coalesce_updated_deleted(): void
+    {
+        // Create test member
+        $testMemberId = $this->generateUuid();
+        $testMember = [
+            'id' => $testMemberId,
+            'card_uid' => '04:AA:BB:CC:DD:EE:55',
+            'first_name' => 'Order',
+            'last_name' => 'Test',
+            'email' => 'order-test@example.com',
+            'preferred_language' => 'de',
+            'is_active' => 1,
+            'iban' => 'DE89370400440532013000',
+            'mandate_reference' => 'MANDATE' . substr($testMemberId, 0, 8),
+            'mandate_signed_at' => '2025-01-01',
+        ];
+        $this->membersRepository->create($testMember);
+        $this->testMemberIds[] = $testMemberId;
+
+        // Delete the member (sets deleted_at, updated_at stays the same)
+        $this->membersRepository->updateById($testMemberId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        // Query should return results ordered by COALESCE(updated_at, deleted_at)
+        $results = $this->membersRepository->findModifiedSince(0);
+
+        // Verify results are ordered (ASC)
+        $previousTimestamp = null;
+        foreach ($results as $result) {
+            $currentTimestamp = $result['deleted_at'] ?? $result['updated_at'];
+
+            if ($previousTimestamp !== null) {
+                $this->assertGreaterThanOrEqual(
+                    strtotime($previousTimestamp),
+                    strtotime($currentTimestamp),
+                    'Results should be ordered by COALESCE(updated_at, deleted_at) ASC'
+                );
+            }
+
+            $previousTimestamp = $currentTimestamp;
+        }
+    }
 }

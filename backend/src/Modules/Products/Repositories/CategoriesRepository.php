@@ -99,7 +99,7 @@ class CategoriesRepository
         $values = [];
 
         foreach ($data as $key => $value) {
-            $col = SafeQuery::column($key, ['names', 'display_order', 'is_active', 'icon_name']);
+            $col = SafeQuery::column($key, ['names', 'display_order', 'is_active', 'icon_name', 'deleted_at', 'deleted_by_admin_id']);
             if ($key === 'names' && is_array($value)) {
                 $value = json_encode($value);
             }

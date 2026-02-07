@@ -178,4 +178,120 @@ class ProductsRepositoryTest extends DatabaseTestCase
 
         $this->assertTrue($found, "Bug #2: Product should be found after milliseconds-to-seconds conversion fix (year 57123 bug)");
     }
+
+    public function test_findModifiedSince_includes_deleted_products_tombstones(): void
+    {
+        // Create test category first
+        $testCategoryId = $this->generateUuid();
+        $this->categoriesRepository->create([
+            'id' => $testCategoryId,
+            'names' => json_encode(['de' => 'Test Category', 'en' => 'Test Category']),
+            'display_order' => 100,
+            'is_active' => 1,
+        ]);
+        $this->testCategoryIds[] = $testCategoryId;
+
+        // Create test product
+        $testProductId = $this->generateUuid();
+        $testProduct = [
+            'id' => $testProductId,
+            'category_id' => $testCategoryId,
+            'names' => json_encode(['de' => 'Tombstone Product', 'en' => 'Tombstone Product']),
+            'price_cents' => 500,
+            'is_active' => 1,
+        ];
+        $this->productsRepository->create($testProduct);
+        $this->testProductIds[] = $testProductId;
+
+        // Get timestamp before deletion
+        $beforeDelete = time() * 1000;
+        sleep(1);
+
+        // Soft delete the product
+        $this->productsRepository->updateById($testProductId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        // Query with timestamp before deletion
+        $results = $this->productsRepository->findModifiedSince($beforeDelete);
+
+        // Should include the deleted product (tombstone)
+        $found = false;
+        foreach ($results as $result) {
+            if ($result['id'] === $testProductId) {
+                $found = true;
+                $this->assertNotNull($result['deleted_at'], 'Deleted product should have deleted_at set');
+                break;
+            }
+        }
+
+        $this->assertTrue($found, 'Deleted product (tombstone) should be included in sync results');
+    }
+
+    public function test_findModifiedSince_includes_both_updated_and_deleted_products(): void
+    {
+        // Create test category
+        $testCategoryId = $this->generateUuid();
+        $this->categoriesRepository->create([
+            'id' => $testCategoryId,
+            'names' => json_encode(['de' => 'Test Category', 'en' => 'Test Category']),
+            'display_order' => 100,
+            'is_active' => 1,
+        ]);
+        $this->testCategoryIds[] = $testCategoryId;
+
+        // Create two test products
+        $updatedProductId = $this->generateUuid();
+        $deletedProductId = $this->generateUuid();
+
+        $this->productsRepository->create([
+            'id' => $updatedProductId,
+            'category_id' => $testCategoryId,
+            'names' => json_encode(['de' => 'Updated Product', 'en' => 'Updated Product']),
+            'price_cents' => 600,
+            'is_active' => 1,
+        ]);
+
+        $this->productsRepository->create([
+            'id' => $deletedProductId,
+            'category_id' => $testCategoryId,
+            'names' => json_encode(['de' => 'Deleted Product', 'en' => 'Deleted Product']),
+            'price_cents' => 700,
+            'is_active' => 1,
+        ]);
+
+        $this->testProductIds[] = $updatedProductId;
+        $this->testProductIds[] = $deletedProductId;
+
+        // Get timestamp before modifications
+        $beforeModifications = time() * 1000;
+        sleep(1);
+
+        // Update one product
+        $this->productsRepository->updateById($updatedProductId, [
+            'names' => json_encode(['de' => 'Updated Name', 'en' => 'Updated Name'])
+        ]);
+
+        // Delete the other product
+        $this->productsRepository->updateById($deletedProductId, ['deleted_at' => date('Y-m-d H:i:s')]);
+
+        // Query with timestamp before modifications
+        $results = $this->productsRepository->findModifiedSince($beforeModifications);
+
+        // Should include both
+        $foundUpdated = false;
+        $foundDeleted = false;
+
+        foreach ($results as $result) {
+            if ($result['id'] === $updatedProductId) {
+                $foundUpdated = true;
+                $this->assertNull($result['deleted_at']);
+            }
+            if ($result['id'] === $deletedProductId) {
+                $foundDeleted = true;
+                $this->assertNotNull($result['deleted_at']);
+            }
+        }
+
+        $this->assertTrue($foundUpdated, 'Updated product should be included');
+        $this->assertTrue($foundDeleted, 'Deleted product (tombstone) should be included');
+    }
 }
