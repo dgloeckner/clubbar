@@ -29,10 +29,13 @@ class CategoriesRepository
 
     public function findModifiedSince(int $sinceTimestamp): array
     {
+        // Convert milliseconds to seconds for date() function
+        $sinceSeconds = (int) ($sinceTimestamp / 1000);
+
         $stmt = $this->db->prepare(
             'SELECT * FROM categories WHERE updated_at >= ? ORDER BY display_order ASC'
         );
-        $stmt->execute([date('Y-m-d H:i:s', $sinceTimestamp)]);
+        $stmt->execute([date('Y-m-d H:i:s', $sinceSeconds)]);
         return $stmt->fetchAll();
     }
 
