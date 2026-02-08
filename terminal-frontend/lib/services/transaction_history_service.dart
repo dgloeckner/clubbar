@@ -73,14 +73,28 @@ class TransactionHistoryService {
     required String memberId,
     required String preferredLanguage,
   }) async {
-    final query = database.select(database.transactionsLocal)
-      ..where((t) => t.memberId.equals(memberId) & t.synced.equals(0))
-      ..orderBy([(t) => drift.OrderingTerm.desc(t.createdAt)]);
+    // Join transactions with products to get product names and icons
+    final query = database.select(database.transactionsLocal).join([
+      drift.leftOuterJoin(
+        database.productsCache,
+        database.productsCache.id.equalsExp(database.transactionsLocal.productId),
+      ),
+    ])
+      ..where(database.transactionsLocal.memberId.equals(memberId) &
+          database.transactionsLocal.synced.equals(0))
+      ..orderBy([drift.OrderingTerm.desc(database.transactionsLocal.createdAt)]);
 
     final rows = await query.get();
 
     return rows.map((row) {
-      return TransactionListItem.fromLocalDb(row, preferredLanguage);
+      final transaction = row.readTable(database.transactionsLocal);
+      final product = row.readTableOrNull(database.productsCache);
+
+      return TransactionListItem.fromLocalDb(
+        transaction,
+        product,
+        preferredLanguage,
+      );
     }).toList();
   }
 

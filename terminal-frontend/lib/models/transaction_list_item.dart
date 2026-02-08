@@ -31,22 +31,45 @@ class TransactionListItem {
 
   /// Create from local database row (unsynced transaction)
   factory TransactionListItem.fromLocalDb(
-    TransactionsLocalData row,
+    TransactionsLocalData transaction,
+    ProductsCacheData? product,
     String preferredLanguage,
   ) {
-    // For local transactions, we need to fetch product name
-    // For now, use transaction type as placeholder
-    final details = row.transactionType == 'correction'
-        ? (row.notes ?? 'Korrektur')
-        : 'Produkt'; // TODO: Join with products_cache to get name
+    // Determine details based on transaction type
+    String details;
+    String? iconName;
+
+    if (transaction.transactionType == 'correction') {
+      // Corrections: use notes
+      details = transaction.notes ?? 'Korrektur';
+      iconName = null;
+    } else if (product != null) {
+      // Purchases: extract product name from multilingual JSON
+      final productNames = product.names;
+      try {
+        final namesMap = jsonDecode(productNames) as Map<String, dynamic>;
+        details = namesMap[preferredLanguage] ??
+                  namesMap['de'] ??
+                  (namesMap.isNotEmpty ? namesMap.values.first : null) ??
+                  'Unbekannt';
+      } catch (e) {
+        // Fallback to raw string if JSON parsing fails
+        details = productNames;
+      }
+      iconName = product.iconName;
+    } else {
+      // Product not found (shouldn't happen with proper foreign keys)
+      details = 'Unbekannt';
+      iconName = null;
+    }
 
     return TransactionListItem(
-      id: row.id,
-      timestamp: DateTime.parse(row.createdAt),
+      id: transaction.id,
+      timestamp: DateTime.parse(transaction.createdAt),
       details: details,
-      amountCents: row.amountCents,
+      amountCents: transaction.amountCents,
       syncStatus: TransactionSyncStatus.unsynced,
-      productIcon: null, // TODO: Join with products_cache to get icon
+      productIcon: iconName,
     );
   }
 
