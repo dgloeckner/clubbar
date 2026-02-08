@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
@@ -16,6 +17,9 @@ class IdleWaitingScreen extends StatefulWidget {
 class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
   final FocusNode _rfidFocusNode = FocusNode();
   final TextEditingController _rfidController = TextEditingController();
+  Timer? _errorDismissTimer;
+  String? _lastError;
+  double _errorOpacity = 1.0;
 
   @override
   void initState() {
@@ -45,6 +49,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
 
   @override
   void dispose() {
+    _errorDismissTimer?.cancel();
     context.read<RfidProvider>().stopListening();
     _rfidFocusNode.dispose();
     _rfidController.dispose();
@@ -69,6 +74,33 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
         // Fallback for non-standard errors (show as-is)
         return errorKey;
     }
+  }
+
+  /// Start auto-dismiss timer for error message
+  void _startErrorDismissTimer(String error) {
+    // Cancel existing timer if any
+    _errorDismissTimer?.cancel();
+
+    // Reset opacity to fully visible
+    setState(() {
+      _errorOpacity = 1.0;
+      _lastError = error;
+    });
+
+    // Start 5-second countdown
+    _errorDismissTimer = Timer(const Duration(seconds: 5), () {
+      // Fade out over 500ms
+      setState(() {
+        _errorOpacity = 0.0;
+      });
+
+      // Clear error from provider after fade completes
+      Timer(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          context.read<RfidProvider>().clearDetection();
+        }
+      });
+    });
   }
 
   @override
@@ -164,29 +196,40 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                     // Error display
                     Consumer<RfidProvider>(
                       builder: (context, rfidProvider, child) {
+                        // Start auto-dismiss timer when error appears or changes
+                        if (rfidProvider.error != null && rfidProvider.error != _lastError) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _startErrorDismissTimer(rfidProvider.error!);
+                          });
+                        }
+
                         if (rfidProvider.error != null) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.lg,
-                                vertical: AppSpacing.md,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xffef4444).withValues(alpha: 0.1),
-                                border: Border.all(
-                                  color: const Color(0xffef4444),
-                                  width: 1,
+                          return AnimatedOpacity(
+                            opacity: _errorOpacity,
+                            duration: const Duration(milliseconds: 500),
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.lg,
+                                  vertical: AppSpacing.md,
                                 ),
-                                borderRadius: BorderRadius.circular(AppBorderRadius.md),
-                              ),
-                              child: Text(
-                                _getLocalizedError(context, rfidProvider.error!),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Color(0xffef4444),
-                                  fontSize: AppFontSizes.base,
-                                  fontWeight: FontWeight.w500,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xffef4444).withValues(alpha: 0.1),
+                                  border: Border.all(
+                                    color: const Color(0xffef4444),
+                                    width: 1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                                ),
+                                child: Text(
+                                  _getLocalizedError(context, rfidProvider.error!),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Color(0xffef4444),
+                                    fontSize: AppFontSizes.base,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
                             ),
