@@ -46,7 +46,7 @@ VALUES (
     'cat-getraenke-0001-0001-000000000001',
     '{"de": "Getränke", "en": "Beverages"}',
     1,
-    'PilsIcon',
+    'beer-pils',
     1,
     NOW(),
     NOW()
@@ -58,7 +58,7 @@ VALUES (
     'cat-sauna-00001-0001-000000000002',
     '{"de": "Sauna", "en": "Sauna"}',
     2,
-    'SaunaCabinIcon',
+    'sauna-cabin',
     1,
     NOW(),
     NOW()
@@ -75,7 +75,7 @@ VALUES (
     '{"de": "Pils 0,5L", "en": "Pilsner 0.5L"}',
     '{"de": "Frisches Pils vom Fass", "en": "Fresh draft pilsner"}',
     350,
-    'PilsIcon',
+    'beer-pils',
     1,
     NOW(),
     NOW()
@@ -89,7 +89,7 @@ VALUES (
     '{"de": "Weizen 0,5L", "en": "Wheat Beer 0.5L"}',
     '{"de": "Bayrisches Hefeweizen", "en": "Bavarian wheat beer"}',
     380,
-    'WeizenIcon',
+    'beer-weizen',
     1,
     NOW(),
     NOW()
@@ -103,7 +103,7 @@ VALUES (
     '{"de": "Radler 0,5L", "en": "Shandy 0.5L"}',
     '{"de": "Erfrischendes Radler", "en": "Refreshing beer lemonade mix"}',
     320,
-    'RadlerIcon',
+    'beer-radler',
     1,
     NOW(),
     NOW()
@@ -117,7 +117,7 @@ VALUES (
     '{"de": "Alkoholfrei 0,5L", "en": "Non-Alcoholic 0.5L"}',
     '{"de": "Alkoholfreies Pils", "en": "Non-alcoholic pilsner"}',
     320,
-    'BeerAFIcon',
+    'beer-alcohol-free',
     1,
     NOW(),
     NOW()
@@ -131,7 +131,7 @@ VALUES (
     '{"de": "Apfelschorle 0,5L", "en": "Apple Spritzer 0.5L"}',
     '{"de": "Apfelsaft mit Sprudel", "en": "Apple juice with sparkling water"}',
     280,
-    'ApfelschorleIcon',
+    'spritzer-apple',
     1,
     NOW(),
     NOW()
@@ -145,7 +145,7 @@ VALUES (
     '{"de": "Wasser 0,5L", "en": "Water 0.5L"}',
     '{"de": "Stilles oder mit Kohlensäure", "en": "Still or sparkling"}',
     200,
-    'WaterLargeIcon',
+    'water-large',
     1,
     NOW(),
     NOW()
@@ -159,7 +159,7 @@ VALUES (
     '{"de": "Kaffee", "en": "Coffee"}',
     '{"de": "Frisch gebrühter Filterkaffee", "en": "Freshly brewed filter coffee"}',
     150,
-    'CoffeeMugIcon',
+    'coffee',
     1,
     NOW(),
     NOW()
@@ -173,7 +173,7 @@ VALUES (
     '{"de": "Äppler 0,5L", "en": "Apple Cider 0.5L"}',
     '{"de": "Hessischer Apfelwein", "en": "Hessian apple cider"}',
     350,
-    'BembelIcon',
+    'cider-apfelwein',
     1,
     NOW(),
     NOW()
@@ -190,7 +190,7 @@ VALUES (
     '{"de": "Sauna Tageskarte", "en": "Sauna Day Pass"}',
     '{"de": "Ganztägiger Zugang zur Sauna", "en": "Full day sauna access"}',
     1500,
-    'SaunaCabinIcon',
+    'sauna-cabin',
     1,
     NOW(),
     NOW()
@@ -204,7 +204,7 @@ VALUES (
     '{"de": "Sauna 2 Stunden", "en": "Sauna 2 Hours"}',
     '{"de": "2 Stunden Saunanutzung", "en": "2 hours sauna access"}',
     800,
-    'SaunaTimeIcon',
+    'sauna-session',
     1,
     NOW(),
     NOW()
@@ -218,7 +218,7 @@ VALUES (
     '{"de": "Handtuch", "en": "Towel"}',
     '{"de": "Leihhandtuch", "en": "Rental towel"}',
     300,
-    'SaunaTowelIcon',
+    'sauna-towel',
     1,
     NOW(),
     NOW()
@@ -232,7 +232,7 @@ VALUES (
     '{"de": "Aufguss Special", "en": "Special Infusion"}',
     '{"de": "Premium Aufguss mit ätherischen Ölen", "en": "Premium infusion with essential oils"}',
     500,
-    'SaunaAufgussIcon',
+    'sauna-infusion',
     1,
     NOW(),
     NOW()
