@@ -566,13 +566,26 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
   String _getProductEmoji(String? iconName) {
     if (iconName == null) return '📝';
 
+    // Map database icon names (e.g., "PilsIcon", "CoffeeMugIcon") to emojis
     final emojiMap = {
-      'beer': '🍺',
+      // Beer varieties
+      'pilsicon': '🍺',
+      'beeraficon': '🍺', // Non-alcoholic beer
+      'bembel': '🍺', // Apple cider (Frankfurt specialty)
+      'bembelicon': '🍺',
+
+      // Beverages
+      'coffeemugicon': '☕',
       'coffee': '☕',
+      'apfelschorleicon': '🍎', // Apple spritzer
       'water': '💧',
+      'watericon': '💧',
       'soda': '🥤',
       'cola': '🥤',
+
+      // Food
       'pizza': '🍕',
+      'pizzaicon': '🍕',
       'sandwich': '🥪',
       'chips': '🍟',
       'snack': '🍿',
