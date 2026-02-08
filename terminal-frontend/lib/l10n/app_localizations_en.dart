@@ -209,4 +209,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get rfidErrorDatabaseError => 'Database error';
+
+  @override
+  String get preferredLanguage => 'Preferred Language';
+
+  @override
+  String get recentTransactions => 'Recent Transactions';
+
+  @override
+  String get loadingTransactions => 'Loading transactions...';
+
+  @override
+  String get errorLoadingTransactions => 'Error loading transactions';
+
+  @override
+  String get offlineMode => 'Offline Mode';
+
+  @override
+  String get transactionHistoryUnavailableOffline =>
+      'Transaction history unavailable offline';
+
+  @override
+  String get noTransactions => 'No transactions yet';
 }

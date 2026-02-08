@@ -463,6 +463,48 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Datenbankfehler'**
   String get rfidErrorDatabaseError;
+
+  /// Label for preferred language setting
+  ///
+  /// In de, this message translates to:
+  /// **'Bevorzugte Sprache'**
+  String get preferredLanguage;
+
+  /// Header for recent transactions list
+  ///
+  /// In de, this message translates to:
+  /// **'Letzte Transaktionen'**
+  String get recentTransactions;
+
+  /// Loading message for transactions
+  ///
+  /// In de, this message translates to:
+  /// **'Transaktionen werden geladen...'**
+  String get loadingTransactions;
+
+  /// Error message when transaction loading fails
+  ///
+  /// In de, this message translates to:
+  /// **'Fehler beim Laden der Transaktionen'**
+  String get errorLoadingTransactions;
+
+  /// Title for offline mode
+  ///
+  /// In de, this message translates to:
+  /// **'Offline-Modus'**
+  String get offlineMode;
+
+  /// Message when transaction history cannot be loaded offline
+  ///
+  /// In de, this message translates to:
+  /// **'Transaktionshistorie offline nicht verfügbar'**
+  String get transactionHistoryUnavailableOffline;
+
+  /// Message when member has no transactions yet
+  ///
+  /// In de, this message translates to:
+  /// **'Noch keine Transaktionen'**
+  String get noTransactions;
 }
 
 class _AppLocalizationsDelegate

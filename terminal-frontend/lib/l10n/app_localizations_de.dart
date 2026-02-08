@@ -210,4 +210,26 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get rfidErrorDatabaseError => 'Datenbankfehler';
+
+  @override
+  String get preferredLanguage => 'Bevorzugte Sprache';
+
+  @override
+  String get recentTransactions => 'Letzte Transaktionen';
+
+  @override
+  String get loadingTransactions => 'Transaktionen werden geladen...';
+
+  @override
+  String get errorLoadingTransactions => 'Fehler beim Laden der Transaktionen';
+
+  @override
+  String get offlineMode => 'Offline-Modus';
+
+  @override
+  String get transactionHistoryUnavailableOffline =>
+      'Transaktionshistorie offline nicht verfügbar';
+
+  @override
+  String get noTransactions => 'Noch keine Transaktionen';
 }

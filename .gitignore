@@ -3,3 +3,4 @@
 /.worktrees/logs/php-*.log
 /logs/
 /test-scenarios/
+/e2etests/results/
