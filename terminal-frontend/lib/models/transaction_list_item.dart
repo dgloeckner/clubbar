@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// Transaction list item for displaying in member details modal
 ///
 /// Represents a transaction with its sync status, settlement information,
@@ -52,27 +54,25 @@ class TransactionListItem {
       // For purchases, extract product name in user's language
       final productNames = json['product_names'];
       if (productNames is String) {
-        // Parse JSON string to map
-        final Map<String, dynamic> namesMap = {};
+        // Parse JSON string to map using proper JSON decoder
         try {
-          final decoded = Uri.decodeComponent(productNames);
-          // Simple JSON parsing (assumes {"de":"Pils","en":"Pils"} format)
-          final matches = RegExp(r'"(\w+)":"([^"]+)"').allMatches(decoded);
-          for (final match in matches) {
-            namesMap[match.group(1)!] = match.group(2)!;
-          }
+          final namesMap = jsonDecode(productNames) as Map<String, dynamic>;
+          details = namesMap[preferredLanguage] ??
+                    namesMap['de'] ??
+                    (namesMap.isNotEmpty ? namesMap.values.first : null) ??
+                    'Unbekannt';
         } catch (e) {
-          // Fallback to raw string
+          // Fallback to raw string if JSON parsing fails
           details = productNames;
         }
+      } else if (productNames is Map) {
+        final namesMap = productNames as Map<String, dynamic>;
         details = namesMap[preferredLanguage] ??
                   namesMap['de'] ??
                   (namesMap.isNotEmpty ? namesMap.values.first : null) ??
-                  'Unknown';
-      } else if (productNames is Map) {
-        details = productNames[preferredLanguage] ?? productNames['de'] ?? 'Unknown';
+                  'Unbekannt';
       } else {
-        details = 'Unknown';
+        details = 'Unbekannt';
       }
     }
 
