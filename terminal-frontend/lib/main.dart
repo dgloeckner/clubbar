@@ -317,6 +317,7 @@ class RuderbarTerminalApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<RuderbarDatabase>.value(value: database),
         Provider<NetworkService>.value(value: networkService),
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),

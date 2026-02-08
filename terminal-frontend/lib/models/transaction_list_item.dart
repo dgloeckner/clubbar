@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../database/database.dart';
 
 /// Transaction list item for displaying in member details modal
 ///
@@ -24,6 +25,30 @@ class TransactionListItem {
     this.settlementId,
     this.settlementDate,
   });
+
+  /// Alias for timestamp (for sorting compatibility)
+  DateTime get createdAt => timestamp;
+
+  /// Create from local database row (unsynced transaction)
+  factory TransactionListItem.fromLocalDb(
+    TransactionsLocalData row,
+    String preferredLanguage,
+  ) {
+    // For local transactions, we need to fetch product name
+    // For now, use transaction type as placeholder
+    final details = row.transactionType == 'correction'
+        ? (row.notes ?? 'Korrektur')
+        : 'Produkt'; // TODO: Join with products_cache to get name
+
+    return TransactionListItem(
+      id: row.id,
+      timestamp: DateTime.parse(row.createdAt),
+      details: details,
+      amountCents: row.amountCents,
+      syncStatus: TransactionSyncStatus.unsynced,
+      productIcon: null, // TODO: Join with products_cache to get icon
+    );
+  }
 
   /// Create from local SQLite transaction (unsynced)
   factory TransactionListItem.fromLocalTransaction({

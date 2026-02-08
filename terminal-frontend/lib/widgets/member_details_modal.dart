@@ -8,6 +8,7 @@ import 'package:ruderbar_terminal/services/network_service.dart';
 import 'package:ruderbar_terminal/config/app_config.dart';
 import 'package:ruderbar_terminal/utils/formatters.dart';
 import 'package:ruderbar_terminal/utils/product_icons.dart';
+import 'package:ruderbar_terminal/database/database.dart';
 
 /// Show member details modal as a bottom sheet
 void showMemberDetailsModal(BuildContext context) {
@@ -77,10 +78,12 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       List<TransactionListItem> transactions = [];
 
       if (isOnline) {
-        // Fetch from backend
+        // Fetch from backend (includes local unsynced + remote)
+        final database = context.read<RuderbarDatabase>();
         final service = TransactionHistoryService(
           baseUrl: AppConfig.apiBaseUrl,
           authToken: authToken,
+          database: database,
         );
 
         transactions = await service.fetchTransactionHistory(
