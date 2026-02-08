@@ -51,6 +51,26 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
     super.dispose();
   }
 
+  /// Translate RFID error key to localized message
+  String _getLocalizedError(BuildContext context, String errorKey) {
+    final l10n = AppLocalizations.of(context)!;
+
+    // Map error keys to localized messages
+    switch (errorKey) {
+      case 'rfidErrorUnknownCard':
+        return l10n.rfidErrorUnknownCard;
+      case 'rfidErrorAccountInactive':
+        return l10n.rfidErrorAccountInactive;
+      case 'rfidErrorSepaMissing':
+        return l10n.rfidErrorSepaMissing;
+      case 'rfidErrorDatabaseError':
+        return l10n.rfidErrorDatabaseError;
+      default:
+        // Fallback for non-standard errors (show as-is)
+        return errorKey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -161,7 +181,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                                 borderRadius: BorderRadius.circular(AppBorderRadius.md),
                               ),
                               child: Text(
-                                rfidProvider.error!,
+                                _getLocalizedError(context, rfidProvider.error!),
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   color: Color(0xffef4444),
