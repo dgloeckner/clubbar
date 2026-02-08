@@ -71,5 +71,13 @@
   "rfidErrorUnknownCard": "Unknown card",
   "rfidErrorAccountInactive": "Account inactive",
   "rfidErrorSepaMissing": "SEPA mandate missing",
-  "rfidErrorDatabaseError": "Database error"
+  "rfidErrorDatabaseError": "Database error",
+
+  "preferredLanguage": "Preferred Language",
+  "recentTransactions": "Recent Transactions",
+  "loadingTransactions": "Loading transactions...",
+  "errorLoadingTransactions": "Error loading transactions",
+  "offlineMode": "Offline Mode",
+  "transactionHistoryUnavailableOffline": "Transaction history unavailable offline",
+  "noTransactions": "No transactions yet"
 }

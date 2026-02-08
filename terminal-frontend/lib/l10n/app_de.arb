@@ -301,5 +301,35 @@
   "rfidErrorDatabaseError": "Datenbankfehler",
   "@rfidErrorDatabaseError": {
     "description": "Error when database query fails"
+  },
+
+  "@_TRANSACTION_HISTORY": {},
+  "preferredLanguage": "Bevorzugte Sprache",
+  "@preferredLanguage": {
+    "description": "Label for preferred language setting"
+  },
+  "recentTransactions": "Letzte Transaktionen",
+  "@recentTransactions": {
+    "description": "Header for recent transactions list"
+  },
+  "loadingTransactions": "Transaktionen werden geladen...",
+  "@loadingTransactions": {
+    "description": "Loading message for transactions"
+  },
+  "errorLoadingTransactions": "Fehler beim Laden der Transaktionen",
+  "@errorLoadingTransactions": {
+    "description": "Error message when transaction loading fails"
+  },
+  "offlineMode": "Offline-Modus",
+  "@offlineMode": {
+    "description": "Title for offline mode"
+  },
+  "transactionHistoryUnavailableOffline": "Transaktionshistorie offline nicht verfügbar",
+  "@transactionHistoryUnavailableOffline": {
+    "description": "Message when transaction history cannot be loaded offline"
+  },
+  "noTransactions": "Noch keine Transaktionen",
+  "@noTransactions": {
+    "description": "Message when member has no transactions yet"
   }
 }
