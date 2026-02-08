@@ -113,9 +113,9 @@ class RfidProvider extends ChangeNotifier {
         // No synced members yet — fall back to mock member for offline dev
         final mockMember = await _mockRfidService.detectCard(cardUidOverride: cardUidOverride);
         if (mockMember == null) {
-          _error = 'Unknown card';
+          _error = 'rfidErrorUnknownCard';
           _detectedMember = null;
-          _membersProvider.setError('Unknown card');
+          _membersProvider.setError('rfidErrorUnknownCard');
           _isScanning = false;
           notifyListeners();
           return;
