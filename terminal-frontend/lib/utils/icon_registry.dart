@@ -45,12 +45,50 @@ Widget getCategoryIcon(
   );
 }
 
-/// Map backend product icon enum name to SVG asset path
-/// Backend enum values: PilsIcon, WeizenIcon, BeerAFIcon, RadlerIcon, LemonadeIcon,
-/// AppleJuiceIcon, ApplerIcon, WaterLargeIcon, WaterSmallIcon, SaunaTokenIcon,
-/// SaunaThermometerIcon, SaunaTimeIcon, SaunaCabinIcon
+/// Map backend product icon name to SVG asset path
+/// Supports canonical icon names from docs/icon-registry.md (e.g., "beer-pils", "coffee")
+/// and legacy names for backward compatibility (e.g., "PilsIcon", "CoffeeMugIcon")
 String _getProductIconPath(String? iconName) {
   switch (iconName) {
+    // === CANONICAL NAMES (from docs/icon-registry.md) ===
+    // Beverages - Beer
+    case 'beer-pils':
+      return 'assets/icons/products/pils_icon.svg';
+    case 'beer-weizen':
+      return 'assets/icons/products/weizen_icon.svg';
+    case 'beer-radler':
+      return 'assets/icons/products/radler_icon.svg';
+    case 'beer-alcohol-free':
+      return 'assets/icons/products/beerAF_icon.svg';
+
+    // Beverages - Cider & Spritzers
+    case 'cider-apfelwein':
+      return 'assets/icons/products/bembel_icon.svg';
+    case 'spritzer-apple':
+      return 'assets/icons/products/apfelschorle_icon.svg';
+
+    // Beverages - Hot Drinks
+    case 'coffee':
+      return 'assets/icons/products/coffee_mug_icon.svg';
+
+    // Beverages - Water & Soft Drinks
+    case 'water':
+    case 'water-large':
+      return 'assets/icons/products/water_large_icon.svg';
+    case 'soda':
+      return 'assets/icons/products/lemonade_icon.svg';
+
+    // Services - Sauna
+    case 'sauna-session':
+      return 'assets/icons/products/sauna_time_icon.svg';
+    case 'sauna-cabin':
+      return 'assets/icons/products/sauna_cabin_icon.svg';
+    case 'sauna-infusion':
+      return 'assets/icons/products/sauna_aufguss_icon.svg';
+    case 'sauna-towel':
+      return 'assets/icons/products/sauna_towel_icon.svg';
+
+    // === LEGACY NAMES (for backward compatibility) ===
     case 'PilsIcon':
       return 'assets/icons/products/pils_icon.svg';
     case 'WeizenIcon':
