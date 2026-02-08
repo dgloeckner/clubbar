@@ -26,7 +26,7 @@ class TransactionHistoryService {
     int limit = 50,
   }) async {
     try {
-      final uri = Uri.parse('$baseUrl/api/terminal/transactions/$memberId')
+      final uri = Uri.parse('$baseUrl/terminal/transactions/$memberId')
           .replace(queryParameters: {'limit': limit.toString()});
 
       _logger.d('Fetching transaction history: $uri');
