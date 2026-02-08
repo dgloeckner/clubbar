@@ -4,7 +4,14 @@ import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/rfid_provider.dart';
 
 class RfidDetectorButton extends StatefulWidget {
-  const RfidDetectorButton({super.key});
+  final bool hasError;
+  final double errorOpacity;
+
+  const RfidDetectorButton({
+    super.key,
+    this.hasError = false,
+    this.errorOpacity = 1.0,
+  });
 
   @override
   State<RfidDetectorButton> createState() => _RfidDetectorButtonState();
@@ -19,6 +26,7 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
   // Colors from prototype
   static const Color _blue = Color(0xff3b82f6);
   static const Color _teal = Color(0xff14b8a6);
+  static const Color _red = Color(0xffef4444);
 
   @override
   void initState() {
@@ -64,6 +72,14 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
           }
         }
 
+        // Interpolate colors based on error state
+        final Color primaryColor = widget.hasError
+            ? Color.lerp(_red, _blue, 1.0 - widget.errorOpacity)!
+            : _blue;
+        final Color secondaryColor = widget.hasError
+            ? Color.lerp(_red, _teal, 1.0 - widget.errorOpacity)!
+            : _teal;
+
         return GestureDetector(
           onTap: rfidProvider.isScanning
               ? null
@@ -80,15 +96,15 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: rfidProvider.isScanning
-                        ? [_blue, _teal] // Full opacity when scanning
+                        ? [primaryColor, secondaryColor] // Full opacity when scanning
                         : [
-                            _blue.withValues(alpha: 0.2),
-                            _teal.withValues(alpha: 0.2),
+                            primaryColor.withValues(alpha: 0.2),
+                            secondaryColor.withValues(alpha: 0.2),
                           ], // 20% opacity when idle
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: _blue.withValues(
+                      color: primaryColor.withValues(
                         alpha: rfidProvider.isScanning ? 0.5 : _opacityAnimation.value,
                       ),
                       blurRadius: rfidProvider.isScanning ? 60 : _glowAnimation.value,

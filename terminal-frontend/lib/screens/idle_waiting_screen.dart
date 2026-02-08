@@ -165,8 +165,67 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // RFID button (glowing effect handled in RfidDetectorButton)
-                    const RfidDetectorButton(),
+                    // RFID button with error overlay (no layout jump)
+                    Consumer<RfidProvider>(
+                      builder: (context, rfidProvider, child) {
+                        // Start auto-dismiss timer when error appears or changes
+                        if (rfidProvider.error != null && rfidProvider.error != _lastError) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _startErrorDismissTimer(rfidProvider.error!);
+                          });
+                        }
+
+                        return SizedBox(
+                          width: 300,
+                          height: 182,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // RFID button (changes color when error)
+                              RfidDetectorButton(
+                                hasError: rfidProvider.error != null,
+                                errorOpacity: _errorOpacity,
+                              ),
+
+                              // Error text overlay (positioned on top of button)
+                              if (rfidProvider.error != null)
+                                Positioned(
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: AnimatedOpacity(
+                                    opacity: _errorOpacity,
+                                    duration: const Duration(milliseconds: 500),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.md,
+                                        vertical: AppSpacing.sm,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xffef4444).withValues(alpha: 0.95),
+                                        borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                                        border: Border.all(
+                                          color: const Color(0xffef4444),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        _getLocalizedError(context, rfidProvider.error!),
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: AppFontSizes.sm,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: AppSpacing.xxxl),
 
                     // Welcome text (30% larger than xxxl)
@@ -191,54 +250,6 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                         fontWeight: FontWeight.w400,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.xxxl),
-
-                    // Error display
-                    Consumer<RfidProvider>(
-                      builder: (context, rfidProvider, child) {
-                        // Start auto-dismiss timer when error appears or changes
-                        if (rfidProvider.error != null && rfidProvider.error != _lastError) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            _startErrorDismissTimer(rfidProvider.error!);
-                          });
-                        }
-
-                        if (rfidProvider.error != null) {
-                          return AnimatedOpacity(
-                            opacity: _errorOpacity,
-                            duration: const Duration(milliseconds: 500),
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.lg,
-                                  vertical: AppSpacing.md,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xffef4444).withValues(alpha: 0.1),
-                                  border: Border.all(
-                                    color: const Color(0xffef4444),
-                                    width: 1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(AppBorderRadius.md),
-                                ),
-                                child: Text(
-                                  _getLocalizedError(context, rfidProvider.error!),
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Color(0xffef4444),
-                                    fontSize: AppFontSizes.base,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-
                     // Optional demo button
                     Consumer<RfidProvider>(
                       builder: (context, rfidProvider, child) {
