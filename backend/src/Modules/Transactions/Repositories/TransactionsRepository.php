@@ -70,11 +70,20 @@ class TransactionsRepository
         }
 
         $whereClause = 'WHERE ' . implode(' AND ', $where);
-        $params[] = $limit;
-        $params[] = $offset;
 
         $stmt = $this->db->prepare(
-            "SELECT t.*, p.names as product_names FROM transactions t LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY t.created_at DESC LIMIT ? OFFSET ?"
+            "SELECT t.*,
+                    p.names as product_names,
+                    p.icon_name as product_icon,
+                    s.id as settlement_id,
+                    s.settlement_date
+             FROM transactions t
+             LEFT JOIN products p ON t.product_id = p.id
+             LEFT JOIN settlement_items si ON t.id = si.transaction_id
+             LEFT JOIN settlements s ON si.settlement_id = s.id AND s.is_cancelled = 0
+             {$whereClause}
+             ORDER BY t.created_at DESC
+             LIMIT {$limit} OFFSET {$offset}"
         );
         $stmt->execute($params);
         return $stmt->fetchAll();
