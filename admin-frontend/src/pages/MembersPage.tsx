@@ -27,7 +27,6 @@ import {
   headerRowStyle,
   headerCellBaseStyle,
   tableColors,
-  tableSpacing,
   getRowStyle,
 } from '../styles/tableTokens'
 

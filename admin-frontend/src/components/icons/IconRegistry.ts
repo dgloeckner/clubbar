@@ -135,26 +135,64 @@ export const NavigationIconRegistry: Record<string, React.FC<IconProps>> = {
 }
 
 /**
+ * Canonical icon name to legacy icon name mapping
+ * Maps docs/icon-registry.md canonical names to legacy component names
+ */
+const CANONICAL_TO_LEGACY: Record<string, ProductIconName> = {
+  // Beverages - Beer
+  'beer-pils': 'PilsIcon',
+  'beer-weizen': 'WeizenIcon',
+  'beer-radler': 'RadlerIcon',
+  'beer-alcohol-free': 'BeerAFIcon',
+
+  // Beverages - Cider & Spritzers
+  'cider-apfelwein': 'BembelIcon',
+  'spritzer-apple': 'ApfelschorleIcon',
+
+  // Beverages - Hot Drinks
+  'coffee': 'CoffeeMugIcon',
+
+  // Beverages - Water & Soft Drinks
+  'water': 'WaterLargeIcon',
+  'water-large': 'WaterLargeIcon',
+  'soda': 'LemonadeIcon',
+
+  // Services - Sauna
+  'sauna-session': 'SaunaTimeIcon',
+  'sauna-cabin': 'SaunaCabinIcon',
+  'sauna-infusion': 'SaunaAufgussIcon',
+  'sauna-towel': 'SaunaTowelIcon',
+}
+
+/**
  * Get product icon component by name with fallback to PackageIcon
+ * Supports both canonical names (beer-pils) and legacy names (PilsIcon)
  *
  * @param iconName - Icon name from database (nullable)
  * @returns React component for the icon
  */
 export function getProductIcon(iconName?: string | null): React.FC<IconProps> {
   if (!iconName) return PackageIcon
-  const icon = ProductIconRegistry[iconName as ProductIconName]
+
+  // Try canonical name first, then legacy name
+  const legacyName = CANONICAL_TO_LEGACY[iconName] || iconName
+  const icon = ProductIconRegistry[legacyName as ProductIconName]
   return icon || PackageIcon
 }
 
 /**
  * Get category icon component by name with fallback to PackageIcon
  * Categories use the same universal product icon set.
+ * Supports both canonical names (beer-pils) and legacy names (PilsIcon)
  *
  * @param iconName - Icon name from database (nullable)
  * @returns React component for the icon
  */
 export function getCategoryIcon(iconName?: string | null): React.FC<IconProps> {
   if (!iconName) return PackageIcon
-  const icon = ProductIconRegistry[iconName as ProductIconName]
+
+  // Try canonical name first, then legacy name (same as products)
+  const legacyName = CANONICAL_TO_LEGACY[iconName] || iconName
+  const icon = ProductIconRegistry[legacyName as ProductIconName]
   return icon || PackageIcon
 }
