@@ -7,6 +7,7 @@ import 'package:ruderbar_terminal/services/transaction_history_service.dart';
 import 'package:ruderbar_terminal/services/network_service.dart';
 import 'package:ruderbar_terminal/config/app_config.dart';
 import 'package:ruderbar_terminal/utils/formatters.dart';
+import 'package:ruderbar_terminal/utils/product_icons.dart';
 
 /// Show member details modal as a bottom sheet
 void showMemberDetailsModal(BuildContext context) {
@@ -452,7 +453,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
             ),
             child: Center(
               child: Text(
-                _getProductEmoji(transaction.productIcon),
+                ProductIcons.getEmoji(transaction.productIcon),
                 style: const TextStyle(fontSize: 20),
               ),
             ),
@@ -561,37 +562,6 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
     } else {
       return const Color(0xff94a3b8); // Gray
     }
-  }
-
-  String _getProductEmoji(String? iconName) {
-    if (iconName == null) return '📝';
-
-    // Map database icon names (e.g., "PilsIcon", "CoffeeMugIcon") to emojis
-    final emojiMap = {
-      // Beer varieties
-      'pilsicon': '🍺',
-      'beeraficon': '🍺', // Non-alcoholic beer
-      'bembel': '🍺', // Apple cider (Frankfurt specialty)
-      'bembelicon': '🍺',
-
-      // Beverages
-      'coffeemugicon': '☕',
-      'coffee': '☕',
-      'apfelschorleicon': '🍎', // Apple spritzer
-      'water': '💧',
-      'watericon': '💧',
-      'soda': '🥤',
-      'cola': '🥤',
-
-      // Food
-      'pizza': '🍕',
-      'pizzaicon': '🍕',
-      'sandwich': '🥪',
-      'chips': '🍟',
-      'snack': '🍿',
-    };
-
-    return emojiMap[iconName.toLowerCase()] ?? '🛒';
   }
 
   String _formatTransactionTimestamp(DateTime timestamp, String locale) {
