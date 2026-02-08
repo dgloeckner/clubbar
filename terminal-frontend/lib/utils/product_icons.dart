@@ -4,10 +4,8 @@
 /// This is the single source of truth for terminal icon display.
 ///
 /// IMPORTANT: Icon names must match docs/icon-registry.md exactly.
-/// After database migration, all names will be kebab-case (e.g., "beer-pils").
+/// All names are kebab-case (e.g., "beer-pils").
 ///
-/// Legacy names (e.g., "PilsIcon") are supported for backward compatibility
-/// during migration period only.
 class ProductIcons {
   /// Get emoji for a product icon name
   ///
@@ -27,7 +25,6 @@ class ProductIcons {
   ///   - Lowercase kebab-case (e.g., "beer-pils", "sauna-session")
   ///   - No "Icon" suffix
   ///
-  /// Legacy names (deprecated, remove after database migration):
   ///   - CamelCase with "Icon" suffix (e.g., "PilsIcon", "CoffeeMugIcon")
   static const Map<String, String> _iconMap = {
     // === CANONICAL NAMES (from docs/icon-registry.md) ===
@@ -65,22 +62,6 @@ class ProductIcons {
     // Special
     'correction': '📝',
     'unknown': '🛒',
-
-    // === LEGACY NAMES (deprecated, for backward compatibility) ===
-    // Remove these after database migration
-
-    'pilsicon': '🍺',
-    'weizenicon': '🍺',
-    'radlericon': '🍺',
-    'beeraficon': '🍺',
-    'bembelicon': '🍺',
-    'apfelschorleicon': '🍎',
-    'coffeemugicon': '☕',
-    'waterlargeicon': '💧',
-    'saunatimeicon': '🧖',
-    'saunacabinicon': '🏠',
-    'saunaaufgussicon': '💨',
-    'saunatowelicon': '🧺',
   };
 }
 

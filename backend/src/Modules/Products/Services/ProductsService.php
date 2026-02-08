@@ -11,6 +11,7 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Products\Repositories\CategoriesRepository;
+use App\Modules\Products\Validators\IconNameValidator;
 use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
@@ -52,6 +53,15 @@ class ProductsService
         if (!$category) throw new ValidationException('Invalid category_id', ['category_id' => ['Category not found']]);
         if (!(bool) $category['is_active']) throw new BusinessRuleException('Category is inactive');
 
+        // Validate icon name against canonical registry (docs/icon-registry.md)
+        if (isset($validated['icon_name'])) {
+            try {
+                IconNameValidator::validate($validated['icon_name']);
+            } catch (\InvalidArgumentException $e) {
+                throw new ValidationException($e->getMessage(), ['icon_name' => [$e->getMessage()]]);
+            }
+        }
+
         $row = $this->productsRepository->create($validated);
 
         $this->auditService->log(
@@ -75,6 +85,15 @@ class ProductsService
             $category = $this->categoriesRepository->findById($validated['category_id']);
             if (!$category) throw NotFoundException::forResource('Category', $validated['category_id']);
             if (!(bool) $category['is_active']) throw new BusinessRuleException('Category is inactive');
+        }
+
+        // Validate icon name against canonical registry (docs/icon-registry.md)
+        if (isset($validated['icon_name'])) {
+            try {
+                IconNameValidator::validate($validated['icon_name']);
+            } catch (\InvalidArgumentException $e) {
+                throw new ValidationException($e->getMessage(), ['icon_name' => [$e->getMessage()]]);
+            }
         }
 
         $row = $this->productsRepository->updateById($productId, $validated);
