@@ -20,6 +20,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
   Timer? _errorDismissTimer;
   String? _lastError;
   double _errorOpacity = 1.0;
+  late RfidProvider _rfidProvider;
 
   @override
   void initState() {
@@ -28,8 +29,11 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SyncProvider>().startBackgroundSync();
 
+      // Save reference to RfidProvider for safe disposal
+      _rfidProvider = context.read<RfidProvider>();
+
       // Start listening for real RFID scans
-      context.read<RfidProvider>().startListening(context);
+      _rfidProvider.startListening(context);
 
       // Request focus for hidden RFID input
       _rfidFocusNode.requestFocus();
@@ -50,7 +54,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
   @override
   void dispose() {
     _errorDismissTimer?.cancel();
-    context.read<RfidProvider>().stopListening();
+    _rfidProvider.stopListening();
     _rfidFocusNode.dispose();
     _rfidController.dispose();
     super.dispose();
