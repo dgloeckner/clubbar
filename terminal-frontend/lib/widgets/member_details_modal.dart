@@ -7,7 +7,7 @@ import 'package:ruderbar_terminal/services/transaction_history_service.dart';
 import 'package:ruderbar_terminal/services/network_service.dart';
 import 'package:ruderbar_terminal/config/app_config.dart';
 import 'package:ruderbar_terminal/utils/formatters.dart';
-import 'package:ruderbar_terminal/utils/product_icons.dart';
+import 'package:ruderbar_terminal/utils/icon_registry.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 
 /// Show member details modal as a bottom sheet
@@ -455,9 +455,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Center(
-              child: Text(
-                ProductIcons.getEmoji(transaction.productIcon),
-                style: const TextStyle(fontSize: 20),
+              child: getProductIcon(
+                transaction.productIcon,
+                size: 24,
               ),
             ),
           ),
