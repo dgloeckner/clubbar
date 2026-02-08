@@ -65,7 +65,10 @@ class TransactionListItem {
           // Fallback to raw string
           details = productNames;
         }
-        details = namesMap[preferredLanguage] ?? namesMap['de'] ?? namesMap.values.first ?? 'Unknown';
+        details = namesMap[preferredLanguage] ??
+                  namesMap['de'] ??
+                  (namesMap.isNotEmpty ? namesMap.values.first : null) ??
+                  'Unknown';
       } else if (productNames is Map) {
         details = productNames[preferredLanguage] ?? productNames['de'] ?? 'Unknown';
       } else {
