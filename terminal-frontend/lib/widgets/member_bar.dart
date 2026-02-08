@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/utils/formatters.dart';
+import 'package:ruderbar_terminal/widgets/member_details_modal.dart';
 
 class MemberBar extends StatelessWidget {
   final MembersCacheData member;
@@ -50,21 +51,24 @@ class MemberBar extends StatelessWidget {
           // Member info on left
           Row(
             children: [
-              // Avatar with initials
-              Container(
-                width: 43,
-                height: 43,
-                decoration: BoxDecoration(
-                  color: const Color(0xffFF6B4A),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Center(
-                  child: Text(
-                    initials,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+              // Avatar with initials (clickable)
+              GestureDetector(
+                onTap: () => showMemberDetailsModal(context),
+                child: Container(
+                  width: 43,
+                  height: 43,
+                  decoration: BoxDecoration(
+                    color: const Color(0xffFF6B4A),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
