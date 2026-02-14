@@ -47,6 +47,7 @@ export class ProductsPage extends BasePage {
   private readonly nameInputEn = () => this.page.getByTestId('products-form-name-input-en')
   private readonly categorySelect = () => this.page.getByTestId('products-form-category-select')
   private readonly priceInput = () => this.page.getByTestId('products-form-price-input')
+  private readonly requiresDispenserCheckbox = () => this.page.getByTestId('products-form-requires-dispenser-checkbox')
   private readonly iconSelectTrigger = () => this.page.getByTestId('products-form-icon-select-trigger')
   private readonly iconSelectDropdown = () => this.page.getByTestId('products-form-icon-select-dropdown')
   private readonly iconSelectOption = (iconName: string) =>
@@ -521,6 +522,48 @@ export class ProductsPage extends BasePage {
 
   async getFormPriceValue(): Promise<string> {
     return await this.priceInput().inputValue() || ''
+  }
+
+  /**
+   * DISPENSER CHECKBOX INTERACTIONS
+   */
+
+  async checkRequiresDispenser() {
+    // Check if checkbox is already checked
+    const isChecked = await this.requiresDispenserCheckbox().isChecked()
+    if (!isChecked) {
+      await this.requiresDispenserCheckbox().check()
+    }
+  }
+
+  async uncheckRequiresDispenser() {
+    // Check if checkbox is currently checked
+    const isChecked = await this.requiresDispenserCheckbox().isChecked()
+    if (isChecked) {
+      await this.requiresDispenserCheckbox().uncheck()
+    }
+  }
+
+  async isRequiresDispenserChecked(): Promise<boolean> {
+    return await this.requiresDispenserCheckbox().isChecked()
+  }
+
+  /**
+   * Get dispenser badge for a product in the list
+   * Returns null if badge is not visible
+   */
+  async getDispenserBadge(productId: string) {
+    const badge = this.page.getByTestId(`products-list-dispenser-badge-${productId}`)
+    const isVisible = await badge.isVisible({ timeout: 1000 }).catch(() => false)
+    return isVisible ? badge : null
+  }
+
+  /**
+   * Check if dispenser badge is visible for a product
+   */
+  async hasDispenserBadge(productId: string): Promise<boolean> {
+    const badge = await this.getDispenserBadge(productId)
+    return badge !== null
   }
 
   /**

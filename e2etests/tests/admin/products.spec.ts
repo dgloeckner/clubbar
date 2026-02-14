@@ -514,4 +514,199 @@ test.describe('Products Page - Complete User Workflows', () => {
     expect(selectedIcon).toBeNull()
   })
 
+  /**
+   * Dispenser Requirement Tests
+   * Tests the dispenser requirement flag for products
+   */
+  test('should create product with dispenser requirement and show badge', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `Sauna Token ${Date.now()}`
+    const productPrice = '3.00'
+    const categoryName = `Wellness ${Date.now()}`
+
+    // Create a category first
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+    expect(categoryId).not.toBeNull()
+
+    // Navigate to products and open create modal
+    await authenticatedProductsPage.navigate()
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+
+    // Fill product form
+    await authenticatedProductsPage.fillProductForm(productName, productPrice)
+
+    // Select category
+    if (categoryId) {
+      await authenticatedProductsPage.selectCategory(categoryId)
+    }
+
+    // Check requires dispenser checkbox
+    await authenticatedProductsPage.checkRequiresDispenser()
+    const isChecked = await authenticatedProductsPage.isRequiresDispenserChecked()
+    expect(isChecked).toBe(true)
+
+    // Submit form
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    // Verify product was created
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).not.toBeNull()
+
+    // Verify dispenser badge is visible in the list
+    if (productId) {
+      const hasBadge = await authenticatedProductsPage.hasDispenserBadge(productId)
+      expect(hasBadge).toBe(true)
+
+      // Verify badge content
+      const badge = await authenticatedProductsPage.getDispenserBadge(productId)
+      if (badge) {
+        await expect(badge).toBeVisible()
+        const badgeText = await badge.textContent()
+        // Badge text could be in German or English depending on locale
+        expect(badgeText).toMatch(/Dispenser|Ausgabeautomat/)
+      }
+    }
+  })
+
+  test('should edit product to toggle dispenser requirement on', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `Regular Product ${Date.now()}`
+    const productPrice = '5.00'
+    const categoryName = `Edit Test Category ${Date.now()}`
+
+    // Create a category first
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+    expect(categoryId).not.toBeNull()
+
+    // Create product WITHOUT dispenser requirement
+    await authenticatedProductsPage.navigate()
+    if (categoryId) {
+      await authenticatedProductsPage.createProduct(productName, productPrice, categoryId)
+    }
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    // Get product ID and verify no dispenser badge initially
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).not.toBeNull()
+
+    if (productId) {
+      let hasBadge = await authenticatedProductsPage.hasDispenserBadge(productId)
+      expect(hasBadge).toBe(false)
+
+      // Edit product to enable dispenser requirement
+      await authenticatedProductsPage.clickEditButton(productId)
+      await authenticatedProductsPage.expectFormModalVisible()
+
+      // Toggle dispenser checkbox ON
+      await authenticatedProductsPage.checkRequiresDispenser()
+      const isChecked = await authenticatedProductsPage.isRequiresDispenserChecked()
+      expect(isChecked).toBe(true)
+
+      // Save changes
+      await authenticatedProductsPage.submitForm()
+      await authenticatedProductsPage.expectFormModalHidden()
+
+      // Verify dispenser badge now appears
+      hasBadge = await authenticatedProductsPage.hasDispenserBadge(productId)
+      expect(hasBadge).toBe(true)
+
+      // Verify badge content
+      const badge = await authenticatedProductsPage.getDispenserBadge(productId)
+      if (badge) {
+        await expect(badge).toBeVisible()
+        const badgeText = await badge.textContent()
+        // Badge text could be in German or English depending on locale
+        expect(badgeText).toMatch(/Dispenser|Ausgabeautomat/)
+      }
+    }
+  })
+
+  test('should edit product to toggle dispenser requirement off', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `Dispenser Product ${Date.now()}`
+    const productPrice = '4.50'
+    const categoryName = `Toggle Off Category ${Date.now()}`
+
+    // Create a category first
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+    expect(categoryId).not.toBeNull()
+
+    // Create product WITH dispenser requirement
+    await authenticatedProductsPage.navigate()
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+
+    await authenticatedProductsPage.fillProductForm(productName, productPrice)
+    if (categoryId) {
+      await authenticatedProductsPage.selectCategory(categoryId)
+    }
+    await authenticatedProductsPage.checkRequiresDispenser()
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    // Get product ID and verify dispenser badge is present
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).not.toBeNull()
+
+    if (productId) {
+      let hasBadge = await authenticatedProductsPage.hasDispenserBadge(productId)
+      expect(hasBadge).toBe(true)
+
+      // Edit product to disable dispenser requirement
+      await authenticatedProductsPage.clickEditButton(productId)
+      await authenticatedProductsPage.expectFormModalVisible()
+
+      // Verify checkbox is currently checked
+      let isChecked = await authenticatedProductsPage.isRequiresDispenserChecked()
+      expect(isChecked).toBe(true)
+
+      // Toggle dispenser checkbox OFF
+      await authenticatedProductsPage.uncheckRequiresDispenser()
+      isChecked = await authenticatedProductsPage.isRequiresDispenserChecked()
+      expect(isChecked).toBe(false)
+
+      // Save changes
+      await authenticatedProductsPage.submitForm()
+      await authenticatedProductsPage.expectFormModalHidden()
+
+      // Verify dispenser badge is now gone
+      hasBadge = await authenticatedProductsPage.hasDispenserBadge(productId)
+      expect(hasBadge).toBe(false)
+    }
+  })
+
+  test('should NOT show dispenser badge for regular products', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+    const productName = `No Dispenser Product ${Date.now()}`
+    const productPrice = '2.50'
+    const categoryName = `Regular Category ${Date.now()}`
+
+    // Create a category first
+    await authenticatedCategoriesPage.navigate()
+    await authenticatedCategoriesPage.createCategory({ de: categoryName })
+    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+    expect(categoryId).not.toBeNull()
+
+    // Create product WITHOUT checking dispenser requirement
+    await authenticatedProductsPage.navigate()
+    if (categoryId) {
+      await authenticatedProductsPage.createProduct(productName, productPrice, categoryId)
+    }
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    // Verify product was created
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId).not.toBeNull()
+
+    // Verify NO dispenser badge is shown
+    if (productId) {
+      const hasBadge = await authenticatedProductsPage.hasDispenserBadge(productId)
+      expect(hasBadge).toBe(false)
+    }
+  })
+
 })
