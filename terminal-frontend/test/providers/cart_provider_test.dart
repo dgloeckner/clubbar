@@ -1,11 +1,15 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/models/cart_item.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
+import 'package:ruderbar_terminal/services/config_service.dart';
 
 class MockCartService extends Mock implements CartService {}
+class MockConfigService extends Mock implements ConfigService {}
+class MockBuildContext extends Mock implements BuildContext {}
 
 void main() {
   setUpAll(() {
@@ -31,11 +35,14 @@ void main() {
 
   group('CartProvider', () {
     late MockCartService mockService;
+    late MockConfigService mockConfig;
     late CartProvider provider;
 
     setUp(() {
       mockService = MockCartService();
-      provider = CartProvider(service: mockService);
+      mockConfig = MockConfigService();
+      when(() => mockConfig.dispenserEnabled).thenReturn(false);
+      provider = CartProvider(service: mockService, config: mockConfig);
     });
 
     test('initial state is empty', () {
@@ -93,6 +100,7 @@ void main() {
         updatedAt: DateTime.now().toIso8601String(),
       );
 
+      final mockContext = MockBuildContext();
       provider.addItem('prod-1', 'Beer', 500, 1, 'de');
 
       when(() => mockService.validateCartBeforeCheckout(any(), any()))
@@ -100,7 +108,7 @@ void main() {
       when(() => mockService.createTransaction(any(), any()))
           .thenAnswer((_) async => ('txn-123', null));
 
-      await provider.checkout(member);
+      await provider.checkout(mockContext, member);
 
       expect(provider.items, isEmpty);
       expect(provider.total, equals(0));
@@ -120,12 +128,13 @@ void main() {
         updatedAt: DateTime.now().toIso8601String(),
       );
 
+      final mockContext = MockBuildContext();
       provider.addItem('prod-1', 'Beer', 500, 1, 'de');
 
       when(() => mockService.validateCartBeforeCheckout(any(), any()))
           .thenAnswer((_) async => (false, 'Member inactive'));
 
-      await provider.checkout(member);
+      await provider.checkout(mockContext, member);
 
       expect(provider.items, hasLength(1)); // Cart unchanged
       expect(provider.lastError, equals('Member inactive'));

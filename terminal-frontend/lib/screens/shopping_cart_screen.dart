@@ -345,7 +345,7 @@ class ShoppingCartScreen extends StatelessWidget {
                               return;
                             }
 
-                            await cartProvider.checkout(selectedMember);
+                            await cartProvider.checkout(context, selectedMember);
 
                             if (cartProvider.lastError != null) {
                               if (context.mounted) {

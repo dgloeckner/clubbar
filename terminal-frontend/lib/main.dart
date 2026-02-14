@@ -322,11 +322,12 @@ class RuderbarTerminalApp extends StatelessWidget {
       providers: [
         Provider<RuderbarDatabase>.value(value: database),
         Provider<NetworkService>.value(value: networkService),
+        Provider<ConfigService>.value(value: configService),
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider<MembersProvider>.value(value: membersProvider),
         ChangeNotifierProvider<ProductsProvider>(create: (_) => productsProvider),
-        ChangeNotifierProvider(create: (_) => CartProvider(service: cartService)),
+        ChangeNotifierProvider(create: (_) => CartProvider(service: cartService, config: configService)),
         ChangeNotifierProvider<SyncProvider>(create: (_) => syncProvider),
         ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider, membersRepository)),
       ],

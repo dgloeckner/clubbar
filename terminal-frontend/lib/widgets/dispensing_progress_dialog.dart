@@ -1,0 +1,156 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/models/cart_item.dart';
+import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:ruderbar_terminal/services/dispenser_client.dart';
+
+/// Progress dialog shown while dispensing tokens
+///
+/// Shows real-time progress as tokens are dispensed, polls for completion,
+/// then calls onComplete or onError based on result.
+class DispensingProgressDialog extends StatefulWidget {
+  final List<CartItem> tokenProducts;
+  final Function(DispenseResult) onComplete;
+  final Function(DispenserException) onError;
+
+  const DispensingProgressDialog({
+    required this.tokenProducts,
+    required this.onComplete,
+    required this.onError,
+    super.key,
+  });
+
+  @override
+  State<DispensingProgressDialog> createState() =>
+      _DispensingProgressDialogState();
+}
+
+class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
+  late DispenserClient _client;
+  String _txId = '';
+  int _quantity = 0;
+  int _dispensed = 0;
+  String _state = 'starting';
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Get ConfigService from context
+    final config = context.read<ConfigService>();
+    _client = DispenserClient(
+      baseUrl: config.dispenserBaseUrl!,
+      apiKey: config.dispenserApiKey!,
+      timeoutMs: config.dispenserTimeoutMs,
+    );
+
+    // Calculate total tokens from all cart items
+    _quantity =
+        widget.tokenProducts.fold(0, (sum, item) => sum + item.quantity);
+
+    _startDispense();
+  }
+
+  Future<void> _startDispense() async {
+    try {
+      _txId = _client.generateTxId();
+      final result =
+          await _client.dispenseTokens(txId: _txId, quantity: _quantity);
+
+      if (mounted) {
+        setState(() {
+          _state = result.state;
+          _dispensed = result.dispensed;
+        });
+
+        _pollStatus();
+      }
+    } on DispenserBusyException catch (e) {
+      if (mounted) {
+        widget.onError(e);
+      }
+    } on DispenserException catch (e) {
+      if (mounted) {
+        widget.onError(e);
+      }
+    }
+  }
+
+  Future<void> _pollStatus() async {
+    final config = context.read<ConfigService>();
+    final pollInterval =
+        Duration(milliseconds: config.dispenserPollIntervalMs);
+
+    while (_state == 'dispensing') {
+      await Future.delayed(pollInterval);
+
+      try {
+        final result = await _client.getStatus(_txId);
+
+        if (mounted) {
+          setState(() {
+            _state = result.state;
+            _dispensed = result.dispensed;
+          });
+
+          if (_state == 'done' || _state == 'error') {
+            widget.onComplete(result);
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+            break;
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          widget.onError(DispenserException('Polling failed: $e'));
+          Navigator.of(context).pop();
+        }
+        break;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Dispensing Sauna Tokens...',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 24),
+            _buildProgressIndicator(),
+            const SizedBox(height: 16),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            const Text('Please wait...'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(_quantity, (index) {
+        final dispensed = index < _dispensed;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+          child: Text(
+            dispensed ? '●' : '○',
+            style: TextStyle(
+              fontSize: 24,
+              color: dispensed ? Colors.green : Colors.grey,
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}

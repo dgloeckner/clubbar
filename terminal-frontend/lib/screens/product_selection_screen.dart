@@ -203,6 +203,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 1,
                 memberLang,
                 iconName: product.iconName,
+                requiresDispenser: product.requiresDispenser == 1,
               ),
             );
           },

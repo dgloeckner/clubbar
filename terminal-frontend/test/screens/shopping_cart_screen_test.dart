@@ -43,7 +43,7 @@ void main() {
       when(() => mockCartProvider.lastError).thenReturn(null);
       when(() => mockCartProvider.removeItem(any())).thenReturn(null);
       when(() => mockCartProvider.updateQuantity(any(), any())).thenReturn(null);
-      when(() => mockCartProvider.checkout(any()))
+      when(() => mockCartProvider.checkout(any(), any()))
           .thenAnswer((_) async => null);
       when(() => mockCartProvider.lastTransactionId).thenReturn(null);
       when(() => mockCartProvider.addListener(any())).thenReturn(null);
@@ -193,8 +193,8 @@ void main() {
       await tester.tap(find.text('Checkout'));
       await tester.pumpAndSettle();
 
-      // Verify checkout was called with the selected member
-      verify(() => mockCartProvider.checkout(any())).called(1);
+      // Verify checkout was called with the context and selected member
+      verify(() => mockCartProvider.checkout(any(), any())).called(1);
     });
 
     testWidgets('removes item when delete button tapped',
