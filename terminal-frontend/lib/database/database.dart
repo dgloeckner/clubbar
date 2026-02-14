@@ -10,6 +10,7 @@ import 'schema/categories_cache.dart';
 import 'schema/products_cache.dart';
 import 'schema/transactions_local.dart';
 import 'schema/sync_state.dart';
+import 'schema/dispenser_config.dart';
 
 part 'database.g.dart';
 
@@ -33,12 +34,13 @@ Future<void> _addColumnIfNotExists(
   ProductsCache,
   TransactionsLocal,
   SyncState,
+  DispenserConfig,
 ])
 class RuderbarDatabase extends _$RuderbarDatabase {
   RuderbarDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -53,6 +55,45 @@ class RuderbarDatabase extends _$RuderbarDatabase {
                 m, 'categories_cache', 'icon_name', 'TEXT');
             await _addColumnIfNotExists(
                 m, 'products_cache', 'icon_name', 'TEXT');
+          }
+          if (from < 3) {
+            // Add requires_dispenser to products_cache
+            await _addColumnIfNotExists(
+                m, 'products_cache', 'requires_dispenser', 'INTEGER NOT NULL DEFAULT 0');
+
+            // Add dispenser metadata fields to transactions_local
+            await _addColumnIfNotExists(
+                m, 'transactions_local', 'dispenser_tx_id', 'TEXT');
+            await _addColumnIfNotExists(
+                m, 'transactions_local', 'dispenser_requested', 'INTEGER');
+            await _addColumnIfNotExists(
+                m, 'transactions_local', 'dispenser_actual', 'INTEGER');
+
+            // Create dispenser_config table
+            await m.createTable(dispenserConfig);
+
+            // Initialize default dispenser configuration
+            final db = m.database;
+            await db.customInsert(
+              'INSERT OR IGNORE INTO dispenser_config (key, value) VALUES (?, ?)',
+              variables: [Variable.withString('enabled'), Variable.withString('0')],
+            );
+            await db.customInsert(
+              'INSERT OR IGNORE INTO dispenser_config (key, value) VALUES (?, ?)',
+              variables: [Variable.withString('base_url'), Variable.withString('')],
+            );
+            await db.customInsert(
+              'INSERT OR IGNORE INTO dispenser_config (key, value) VALUES (?, ?)',
+              variables: [Variable.withString('api_key'), Variable.withString('')],
+            );
+            await db.customInsert(
+              'INSERT OR IGNORE INTO dispenser_config (key, value) VALUES (?, ?)',
+              variables: [Variable.withString('timeout_ms'), Variable.withString('3000')],
+            );
+            await db.customInsert(
+              'INSERT OR IGNORE INTO dispenser_config (key, value) VALUES (?, ?)',
+              variables: [Variable.withString('poll_interval_ms'), Variable.withString('250')],
+            );
           }
         },
       );

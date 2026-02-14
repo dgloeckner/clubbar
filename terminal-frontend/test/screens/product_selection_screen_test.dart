@@ -24,8 +24,11 @@ void main() {
       id: 'test',
       categoryId: 'test',
       names: '{}',
+      descriptions: null,
       priceCents: 0,
       isActive: 1,
+      requiresDispenser: 0,
+      iconName: null,
       updatedAt: '2025-02-01T10:00:00Z',
     ));
   });

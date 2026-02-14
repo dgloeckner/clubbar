@@ -11,6 +11,9 @@ class TransactionsLocal extends Table {
   TextColumn get notes => text().nullable()();
   TextColumn get createdAt => text()();
   IntColumn get synced => integer().withDefault(Constant(0))();
+  TextColumn get dispenserTxId => text().nullable()(); // ESP8266 transaction ID
+  IntColumn get dispenserRequested => integer().nullable()(); // Requested quantity
+  IntColumn get dispenserActual => integer().nullable()(); // Actual dispensed quantity
 
   @override
   Set<Column> get primaryKey => {id};

@@ -1065,6 +1065,18 @@ class $ProductsCacheTable extends ProductsCache
     requiredDuringInsert: false,
     defaultValue: Constant(1),
   );
+  static const VerificationMeta _requiresDispenserMeta = const VerificationMeta(
+    'requiresDispenser',
+  );
+  @override
+  late final GeneratedColumn<int> requiresDispenser = GeneratedColumn<int>(
+    'requires_dispenser',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: Constant(0),
+  );
   static const VerificationMeta _iconNameMeta = const VerificationMeta(
     'iconName',
   );
@@ -1095,6 +1107,7 @@ class $ProductsCacheTable extends ProductsCache
     descriptions,
     priceCents,
     isActive,
+    requiresDispenser,
     iconName,
     updatedAt,
   ];
@@ -1154,6 +1167,15 @@ class $ProductsCacheTable extends ProductsCache
         isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
       );
     }
+    if (data.containsKey('requires_dispenser')) {
+      context.handle(
+        _requiresDispenserMeta,
+        requiresDispenser.isAcceptableOrUnknown(
+          data['requires_dispenser']!,
+          _requiresDispenserMeta,
+        ),
+      );
+    }
     if (data.containsKey('icon_name')) {
       context.handle(
         _iconNameMeta,
@@ -1201,6 +1223,10 @@ class $ProductsCacheTable extends ProductsCache
         DriftSqlType.int,
         data['${effectivePrefix}is_active'],
       )!,
+      requiresDispenser: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}requires_dispenser'],
+      )!,
       iconName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}icon_name'],
@@ -1226,6 +1252,7 @@ class ProductsCacheData extends DataClass
   final String? descriptions;
   final int priceCents;
   final int isActive;
+  final int requiresDispenser;
   final String? iconName;
   final String updatedAt;
   const ProductsCacheData({
@@ -1235,6 +1262,7 @@ class ProductsCacheData extends DataClass
     this.descriptions,
     required this.priceCents,
     required this.isActive,
+    required this.requiresDispenser,
     this.iconName,
     required this.updatedAt,
   });
@@ -1249,6 +1277,7 @@ class ProductsCacheData extends DataClass
     }
     map['price_cents'] = Variable<int>(priceCents);
     map['is_active'] = Variable<int>(isActive);
+    map['requires_dispenser'] = Variable<int>(requiresDispenser);
     if (!nullToAbsent || iconName != null) {
       map['icon_name'] = Variable<String>(iconName);
     }
@@ -1266,6 +1295,7 @@ class ProductsCacheData extends DataClass
           : Value(descriptions),
       priceCents: Value(priceCents),
       isActive: Value(isActive),
+      requiresDispenser: Value(requiresDispenser),
       iconName: iconName == null && nullToAbsent
           ? const Value.absent()
           : Value(iconName),
@@ -1285,6 +1315,7 @@ class ProductsCacheData extends DataClass
       descriptions: serializer.fromJson<String?>(json['descriptions']),
       priceCents: serializer.fromJson<int>(json['priceCents']),
       isActive: serializer.fromJson<int>(json['isActive']),
+      requiresDispenser: serializer.fromJson<int>(json['requiresDispenser']),
       iconName: serializer.fromJson<String?>(json['iconName']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
     );
@@ -1299,6 +1330,7 @@ class ProductsCacheData extends DataClass
       'descriptions': serializer.toJson<String?>(descriptions),
       'priceCents': serializer.toJson<int>(priceCents),
       'isActive': serializer.toJson<int>(isActive),
+      'requiresDispenser': serializer.toJson<int>(requiresDispenser),
       'iconName': serializer.toJson<String?>(iconName),
       'updatedAt': serializer.toJson<String>(updatedAt),
     };
@@ -1311,6 +1343,7 @@ class ProductsCacheData extends DataClass
     Value<String?> descriptions = const Value.absent(),
     int? priceCents,
     int? isActive,
+    int? requiresDispenser,
     Value<String?> iconName = const Value.absent(),
     String? updatedAt,
   }) => ProductsCacheData(
@@ -1320,6 +1353,7 @@ class ProductsCacheData extends DataClass
     descriptions: descriptions.present ? descriptions.value : this.descriptions,
     priceCents: priceCents ?? this.priceCents,
     isActive: isActive ?? this.isActive,
+    requiresDispenser: requiresDispenser ?? this.requiresDispenser,
     iconName: iconName.present ? iconName.value : this.iconName,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -1337,6 +1371,9 @@ class ProductsCacheData extends DataClass
           ? data.priceCents.value
           : this.priceCents,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      requiresDispenser: data.requiresDispenser.present
+          ? data.requiresDispenser.value
+          : this.requiresDispenser,
       iconName: data.iconName.present ? data.iconName.value : this.iconName,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -1351,6 +1388,7 @@ class ProductsCacheData extends DataClass
           ..write('descriptions: $descriptions, ')
           ..write('priceCents: $priceCents, ')
           ..write('isActive: $isActive, ')
+          ..write('requiresDispenser: $requiresDispenser, ')
           ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -1365,6 +1403,7 @@ class ProductsCacheData extends DataClass
     descriptions,
     priceCents,
     isActive,
+    requiresDispenser,
     iconName,
     updatedAt,
   );
@@ -1378,6 +1417,7 @@ class ProductsCacheData extends DataClass
           other.descriptions == this.descriptions &&
           other.priceCents == this.priceCents &&
           other.isActive == this.isActive &&
+          other.requiresDispenser == this.requiresDispenser &&
           other.iconName == this.iconName &&
           other.updatedAt == this.updatedAt);
 }
@@ -1389,6 +1429,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
   final Value<String?> descriptions;
   final Value<int> priceCents;
   final Value<int> isActive;
+  final Value<int> requiresDispenser;
   final Value<String?> iconName;
   final Value<String> updatedAt;
   final Value<int> rowid;
@@ -1399,6 +1440,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     this.descriptions = const Value.absent(),
     this.priceCents = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.requiresDispenser = const Value.absent(),
     this.iconName = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1410,6 +1452,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     this.descriptions = const Value.absent(),
     required int priceCents,
     this.isActive = const Value.absent(),
+    this.requiresDispenser = const Value.absent(),
     this.iconName = const Value.absent(),
     required String updatedAt,
     this.rowid = const Value.absent(),
@@ -1425,6 +1468,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     Expression<String>? descriptions,
     Expression<int>? priceCents,
     Expression<int>? isActive,
+    Expression<int>? requiresDispenser,
     Expression<String>? iconName,
     Expression<String>? updatedAt,
     Expression<int>? rowid,
@@ -1436,6 +1480,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
       if (descriptions != null) 'descriptions': descriptions,
       if (priceCents != null) 'price_cents': priceCents,
       if (isActive != null) 'is_active': isActive,
+      if (requiresDispenser != null) 'requires_dispenser': requiresDispenser,
       if (iconName != null) 'icon_name': iconName,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -1449,6 +1494,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     Value<String?>? descriptions,
     Value<int>? priceCents,
     Value<int>? isActive,
+    Value<int>? requiresDispenser,
     Value<String?>? iconName,
     Value<String>? updatedAt,
     Value<int>? rowid,
@@ -1460,6 +1506,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
       descriptions: descriptions ?? this.descriptions,
       priceCents: priceCents ?? this.priceCents,
       isActive: isActive ?? this.isActive,
+      requiresDispenser: requiresDispenser ?? this.requiresDispenser,
       iconName: iconName ?? this.iconName,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -1487,6 +1534,9 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     if (isActive.present) {
       map['is_active'] = Variable<int>(isActive.value);
     }
+    if (requiresDispenser.present) {
+      map['requires_dispenser'] = Variable<int>(requiresDispenser.value);
+    }
     if (iconName.present) {
       map['icon_name'] = Variable<String>(iconName.value);
     }
@@ -1508,6 +1558,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
           ..write('descriptions: $descriptions, ')
           ..write('priceCents: $priceCents, ')
           ..write('isActive: $isActive, ')
+          ..write('requiresDispenser: $requiresDispenser, ')
           ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -1611,6 +1662,38 @@ class $TransactionsLocalTable extends TransactionsLocal
     requiredDuringInsert: false,
     defaultValue: Constant(0),
   );
+  static const VerificationMeta _dispenserTxIdMeta = const VerificationMeta(
+    'dispenserTxId',
+  );
+  @override
+  late final GeneratedColumn<String> dispenserTxId = GeneratedColumn<String>(
+    'dispenser_tx_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dispenserRequestedMeta =
+      const VerificationMeta('dispenserRequested');
+  @override
+  late final GeneratedColumn<int> dispenserRequested = GeneratedColumn<int>(
+    'dispenser_requested',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dispenserActualMeta = const VerificationMeta(
+    'dispenserActual',
+  );
+  @override
+  late final GeneratedColumn<int> dispenserActual = GeneratedColumn<int>(
+    'dispenser_actual',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1621,6 +1704,9 @@ class $TransactionsLocalTable extends TransactionsLocal
     notes,
     createdAt,
     synced,
+    dispenserTxId,
+    dispenserRequested,
+    dispenserActual,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1695,6 +1781,33 @@ class $TransactionsLocalTable extends TransactionsLocal
         synced.isAcceptableOrUnknown(data['synced']!, _syncedMeta),
       );
     }
+    if (data.containsKey('dispenser_tx_id')) {
+      context.handle(
+        _dispenserTxIdMeta,
+        dispenserTxId.isAcceptableOrUnknown(
+          data['dispenser_tx_id']!,
+          _dispenserTxIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dispenser_requested')) {
+      context.handle(
+        _dispenserRequestedMeta,
+        dispenserRequested.isAcceptableOrUnknown(
+          data['dispenser_requested']!,
+          _dispenserRequestedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('dispenser_actual')) {
+      context.handle(
+        _dispenserActualMeta,
+        dispenserActual.isAcceptableOrUnknown(
+          data['dispenser_actual']!,
+          _dispenserActualMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1736,6 +1849,18 @@ class $TransactionsLocalTable extends TransactionsLocal
         DriftSqlType.int,
         data['${effectivePrefix}synced'],
       )!,
+      dispenserTxId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dispenser_tx_id'],
+      ),
+      dispenserRequested: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}dispenser_requested'],
+      ),
+      dispenserActual: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}dispenser_actual'],
+      ),
     );
   }
 
@@ -1755,6 +1880,9 @@ class TransactionsLocalData extends DataClass
   final String? notes;
   final String createdAt;
   final int synced;
+  final String? dispenserTxId;
+  final int? dispenserRequested;
+  final int? dispenserActual;
   const TransactionsLocalData({
     required this.id,
     required this.memberId,
@@ -1764,6 +1892,9 @@ class TransactionsLocalData extends DataClass
     this.notes,
     required this.createdAt,
     required this.synced,
+    this.dispenserTxId,
+    this.dispenserRequested,
+    this.dispenserActual,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1780,6 +1911,15 @@ class TransactionsLocalData extends DataClass
     }
     map['created_at'] = Variable<String>(createdAt);
     map['synced'] = Variable<int>(synced);
+    if (!nullToAbsent || dispenserTxId != null) {
+      map['dispenser_tx_id'] = Variable<String>(dispenserTxId);
+    }
+    if (!nullToAbsent || dispenserRequested != null) {
+      map['dispenser_requested'] = Variable<int>(dispenserRequested);
+    }
+    if (!nullToAbsent || dispenserActual != null) {
+      map['dispenser_actual'] = Variable<int>(dispenserActual);
+    }
     return map;
   }
 
@@ -1797,6 +1937,15 @@ class TransactionsLocalData extends DataClass
           : Value(notes),
       createdAt: Value(createdAt),
       synced: Value(synced),
+      dispenserTxId: dispenserTxId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dispenserTxId),
+      dispenserRequested: dispenserRequested == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dispenserRequested),
+      dispenserActual: dispenserActual == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dispenserActual),
     );
   }
 
@@ -1814,6 +1963,9 @@ class TransactionsLocalData extends DataClass
       notes: serializer.fromJson<String?>(json['notes']),
       createdAt: serializer.fromJson<String>(json['createdAt']),
       synced: serializer.fromJson<int>(json['synced']),
+      dispenserTxId: serializer.fromJson<String?>(json['dispenserTxId']),
+      dispenserRequested: serializer.fromJson<int?>(json['dispenserRequested']),
+      dispenserActual: serializer.fromJson<int?>(json['dispenserActual']),
     );
   }
   @override
@@ -1828,6 +1980,9 @@ class TransactionsLocalData extends DataClass
       'notes': serializer.toJson<String?>(notes),
       'createdAt': serializer.toJson<String>(createdAt),
       'synced': serializer.toJson<int>(synced),
+      'dispenserTxId': serializer.toJson<String?>(dispenserTxId),
+      'dispenserRequested': serializer.toJson<int?>(dispenserRequested),
+      'dispenserActual': serializer.toJson<int?>(dispenserActual),
     };
   }
 
@@ -1840,6 +1995,9 @@ class TransactionsLocalData extends DataClass
     Value<String?> notes = const Value.absent(),
     String? createdAt,
     int? synced,
+    Value<String?> dispenserTxId = const Value.absent(),
+    Value<int?> dispenserRequested = const Value.absent(),
+    Value<int?> dispenserActual = const Value.absent(),
   }) => TransactionsLocalData(
     id: id ?? this.id,
     memberId: memberId ?? this.memberId,
@@ -1849,6 +2007,15 @@ class TransactionsLocalData extends DataClass
     notes: notes.present ? notes.value : this.notes,
     createdAt: createdAt ?? this.createdAt,
     synced: synced ?? this.synced,
+    dispenserTxId: dispenserTxId.present
+        ? dispenserTxId.value
+        : this.dispenserTxId,
+    dispenserRequested: dispenserRequested.present
+        ? dispenserRequested.value
+        : this.dispenserRequested,
+    dispenserActual: dispenserActual.present
+        ? dispenserActual.value
+        : this.dispenserActual,
   );
   TransactionsLocalData copyWithCompanion(TransactionsLocalCompanion data) {
     return TransactionsLocalData(
@@ -1864,6 +2031,15 @@ class TransactionsLocalData extends DataClass
       notes: data.notes.present ? data.notes.value : this.notes,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       synced: data.synced.present ? data.synced.value : this.synced,
+      dispenserTxId: data.dispenserTxId.present
+          ? data.dispenserTxId.value
+          : this.dispenserTxId,
+      dispenserRequested: data.dispenserRequested.present
+          ? data.dispenserRequested.value
+          : this.dispenserRequested,
+      dispenserActual: data.dispenserActual.present
+          ? data.dispenserActual.value
+          : this.dispenserActual,
     );
   }
 
@@ -1877,7 +2053,10 @@ class TransactionsLocalData extends DataClass
           ..write('transactionType: $transactionType, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
-          ..write('synced: $synced')
+          ..write('synced: $synced, ')
+          ..write('dispenserTxId: $dispenserTxId, ')
+          ..write('dispenserRequested: $dispenserRequested, ')
+          ..write('dispenserActual: $dispenserActual')
           ..write(')'))
         .toString();
   }
@@ -1892,6 +2071,9 @@ class TransactionsLocalData extends DataClass
     notes,
     createdAt,
     synced,
+    dispenserTxId,
+    dispenserRequested,
+    dispenserActual,
   );
   @override
   bool operator ==(Object other) =>
@@ -1904,7 +2086,10 @@ class TransactionsLocalData extends DataClass
           other.transactionType == this.transactionType &&
           other.notes == this.notes &&
           other.createdAt == this.createdAt &&
-          other.synced == this.synced);
+          other.synced == this.synced &&
+          other.dispenserTxId == this.dispenserTxId &&
+          other.dispenserRequested == this.dispenserRequested &&
+          other.dispenserActual == this.dispenserActual);
 }
 
 class TransactionsLocalCompanion
@@ -1917,6 +2102,9 @@ class TransactionsLocalCompanion
   final Value<String?> notes;
   final Value<String> createdAt;
   final Value<int> synced;
+  final Value<String?> dispenserTxId;
+  final Value<int?> dispenserRequested;
+  final Value<int?> dispenserActual;
   final Value<int> rowid;
   const TransactionsLocalCompanion({
     this.id = const Value.absent(),
@@ -1927,6 +2115,9 @@ class TransactionsLocalCompanion
     this.notes = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.synced = const Value.absent(),
+    this.dispenserTxId = const Value.absent(),
+    this.dispenserRequested = const Value.absent(),
+    this.dispenserActual = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsLocalCompanion.insert({
@@ -1938,6 +2129,9 @@ class TransactionsLocalCompanion
     this.notes = const Value.absent(),
     required String createdAt,
     this.synced = const Value.absent(),
+    this.dispenserTxId = const Value.absent(),
+    this.dispenserRequested = const Value.absent(),
+    this.dispenserActual = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        memberId = Value(memberId),
@@ -1953,6 +2147,9 @@ class TransactionsLocalCompanion
     Expression<String>? notes,
     Expression<String>? createdAt,
     Expression<int>? synced,
+    Expression<String>? dispenserTxId,
+    Expression<int>? dispenserRequested,
+    Expression<int>? dispenserActual,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1964,6 +2161,9 @@ class TransactionsLocalCompanion
       if (notes != null) 'notes': notes,
       if (createdAt != null) 'created_at': createdAt,
       if (synced != null) 'synced': synced,
+      if (dispenserTxId != null) 'dispenser_tx_id': dispenserTxId,
+      if (dispenserRequested != null) 'dispenser_requested': dispenserRequested,
+      if (dispenserActual != null) 'dispenser_actual': dispenserActual,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1977,6 +2177,9 @@ class TransactionsLocalCompanion
     Value<String?>? notes,
     Value<String>? createdAt,
     Value<int>? synced,
+    Value<String?>? dispenserTxId,
+    Value<int?>? dispenserRequested,
+    Value<int?>? dispenserActual,
     Value<int>? rowid,
   }) {
     return TransactionsLocalCompanion(
@@ -1988,6 +2191,9 @@ class TransactionsLocalCompanion
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       synced: synced ?? this.synced,
+      dispenserTxId: dispenserTxId ?? this.dispenserTxId,
+      dispenserRequested: dispenserRequested ?? this.dispenserRequested,
+      dispenserActual: dispenserActual ?? this.dispenserActual,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2019,6 +2225,15 @@ class TransactionsLocalCompanion
     if (synced.present) {
       map['synced'] = Variable<int>(synced.value);
     }
+    if (dispenserTxId.present) {
+      map['dispenser_tx_id'] = Variable<String>(dispenserTxId.value);
+    }
+    if (dispenserRequested.present) {
+      map['dispenser_requested'] = Variable<int>(dispenserRequested.value);
+    }
+    if (dispenserActual.present) {
+      map['dispenser_actual'] = Variable<int>(dispenserActual.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2036,6 +2251,9 @@ class TransactionsLocalCompanion
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
           ..write('synced: $synced, ')
+          ..write('dispenserTxId: $dispenserTxId, ')
+          ..write('dispenserRequested: $dispenserRequested, ')
+          ..write('dispenserActual: $dispenserActual, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2250,6 +2468,215 @@ class SyncStateCompanion extends UpdateCompanion<SyncStateData> {
   }
 }
 
+class $DispenserConfigTable extends DispenserConfig
+    with TableInfo<$DispenserConfigTable, DispenserConfigData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DispenserConfigTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dispenser_config';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DispenserConfigData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  DispenserConfigData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DispenserConfigData(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $DispenserConfigTable createAlias(String alias) {
+    return $DispenserConfigTable(attachedDatabase, alias);
+  }
+}
+
+class DispenserConfigData extends DataClass
+    implements Insertable<DispenserConfigData> {
+  final String key;
+  final String value;
+  const DispenserConfigData({required this.key, required this.value});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  DispenserConfigCompanion toCompanion(bool nullToAbsent) {
+    return DispenserConfigCompanion(key: Value(key), value: Value(value));
+  }
+
+  factory DispenserConfigData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DispenserConfigData(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  DispenserConfigData copyWith({String? key, String? value}) =>
+      DispenserConfigData(key: key ?? this.key, value: value ?? this.value);
+  DispenserConfigData copyWithCompanion(DispenserConfigCompanion data) {
+    return DispenserConfigData(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DispenserConfigData(')
+          ..write('key: $key, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DispenserConfigData &&
+          other.key == this.key &&
+          other.value == this.value);
+}
+
+class DispenserConfigCompanion extends UpdateCompanion<DispenserConfigData> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<int> rowid;
+  const DispenserConfigCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DispenserConfigCompanion.insert({
+    required String key,
+    required String value,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value);
+  static Insertable<DispenserConfigData> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DispenserConfigCompanion copyWith({
+    Value<String>? key,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return DispenserConfigCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DispenserConfigCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$RuderbarDatabase extends GeneratedDatabase {
   _$RuderbarDatabase(QueryExecutor e) : super(e);
   $RuderbarDatabaseManager get managers => $RuderbarDatabaseManager(this);
@@ -2261,6 +2688,9 @@ abstract class _$RuderbarDatabase extends GeneratedDatabase {
   late final $TransactionsLocalTable transactionsLocal =
       $TransactionsLocalTable(this);
   late final $SyncStateTable syncState = $SyncStateTable(this);
+  late final $DispenserConfigTable dispenserConfig = $DispenserConfigTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2271,6 +2701,7 @@ abstract class _$RuderbarDatabase extends GeneratedDatabase {
     productsCache,
     transactionsLocal,
     syncState,
+    dispenserConfig,
   ];
 }
 
@@ -3023,6 +3454,7 @@ typedef $$ProductsCacheTableCreateCompanionBuilder =
       Value<String?> descriptions,
       required int priceCents,
       Value<int> isActive,
+      Value<int> requiresDispenser,
       Value<String?> iconName,
       required String updatedAt,
       Value<int> rowid,
@@ -3035,6 +3467,7 @@ typedef $$ProductsCacheTableUpdateCompanionBuilder =
       Value<String?> descriptions,
       Value<int> priceCents,
       Value<int> isActive,
+      Value<int> requiresDispenser,
       Value<String?> iconName,
       Value<String> updatedAt,
       Value<int> rowid,
@@ -3137,6 +3570,11 @@ class $$ProductsCacheTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get requiresDispenser => $composableBuilder(
+    column: $table.requiresDispenser,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get iconName => $composableBuilder(
     column: $table.iconName,
     builder: (column) => ColumnFilters(column),
@@ -3230,6 +3668,11 @@ class $$ProductsCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get requiresDispenser => $composableBuilder(
+    column: $table.requiresDispenser,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get iconName => $composableBuilder(
     column: $table.iconName,
     builder: (column) => ColumnOrderings(column),
@@ -3291,6 +3734,11 @@ class $$ProductsCacheTableAnnotationComposer
 
   GeneratedColumn<int> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<int> get requiresDispenser => $composableBuilder(
+    column: $table.requiresDispenser,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get iconName =>
       $composableBuilder(column: $table.iconName, builder: (column) => column);
@@ -3384,6 +3832,7 @@ class $$ProductsCacheTableTableManager
                 Value<String?> descriptions = const Value.absent(),
                 Value<int> priceCents = const Value.absent(),
                 Value<int> isActive = const Value.absent(),
+                Value<int> requiresDispenser = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -3394,6 +3843,7 @@ class $$ProductsCacheTableTableManager
                 descriptions: descriptions,
                 priceCents: priceCents,
                 isActive: isActive,
+                requiresDispenser: requiresDispenser,
                 iconName: iconName,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -3406,6 +3856,7 @@ class $$ProductsCacheTableTableManager
                 Value<String?> descriptions = const Value.absent(),
                 required int priceCents,
                 Value<int> isActive = const Value.absent(),
+                Value<int> requiresDispenser = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 required String updatedAt,
                 Value<int> rowid = const Value.absent(),
@@ -3416,6 +3867,7 @@ class $$ProductsCacheTableTableManager
                 descriptions: descriptions,
                 priceCents: priceCents,
                 isActive: isActive,
+                requiresDispenser: requiresDispenser,
                 iconName: iconName,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -3524,6 +3976,9 @@ typedef $$TransactionsLocalTableCreateCompanionBuilder =
       Value<String?> notes,
       required String createdAt,
       Value<int> synced,
+      Value<String?> dispenserTxId,
+      Value<int?> dispenserRequested,
+      Value<int?> dispenserActual,
       Value<int> rowid,
     });
 typedef $$TransactionsLocalTableUpdateCompanionBuilder =
@@ -3536,6 +3991,9 @@ typedef $$TransactionsLocalTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<String> createdAt,
       Value<int> synced,
+      Value<String?> dispenserTxId,
+      Value<int?> dispenserRequested,
+      Value<int?> dispenserActual,
       Value<int> rowid,
     });
 
@@ -3633,6 +4091,21 @@ class $$TransactionsLocalTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get dispenserTxId => $composableBuilder(
+    column: $table.dispenserTxId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get dispenserRequested => $composableBuilder(
+    column: $table.dispenserRequested,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get dispenserActual => $composableBuilder(
+    column: $table.dispenserActual,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$MembersCacheTableFilterComposer get memberId {
     final $$MembersCacheTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -3719,6 +4192,21 @@ class $$TransactionsLocalTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get dispenserTxId => $composableBuilder(
+    column: $table.dispenserTxId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get dispenserRequested => $composableBuilder(
+    column: $table.dispenserRequested,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get dispenserActual => $composableBuilder(
+    column: $table.dispenserActual,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MembersCacheTableOrderingComposer get memberId {
     final $$MembersCacheTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -3796,6 +4284,21 @@ class $$TransactionsLocalTableAnnotationComposer
 
   GeneratedColumn<int> get synced =>
       $composableBuilder(column: $table.synced, builder: (column) => column);
+
+  GeneratedColumn<String> get dispenserTxId => $composableBuilder(
+    column: $table.dispenserTxId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get dispenserRequested => $composableBuilder(
+    column: $table.dispenserRequested,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get dispenserActual => $composableBuilder(
+    column: $table.dispenserActual,
+    builder: (column) => column,
+  );
 
   $$MembersCacheTableAnnotationComposer get memberId {
     final $$MembersCacheTableAnnotationComposer composer = $composerBuilder(
@@ -3885,6 +4388,9 @@ class $$TransactionsLocalTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<String> createdAt = const Value.absent(),
                 Value<int> synced = const Value.absent(),
+                Value<String?> dispenserTxId = const Value.absent(),
+                Value<int?> dispenserRequested = const Value.absent(),
+                Value<int?> dispenserActual = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsLocalCompanion(
                 id: id,
@@ -3895,6 +4401,9 @@ class $$TransactionsLocalTableTableManager
                 notes: notes,
                 createdAt: createdAt,
                 synced: synced,
+                dispenserTxId: dispenserTxId,
+                dispenserRequested: dispenserRequested,
+                dispenserActual: dispenserActual,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3907,6 +4416,9 @@ class $$TransactionsLocalTableTableManager
                 Value<String?> notes = const Value.absent(),
                 required String createdAt,
                 Value<int> synced = const Value.absent(),
+                Value<String?> dispenserTxId = const Value.absent(),
+                Value<int?> dispenserRequested = const Value.absent(),
+                Value<int?> dispenserActual = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsLocalCompanion.insert(
                 id: id,
@@ -3917,6 +4429,9 @@ class $$TransactionsLocalTableTableManager
                 notes: notes,
                 createdAt: createdAt,
                 synced: synced,
+                dispenserTxId: dispenserTxId,
+                dispenserRequested: dispenserRequested,
+                dispenserActual: dispenserActual,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -4142,6 +4657,159 @@ typedef $$SyncStateTableProcessedTableManager =
       SyncStateData,
       PrefetchHooks Function()
     >;
+typedef $$DispenserConfigTableCreateCompanionBuilder =
+    DispenserConfigCompanion Function({
+      required String key,
+      required String value,
+      Value<int> rowid,
+    });
+typedef $$DispenserConfigTableUpdateCompanionBuilder =
+    DispenserConfigCompanion Function({
+      Value<String> key,
+      Value<String> value,
+      Value<int> rowid,
+    });
+
+class $$DispenserConfigTableFilterComposer
+    extends Composer<_$RuderbarDatabase, $DispenserConfigTable> {
+  $$DispenserConfigTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DispenserConfigTableOrderingComposer
+    extends Composer<_$RuderbarDatabase, $DispenserConfigTable> {
+  $$DispenserConfigTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DispenserConfigTableAnnotationComposer
+    extends Composer<_$RuderbarDatabase, $DispenserConfigTable> {
+  $$DispenserConfigTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+}
+
+class $$DispenserConfigTableTableManager
+    extends
+        RootTableManager<
+          _$RuderbarDatabase,
+          $DispenserConfigTable,
+          DispenserConfigData,
+          $$DispenserConfigTableFilterComposer,
+          $$DispenserConfigTableOrderingComposer,
+          $$DispenserConfigTableAnnotationComposer,
+          $$DispenserConfigTableCreateCompanionBuilder,
+          $$DispenserConfigTableUpdateCompanionBuilder,
+          (
+            DispenserConfigData,
+            BaseReferences<
+              _$RuderbarDatabase,
+              $DispenserConfigTable,
+              DispenserConfigData
+            >,
+          ),
+          DispenserConfigData,
+          PrefetchHooks Function()
+        > {
+  $$DispenserConfigTableTableManager(
+    _$RuderbarDatabase db,
+    $DispenserConfigTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DispenserConfigTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DispenserConfigTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DispenserConfigTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> key = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DispenserConfigCompanion(
+                key: key,
+                value: value,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String key,
+                required String value,
+                Value<int> rowid = const Value.absent(),
+              }) => DispenserConfigCompanion.insert(
+                key: key,
+                value: value,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DispenserConfigTableProcessedTableManager =
+    ProcessedTableManager<
+      _$RuderbarDatabase,
+      $DispenserConfigTable,
+      DispenserConfigData,
+      $$DispenserConfigTableFilterComposer,
+      $$DispenserConfigTableOrderingComposer,
+      $$DispenserConfigTableAnnotationComposer,
+      $$DispenserConfigTableCreateCompanionBuilder,
+      $$DispenserConfigTableUpdateCompanionBuilder,
+      (
+        DispenserConfigData,
+        BaseReferences<
+          _$RuderbarDatabase,
+          $DispenserConfigTable,
+          DispenserConfigData
+        >,
+      ),
+      DispenserConfigData,
+      PrefetchHooks Function()
+    >;
 
 class $RuderbarDatabaseManager {
   final _$RuderbarDatabase _db;
@@ -4156,4 +4824,6 @@ class $RuderbarDatabaseManager {
       $$TransactionsLocalTableTableManager(_db, _db.transactionsLocal);
   $$SyncStateTableTableManager get syncState =>
       $$SyncStateTableTableManager(_db, _db.syncState);
+  $$DispenserConfigTableTableManager get dispenserConfig =>
+      $$DispenserConfigTableTableManager(_db, _db.dispenserConfig);
 }

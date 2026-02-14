@@ -40,6 +40,8 @@ void main() {
         descriptions: null,
         priceCents: 500,
         isActive: 1,
+        requiresDispenser: 0,
+        iconName: null,
         updatedAt: DateTime.now().toIso8601String(),
       );
 
@@ -83,6 +85,8 @@ void main() {
         descriptions: null,
         priceCents: 500,
         isActive: 1,
+        requiresDispenser: 0,
+        iconName: null,
         updatedAt: DateTime.now().toIso8601String(),
       );
 
@@ -110,6 +114,8 @@ void main() {
         descriptions: null,
         priceCents: 500,
         isActive: 1,
+        requiresDispenser: 0,
+        iconName: null,
         updatedAt: DateTime.now().toIso8601String(),
       );
 
