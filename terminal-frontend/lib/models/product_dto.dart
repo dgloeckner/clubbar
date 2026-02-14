@@ -19,7 +19,7 @@ class ProductDTO {
     this.descriptions,
     required this.priceCents,
     required this.isActive,
-    required this.requiresDispenser,
+    this.requiresDispenser = false,
     this.iconName,
     required this.updatedAt,
     this.deletedAt,
@@ -48,11 +48,13 @@ class ProductDTO {
     final rawActive = json['is_active'];
     final isActive = rawActive is bool ? rawActive : (rawActive as int?) == 1;
 
-    // requires_dispenser may be bool (from API) or int (from SQLite)
+    // requires_dispenser may be bool (from API) or int (from SQLite), or missing (defaults to false)
     final rawRequiresDispenser = json['requires_dispenser'];
-    final requiresDispenser = rawRequiresDispenser is bool
-        ? rawRequiresDispenser
-        : (rawRequiresDispenser as int?) == 1;
+    final requiresDispenser = rawRequiresDispenser == null
+        ? false
+        : (rawRequiresDispenser is bool
+            ? rawRequiresDispenser
+            : (rawRequiresDispenser as int) == 1);
 
     return ProductDTO(
       id: json['id'] as String,
