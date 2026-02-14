@@ -68,7 +68,7 @@ class ProductsRepository
         $descriptions = is_array($data['descriptions'] ?? []) ? json_encode($data['descriptions'] ?? []) : ($data['descriptions'] ?? '{}');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO products (id, category_id, names, descriptions, price_cents, is_active, icon_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO products (id, category_id, names, descriptions, price_cents, is_active, icon_name, requires_dispenser, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id,
@@ -78,6 +78,7 @@ class ProductsRepository
             (int) $data['price_cents'],
             ($data['is_active'] ?? true) ? 1 : 0,
             $data['icon_name'] ?? null,
+            ($data['requires_dispenser'] ?? false) ? 1 : 0,
             $now,
             $now,
         ]);
@@ -91,13 +92,13 @@ class ProductsRepository
         $fields = [];
         $values = [];
 
-        $allowed = ['category_id', 'names', 'descriptions', 'price_cents', 'is_active', 'icon_name', 'deleted_at', 'deleted_by_admin_id'];
+        $allowed = ['category_id', 'names', 'descriptions', 'price_cents', 'is_active', 'icon_name', 'requires_dispenser', 'deleted_at', 'deleted_by_admin_id'];
         foreach ($data as $key => $value) {
             if (!in_array($key, $allowed, true)) continue;
             if (($key === 'names' || $key === 'descriptions') && is_array($value)) {
                 $value = json_encode($value);
             }
-            if ($key === 'is_active') {
+            if ($key === 'is_active' || $key === 'requires_dispenser') {
                 $value = $value ? 1 : 0;
             }
             $fields[] = "{$key} = ?";

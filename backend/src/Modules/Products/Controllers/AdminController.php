@@ -201,7 +201,9 @@ class AdminController
             'names' => ['required', 'array', 'min:1'],
             'category_id' => ['required', 'uuid'],
             'price_cents' => ['required', 'integer', 'gt:0'],
-            'icon_name' => ['nullable', 'string', 'max:50'],        ])) {
+            'icon_name' => ['nullable', 'string', 'max:50'],
+            'requires_dispenser' => ['nullable', 'boolean'],
+        ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
@@ -222,6 +224,7 @@ class AdminController
             if (isset($body['category_id'])) $rules['category_id'] = ['uuid'];
             if (isset($body['price_cents'])) $rules['price_cents'] = ['integer', 'gt:0'];
             if (isset($body['icon_name'])) $rules['icon_name'] = ['nullable', 'string', 'max:50'];
+            if (isset($body['requires_dispenser'])) $rules['requires_dispenser'] = ['boolean'];
 
             if (!empty($rules) && !$this->validator->validate($body, $rules)) {
                 return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
