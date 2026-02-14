@@ -256,4 +256,67 @@ class TransactionsRepositoryTest extends DatabaseTestCase
 
         return $productId;
     }
+
+    public function test_insertTransaction_stores_dispenser_metadata(): void
+    {
+        // Arrange: Create test data
+        $memberId = $this->createTestMember('DispenserTest', 'User');
+        $categoryId = $this->createTestCategory('Tokens');
+        $productId = $this->createTestProduct($categoryId, 'Token', 'token', 100);
+
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+
+        $transactionData = [
+            'id' => $transactionId,
+            'member_id' => $memberId,
+            'product_id' => $productId,
+            'amount_cents' => 300,
+            'transaction_type' => 'purchase',
+            'dispenser_tx_id' => 'a3f8c012',
+            'dispenser_requested' => 3,
+            'dispenser_actual' => 2,
+            'created_at' => '2026-02-14 10:00:00',
+        ];
+
+        // Act: Insert transaction with dispenser metadata
+        $result = $this->transactionsRepository->insertTransaction($transactionData);
+
+        // Assert: Transaction is stored with dispenser fields
+        $this->assertNotNull($result, 'insertTransaction should return transaction data');
+        $this->assertEquals($transactionId, $result['id']);
+        $this->assertEquals('a3f8c012', $result['dispenser_tx_id'], 'Should store dispenser_tx_id');
+        $this->assertEquals(3, (int) $result['dispenser_requested'], 'Should store dispenser_requested');
+        $this->assertEquals(2, (int) $result['dispenser_actual'], 'Should store dispenser_actual');
+    }
+
+    public function test_insertTransaction_accepts_null_dispenser_metadata(): void
+    {
+        // Arrange: Create test data
+        $memberId = $this->createTestMember('NoDispenserTest', 'User');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Beer', 'beer', 350);
+
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+
+        $transactionData = [
+            'id' => $transactionId,
+            'member_id' => $memberId,
+            'product_id' => $productId,
+            'amount_cents' => 350,
+            'transaction_type' => 'purchase',
+            'created_at' => '2026-02-14 11:00:00',
+        ];
+
+        // Act: Insert transaction without dispenser metadata
+        $result = $this->transactionsRepository->insertTransaction($transactionData);
+
+        // Assert: Transaction is stored with null dispenser fields
+        $this->assertNotNull($result, 'insertTransaction should return transaction data');
+        $this->assertEquals($transactionId, $result['id']);
+        $this->assertNull($result['dispenser_tx_id'], 'dispenser_tx_id should be null when not provided');
+        $this->assertNull($result['dispenser_requested'], 'dispenser_requested should be null when not provided');
+        $this->assertNull($result['dispenser_actual'], 'dispenser_actual should be null when not provided');
+    }
 }

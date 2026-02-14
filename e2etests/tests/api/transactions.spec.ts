@@ -882,4 +882,65 @@ test.describe('Transaction Export Endpoint', () => {
     const disposition = response.headers()['content-disposition'];
     expect(disposition).toContain('transactions-2026-01-15-to-2026-01-25.csv');
   });
+
+  test('POST /api/sync/transactions stores dispenser metadata fields', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, {
+      dispenser_tx_id: 'abc123ef',
+      dispenser_requested: 3,
+      dispenser_actual: 2,
+    });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.ok()).toBeTruthy();
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+    expect(body.accepted_ids).toContain(transaction.id);
+
+    // Verify dispenser metadata was stored by fetching transaction history
+    const historyResponse = await authenticatedRequest.get(`/api/admin/members/${member.id}/transactions`);
+    expect(historyResponse.ok()).toBeTruthy();
+
+    const history = await historyResponse.json();
+    const storedTransaction = history.transactions.find(tx => tx.id === transaction.id);
+
+    expect(storedTransaction).toBeDefined();
+    expect(storedTransaction.dispenser_tx_id).toBe('abc123ef');
+    expect(storedTransaction.dispenser_requested).toBe(3);
+    expect(storedTransaction.dispenser_actual).toBe(2);
+  });
+
+  test('POST /api/sync/transactions accepts null dispenser metadata', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id);
+    // No dispenser metadata fields provided
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.ok()).toBeTruthy();
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+    expect(body.accepted_ids).toContain(transaction.id);
+
+    // Verify null dispenser metadata
+    const historyResponse = await authenticatedRequest.get(`/api/admin/members/${member.id}/transactions`);
+    expect(historyResponse.ok()).toBeTruthy();
+
+    const history = await historyResponse.json();
+    const storedTransaction = history.transactions.find(tx => tx.id === transaction.id);
+
+    expect(storedTransaction).toBeDefined();
+    expect(storedTransaction.dispenser_tx_id).toBeNull();
+    expect(storedTransaction.dispenser_requested).toBeNull();
+    expect(storedTransaction.dispenser_actual).toBeNull();
+  });
 });

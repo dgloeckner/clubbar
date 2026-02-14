@@ -25,7 +25,7 @@ class TransactionsRepository
     public function insertTransaction(array $data): ?array
     {
         $stmt = $this->db->prepare(
-            'INSERT IGNORE INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, related_transaction_id, created_by_terminal_id, created_by_admin_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT IGNORE INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, related_transaction_id, created_by_terminal_id, created_by_admin_id, created_at, dispenser_tx_id, dispenser_requested, dispenser_actual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $data['id'],
@@ -38,6 +38,9 @@ class TransactionsRepository
             $data['created_by_terminal_id'] ?? null,
             $data['created_by_admin_id'] ?? null,
             $data['created_at'] ?? date('Y-m-d H:i:s'),
+            $data['dispenser_tx_id'] ?? null,
+            $data['dispenser_requested'] ?? null,
+            $data['dispenser_actual'] ?? null,
         ]);
 
         if ($stmt->rowCount() === 0) {
