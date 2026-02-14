@@ -24,10 +24,10 @@ import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { CategoryFilter } from '../components/tables/CategoryFilter'
 import { StatusFilterPills } from '../components/forms/StatusFilterPills'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
-import { IconCell } from '../components/tables/IconCell'
 import { PriceCell } from '../components/tables/PriceCell'
 import { BadgeCell } from '../components/tables/BadgeCell'
 import { ActionButtons } from '../components/tables/ActionButtons'
+import { Badge } from '../components/common/Badge'
 import {
   tableColors,
   tableWrapperStyles,
@@ -606,12 +606,31 @@ export function ProductsPage() {
                   onChange={() => handleStatusToggle(product)}
                   testId={`products-status-toggle-${product.id}`}
                 />
-                <IconCell
-                  icon={getProductIcon(product.icon_name)}
-                  label={getLocalizedName(product.names, i18n.language)}
-                  iconTestId={`products-table-cell-icon-${product.id}`}
-                  labelTestId={`products-table-cell-name-${product.id}`}
-                />
+                <td
+                  style={{
+                    padding: '12px 16px',
+                    color: '#e2e8f0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}
+                >
+                  {(() => {
+                    const Icon = getProductIcon(product.icon_name)
+                    return <Icon size={20} data-testid={`products-table-cell-icon-${product.id}`} />
+                  })()}
+                  <span data-testid={`products-table-cell-name-${product.id}`} style={{ fontWeight: '500' }}>
+                    {getLocalizedName(product.names, i18n.language)}
+                  </span>
+                  {product.requires_dispenser && (
+                    <Badge
+                      label={t('products.dispenserBadge')}
+                      variant="info"
+                      showDot={false}
+                      testId={`products-list-dispenser-badge-${product.id}`}
+                    />
+                  )}
+                </td>
                 <PriceCell
                   priceCents={product.price_cents}
                   testId={`products-table-cell-price-${product.id}`}

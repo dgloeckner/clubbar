@@ -162,7 +162,8 @@
     "noProducts": "No products found",
     "allCategories": "All Categories",
     "requiresDispenser": "Requires Physical Dispenser",
-    "requiresDispenserHelp": "Check this if the product requires a physical token dispenser. Terminals without a configured dispenser will not show this product."
+    "requiresDispenserHelp": "Check this if the product requires a physical token dispenser. Terminals without a configured dispenser will not show this product.",
+    "dispenserBadge": "Dispenser"
   },
   "categories": {
     "title": "Categories",
