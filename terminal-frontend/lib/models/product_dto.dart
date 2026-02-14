@@ -7,6 +7,7 @@ class ProductDTO {
   final Map<String, String>? descriptions;
   final int priceCents;
   final bool isActive;
+  final bool requiresDispenser;
   final String? iconName;
   final String updatedAt;
   final String? deletedAt; // Soft deletion timestamp
@@ -18,6 +19,7 @@ class ProductDTO {
     this.descriptions,
     required this.priceCents,
     required this.isActive,
+    required this.requiresDispenser,
     this.iconName,
     required this.updatedAt,
     this.deletedAt,
@@ -46,6 +48,12 @@ class ProductDTO {
     final rawActive = json['is_active'];
     final isActive = rawActive is bool ? rawActive : (rawActive as int?) == 1;
 
+    // requires_dispenser may be bool (from API) or int (from SQLite)
+    final rawRequiresDispenser = json['requires_dispenser'];
+    final requiresDispenser = rawRequiresDispenser is bool
+        ? rawRequiresDispenser
+        : (rawRequiresDispenser as int?) == 1;
+
     return ProductDTO(
       id: json['id'] as String,
       categoryId: json['category_id'] as String,
@@ -53,6 +61,7 @@ class ProductDTO {
       descriptions: descriptions,
       priceCents: json['price_cents'] as int,
       isActive: isActive,
+      requiresDispenser: requiresDispenser,
       iconName: json['icon_name'] as String?,
       updatedAt: json['updated_at'] as String,
       deletedAt: json['deleted_at'] as String?,
@@ -66,6 +75,7 @@ class ProductDTO {
     'descriptions': descriptions != null ? jsonEncode(descriptions) : null,
     'price_cents': priceCents,
     'is_active': isActive ? 1 : 0,
+    'requires_dispenser': requiresDispenser ? 1 : 0,
     'icon_name': iconName,
     'updated_at': updatedAt,
     'deleted_at': deletedAt,
