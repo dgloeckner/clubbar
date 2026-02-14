@@ -102,4 +102,28 @@ test.describe('Sync Products Endpoint', () => {
     const contentType = response.headers()['content-type'];
     expect(contentType).toContain('application/json');
   });
+
+  test('GET /api/sync/products includes requires_dispenser field', async ({ authenticatedTerminalRequest }) => {
+    // This test verifies that the sync endpoint returns requires_dispenser field
+    // so terminals can filter products requiring a dispenser token
+    const response = await authenticatedTerminalRequest.get('/api/sync/products', {
+      params: { since: '1970-01-01T00:00:00Z' },
+    });
+
+    expect(response.ok()).toBeTruthy();
+    expect(response.status()).toBe(200);
+
+    const body = await response.json();
+    expect(body.products).toBeDefined();
+    expect(Array.isArray(body.products)).toBeTruthy();
+
+    // Verify schema includes requires_dispenser field
+    if (body.products.length > 0) {
+      const product = body.products[0];
+      expect(product).toHaveProperty('requires_dispenser');
+      expect(typeof product.requires_dispenser).toBe('number');
+      // Value should be 0 or 1 (boolean as tinyint)
+      expect([0, 1]).toContain(product.requires_dispenser);
+    }
+  });
 });
