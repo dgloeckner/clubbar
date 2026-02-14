@@ -217,5 +217,155 @@ void main() {
         expect(configService.isConfigured, isFalse);
       });
     });
+
+    group('dispenser configuration', () {
+      test('loads dispenser config from file', () async {
+        // Write a config file with dispenser settings
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test-Terminal',
+          'apiUrl': 'https://test.example.com/api',
+          'apiToken': 'b' * 64,
+          'dispenser': {
+            'enabled': true,
+            'baseUrl': 'http://dispenser.local',
+            'apiKey': 'dispenser-api-key-123',
+            'timeoutMs': 5000,
+            'pollIntervalMs': 500,
+          }
+        }));
+
+        await configService.load();
+
+        expect(configService.dispenserEnabled, isTrue);
+        expect(configService.dispenserBaseUrl, 'http://dispenser.local');
+        expect(configService.dispenserApiKey, 'dispenser-api-key-123');
+        expect(configService.dispenserTimeoutMs, 5000);
+        expect(configService.dispenserPollIntervalMs, 500);
+      });
+
+      test('uses default values when dispenser config is missing', () async {
+        // Write a config file without dispenser settings
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test-Terminal',
+          'apiUrl': 'https://test.example.com/api',
+          'apiToken': 'b' * 64,
+        }));
+
+        await configService.load();
+
+        expect(configService.dispenserEnabled, isFalse);
+        expect(configService.dispenserBaseUrl, isNull);
+        expect(configService.dispenserApiKey, isNull);
+        expect(configService.dispenserTimeoutMs, 3000);
+        expect(configService.dispenserPollIntervalMs, 250);
+      });
+
+      test('saves dispenser config to file', () async {
+        await configService.save(
+          terminalId: 'Test-Terminal',
+          apiUrl: 'https://test.example.com/api',
+          apiToken: 'a' * 64,
+          dispenserEnabled: true,
+          dispenserBaseUrl: 'http://dispenser.local',
+          dispenserApiKey: 'dispenser-key-456',
+        );
+
+        // Verify file was written correctly
+        final configFile = File('${tempDir.path}/config.json');
+        expect(configFile.existsSync(), isTrue);
+
+        final contents = jsonDecode(configFile.readAsStringSync());
+        expect(contents['dispenser']['enabled'], isTrue);
+        expect(contents['dispenser']['baseUrl'], 'http://dispenser.local');
+        expect(contents['dispenser']['apiKey'], 'dispenser-key-456');
+        expect(contents['dispenser']['timeoutMs'], 3000);
+        expect(contents['dispenser']['pollIntervalMs'], 250);
+      });
+
+      test('persists dispenser config across load/save cycles', () async {
+        // Save config with dispenser settings
+        await configService.save(
+          terminalId: 'Test-Terminal',
+          apiUrl: 'https://test.example.com/api',
+          apiToken: 'a' * 64,
+          dispenserEnabled: true,
+          dispenserBaseUrl: 'http://dispenser.test',
+          dispenserApiKey: 'key-789',
+        );
+
+        // Load in fresh instance
+        final freshService = ConfigService(configDir: tempDir.path);
+        await freshService.load();
+
+        expect(freshService.dispenserEnabled, isTrue);
+        expect(freshService.dispenserBaseUrl, 'http://dispenser.test');
+        expect(freshService.dispenserApiKey, 'key-789');
+      });
+
+      test('clear resets dispenser config to defaults', () async {
+        await configService.save(
+          terminalId: 'Test',
+          apiUrl: 'https://test.com/api',
+          apiToken: 'c' * 64,
+          dispenserEnabled: true,
+          dispenserBaseUrl: 'http://dispenser.local',
+          dispenserApiKey: 'key-abc',
+        );
+
+        expect(configService.dispenserEnabled, isTrue);
+
+        await configService.clear();
+
+        expect(configService.dispenserEnabled, isFalse);
+        expect(configService.dispenserBaseUrl, isNull);
+        expect(configService.dispenserApiKey, isNull);
+        expect(configService.dispenserTimeoutMs, 3000);
+        expect(configService.dispenserPollIntervalMs, 250);
+      });
+
+      test('partial save only updates provided dispenser fields', () async {
+        // Initial save with all dispenser fields
+        await configService.save(
+          terminalId: 'Test',
+          apiUrl: 'https://test.com/api',
+          apiToken: 'a' * 64,
+          dispenserEnabled: true,
+          dispenserBaseUrl: 'http://dispenser.original',
+          dispenserApiKey: 'key-original',
+        );
+
+        // Partial save - only update enabled flag
+        await configService.save(
+          terminalId: 'Test',
+          apiUrl: 'https://test.com/api',
+          apiToken: 'a' * 64,
+          dispenserEnabled: false,
+        );
+
+        // baseUrl and apiKey should be retained from first save
+        expect(configService.dispenserEnabled, isFalse);
+        expect(configService.dispenserBaseUrl, 'http://dispenser.original');
+        expect(configService.dispenserApiKey, 'key-original');
+      });
+
+      test('handles null dispenser fields gracefully', () async {
+        await configService.save(
+          terminalId: 'Test',
+          apiUrl: 'https://test.com/api',
+          apiToken: 'a' * 64,
+          dispenserEnabled: true,
+          dispenserBaseUrl: null,
+          dispenserApiKey: null,
+        );
+
+        final configFile = File('${tempDir.path}/config.json');
+        final contents = jsonDecode(configFile.readAsStringSync());
+
+        expect(contents['dispenser']['baseUrl'], '');
+        expect(contents['dispenser']['apiKey'], '');
+      });
+    });
   });
 }

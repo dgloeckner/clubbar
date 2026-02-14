@@ -14,6 +14,9 @@ import 'package:path_provider/path_provider.dart';
 /// - TERMINAL_ID
 /// - TERMINAL_API_URL
 /// - TERMINAL_API_TOKEN
+/// - DISPENSER_ENABLED
+/// - DISPENSER_BASE_URL
+/// - DISPENSER_API_KEY
 class ConfigService {
   static const String _configFileName = 'config.json';
 
@@ -22,6 +25,11 @@ class ConfigService {
   String? _apiUrl;
   String? _apiToken;
   bool _seedTestData = false;
+  bool _dispenserEnabled = false;
+  String? _dispenserBaseUrl;
+  String? _dispenserApiKey;
+  int _dispenserTimeoutMs = 3000;
+  int _dispenserPollIntervalMs = 250;
 
   ConfigService({String? configDir}) : _configDirOverride = configDir;
 
@@ -34,6 +42,11 @@ class ConfigService {
   String? get apiUrl => _apiUrl;
   String? get apiToken => _apiToken;
   bool get seedTestData => _seedTestData;
+  bool get dispenserEnabled => _dispenserEnabled;
+  String? get dispenserBaseUrl => _dispenserBaseUrl;
+  String? get dispenserApiKey => _dispenserApiKey;
+  int get dispenserTimeoutMs => _dispenserTimeoutMs;
+  int get dispenserPollIntervalMs => _dispenserPollIntervalMs;
 
   Future<String> _getConfigDir() async {
     if (_configDirOverride != null) {
@@ -60,6 +73,16 @@ class ConfigService {
         _apiUrl = json['apiUrl'] as String?;
         _apiToken = json['apiToken'] as String?;
         _seedTestData = json['seedTestData'] as bool? ?? false;
+
+        // Dispenser config
+        final dispenser = json['dispenser'] as Map<String, dynamic>?;
+        if (dispenser != null) {
+          _dispenserEnabled = dispenser['enabled'] as bool? ?? false;
+          _dispenserBaseUrl = dispenser['baseUrl'] as String?;
+          _dispenserApiKey = dispenser['apiKey'] as String?;
+          _dispenserTimeoutMs = dispenser['timeoutMs'] as int? ?? 3000;
+          _dispenserPollIntervalMs = dispenser['pollIntervalMs'] as int? ?? 250;
+        }
       } catch (_) {
         // Corrupt file — leave fields null
         _terminalId = null;
@@ -82,6 +105,15 @@ class ConfigService {
     if (env.containsKey('TERMINAL_SEED_TEST_DATA')) {
       _seedTestData = env['TERMINAL_SEED_TEST_DATA']?.toLowerCase() == 'true';
     }
+    if (env.containsKey('DISPENSER_ENABLED')) {
+      _dispenserEnabled = env['DISPENSER_ENABLED']?.toLowerCase() == 'true';
+    }
+    if (env.containsKey('DISPENSER_BASE_URL')) {
+      _dispenserBaseUrl = env['DISPENSER_BASE_URL'];
+    }
+    if (env.containsKey('DISPENSER_API_KEY')) {
+      _dispenserApiKey = env['DISPENSER_API_KEY'];
+    }
   }
 
   /// Save configuration to file.
@@ -89,10 +121,18 @@ class ConfigService {
     required String terminalId,
     required String apiUrl,
     required String apiToken,
+    bool? dispenserEnabled,
+    String? dispenserBaseUrl,
+    String? dispenserApiKey,
   }) async {
     _terminalId = terminalId;
     _apiUrl = apiUrl;
     _apiToken = apiToken;
+
+    // Update dispenser config if provided
+    if (dispenserEnabled != null) _dispenserEnabled = dispenserEnabled;
+    if (dispenserBaseUrl != null) _dispenserBaseUrl = dispenserBaseUrl;
+    if (dispenserApiKey != null) _dispenserApiKey = dispenserApiKey;
 
     final configFile = await _getConfigFile();
     final dir = configFile.parent;
@@ -104,6 +144,13 @@ class ConfigService {
       'terminalId': terminalId,
       'apiUrl': apiUrl,
       'apiToken': apiToken,
+      'dispenser': {
+        'enabled': _dispenserEnabled,
+        'baseUrl': _dispenserBaseUrl ?? '',
+        'apiKey': _dispenserApiKey ?? '',
+        'timeoutMs': _dispenserTimeoutMs,
+        'pollIntervalMs': _dispenserPollIntervalMs,
+      }
     });
 
     configFile.writeAsStringSync(json);
@@ -129,6 +176,11 @@ class ConfigService {
     _terminalId = null;
     _apiUrl = null;
     _apiToken = null;
+    _dispenserEnabled = false;
+    _dispenserBaseUrl = null;
+    _dispenserApiKey = null;
+    _dispenserTimeoutMs = 3000;
+    _dispenserPollIntervalMs = 250;
 
     final configFile = await _getConfigFile();
     if (configFile.existsSync()) {
