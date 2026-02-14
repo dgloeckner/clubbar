@@ -160,7 +160,9 @@
     "selectIcon": "Select Icon",
     "selectCategory": "Select Category",
     "noProducts": "No products found",
-    "allCategories": "All Categories"
+    "allCategories": "All Categories",
+    "requiresDispenser": "Requires Physical Dispenser",
+    "requiresDispenserHelp": "Check this if the product requires a physical token dispenser. Terminals without a configured dispenser will not show this product."
   },
   "categories": {
     "title": "Categories",

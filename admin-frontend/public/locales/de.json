@@ -160,7 +160,9 @@
     "selectIcon": "Symbol auswählen",
     "selectCategory": "Kategorie auswählen",
     "noProducts": "Keine Produkte gefunden",
-    "allCategories": "Alle Kategorien"
+    "allCategories": "Alle Kategorien",
+    "requiresDispenser": "Benötigt physischen Ausgabeautomaten",
+    "requiresDispenserHelp": "Aktivieren Sie diese Option, wenn das Produkt einen physischen Token-Ausgabeautomaten benötigt. Terminals ohne konfigurierten Ausgabeautomaten zeigen dieses Produkt nicht an."
   },
   "categories": {
     "title": "Kategorien",

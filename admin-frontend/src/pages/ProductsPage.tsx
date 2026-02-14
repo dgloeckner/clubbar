@@ -803,7 +803,7 @@ export function ProductsPage() {
                       cursor: 'pointer',
                     }}
                   />
-                  Requires Physical Dispenser
+                  {t('products.requiresDispenser')}
                 </label>
                 <p
                   style={{
@@ -814,8 +814,7 @@ export function ProductsPage() {
                     lineHeight: '1.5',
                   }}
                 >
-                  Check this if the product requires a physical token dispenser.
-                  Terminals without a configured dispenser will not show this product.
+                  {t('products.requiresDispenserHelp')}
                 </p>
               </div>
 
