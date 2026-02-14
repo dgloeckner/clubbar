@@ -47,6 +47,7 @@ interface Product {
   category_id: string
   is_active: boolean
   icon_name?: string | null
+  requires_dispenser?: boolean
   created_at: string
   updated_at: string
 }
@@ -73,7 +74,7 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
-  const [formData, setFormData] = useState({ names: { de: '', en: '' }, price: '' })
+  const [formData, setFormData] = useState({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
     type: 'delete' | 'status'
@@ -165,6 +166,7 @@ export function ProductsPage() {
     setFormData({
       names: { de: product.names.de || '', en: product.names.en || '' },
       price: (product.price_cents / 100).toFixed(2),
+      requiresDispenser: product.requires_dispenser || false,
     })
     setSelectedCategory(product.category_id)
     setSelectedIcon(product.icon_name || null)
@@ -202,13 +204,14 @@ export function ProductsPage() {
         price_cents: priceCents,
         category_id: selectedCategory,
         icon_name: selectedIcon,
+        requires_dispenser: formData.requiresDispenser,
       }
       console.log('Creating product with:', productData)
 
       const response = await post('/admin/products', productData)
       console.log('Product created successfully:', response)
 
-      setFormData({ names: { de: '', en: '' }, price: '' })
+      setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
       setSelectedCategory('')
       setSelectedIcon(null)
       setModalMode('create')
@@ -257,9 +260,10 @@ export function ProductsPage() {
         price_cents: priceCents,
         category_id: selectedCategory,
         icon_name: selectedIcon,
+        requires_dispenser: formData.requiresDispenser,
       })
 
-      setFormData({ names: { de: '', en: '' }, price: '' })
+      setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
       setSelectedCategory('')
       setSelectedIcon(null)
       setEditingProduct(null)
@@ -343,7 +347,7 @@ export function ProductsPage() {
 
   function handleCancel() {
     setShowModal(false)
-    setFormData({ names: { de: '', en: '' }, price: '' })
+    setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
     setSelectedCategory('')
     setSelectedIcon(null)
     setFormError(null)
@@ -510,7 +514,7 @@ export function ProductsPage() {
             onClick={() => {
               setModalMode('create')
               setEditingProduct(null)
-              setFormData({ names: { de: '', en: '' }, price: '' })
+              setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
               setSelectedCategory('')
               setFormError(null)
               setShowModal(true)
@@ -775,6 +779,45 @@ export function ProductsPage() {
                 testId="products-form-icon-select"
                 label={`${t('products.icon')} (${t('common.optional')})`}
               />
+
+              <div style={{ marginBottom: '20px' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: '#e2e8f0',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    data-testid="products-form-requires-dispenser-checkbox"
+                    type="checkbox"
+                    checked={formData.requiresDispenser}
+                    onChange={(e) => setFormData({ ...formData, requiresDispenser: e.target.checked })}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      cursor: 'pointer',
+                    }}
+                  />
+                  Requires Physical Dispenser
+                </label>
+                <p
+                  style={{
+                    marginTop: '6px',
+                    marginLeft: '26px',
+                    color: '#94a3b8',
+                    fontSize: '12px',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  Check this if the product requires a physical token dispenser.
+                  Terminals without a configured dispenser will not show this product.
+                </p>
+              </div>
 
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: 'auto' }}>
                 <button
