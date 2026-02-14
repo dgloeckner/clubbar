@@ -112,14 +112,23 @@ class DispenserClient {
     this.timeoutMs = 3000,
   }) : _httpClient = httpClient ?? http.Client();
 
-  /// Generate unique transaction ID (8-16 hex characters)
+  /// Generate unique transaction ID (16 hex characters)
   String generateTxId() {
     // Generate UUID v4, remove hyphens, take first 16 chars
     final uuid = _uuid.v4().replaceAll('-', '');
     return uuid.substring(0, 16);
   }
 
-  /// Start token dispense operation
+  /// Starts a token dispense operation.
+  ///
+  /// Sends a POST request to the dispenser to begin dispensing [quantity] tokens.
+  /// The operation is tracked using the provided [txId].
+  ///
+  /// Returns a [DispenseResult] with the current state of the operation.
+  ///
+  /// Throws:
+  /// - [DispenserBusyException] if the dispenser is already processing another request.
+  /// - [DispenserException] for other HTTP errors or network failures.
   Future<DispenseResult> dispenseTokens({
     required String txId,
     required int quantity,
@@ -157,7 +166,16 @@ class DispenserClient {
     }
   }
 
-  /// Poll dispense status
+  /// Polls the status of an ongoing dispense operation.
+  ///
+  /// Sends a GET request to retrieve the current state of the dispense
+  /// operation identified by [txId].
+  ///
+  /// Returns a [DispenseResult] with the current state.
+  ///
+  /// Throws:
+  /// - [DispenserNotFoundException] if the transaction ID is not found.
+  /// - [DispenserException] for other HTTP errors or network failures.
   Future<DispenseResult> getStatus(String txId) async {
     final uri = Uri.parse('$baseUrl/dispense/$txId');
     final headers = {
@@ -187,7 +205,15 @@ class DispenserClient {
     }
   }
 
-  /// Get dispenser health and metrics
+  /// Retrieves the health status and metrics of the dispenser.
+  ///
+  /// Sends a GET request to the /health endpoint to check if the dispenser
+  /// is operational and retrieve usage statistics.
+  ///
+  /// Returns a [DispenserHealth] with status and metrics.
+  ///
+  /// Throws:
+  /// - [DispenserException] for HTTP errors or network failures.
   Future<DispenserHealth> getHealth() async {
     final uri = Uri.parse('$baseUrl/health');
     final headers = {
@@ -206,6 +232,8 @@ class DispenserClient {
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return DispenserHealth.fromJson(json);
+    } on DispenserException {
+      rethrow;
     } catch (e) {
       throw DispenserException('Request failed: $e');
     }

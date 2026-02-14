@@ -149,6 +149,25 @@ void main() {
               .having((e) => e.message, 'message', contains('HTTP 500'))),
         );
       });
+
+      test('throws DispenserException on timeout', () async {
+        when(() => mockHttpClient.post(
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            )).thenAnswer(
+          (_) => Future.delayed(
+            const Duration(seconds: 10),
+            () => http.Response('{}', 200),
+          ),
+        );
+
+        expect(
+          () => client.dispenseTokens(txId: 'test123', quantity: 2),
+          throwsA(isA<DispenserException>()
+              .having((e) => e.message, 'message', contains('Request failed'))),
+        );
+      });
     });
 
     group('getStatus', () {
