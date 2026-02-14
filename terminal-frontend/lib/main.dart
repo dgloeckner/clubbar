@@ -265,7 +265,10 @@ void main() async {
     service: membersService,
     localeProvider: localeProvider,
   );
-  final productsProvider = ProductsProvider(service: productsService);
+  final productsProvider = ProductsProvider(
+    service: productsService,
+    config: configService,
+  );
 
   // Load products into provider (after seeding database)
   await productsProvider.refreshProducts();
