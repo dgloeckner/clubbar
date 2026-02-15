@@ -118,9 +118,13 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final isComplete = _state == 'done' || _state == 'error';
-    final isSuccess = _state == 'done';
+
+    // SUCCESS = any tokens dispensed (even if state is "error" due to jam)
+    final isSuccess = _dispensed > 0;
     final isPartial = isSuccess && _dispensed < _quantity;
-    final isError = _state == 'error';
+
+    // ERROR = completed but zero tokens dispensed
+    final isError = isComplete && _dispensed == 0;
 
     return Dialog(
       child: Padding(
