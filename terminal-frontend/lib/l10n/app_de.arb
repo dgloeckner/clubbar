@@ -272,6 +272,22 @@
   "@statusError": {
     "description": "Connection status: error"
   },
+  "statusWarning": "Warnung",
+  "@statusWarning": {
+    "description": "Connection status: warning (e.g. dispenser offline)"
+  },
+  "dispenser": "Spender",
+  "@dispenser": {
+    "description": "Token dispenser hardware label"
+  },
+  "backendEndpoint": "Backend",
+  "@backendEndpoint": {
+    "description": "Backend API endpoint label"
+  },
+  "dispenserEndpoint": "Spender-URL",
+  "@dispenserEndpoint": {
+    "description": "Dispenser hardware endpoint URL label"
+  },
   "never": "Nie",
   "@never": {
     "description": "Used for timestamps that never occurred"
@@ -391,5 +407,55 @@
   "dispenserBuyWithoutTokensButton": "Alle Produkte außer Tokens kaufen",
   "@dispenserBuyWithoutTokensButton": {
     "description": "Button to proceed with checkout excluding token products"
+  },
+
+  "@_DISPENSER_DASHBOARD": {},
+  "dispenserUptime": "Betriebszeit",
+  "@dispenserUptime": {
+    "description": "Dispenser uptime label"
+  },
+  "dispenserFirmware": "Firmware",
+  "@dispenserFirmware": {
+    "description": "Firmware version label"
+  },
+  "dispenserMachineState": "Maschinenstatus",
+  "@dispenserMachineState": {
+    "description": "Machine state section title"
+  },
+  "dispenserDispensed": "Ausgegeben",
+  "@dispenserDispensed": {
+    "description": "Total dispensed metric label"
+  },
+  "dispenserSuccess": "Erfolgreich",
+  "@dispenserSuccess": {
+    "description": "Successful dispenses metric label"
+  },
+  "dispenserJams": "Staus",
+  "@dispenserJams": {
+    "description": "Jam count metric label"
+  },
+  "dispenserFailures": "Fehler",
+  "@dispenserFailures": {
+    "description": "Failure count metric label"
+  },
+  "dispenserNetwork": "Netzwerk",
+  "@dispenserNetwork": {
+    "description": "Network section title"
+  },
+  "dispenserSignalStrength": "Signalstärke",
+  "@dispenserSignalStrength": {
+    "description": "WiFi signal strength label"
+  },
+  "dispenserErrorHistory": "Fehlerhistorie",
+  "@dispenserErrorHistory": {
+    "description": "Error history section title"
+  },
+  "dispenserNoErrors": "Keine Fehler aufgezeichnet",
+  "@dispenserNoErrors": {
+    "description": "Message when no errors in history"
+  },
+  "dispenserErrorCleared": "behoben",
+  "@dispenserErrorCleared": {
+    "description": "Label for cleared/resolved errors"
   }
 }

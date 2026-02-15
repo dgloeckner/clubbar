@@ -398,6 +398,30 @@ abstract class AppLocalizations {
   /// **'Fehler'**
   String get statusError;
 
+  /// Connection status: warning (e.g. dispenser offline)
+  ///
+  /// In de, this message translates to:
+  /// **'Warnung'**
+  String get statusWarning;
+
+  /// Token dispenser hardware label
+  ///
+  /// In de, this message translates to:
+  /// **'Spender'**
+  String get dispenser;
+
+  /// Backend API endpoint label
+  ///
+  /// In de, this message translates to:
+  /// **'Backend'**
+  String get backendEndpoint;
+
+  /// Dispenser hardware endpoint URL label
+  ///
+  /// In de, this message translates to:
+  /// **'Spender-URL'**
+  String get dispenserEndpoint;
+
   /// Used for timestamps that never occurred
   ///
   /// In de, this message translates to:
@@ -565,6 +589,78 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Alle Produkte außer Tokens kaufen'**
   String get dispenserBuyWithoutTokensButton;
+
+  /// Dispenser uptime label
+  ///
+  /// In de, this message translates to:
+  /// **'Betriebszeit'**
+  String get dispenserUptime;
+
+  /// Firmware version label
+  ///
+  /// In de, this message translates to:
+  /// **'Firmware'**
+  String get dispenserFirmware;
+
+  /// Machine state section title
+  ///
+  /// In de, this message translates to:
+  /// **'Maschinenstatus'**
+  String get dispenserMachineState;
+
+  /// Total dispensed metric label
+  ///
+  /// In de, this message translates to:
+  /// **'Ausgegeben'**
+  String get dispenserDispensed;
+
+  /// Successful dispenses metric label
+  ///
+  /// In de, this message translates to:
+  /// **'Erfolgreich'**
+  String get dispenserSuccess;
+
+  /// Jam count metric label
+  ///
+  /// In de, this message translates to:
+  /// **'Staus'**
+  String get dispenserJams;
+
+  /// Failure count metric label
+  ///
+  /// In de, this message translates to:
+  /// **'Fehler'**
+  String get dispenserFailures;
+
+  /// Network section title
+  ///
+  /// In de, this message translates to:
+  /// **'Netzwerk'**
+  String get dispenserNetwork;
+
+  /// WiFi signal strength label
+  ///
+  /// In de, this message translates to:
+  /// **'Signalstärke'**
+  String get dispenserSignalStrength;
+
+  /// Error history section title
+  ///
+  /// In de, this message translates to:
+  /// **'Fehlerhistorie'**
+  String get dispenserErrorHistory;
+
+  /// Message when no errors in history
+  ///
+  /// In de, this message translates to:
+  /// **'Keine Fehler aufgezeichnet'**
+  String get dispenserNoErrors;
+
+  /// Label for cleared/resolved errors
+  ///
+  /// In de, this message translates to:
+  /// **'behoben'**
+  String get dispenserErrorCleared;
 }
 
 class _AppLocalizationsDelegate

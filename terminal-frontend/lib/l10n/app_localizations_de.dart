@@ -197,6 +197,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get statusError => 'Fehler';
 
   @override
+  String get statusWarning => 'Warnung';
+
+  @override
+  String get dispenser => 'Spender';
+
+  @override
+  String get backendEndpoint => 'Backend';
+
+  @override
+  String get dispenserEndpoint => 'Spender-URL';
+
+  @override
   String get never => 'Nie';
 
   @override
@@ -284,4 +296,40 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get dispenserBuyWithoutTokensButton =>
       'Alle Produkte außer Tokens kaufen';
+
+  @override
+  String get dispenserUptime => 'Betriebszeit';
+
+  @override
+  String get dispenserFirmware => 'Firmware';
+
+  @override
+  String get dispenserMachineState => 'Maschinenstatus';
+
+  @override
+  String get dispenserDispensed => 'Ausgegeben';
+
+  @override
+  String get dispenserSuccess => 'Erfolgreich';
+
+  @override
+  String get dispenserJams => 'Staus';
+
+  @override
+  String get dispenserFailures => 'Fehler';
+
+  @override
+  String get dispenserNetwork => 'Netzwerk';
+
+  @override
+  String get dispenserSignalStrength => 'Signalstärke';
+
+  @override
+  String get dispenserErrorHistory => 'Fehlerhistorie';
+
+  @override
+  String get dispenserNoErrors => 'Keine Fehler aufgezeichnet';
+
+  @override
+  String get dispenserErrorCleared => 'behoben';
 }

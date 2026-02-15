@@ -59,6 +59,10 @@
   "statusOnline": "Online",
   "statusOffline": "Offline",
   "statusError": "Error",
+  "statusWarning": "Warning",
+  "dispenser": "Dispenser",
+  "backendEndpoint": "Backend",
+  "dispenserEndpoint": "Dispenser URL",
   "never": "Never",
   "lastSync": "Last sync",
   "lastTransactionSync": "Last transaction sync",
@@ -90,5 +94,19 @@
   "dispenserOfflineMessage": "The token dispenser is not responding.",
   "dispenserBuyWithoutTokensHint": "You can still purchase other items without tokens.",
   "dispenserCancelButton": "Cancel & Back to Cart",
-  "dispenserBuyWithoutTokensButton": "Buy All Products But Tokens"
+  "dispenserBuyWithoutTokensButton": "Buy All Products But Tokens",
+
+  "@_DISPENSER_DASHBOARD": {},
+  "dispenserUptime": "Uptime",
+  "dispenserFirmware": "Firmware",
+  "dispenserMachineState": "Machine State",
+  "dispenserDispensed": "Dispensed",
+  "dispenserSuccess": "Success",
+  "dispenserJams": "Jams",
+  "dispenserFailures": "Failures",
+  "dispenserNetwork": "Network",
+  "dispenserSignalStrength": "Signal Strength",
+  "dispenserErrorHistory": "Error History",
+  "dispenserNoErrors": "No errors recorded",
+  "dispenserErrorCleared": "resolved"
 }
