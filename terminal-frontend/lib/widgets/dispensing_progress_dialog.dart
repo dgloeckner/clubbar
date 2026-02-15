@@ -95,6 +95,8 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
 
           if (_state == 'done' || _state == 'error') {
             widget.onComplete(result);
+            // Wait 5 seconds before closing so user can read success message
+            await Future.delayed(const Duration(seconds: 5));
             if (mounted) {
               Navigator.of(context).pop();
             }
