@@ -154,6 +154,47 @@ class CartService {
     }
   }
 
+  /// Update dispenser operation state without cleaning up.
+  ///
+  /// Used after creating transactions to track reconciliation status, and during
+  /// polling to update ESP8266 state for recovery service monitoring.
+  ///
+  /// Returns tuple: (success, errorMessage)
+  Future<(bool, String?)> updateDispenserOperationState({
+    required String dispenserTxId,
+    String? state,
+    int? transactionsCreated,
+    int? lastKnownDispensed,
+    int? pollingActive,
+    String? lastPolledAt,
+  }) async {
+    try {
+      final companion = DispenserOperationsCompanion(
+        lastKnownState: state != null ? Value(state) : Value.absent(),
+        transactionsCreated: transactionsCreated != null
+            ? Value(transactionsCreated)
+            : Value.absent(),
+        lastKnownDispensed: lastKnownDispensed != null
+            ? Value(lastKnownDispensed)
+            : Value.absent(),
+        pollingActive: pollingActive != null
+            ? Value(pollingActive)
+            : Value.absent(),
+        lastPolledAt: lastPolledAt != null
+            ? Value(lastPolledAt)
+            : Value.absent(),
+      );
+
+      await (_db.update(_db.dispenserOperations)
+            ..where((t) => t.dispenserTxId.equals(dispenserTxId)))
+          .write(companion);
+
+      return (true, null);
+    } catch (e) {
+      return (false, 'Failed to update dispenser operation state: $e');
+    }
+  }
+
   /// Clean up dispenser operation tracking record AFTER transactions are created.
   ///
   /// Returns tuple: (success, errorMessage)
