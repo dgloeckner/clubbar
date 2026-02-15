@@ -111,3 +111,34 @@ class TransactionsRepository {
         .go();
   }
 }
+
+  /// Insert transaction using companion (supports all optional fields)
+  Future<void> insertTransactionCompanion(TransactionsLocalCompanion transaction) async {
+    await _db.into(_db.transactionsLocal).insert(transaction);
+  }
+
+  /// Update transaction fields by ID
+  Future<void> updateTransaction(String transactionId, Map<String, dynamic> updates) async {
+    final companion = TransactionsLocalCompanion(
+      dispenserActual: updates.containsKey('dispenser_actual') 
+          ? Value(updates['dispenser_actual'] as int?) 
+          : Value.absent(),
+      amountCents: updates.containsKey('amount_cents') 
+          ? Value(updates['amount_cents'] as int) 
+          : Value.absent(),
+    );
+
+    await (_db.update(_db.transactionsLocal)
+          ..where((t) => t.id.equals(transactionId)))
+        .write(companion);
+  }
+
+  /// Get incomplete dispenser transactions (for crash recovery)
+  /// Returns transactions that have dispenser_tx_id but dispenser_actual is null
+  Future<List<TransactionsLocalData>> getIncompleteDispenserTransactions() async {
+    return (_db.select(_db.transactionsLocal)
+          ..where((t) => 
+              t.dispenserTxId.isNotNull() & 
+              t.dispenserActual.isNull()))
+        .get();
+  }

@@ -100,10 +100,6 @@ class RuderbarDatabase extends _$RuderbarDatabase {
               variables: [Variable.withString('poll_interval_ms'), Variable.withString('250')],
             );
           }
-          if (from < 4) {
-            // Create dispenser_operations table for crash recovery
-            await m.createTable(dispenserOperations);
-          }
         },
       );
 

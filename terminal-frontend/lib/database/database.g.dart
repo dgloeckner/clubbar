@@ -2677,6 +2677,451 @@ class DispenserConfigCompanion extends UpdateCompanion<DispenserConfigData> {
   }
 }
 
+class $DispenserOperationsTable extends DispenserOperations
+    with TableInfo<$DispenserOperationsTable, DispenserOperation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DispenserOperationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _dispenserTxIdMeta = const VerificationMeta(
+    'dispenserTxId',
+  );
+  @override
+  late final GeneratedColumn<String> dispenserTxId = GeneratedColumn<String>(
+    'dispenser_tx_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _memberIdMeta = const VerificationMeta(
+    'memberId',
+  );
+  @override
+  late final GeneratedColumn<String> memberId = GeneratedColumn<String>(
+    'member_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _productIdMeta = const VerificationMeta(
+    'productId',
+  );
+  @override
+  late final GeneratedColumn<String> productId = GeneratedColumn<String>(
+    'product_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _priceCentsMeta = const VerificationMeta(
+    'priceCents',
+  );
+  @override
+  late final GeneratedColumn<int> priceCents = GeneratedColumn<int>(
+    'price_cents',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _requestedQtyMeta = const VerificationMeta(
+    'requestedQty',
+  );
+  @override
+  late final GeneratedColumn<int> requestedQty = GeneratedColumn<int>(
+    'requested_qty',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<String> createdAt = GeneratedColumn<String>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    dispenserTxId,
+    memberId,
+    productId,
+    priceCents,
+    requestedQty,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'dispenser_operations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DispenserOperation> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('dispenser_tx_id')) {
+      context.handle(
+        _dispenserTxIdMeta,
+        dispenserTxId.isAcceptableOrUnknown(
+          data['dispenser_tx_id']!,
+          _dispenserTxIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_dispenserTxIdMeta);
+    }
+    if (data.containsKey('member_id')) {
+      context.handle(
+        _memberIdMeta,
+        memberId.isAcceptableOrUnknown(data['member_id']!, _memberIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_memberIdMeta);
+    }
+    if (data.containsKey('product_id')) {
+      context.handle(
+        _productIdMeta,
+        productId.isAcceptableOrUnknown(data['product_id']!, _productIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_productIdMeta);
+    }
+    if (data.containsKey('price_cents')) {
+      context.handle(
+        _priceCentsMeta,
+        priceCents.isAcceptableOrUnknown(data['price_cents']!, _priceCentsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_priceCentsMeta);
+    }
+    if (data.containsKey('requested_qty')) {
+      context.handle(
+        _requestedQtyMeta,
+        requestedQty.isAcceptableOrUnknown(
+          data['requested_qty']!,
+          _requestedQtyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_requestedQtyMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {dispenserTxId};
+  @override
+  DispenserOperation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DispenserOperation(
+      dispenserTxId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dispenser_tx_id'],
+      )!,
+      memberId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}member_id'],
+      )!,
+      productId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}product_id'],
+      )!,
+      priceCents: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}price_cents'],
+      )!,
+      requestedQty: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}requested_qty'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DispenserOperationsTable createAlias(String alias) {
+    return $DispenserOperationsTable(attachedDatabase, alias);
+  }
+}
+
+class DispenserOperation extends DataClass
+    implements Insertable<DispenserOperation> {
+  /// ESP8266 transaction ID (primary key)
+  final String dispenserTxId;
+
+  /// Member ID who initiated the purchase
+  final String memberId;
+
+  /// Product ID being purchased (token product)
+  final String productId;
+
+  /// Price per token in cents
+  final int priceCents;
+
+  /// Number of tokens requested from dispenser
+  final int requestedQty;
+
+  /// When this operation was started
+  final String createdAt;
+  const DispenserOperation({
+    required this.dispenserTxId,
+    required this.memberId,
+    required this.productId,
+    required this.priceCents,
+    required this.requestedQty,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['dispenser_tx_id'] = Variable<String>(dispenserTxId);
+    map['member_id'] = Variable<String>(memberId);
+    map['product_id'] = Variable<String>(productId);
+    map['price_cents'] = Variable<int>(priceCents);
+    map['requested_qty'] = Variable<int>(requestedQty);
+    map['created_at'] = Variable<String>(createdAt);
+    return map;
+  }
+
+  DispenserOperationsCompanion toCompanion(bool nullToAbsent) {
+    return DispenserOperationsCompanion(
+      dispenserTxId: Value(dispenserTxId),
+      memberId: Value(memberId),
+      productId: Value(productId),
+      priceCents: Value(priceCents),
+      requestedQty: Value(requestedQty),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory DispenserOperation.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DispenserOperation(
+      dispenserTxId: serializer.fromJson<String>(json['dispenserTxId']),
+      memberId: serializer.fromJson<String>(json['memberId']),
+      productId: serializer.fromJson<String>(json['productId']),
+      priceCents: serializer.fromJson<int>(json['priceCents']),
+      requestedQty: serializer.fromJson<int>(json['requestedQty']),
+      createdAt: serializer.fromJson<String>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'dispenserTxId': serializer.toJson<String>(dispenserTxId),
+      'memberId': serializer.toJson<String>(memberId),
+      'productId': serializer.toJson<String>(productId),
+      'priceCents': serializer.toJson<int>(priceCents),
+      'requestedQty': serializer.toJson<int>(requestedQty),
+      'createdAt': serializer.toJson<String>(createdAt),
+    };
+  }
+
+  DispenserOperation copyWith({
+    String? dispenserTxId,
+    String? memberId,
+    String? productId,
+    int? priceCents,
+    int? requestedQty,
+    String? createdAt,
+  }) => DispenserOperation(
+    dispenserTxId: dispenserTxId ?? this.dispenserTxId,
+    memberId: memberId ?? this.memberId,
+    productId: productId ?? this.productId,
+    priceCents: priceCents ?? this.priceCents,
+    requestedQty: requestedQty ?? this.requestedQty,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  DispenserOperation copyWithCompanion(DispenserOperationsCompanion data) {
+    return DispenserOperation(
+      dispenserTxId: data.dispenserTxId.present
+          ? data.dispenserTxId.value
+          : this.dispenserTxId,
+      memberId: data.memberId.present ? data.memberId.value : this.memberId,
+      productId: data.productId.present ? data.productId.value : this.productId,
+      priceCents: data.priceCents.present
+          ? data.priceCents.value
+          : this.priceCents,
+      requestedQty: data.requestedQty.present
+          ? data.requestedQty.value
+          : this.requestedQty,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DispenserOperation(')
+          ..write('dispenserTxId: $dispenserTxId, ')
+          ..write('memberId: $memberId, ')
+          ..write('productId: $productId, ')
+          ..write('priceCents: $priceCents, ')
+          ..write('requestedQty: $requestedQty, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    dispenserTxId,
+    memberId,
+    productId,
+    priceCents,
+    requestedQty,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DispenserOperation &&
+          other.dispenserTxId == this.dispenserTxId &&
+          other.memberId == this.memberId &&
+          other.productId == this.productId &&
+          other.priceCents == this.priceCents &&
+          other.requestedQty == this.requestedQty &&
+          other.createdAt == this.createdAt);
+}
+
+class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
+  final Value<String> dispenserTxId;
+  final Value<String> memberId;
+  final Value<String> productId;
+  final Value<int> priceCents;
+  final Value<int> requestedQty;
+  final Value<String> createdAt;
+  final Value<int> rowid;
+  const DispenserOperationsCompanion({
+    this.dispenserTxId = const Value.absent(),
+    this.memberId = const Value.absent(),
+    this.productId = const Value.absent(),
+    this.priceCents = const Value.absent(),
+    this.requestedQty = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DispenserOperationsCompanion.insert({
+    required String dispenserTxId,
+    required String memberId,
+    required String productId,
+    required int priceCents,
+    required int requestedQty,
+    required String createdAt,
+    this.rowid = const Value.absent(),
+  }) : dispenserTxId = Value(dispenserTxId),
+       memberId = Value(memberId),
+       productId = Value(productId),
+       priceCents = Value(priceCents),
+       requestedQty = Value(requestedQty),
+       createdAt = Value(createdAt);
+  static Insertable<DispenserOperation> custom({
+    Expression<String>? dispenserTxId,
+    Expression<String>? memberId,
+    Expression<String>? productId,
+    Expression<int>? priceCents,
+    Expression<int>? requestedQty,
+    Expression<String>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (dispenserTxId != null) 'dispenser_tx_id': dispenserTxId,
+      if (memberId != null) 'member_id': memberId,
+      if (productId != null) 'product_id': productId,
+      if (priceCents != null) 'price_cents': priceCents,
+      if (requestedQty != null) 'requested_qty': requestedQty,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DispenserOperationsCompanion copyWith({
+    Value<String>? dispenserTxId,
+    Value<String>? memberId,
+    Value<String>? productId,
+    Value<int>? priceCents,
+    Value<int>? requestedQty,
+    Value<String>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return DispenserOperationsCompanion(
+      dispenserTxId: dispenserTxId ?? this.dispenserTxId,
+      memberId: memberId ?? this.memberId,
+      productId: productId ?? this.productId,
+      priceCents: priceCents ?? this.priceCents,
+      requestedQty: requestedQty ?? this.requestedQty,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (dispenserTxId.present) {
+      map['dispenser_tx_id'] = Variable<String>(dispenserTxId.value);
+    }
+    if (memberId.present) {
+      map['member_id'] = Variable<String>(memberId.value);
+    }
+    if (productId.present) {
+      map['product_id'] = Variable<String>(productId.value);
+    }
+    if (priceCents.present) {
+      map['price_cents'] = Variable<int>(priceCents.value);
+    }
+    if (requestedQty.present) {
+      map['requested_qty'] = Variable<int>(requestedQty.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<String>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DispenserOperationsCompanion(')
+          ..write('dispenserTxId: $dispenserTxId, ')
+          ..write('memberId: $memberId, ')
+          ..write('productId: $productId, ')
+          ..write('priceCents: $priceCents, ')
+          ..write('requestedQty: $requestedQty, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$RuderbarDatabase extends GeneratedDatabase {
   _$RuderbarDatabase(QueryExecutor e) : super(e);
   $RuderbarDatabaseManager get managers => $RuderbarDatabaseManager(this);
@@ -2691,6 +3136,8 @@ abstract class _$RuderbarDatabase extends GeneratedDatabase {
   late final $DispenserConfigTable dispenserConfig = $DispenserConfigTable(
     this,
   );
+  late final $DispenserOperationsTable dispenserOperations =
+      $DispenserOperationsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2702,6 +3149,7 @@ abstract class _$RuderbarDatabase extends GeneratedDatabase {
     transactionsLocal,
     syncState,
     dispenserConfig,
+    dispenserOperations,
   ];
 }
 
@@ -4810,6 +5258,247 @@ typedef $$DispenserConfigTableProcessedTableManager =
       DispenserConfigData,
       PrefetchHooks Function()
     >;
+typedef $$DispenserOperationsTableCreateCompanionBuilder =
+    DispenserOperationsCompanion Function({
+      required String dispenserTxId,
+      required String memberId,
+      required String productId,
+      required int priceCents,
+      required int requestedQty,
+      required String createdAt,
+      Value<int> rowid,
+    });
+typedef $$DispenserOperationsTableUpdateCompanionBuilder =
+    DispenserOperationsCompanion Function({
+      Value<String> dispenserTxId,
+      Value<String> memberId,
+      Value<String> productId,
+      Value<int> priceCents,
+      Value<int> requestedQty,
+      Value<String> createdAt,
+      Value<int> rowid,
+    });
+
+class $$DispenserOperationsTableFilterComposer
+    extends Composer<_$RuderbarDatabase, $DispenserOperationsTable> {
+  $$DispenserOperationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get dispenserTxId => $composableBuilder(
+    column: $table.dispenserTxId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get memberId => $composableBuilder(
+    column: $table.memberId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get productId => $composableBuilder(
+    column: $table.productId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get priceCents => $composableBuilder(
+    column: $table.priceCents,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get requestedQty => $composableBuilder(
+    column: $table.requestedQty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DispenserOperationsTableOrderingComposer
+    extends Composer<_$RuderbarDatabase, $DispenserOperationsTable> {
+  $$DispenserOperationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get dispenserTxId => $composableBuilder(
+    column: $table.dispenserTxId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get memberId => $composableBuilder(
+    column: $table.memberId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get productId => $composableBuilder(
+    column: $table.productId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get priceCents => $composableBuilder(
+    column: $table.priceCents,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get requestedQty => $composableBuilder(
+    column: $table.requestedQty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DispenserOperationsTableAnnotationComposer
+    extends Composer<_$RuderbarDatabase, $DispenserOperationsTable> {
+  $$DispenserOperationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get dispenserTxId => $composableBuilder(
+    column: $table.dispenserTxId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get memberId =>
+      $composableBuilder(column: $table.memberId, builder: (column) => column);
+
+  GeneratedColumn<String> get productId =>
+      $composableBuilder(column: $table.productId, builder: (column) => column);
+
+  GeneratedColumn<int> get priceCents => $composableBuilder(
+    column: $table.priceCents,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get requestedQty => $composableBuilder(
+    column: $table.requestedQty,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$DispenserOperationsTableTableManager
+    extends
+        RootTableManager<
+          _$RuderbarDatabase,
+          $DispenserOperationsTable,
+          DispenserOperation,
+          $$DispenserOperationsTableFilterComposer,
+          $$DispenserOperationsTableOrderingComposer,
+          $$DispenserOperationsTableAnnotationComposer,
+          $$DispenserOperationsTableCreateCompanionBuilder,
+          $$DispenserOperationsTableUpdateCompanionBuilder,
+          (
+            DispenserOperation,
+            BaseReferences<
+              _$RuderbarDatabase,
+              $DispenserOperationsTable,
+              DispenserOperation
+            >,
+          ),
+          DispenserOperation,
+          PrefetchHooks Function()
+        > {
+  $$DispenserOperationsTableTableManager(
+    _$RuderbarDatabase db,
+    $DispenserOperationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DispenserOperationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DispenserOperationsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DispenserOperationsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> dispenserTxId = const Value.absent(),
+                Value<String> memberId = const Value.absent(),
+                Value<String> productId = const Value.absent(),
+                Value<int> priceCents = const Value.absent(),
+                Value<int> requestedQty = const Value.absent(),
+                Value<String> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DispenserOperationsCompanion(
+                dispenserTxId: dispenserTxId,
+                memberId: memberId,
+                productId: productId,
+                priceCents: priceCents,
+                requestedQty: requestedQty,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String dispenserTxId,
+                required String memberId,
+                required String productId,
+                required int priceCents,
+                required int requestedQty,
+                required String createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DispenserOperationsCompanion.insert(
+                dispenserTxId: dispenserTxId,
+                memberId: memberId,
+                productId: productId,
+                priceCents: priceCents,
+                requestedQty: requestedQty,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DispenserOperationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$RuderbarDatabase,
+      $DispenserOperationsTable,
+      DispenserOperation,
+      $$DispenserOperationsTableFilterComposer,
+      $$DispenserOperationsTableOrderingComposer,
+      $$DispenserOperationsTableAnnotationComposer,
+      $$DispenserOperationsTableCreateCompanionBuilder,
+      $$DispenserOperationsTableUpdateCompanionBuilder,
+      (
+        DispenserOperation,
+        BaseReferences<
+          _$RuderbarDatabase,
+          $DispenserOperationsTable,
+          DispenserOperation
+        >,
+      ),
+      DispenserOperation,
+      PrefetchHooks Function()
+    >;
 
 class $RuderbarDatabaseManager {
   final _$RuderbarDatabase _db;
@@ -4826,4 +5515,6 @@ class $RuderbarDatabaseManager {
       $$SyncStateTableTableManager(_db, _db.syncState);
   $$DispenserConfigTableTableManager get dispenserConfig =>
       $$DispenserConfigTableTableManager(_db, _db.dispenserConfig);
+  $$DispenserOperationsTableTableManager get dispenserOperations =>
+      $$DispenserOperationsTableTableManager(_db, _db.dispenserOperations);
 }
