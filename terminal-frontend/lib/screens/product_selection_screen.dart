@@ -196,15 +196,22 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
               productName: name,
               locale: memberLang,
               quantity: quantity,
-              onTap: () => cartProvider.addItem(
-                product.id,
-                name,
-                product.priceCents,
-                1,
-                memberLang,
-                iconName: product.iconName,
-                requiresDispenser: product.requiresDispenser == 1,
-              ),
+              onTap: () {
+                // Debug: Log product details when adding to cart
+                print('Adding product to cart: $name');
+                print('  product.requiresDispenser = ${product.requiresDispenser}');
+                print('  requiresDispenser bool = ${product.requiresDispenser == 1}');
+
+                cartProvider.addItem(
+                  product.id,
+                  name,
+                  product.priceCents,
+                  1,
+                  memberLang,
+                  iconName: product.iconName,
+                  requiresDispenser: product.requiresDispenser == 1,
+                );
+              },
             );
           },
         );
