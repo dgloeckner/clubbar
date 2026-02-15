@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/config/app_router.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/auth_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/providers/products_provider.dart';
@@ -77,6 +79,14 @@ void main() {
           child: Builder(
             builder: (context) => MaterialApp.router(
               routerConfig: createAppRouter(context),
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: const [Locale('de'), Locale('en')],
+              locale: const Locale('de'),
             ),
           ),
         ),
