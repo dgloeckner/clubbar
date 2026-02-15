@@ -589,8 +589,9 @@ ON dispenser_operations(polling_active, last_polled_at, last_known_state);
 2. **Staff Dashboard** - UI for manual reconciliation
 3. **Multiple Product Types** - Support different token products in one dispense
 4. **Cancel Prevention** - Lock dialog during dispensing (UX decision)
-5. **Transaction Notes** - Auto-add note: "Recovered by reconciliation service"
-6. **Metrics** - Track recovery success rate, manual review frequency
+5. **Metrics** - Track recovery success rate, manual review frequency
+
+> **Note:** Transaction notes ("Auto-created by recovery service") are already implemented as of v1.0.
 
 ## Summary
 
