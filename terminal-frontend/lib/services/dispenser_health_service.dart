@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
 
 /// Service for monitoring dispenser health status
 ///
 /// Periodically polls the ESP8266 to check dispenser status and track health metrics.
 /// Used to warn users about dispenser issues before they attempt to purchase tokens.
-class DispenserHealthService {
+class DispenserHealthService extends ChangeNotifier {
   final DispenserClient client;
   final Duration interval;
   Timer? _healthTimer;
@@ -44,14 +45,18 @@ class DispenserHealthService {
     try {
       final health = await client.getHealth();
       _lastHealth = health;
+      notifyListeners(); // Notify UI of health status change
     } catch (e) {
       // Dispenser offline or unreachable
       _lastHealth = DispenserHealth.offline();
+      notifyListeners(); // Notify UI that dispenser went offline
     }
   }
 
   /// Clean up resources
+  @override
   void dispose() {
     stopMonitoring();
+    super.dispose();
   }
 }

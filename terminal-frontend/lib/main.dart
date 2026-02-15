@@ -357,7 +357,7 @@ class RuderbarTerminalApp extends StatelessWidget {
         Provider<NetworkService>.value(value: networkService),
         Provider<ConfigService>.value(value: configService),
         if (dispenserHealthService != null)
-          Provider<DispenserHealthService>.value(value: dispenserHealthService!),
+          ChangeNotifierProvider<DispenserHealthService>.value(value: dispenserHealthService!),
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider<MembersProvider>.value(value: membersProvider),
