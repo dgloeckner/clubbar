@@ -10,11 +10,13 @@ import 'package:ruderbar_terminal/services/dispenser_client.dart';
 /// Shows real-time progress as tokens are dispensed, polls for completion,
 /// then calls onComplete or onError based on result.
 class DispensingProgressDialog extends StatefulWidget {
+  final String dispenserTxId;
   final List<CartItem> tokenProducts;
   final Function(DispenseResult) onComplete;
   final Function(DispenserException) onError;
 
   const DispensingProgressDialog({
+    required this.dispenserTxId,
     required this.tokenProducts,
     required this.onComplete,
     required this.onError,
@@ -54,7 +56,7 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
 
   Future<void> _startDispense() async {
     try {
-      _txId = _client.generateTxId();
+      _txId = widget.dispenserTxId; // Use passed txId instead of generating
       final result =
           await _client.dispenseTokens(txId: _txId, quantity: _quantity);
 

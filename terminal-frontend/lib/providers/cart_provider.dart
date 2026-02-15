@@ -127,10 +127,46 @@ class CartProvider extends ChangeNotifier {
           return;
         }
 
-        final result = await _showDispensingDialog(context, tokenProducts);
+        // Generate dispenserTxId for crash recovery tracking
+        final dispenserClient = DispenserClient(
+          baseUrl: _config.dispenserBaseUrl!,
+          apiKey: _config.dispenserApiKey!,
+        );
+        final dispenserTxId = dispenserClient.generateTxId();
+
+        // Get token product details for tracking
+        final tokenProduct = tokenProducts.first;
+        final requestedQty = tokenProducts.fold(0, (sum, item) => sum + item.quantity);
+
+        // Create tracking record BEFORE dispensing (for crash recovery)
+        final (trackingSuccess, trackingError) =
+            await _service.createDispenserOperation(
+          dispenserTxId: dispenserTxId,
+          memberId: member.id,
+          productId: tokenProduct.productId,
+          priceCents: tokenProduct.priceCents,
+          requestedQty: requestedQty,
+        );
+
+        if (!trackingSuccess) {
+          _lastError = trackingError;
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
+
+        // Show dispensing dialog
+        final result = await _showDispensingDialog(
+          context,
+          tokenProducts,
+          dispenserTxId,
+        );
 
         if (result == null) {
           // Dialog was cancelled or error occurred
+          // Clean up tracking record
+          await _service.cleanupDispenserOperation(dispenserTxId);
+
           // Check if error was handled (user made choice to skip tokens)
           if (_errorType is DispenserBusyException ||
               _errorType is DispenserNotFoundException) {
@@ -143,54 +179,52 @@ class CartProvider extends ChangeNotifier {
             return;
           }
         } else {
+          // Dispensing completed - create transactions
+          final actualQuantity = result.dispensed;
 
-        // Create transactions for actually dispensed tokens
-        final actualQuantity = result.dispensed;
-        if (actualQuantity > 0) {
-          // Create transactions based on actual dispensed count
-          // For now, create them all with the same product (first token product)
-          final tokenProduct = tokenProducts.first;
-          final modifiedTokenItems = [
-            CartItem(
+          if (actualQuantity > 0) {
+            // Create transactions from dispense result (one per token)
+            final (tokenTxnId, tokenError) =
+                await _service.createTransactionsFromDispenseResult(
+              dispenserTxId: dispenserTxId,
+              memberId: member.id,
               productId: tokenProduct.productId,
-              productName: tokenProduct.productName,
               priceCents: tokenProduct.priceCents,
-              quantity: actualQuantity,
-              language: tokenProduct.language,
-              iconName: tokenProduct.iconName,
-              requiresDispenser: true,
-            ),
-          ];
-
-          // Create transactions for tokens
-          final (tokenTxnId, tokenError) =
-              await _service.createTransaction(member, modifiedTokenItems);
-
-          if (tokenTxnId == null) {
-            _lastError = tokenError;
-            _isLoading = false;
-            notifyListeners();
-            return;
-          }
-
-          _lastTransactionId = tokenTxnId;
-
-          // Track partial dispense info
-          final requestedQuantity = tokenProducts.fold(0, (sum, item) => sum + item.quantity);
-          final originalTotalCents = tokenProducts.fold(0, (sum, item) => sum + item.lineTotalCents);
-          
-          if (actualQuantity < requestedQuantity) {
-            // Partial dispense - store info for confirmation screen
-            _lastPartialDispenseInfo = PartialDispenseInfo(
-              requestedQuantity: requestedQuantity,
+              requestedQty: requestedQty,
               actualDispensed: actualQuantity,
-              originalTotalCents: originalTotalCents,
             );
+
+            if (tokenTxnId == null) {
+              _lastError = tokenError;
+              _isLoading = false;
+              notifyListeners();
+              return;
+            }
+
+            _lastTransactionId = tokenTxnId;
+
+            // Clean up tracking record
+            await _service.cleanupDispenserOperation(dispenserTxId);
+
+            // Track partial dispense info
+            final originalTotalCents =
+                tokenProducts.fold(0, (sum, item) => sum + item.lineTotalCents);
+
+            if (actualQuantity < requestedQty) {
+              // Partial dispense - store info for confirmation screen
+              _lastPartialDispenseInfo = PartialDispenseInfo(
+                requestedQuantity: requestedQty,
+                actualDispensed: actualQuantity,
+                originalTotalCents: originalTotalCents,
+              );
+            } else {
+              // Full dispense - clear any previous partial info
+              _lastPartialDispenseInfo = null;
+            }
           } else {
-            // Full dispense - clear any previous partial info
-            _lastPartialDispenseInfo = null;
+            // No tokens dispensed - clean up tracking record
+            await _service.cleanupDispenserOperation(dispenserTxId);
           }
-        }
         }
       }
 
@@ -228,6 +262,7 @@ class CartProvider extends ChangeNotifier {
   Future<DispenseResult?> _showDispensingDialog(
     BuildContext context,
     List<CartItem> tokenProducts,
+    String dispenserTxId,
   ) async {
     DispenseResult? result;
     DispenserException? errorException;
@@ -237,6 +272,7 @@ class CartProvider extends ChangeNotifier {
       barrierDismissible: false,
       builder: (_) {
         return DispensingProgressDialog(
+          dispenserTxId: dispenserTxId,
           tokenProducts: tokenProducts,
           onComplete: (dispenseResult) {
             result = dispenseResult;
