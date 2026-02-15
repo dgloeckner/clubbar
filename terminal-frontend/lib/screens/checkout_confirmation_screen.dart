@@ -12,11 +12,10 @@ import 'package:ruderbar_terminal/widgets/styled_components/price_display.dart';
 
 class CheckoutConfirmationScreen extends StatefulWidget {
   final String transactionId;
-  final PartialDispenseInfo? partialDispenseInfo;
+  
 
   const CheckoutConfirmationScreen({
     required this.transactionId,
-    this.partialDispenseInfo,
     super.key,
   });
 
@@ -107,7 +106,8 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     final newBalance = membersProvider.memberDeckel ?? 0;
 
     // Check if this is a partial dispense
-    final isPartial = widget.partialDispenseInfo?.isPartial ?? false;
+    final partialDispenseInfo = context.watch<CartProvider>().lastPartialDispenseInfo;
+    final isPartial = partialDispenseInfo?.isPartial ?? false;
 
     // Body content only - MainLayout provides Scaffold and header
     return Center(
@@ -135,7 +135,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                 Text(
                   isPartial
                       ? l10n.checkoutPartialSuccess(
-                          widget.partialDispenseInfo!.actualDispensed)
+                          partialDispenseInfo!.actualDispensed)
                       : l10n.checkoutSuccess,
                   style: TextStyle(
                     color: hexToColor(AppColors.textPrimary),
@@ -150,7 +150,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                 if (isPartial) ...[
                   Text(
                     l10n.checkoutPartialMessage(
-                        widget.partialDispenseInfo!.actualDispensed),
+                        partialDispenseInfo!.actualDispensed),
                     style: TextStyle(
                       color: hexToColor(AppColors.textMuted),
                       fontSize: AppFontSizes.base,
@@ -183,7 +183,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                     l10n.checkoutOriginalTotal(
-                      formatPrice(widget.partialDispenseInfo!.originalTotalCents, locale),
+                      formatPrice(partialDispenseInfo!.originalTotalCents, locale),
                     ),
                     style: TextStyle(
                       color: hexToColor(AppColors.textMuted),
