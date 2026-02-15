@@ -90,10 +90,21 @@ class DispenserRecoveryService {
       try {
         status = await _dispenserClient.getStatus(op.dispenserTxId);
       } on DispenserNotFoundException {
-        // Transaction not found on ESP8266 - it likely timed out or was never started
-        // Clean up tracking record and consider it a failure
-        await _cleanupOperation(op.dispenserTxId);
-        return (false, 'Transaction not found on dispenser (likely timeout)');
+        // Transaction not found on ESP8266 - CRITICAL ISSUE
+        // This could mean:
+        // 1. ESP8266 crashed and lost state (no EEPROM persistence)
+        // 2. Transaction truly never started (timeout before ESP8266 received it)
+        // 3. ESP8266 firmware doesn't implement state persistence
+        //
+        // DO NOT clean up tracking record - keep it for manual reconciliation
+        // Staff must check dispenser logs and create transaction manually if needed
+        print('CRITICAL: Transaction ${op.dispenserTxId} not found on ESP8266. '
+            'Tokens may have been dispensed but ESP8266 lost state. '
+            'Manual reconciliation required for member ${op.memberId}.');
+
+        // Return failure but DON'T clean up - tracking record preserved for audit
+        return (false, 'Transaction not found on ESP8266 - MANUAL RECONCILIATION REQUIRED. '
+            'Check dispenser logs and verify if tokens were dispensed.');
       } on DispenserException catch (e) {
         // Network error or other dispenser issue
         // Don't clean up - we'll retry on next app start
