@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
@@ -6,10 +7,23 @@ import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
 
-/// Progress dialog shown while dispensing tokens
+/// States for the dispensing state machine
+enum DispensingState {
+  idle,       // Not started
+  requesting, // POST /dispense in progress
+  dispensing, // Polling for status
+  done,       // Completed successfully
+  error,      // Failed
+}
+
+/// Progress dialog shown while dispensing tokens (background state machine)
 ///
-/// Shows real-time progress as tokens are dispensed, polls for completion,
-/// then calls onComplete or onError based on result.
+/// Architecture:
+/// - Background worker manages state (requesting → dispensing → done/error)
+/// - UI updates reactively based on state
+/// - All HTTP operations run in background (non-blocking)
+/// - Timeouts: 30s for POST, 10s per token for polling
+/// - Retries on network errors
 ///
 /// Tracks polling state for crash recovery: sets polling_active=1 on init,
 /// updates state on each poll, sets polling_active=0 on dispose.
@@ -36,10 +50,22 @@ class DispensingProgressDialog extends StatefulWidget {
 
 class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
   late DispenserClient _client;
-  String _txId = '';
-  int _quantity = 0;
+  late int _quantity;
+
+  // State machine
+  DispensingState _state = DispensingState.idle;
   int _dispensed = 0;
-  String _state = 'starting';
+
+  // Background worker
+  Timer? _pollingTimer;
+  Timer? _timeoutTimer;
+  int _retryCount = 0;
+
+  // Configuration
+  static const int _maxRequestTimeout = 30; // 30 seconds for POST /dispense
+  static const int _timeoutPerToken = 10;   // 10 seconds per token for polling
+  static const int _maxRetries = 3;
+  static const int _retryDelayMs = 1000;
 
   @override
   void initState() {
@@ -54,13 +80,21 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
     );
 
     // Calculate total tokens from all cart items
-    _quantity =
-        widget.tokenProducts.fold(0, (sum, item) => sum + item.quantity);
+    _quantity = widget.tokenProducts.fold(0, (sum, item) => sum + item.quantity);
 
     // Mark polling as active (prevents recovery service interference)
     _setPollingActive(true);
 
-    _startDispense();
+    // Start background state machine
+    _startStateMachine();
+  }
+
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    _timeoutTimer?.cancel();
+    _setPollingActive(false);
+    super.dispose();
   }
 
   Future<void> _setPollingActive(bool active) async {
@@ -71,96 +105,208 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
     );
   }
 
-  Future<void> _startDispense() async {
+  /// Start the background state machine
+  void _startStateMachine() {
+    _transitionTo(DispensingState.requesting);
+    _startDispenseRequest();
+  }
+
+  /// Transition to new state
+  void _transitionTo(DispensingState newState) {
+    if (!mounted) return;
+    setState(() {
+      _state = newState;
+    });
+  }
+
+  /// Step 1: POST /dispense (with retries and timeout)
+  Future<void> _startDispenseRequest() async {
+    // Set timeout for the requesting phase (30 seconds)
+    _timeoutTimer = Timer(Duration(seconds: _maxRequestTimeout), () {
+      if (_state == DispensingState.requesting) {
+        _handleError(DispenserException('Request timeout after $_maxRequestTimeout seconds'));
+      }
+    });
+
+    await _tryDispenseRequest();
+  }
+
+  Future<void> _tryDispenseRequest() async {
     try {
-      _txId = widget.dispenserTxId; // Use passed txId instead of generating
-      final result =
-          await _client.dispenseTokens(txId: _txId, quantity: _quantity);
+      final result = await _client.dispenseTokens(
+        txId: widget.dispenserTxId,
+        quantity: _quantity,
+      );
 
-      if (mounted) {
-        setState(() {
-          _state = result.state;
-          _dispensed = result.dispensed;
-        });
+      // Cancel timeout timer
+      _timeoutTimer?.cancel();
 
-        _pollStatus();
-      }
+      if (!mounted) return;
+
+      // Update state from response
+      setState(() {
+        _dispensed = result.dispensed;
+      });
+
+      // Update tracking
+      await widget.cartService.updateDispenserOperationState(
+        dispenserTxId: widget.dispenserTxId,
+        state: result.state,
+        lastKnownDispensed: result.dispensed,
+        lastPolledAt: DateTime.now().toUtc().toIso8601String(),
+      );
+
+      // Transition to dispensing state and start polling
+      _transitionTo(DispensingState.dispensing);
+      _startPolling();
+
     } on DispenserBusyException catch (e) {
-      if (mounted) {
-        widget.onError(e);
-        Navigator.of(context).pop();
-      }
+      _timeoutTimer?.cancel();
+      _handleError(e);
+    } on DispenserNotFoundException catch (e) {
+      _timeoutTimer?.cancel();
+      _handleError(e);
     } on DispenserException catch (e) {
+      // Network error - retry if under limit
+      if (_retryCount < _maxRetries) {
+        _retryCount++;
+        print('Dispense request failed, retry $_retryCount/$_maxRetries: ${e.message}');
+        await Future.delayed(Duration(milliseconds: _retryDelayMs));
+        if (mounted && _state == DispensingState.requesting) {
+          await _tryDispenseRequest();
+        }
+      } else {
+        _timeoutTimer?.cancel();
+        _handleError(DispenserException('Request failed after $_maxRetries retries: ${e.message}'));
+      }
+    }
+  }
+
+  /// Step 2: Poll for status (with timeout based on token count)
+  void _startPolling() {
+    // Set timeout for polling phase (10 seconds per token)
+    final pollingTimeout = _quantity * _timeoutPerToken;
+    _timeoutTimer?.cancel();
+    _timeoutTimer = Timer(Duration(seconds: pollingTimeout), () {
+      if (_state == DispensingState.dispensing) {
+        // Timeout - but if we dispensed some tokens, that's partial success
+        if (_dispensed > 0) {
+          _handlePartialSuccess();
+        } else {
+          _handleError(DispenserException('Polling timeout after $pollingTimeout seconds'));
+        }
+      }
+    });
+
+    // Start periodic polling
+    final config = context.read<ConfigService>();
+    final pollInterval = Duration(milliseconds: config.dispenserPollIntervalMs);
+
+    _pollingTimer = Timer.periodic(pollInterval, (_) => _poll());
+  }
+
+  Future<void> _poll() async {
+    if (_state != DispensingState.dispensing) {
+      _pollingTimer?.cancel();
+      return;
+    }
+
+    try {
+      final result = await _client.getStatus(widget.dispenserTxId);
+
+      if (!mounted) return;
+
+      // Update state
+      setState(() {
+        _dispensed = result.dispensed;
+      });
+
+      // Update tracking
+      await widget.cartService.updateDispenserOperationState(
+        dispenserTxId: widget.dispenserTxId,
+        state: result.state,
+        lastKnownDispensed: result.dispensed,
+        lastPolledAt: DateTime.now().toUtc().toIso8601String(),
+      );
+
+      // Check if completed
+      if (result.state == 'done') {
+        _pollingTimer?.cancel();
+        _timeoutTimer?.cancel();
+        _handleSuccess(result);
+      } else if (result.state == 'error') {
+        _pollingTimer?.cancel();
+        _timeoutTimer?.cancel();
+        // Dispenser reports error - but if we got some tokens, partial success
+        if (_dispensed > 0) {
+          _handlePartialSuccess();
+        } else {
+          _handleError(DispenserException('Dispenser reported error'));
+        }
+      }
+      // else state is still "dispensing", keep polling
+
+    } on DispenserNotFoundException catch (e) {
+      _pollingTimer?.cancel();
+      _timeoutTimer?.cancel();
+      _handleError(e);
+    } on DispenserException catch (e) {
+      // Network error during polling - keep trying (timeout will catch it)
+      print('Polling error: ${e.message}');
+    }
+  }
+
+  void _handleSuccess(DispenseResult result) {
+    _transitionTo(DispensingState.done);
+    widget.onComplete(result);
+
+    // Auto-close after 5 seconds
+    Future.delayed(const Duration(seconds: 5), () {
       if (mounted) {
-        widget.onError(e);
         Navigator.of(context).pop();
       }
-    }
+    });
   }
 
-  Future<void> _pollStatus() async {
-    final config = context.read<ConfigService>();
-    final pollInterval =
-        Duration(milliseconds: config.dispenserPollIntervalMs);
+  void _handlePartialSuccess() {
+    // Create a partial success result
+    final result = DispenseResult(
+      txId: widget.dispenserTxId,
+      state: 'done', // Mark as done even though partial
+      quantity: _quantity,
+      dispensed: _dispensed,
+    );
+    _transitionTo(DispensingState.done);
+    widget.onComplete(result);
 
-    while (_state == 'dispensing') {
-      await Future.delayed(pollInterval);
-
-      try {
-        final result = await _client.getStatus(_txId);
-
-        if (mounted) {
-          setState(() {
-            _state = result.state;
-            _dispensed = result.dispensed;
-          });
-
-          // Update tracking state (for recovery service monitoring)
-          await widget.cartService.updateDispenserOperationState(
-            dispenserTxId: widget.dispenserTxId,
-            state: result.state,
-            lastKnownDispensed: result.dispensed,
-            lastPolledAt: DateTime.now().toUtc().toIso8601String(),
-          );
-
-          if (_state == 'done' || _state == 'error') {
-            widget.onComplete(result);
-            // Wait 5 seconds before closing so user can read success message
-            await Future.delayed(const Duration(seconds: 5));
-            if (mounted) {
-              Navigator.of(context).pop();
-            }
-            break;
-          }
-        }
-      } catch (e) {
-        if (mounted) {
-          widget.onError(DispenserException('Polling failed: $e'));
-          Navigator.of(context).pop();
-        }
-        break;
+    // Auto-close after 5 seconds
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        Navigator.of(context).pop();
       }
-    }
+    });
   }
 
-  @override
-  void dispose() {
-    // Mark polling as inactive when dialog closes
-    _setPollingActive(false);
-    super.dispose();
+  void _handleError(DispenserException error) {
+    if (!mounted) return;
+
+    setState(() {
+      _state = DispensingState.error;
+    });
+
+    widget.onError(error);
+    Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final isComplete = _state == 'done' || _state == 'error';
+    final isComplete = _state == DispensingState.done;
+    final isError = _state == DispensingState.error;
 
     // SUCCESS = any tokens dispensed (even if state is "error" due to jam)
     final isSuccess = _dispensed > 0;
     final isPartial = isSuccess && _dispensed < _quantity;
-
-    // ERROR = completed but zero tokens dispensed
-    final isError = isComplete && _dispensed == 0;
 
     return Dialog(
       child: Padding(
@@ -199,11 +345,14 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
                     color: Colors.orange[700],
                     fontWeight: FontWeight.w600,
                   ),
-                ),              ],
+                ),
+              ],
             ] else ...[
               // Show dispensing in progress
               Text(
-                l10n.dispensingTokens,
+                _state == DispensingState.requesting
+                    ? 'Starting dispenser...'
+                    : l10n.dispensingTokens,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ],
@@ -213,7 +362,11 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
               const SizedBox(height: 16),
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
-              Text(l10n.pleaseWait),
+              Text(
+                _state == DispensingState.requesting
+                    ? 'Connecting to dispenser...'
+                    : l10n.pleaseWait,
+              ),
             ],
           ],
         ),
