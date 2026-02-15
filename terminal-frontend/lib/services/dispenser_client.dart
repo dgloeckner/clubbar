@@ -46,6 +46,51 @@ class DispenseResult {
   }
 }
 
+/// WiFi connection information
+class WifiInfo {
+  final int rssi; // signal strength in dBm
+  final String ip;
+  final String ssid;
+
+  WifiInfo({
+    required this.rssi,
+    required this.ip,
+    required this.ssid,
+  });
+
+  factory WifiInfo.fromJson(Map<String, dynamic> json) {
+    return WifiInfo(
+      rssi: json['rssi'] as int,
+      ip: json['ip'] as String,
+      ssid: json['ssid'] as String,
+    );
+  }
+}
+
+/// Dispenser error history entry
+class DispenserError {
+  final int code;
+  final String type;
+  final int timestamp; // milliseconds
+  final bool cleared;
+
+  DispenserError({
+    required this.code,
+    required this.type,
+    required this.timestamp,
+    required this.cleared,
+  });
+
+  factory DispenserError.fromJson(Map<String, dynamic> json) {
+    return DispenserError(
+      code: json['code'] as int,
+      type: json['type'] as String,
+      timestamp: json['timestamp'] as int,
+      cleared: json['cleared'] as bool,
+    );
+  }
+}
+
 /// Health status of the dispenser
 class DispenserHealth {
   final String status; // "ok", "degraded", "error"
@@ -55,6 +100,14 @@ class DispenserHealth {
   final int jams;
   final double successRate;
 
+  // New fields for dashboard
+  final int? uptime; // seconds
+  final String? firmware;
+  final WifiInfo? wifi;
+  final int? failures;
+  final int? partial;
+  final List<DispenserError>? errorHistory;
+
   DispenserHealth({
     required this.status,
     required this.dispenser,
@@ -62,6 +115,12 @@ class DispenserHealth {
     required this.successful,
     required this.jams,
     required this.successRate,
+    this.uptime,
+    this.firmware,
+    this.wifi,
+    this.failures,
+    this.partial,
+    this.errorHistory,
   });
 
   factory DispenserHealth.fromJson(Map<String, dynamic> json) {
@@ -74,6 +133,19 @@ class DispenserHealth {
         ? (successful / totalDispenses) * 100
         : 0.0;
 
+    // Parse optional fields
+    WifiInfo? wifi;
+    if (json.containsKey('wifi') && json['wifi'] != null) {
+      wifi = WifiInfo.fromJson(json['wifi'] as Map<String, dynamic>);
+    }
+
+    List<DispenserError>? errorHistory;
+    if (json.containsKey('error_history') && json['error_history'] != null) {
+      errorHistory = (json['error_history'] as List)
+          .map((e) => DispenserError.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+
     return DispenserHealth(
       status: json['status'] as String,
       dispenser: json['dispenser'] as String,
@@ -81,6 +153,12 @@ class DispenserHealth {
       successful: successful,
       jams: metrics['jams'] as int,
       successRate: successRate,
+      uptime: json['uptime'] as int?,
+      firmware: json['firmware'] as String?,
+      wifi: wifi,
+      failures: metrics['failures'] as int?,
+      partial: metrics['partial'] as int?,
+      errorHistory: errorHistory,
     );
   }
 
@@ -93,6 +171,12 @@ class DispenserHealth {
       successful: 0,
       jams: 0,
       successRate: 0.0,
+      uptime: null,
+      firmware: null,
+      wifi: null,
+      failures: null,
+      partial: null,
+      errorHistory: null,
     );
   }
 }
