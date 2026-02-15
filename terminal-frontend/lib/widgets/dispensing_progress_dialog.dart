@@ -155,7 +155,15 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey[700]),
                 ),
-              ],
+                const SizedBox(height: 8),
+                Text(
+                  'Please notify staff - the dispenser may need refilling.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.orange[700],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),              ],
             ] else ...[
               // Show dispensing in progress
               Text(
