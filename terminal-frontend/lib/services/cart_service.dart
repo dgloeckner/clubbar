@@ -2,13 +2,18 @@ import 'package:uuid/uuid.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/models/cart_item.dart';
 import 'package:ruderbar_terminal/repository/transactions_repository.dart';
+import 'package:drift/drift.dart';
 
 class CartService {
+  final RuderbarDatabase _db;
   final TransactionsRepository _repository;
   static const _uuid = Uuid();
 
-  CartService({required TransactionsRepository repository})
-      : _repository = repository;
+  CartService({
+    required RuderbarDatabase database,
+    required TransactionsRepository repository,
+  })  : _db = database,
+        _repository = repository;
 
   /// Create and persist transactions from cart items.
   /// Creates one transaction per cart line item (each with its product_id),
@@ -65,5 +70,102 @@ class CartService {
     }
 
     return (true, null);
+  }
+
+  // ============================================================================
+  // DISPENSER TRANSACTION METHODS (Crash Recovery Support)
+  // ============================================================================
+
+  /// Create tracking record BEFORE dispensing starts (for crash recovery).
+  ///
+  /// This record will be used to recover incomplete operations if the app crashes
+  /// between dispensing and transaction creation.
+  ///
+  /// Returns tuple: (success, errorMessage)
+  Future<(bool, String?)> createDispenserOperation({
+    required String dispenserTxId,
+    required String memberId,
+    required String productId,
+    required int priceCents,
+    required int requestedQty,
+  }) async {
+    try {
+      final now = DateTime.now().toUtc().toIso8601String();
+
+      final operation = DispenserOperationsCompanion(
+        dispenserTxId: Value(dispenserTxId),
+        memberId: Value(memberId),
+        productId: Value(productId),
+        priceCents: Value(priceCents),
+        requestedQty: Value(requestedQty),
+        createdAt: Value(now),
+      );
+
+      await _db.into(_db.dispenserOperations).insert(operation);
+      return (true, null);
+    } catch (e) {
+      return (false, 'Failed to create dispenser operation: $e');
+    }
+  }
+
+  /// Create transactions from dispense result AFTER dispensing completes.
+  ///
+  /// Creates one transaction per actually dispensed token. All transactions share
+  /// the same dispenserTxId for grouping.
+  ///
+  /// Returns tuple: (firstTransactionId, errorMessage)
+  Future<(String?, String?)> createTransactionsFromDispenseResult({
+    required String dispenserTxId,
+    required String memberId,
+    required String productId,
+    required int priceCents,
+    required int requestedQty,
+    required int actualDispensed,
+  }) async {
+    try {
+      final now = DateTime.now().toUtc().toIso8601String();
+      String? firstTxnId;
+
+      // Create one transaction per dispensed token
+      for (int i = 0; i < actualDispensed; i++) {
+        final txnId = _uuid.v4();
+        firstTxnId ??= txnId;
+
+        final transaction = TransactionsLocalCompanion(
+          id: Value(txnId),
+          memberId: Value(memberId),
+          productId: Value(productId),
+          amountCents: Value(priceCents), // One token's price
+          transactionType: Value('purchase'),
+          notes: Value(null),
+          createdAt: Value(now),
+          synced: Value(0),
+          dispenserTxId: Value(dispenserTxId),
+          dispenserRequested: Value(requestedQty),
+          dispenserActual: Value(actualDispensed),
+        );
+
+        await _db.into(_db.transactionsLocal).insert(transaction);
+      }
+
+      return (firstTxnId, null);
+    } catch (e) {
+      return (null, 'Failed to create transactions from dispense result: $e');
+    }
+  }
+
+  /// Clean up dispenser operation tracking record AFTER transactions are created.
+  ///
+  /// Returns tuple: (success, errorMessage)
+  Future<(bool, String?)> cleanupDispenserOperation(
+      String dispenserTxId) async {
+    try {
+      await (_db.delete(_db.dispenserOperations)
+            ..where((t) => t.dispenserTxId.equals(dispenserTxId)))
+          .go();
+      return (true, null);
+    } catch (e) {
+      return (false, 'Failed to cleanup dispenser operation: $e');
+    }
   }
 }

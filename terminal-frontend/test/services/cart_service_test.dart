@@ -8,6 +8,8 @@ import 'package:ruderbar_terminal/services/cart_service.dart';
 class MockTransactionsRepository extends Mock
     implements TransactionsRepository {}
 
+class MockRuderbarDatabase extends Mock implements RuderbarDatabase {}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(TransactionsLocalData(
@@ -24,11 +26,16 @@ void main() {
 
   group('CartService', () {
     late MockTransactionsRepository mockRepo;
+    late MockRuderbarDatabase mockDb;
     late CartService service;
 
     setUp(() {
       mockRepo = MockTransactionsRepository();
-      service = CartService(repository: mockRepo);
+      mockDb = MockRuderbarDatabase();
+      service = CartService(
+        database: mockDb,
+        repository: mockRepo,
+      );
     });
 
     test('createTransaction persists transaction with items', () async {
