@@ -129,35 +129,25 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (isComplete) ...[
-              // Show result icon
+              // Show result icon - GREEN checkmark for any success (full or partial)
               Icon(
-                isError
-                    ? Icons.error_outline
-                    : isPartial
-                        ? Icons.warning
-                        : Icons.check_circle,
+                isError ? Icons.error_outline : Icons.check_circle,
                 size: 48,
-                color: isError
-                    ? Colors.red
-                    : isPartial
-                        ? Colors.orange
-                        : Colors.green,
+                color: isError ? Colors.red : Colors.green,
               ),
               const SizedBox(height: 16),
-              // Show result message
+              // Show result message - POSITIVE framing even for partial
               Text(
                 isError
                     ? 'Dispensing Failed'
-                    : isPartial
-                        ? 'Only $_dispensed of $_quantity tokens dispensed'
-                        : 'Successfully dispensed $_quantity tokens!',
+                    : 'Successfully dispensed $_dispensed ${_dispensed == 1 ? 'token' : 'tokens'}!',
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
               if (isPartial) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'You will be charged for $_dispensed tokens only.',
+                  'No worries! You\'ll only be charged for $_dispensed ${_dispensed == 1 ? 'token' : 'tokens'}.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey[700]),
                 ),
