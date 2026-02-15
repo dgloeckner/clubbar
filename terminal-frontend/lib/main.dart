@@ -28,6 +28,7 @@ import 'package:ruderbar_terminal/services/sync_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
 import 'package:ruderbar_terminal/services/dispenser_recovery_service.dart';
+import 'package:ruderbar_terminal/services/dispenser_health_service.dart';
 import 'package:ruderbar_terminal/services/error_file_output.dart';
 import 'package:ruderbar_terminal/models/category_dto.dart';
 import 'package:ruderbar_terminal/models/product_dto.dart';
@@ -232,7 +233,8 @@ void main() async {
     await _seedMockData(database);
   }
 
-  // Recover incomplete dispenser transactions (crash recovery)
+  // Dispenser integration: recovery and health monitoring
+  DispenserHealthService? dispenserHealthService;
   if (configService.dispenserEnabled) {
     try {
       final dispenserClient = DispenserClient(
@@ -240,15 +242,21 @@ void main() async {
         apiKey: configService.dispenserApiKey!,
         timeoutMs: configService.dispenserTimeoutMs,
       );
+
+      // Crash recovery: recover incomplete transactions
       final recoveryService = DispenserRecoveryService(
         database: database,
         client: dispenserClient,
       );
       await recoveryService.recoverIncompleteDispenses();
+
+      // Start health monitoring (60-second interval)
+      dispenserHealthService = DispenserHealthService(client: dispenserClient);
+      dispenserHealthService.startMonitoring();
     } catch (e) {
       // Dispenser offline or error - log and continue
       // App will function normally, recovery will retry on next boot
-      logger.w('Dispenser recovery failed: $e');
+      logger.w('Dispenser setup failed: $e');
     }
   }
 
@@ -311,6 +319,7 @@ void main() async {
     membersRepository: membersRepo,
     configService: configService,
     networkService: networkService,
+    dispenserHealthService: dispenserHealthService,
   ));
 }
 
@@ -324,6 +333,7 @@ class RuderbarTerminalApp extends StatelessWidget {
   final MembersRepository membersRepository;
   final ConfigService configService;
   final NetworkService networkService;
+  final DispenserHealthService? dispenserHealthService;
 
   const RuderbarTerminalApp({
     super.key,
@@ -336,6 +346,7 @@ class RuderbarTerminalApp extends StatelessWidget {
     required this.membersRepository,
     required this.configService,
     required this.networkService,
+    this.dispenserHealthService,
   });
 
   @override
@@ -345,6 +356,8 @@ class RuderbarTerminalApp extends StatelessWidget {
         Provider<RuderbarDatabase>.value(value: database),
         Provider<NetworkService>.value(value: networkService),
         Provider<ConfigService>.value(value: configService),
+        if (dispenserHealthService != null)
+          Provider<DispenserHealthService>.value(value: dispenserHealthService!),
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider<MembersProvider>.value(value: membersProvider),
