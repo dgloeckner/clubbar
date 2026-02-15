@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/models/cart_item.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
@@ -115,6 +116,8 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Dialog(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -122,7 +125,7 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Dispensing Sauna Tokens...',
+              l10n.dispensingTokens,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 24),
@@ -130,7 +133,7 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
             const SizedBox(height: 16),
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
-            const Text('Please wait...'),
+            Text(l10n.pleaseWait),
           ],
         ),
       ),

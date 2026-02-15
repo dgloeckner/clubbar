@@ -661,6 +661,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'behoben'**
   String get dispenserErrorCleared;
+
+  /// Progress dialog title while dispensing tokens
+  ///
+  /// In de, this message translates to:
+  /// **'Sauna-Token werden ausgegeben...'**
+  String get dispensingTokens;
+
+  /// Please wait message during dispensing
+  ///
+  /// In de, this message translates to:
+  /// **'Bitte warten...'**
+  String get pleaseWait;
 }
 
 class _AppLocalizationsDelegate

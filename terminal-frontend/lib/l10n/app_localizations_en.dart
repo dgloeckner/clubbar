@@ -330,4 +330,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dispenserErrorCleared => 'resolved';
+
+  @override
+  String get dispensingTokens => 'Dispensing Sauna Tokens...';
+
+  @override
+  String get pleaseWait => 'Please wait...';
 }

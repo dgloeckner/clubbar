@@ -108,5 +108,8 @@
   "dispenserSignalStrength": "Signal Strength",
   "dispenserErrorHistory": "Error History",
   "dispenserNoErrors": "No errors recorded",
-  "dispenserErrorCleared": "resolved"
+  "dispenserErrorCleared": "resolved",
+
+  "dispensingTokens": "Dispensing Sauna Tokens...",
+  "pleaseWait": "Please wait..."
 }

@@ -457,5 +457,14 @@
   "dispenserErrorCleared": "behoben",
   "@dispenserErrorCleared": {
     "description": "Label for cleared/resolved errors"
+  },
+
+  "dispensingTokens": "Sauna-Token werden ausgegeben...",
+  "@dispensingTokens": {
+    "description": "Progress dialog title while dispensing tokens"
+  },
+  "pleaseWait": "Bitte warten...",
+  "@pleaseWait": {
+    "description": "Please wait message during dispensing"
   }
 }
