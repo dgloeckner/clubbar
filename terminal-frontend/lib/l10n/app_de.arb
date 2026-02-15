@@ -110,6 +110,36 @@
   "@checkoutSuccess": {
     "description": "Success message after checkout"
   },
+  "checkoutPartialSuccess": "Nur {count} {count, plural, =1{Token} other{Tokens}} ausgegeben",
+  "@checkoutPartialSuccess": {
+    "description": "Title for partial dispense confirmation",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "checkoutPartialMessage": "Du wurdest nur für {count} {count, plural, =1{Token} other{Tokens}} belastet.\nWir bitten um Entschuldigung.",
+  "@checkoutPartialMessage": {
+    "description": "Message explaining partial dispense",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
+    }
+  },
+  "checkoutOriginalTotal": "(nicht {amount})",
+  "@checkoutOriginalTotal": {
+    "description": "Shows crossed-out original amount for partial dispense",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "€9.00"
+      }
+    }
+  },
   "checkoutNewBalance": "Neuer Kontostand: {balance}",
   "@checkoutNewBalance": {
     "description": "Shows new balance on confirmation screen",

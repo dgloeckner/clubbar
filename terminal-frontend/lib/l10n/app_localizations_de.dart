@@ -80,6 +80,33 @@ class AppLocalizationsDe extends AppLocalizations {
   String get checkoutSuccess => 'Buchung erfolgreich!';
 
   @override
+  String checkoutPartialSuccess(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Tokens',
+      one: 'Token',
+    );
+    return 'Nur $count $_temp0 ausgegeben';
+  }
+
+  @override
+  String checkoutPartialMessage(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Tokens',
+      one: 'Token',
+    );
+    return 'Du wurdest nur für $count $_temp0 belastet.\nWir bitten um Entschuldigung.';
+  }
+
+  @override
+  String checkoutOriginalTotal(String amount) {
+    return '(nicht $amount)';
+  }
+
+  @override
   String checkoutNewBalance(String balance) {
     return 'Neuer Kontostand: $balance';
   }

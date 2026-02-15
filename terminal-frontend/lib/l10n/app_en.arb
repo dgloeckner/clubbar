@@ -25,6 +25,9 @@
   "memberNotSelected": "Member not selected",
 
   "checkoutSuccess": "Transaction successful!",
+  "checkoutPartialSuccess": "Only {count} {count, plural, =1{token} other{tokens}} dispensed",
+  "checkoutPartialMessage": "You have been charged for {count} {count, plural, =1{token} other{tokens}} only.\nSorry for the inconvenience.",
+  "checkoutOriginalTotal": "(not {amount})",
   "checkoutNewBalance": "New Balance: {balance}",
   "redirectingIn": "Redirecting in {seconds} {seconds, plural, =1{second} other{seconds}}...",
 

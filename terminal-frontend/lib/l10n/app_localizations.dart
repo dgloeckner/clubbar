@@ -224,6 +224,24 @@ abstract class AppLocalizations {
   /// **'Buchung erfolgreich!'**
   String get checkoutSuccess;
 
+  /// Title for partial dispense confirmation
+  ///
+  /// In de, this message translates to:
+  /// **'Nur {count} {count, plural, =1{Token} other{Tokens}} ausgegeben'**
+  String checkoutPartialSuccess(int count);
+
+  /// Message explaining partial dispense
+  ///
+  /// In de, this message translates to:
+  /// **'Du wurdest nur für {count} {count, plural, =1{Token} other{Tokens}} belastet.\nWir bitten um Entschuldigung.'**
+  String checkoutPartialMessage(int count);
+
+  /// Shows crossed-out original amount for partial dispense
+  ///
+  /// In de, this message translates to:
+  /// **'(nicht {amount})'**
+  String checkoutOriginalTotal(String amount);
+
   /// Shows new balance on confirmation screen
   ///
   /// In de, this message translates to:
