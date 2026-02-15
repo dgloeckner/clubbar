@@ -235,6 +235,7 @@ void main() async {
 
   // Dispenser integration: recovery and health monitoring
   DispenserHealthService? dispenserHealthService;
+  DispenserRecoveryService? dispenserRecoveryService;
   if (configService.dispenserEnabled) {
     try {
       final dispenserClient = DispenserClient(
@@ -243,12 +244,13 @@ void main() async {
         timeoutMs: configService.dispenserTimeoutMs,
       );
 
-      // Crash recovery: recover incomplete transactions
-      final recoveryService = DispenserRecoveryService(
+      // Crash recovery: recover incomplete transactions and start periodic reconciliation
+      dispenserRecoveryService = DispenserRecoveryService(
         database: database,
         client: dispenserClient,
       );
-      await recoveryService.recoverIncompleteDispenses();
+      await dispenserRecoveryService.recoverIncompleteDispenses();
+      dispenserRecoveryService.startPeriodicReconciliation();
 
       // Start health monitoring (60-second interval)
       dispenserHealthService = DispenserHealthService(client: dispenserClient);
@@ -323,6 +325,7 @@ void main() async {
     configService: configService,
     networkService: networkService,
     dispenserHealthService: dispenserHealthService,
+    dispenserRecoveryService: dispenserRecoveryService,
   ));
 }
 
@@ -337,6 +340,7 @@ class RuderbarTerminalApp extends StatelessWidget {
   final ConfigService configService;
   final NetworkService networkService;
   final DispenserHealthService? dispenserHealthService;
+  final DispenserRecoveryService? dispenserRecoveryService;
 
   const RuderbarTerminalApp({
     super.key,
@@ -350,6 +354,7 @@ class RuderbarTerminalApp extends StatelessWidget {
     required this.configService,
     required this.networkService,
     this.dispenserHealthService,
+    this.dispenserRecoveryService,
   });
 
   @override
