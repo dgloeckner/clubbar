@@ -17,7 +17,7 @@
 --
 -- Creates:
 --   - 2 categories: Getränke, Sauna
---   - 12 products with nice icons
+--   - 13 products with nice icons (including Sauna-Token with dispenser)
 --   - 8 members with nice names and valid SEPA data
 --   - Some sample transactions for testing
 -- =============================================================================
@@ -43,7 +43,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- Category: Getränke (Beverages)
 INSERT INTO categories (id, names, display_order, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'cat-getraenke-0001-0001-000000000001',
+    '11111111-1111-1111-1111-111111111111',
     '{"de": "Getränke", "en": "Beverages"}',
     1,
     'beer-pils',
@@ -55,7 +55,7 @@ VALUES (
 -- Category: Sauna
 INSERT INTO categories (id, names, display_order, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'cat-sauna-00001-0001-000000000002',
+    '22222222-2222-2222-2222-222222222222',
     '{"de": "Sauna", "en": "Sauna"}',
     2,
     'sauna-cabin',
@@ -70,8 +70,8 @@ VALUES (
 -- Pils 0.5L
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-pils-00001-0001-000000000001',
-    'cat-getraenke-0001-0001-000000000001',
+    '33333331-3333-3333-3333-333333333331',
+    '11111111-1111-1111-1111-111111111111',
     '{"de": "Pils 0,5L", "en": "Pilsner 0.5L"}',
     '{"de": "Frisches Pils vom Fass", "en": "Fresh draft pilsner"}',
     350,
@@ -84,8 +84,8 @@ VALUES (
 -- Weizen 0.5L
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-weizen-0001-0001-000000000002',
-    'cat-getraenke-0001-0001-000000000001',
+    '33333332-3333-3333-3333-333333333332',
+    '11111111-1111-1111-1111-111111111111',
     '{"de": "Weizen 0,5L", "en": "Wheat Beer 0.5L"}',
     '{"de": "Bayrisches Hefeweizen", "en": "Bavarian wheat beer"}',
     380,
@@ -98,8 +98,8 @@ VALUES (
 -- Radler 0.5L
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-radler-0001-0001-000000000003',
-    'cat-getraenke-0001-0001-000000000001',
+    '33333333-3333-3333-3333-333333333333',
+    '11111111-1111-1111-1111-111111111111',
     '{"de": "Radler 0,5L", "en": "Shandy 0.5L"}',
     '{"de": "Erfrischendes Radler", "en": "Refreshing beer lemonade mix"}',
     320,
@@ -112,8 +112,8 @@ VALUES (
 -- Alkoholfrei 0.5L
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-beeraf-0001-0001-000000000004',
-    'cat-getraenke-0001-0001-000000000001',
+    '33333334-3333-3333-3333-333333333334',
+    '11111111-1111-1111-1111-111111111111',
     '{"de": "Alkoholfrei 0,5L", "en": "Non-Alcoholic 0.5L"}',
     '{"de": "Alkoholfreies Pils", "en": "Non-alcoholic pilsner"}',
     320,
@@ -126,8 +126,8 @@ VALUES (
 -- Apfelschorle 0.5L
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-apfels-0001-0001-000000000005',
-    'cat-getraenke-0001-0001-000000000001',
+    '33333335-3333-3333-3333-333333333335',
+    '11111111-1111-1111-1111-111111111111',
     '{"de": "Apfelschorle 0,5L", "en": "Apple Spritzer 0.5L"}',
     '{"de": "Apfelsaft mit Sprudel", "en": "Apple juice with sparkling water"}',
     280,
@@ -140,8 +140,8 @@ VALUES (
 -- Wasser 0.5L
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-wasser-0001-0001-000000000006',
-    'cat-getraenke-0001-0001-000000000001',
+    '33333336-3333-3333-3333-333333333336',
+    '11111111-1111-1111-1111-111111111111',
     '{"de": "Wasser 0,5L", "en": "Water 0.5L"}',
     '{"de": "Stilles oder mit Kohlensäure", "en": "Still or sparkling"}',
     200,
@@ -154,8 +154,8 @@ VALUES (
 -- Kaffee
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-kaffee-0001-0001-000000000007',
-    'cat-getraenke-0001-0001-000000000001',
+    '33333337-3333-3333-3333-333333333337',
+    '11111111-1111-1111-1111-111111111111',
     '{"de": "Kaffee", "en": "Coffee"}',
     '{"de": "Frisch gebrühter Filterkaffee", "en": "Freshly brewed filter coffee"}',
     150,
@@ -168,8 +168,8 @@ VALUES (
 -- Äppler 0.5L
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-appler-0001-0001-000000000008',
-    'cat-getraenke-0001-0001-000000000001',
+    '33333338-3333-3333-3333-333333333338',
+    '11111111-1111-1111-1111-111111111111',
     '{"de": "Äppler 0,5L", "en": "Apple Cider 0.5L"}',
     '{"de": "Hessischer Apfelwein", "en": "Hessian apple cider"}',
     350,
@@ -185,8 +185,8 @@ VALUES (
 -- Sauna Tageskarte
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-sauna1-0001-0001-000000000009',
-    'cat-sauna-00001-0001-000000000002',
+    '44444441-4444-4444-4444-444444444441',
+    '22222222-2222-2222-2222-222222222222',
     '{"de": "Sauna Tageskarte", "en": "Sauna Day Pass"}',
     '{"de": "Ganztägiger Zugang zur Sauna", "en": "Full day sauna access"}',
     1500,
@@ -199,8 +199,8 @@ VALUES (
 -- Sauna 2 Stunden
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-sauna2-0001-0001-000000000010',
-    'cat-sauna-00001-0001-000000000002',
+    '44444442-4444-4444-4444-444444444442',
+    '22222222-2222-2222-2222-222222222222',
     '{"de": "Sauna 2 Stunden", "en": "Sauna 2 Hours"}',
     '{"de": "2 Stunden Saunanutzung", "en": "2 hours sauna access"}',
     800,
@@ -213,8 +213,8 @@ VALUES (
 -- Handtuch
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-sauna3-0001-0001-000000000011',
-    'cat-sauna-00001-0001-000000000002',
+    '44444443-4444-4444-4444-444444444443',
+    '22222222-2222-2222-2222-222222222222',
     '{"de": "Handtuch", "en": "Towel"}',
     '{"de": "Leihhandtuch", "en": "Rental towel"}',
     300,
@@ -227,12 +227,27 @@ VALUES (
 -- Aufguss Special
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
 VALUES (
-    'prod-sauna4-0001-0001-000000000012',
-    'cat-sauna-00001-0001-000000000002',
+    '44444444-4444-4444-4444-444444444444',
+    '22222222-2222-2222-2222-222222222222',
     '{"de": "Aufguss Special", "en": "Special Infusion"}',
     '{"de": "Premium Aufguss mit ätherischen Ölen", "en": "Premium infusion with essential oils"}',
     500,
     'sauna-infusion',
+    1,
+    NOW(),
+    NOW()
+);
+
+-- Sauna-Token (requires dispenser)
+INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, requires_dispenser, is_active, created_at, updated_at)
+VALUES (
+    '44444445-4444-4444-4444-444444444445',
+    '22222222-2222-2222-2222-222222222222',
+    '{"de": "Sauna-Token", "en": "Sauna Token"}',
+    '{"de": "Physischer Token für Sauna-Schließfach", "en": "Physical token for sauna locker"}',
+    300,
+    'sauna-token',
+    1,
     1,
     NOW(),
     NOW()
@@ -248,7 +263,7 @@ VALUES (
 -- Member 1: Hans Müller (active rower)
 INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
 VALUES (
-    'mem-hansm-00001-0001-000000000001',
+    '55555551-5555-5555-5555-555555555551',
     'CARD001',
     'Hans',
     'Müller',
@@ -267,7 +282,7 @@ VALUES (
 -- Member 2: Maria Schmidt (team captain)
 INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
 VALUES (
-    'mem-marias-0001-0001-000000000002',
+    '55555552-5555-5555-5555-555555555552',
     'CARD002',
     'Maria',
     'Schmidt',
@@ -286,7 +301,7 @@ VALUES (
 -- Member 3: Thomas Weber (English preferred)
 INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
 VALUES (
-    'mem-thomw-00001-0001-000000000003',
+    '55555553-5555-5555-5555-555555555553',
     'CARD003',
     'Thomas',
     'Weber',
@@ -305,7 +320,7 @@ VALUES (
 -- Member 4: Anna Fischer (sauna enthusiast)
 INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
 VALUES (
-    'mem-annaf-00001-0001-000000000004',
+    '55555554-5555-5555-5555-555555555554',
     'CARD004',
     'Anna',
     'Fischer',
@@ -324,7 +339,7 @@ VALUES (
 -- Member 5: Michael Bauer (veteran rower)
 INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
 VALUES (
-    'mem-michb-00001-0001-000000000005',
+    '55555555-5555-5555-5555-555555555555',
     'CARD005',
     'Michael',
     'Bauer',
@@ -343,7 +358,7 @@ VALUES (
 -- Member 6: Sabine Klein (new member)
 INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
 VALUES (
-    'mem-sabik-00001-0001-000000000006',
+    '55555556-5555-5555-5555-555555555556',
     'CARD006',
     'Sabine',
     'Klein',
@@ -362,7 +377,7 @@ VALUES (
 -- Member 7: Peter Hoffmann (board member)
 INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
 VALUES (
-    'mem-peterh-0001-0001-000000000007',
+    '55555557-5555-5555-5555-555555555557',
     'CARD007',
     'Peter',
     'Hoffmann',
@@ -381,7 +396,7 @@ VALUES (
 -- Member 8: Julia Wagner (youth coach)
 INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
 VALUES (
-    'mem-juliaw-0001-0001-000000000008',
+    '55555558-5555-5555-5555-555555555558',
     'CARD008',
     'Julia',
     'Wagner',
@@ -406,9 +421,9 @@ SET @terminal_id = '44e4567-e89b-12d3-a456-426614174000';
 -- Hans buys a Pils (yesterday)
 INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
 VALUES (
-    'txn-test01-0001-0001-000000000001',
-    'mem-hansm-00001-0001-000000000001',
-    'prod-pils-00001-0001-000000000001',
+    '66666661-6666-6666-6666-666666666661',
+    '55555551-5555-5555-5555-555555555551',
+    '33333331-3333-3333-3333-333333333331',
     @terminal_id,
     -350,
     'purchase',
@@ -418,9 +433,9 @@ VALUES (
 -- Maria buys Weizen (yesterday)
 INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
 VALUES (
-    'txn-test02-0001-0001-000000000002',
-    'mem-marias-0001-0001-000000000002',
-    'prod-weizen-0001-0001-000000000002',
+    '66666662-6666-6666-6666-666666666662',
+    '55555552-5555-5555-5555-555555555552',
+    '33333332-3333-3333-3333-333333333332',
     @terminal_id,
     -380,
     'purchase',
@@ -430,9 +445,9 @@ VALUES (
 -- Anna buys Sauna Tageskarte (today)
 INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
 VALUES (
-    'txn-test03-0001-0001-000000000003',
-    'mem-annaf-00001-0001-000000000004',
-    'prod-sauna1-0001-0001-000000000009',
+    '66666663-6666-6666-6666-666666666663',
+    '55555554-5555-5555-5555-555555555554',
+    '44444441-4444-4444-4444-444444444441',
     @terminal_id,
     -1500,
     'purchase',
@@ -442,9 +457,9 @@ VALUES (
 -- Thomas buys Coffee (today)
 INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
 VALUES (
-    'txn-test04-0001-0001-000000000004',
-    'mem-thomw-00001-0001-000000000003',
-    'prod-kaffee-0001-0001-000000000007',
+    '66666664-6666-6666-6666-666666666664',
+    '55555553-5555-5555-5555-555555555553',
+    '33333337-3333-3333-3333-333333333337',
     @terminal_id,
     -150,
     'purchase',
@@ -454,9 +469,9 @@ VALUES (
 -- Michael buys Äppler (2 days ago)
 INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
 VALUES (
-    'txn-test05-0001-0001-000000000005',
-    'mem-michb-00001-0001-000000000005',
-    'prod-appler-0001-0001-000000000008',
+    '66666665-6666-6666-6666-666666666665',
+    '55555555-5555-5555-5555-555555555555',
+    '33333338-3333-3333-3333-333333333338',
     @terminal_id,
     -350,
     'purchase',
@@ -466,9 +481,9 @@ VALUES (
 -- Peter buys Apfelschorle (3 days ago)
 INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
 VALUES (
-    'txn-test06-0001-0001-000000000006',
-    'mem-peterh-0001-0001-000000000007',
-    'prod-apfels-0001-0001-000000000005',
+    '66666666-6666-6666-6666-666666666666',
+    '55555557-5555-5555-5555-555555555557',
+    '33333335-3333-3333-3333-333333333335',
     @terminal_id,
     -280,
     'purchase',
@@ -478,9 +493,9 @@ VALUES (
 -- Julia buys Sauna 2 Stunden + Handtuch (today)
 INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
 VALUES (
-    'txn-test07-0001-0001-000000000007',
-    'mem-juliaw-0001-0001-000000000008',
-    'prod-sauna2-0001-0001-000000000010',
+    '66666667-6666-6666-6666-666666666667',
+    '55555558-5555-5555-5555-555555555558',
+    '44444442-4444-4444-4444-444444444442',
     @terminal_id,
     -800,
     'purchase',
@@ -489,9 +504,9 @@ VALUES (
 
 INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
 VALUES (
-    'txn-test08-0001-0001-000000000008',
-    'mem-juliaw-0001-0001-000000000008',
-    'prod-sauna3-0001-0001-000000000011',
+    '66666668-6666-6666-6666-666666666668',
+    '55555558-5555-5555-5555-555555555558',
+    '44444443-4444-4444-4444-444444444443',
     @terminal_id,
     -300,
     'purchase',
@@ -501,9 +516,9 @@ VALUES (
 -- Sabine buys Wasser (today)
 INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
 VALUES (
-    'txn-test09-0001-0001-000000000009',
-    'mem-sabik-00001-0001-000000000006',
-    'prod-wasser-0001-0001-000000000006',
+    '66666669-6666-6666-6666-666666666669',
+    '55555556-5555-5555-5555-555555555556',
+    '33333336-3333-3333-3333-333333333336',
     @terminal_id,
     -200,
     'purchase',
@@ -513,9 +528,9 @@ VALUES (
 -- Hans buys another Pils (today)
 INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
 VALUES (
-    'txn-test10-0001-0001-000000000010',
-    'mem-hansm-00001-0001-000000000001',
-    'prod-pils-00001-0001-000000000001',
+    '6666666a-6666-6666-6666-66666666666a',
+    '55555551-5555-5555-5555-555555555551',
+    '33333331-3333-3333-3333-333333333331',
     @terminal_id,
     -350,
     'purchase',

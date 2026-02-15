@@ -49,6 +49,7 @@ class IconNameValidator
         'sauna-cabin',
         'sauna-infusion',
         'sauna-towel',
+        'sauna-token',
 
         // Special
         'correction',

@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 echo -e "${YELLOW}🔄 Resetting Ruderbar Terminal database...${NC}\n"
 
 # macOS - App container path
-MACOS_DB_PATH="$HOME/Library/Containers/com.example.ruderbarTerminal/Data/ruderbar_terminal.db"
+MACOS_DB_PATH="$HOME/Library/Containers/com.example.ruderbarTerminal/Data/Library/Application Support/com.example.ruderbarTerminal/ruderbar_terminal.db"
 
 # Linux - typical Flutter app cache location
 LINUX_DB_PATH="$HOME/.local/share/ruderbar_terminal/ruderbar_terminal.db"
