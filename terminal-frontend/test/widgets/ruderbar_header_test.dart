@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/widgets/ruderbar_header.dart';
+import '../test_helpers.dart';
 
 void main() {
   group('RuderbarHeader', () {
@@ -9,8 +10,8 @@ void main() {
       required ConnectionStatus connectionStatus,
       VoidCallback? onStatusTap,
     }) {
-      return MaterialApp(
-        home: Scaffold(
+      return createTestApp(
+        child: Scaffold(
           appBar: RuderbarHeader(
             connectionStatus: connectionStatus,
             onStatusTap: onStatusTap,
@@ -45,7 +46,7 @@ void main() {
         connectionStatus: ConnectionStatus.error,
       ));
 
-      expect(find.text('Error'), findsOneWidget);
+      expect(find.text('Fehler'), findsOneWidget); // "Error" in German
       expect(find.text('Online'), findsNothing);
       expect(find.text('Offline'), findsNothing);
     });
@@ -66,12 +67,14 @@ void main() {
       await tester.pumpWidget(buildTestApp(
         connectionStatus: ConnectionStatus.online,
       ));
+      await tester.pump(); // Allow widget to build and timer to initialize
 
       // The header should display a time in HH:MM format
-      final now = DateTime.now();
-      final expectedTime =
-          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-      expect(find.text(expectedTime), findsOneWidget);
+      // We just verify the time pattern exists, not the exact time (which may change during test)
+      final timeRegex = RegExp(r'\d{2}:\d{2}');
+      expect(find.byWidgetPredicate(
+        (widget) => widget is Text && timeRegex.hasMatch(widget.data ?? ''),
+      ), findsOneWidget);
     });
   });
 }

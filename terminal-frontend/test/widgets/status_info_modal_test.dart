@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/widgets/status_info_modal.dart';
+import '../test_helpers.dart';
 
 class MockSyncProvider extends Mock implements SyncProvider {}
 
@@ -18,8 +19,8 @@ void main() {
     });
 
     Widget buildTestApp({required Widget child}) {
-      return MaterialApp(
-        home: ChangeNotifierProvider<SyncProvider>.value(
+      return createTestApp(
+        child: ChangeNotifierProvider<SyncProvider>.value(
           value: mockSyncProvider,
           child: child,
         ),
@@ -49,14 +50,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Online'), findsOneWidget);
-      expect(find.text('Last sync'), findsOneWidget);
-      expect(find.text('Last transaction sync'), findsOneWidget);
+      expect(find.text('Letzte Synchronisation'), findsOneWidget); // "Last sync" in German
+      expect(find.text('Letzte Transaktions-Sync'), findsOneWidget); // "Last transaction sync" in German
       expect(find.text('2025-06-15 14:30:00'), findsOneWidget);
       expect(find.text('2025-06-15 14:25:00'), findsOneWidget);
       // No retry count shown when 0
-      expect(find.text('Retry count'), findsNothing);
+      expect(find.text('Wiederholungsversuche'), findsNothing); // "Retry count" in German
       // No error details when online
-      expect(find.text('Error details'), findsNothing);
+      expect(find.text('Fehlerdetails'), findsNothing); // "Error details" in German
     });
 
     testWidgets('shows Offline status with error details', (tester) async {
@@ -79,10 +80,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Offline'), findsOneWidget);
-      expect(find.text('Never'), findsNWidgets(2)); // both timestamps
-      expect(find.text('Retry count'), findsOneWidget);
+      expect(find.text('Nie'), findsNWidgets(2)); // "Never" in German - both timestamps
+      expect(find.text('Wiederholungsversuche'), findsOneWidget); // "Retry count" in German
       expect(find.text('3'), findsOneWidget);
-      expect(find.text('Error details'), findsOneWidget);
+      expect(find.text('Fehlerdetails'), findsOneWidget); // "Error details" in German
       expect(find.text('Backend unreachable'), findsOneWidget);
     });
 
@@ -105,8 +106,8 @@ void main() {
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Error'), findsOneWidget);
-      expect(find.text('Error details'), findsOneWidget);
+      expect(find.text('Fehler'), findsOneWidget); // "Error" in German
+      expect(find.text('Fehlerdetails'), findsOneWidget); // "Error details" in German
       expect(find.text('Sync failed: timeout'), findsOneWidget);
     });
 
@@ -131,7 +132,7 @@ void main() {
 
       expect(find.text('Online'), findsOneWidget);
 
-      await tester.tap(find.text('Dismiss'));
+      await tester.tap(find.text('Schließen')); // "Dismiss" in German
       await tester.pumpAndSettle();
 
       expect(find.text('Online'), findsNothing);

@@ -5,6 +5,7 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:ruderbar_terminal/database/database.dart';
@@ -41,6 +42,9 @@ void main() {
     final mockNetworkService = MockNetworkService();
     when(() => mockConfigService.isConfigured).thenReturn(true);
     when(() => mockSyncProvider.connectionStatus).thenReturn(ConnectionStatus.online);
+    when(() => mockLocaleProvider.locale).thenReturn(const Locale('de'));
+    when(() => mockLocaleProvider.addListener(any())).thenReturn(null);
+    when(() => mockLocaleProvider.removeListener(any())).thenReturn(null);
 
     // Build our app and trigger a frame.
     await tester.pumpWidget(

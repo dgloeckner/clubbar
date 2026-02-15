@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ruderbar_terminal/widgets/error_modal.dart';
+import '../test_helpers.dart';
 
 void main() {
   group('ErrorModal', () {
     testWidgets('displays error message and dismiss button', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
+        createTestApp(
+          child: Scaffold(
             body: Center(
               child: ElevatedButton(
                 onPressed: () {
@@ -27,16 +28,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Test error message'), findsOneWidget);
-      expect(find.text('Dismiss'), findsOneWidget);
-      expect(find.text('Error'), findsOneWidget);
+      expect(find.text('Schließen'), findsOneWidget); // "Dismiss" in German
+      expect(find.text('Fehler'), findsOneWidget); // "Error" in German
     });
 
     testWidgets('displays retry button when onRetry callback provided', (WidgetTester tester) async {
       bool retryPressed = false;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
+        createTestApp(
+          child: Scaffold(
             body: Center(
               child: ElevatedButton(
                 onPressed: () {
@@ -58,10 +59,10 @@ void main() {
       await tester.tap(find.byType(ElevatedButton));
       await tester.pumpAndSettle();
 
-      expect(find.text('Retry'), findsOneWidget);
-      expect(find.text('Dismiss'), findsOneWidget);
+      expect(find.text('Erneut versuchen'), findsOneWidget); // "Retry" in German
+      expect(find.text('Schließen'), findsOneWidget); // "Dismiss" in German
 
-      await tester.tap(find.text('Retry'));
+      await tester.tap(find.text('Erneut versuchen'));
       await tester.pumpAndSettle();
 
       expect(retryPressed, isTrue);
@@ -71,8 +72,8 @@ void main() {
       bool retryPressed = false;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
+        createTestApp(
+          child: Scaffold(
             body: Center(
               child: ElevatedButton(
                 onPressed: () {
@@ -94,7 +95,7 @@ void main() {
       await tester.tap(find.byType(ElevatedButton));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Dismiss'));
+      await tester.tap(find.text('Schließen')); // "Dismiss" in German
       await tester.pumpAndSettle();
 
       expect(find.byType(AlertDialog), findsNothing);
