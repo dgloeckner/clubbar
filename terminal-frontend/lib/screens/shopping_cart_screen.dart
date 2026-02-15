@@ -296,27 +296,30 @@ class ShoppingCartScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            l10n.cartTotal,
-                            style: const TextStyle(
-                              color: Color(0xff94a3b8),
-                              fontSize: AppFontSizes.xxl,
-                              fontWeight: FontWeight.w500,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.cartTotal,
+                              style: const TextStyle(
+                                color: Color(0xff94a3b8),
+                                fontSize: AppFontSizes.xxl,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            l10n.cartNewBalance(formatPrice(newBalanceCents, locale)),
-                            style: const TextStyle(
-                              color: Color(0xff22c55e),
-                              fontSize: AppFontSizes.xl,
-                              fontWeight: FontWeight.w500,
+                            const SizedBox(height: 2),
+                            Text(
+                              l10n.cartNewBalance(formatPrice(newBalanceCents, locale)),
+                              style: const TextStyle(
+                                color: Color(0xff22c55e),
+                                fontSize: AppFontSizes.xl,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       Text(
                         formatPrice(totalCents, locale),
