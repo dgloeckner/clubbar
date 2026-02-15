@@ -79,5 +79,13 @@
   "errorLoadingTransactions": "Error loading transactions",
   "offlineMode": "Offline Mode",
   "transactionHistoryUnavailableOffline": "Transaction history unavailable offline",
-  "noTransactions": "No transactions yet"
+  "noTransactions": "No transactions yet",
+
+  "dispenserBusyTitle": "Dispenser Busy",
+  "dispenserOfflineTitle": "Cannot Connect to Dispenser",
+  "dispenserBusyMessage": "Another customer is using the token dispenser.",
+  "dispenserOfflineMessage": "The token dispenser is not responding.",
+  "dispenserBuyWithoutTokensHint": "You can still purchase other items without tokens.",
+  "dispenserCancelButton": "Cancel & Back to Cart",
+  "dispenserBuyWithoutTokensButton": "Buy All Products But Tokens"
 }

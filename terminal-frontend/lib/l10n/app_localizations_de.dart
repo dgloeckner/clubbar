@@ -232,4 +232,29 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get noTransactions => 'Noch keine Transaktionen';
+
+  @override
+  String get dispenserBusyTitle => 'Ausgabegerät belegt';
+
+  @override
+  String get dispenserOfflineTitle => 'Ausgabegerät nicht erreichbar';
+
+  @override
+  String get dispenserBusyMessage =>
+      'Ein anderer Kunde nutzt gerade das Token-Ausgabegerät.';
+
+  @override
+  String get dispenserOfflineMessage =>
+      'Das Token-Ausgabegerät antwortet nicht.';
+
+  @override
+  String get dispenserBuyWithoutTokensHint =>
+      'Sie können andere Artikel ohne Tokens kaufen.';
+
+  @override
+  String get dispenserCancelButton => 'Abbrechen & zurück zum Warenkorb';
+
+  @override
+  String get dispenserBuyWithoutTokensButton =>
+      'Alle Produkte außer Tokens kaufen';
 }

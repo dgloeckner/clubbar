@@ -5,6 +5,7 @@ import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
 import 'package:ruderbar_terminal/widgets/dispensing_progress_dialog.dart';
+import 'package:ruderbar_terminal/widgets/dispenser_error_dialog.dart';
 
 class CartProvider extends ChangeNotifier {
   final CartService _service;
@@ -116,16 +117,22 @@ class CartProvider extends ChangeNotifier {
           return;
         }
 
-        // Import the dialog widget to show it
-        // (will be imported at top of file)
         final result = await _showDispensingDialog(context, tokenProducts);
 
         if (result == null) {
           // Dialog was cancelled or error occurred
-          _isLoading = false;
-          notifyListeners();
-          return;
-        }
+          // Check if error was handled (user made choice to skip tokens)
+          if (_errorType is DispenserBusyException ||
+              _errorType is DispenserNotFoundException) {
+            // User chose to continue without tokens - skip token processing
+            // Continue to process regular products below
+          } else {
+            // Other error or user cancelled - abort checkout
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
+        } else {
 
         // Create transactions for actually dispensed tokens
         final actualQuantity = result.dispensed;
@@ -157,6 +164,7 @@ class CartProvider extends ChangeNotifier {
           }
 
           _lastTransactionId = tokenTxnId;
+        }
         }
       }
 
@@ -196,31 +204,53 @@ class CartProvider extends ChangeNotifier {
     List<CartItem> tokenProducts,
   ) async {
     DispenseResult? result;
-    String? errorMessage;
+    DispenserException? errorException;
 
-    // Import will be added at top of file
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) {
-        // Need to import DispensingProgressDialog
-        // This will be resolved by adding the import at the top
         return DispensingProgressDialog(
           tokenProducts: tokenProducts,
           onComplete: (dispenseResult) {
             result = dispenseResult;
           },
           onError: (error) {
-            errorMessage = error.message;
+            errorException = error;
           },
         );
       },
     );
 
-    // If error occurred, show placeholder error
-    if (errorMessage != null) {
-      _lastError = errorMessage;
-      return null;
+    // If error occurred, handle it based on error type
+    if (errorException != null) {
+      if (errorException is DispenserBusyException ||
+          errorException is DispenserNotFoundException) {
+        // Show error dialog and let user choose
+        final errorType = errorException is DispenserBusyException
+            ? DispenserErrorType.busy
+            : DispenserErrorType.offline;
+
+        if (!context.mounted) return null;
+
+        final userChoice = await DispenserErrorDialog.show(context, errorType);
+
+        if (userChoice) {
+          // User chose to continue without tokens
+          // Store error type so checkout can skip token processing
+          _errorType = errorException;
+          _lastError = null; // Clear error since user made informed choice
+          return null; // Return null to signal tokens should be skipped
+        } else {
+          // User chose to cancel checkout
+          _lastError = 'Checkout cancelled';
+          return null;
+        }
+      } else {
+        // Other dispenser errors - just show error message
+        _lastError = errorException!.message;
+        return null;
+      }
     }
 
     return result;

@@ -505,6 +505,48 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Noch keine Transaktionen'**
   String get noTransactions;
+
+  /// Title for dispenser busy error dialog
+  ///
+  /// In de, this message translates to:
+  /// **'Ausgabegerät belegt'**
+  String get dispenserBusyTitle;
+
+  /// Title for dispenser offline error dialog
+  ///
+  /// In de, this message translates to:
+  /// **'Ausgabegerät nicht erreichbar'**
+  String get dispenserOfflineTitle;
+
+  /// Message explaining dispenser is busy
+  ///
+  /// In de, this message translates to:
+  /// **'Ein anderer Kunde nutzt gerade das Token-Ausgabegerät.'**
+  String get dispenserBusyMessage;
+
+  /// Message explaining dispenser is offline
+  ///
+  /// In de, this message translates to:
+  /// **'Das Token-Ausgabegerät antwortet nicht.'**
+  String get dispenserOfflineMessage;
+
+  /// Hint that user can still purchase non-token items
+  ///
+  /// In de, this message translates to:
+  /// **'Sie können andere Artikel ohne Tokens kaufen.'**
+  String get dispenserBuyWithoutTokensHint;
+
+  /// Button to cancel checkout and return to cart
+  ///
+  /// In de, this message translates to:
+  /// **'Abbrechen & zurück zum Warenkorb'**
+  String get dispenserCancelButton;
+
+  /// Button to proceed with checkout excluding token products
+  ///
+  /// In de, this message translates to:
+  /// **'Alle Produkte außer Tokens kaufen'**
+  String get dispenserBuyWithoutTokensButton;
 }
 
 class _AppLocalizationsDelegate

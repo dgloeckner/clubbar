@@ -331,5 +331,35 @@
   "noTransactions": "Noch keine Transaktionen",
   "@noTransactions": {
     "description": "Message when member has no transactions yet"
+  },
+
+  "@_DISPENSER": {},
+  "dispenserBusyTitle": "Ausgabegerät belegt",
+  "@dispenserBusyTitle": {
+    "description": "Title for dispenser busy error dialog"
+  },
+  "dispenserOfflineTitle": "Ausgabegerät nicht erreichbar",
+  "@dispenserOfflineTitle": {
+    "description": "Title for dispenser offline error dialog"
+  },
+  "dispenserBusyMessage": "Ein anderer Kunde nutzt gerade das Token-Ausgabegerät.",
+  "@dispenserBusyMessage": {
+    "description": "Message explaining dispenser is busy"
+  },
+  "dispenserOfflineMessage": "Das Token-Ausgabegerät antwortet nicht.",
+  "@dispenserOfflineMessage": {
+    "description": "Message explaining dispenser is offline"
+  },
+  "dispenserBuyWithoutTokensHint": "Sie können andere Artikel ohne Tokens kaufen.",
+  "@dispenserBuyWithoutTokensHint": {
+    "description": "Hint that user can still purchase non-token items"
+  },
+  "dispenserCancelButton": "Abbrechen & zurück zum Warenkorb",
+  "@dispenserCancelButton": {
+    "description": "Button to cancel checkout and return to cart"
+  },
+  "dispenserBuyWithoutTokensButton": "Alle Produkte außer Tokens kaufen",
+  "@dispenserBuyWithoutTokensButton": {
+    "description": "Button to proceed with checkout excluding token products"
   }
 }

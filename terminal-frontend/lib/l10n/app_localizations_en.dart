@@ -231,4 +231,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noTransactions => 'No transactions yet';
+
+  @override
+  String get dispenserBusyTitle => 'Dispenser Busy';
+
+  @override
+  String get dispenserOfflineTitle => 'Cannot Connect to Dispenser';
+
+  @override
+  String get dispenserBusyMessage =>
+      'Another customer is using the token dispenser.';
+
+  @override
+  String get dispenserOfflineMessage =>
+      'The token dispenser is not responding.';
+
+  @override
+  String get dispenserBuyWithoutTokensHint =>
+      'You can still purchase other items without tokens.';
+
+  @override
+  String get dispenserCancelButton => 'Cancel & Back to Cart';
+
+  @override
+  String get dispenserBuyWithoutTokensButton => 'Buy All Products But Tokens';
 }
