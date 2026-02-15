@@ -39,6 +39,9 @@ Future<void> _addColumnIfNotExists(
 class RuderbarDatabase extends _$RuderbarDatabase {
   RuderbarDatabase() : super(_openConnection());
 
+  /// Test constructor - uses in-memory database
+  RuderbarDatabase.forTesting(QueryExecutor executor) : super(executor);
+
   @override
   int get schemaVersion => 3;
 

@@ -1,5 +1,5 @@
-import 'dart:io';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/models/category_dto.dart';
@@ -10,30 +10,34 @@ import 'package:ruderbar_terminal/repository/products_repository.dart';
 import 'package:ruderbar_terminal/repository/transactions_repository.dart';
 import 'package:ruderbar_terminal/repository/sync_repository.dart';
 
+// Helper to create in-memory test database
+RuderbarDatabase createTestDatabase() {
+  return RuderbarDatabase.forTesting(
+    NativeDatabase.memory(setup: (db) {
+      db.execute('PRAGMA foreign_keys = ON');
+    }),
+  );
+}
+
 void main() {
   group('MembersRepository', () {
     late RuderbarDatabase db;
     late MembersRepository repo;
 
     setUp(() async {
-      db = RuderbarDatabase();
+      db = createTestDatabase();
       repo = MembersRepository(db);
     });
 
     tearDown(() async {
       await db.close();
-      // Clean up database file
-      final file = File('ruderbar_terminal.db');
-      if (file.existsSync()) {
-        file.deleteSync();
-      }
     });
 
     test('findByCardUid returns null and error for unknown card', () async {
       final (member, error) = await repo.findByCardUid('unknown-card-uid');
 
       expect(member, isNull);
-      expect(error, equals('Unknown card'));
+      expect(error, equals('rfidErrorUnknownCard'));
     });
 
     test('findByCardUid returns member for valid card', () async {
@@ -77,7 +81,7 @@ void main() {
       final (member, error) = await repo.findByCardUid('card-inactive');
 
       expect(member, isNull);
-      expect(error, equals('Account inactive'));
+      expect(error, equals('rfidErrorAccountInactive'));
     });
 
     test('findByCardUid returns error for missing SEPA mandate', () async {
@@ -98,7 +102,7 @@ void main() {
       final (member, error) = await repo.findByCardUid('card-no-sepa');
 
       expect(member, isNull);
-      expect(error, equals('SEPA mandate missing'));
+      expect(error, equals('rfidErrorSepaMissing'));
     });
 
     test('upsertMembers inserts new members', () async {
@@ -234,17 +238,12 @@ void main() {
     late ProductsRepository repo;
 
     setUp(() async {
-      db = RuderbarDatabase();
+      db = createTestDatabase();
       repo = ProductsRepository(db);
     });
 
     tearDown(() async {
       await db.close();
-      // Clean up database file
-      final file = File('ruderbar_terminal.db');
-      if (file.existsSync()) {
-        file.deleteSync();
-      }
     });
 
     test('getActiveCategoriesWithProducts returns empty list for no data',
@@ -503,17 +502,12 @@ void main() {
     }
 
     setUp(() async {
-      db = RuderbarDatabase();
+      db = createTestDatabase();
       repo = TransactionsRepository(db);
     });
 
     tearDown(() async {
       await db.close();
-      // Clean up database file
-      final file = File('ruderbar_terminal.db');
-      if (file.existsSync()) {
-        file.deleteSync();
-      }
     });
 
     test('insertTransaction inserts local transaction', () async {
@@ -851,17 +845,12 @@ void main() {
     late SyncRepository repo;
 
     setUp(() async {
-      db = RuderbarDatabase();
+      db = createTestDatabase();
       repo = SyncRepository(db);
     });
 
     tearDown(() async {
       await db.close();
-      // Clean up database file
-      final file = File('ruderbar_terminal.db');
-      if (file.existsSync()) {
-        file.deleteSync();
-      }
     });
 
     test('setSyncState stores value', () async {

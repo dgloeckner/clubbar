@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
+import 'package:ruderbar_terminal/providers/locale_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/member_info_card.dart';
 
@@ -27,8 +28,8 @@ class MemberDetailsPage extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        child: Consumer<MembersProvider>(
-          builder: (context, membersProvider, child) {
+        child: Consumer2<MembersProvider, LocaleProvider>(
+          builder: (context, membersProvider, localeProvider, child) {
             final member = membersProvider.selectedMember;
 
             if (member == null) {
@@ -49,6 +50,7 @@ class MemberDetailsPage extends StatelessWidget {
                   MemberInfoCard(
                     member: member,
                     balanceCents: 0, // Balance not available in member data
+                    locale: localeProvider.locale.languageCode,
                   ),
                   const SizedBox(height: AppSpacing.xl),
 

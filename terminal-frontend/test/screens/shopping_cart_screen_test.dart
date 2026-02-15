@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/database/database.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/models/cart_item.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
@@ -15,9 +17,12 @@ class MockMembersProvider extends Mock implements MembersProvider {}
 
 class FakeMembersCacheData extends Fake implements MembersCacheData {}
 
+class FakeBuildContext extends Fake implements BuildContext {}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(FakeMembersCacheData());
+    registerFallbackValue(FakeBuildContext());
   });
   group('ShoppingCartScreen', () {
     late MockCartProvider mockCartProvider;
@@ -40,14 +45,14 @@ void main() {
       when(() => mockCartProvider.total).thenReturn(1100);
       when(() => mockCartProvider.itemCount).thenReturn(2);
       when(() => mockCartProvider.isLoading).thenReturn(false);
-      when(() => mockCartProvider.lastError).thenReturn(null);
-      when(() => mockCartProvider.removeItem(any())).thenReturn(null);
-      when(() => mockCartProvider.updateQuantity(any(), any())).thenReturn(null);
+      when(() => mockCartProvider.lastError);
+      when(() => mockCartProvider.removeItem(any()));
+      when(() => mockCartProvider.updateQuantity(any(), any()));
       when(() => mockCartProvider.checkout(any(), any()))
           .thenAnswer((_) async => null);
-      when(() => mockCartProvider.lastTransactionId).thenReturn(null);
-      when(() => mockCartProvider.addListener(any())).thenReturn(null);
-      when(() => mockCartProvider.removeListener(any())).thenReturn(null);
+      when(() => mockCartProvider.lastTransactionId);
+      when(() => mockCartProvider.addListener(any()));
+      when(() => mockCartProvider.removeListener(any()));
 
       // Members provider setup
       final testMember = MembersCacheData(
@@ -63,28 +68,36 @@ void main() {
       );
       when(() => mockMembersProvider.selectedMember).thenReturn(testMember);
       when(() => mockMembersProvider.memberDeckel).thenReturn(0);
-      when(() => mockMembersProvider.clearSelectedMember()).thenReturn(null);
+      when(() => mockMembersProvider.clearSelectedMember());
       when(() => mockMembersProvider.refreshDeckel()).thenAnswer((_) async {});
-      when(() => mockMembersProvider.addListener(any())).thenReturn(null);
-      when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.addListener(any()));
+      when(() => mockMembersProvider.removeListener(any()));
     });
 
-    testWidgets('displays cart items', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
-            providers: [
-              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<MembersProvider>.value(
-                value: mockMembersProvider,
-              ),
-            ],
-            child: const Scaffold(
-              body: ShoppingCartScreen(),
+    Widget buildTestWidget({Widget? child}) {
+      return MaterialApp(
+        locale: const Locale('de'), // Explicitly set to German
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('en'), Locale('de')],
+        home: MultiProvider(
+          providers: [
+            ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+            ChangeNotifierProvider<MembersProvider>.value(
+              value: mockMembersProvider,
             ),
-          ),
+          ],
+          child: child ?? const Scaffold(body: ShoppingCartScreen()),
         ),
       );
+    }
+
+    testWidgets('displays cart items', (WidgetTester tester) async {
+      await tester.pumpWidget(buildTestWidget());
 
       expect(find.byType(ListView), findsOneWidget);
       expect(find.text('Bier'), findsOneWidget);
@@ -92,43 +105,15 @@ void main() {
 
     testWidgets('displays total price formatted correctly',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
-            providers: [
-              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<MembersProvider>.value(
-                value: mockMembersProvider,
-              ),
-            ],
-            child: const Scaffold(
-              body: ShoppingCartScreen(),
-            ),
-          ),
-        ),
-      );
+      await tester.pumpWidget(buildTestWidget());
 
-      // Total is 1100 cents = €11.00
-      expect(find.text('€11.00'), findsWidgets);
-      expect(find.text('Total'), findsOneWidget);
+      // Total is 1100 cents = 11,00 € in German format
+      expect(find.textContaining('11,00'), findsWidgets);
+      expect(find.text('Gesamt'), findsOneWidget); // German "Total"
     });
 
     testWidgets('has checkout button', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
-            providers: [
-              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<MembersProvider>.value(
-                value: mockMembersProvider,
-              ),
-            ],
-            child: const Scaffold(
-              body: ShoppingCartScreen(),
-            ),
-          ),
-        ),
-      );
+      await tester.pumpWidget(buildTestWidget());
 
       expect(find.text('Checkout'), findsOneWidget);
     });
@@ -138,21 +123,7 @@ void main() {
       when(() => mockCartProvider.items).thenReturn([]);
       when(() => mockCartProvider.itemCount).thenReturn(0);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
-            providers: [
-              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<MembersProvider>.value(
-                value: mockMembersProvider,
-              ),
-            ],
-            child: const Scaffold(
-              body: ShoppingCartScreen(),
-            ),
-          ),
-        ),
-      );
+      await tester.pumpWidget(buildTestWidget());
 
       expect(find.text('Your cart is empty'), findsOneWidget);
       expect(find.text('Checkout'), findsNothing);
@@ -188,7 +159,19 @@ void main() {
         ],
       );
 
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+          locale: const Locale('de'),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en'), Locale('de')],
+        ),
+      );
 
       await tester.tap(find.text('Checkout'));
       await tester.pumpAndSettle();
@@ -199,21 +182,7 @@ void main() {
 
     testWidgets('removes item when delete button tapped',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
-            providers: [
-              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<MembersProvider>.value(
-                value: mockMembersProvider,
-              ),
-            ],
-            child: const Scaffold(
-              body: ShoppingCartScreen(),
-            ),
-          ),
-        ),
-      );
+      await tester.pumpWidget(buildTestWidget());
 
       // Find the delete icon button
       await tester.tap(find.byIcon(Icons.delete_outline));
@@ -223,43 +192,16 @@ void main() {
     });
 
     testWidgets('displays price per unit', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
-            providers: [
-              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<MembersProvider>.value(
-                value: mockMembersProvider,
-              ),
-            ],
-            child: const Scaffold(
-              body: ShoppingCartScreen(),
-            ),
-          ),
-        ),
-      );
+      await tester.pumpWidget(buildTestWidget());
 
-      // Price is 550 cents = €5.50 per unit
-      expect(find.text('€5.50 each'), findsOneWidget);
+      // Price is 550 cents = 5,50 € in German format
+      expect(find.textContaining('5,50'), findsWidgets);
+      expect(find.textContaining('pro Stück'), findsWidgets); // German "each"
     });
 
     testWidgets('has plus and minus buttons for quantity',
         (WidgetTester tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
-            providers: [
-              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<MembersProvider>.value(
-                value: mockMembersProvider,
-              ),
-            ],
-            child: const Scaffold(
-              body: ShoppingCartScreen(),
-            ),
-          ),
-        ),
-      );
+      await tester.pumpWidget(buildTestWidget());
 
       // Check for plus and minus symbols
       expect(find.text('+'), findsOneWidget);
