@@ -75,6 +75,7 @@ class ProductsRepository {
           descriptions: Value(dto.descriptions != null ? jsonEncode(dto.descriptions) : null),
           priceCents: Value(dto.priceCents),
           isActive: Value(dto.isActive ? 1 : 0),
+          requiresDispenser: Value(dto.requiresDispenser ? 1 : 0),
           iconName: Value(dto.iconName),
           updatedAt: Value(dto.updatedAt),
         ),
