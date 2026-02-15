@@ -88,10 +88,12 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
     } on DispenserBusyException catch (e) {
       if (mounted) {
         widget.onError(e);
+        Navigator.of(context).pop();
       }
     } on DispenserException catch (e) {
       if (mounted) {
         widget.onError(e);
+        Navigator.of(context).pop();
       }
     }
   }
