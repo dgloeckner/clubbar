@@ -26,6 +26,8 @@ import 'package:ruderbar_terminal/services/products_service.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/sync_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:ruderbar_terminal/services/dispenser_client.dart';
+import 'package:ruderbar_terminal/services/dispenser_recovery_service.dart';
 import 'package:ruderbar_terminal/services/error_file_output.dart';
 import 'package:ruderbar_terminal/models/category_dto.dart';
 import 'package:ruderbar_terminal/models/product_dto.dart';
@@ -228,6 +230,26 @@ void main() async {
   // Seed database with mock data (only when explicitly enabled)
   if (configService.seedTestData) {
     await _seedMockData(database);
+  }
+
+  // Recover incomplete dispenser transactions (crash recovery)
+  if (configService.dispenserEnabled) {
+    try {
+      final dispenserClient = DispenserClient(
+        baseUrl: configService.dispenserBaseUrl!,
+        apiKey: configService.dispenserApiKey!,
+        timeoutMs: configService.dispenserTimeoutMs,
+      );
+      final recoveryService = DispenserRecoveryService(
+        database: database,
+        client: dispenserClient,
+      );
+      await recoveryService.recoverIncompleteDispenses();
+    } catch (e) {
+      // Dispenser offline or error - log and continue
+      // App will function normally, recovery will retry on next boot
+      logger.w('Dispenser recovery failed: $e');
+    }
   }
 
   // Create repositories (data access layer)
