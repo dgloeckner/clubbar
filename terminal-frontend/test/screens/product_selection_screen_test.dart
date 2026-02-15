@@ -11,6 +11,7 @@ import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/screens/product_selection_screen.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
+import '../test_helpers.dart';
 
 class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockCartProvider extends Mock implements CartProvider {}
@@ -84,8 +85,8 @@ void main() {
       when(() => mockCartProvider.items).thenReturn([]);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
+        createTestApp(
+          child: MultiProvider(
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
@@ -122,8 +123,8 @@ void main() {
       when(() => mockCartProvider.items).thenReturn([]);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
+        createTestApp(
+          child: MultiProvider(
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
@@ -137,7 +138,7 @@ void main() {
       );
 
       // When no products in category, shows empty message instead of grid
-      expect(find.text('No products in this category'), findsOneWidget);
+      expect(find.text('Keine Produkte in dieser Kategorie'), findsOneWidget);
     });
 
     testWidgets('displays cart button', (WidgetTester tester) async {
@@ -175,8 +176,8 @@ void main() {
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
+        createTestApp(
+          child: MultiProvider(
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
@@ -204,8 +205,8 @@ void main() {
       when(() => mockCartProvider.removeListener(any())).thenReturn(null);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: MultiProvider(
+        createTestApp(
+          child: MultiProvider(
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),

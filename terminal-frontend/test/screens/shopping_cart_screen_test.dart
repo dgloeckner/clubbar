@@ -45,14 +45,14 @@ void main() {
       when(() => mockCartProvider.total).thenReturn(1100);
       when(() => mockCartProvider.itemCount).thenReturn(2);
       when(() => mockCartProvider.isLoading).thenReturn(false);
-      when(() => mockCartProvider.lastError);
-      when(() => mockCartProvider.removeItem(any()));
-      when(() => mockCartProvider.updateQuantity(any(), any()));
+      when(() => mockCartProvider.lastError).thenReturn(null);
+      when(() => mockCartProvider.removeItem(any())).thenReturn(null);
+      when(() => mockCartProvider.updateQuantity(any(), any())).thenReturn(null);
       when(() => mockCartProvider.checkout(any(), any()))
           .thenAnswer((_) async {});
-      when(() => mockCartProvider.lastTransactionId);
-      when(() => mockCartProvider.addListener(any()));
-      when(() => mockCartProvider.removeListener(any()));
+      when(() => mockCartProvider.lastTransactionId).thenReturn(null);
+      when(() => mockCartProvider.addListener(any())).thenReturn(null);
+      when(() => mockCartProvider.removeListener(any())).thenReturn(null);
 
       // Members provider setup
       final testMember = MembersCacheData(
@@ -68,10 +68,10 @@ void main() {
       );
       when(() => mockMembersProvider.selectedMember).thenReturn(testMember);
       when(() => mockMembersProvider.memberDeckel).thenReturn(0);
-      when(() => mockMembersProvider.clearSelectedMember());
+      when(() => mockMembersProvider.clearSelectedMember()).thenReturn(null);
       when(() => mockMembersProvider.refreshDeckel()).thenAnswer((_) async {});
-      when(() => mockMembersProvider.addListener(any()));
-      when(() => mockMembersProvider.removeListener(any()));
+      when(() => mockMembersProvider.addListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
     });
 
     Widget buildTestWidget({Widget? child}) {
@@ -115,7 +115,7 @@ void main() {
     testWidgets('has checkout button', (WidgetTester tester) async {
       await tester.pumpWidget(buildTestWidget());
 
-      expect(find.text('Checkout'), findsOneWidget);
+      expect(find.text('Bezahlen'), findsOneWidget);
     });
 
     testWidgets('shows empty cart message when no items',
@@ -125,8 +125,8 @@ void main() {
 
       await tester.pumpWidget(buildTestWidget());
 
-      expect(find.text('Your cart is empty'), findsOneWidget);
-      expect(find.text('Checkout'), findsNothing);
+      expect(find.text('Dein Warenkorb ist leer'), findsOneWidget);
+      expect(find.text('Bezahlen'), findsNothing);
     });
 
     testWidgets('calls checkout when button pressed', (WidgetTester tester) async {
@@ -173,7 +173,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Checkout'));
+      await tester.tap(find.text('Bezahlen'));
       await tester.pumpAndSettle();
 
       // Verify checkout was called with the context and selected member

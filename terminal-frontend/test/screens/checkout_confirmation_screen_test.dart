@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/screens/checkout_confirmation_screen.dart';
@@ -59,9 +61,21 @@ void main() {
         ],
       );
 
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('de'), Locale('en')],
+          locale: const Locale('de'),
+        ),
+      );
 
-      expect(find.text('Payment Successful'), findsOneWidget);
+      expect(find.text('Buchung erfolgreich!'), findsOneWidget);
       expect(find.byIcon(Icons.check_circle), findsOneWidget);
     });
 
@@ -92,9 +106,21 @@ void main() {
         ],
       );
 
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('de'), Locale('en')],
+          locale: const Locale('de'),
+        ),
+      );
 
-      expect(find.textContaining('Redirecting in'), findsOneWidget);
+      expect(find.textContaining('Weiterleitung in'), findsOneWidget);
     });
 
     testWidgets('displays transaction ID', (WidgetTester tester) async {
@@ -124,7 +150,19 @@ void main() {
         ],
       );
 
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('de'), Locale('en')],
+          locale: const Locale('de'),
+        ),
+      );
 
       expect(find.text('txn-abc123'), findsOneWidget);
     });
@@ -156,18 +194,30 @@ void main() {
         ],
       );
 
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('de'), Locale('en')],
+          locale: const Locale('de'),
+        ),
+      );
 
       // Initially shows 3 seconds
-      expect(find.textContaining('Redirecting in 3'), findsOneWidget);
+      expect(find.textContaining('Weiterleitung in 3'), findsOneWidget);
 
       // After 1 second, should show 2 seconds
       await tester.pump(const Duration(seconds: 1));
-      expect(find.textContaining('Redirecting in 2'), findsOneWidget);
+      expect(find.textContaining('Weiterleitung in 2'), findsOneWidget);
 
       // After another 1 second, should show 1 second
       await tester.pump(const Duration(seconds: 1));
-      expect(find.textContaining('Redirecting in 1'), findsOneWidget);
+      expect(find.textContaining('Weiterleitung in 1'), findsOneWidget);
     });
 
     testWidgets('clears cart on navigation', (WidgetTester tester) async {
@@ -197,7 +247,19 @@ void main() {
         ],
       );
 
-      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('de'), Locale('en')],
+          locale: const Locale('de'),
+        ),
+      );
 
       // Wait for auto-navigation
       await tester.pump(const Duration(seconds: 3));
