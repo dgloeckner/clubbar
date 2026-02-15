@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ruderbar_terminal/screens/setup_screen.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
+import '../test_helpers.dart';
 
 void main() {
   group('SetupScreen', () {
@@ -13,61 +14,61 @@ void main() {
     });
 
     Widget buildTestWidget() {
-      return MaterialApp(
-        home: SetupScreen(configService: configService),
+      return createTestApp(
+        child: SetupScreen(configService: configService),
       );
     }
 
     testWidgets('displays title and subtitle', (tester) async {
       await tester.pumpWidget(buildTestWidget());
 
-      expect(find.text('Terminal Setup'), findsOneWidget);
-      expect(find.text('Connect this terminal to the Ruderbar backend.'), findsOneWidget);
+      expect(find.text('Terminal-Einrichtung'), findsOneWidget); // "Terminal Setup" in German
+      expect(find.text('Verbinde dieses Terminal mit dem Ruderbar-Backend.'), findsOneWidget); // Subtitle in German
     });
 
     testWidgets('displays three form fields', (tester) async {
       await tester.pumpWidget(buildTestWidget());
 
-      expect(find.text('Terminal ID'), findsOneWidget);
-      expect(find.text('API URL'), findsOneWidget);
-      expect(find.text('API Token'), findsOneWidget);
+      expect(find.text('Terminal-ID'), findsOneWidget); // "Terminal ID" in German
+      expect(find.text('API-URL'), findsOneWidget); // "API URL" in German
+      expect(find.text('API-Token'), findsOneWidget); // "API Token" in German
     });
 
     testWidgets('displays Save & Connect button', (tester) async {
       await tester.pumpWidget(buildTestWidget());
 
-      expect(find.text('Save & Connect'), findsOneWidget);
+      expect(find.text('Speichern & Verbinden'), findsOneWidget); // "Save & Connect" in German
     });
 
     testWidgets('validates empty Terminal ID', (tester) async {
       await tester.pumpWidget(buildTestWidget());
 
-      await tester.tap(find.text('Save & Connect'));
+      await tester.tap(find.text('Speichern & Verbinden'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Terminal ID is required'), findsOneWidget);
+      expect(find.text('Terminal-ID ist erforderlich'), findsOneWidget); // "Terminal ID is required" in German
     });
 
     testWidgets('validates empty API URL', (tester) async {
       await tester.pumpWidget(buildTestWidget());
 
-      // Fill Terminal ID only
+      // Fill Terminal ID only (hint text is still in English in source code)
       await tester.enterText(
         find.widgetWithText(TextFormField, 'e.g. Ruderbar-Kühlschrank'),
         'Test Terminal',
       );
 
-      await tester.tap(find.text('Save & Connect'));
+      await tester.tap(find.text('Speichern & Verbinden'));
       await tester.pumpAndSettle();
 
-      expect(find.text('API URL is required'), findsOneWidget);
+      expect(find.text('API-URL ist erforderlich'), findsOneWidget); // "API URL is required" in German
     });
 
     testWidgets('validates invalid API URL format', (tester) async {
       await tester.pumpWidget(buildTestWidget());
 
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'e.g. Ruderbar-Kühlschrank'),
+        find.widgetWithText(TextFormField, 'e.g. Ruderbar-Kühlschrank'), // Hint text still in English in source
         'Test Terminal',
       );
       await tester.enterText(
@@ -75,28 +76,28 @@ void main() {
         'not-a-url',
       );
 
-      await tester.tap(find.text('Save & Connect'));
+      await tester.tap(find.text('Speichern & Verbinden'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Enter a valid URL (e.g. https://club.example.com/api)'), findsOneWidget);
+      expect(find.text('Gib eine gültige URL ein (z.B. https://club.example.com/api)'), findsOneWidget); // Invalid URL message in German
     });
 
     testWidgets('validates empty API Token', (tester) async {
       await tester.pumpWidget(buildTestWidget());
 
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'e.g. Ruderbar-Kühlschrank'),
+        find.widgetWithText(TextFormField, 'e.g. Ruderbar-Kühlschrank'), // Hint text still in English in source
         'Test Terminal',
       );
       await tester.enterText(
         find.widgetWithText(TextFormField, 'https://club.example.com/api'),
-        'https://test.example.com/api',
+        'https://valid.url.com/api',
       );
 
-      await tester.tap(find.text('Save & Connect'));
+      await tester.tap(find.text('Speichern & Verbinden'));
       await tester.pumpAndSettle();
 
-      expect(find.text('API Token is required'), findsOneWidget);
+      expect(find.text('API-Token ist erforderlich'), findsOneWidget); // "API Token is required" in German
     });
   });
 }

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/screens/member_details_screen.dart';
+import '../test_helpers.dart';
 
 class MockMembersProvider extends Mock implements MembersProvider {}
 
@@ -48,8 +49,8 @@ void main() {
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<MembersProvider>.value(
+        createTestApp(
+          child: ChangeNotifierProvider<MembersProvider>.value(
             value: mockMembersProvider,
             child: const Scaffold(body: MemberDetailsScreen()),
           ),
@@ -58,7 +59,7 @@ void main() {
 
       expect(find.text('John'), findsOneWidget);
       expect(find.text('Doe'), findsOneWidget);
-      expect(find.text('Active'), findsOneWidget);
+      expect(find.text('Aktiv'), findsOneWidget); // "Active" in German
     });
 
     testWidgets('displays no member selected message when member is null', (WidgetTester tester) async {
@@ -67,15 +68,15 @@ void main() {
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<MembersProvider>.value(
+        createTestApp(
+          child: ChangeNotifierProvider<MembersProvider>.value(
             value: mockMembersProvider,
             child: const Scaffold(body: MemberDetailsScreen()),
           ),
         ),
       );
 
-      expect(find.text('No member selected'), findsOneWidget);
+      expect(find.text('Kein Mitglied ausgewählt'), findsOneWidget); // "No member selected" in German
     });
 
     testWidgets('displays inactive status correctly', (WidgetTester tester) async {
@@ -96,15 +97,15 @@ void main() {
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<MembersProvider>.value(
+        createTestApp(
+          child: ChangeNotifierProvider<MembersProvider>.value(
             value: mockMembersProvider,
             child: const Scaffold(body: MemberDetailsScreen()),
           ),
         ),
       );
 
-      expect(find.text('Inactive'), findsOneWidget);
+      expect(find.text('Inaktiv'), findsOneWidget); // "Inactive" in German
     });
   });
 }
