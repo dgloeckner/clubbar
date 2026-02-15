@@ -83,7 +83,7 @@ class DispenserRecoveryService {
       final incompleteOps = await _getIncompleteOperations();
 
       if (incompleteOps.isEmpty) {
-        return (0, 0, []); // Nothing to recover
+        return (0, 0, <String>[]); // Nothing to recover
       }
 
       // Recover each operation

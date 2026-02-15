@@ -110,7 +110,6 @@ class TransactionsRepository {
           ..where((t) => t.id.equals(transactionId)))
         .go();
   }
-}
 
   /// Insert transaction using companion (supports all optional fields)
   Future<void> insertTransactionCompanion(TransactionsLocalCompanion transaction) async {
@@ -142,3 +141,4 @@ class TransactionsRepository {
               t.dispenserActual.isNull()))
         .get();
   }
+}
