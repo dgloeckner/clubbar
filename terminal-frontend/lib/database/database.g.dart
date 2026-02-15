@@ -2749,6 +2749,62 @@ class $DispenserOperationsTable extends DispenserOperations
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _transactionsCreatedMeta =
+      const VerificationMeta('transactionsCreated');
+  @override
+  late final GeneratedColumn<int> transactionsCreated = GeneratedColumn<int>(
+    'transactions_created',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastKnownStateMeta = const VerificationMeta(
+    'lastKnownState',
+  );
+  @override
+  late final GeneratedColumn<String> lastKnownState = GeneratedColumn<String>(
+    'last_known_state',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastKnownDispensedMeta =
+      const VerificationMeta('lastKnownDispensed');
+  @override
+  late final GeneratedColumn<int> lastKnownDispensed = GeneratedColumn<int>(
+    'last_known_dispensed',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastPolledAtMeta = const VerificationMeta(
+    'lastPolledAt',
+  );
+  @override
+  late final GeneratedColumn<String> lastPolledAt = GeneratedColumn<String>(
+    'last_polled_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pollingActiveMeta = const VerificationMeta(
+    'pollingActive',
+  );
+  @override
+  late final GeneratedColumn<int> pollingActive = GeneratedColumn<int>(
+    'polling_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     dispenserTxId,
@@ -2757,6 +2813,11 @@ class $DispenserOperationsTable extends DispenserOperations
     priceCents,
     requestedQty,
     createdAt,
+    transactionsCreated,
+    lastKnownState,
+    lastKnownDispensed,
+    lastPolledAt,
+    pollingActive,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2824,6 +2885,51 @@ class $DispenserOperationsTable extends DispenserOperations
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
+    if (data.containsKey('transactions_created')) {
+      context.handle(
+        _transactionsCreatedMeta,
+        transactionsCreated.isAcceptableOrUnknown(
+          data['transactions_created']!,
+          _transactionsCreatedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_known_state')) {
+      context.handle(
+        _lastKnownStateMeta,
+        lastKnownState.isAcceptableOrUnknown(
+          data['last_known_state']!,
+          _lastKnownStateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_known_dispensed')) {
+      context.handle(
+        _lastKnownDispensedMeta,
+        lastKnownDispensed.isAcceptableOrUnknown(
+          data['last_known_dispensed']!,
+          _lastKnownDispensedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_polled_at')) {
+      context.handle(
+        _lastPolledAtMeta,
+        lastPolledAt.isAcceptableOrUnknown(
+          data['last_polled_at']!,
+          _lastPolledAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('polling_active')) {
+      context.handle(
+        _pollingActiveMeta,
+        pollingActive.isAcceptableOrUnknown(
+          data['polling_active']!,
+          _pollingActiveMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2857,6 +2963,26 @@ class $DispenserOperationsTable extends DispenserOperations
         DriftSqlType.string,
         data['${effectivePrefix}created_at'],
       )!,
+      transactionsCreated: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}transactions_created'],
+      )!,
+      lastKnownState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_known_state'],
+      ),
+      lastKnownDispensed: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_known_dispensed'],
+      )!,
+      lastPolledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_polled_at'],
+      ),
+      pollingActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}polling_active'],
+      )!,
     );
   }
 
@@ -2885,6 +3011,26 @@ class DispenserOperation extends DataClass
 
   /// When this operation was started
   final String createdAt;
+
+  /// How many transactions we've already created for this operation
+  /// Used by recovery service to detect missing transactions
+  final int transactionsCreated;
+
+  /// Last known state from ESP8266 ("dispensing", "done", "error")
+  /// Determines when operation can be cleaned up
+  final String? lastKnownState;
+
+  /// Last known dispensed count from ESP8266
+  /// Compared against transactionsCreated to detect discrepancies
+  final int lastKnownDispensed;
+
+  /// Last time we polled ESP8266 (ISO timestamp)
+  /// Recovery service skips operations polled within last 30 seconds
+  final String? lastPolledAt;
+
+  /// Whether polling is currently active (1=true, 0=false)
+  /// Recovery service skips operations where polling_active = 1
+  final int pollingActive;
   const DispenserOperation({
     required this.dispenserTxId,
     required this.memberId,
@@ -2892,6 +3038,11 @@ class DispenserOperation extends DataClass
     required this.priceCents,
     required this.requestedQty,
     required this.createdAt,
+    required this.transactionsCreated,
+    this.lastKnownState,
+    required this.lastKnownDispensed,
+    this.lastPolledAt,
+    required this.pollingActive,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2902,6 +3053,15 @@ class DispenserOperation extends DataClass
     map['price_cents'] = Variable<int>(priceCents);
     map['requested_qty'] = Variable<int>(requestedQty);
     map['created_at'] = Variable<String>(createdAt);
+    map['transactions_created'] = Variable<int>(transactionsCreated);
+    if (!nullToAbsent || lastKnownState != null) {
+      map['last_known_state'] = Variable<String>(lastKnownState);
+    }
+    map['last_known_dispensed'] = Variable<int>(lastKnownDispensed);
+    if (!nullToAbsent || lastPolledAt != null) {
+      map['last_polled_at'] = Variable<String>(lastPolledAt);
+    }
+    map['polling_active'] = Variable<int>(pollingActive);
     return map;
   }
 
@@ -2913,6 +3073,15 @@ class DispenserOperation extends DataClass
       priceCents: Value(priceCents),
       requestedQty: Value(requestedQty),
       createdAt: Value(createdAt),
+      transactionsCreated: Value(transactionsCreated),
+      lastKnownState: lastKnownState == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastKnownState),
+      lastKnownDispensed: Value(lastKnownDispensed),
+      lastPolledAt: lastPolledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPolledAt),
+      pollingActive: Value(pollingActive),
     );
   }
 
@@ -2928,6 +3097,13 @@ class DispenserOperation extends DataClass
       priceCents: serializer.fromJson<int>(json['priceCents']),
       requestedQty: serializer.fromJson<int>(json['requestedQty']),
       createdAt: serializer.fromJson<String>(json['createdAt']),
+      transactionsCreated: serializer.fromJson<int>(
+        json['transactionsCreated'],
+      ),
+      lastKnownState: serializer.fromJson<String?>(json['lastKnownState']),
+      lastKnownDispensed: serializer.fromJson<int>(json['lastKnownDispensed']),
+      lastPolledAt: serializer.fromJson<String?>(json['lastPolledAt']),
+      pollingActive: serializer.fromJson<int>(json['pollingActive']),
     );
   }
   @override
@@ -2940,6 +3116,11 @@ class DispenserOperation extends DataClass
       'priceCents': serializer.toJson<int>(priceCents),
       'requestedQty': serializer.toJson<int>(requestedQty),
       'createdAt': serializer.toJson<String>(createdAt),
+      'transactionsCreated': serializer.toJson<int>(transactionsCreated),
+      'lastKnownState': serializer.toJson<String?>(lastKnownState),
+      'lastKnownDispensed': serializer.toJson<int>(lastKnownDispensed),
+      'lastPolledAt': serializer.toJson<String?>(lastPolledAt),
+      'pollingActive': serializer.toJson<int>(pollingActive),
     };
   }
 
@@ -2950,6 +3131,11 @@ class DispenserOperation extends DataClass
     int? priceCents,
     int? requestedQty,
     String? createdAt,
+    int? transactionsCreated,
+    Value<String?> lastKnownState = const Value.absent(),
+    int? lastKnownDispensed,
+    Value<String?> lastPolledAt = const Value.absent(),
+    int? pollingActive,
   }) => DispenserOperation(
     dispenserTxId: dispenserTxId ?? this.dispenserTxId,
     memberId: memberId ?? this.memberId,
@@ -2957,6 +3143,13 @@ class DispenserOperation extends DataClass
     priceCents: priceCents ?? this.priceCents,
     requestedQty: requestedQty ?? this.requestedQty,
     createdAt: createdAt ?? this.createdAt,
+    transactionsCreated: transactionsCreated ?? this.transactionsCreated,
+    lastKnownState: lastKnownState.present
+        ? lastKnownState.value
+        : this.lastKnownState,
+    lastKnownDispensed: lastKnownDispensed ?? this.lastKnownDispensed,
+    lastPolledAt: lastPolledAt.present ? lastPolledAt.value : this.lastPolledAt,
+    pollingActive: pollingActive ?? this.pollingActive,
   );
   DispenserOperation copyWithCompanion(DispenserOperationsCompanion data) {
     return DispenserOperation(
@@ -2972,6 +3165,21 @@ class DispenserOperation extends DataClass
           ? data.requestedQty.value
           : this.requestedQty,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      transactionsCreated: data.transactionsCreated.present
+          ? data.transactionsCreated.value
+          : this.transactionsCreated,
+      lastKnownState: data.lastKnownState.present
+          ? data.lastKnownState.value
+          : this.lastKnownState,
+      lastKnownDispensed: data.lastKnownDispensed.present
+          ? data.lastKnownDispensed.value
+          : this.lastKnownDispensed,
+      lastPolledAt: data.lastPolledAt.present
+          ? data.lastPolledAt.value
+          : this.lastPolledAt,
+      pollingActive: data.pollingActive.present
+          ? data.pollingActive.value
+          : this.pollingActive,
     );
   }
 
@@ -2983,7 +3191,12 @@ class DispenserOperation extends DataClass
           ..write('productId: $productId, ')
           ..write('priceCents: $priceCents, ')
           ..write('requestedQty: $requestedQty, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('transactionsCreated: $transactionsCreated, ')
+          ..write('lastKnownState: $lastKnownState, ')
+          ..write('lastKnownDispensed: $lastKnownDispensed, ')
+          ..write('lastPolledAt: $lastPolledAt, ')
+          ..write('pollingActive: $pollingActive')
           ..write(')'))
         .toString();
   }
@@ -2996,6 +3209,11 @@ class DispenserOperation extends DataClass
     priceCents,
     requestedQty,
     createdAt,
+    transactionsCreated,
+    lastKnownState,
+    lastKnownDispensed,
+    lastPolledAt,
+    pollingActive,
   );
   @override
   bool operator ==(Object other) =>
@@ -3006,7 +3224,12 @@ class DispenserOperation extends DataClass
           other.productId == this.productId &&
           other.priceCents == this.priceCents &&
           other.requestedQty == this.requestedQty &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.transactionsCreated == this.transactionsCreated &&
+          other.lastKnownState == this.lastKnownState &&
+          other.lastKnownDispensed == this.lastKnownDispensed &&
+          other.lastPolledAt == this.lastPolledAt &&
+          other.pollingActive == this.pollingActive);
 }
 
 class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
@@ -3016,6 +3239,11 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
   final Value<int> priceCents;
   final Value<int> requestedQty;
   final Value<String> createdAt;
+  final Value<int> transactionsCreated;
+  final Value<String?> lastKnownState;
+  final Value<int> lastKnownDispensed;
+  final Value<String?> lastPolledAt;
+  final Value<int> pollingActive;
   final Value<int> rowid;
   const DispenserOperationsCompanion({
     this.dispenserTxId = const Value.absent(),
@@ -3024,6 +3252,11 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
     this.priceCents = const Value.absent(),
     this.requestedQty = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.transactionsCreated = const Value.absent(),
+    this.lastKnownState = const Value.absent(),
+    this.lastKnownDispensed = const Value.absent(),
+    this.lastPolledAt = const Value.absent(),
+    this.pollingActive = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DispenserOperationsCompanion.insert({
@@ -3033,6 +3266,11 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
     required int priceCents,
     required int requestedQty,
     required String createdAt,
+    this.transactionsCreated = const Value.absent(),
+    this.lastKnownState = const Value.absent(),
+    this.lastKnownDispensed = const Value.absent(),
+    this.lastPolledAt = const Value.absent(),
+    this.pollingActive = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : dispenserTxId = Value(dispenserTxId),
        memberId = Value(memberId),
@@ -3047,6 +3285,11 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
     Expression<int>? priceCents,
     Expression<int>? requestedQty,
     Expression<String>? createdAt,
+    Expression<int>? transactionsCreated,
+    Expression<String>? lastKnownState,
+    Expression<int>? lastKnownDispensed,
+    Expression<String>? lastPolledAt,
+    Expression<int>? pollingActive,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3056,6 +3299,13 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
       if (priceCents != null) 'price_cents': priceCents,
       if (requestedQty != null) 'requested_qty': requestedQty,
       if (createdAt != null) 'created_at': createdAt,
+      if (transactionsCreated != null)
+        'transactions_created': transactionsCreated,
+      if (lastKnownState != null) 'last_known_state': lastKnownState,
+      if (lastKnownDispensed != null)
+        'last_known_dispensed': lastKnownDispensed,
+      if (lastPolledAt != null) 'last_polled_at': lastPolledAt,
+      if (pollingActive != null) 'polling_active': pollingActive,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3067,6 +3317,11 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
     Value<int>? priceCents,
     Value<int>? requestedQty,
     Value<String>? createdAt,
+    Value<int>? transactionsCreated,
+    Value<String?>? lastKnownState,
+    Value<int>? lastKnownDispensed,
+    Value<String?>? lastPolledAt,
+    Value<int>? pollingActive,
     Value<int>? rowid,
   }) {
     return DispenserOperationsCompanion(
@@ -3076,6 +3331,11 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
       priceCents: priceCents ?? this.priceCents,
       requestedQty: requestedQty ?? this.requestedQty,
       createdAt: createdAt ?? this.createdAt,
+      transactionsCreated: transactionsCreated ?? this.transactionsCreated,
+      lastKnownState: lastKnownState ?? this.lastKnownState,
+      lastKnownDispensed: lastKnownDispensed ?? this.lastKnownDispensed,
+      lastPolledAt: lastPolledAt ?? this.lastPolledAt,
+      pollingActive: pollingActive ?? this.pollingActive,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3101,6 +3361,21 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
     if (createdAt.present) {
       map['created_at'] = Variable<String>(createdAt.value);
     }
+    if (transactionsCreated.present) {
+      map['transactions_created'] = Variable<int>(transactionsCreated.value);
+    }
+    if (lastKnownState.present) {
+      map['last_known_state'] = Variable<String>(lastKnownState.value);
+    }
+    if (lastKnownDispensed.present) {
+      map['last_known_dispensed'] = Variable<int>(lastKnownDispensed.value);
+    }
+    if (lastPolledAt.present) {
+      map['last_polled_at'] = Variable<String>(lastPolledAt.value);
+    }
+    if (pollingActive.present) {
+      map['polling_active'] = Variable<int>(pollingActive.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3116,6 +3391,11 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
           ..write('priceCents: $priceCents, ')
           ..write('requestedQty: $requestedQty, ')
           ..write('createdAt: $createdAt, ')
+          ..write('transactionsCreated: $transactionsCreated, ')
+          ..write('lastKnownState: $lastKnownState, ')
+          ..write('lastKnownDispensed: $lastKnownDispensed, ')
+          ..write('lastPolledAt: $lastPolledAt, ')
+          ..write('pollingActive: $pollingActive, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5266,6 +5546,11 @@ typedef $$DispenserOperationsTableCreateCompanionBuilder =
       required int priceCents,
       required int requestedQty,
       required String createdAt,
+      Value<int> transactionsCreated,
+      Value<String?> lastKnownState,
+      Value<int> lastKnownDispensed,
+      Value<String?> lastPolledAt,
+      Value<int> pollingActive,
       Value<int> rowid,
     });
 typedef $$DispenserOperationsTableUpdateCompanionBuilder =
@@ -5276,6 +5561,11 @@ typedef $$DispenserOperationsTableUpdateCompanionBuilder =
       Value<int> priceCents,
       Value<int> requestedQty,
       Value<String> createdAt,
+      Value<int> transactionsCreated,
+      Value<String?> lastKnownState,
+      Value<int> lastKnownDispensed,
+      Value<String?> lastPolledAt,
+      Value<int> pollingActive,
       Value<int> rowid,
     });
 
@@ -5315,6 +5605,31 @@ class $$DispenserOperationsTableFilterComposer
 
   ColumnFilters<String> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get transactionsCreated => $composableBuilder(
+    column: $table.transactionsCreated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastKnownState => $composableBuilder(
+    column: $table.lastKnownState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastKnownDispensed => $composableBuilder(
+    column: $table.lastKnownDispensed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastPolledAt => $composableBuilder(
+    column: $table.lastPolledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pollingActive => $composableBuilder(
+    column: $table.pollingActive,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5357,6 +5672,31 @@ class $$DispenserOperationsTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get transactionsCreated => $composableBuilder(
+    column: $table.transactionsCreated,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastKnownState => $composableBuilder(
+    column: $table.lastKnownState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastKnownDispensed => $composableBuilder(
+    column: $table.lastKnownDispensed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastPolledAt => $composableBuilder(
+    column: $table.lastPolledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pollingActive => $composableBuilder(
+    column: $table.pollingActive,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DispenserOperationsTableAnnotationComposer
@@ -5391,6 +5731,31 @@ class $$DispenserOperationsTableAnnotationComposer
 
   GeneratedColumn<String> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get transactionsCreated => $composableBuilder(
+    column: $table.transactionsCreated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastKnownState => $composableBuilder(
+    column: $table.lastKnownState,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastKnownDispensed => $composableBuilder(
+    column: $table.lastKnownDispensed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastPolledAt => $composableBuilder(
+    column: $table.lastPolledAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get pollingActive => $composableBuilder(
+    column: $table.pollingActive,
+    builder: (column) => column,
+  );
 }
 
 class $$DispenserOperationsTableTableManager
@@ -5442,6 +5807,11 @@ class $$DispenserOperationsTableTableManager
                 Value<int> priceCents = const Value.absent(),
                 Value<int> requestedQty = const Value.absent(),
                 Value<String> createdAt = const Value.absent(),
+                Value<int> transactionsCreated = const Value.absent(),
+                Value<String?> lastKnownState = const Value.absent(),
+                Value<int> lastKnownDispensed = const Value.absent(),
+                Value<String?> lastPolledAt = const Value.absent(),
+                Value<int> pollingActive = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DispenserOperationsCompanion(
                 dispenserTxId: dispenserTxId,
@@ -5450,6 +5820,11 @@ class $$DispenserOperationsTableTableManager
                 priceCents: priceCents,
                 requestedQty: requestedQty,
                 createdAt: createdAt,
+                transactionsCreated: transactionsCreated,
+                lastKnownState: lastKnownState,
+                lastKnownDispensed: lastKnownDispensed,
+                lastPolledAt: lastPolledAt,
+                pollingActive: pollingActive,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5460,6 +5835,11 @@ class $$DispenserOperationsTableTableManager
                 required int priceCents,
                 required int requestedQty,
                 required String createdAt,
+                Value<int> transactionsCreated = const Value.absent(),
+                Value<String?> lastKnownState = const Value.absent(),
+                Value<int> lastKnownDispensed = const Value.absent(),
+                Value<String?> lastPolledAt = const Value.absent(),
+                Value<int> pollingActive = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DispenserOperationsCompanion.insert(
                 dispenserTxId: dispenserTxId,
@@ -5468,6 +5848,11 @@ class $$DispenserOperationsTableTableManager
                 priceCents: priceCents,
                 requestedQty: requestedQty,
                 createdAt: createdAt,
+                transactionsCreated: transactionsCreated,
+                lastKnownState: lastKnownState,
+                lastKnownDispensed: lastKnownDispensed,
+                lastPolledAt: lastPolledAt,
+                pollingActive: pollingActive,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -45,7 +45,7 @@ class RuderbarDatabase extends _$RuderbarDatabase {
   RuderbarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -103,6 +103,19 @@ class RuderbarDatabase extends _$RuderbarDatabase {
           if (from < 4) {
             // Create dispenser_operations table for crash recovery
             await m.createTable(dispenserOperations);
+          }
+          if (from < 5) {
+            // Add reconciliation fields to dispenser_operations
+            await _addColumnIfNotExists(
+                m, 'dispenser_operations', 'transactions_created', 'INTEGER NOT NULL DEFAULT 0');
+            await _addColumnIfNotExists(
+                m, 'dispenser_operations', 'last_known_state', 'TEXT');
+            await _addColumnIfNotExists(
+                m, 'dispenser_operations', 'last_known_dispensed', 'INTEGER NOT NULL DEFAULT 0');
+            await _addColumnIfNotExists(
+                m, 'dispenser_operations', 'last_polled_at', 'TEXT');
+            await _addColumnIfNotExists(
+                m, 'dispenser_operations', 'polling_active', 'INTEGER NOT NULL DEFAULT 0');
           }
         },
       );
