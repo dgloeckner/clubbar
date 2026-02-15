@@ -9,8 +9,8 @@ class LoadingOverlay extends StatelessWidget {
     required this.isLoading,
     this.message,
     required this.child,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +23,7 @@ class LoadingOverlay extends StatelessWidget {
         if (isLoading)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.3),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,

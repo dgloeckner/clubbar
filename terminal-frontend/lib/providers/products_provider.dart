@@ -9,7 +9,7 @@ class ProductsProvider extends ChangeNotifier {
 
   List<CategoriesCacheData> _categories = [];
   List<ProductsCacheData> _products = [];
-  bool _isLoading = false;
+  final bool _isLoading = false;
   bool _isSyncing = false;
   String? _lastError;
   Exception? _errorType;

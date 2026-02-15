@@ -48,6 +48,7 @@ dependencies:
   path_provider: ^2.1.0
   path: ^1.9.1
 
+  collection: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

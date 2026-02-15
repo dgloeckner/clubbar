@@ -4,7 +4,7 @@ import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 
 class MemberGreetingScreen extends StatelessWidget {
-  const MemberGreetingScreen({Key? key}) : super(key: key);
+  const MemberGreetingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -40,7 +40,7 @@ class RuderbarDatabase extends _$RuderbarDatabase {
   RuderbarDatabase() : super(_openConnection());
 
   /// Test constructor - uses in-memory database
-  RuderbarDatabase.forTesting(QueryExecutor executor) : super(executor);
+  RuderbarDatabase.forTesting(super.executor);
 
   @override
   int get schemaVersion => 3;
@@ -115,6 +115,8 @@ class RuderbarDatabase extends _$RuderbarDatabase {
       final file = File(dbPath);
 
       // Log database location for debugging
+      // Note: Consider using logger package for production
+      // ignore: avoid_print
       print('📁 Database location: $dbPath');
 
       return NativeDatabase(

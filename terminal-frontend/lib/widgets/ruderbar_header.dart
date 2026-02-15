@@ -10,8 +10,8 @@ class RuderbarHeader extends StatefulWidget implements PreferredSizeWidget {
   const RuderbarHeader({
     required this.connectionStatus,
     this.onStatusTap,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<RuderbarHeader> createState() => _RuderbarHeaderState();
@@ -83,7 +83,7 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
         color: const Color(0xff0f1d32),
         border: Border(
           bottom: BorderSide(
-            color: const Color(0xff3b82f6).withOpacity(0.2),
+            color: const Color(0xff3b82f6).withValues(alpha: 0.2),
             width: 1,
           ),
         ),
@@ -109,9 +109,9 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                     border: Border.all(
-                      color: color.withOpacity(0.3),
+                      color: color.withValues(alpha: 0.3),
                       width: 1,
                     ),
                     borderRadius: BorderRadius.circular(16),
@@ -119,7 +119,7 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
                   child: Text(
                     _badgeText(context),
                     style: TextStyle(
-                      color: color.withOpacity(0.7),
+                      color: color.withValues(alpha: 0.7),
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),

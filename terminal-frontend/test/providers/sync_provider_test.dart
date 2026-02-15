@@ -58,9 +58,9 @@ void main() {
       when(() => mockSyncService.lastTransactionSyncTime).thenReturn(null);
       when(() => mockSyncService.lastTransactionSyncError).thenReturn(null);
       when(() => mockMembersProvider.refreshMembers())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
       when(() => mockProductsProvider.refreshProducts())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
 
       await provider.startSync();
 
@@ -155,9 +155,9 @@ void main() {
       when(() => mockSyncService.lastTransactionSyncTime).thenReturn(null);
       when(() => mockSyncService.lastTransactionSyncError).thenReturn(null);
       when(() => mockMembersProvider.refreshMembers())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
       when(() => mockProductsProvider.refreshProducts())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
 
       await provider.startSync();
 
@@ -184,9 +184,9 @@ void main() {
       when(() => mockSyncService.lastTransactionSyncTime).thenReturn(null);
       when(() => mockSyncService.lastTransactionSyncError).thenReturn(null);
       when(() => mockMembersProvider.refreshMembers())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
       when(() => mockProductsProvider.refreshProducts())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
 
       await provider.startSync();
       expect(provider.connectionStatus, equals(ConnectionStatus.online));
@@ -204,9 +204,9 @@ void main() {
       when(() => mockSyncService.lastTransactionSyncTime).thenReturn(txnTime);
       when(() => mockSyncService.lastTransactionSyncError).thenReturn(null);
       when(() => mockMembersProvider.refreshMembers())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
       when(() => mockProductsProvider.refreshProducts())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
 
       await provider.startSync();
 
@@ -224,9 +224,9 @@ void main() {
       when(() => mockSyncService.lastTransactionSyncError)
           .thenReturn('NetworkException: HTTP 422');
       when(() => mockMembersProvider.refreshMembers())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
       when(() => mockProductsProvider.refreshProducts())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
 
       await provider.startSync();
 
@@ -245,9 +245,9 @@ void main() {
       when(() => mockSyncService.lastTransactionSyncTime).thenReturn(null);
       when(() => mockSyncService.lastTransactionSyncError).thenReturn(null);
       when(() => mockMembersProvider.refreshMembers())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
       when(() => mockProductsProvider.refreshProducts())
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
 
       provider.startBackgroundSync(intervalSeconds: 1);
       await Future.delayed(Duration(milliseconds: 1500));

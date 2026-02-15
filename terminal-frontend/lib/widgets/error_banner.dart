@@ -7,8 +7,8 @@ class ErrorBanner extends StatelessWidget {
   const ErrorBanner({
     this.message,
     this.onDismiss,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

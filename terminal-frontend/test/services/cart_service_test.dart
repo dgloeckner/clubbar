@@ -62,7 +62,7 @@ void main() {
       ];
 
       when(() => mockRepo.insertTransaction(any()))
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
 
       final (txnId, error) = await service.createTransaction(member, items);
 

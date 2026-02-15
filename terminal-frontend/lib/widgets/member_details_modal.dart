@@ -75,6 +75,8 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       // Check if online
       final isOnline = await networkService.checkHealth();
 
+      if (!mounted) return;
+
       List<TransactionListItem> transactions = [];
 
       if (isOnline) {
@@ -88,7 +90,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
 
         transactions = await service.fetchTransactionHistory(
           memberId: member.id,
-          preferredLanguage: member.preferredLanguage ?? 'de',
+          preferredLanguage: member.preferredLanguage,
         );
       }
 
@@ -142,7 +144,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
     final lastName = member.lastName ?? '';
     final initials = '${firstName.isNotEmpty ? firstName[0] : '?'}${lastName.isNotEmpty ? lastName[0] : '?'}'.toUpperCase();
     final balanceCents = member.balanceCents;
-    final locale = member.preferredLanguage ?? 'de';
+    final locale = member.preferredLanguage;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
@@ -165,7 +167,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: const Color(0xff475569).withOpacity(0.3),
+                      color: const Color(0xff475569).withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -431,7 +433,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: _transactions.length,
       separatorBuilder: (context, index) => Divider(
-        color: const Color(0xff475569).withOpacity(0.2),
+        color: const Color(0xff475569).withValues(alpha: 0.2),
         height: 1,
       ),
       itemBuilder: (context, index) {

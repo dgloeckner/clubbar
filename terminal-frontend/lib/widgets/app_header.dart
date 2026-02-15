@@ -11,9 +11,8 @@ class AppHeader extends AppBar {
     MembersProvider? membersProvider,
     VoidCallback? onCartPressed,
     VoidCallback? onLogoutPressed,
-    Key? key,
+    super.key,
   }) : super(
-    key: key,
     backgroundColor: const Color(0xff0f1d32),
     elevation: 0,
     leadingWidth: 0,

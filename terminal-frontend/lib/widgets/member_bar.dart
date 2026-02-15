@@ -21,13 +21,13 @@ class MemberBar extends StatelessWidget {
     this.onBackPressed,
     this.onLogoutPressed,
     this.showBackButton = false,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final locale = member.preferredLanguage ?? 'de';
+    final locale = member.preferredLanguage;
     final firstName = member.firstName ?? '';
     final lastName = member.lastName ?? '';
     final initials =

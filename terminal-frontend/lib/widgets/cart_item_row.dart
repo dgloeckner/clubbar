@@ -10,8 +10,8 @@ class CartItemRow extends StatelessWidget {
     required this.item,
     required this.onRemovePressed,
     required this.onQuantityChanged,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   String get _pricePerUnitFormatted {
     final priceInEuros = item.priceCents / 100;

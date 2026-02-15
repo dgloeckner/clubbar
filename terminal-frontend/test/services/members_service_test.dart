@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
 import 'package:ruderbar_terminal/repository/members_repository.dart';
 import 'package:ruderbar_terminal/repository/transactions_repository.dart';
 import 'package:ruderbar_terminal/services/members_service.dart';
@@ -148,7 +147,7 @@ void main() {
     });
 
     test('refreshMembers returns list from repository', () async {
-      final members = <MembersCacheData>[] as List<MembersCacheData>;
+      final members = <MembersCacheData>[];
 
       when(() => mockRepo.getAllActive()).thenAnswer((_) async => members);
 

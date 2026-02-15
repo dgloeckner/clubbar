@@ -49,7 +49,7 @@ void main() {
       when(() => mockCartProvider.removeItem(any()));
       when(() => mockCartProvider.updateQuantity(any(), any()));
       when(() => mockCartProvider.checkout(any(), any()))
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async {});
       when(() => mockCartProvider.lastTransactionId);
       when(() => mockCartProvider.addListener(any()));
       when(() => mockCartProvider.removeListener(any()));
