@@ -164,8 +164,12 @@ class CartProvider extends ChangeNotifier {
 
         if (result == null) {
           // Dialog was cancelled or error occurred
-          // Clean up tracking record
-          await _service.cleanupDispenserOperation(dispenserTxId);
+          // Update tracking state but DON'T cleanup (recovery service will handle)
+          await _service.updateDispenserOperationState(
+            dispenserTxId: dispenserTxId,
+            state: 'cancelled',
+            transactionsCreated: 0,
+          );
 
           // Check if error was handled (user made choice to skip tokens)
           if (_errorType is DispenserBusyException ||
@@ -203,8 +207,23 @@ class CartProvider extends ChangeNotifier {
 
             _lastTransactionId = tokenTxnId;
 
-            // Clean up tracking record
-            await _service.cleanupDispenserOperation(dispenserTxId);
+            // Update tracking state with created count
+            await _service.updateDispenserOperationState(
+              dispenserTxId: dispenserTxId,
+              state: result.state,
+              transactionsCreated: actualQuantity,
+              lastKnownDispensed: actualQuantity,
+            );
+
+            // CONDITIONAL CLEANUP: Only if state is final
+            if (result.state == 'done') {
+              // ESP8266 completed successfully - safe to cleanup
+              await _service.cleanupDispenserOperation(dispenserTxId);
+            } else if (result.state == 'error' || result.state == 'dispensing') {
+              // Keep tracking record for reconciliation to verify
+              // Recovery service will query ESP8266 and clean up after verification
+              print('Keeping tracking record for reconciliation (state=${result.state})');
+            }
 
             // Track partial dispense info
             final originalTotalCents =
@@ -274,6 +293,7 @@ class CartProvider extends ChangeNotifier {
         return DispensingProgressDialog(
           dispenserTxId: dispenserTxId,
           tokenProducts: tokenProducts,
+          cartService: _service,
           onComplete: (dispenseResult) {
             result = dispenseResult;
           },
