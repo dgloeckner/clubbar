@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/models/cart_item.dart';
+import 'package:ruderbar_terminal/models/partial_dispense_info.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
@@ -16,6 +17,7 @@ class CartProvider extends ChangeNotifier {
   String? _lastError;
   Exception? _errorType;
   String? _lastTransactionId;
+  PartialDispenseInfo? _lastPartialDispenseInfo;
 
   CartProvider({
     required CartService service,
@@ -30,6 +32,7 @@ class CartProvider extends ChangeNotifier {
   String? get lastError => _lastError;
   Exception? get errorType => _errorType;
   String? get lastTransactionId => _lastTransactionId;
+  PartialDispenseInfo? get lastPartialDispenseInfo => _lastPartialDispenseInfo;
 
   /// Add item to cart (accumulates quantity if product already present)
   void addItem(
@@ -171,6 +174,22 @@ class CartProvider extends ChangeNotifier {
           }
 
           _lastTransactionId = tokenTxnId;
+
+          // Track partial dispense info
+          final requestedQuantity = tokenProducts.fold(0, (sum, item) => sum + item.quantity);
+          final originalTotalCents = tokenProducts.fold(0, (sum, item) => sum + item.lineTotalCents);
+          
+          if (actualQuantity < requestedQuantity) {
+            // Partial dispense - store info for confirmation screen
+            _lastPartialDispenseInfo = PartialDispenseInfo(
+              requestedQuantity: requestedQuantity,
+              actualDispensed: actualQuantity,
+              originalTotalCents: originalTotalCents,
+            );
+          } else {
+            // Full dispense - clear any previous partial info
+            _lastPartialDispenseInfo = null;
+          }
         }
         }
       }
@@ -267,6 +286,7 @@ class CartProvider extends ChangeNotifier {
   void clearCart() {
     _items = [];
     _lastError = null;
+    _lastPartialDispenseInfo = null;
     notifyListeners();
   }
 }

@@ -117,6 +117,10 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final isComplete = _state == 'done' || _state == 'error';
+    final isSuccess = _state == 'done';
+    final isPartial = isSuccess && _dispensed < _quantity;
+    final isError = _state == 'error';
 
     return Dialog(
       child: Padding(
@@ -124,16 +128,55 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              l10n.dispensingTokens,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            if (isComplete) ...[
+              // Show result icon
+              Icon(
+                isError
+                    ? Icons.error_outline
+                    : isPartial
+                        ? Icons.warning
+                        : Icons.check_circle,
+                size: 48,
+                color: isError
+                    ? Colors.red
+                    : isPartial
+                        ? Colors.orange
+                        : Colors.green,
+              ),
+              const SizedBox(height: 16),
+              // Show result message
+              Text(
+                isError
+                    ? 'Dispensing Failed'
+                    : isPartial
+                        ? 'Only $_dispensed of $_quantity tokens dispensed'
+                        : 'Successfully dispensed $_quantity tokens!',
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
+              if (isPartial) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'You will be charged for $_dispensed tokens only.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[700]),
+                ),
+              ],
+            ] else ...[
+              // Show dispensing in progress
+              Text(
+                l10n.dispensingTokens,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ],
             const SizedBox(height: 24),
             _buildProgressIndicator(),
-            const SizedBox(height: 16),
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(l10n.pleaseWait),
+            if (!isComplete) ...[
+              const SizedBox(height: 16),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(l10n.pleaseWait),
+            ],
           ],
         ),
       ),
