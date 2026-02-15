@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
 import 'package:uuid/uuid.dart';
@@ -13,16 +14,44 @@ import 'package:drift/drift.dart';
 ///
 /// This ensures that if the app crashes between dispensing and transaction creation,
 /// users are correctly charged for the tokens they actually received.
+///
+/// Periodic Reconciliation:
+/// Runs every 60 seconds to detect ESP8266 crashes mid-dispense.
+/// Example: User shown "2 tokens", ESP actually dispensed 3, crashes.
+/// Recovery detects 3 - 2 = 1 missing transaction, creates it.
 class DispenserRecoveryService {
   final RuderbarDatabase _db;
   final DispenserClient _dispenserClient;
   final Uuid _uuid = const Uuid();
+  Timer? _periodicTimer;
 
   DispenserRecoveryService({
     required RuderbarDatabase database,
     required DispenserClient client,
   })  : _db = database,
         _dispenserClient = client;
+
+  /// Start periodic reconciliation (every 60 seconds).
+  ///
+  /// Runs continuously to detect ESP8266 crashes mid-dispense.
+  void startPeriodicReconciliation() {
+    _periodicTimer?.cancel();
+    _periodicTimer = Timer.periodic(
+      const Duration(seconds: 60),
+      (_) => recoverIncompleteDispenses(),
+    );
+  }
+
+  /// Stop periodic reconciliation.
+  void stopPeriodicReconciliation() {
+    _periodicTimer?.cancel();
+    _periodicTimer = null;
+  }
+
+  /// Dispose and stop timers.
+  void dispose() {
+    stopPeriodicReconciliation();
+  }
 
   /// Recover all incomplete dispenser operations.
   ///
@@ -59,6 +88,20 @@ class DispenserRecoveryService {
 
       // Recover each operation
       for (final op in incompleteOps) {
+        // CRITICAL: Skip if polling is active
+        if (op.pollingActive == 1) {
+          continue; // Dialog still open, don't interfere
+        }
+
+        // CRITICAL: Skip if recently polled (within 30 seconds)
+        if (op.lastPolledAt != null) {
+          final lastPolled = DateTime.parse(op.lastPolledAt!);
+          final now = DateTime.now().toUtc();
+          if (now.difference(lastPolled).inSeconds < 30) {
+            continue; // Still actively polling, don't interfere
+          }
+        }
+
         final result = await _recoverOperation(op);
         if (result.$1) {
           successCount++;
@@ -111,44 +154,73 @@ class DispenserRecoveryService {
         return (false, 'Dispenser query failed: ${e.message}');
       }
 
-      // Create transactions for actually dispensed tokens
-      final actualDispensed = status.dispensed;
+      // Compare ESP8266 count vs already-created transactions
+      final esp8266Count = status.dispensed;
+      final createdCount = op.transactionsCreated;
 
-      if (actualDispensed == 0) {
-        // No tokens were dispensed - clean up and return success (no charge)
+      if (esp8266Count > createdCount) {
+        // ESP8266 reports MORE tokens than we created transactions for!
+        final missing = esp8266Count - createdCount;
+
+        print('RECONCILIATION: ESP8266 reports $esp8266Count dispensed, '
+            'but only $createdCount transactions exist. '
+            'Creating $missing additional transactions.');
+
+        // Create missing transactions (one per missing token)
+        for (int i = 0; i < missing; i++) {
+          final txnId = _uuid.v4();
+          final now = DateTime.now().toUtc().toIso8601String();
+
+          final transaction = TransactionsLocalCompanion(
+            id: Value(txnId),
+            memberId: Value(op.memberId),
+            productId: Value(op.productId),
+            amountCents: Value(op.priceCents), // One token's price
+            transactionType: Value('purchase'),
+            notes: Value('Auto-created by recovery service'),
+            createdAt: Value(now),
+            synced: Value(0),
+            dispenserTxId: Value(op.dispenserTxId),
+            dispenserRequested: Value(op.requestedQty),
+            dispenserActual: Value(esp8266Count),
+          );
+
+          await _db.into(_db.transactionsLocal).insert(transaction);
+        }
+
+        // Update tracking record with new count
+        await _updateOperationState(
+          op.dispenserTxId,
+          transactionsCreated: esp8266Count,
+          lastKnownState: status.state,
+        );
+      }
+
+      // Clean up tracking record if ESP8266 state is final
+      if (status.state == 'done' || status.state == 'error') {
         await _cleanupOperation(op.dispenserTxId);
         return (true, null);
       }
 
-      // Create one transaction per dispensed token
-      for (int i = 0; i < actualDispensed; i++) {
-        final txnId = _uuid.v4();
-        final now = DateTime.now().toUtc().toIso8601String();
-
-        final transaction = TransactionsLocalCompanion(
-          id: Value(txnId),
-          memberId: Value(op.memberId),
-          productId: Value(op.productId),
-          amountCents: Value(op.priceCents), // One token's price
-          transactionType: Value('purchase'),
-          notes: Value(null),
-          createdAt: Value(now),
-          synced: Value(0),
-          dispenserTxId: Value(op.dispenserTxId),
-          dispenserRequested: Value(op.requestedQty),
-          dispenserActual: Value(actualDispensed),
-        );
-
-        await _db.into(_db.transactionsLocal).insert(transaction);
-      }
-
-      // Clean up tracking record
-      await _cleanupOperation(op.dispenserTxId);
-
-      return (true, null);
+      // State still "dispensing" - keep tracking record, retry later
+      return (false, 'ESP8266 still dispensing, will retry');
     } catch (e) {
       return (false, 'Unexpected error: $e');
     }
+  }
+
+  /// Update operation state fields (transactions_created, last_known_state)
+  Future<void> _updateOperationState(
+    String dispenserTxId, {
+    required int transactionsCreated,
+    required String lastKnownState,
+  }) async {
+    await (_db.update(_db.dispenserOperations)
+          ..where((t) => t.dispenserTxId.equals(dispenserTxId)))
+        .write(DispenserOperationsCompanion(
+          transactionsCreated: Value(transactionsCreated),
+          lastKnownState: Value(lastKnownState),
+        ));
   }
 
   /// Remove operation from tracking table
