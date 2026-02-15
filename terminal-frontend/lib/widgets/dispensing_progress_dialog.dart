@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/models/cart_item.dart';
+import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
 
@@ -9,15 +10,20 @@ import 'package:ruderbar_terminal/services/dispenser_client.dart';
 ///
 /// Shows real-time progress as tokens are dispensed, polls for completion,
 /// then calls onComplete or onError based on result.
+///
+/// Tracks polling state for crash recovery: sets polling_active=1 on init,
+/// updates state on each poll, sets polling_active=0 on dispose.
 class DispensingProgressDialog extends StatefulWidget {
   final String dispenserTxId;
   final List<CartItem> tokenProducts;
+  final CartService cartService;
   final Function(DispenseResult) onComplete;
   final Function(DispenserException) onError;
 
   const DispensingProgressDialog({
     required this.dispenserTxId,
     required this.tokenProducts,
+    required this.cartService,
     required this.onComplete,
     required this.onError,
     super.key,
@@ -51,7 +57,18 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
     _quantity =
         widget.tokenProducts.fold(0, (sum, item) => sum + item.quantity);
 
+    // Mark polling as active (prevents recovery service interference)
+    _setPollingActive(true);
+
     _startDispense();
+  }
+
+  Future<void> _setPollingActive(bool active) async {
+    await widget.cartService.updateDispenserOperationState(
+      dispenserTxId: widget.dispenserTxId,
+      pollingActive: active ? 1 : 0,
+      lastPolledAt: DateTime.now().toUtc().toIso8601String(),
+    );
   }
 
   Future<void> _startDispense() async {
@@ -96,6 +113,14 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
             _dispensed = result.dispensed;
           });
 
+          // Update tracking state (for recovery service monitoring)
+          await widget.cartService.updateDispenserOperationState(
+            dispenserTxId: widget.dispenserTxId,
+            state: result.state,
+            lastKnownDispensed: result.dispensed,
+            lastPolledAt: DateTime.now().toUtc().toIso8601String(),
+          );
+
           if (_state == 'done' || _state == 'error') {
             widget.onComplete(result);
             // Wait 5 seconds before closing so user can read success message
@@ -114,6 +139,13 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
         break;
       }
     }
+  }
+
+  @override
+  void dispose() {
+    // Mark polling as inactive when dialog closes
+    _setPollingActive(false);
+    super.dispose();
   }
 
   @override
