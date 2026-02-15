@@ -2,28 +2,74 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
+import 'package:ruderbar_terminal/services/dispenser_health_service.dart';
+import 'package:ruderbar_terminal/services/dispenser_client.dart';
+import 'package:ruderbar_terminal/services/config_service.dart';
 
 void showStatusInfoModal(BuildContext context) {
-  final syncProvider = context.read<SyncProvider>();
+  try {
+    final syncProvider = context.read<SyncProvider>();
+    final configService = context.read<ConfigService>();
 
-  showDialog(
-    context: context,
-    builder: (context) => _StatusInfoDialog(
-      connectionStatus: syncProvider.connectionStatus,
-      lastSyncTime: syncProvider.lastSyncTime,
-      lastTransactionSync: syncProvider.lastSuccessfulTransactionSync,
-      retryCount: syncProvider.retryCount,
-      lastError: syncProvider.lastError,
-    ),
-  );
+    // Get backend endpoint
+    final backendUrl = configService.apiUrl;
+
+    // Try to get dispenser health service and URL (may be null if dispenser disabled)
+    DispenserHealth? dispenserHealth;
+    String? dispenserUrl;
+    try {
+      final dispenserHealthService = context.read<DispenserHealthService>();
+      dispenserHealth = dispenserHealthService.currentHealth;
+      if (configService.dispenserEnabled) {
+        dispenserUrl = configService.dispenserBaseUrl;
+      }
+    } catch (_) {
+      // Dispenser not configured
+      dispenserHealth = null;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => _StatusInfoDialog(
+        connectionStatus: syncProvider.connectionStatus,
+        lastSyncTime: syncProvider.lastSyncTime,
+        lastTransactionSync: syncProvider.lastSuccessfulTransactionSync,
+        retryCount: syncProvider.retryCount,
+        lastError: syncProvider.lastError,
+        dispenserHealth: dispenserHealth,
+        backendUrl: backendUrl,
+        dispenserUrl: dispenserUrl,
+      ),
+    );
+  } catch (e) {
+    // If anything fails, show a simple error dialog
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Error'),
+        content: Text('Failed to load status: $e'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _StatusInfoDialog extends StatelessWidget {
+enum StatusModalTab { overview, dispenser }
+
+class _StatusInfoDialog extends StatefulWidget {
   final ConnectionStatus connectionStatus;
   final DateTime? lastSyncTime;
   final DateTime? lastTransactionSync;
   final int retryCount;
   final String? lastError;
+  final DispenserHealth? dispenserHealth;
+  final String? backendUrl;
+  final String? dispenserUrl;
 
   const _StatusInfoDialog({
     required this.connectionStatus,
@@ -31,10 +77,30 @@ class _StatusInfoDialog extends StatelessWidget {
     required this.lastTransactionSync,
     required this.retryCount,
     required this.lastError,
+    this.backendUrl,
+    this.dispenserHealth,
+    this.dispenserUrl,
   });
 
+  @override
+  State<_StatusInfoDialog> createState() => _StatusInfoDialogState();
+}
+
+class _StatusInfoDialogState extends State<_StatusInfoDialog> {
+  StatusModalTab _currentTab = StatusModalTab.overview;
+
+  bool _isDispenserOffline() {
+    return widget.dispenserHealth != null &&
+           (widget.dispenserHealth!.dispenser == 'offline' || widget.dispenserHealth!.status == 'error');
+  }
+
   IconData _statusIcon() {
-    switch (connectionStatus) {
+    // Show warning if backend online but dispenser offline
+    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline()) {
+      return Icons.warning_amber_rounded;
+    }
+
+    switch (widget.connectionStatus) {
       case ConnectionStatus.online:
         return Icons.check_circle_outline;
       case ConnectionStatus.offline:
@@ -45,7 +111,12 @@ class _StatusInfoDialog extends StatelessWidget {
   }
 
   Color _statusColor() {
-    switch (connectionStatus) {
+    // Show warning color if backend online but dispenser offline
+    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline()) {
+      return const Color(0xfff59e0b);
+    }
+
+    switch (widget.connectionStatus) {
       case ConnectionStatus.online:
         return const Color(0xff22c55e);
       case ConnectionStatus.offline:
@@ -56,7 +127,12 @@ class _StatusInfoDialog extends StatelessWidget {
   }
 
   String _statusTitle(AppLocalizations l10n) {
-    switch (connectionStatus) {
+    // Show warning title if backend online but dispenser offline
+    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline()) {
+      return l10n.statusWarning;
+    }
+
+    switch (widget.connectionStatus) {
       case ConnectionStatus.online:
         return l10n.statusOnline;
       case ConnectionStatus.offline:
@@ -64,6 +140,53 @@ class _StatusInfoDialog extends StatelessWidget {
       case ConnectionStatus.error:
         return l10n.statusError;
     }
+  }
+
+  Widget _buildTabButton({
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? const Color(0xff34d399) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isActive ? const Color(0xff34d399) : const Color(0xff475569),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            color: isActive ? Colors.white : const Color(0xff94a3b8),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabBar() {
+    return Row(
+      children: [
+        _buildTabButton(
+          label: 'Übersicht',
+          isActive: _currentTab == StatusModalTab.overview,
+          onTap: () => setState(() => _currentTab = StatusModalTab.overview),
+        ),
+        const SizedBox(width: 8),
+        _buildTabButton(
+          label: 'Dispenser Status',
+          isActive: _currentTab == StatusModalTab.dispenser,
+          onTap: () => setState(() => _currentTab = StatusModalTab.dispenser),
+        ),
+      ],
+    );
   }
 
   String _formatTimestamp(DateTime? dt, AppLocalizations l10n) {
@@ -74,58 +197,643 @@ class _StatusInfoDialog extends StatelessWidget {
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} $hours:$minutes:$seconds';
   }
 
+  String _formatUptime(int seconds) {
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    final s = seconds % 60;
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  String _formatErrorTimestamp(int ms) {
+    final h = ms ~/ 3600000;
+    final m = (ms % 3600000) ~/ 60000;
+    final s = (ms % 60000) ~/ 1000;
+    return 'T+${h}h ${m}m ${s}s';
+  }
+
+  int _rssiToPercent(int rssi) {
+    return (2 * (rssi + 100)).clamp(0, 100);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    return AlertDialog(
-      icon: Icon(
-        _statusIcon(),
-        color: _statusColor(),
-        size: 32,
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: 700,
+          maxHeight: 600,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with icon and title
+              Row(
+                children: [
+                  Icon(
+                    _statusIcon(),
+                    color: _statusColor(),
+                    size: 32,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _statusTitle(l10n),
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                    iconSize: 20,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Tab bar
+              _buildTabBar(),
+              const SizedBox(height: 20),
+
+              // Content area with scrolling
+              Flexible(
+                child: _currentTab == StatusModalTab.overview
+                    ? _buildOverviewTab(l10n)
+                    : _buildDispenserTab(l10n),
+              ),
+            ],
+          ),
+        ),
       ),
-      title: Text(_statusTitle(l10n)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
+    );
+  }
+
+  Widget _buildOverviewTab(AppLocalizations l10n) {
+    return SingleChildScrollView(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _infoRow(l10n.lastSync, _formatTimestamp(lastSyncTime, l10n)),
-          const SizedBox(height: 8),
-          _infoRow(l10n.lastTransactionSync, _formatTimestamp(lastTransactionSync, l10n)),
-          if (retryCount > 0) ...[
-            const SizedBox(height: 8),
-            _infoRow(l10n.retryCount, '$retryCount'),
-          ],
-          if (lastError != null &&
-              connectionStatus != ConnectionStatus.online) ...[
-            const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 8),
-            Text(
-              l10n.errorDetails,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
+          // Sync status section
+          _buildSection(
+            title: 'Sync Status',
+            children: [
+              _infoRow(l10n.lastSync, _formatTimestamp(widget.lastSyncTime, l10n)),
+              const SizedBox(height: 8),
+              _infoRow(l10n.lastTransactionSync, _formatTimestamp(widget.lastTransactionSync, l10n)),
+              if (widget.retryCount > 0) ...[
+                const SizedBox(height: 8),
+                _infoRow(l10n.retryCount, '${widget.retryCount}'),
+              ],
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Dispenser section - simplified (if available)
+          if (widget.dispenserHealth != null) ...[
+            _buildSection(
+              title: l10n.dispenser,
+              children: [
+                _infoRow('Status', _dispenserStatusText(widget.dispenserHealth!)),
+                if (widget.dispenserHealth!.totalDispenses > 0) ...[
+                  const SizedBox(height: 8),
+                  _infoRow(
+                    'Success Rate',
+                    '${widget.dispenserHealth!.successRate.toStringAsFixed(1)}%',
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              lastError!,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+            const SizedBox(height: 20),
+          ],
+
+          // Endpoints section
+          _buildSection(
+            title: 'Endpoints',
+            children: [
+              if (widget.backendUrl != null) ...[
+                _urlRow(l10n.backendEndpoint, widget.backendUrl!),
+                const SizedBox(height: 12),
+              ],
+              if (widget.dispenserUrl != null) ...[
+                _urlRow(l10n.dispenserEndpoint, widget.dispenserUrl!),
+              ],
+            ],
+          ),
+
+          // Error section (if any)
+          if (widget.lastError != null && widget.connectionStatus != ConnectionStatus.online) ...[
+            const SizedBox(height: 20),
+            _buildSection(
+              title: l10n.errorDetails,
+              titleColor: const Color(0xffef4444),
+              children: [
+                Text(
+                  widget.lastError!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xff94a3b8),
+                  ),
+                ),
+              ],
             ),
           ],
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(l10n.dismiss),
+    );
+  }
+
+  Widget _buildDispenserTab(AppLocalizations l10n) {
+    if (widget.dispenserHealth == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Dispenser not available',
+            style: TextStyle(fontSize: 14, color: Color(0xff94a3b8)),
+          ),
         ),
+      );
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildUptimeSection(l10n, widget.dispenserHealth!),
+          const SizedBox(height: 20),
+          _buildMachineStateSection(l10n, widget.dispenserHealth!),
+          const SizedBox(height: 20),
+          _buildNetworkSection(l10n, widget.dispenserHealth!),
+          const SizedBox(height: 20),
+          _buildErrorHistorySection(l10n, widget.dispenserHealth!),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricCard({
+    required String label,
+    required int value,
+    Color? accentColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+      decoration: BoxDecoration(
+        color: const Color(0x05FFFFFF), // rgba(255,255,255,0.02)
+        border: Border.all(color: const Color(0x0DFFFFFF)), // rgba(255,255,255,0.05)
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$value',
+            style: TextStyle(
+              fontSize: 30,
+              fontWeight: FontWeight.w700,
+              color: accentColor ?? const Color(0xffe2e8f0),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 9,
+              color: Color(0xff475569),
+              letterSpacing: 0.1,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWiFiSignalBar(int signalPercent) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [25, 50, 75, 100].asMap().entries.map((entry) {
+        final threshold = entry.value;
+        final index = entry.key;
+        final isActive = signalPercent >= threshold;
+
+        return Container(
+          margin: const EdgeInsets.only(right: 2),
+          width: 3,
+          height: 4.0 + (index * 4),
+          decoration: BoxDecoration(
+            color: isActive
+                ? const Color(0xCC34D399) // rgba(52,211,153,0.8)
+                : const Color(0x14FFFFFF), // rgba(255,255,255,0.08)
+            borderRadius: BorderRadius.circular(1),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final isIdle = status == 'idle';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: isIdle ? const Color(0x196366f1) : const Color(0x1934d399),
+        border: Border.all(
+          color: isIdle ? const Color(0x336366f1) : const Color(0x3334d399),
+        ),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: isIdle ? const Color(0xff818cf8) : const Color(0xff34d399),
+          letterSpacing: 0.08,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUptimeSection(AppLocalizations l10n, DispenserHealth health) {
+    // Note: uptime field may not be available yet from backend
+    final uptimeSeconds = health.uptime ?? 0;
+    final uptimeFormatted = _formatUptime(uptimeSeconds);
+    final firmware = health.firmware ?? 'N/A';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0x08FFFFFF),
+        border: Border.all(color: const Color(0x0AFFFFFF)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                l10n.dispenserUptime.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xff475569),
+                  letterSpacing: 0.12,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                uptimeFormatted,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xff34d399),
+                  letterSpacing: 0.05,
+                ),
+              ),
+            ],
+          ),
+          Text(
+            'fw $firmware',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 10,
+              color: Color(0xff334155),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMachineStateSection(AppLocalizations l10n, DispenserHealth health) {
+    final failures = health.failures ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xCC0f172a), // rgba(15,23,42,0.8)
+            Color(0x660f172a), // rgba(15,23,42,0.4)
+          ],
+        ),
+        border: Border.all(color: const Color(0x0FFFFFFF)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                l10n.dispenserMachineState.toUpperCase(),
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xff475569),
+                  letterSpacing: 0.12,
+                ),
+              ),
+              _buildStatusBadge(health.dispenser),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricCard(
+                  label: l10n.dispenserDispensed,
+                  value: health.totalDispenses,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildMetricCard(
+                  label: l10n.dispenserSuccess,
+                  value: health.successful,
+                  accentColor: const Color(0xff34d399),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildMetricCard(
+                  label: l10n.dispenserJams,
+                  value: health.jams,
+                  accentColor: const Color(0xfff59e0b),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildMetricCard(
+                  label: l10n.dispenserFailures,
+                  value: failures,
+                  accentColor: const Color(0xffef4444),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNetworkSection(AppLocalizations l10n, DispenserHealth health) {
+    // Note: wifi field may not be available yet from backend
+    if (health.wifi == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+        decoration: BoxDecoration(
+          color: const Color(0x990f172a),
+          border: Border.all(color: const Color(0x0FFFFFFF)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.dispenserNetwork.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Color(0xff475569),
+                letterSpacing: 0.12,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Network info not available',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: Color(0xff475569),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final wifi = health.wifi!;
+    final wifiPercent = _rssiToPercent(wifi.rssi);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+      decoration: BoxDecoration(
+        color: const Color(0x990f172a),
+        border: Border.all(color: const Color(0x0FFFFFFF)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.dispenserNetwork.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Color(0xff475569),
+              letterSpacing: 0.12,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  _buildWiFiSignalBar(wifiPercent),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        wifi.ssid,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xffe2e8f0),
+                        ),
+                      ),
+                      Text(
+                        '${wifi.rssi} dBm · $wifiPercent%',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 10,
+                          color: Color(0xff475569),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0x33000000),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  wifi.ip,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: Color(0xff94a3b8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorHistorySection(AppLocalizations l10n, DispenserHealth health) {
+    // Note: errorHistory field may not be available yet from backend
+    final errors = health.errorHistory ?? [];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+      decoration: BoxDecoration(
+        color: const Color(0x990f172a),
+        border: Border.all(color: const Color(0x0FFFFFFF)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.dispenserErrorHistory.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Color(0xff475569),
+              letterSpacing: 0.12,
+            ),
+          ),
+          const SizedBox(height: 16),
+          errors.isEmpty
+              ? Text(
+                  l10n.dispenserNoErrors,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    color: Color(0xff334155),
+                  ),
+                  textAlign: TextAlign.center,
+                )
+              : Column(
+                  children: errors.map((error) => _buildErrorItem(l10n, error)).toList(),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorItem(AppLocalizations l10n, DispenserError error) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: error.cleared ? const Color(0x05FFFFFF) : const Color(0x0Fef4444),
+        border: Border.all(
+          color: error.cleared ? const Color(0x0AFFFFFF) : const Color(0x26ef4444),
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: error.cleared ? const Color(0x1434d399) : const Color(0x19ef4444),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                error.cleared ? '✓' : '⚠',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: error.cleared ? const Color(0xff34d399) : const Color(0xffef4444),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'E${error.code} · ${error.type}',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: error.cleared ? const Color(0xff94a3b8) : const Color(0xffef4444),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_formatErrorTimestamp(error.timestamp)}${error.cleared ? " · ${l10n.dispenserErrorCleared}" : ""}',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 10,
+                    color: Color(0xff475569),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSection({
+    required String title,
+    required List<Widget> children,
+    Color? titleColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: titleColor ?? const Color(0xff64748b),
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...children,
       ],
     );
+  }
+
+  String _dispenserStatusText(DispenserHealth health) {
+    final isOnline = health.dispenser != 'offline' && health.status != 'error';
+    if (isOnline) {
+      return 'Online (${health.dispenser})';
+    } else {
+      return 'Offline';
+    }
   }
 
   Widget _infoRow(String label, String value) {
@@ -134,6 +842,25 @@ class _StatusInfoDialog extends StatelessWidget {
       children: [
         Text(label, style: const TextStyle(fontSize: 13)),
         Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+      ],
+    );
+  }
+
+  Widget _urlRow(String label, String url) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          url,
+          style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
       ],
     );
   }
