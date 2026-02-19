@@ -106,6 +106,9 @@ class DispenserHealth {
   final WifiInfo? wifi;
   final int? failures;
   final int? partial;
+  final int? crashes;
+  final int? requestedTokens;
+  final int? dispensedTokens;
   final List<DispenserError>? errorHistory;
 
   DispenserHealth({
@@ -120,6 +123,9 @@ class DispenserHealth {
     this.wifi,
     this.failures,
     this.partial,
+    this.crashes,
+    this.requestedTokens,
+    this.dispensedTokens,
     this.errorHistory,
   });
 
@@ -158,6 +164,9 @@ class DispenserHealth {
       wifi: wifi,
       failures: metrics['failures'] as int?,
       partial: metrics['partial'] as int?,
+      crashes: metrics['crashes'] as int?,
+      requestedTokens: metrics['requested_tokens'] as int?,
+      dispensedTokens: metrics['dispensed_tokens'] as int?,
       errorHistory: errorHistory,
     );
   }

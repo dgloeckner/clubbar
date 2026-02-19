@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/services/dispenser_health_service.dart';
@@ -28,6 +30,14 @@ void showStatusInfoModal(BuildContext context) {
       dispenserHealth = null;
     }
 
+    // Get local database for pending dispenser operations
+    RuderbarDatabase? database;
+    try {
+      database = context.read<RuderbarDatabase>();
+    } catch (_) {
+      // Database not available
+    }
+
     showDialog(
       context: context,
       builder: (context) => _StatusInfoDialog(
@@ -39,19 +49,20 @@ void showStatusInfoModal(BuildContext context) {
         dispenserHealth: dispenserHealth,
         backendUrl: backendUrl,
         dispenserUrl: dispenserUrl,
+        database: database,
       ),
     );
   } catch (e) {
-    // If anything fails, show a simple error dialog
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Error'),
-        content: Text('Failed to load status: $e'),
+        title: Text(l10n.errorTitle),
+        content: Text(l10n.statusLoadError(e.toString())),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: Text(l10n.dismiss),
           ),
         ],
       ),
@@ -70,6 +81,7 @@ class _StatusInfoDialog extends StatefulWidget {
   final DispenserHealth? dispenserHealth;
   final String? backendUrl;
   final String? dispenserUrl;
+  final RuderbarDatabase? database;
 
   const _StatusInfoDialog({
     required this.connectionStatus,
@@ -80,6 +92,7 @@ class _StatusInfoDialog extends StatefulWidget {
     this.backendUrl,
     this.dispenserHealth,
     this.dispenserUrl,
+    this.database,
   });
 
   @override
@@ -88,18 +101,59 @@ class _StatusInfoDialog extends StatefulWidget {
 
 class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   StatusModalTab _currentTab = StatusModalTab.overview;
+  List<DispenserOperation> _pendingOps = [];
+  StreamSubscription<List<DispenserOperation>>? _opsSub;
 
-  bool _isDispenserOffline() {
-    return widget.dispenserHealth != null &&
-           (widget.dispenserHealth!.dispenser == 'offline' || widget.dispenserHealth!.status == 'error');
+  @override
+  void initState() {
+    super.initState();
+    if (widget.database != null) {
+      _opsSub = widget.database!
+          .select(widget.database!.dispenserOperations)
+          .watch()
+          .listen((ops) {
+        if (mounted) setState(() => _pendingOps = ops);
+      });
+    }
   }
 
-  IconData _statusIcon() {
-    // Show warning if backend online but dispenser offline
-    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline()) {
+  @override
+  void dispose() {
+    _opsSub?.cancel();
+    super.dispose();
+  }
+
+  /// Returns live health from DispenserHealthService if available, else the
+  /// snapshot passed at dialog construction time.
+  DispenserHealth? _effectiveHealth(BuildContext context) {
+    try {
+      return context.watch<DispenserHealthService>().currentHealth;
+    } catch (_) {
+      return widget.dispenserHealth;
+    }
+  }
+
+  String _translateMachineState(String? state, AppLocalizations l10n) {
+    switch (state) {
+      case 'idle': return l10n.dispenserStateIdle;
+      case 'dispensing': return l10n.dispenserStateDispensing;
+      case 'done': return l10n.dispenserStateDone;
+      case 'error': return l10n.dispenserStateError;
+      case 'not_found': return l10n.dispenserStateNotFound;
+      case 'offline': return l10n.dispenserStateOffline;
+      default: return l10n.dispenserStateUnknown;
+    }
+  }
+
+  bool _isDispenserOffline(DispenserHealth? health) {
+    return health != null &&
+           (health.dispenser == 'offline' || health.status == 'error');
+  }
+
+  IconData _statusIcon(DispenserHealth? health) {
+    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline(health)) {
       return Icons.warning_amber_rounded;
     }
-
     switch (widget.connectionStatus) {
       case ConnectionStatus.online:
         return Icons.check_circle_outline;
@@ -110,12 +164,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     }
   }
 
-  Color _statusColor() {
-    // Show warning color if backend online but dispenser offline
-    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline()) {
+  Color _statusColor(DispenserHealth? health) {
+    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline(health)) {
       return const Color(0xfff59e0b);
     }
-
     switch (widget.connectionStatus) {
       case ConnectionStatus.online:
         return const Color(0xff22c55e);
@@ -126,12 +178,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     }
   }
 
-  String _statusTitle(AppLocalizations l10n) {
-    // Show warning title if backend online but dispenser offline
-    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline()) {
+  String _statusTitle(DispenserHealth? health, AppLocalizations l10n) {
+    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline(health)) {
       return l10n.statusWarning;
     }
-
     switch (widget.connectionStatus) {
       case ConnectionStatus.online:
         return l10n.statusOnline;
@@ -171,17 +221,17 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar(AppLocalizations l10n) {
     return Row(
       children: [
         _buildTabButton(
-          label: 'Übersicht',
+          label: l10n.tabOverview,
           isActive: _currentTab == StatusModalTab.overview,
           onTap: () => setState(() => _currentTab = StatusModalTab.overview),
         ),
         const SizedBox(width: 8),
         _buildTabButton(
-          label: 'Dispenser Status',
+          label: l10n.tabDispenserStatus,
           isActive: _currentTab == StatusModalTab.dispenser,
           onTap: () => setState(() => _currentTab = StatusModalTab.dispenser),
         ),
@@ -218,6 +268,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final health = _effectiveHealth(context);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -236,13 +287,13 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               Row(
                 children: [
                   Icon(
-                    _statusIcon(),
-                    color: _statusColor(),
+                    _statusIcon(health),
+                    color: _statusColor(health),
                     size: 32,
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    _statusTitle(l10n),
+                    _statusTitle(health, l10n),
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -259,14 +310,14 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               const SizedBox(height: 16),
 
               // Tab bar
-              _buildTabBar(),
+              _buildTabBar(l10n),
               const SizedBox(height: 20),
 
               // Content area with scrolling
               Flexible(
                 child: _currentTab == StatusModalTab.overview
-                    ? _buildOverviewTab(l10n)
-                    : _buildDispenserTab(l10n),
+                    ? _buildOverviewTab(l10n, health)
+                    : _buildDispenserTab(l10n, health),
               ),
             ],
           ),
@@ -275,14 +326,14 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     );
   }
 
-  Widget _buildOverviewTab(AppLocalizations l10n) {
+  Widget _buildOverviewTab(AppLocalizations l10n, DispenserHealth? health) {
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Sync status section
           _buildSection(
-            title: 'Sync Status',
+            title: l10n.syncStatus,
             children: [
               _infoRow(l10n.lastSync, _formatTimestamp(widget.lastSyncTime, l10n)),
               const SizedBox(height: 8),
@@ -296,16 +347,16 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           const SizedBox(height: 20),
 
           // Dispenser section - simplified (if available)
-          if (widget.dispenserHealth != null) ...[
+          if (health != null) ...[
             _buildSection(
               title: l10n.dispenser,
               children: [
-                _infoRow('Status', _dispenserStatusText(widget.dispenserHealth!)),
-                if (widget.dispenserHealth!.totalDispenses > 0) ...[
+                _infoRow('Status', _dispenserStatusText(health, l10n)),
+                if (health.totalDispenses > 0 || (health.requestedTokens ?? 0) > 0) ...[
                   const SizedBox(height: 8),
                   _infoRow(
-                    'Success Rate',
-                    '${widget.dispenserHealth!.successRate.toStringAsFixed(1)}%',
+                    l10n.successRate,
+                    '${health.successRate.toStringAsFixed(1)}%',
                   ),
                 ],
               ],
@@ -315,7 +366,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
 
           // Endpoints section
           _buildSection(
-            title: 'Endpoints',
+            title: l10n.endpoints,
             children: [
               if (widget.backendUrl != null) ...[
                 _urlRow(l10n.backendEndpoint, widget.backendUrl!),
@@ -349,14 +400,14 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     );
   }
 
-  Widget _buildDispenserTab(AppLocalizations l10n) {
-    if (widget.dispenserHealth == null) {
-      return const Center(
+  Widget _buildDispenserTab(AppLocalizations l10n, DispenserHealth? health) {
+    if (health == null) {
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Text(
-            'Dispenser not available',
-            style: TextStyle(fontSize: 14, color: Color(0xff94a3b8)),
+            l10n.dispenserNotAvailable,
+            style: const TextStyle(fontSize: 14, color: Color(0xff94a3b8)),
           ),
         ),
       );
@@ -366,13 +417,17 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildUptimeSection(l10n, widget.dispenserHealth!),
+          _buildUptimeSection(l10n, health),
           const SizedBox(height: 20),
-          _buildMachineStateSection(l10n, widget.dispenserHealth!),
+          _buildMachineStateSection(l10n, health),
           const SizedBox(height: 20),
-          _buildNetworkSection(l10n, widget.dispenserHealth!),
+          _buildNetworkSection(l10n, health),
           const SizedBox(height: 20),
-          _buildErrorHistorySection(l10n, widget.dispenserHealth!),
+          _buildErrorHistorySection(l10n, health),
+          if (_pendingOps.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _buildPendingOperationsSection(l10n),
+          ],
         ],
       ),
     );
@@ -438,7 +493,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     );
   }
 
-  Widget _buildStatusBadge(String status) {
+  Widget _buildStatusBadge(String status, AppLocalizations l10n) {
     final isIdle = status == 'idle';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
@@ -450,7 +505,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        status.toUpperCase(),
+        _translateMachineState(status, l10n).toUpperCase(),
         style: TextStyle(
           fontFamily: 'monospace',
           fontSize: 11,
@@ -546,7 +601,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   letterSpacing: 0.12,
                 ),
               ),
-              _buildStatusBadge(health.dispenser),
+              _buildStatusBadge(health.dispenser, l10n),
             ],
           ),
           const SizedBox(height: 20),
@@ -555,14 +610,14 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               Expanded(
                 child: _buildMetricCard(
                   label: l10n.dispenserDispensed,
-                  value: health.totalDispenses,
+                  value: health.dispensedTokens ?? health.totalDispenses,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _buildMetricCard(
                   label: l10n.dispenserSuccess,
-                  value: health.successful,
+                  value: health.requestedTokens ?? health.successful,
                   accentColor: const Color(0xff34d399),
                 ),
               ),
@@ -612,9 +667,9 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Network info not available',
-              style: TextStyle(
+            Text(
+              l10n.dispenserNetworkNotAvailable,
+              style: const TextStyle(
                 fontFamily: 'monospace',
                 fontSize: 12,
                 color: Color(0xff475569),
@@ -804,6 +859,135 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     );
   }
 
+  Widget _buildPendingOperationsSection(AppLocalizations l10n) {
+    final notFound = _pendingOps.where((op) => op.lastKnownState == 'not_found').toList();
+    final active = _pendingOps.where((op) => op.lastKnownState != 'not_found').toList();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+      decoration: BoxDecoration(
+        color: notFound.isNotEmpty ? const Color(0x0Fef4444) : const Color(0x990f172a),
+        border: Border.all(
+          color: notFound.isNotEmpty ? const Color(0x33ef4444) : const Color(0x0FFFFFFF),
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (notFound.isNotEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(right: 6),
+                  child: Icon(Icons.warning_amber_rounded, color: Color(0xffef4444), size: 14),
+                ),
+              Text(
+                l10n.dispenserLocalTransactionLog.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: notFound.isNotEmpty ? const Color(0xffef4444) : const Color(0xff475569),
+                  letterSpacing: 0.12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (notFound.isNotEmpty) ...[
+            Text(
+              l10n.dispenserManualReconciliationRequired.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xffef4444),
+                letterSpacing: 0.08,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...notFound.map((op) => _buildPendingOpRow(op, l10n: l10n, isNotFound: true)),
+          ],
+          if (active.isNotEmpty) ...[
+            if (notFound.isNotEmpty) const SizedBox(height: 12),
+            Text(
+              l10n.dispenserInProgress.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xff475569),
+                letterSpacing: 0.08,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...active.map((op) => _buildPendingOpRow(op, l10n: l10n, isNotFound: false)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPendingOpRow(DispenserOperation op, {required AppLocalizations l10n, required bool isNotFound}) {
+    final stateColor = isNotFound ? const Color(0xffef4444) : const Color(0xfff59e0b);
+    final stateLabel = _translateMachineState(op.lastKnownState, l10n).toUpperCase();
+    final shortId = op.dispenserTxId.length > 16
+        ? op.dispenserTxId.substring(0, 16)
+        : op.dispenserTxId;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0x08FFFFFF),
+        border: Border.all(color: const Color(0x0AFFFFFF)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  shortId,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: Color(0xff94a3b8),
+                  ),
+                ),
+                Text(
+                  'member: ${op.memberId}  ·  qty: ${op.requestedQty}  ·  created: ${op.createdAt.substring(0, 10)}',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 10,
+                    color: Color(0xff475569),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: stateColor.withValues(alpha: 0.1),
+              border: Border.all(color: stateColor.withValues(alpha: 0.3)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              stateLabel,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: stateColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSection({
     required String title,
     required List<Widget> children,
@@ -827,12 +1011,12 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     );
   }
 
-  String _dispenserStatusText(DispenserHealth health) {
+  String _dispenserStatusText(DispenserHealth health, AppLocalizations l10n) {
     final isOnline = health.dispenser != 'offline' && health.status != 'error';
     if (isOnline) {
-      return 'Online (${health.dispenser})';
+      return l10n.dispenserStatusOnline(_translateMachineState(health.dispenser, l10n));
     } else {
-      return 'Offline';
+      return l10n.statusOffline;
     }
   }
 

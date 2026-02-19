@@ -100,8 +100,8 @@
   "dispenserUptime": "Uptime",
   "dispenserFirmware": "Firmware",
   "dispenserMachineState": "Machine State",
-  "dispenserDispensed": "Dispensed",
-  "dispenserSuccess": "Success",
+  "dispenserDispensed": "Tokens Dispensed",
+  "dispenserSuccess": "Tokens Requested",
   "dispenserJams": "Jams",
   "dispenserFailures": "Failures",
   "dispenserNetwork": "Network",
@@ -111,5 +111,52 @@
   "dispenserErrorCleared": "resolved",
 
   "dispensingTokens": "Dispensing Sauna Tokens...",
-  "pleaseWait": "Please wait..."
+  "pleaseWait": "Please wait...",
+  "dispensingStarting": "Starting dispenser...",
+  "dispensingConnecting": "Connecting to dispenser...",
+  "dispensingFailed": "Dispensing Failed",
+  "dispensingSuccess": "Successfully dispensed {count} {count, plural, =1{token} other{tokens}}!",
+  "@dispensingSuccess": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "dispensingPartialCharged": "No worries! You'll only be charged for {count} {count, plural, =1{token} other{tokens}}.",
+  "@dispensingPartialCharged": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "dispensingNeedsRefilling": "Please notify staff - the dispenser may need refilling.",
+
+  "dispenserStateIdle": "Idle",
+  "dispenserStateDispensing": "Dispensing",
+  "dispenserStateDone": "Done",
+  "dispenserStateError": "Error",
+  "dispenserStateNotFound": "Not Found",
+  "dispenserStateOffline": "Offline",
+  "dispenserStateUnknown": "Unknown",
+
+  "tabOverview": "Overview",
+  "tabDispenserStatus": "Dispenser Status",
+  "syncStatus": "Sync Status",
+  "successRate": "Success Rate",
+  "endpoints": "Endpoints",
+  "dispenserNotAvailable": "Dispenser not available",
+  "dispenserNetworkNotAvailable": "Network info not available",
+  "dispenserLocalTransactionLog": "Local Transaction Log",
+  "dispenserManualReconciliationRequired": "Manual reconciliation required",
+  "dispenserInProgress": "In progress",
+  "dispenserStatusOnline": "Online ({state})",
+  "@dispenserStatusOnline": {
+    "placeholders": {
+      "state": {"type": "String"}
+    }
+  },
+  "statusLoadError": "Failed to load status: {error}",
+  "@statusLoadError": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  }
 }

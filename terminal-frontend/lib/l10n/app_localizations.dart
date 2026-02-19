@@ -608,16 +608,16 @@ abstract class AppLocalizations {
   /// **'Maschinenstatus'**
   String get dispenserMachineState;
 
-  /// Total dispensed metric label
+  /// Total tokens dispensed metric label
   ///
   /// In de, this message translates to:
-  /// **'Ausgegeben'**
+  /// **'Token ausgegeben'**
   String get dispenserDispensed;
 
-  /// Successful dispenses metric label
+  /// Total tokens requested metric label
   ///
   /// In de, this message translates to:
-  /// **'Erfolgreich'**
+  /// **'Token angefordert'**
   String get dispenserSuccess;
 
   /// Jam count metric label
@@ -673,6 +673,156 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Bitte warten...'**
   String get pleaseWait;
+
+  /// Progress dialog title while initiating dispense request
+  ///
+  /// In de, this message translates to:
+  /// **'Ausgabegerät wird gestartet...'**
+  String get dispensingStarting;
+
+  /// Status message while connecting to dispenser
+  ///
+  /// In de, this message translates to:
+  /// **'Verbindung zum Ausgabegerät...'**
+  String get dispensingConnecting;
+
+  /// Title shown when dispensing failed
+  ///
+  /// In de, this message translates to:
+  /// **'Ausgabe fehlgeschlagen'**
+  String get dispensingFailed;
+
+  /// Success message after dispensing, with token count
+  ///
+  /// In de, this message translates to:
+  /// **'{count} {count, plural, =1{Token} other{Tokens}} erfolgreich ausgegeben!'**
+  String dispensingSuccess(int count);
+
+  /// Message for partial dispense explaining reduced charge
+  ///
+  /// In de, this message translates to:
+  /// **'Keine Sorge! Du wirst nur für {count} {count, plural, =1{Token} other{Tokens}} belastet.'**
+  String dispensingPartialCharged(int count);
+
+  /// Warning to notify staff that dispenser may need refilling
+  ///
+  /// In de, this message translates to:
+  /// **'Bitte Personal informieren – der Ausgabeautomat muss möglicherweise nachgefüllt werden.'**
+  String get dispensingNeedsRefilling;
+
+  /// Dispenser machine state: idle/ready
+  ///
+  /// In de, this message translates to:
+  /// **'Bereit'**
+  String get dispenserStateIdle;
+
+  /// Dispenser machine state: currently dispensing
+  ///
+  /// In de, this message translates to:
+  /// **'Ausgabe läuft'**
+  String get dispenserStateDispensing;
+
+  /// Dispenser machine state: dispensing completed
+  ///
+  /// In de, this message translates to:
+  /// **'Fertig'**
+  String get dispenserStateDone;
+
+  /// Dispenser machine state: error
+  ///
+  /// In de, this message translates to:
+  /// **'Fehler'**
+  String get dispenserStateError;
+
+  /// Dispenser machine state: transaction not found on hardware
+  ///
+  /// In de, this message translates to:
+  /// **'Nicht gefunden'**
+  String get dispenserStateNotFound;
+
+  /// Dispenser machine state: offline/unreachable
+  ///
+  /// In de, this message translates to:
+  /// **'Offline'**
+  String get dispenserStateOffline;
+
+  /// Dispenser machine state: unknown/unexpected value
+  ///
+  /// In de, this message translates to:
+  /// **'Unbekannt'**
+  String get dispenserStateUnknown;
+
+  /// No description provided for @tabOverview.
+  ///
+  /// In de, this message translates to:
+  /// **'Übersicht'**
+  String get tabOverview;
+
+  /// No description provided for @tabDispenserStatus.
+  ///
+  /// In de, this message translates to:
+  /// **'Dispenser Status'**
+  String get tabDispenserStatus;
+
+  /// No description provided for @syncStatus.
+  ///
+  /// In de, this message translates to:
+  /// **'Sync-Status'**
+  String get syncStatus;
+
+  /// No description provided for @successRate.
+  ///
+  /// In de, this message translates to:
+  /// **'Erfolgsquote'**
+  String get successRate;
+
+  /// No description provided for @endpoints.
+  ///
+  /// In de, this message translates to:
+  /// **'Endpunkte'**
+  String get endpoints;
+
+  /// No description provided for @dispenserNotAvailable.
+  ///
+  /// In de, this message translates to:
+  /// **'Ausgabegerät nicht verfügbar'**
+  String get dispenserNotAvailable;
+
+  /// No description provided for @dispenserNetworkNotAvailable.
+  ///
+  /// In de, this message translates to:
+  /// **'Netzwerkinfo nicht verfügbar'**
+  String get dispenserNetworkNotAvailable;
+
+  /// No description provided for @dispenserLocalTransactionLog.
+  ///
+  /// In de, this message translates to:
+  /// **'Lokales Transaktionsprotokoll'**
+  String get dispenserLocalTransactionLog;
+
+  /// No description provided for @dispenserManualReconciliationRequired.
+  ///
+  /// In de, this message translates to:
+  /// **'Manuelle Abstimmung erforderlich'**
+  String get dispenserManualReconciliationRequired;
+
+  /// No description provided for @dispenserInProgress.
+  ///
+  /// In de, this message translates to:
+  /// **'In Bearbeitung'**
+  String get dispenserInProgress;
+
+  /// No description provided for @dispenserStatusOnline.
+  ///
+  /// In de, this message translates to:
+  /// **'Online ({state})'**
+  String dispenserStatusOnline(String state);
+
+  /// No description provided for @statusLoadError.
+  ///
+  /// In de, this message translates to:
+  /// **'Status konnte nicht geladen werden: {error}'**
+  String statusLoadError(String error);
 }
 
 class _AppLocalizationsDelegate

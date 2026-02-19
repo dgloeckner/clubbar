@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:logger/logger.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
 import 'package:uuid/uuid.dart';
@@ -22,14 +23,17 @@ import 'package:drift/drift.dart';
 class DispenserRecoveryService {
   final RuderbarDatabase _db;
   final DispenserClient _dispenserClient;
+  final Logger _logger;
   final Uuid _uuid = const Uuid();
   Timer? _periodicTimer;
 
   DispenserRecoveryService({
     required RuderbarDatabase database,
     required DispenserClient client,
+    Logger? logger,
   })  : _db = database,
-        _dispenserClient = client;
+        _dispenserClient = client,
+        _logger = logger ?? Logger();
 
   /// Start periodic reconciliation (every 60 seconds).
   ///
@@ -56,16 +60,20 @@ class DispenserRecoveryService {
   /// Recover all incomplete dispenser operations.
   ///
   /// This method is called on app boot to handle crash recovery.
+  /// Resets pollingActive=1 flags first — at startup there can be no legitimately
+  /// active dialog sessions, so any stuck pollingActive=1 records are orphaned.
   Future<void> recoverIncompleteDispenses() async {
+    await (_db.update(_db.dispenserOperations))
+        .write(const DispenserOperationsCompanion(
+          pollingActive: Value(0),
+        ));
+
     final (successCount, failureCount, errors) = await _recoverAll();
 
     if (successCount > 0 || failureCount > 0) {
-      // Log recovery results (would be better with proper logger)
-      print('Dispenser recovery: $successCount succeeded, $failureCount failed');
-      if (errors.isNotEmpty) {
-        for (final error in errors) {
-          print('  Error: $error');
-        }
+      _logger.i('Dispenser recovery: $successCount succeeded, $failureCount failed');
+      for (final error in errors) {
+        _logger.w('Dispenser recovery error: $error');
       }
     }
   }
@@ -91,6 +99,12 @@ class DispenserRecoveryService {
         // CRITICAL: Skip if polling is active
         if (op.pollingActive == 1) {
           continue; // Dialog still open, don't interfere
+        }
+
+        // Skip permanently failed operations - they need manual reconciliation,
+        // not automatic retry. Record is kept for audit; visible in status modal.
+        if (op.lastKnownState == 'not_found') {
+          continue;
         }
 
         // CRITICAL: Skip if recently polled (within 30 seconds)
@@ -139,13 +153,19 @@ class DispenserRecoveryService {
         // 2. Transaction truly never started (timeout before ESP8266 received it)
         // 3. ESP8266 firmware doesn't implement state persistence
         //
-        // DO NOT clean up tracking record - keep it for manual reconciliation
-        // Staff must check dispenser logs and create transaction manually if needed
-        print('CRITICAL: Transaction ${op.dispenserTxId} not found on ESP8266. '
+        // Mark as 'not_found' so the retry loop stops hitting it every 60 seconds.
+        // DO NOT delete - record is preserved for manual reconciliation audit.
+        await (_db.update(_db.dispenserOperations)
+              ..where((t) => t.dispenserTxId.equals(op.dispenserTxId)))
+            .write(DispenserOperationsCompanion(
+              lastKnownState: const Value('not_found'),
+              lastPolledAt: Value(DateTime.now().toUtc().toIso8601String()),
+            ));
+
+        _logger.e('CRITICAL: Transaction ${op.dispenserTxId} not found on ESP8266. '
             'Tokens may have been dispensed but ESP8266 lost state. '
             'Manual reconciliation required for member ${op.memberId}.');
 
-        // Return failure but DON'T clean up - tracking record preserved for audit
         return (false, 'Transaction not found on ESP8266 - MANUAL RECONCILIATION REQUIRED. '
             'Check dispenser logs and verify if tokens were dispensed.');
       } on DispenserException catch (e) {
@@ -162,7 +182,7 @@ class DispenserRecoveryService {
         // ESP8266 reports MORE tokens than we created transactions for!
         final missing = esp8266Count - createdCount;
 
-        print('RECONCILIATION: ESP8266 reports $esp8266Count dispensed, '
+        _logger.i('RECONCILIATION: ESP8266 reports $esp8266Count dispensed, '
             'but only $createdCount transactions exist. '
             'Creating $missing additional transactions.');
 

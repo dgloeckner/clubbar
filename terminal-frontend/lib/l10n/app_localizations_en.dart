@@ -305,10 +305,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dispenserMachineState => 'Machine State';
 
   @override
-  String get dispenserDispensed => 'Dispensed';
+  String get dispenserDispensed => 'Tokens Dispensed';
 
   @override
-  String get dispenserSuccess => 'Success';
+  String get dispenserSuccess => 'Tokens Requested';
 
   @override
   String get dispenserJams => 'Jams';
@@ -336,4 +336,101 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pleaseWait => 'Please wait...';
+
+  @override
+  String get dispensingStarting => 'Starting dispenser...';
+
+  @override
+  String get dispensingConnecting => 'Connecting to dispenser...';
+
+  @override
+  String get dispensingFailed => 'Dispensing Failed';
+
+  @override
+  String dispensingSuccess(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'tokens',
+      one: 'token',
+    );
+    return 'Successfully dispensed $count $_temp0!';
+  }
+
+  @override
+  String dispensingPartialCharged(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'tokens',
+      one: 'token',
+    );
+    return 'No worries! You\'ll only be charged for $count $_temp0.';
+  }
+
+  @override
+  String get dispensingNeedsRefilling =>
+      'Please notify staff - the dispenser may need refilling.';
+
+  @override
+  String get dispenserStateIdle => 'Idle';
+
+  @override
+  String get dispenserStateDispensing => 'Dispensing';
+
+  @override
+  String get dispenserStateDone => 'Done';
+
+  @override
+  String get dispenserStateError => 'Error';
+
+  @override
+  String get dispenserStateNotFound => 'Not Found';
+
+  @override
+  String get dispenserStateOffline => 'Offline';
+
+  @override
+  String get dispenserStateUnknown => 'Unknown';
+
+  @override
+  String get tabOverview => 'Overview';
+
+  @override
+  String get tabDispenserStatus => 'Dispenser Status';
+
+  @override
+  String get syncStatus => 'Sync Status';
+
+  @override
+  String get successRate => 'Success Rate';
+
+  @override
+  String get endpoints => 'Endpoints';
+
+  @override
+  String get dispenserNotAvailable => 'Dispenser not available';
+
+  @override
+  String get dispenserNetworkNotAvailable => 'Network info not available';
+
+  @override
+  String get dispenserLocalTransactionLog => 'Local Transaction Log';
+
+  @override
+  String get dispenserManualReconciliationRequired =>
+      'Manual reconciliation required';
+
+  @override
+  String get dispenserInProgress => 'In progress';
+
+  @override
+  String dispenserStatusOnline(String state) {
+    return 'Online ($state)';
+  }
+
+  @override
+  String statusLoadError(String error) {
+    return 'Failed to load status: $error';
+  }
 }

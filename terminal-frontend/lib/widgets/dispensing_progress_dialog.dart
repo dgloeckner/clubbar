@@ -325,21 +325,21 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
               // Show result message - POSITIVE framing even for partial
               Text(
                 isError
-                    ? 'Dispensing Failed'
-                    : 'Successfully dispensed $_dispensed ${_dispensed == 1 ? 'token' : 'tokens'}!',
+                    ? l10n.dispensingFailed
+                    : l10n.dispensingSuccess(_dispensed),
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
               if (isPartial) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'No worries! You\'ll only be charged for $_dispensed ${_dispensed == 1 ? 'token' : 'tokens'}.',
+                  l10n.dispensingPartialCharged(_dispensed),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey[700]),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Please notify staff - the dispenser may need refilling.',
+                  l10n.dispensingNeedsRefilling,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.orange[700],
@@ -351,7 +351,7 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
               // Show dispensing in progress
               Text(
                 _state == DispensingState.requesting
-                    ? 'Starting dispenser...'
+                    ? l10n.dispensingStarting
                     : l10n.dispensingTokens,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
@@ -364,7 +364,7 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
               const SizedBox(height: 16),
               Text(
                 _state == DispensingState.requesting
-                    ? 'Connecting to dispenser...'
+                    ? l10n.dispensingConnecting
                     : l10n.pleaseWait,
               ),
             ],

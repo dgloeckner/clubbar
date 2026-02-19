@@ -422,13 +422,13 @@
   "@dispenserMachineState": {
     "description": "Machine state section title"
   },
-  "dispenserDispensed": "Ausgegeben",
+  "dispenserDispensed": "Token ausgegeben",
   "@dispenserDispensed": {
-    "description": "Total dispensed metric label"
+    "description": "Total tokens dispensed metric label"
   },
-  "dispenserSuccess": "Erfolgreich",
+  "dispenserSuccess": "Token angefordert",
   "@dispenserSuccess": {
-    "description": "Successful dispenses metric label"
+    "description": "Total tokens requested metric label"
   },
   "dispenserJams": "Staus",
   "@dispenserJams": {
@@ -466,5 +466,73 @@
   "pleaseWait": "Bitte warten...",
   "@pleaseWait": {
     "description": "Please wait message during dispensing"
+  },
+  "dispensingStarting": "Ausgabegerät wird gestartet...",
+  "@dispensingStarting": {
+    "description": "Progress dialog title while initiating dispense request"
+  },
+  "dispensingConnecting": "Verbindung zum Ausgabegerät...",
+  "@dispensingConnecting": {
+    "description": "Status message while connecting to dispenser"
+  },
+  "dispensingFailed": "Ausgabe fehlgeschlagen",
+  "@dispensingFailed": {
+    "description": "Title shown when dispensing failed"
+  },
+  "dispensingSuccess": "{count} {count, plural, =1{Token} other{Tokens}} erfolgreich ausgegeben!",
+  "@dispensingSuccess": {
+    "description": "Success message after dispensing, with token count",
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "dispensingPartialCharged": "Keine Sorge! Du wirst nur für {count} {count, plural, =1{Token} other{Tokens}} belastet.",
+  "@dispensingPartialCharged": {
+    "description": "Message for partial dispense explaining reduced charge",
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "dispensingNeedsRefilling": "Bitte Personal informieren – der Ausgabeautomat muss möglicherweise nachgefüllt werden.",
+  "@dispensingNeedsRefilling": {
+    "description": "Warning to notify staff that dispenser may need refilling"
+  },
+
+  "dispenserStateIdle": "Bereit",
+  "@dispenserStateIdle": { "description": "Dispenser machine state: idle/ready" },
+  "dispenserStateDispensing": "Ausgabe läuft",
+  "@dispenserStateDispensing": { "description": "Dispenser machine state: currently dispensing" },
+  "dispenserStateDone": "Fertig",
+  "@dispenserStateDone": { "description": "Dispenser machine state: dispensing completed" },
+  "dispenserStateError": "Fehler",
+  "@dispenserStateError": { "description": "Dispenser machine state: error" },
+  "dispenserStateNotFound": "Nicht gefunden",
+  "@dispenserStateNotFound": { "description": "Dispenser machine state: transaction not found on hardware" },
+  "dispenserStateOffline": "Offline",
+  "@dispenserStateOffline": { "description": "Dispenser machine state: offline/unreachable" },
+  "dispenserStateUnknown": "Unbekannt",
+  "@dispenserStateUnknown": { "description": "Dispenser machine state: unknown/unexpected value" },
+
+  "tabOverview": "Übersicht",
+  "tabDispenserStatus": "Dispenser Status",
+  "syncStatus": "Sync-Status",
+  "successRate": "Erfolgsquote",
+  "endpoints": "Endpunkte",
+  "dispenserNotAvailable": "Ausgabegerät nicht verfügbar",
+  "dispenserNetworkNotAvailable": "Netzwerkinfo nicht verfügbar",
+  "dispenserLocalTransactionLog": "Lokales Transaktionsprotokoll",
+  "dispenserManualReconciliationRequired": "Manuelle Abstimmung erforderlich",
+  "dispenserInProgress": "In Bearbeitung",
+  "dispenserStatusOnline": "Online ({state})",
+  "@dispenserStatusOnline": {
+    "placeholders": {
+      "state": {"type": "String"}
+    }
+  },
+  "statusLoadError": "Status konnte nicht geladen werden: {error}",
+  "@statusLoadError": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
   }
 }

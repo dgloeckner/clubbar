@@ -248,6 +248,7 @@ void main() async {
       dispenserRecoveryService = DispenserRecoveryService(
         database: database,
         client: dispenserClient,
+        logger: logger,
       );
       await dispenserRecoveryService.recoverIncompleteDispenses();
       dispenserRecoveryService.startPeriodicReconciliation();
