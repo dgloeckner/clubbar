@@ -6,9 +6,9 @@ import 'package:path_provider/path_provider.dart';
 /// Manages terminal configuration (ADR-0019).
 ///
 /// Loads config from a JSON file at platform-specific path:
-/// - macOS: ~/Library/Application Support/frgs-terminal/config.json
-/// - Linux: ~/.config/frgs-terminal/config.json
-/// - Windows: %APPDATA%\frgs-terminal\config.json
+/// - macOS: ~/Library/Containers/com.example.ruderbarTerminal/Data/Library/Application Support/com.example.ruderbarTerminal/config.json
+/// - Linux: ~/.config/com.example.ruderbarTerminal/config.json
+/// - Windows: %APPDATA%\com.example.ruderbarTerminal\config.json
 ///
 /// Environment variables override file values:
 /// - TERMINAL_ID

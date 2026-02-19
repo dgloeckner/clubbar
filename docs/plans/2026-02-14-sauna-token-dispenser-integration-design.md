@@ -167,9 +167,9 @@ CREATE TABLE IF NOT EXISTS products_cache (
 **Extend `config.json` file** (same file as backend credentials):
 
 **Location:**
-- macOS: `~/Library/Application Support/frgs-terminal/config.json`
-- Linux: `~/.config/frgs-terminal/config.json`
-- Windows: `%APPDATA%\frgs-terminal\config.json`
+- macOS: `~/Library/Containers/com.example.ruderbarTerminal/Data/Library/Application Support/com.example.ruderbarTerminal/config.json`
+- Linux: `~/.config/com.example.ruderbarTerminal/config.json`
+- Windows: `%APPDATA%\com.example.ruderbarTerminal\config.json`
 
 **Extended structure:**
 ```json
