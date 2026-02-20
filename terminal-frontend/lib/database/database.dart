@@ -45,7 +45,7 @@ class RuderbarDatabase extends _$RuderbarDatabase {
   RuderbarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -116,6 +116,12 @@ class RuderbarDatabase extends _$RuderbarDatabase {
                 m, 'dispenser_operations', 'last_polled_at', 'TEXT');
             await _addColumnIfNotExists(
                 m, 'dispenser_operations', 'polling_active', 'INTEGER NOT NULL DEFAULT 0');
+          }
+          if (from < 6) {
+            await _addColumnIfNotExists(
+                m, 'transactions_local', 'session_id', 'TEXT');
+            await _addColumnIfNotExists(
+                m, 'transactions_local', 'unit_price_cents', 'INTEGER');
           }
         },
       );

@@ -14,6 +14,8 @@ class TransactionsLocal extends Table {
   TextColumn get dispenserTxId => text().nullable()(); // ESP8266 transaction ID
   IntColumn get dispenserRequested => integer().nullable()(); // Requested quantity
   IntColumn get dispenserActual => integer().nullable()(); // Actual dispensed quantity
+  TextColumn get sessionId => text().nullable()(); // Groups transactions by login session
+  IntColumn get unitPriceCents => integer().nullable()(); // Per-unit price at time of purchase
 
   @override
   Set<Column> get primaryKey => {id};

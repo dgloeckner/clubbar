@@ -1694,6 +1694,28 @@ class $TransactionsLocalTable extends TransactionsLocal
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _unitPriceCentsMeta = const VerificationMeta(
+    'unitPriceCents',
+  );
+  @override
+  late final GeneratedColumn<int> unitPriceCents = GeneratedColumn<int>(
+    'unit_price_cents',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1707,6 +1729,8 @@ class $TransactionsLocalTable extends TransactionsLocal
     dispenserTxId,
     dispenserRequested,
     dispenserActual,
+    sessionId,
+    unitPriceCents,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1808,6 +1832,21 @@ class $TransactionsLocalTable extends TransactionsLocal
         ),
       );
     }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    }
+    if (data.containsKey('unit_price_cents')) {
+      context.handle(
+        _unitPriceCentsMeta,
+        unitPriceCents.isAcceptableOrUnknown(
+          data['unit_price_cents']!,
+          _unitPriceCentsMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1861,6 +1900,14 @@ class $TransactionsLocalTable extends TransactionsLocal
         DriftSqlType.int,
         data['${effectivePrefix}dispenser_actual'],
       ),
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      ),
+      unitPriceCents: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}unit_price_cents'],
+      ),
     );
   }
 
@@ -1883,6 +1930,8 @@ class TransactionsLocalData extends DataClass
   final String? dispenserTxId;
   final int? dispenserRequested;
   final int? dispenserActual;
+  final String? sessionId;
+  final int? unitPriceCents;
   const TransactionsLocalData({
     required this.id,
     required this.memberId,
@@ -1895,6 +1944,8 @@ class TransactionsLocalData extends DataClass
     this.dispenserTxId,
     this.dispenserRequested,
     this.dispenserActual,
+    this.sessionId,
+    this.unitPriceCents,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1919,6 +1970,12 @@ class TransactionsLocalData extends DataClass
     }
     if (!nullToAbsent || dispenserActual != null) {
       map['dispenser_actual'] = Variable<int>(dispenserActual);
+    }
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<String>(sessionId);
+    }
+    if (!nullToAbsent || unitPriceCents != null) {
+      map['unit_price_cents'] = Variable<int>(unitPriceCents);
     }
     return map;
   }
@@ -1946,6 +2003,12 @@ class TransactionsLocalData extends DataClass
       dispenserActual: dispenserActual == null && nullToAbsent
           ? const Value.absent()
           : Value(dispenserActual),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
+      unitPriceCents: unitPriceCents == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unitPriceCents),
     );
   }
 
@@ -1966,6 +2029,8 @@ class TransactionsLocalData extends DataClass
       dispenserTxId: serializer.fromJson<String?>(json['dispenserTxId']),
       dispenserRequested: serializer.fromJson<int?>(json['dispenserRequested']),
       dispenserActual: serializer.fromJson<int?>(json['dispenserActual']),
+      sessionId: serializer.fromJson<String?>(json['sessionId']),
+      unitPriceCents: serializer.fromJson<int?>(json['unitPriceCents']),
     );
   }
   @override
@@ -1983,6 +2048,8 @@ class TransactionsLocalData extends DataClass
       'dispenserTxId': serializer.toJson<String?>(dispenserTxId),
       'dispenserRequested': serializer.toJson<int?>(dispenserRequested),
       'dispenserActual': serializer.toJson<int?>(dispenserActual),
+      'sessionId': serializer.toJson<String?>(sessionId),
+      'unitPriceCents': serializer.toJson<int?>(unitPriceCents),
     };
   }
 
@@ -1998,6 +2065,8 @@ class TransactionsLocalData extends DataClass
     Value<String?> dispenserTxId = const Value.absent(),
     Value<int?> dispenserRequested = const Value.absent(),
     Value<int?> dispenserActual = const Value.absent(),
+    Value<String?> sessionId = const Value.absent(),
+    Value<int?> unitPriceCents = const Value.absent(),
   }) => TransactionsLocalData(
     id: id ?? this.id,
     memberId: memberId ?? this.memberId,
@@ -2016,6 +2085,10 @@ class TransactionsLocalData extends DataClass
     dispenserActual: dispenserActual.present
         ? dispenserActual.value
         : this.dispenserActual,
+    sessionId: sessionId.present ? sessionId.value : this.sessionId,
+    unitPriceCents: unitPriceCents.present
+        ? unitPriceCents.value
+        : this.unitPriceCents,
   );
   TransactionsLocalData copyWithCompanion(TransactionsLocalCompanion data) {
     return TransactionsLocalData(
@@ -2040,6 +2113,10 @@ class TransactionsLocalData extends DataClass
       dispenserActual: data.dispenserActual.present
           ? data.dispenserActual.value
           : this.dispenserActual,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      unitPriceCents: data.unitPriceCents.present
+          ? data.unitPriceCents.value
+          : this.unitPriceCents,
     );
   }
 
@@ -2056,7 +2133,9 @@ class TransactionsLocalData extends DataClass
           ..write('synced: $synced, ')
           ..write('dispenserTxId: $dispenserTxId, ')
           ..write('dispenserRequested: $dispenserRequested, ')
-          ..write('dispenserActual: $dispenserActual')
+          ..write('dispenserActual: $dispenserActual, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('unitPriceCents: $unitPriceCents')
           ..write(')'))
         .toString();
   }
@@ -2074,6 +2153,8 @@ class TransactionsLocalData extends DataClass
     dispenserTxId,
     dispenserRequested,
     dispenserActual,
+    sessionId,
+    unitPriceCents,
   );
   @override
   bool operator ==(Object other) =>
@@ -2089,7 +2170,9 @@ class TransactionsLocalData extends DataClass
           other.synced == this.synced &&
           other.dispenserTxId == this.dispenserTxId &&
           other.dispenserRequested == this.dispenserRequested &&
-          other.dispenserActual == this.dispenserActual);
+          other.dispenserActual == this.dispenserActual &&
+          other.sessionId == this.sessionId &&
+          other.unitPriceCents == this.unitPriceCents);
 }
 
 class TransactionsLocalCompanion
@@ -2105,6 +2188,8 @@ class TransactionsLocalCompanion
   final Value<String?> dispenserTxId;
   final Value<int?> dispenserRequested;
   final Value<int?> dispenserActual;
+  final Value<String?> sessionId;
+  final Value<int?> unitPriceCents;
   final Value<int> rowid;
   const TransactionsLocalCompanion({
     this.id = const Value.absent(),
@@ -2118,6 +2203,8 @@ class TransactionsLocalCompanion
     this.dispenserTxId = const Value.absent(),
     this.dispenserRequested = const Value.absent(),
     this.dispenserActual = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.unitPriceCents = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsLocalCompanion.insert({
@@ -2132,6 +2219,8 @@ class TransactionsLocalCompanion
     this.dispenserTxId = const Value.absent(),
     this.dispenserRequested = const Value.absent(),
     this.dispenserActual = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.unitPriceCents = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        memberId = Value(memberId),
@@ -2150,6 +2239,8 @@ class TransactionsLocalCompanion
     Expression<String>? dispenserTxId,
     Expression<int>? dispenserRequested,
     Expression<int>? dispenserActual,
+    Expression<String>? sessionId,
+    Expression<int>? unitPriceCents,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2164,6 +2255,8 @@ class TransactionsLocalCompanion
       if (dispenserTxId != null) 'dispenser_tx_id': dispenserTxId,
       if (dispenserRequested != null) 'dispenser_requested': dispenserRequested,
       if (dispenserActual != null) 'dispenser_actual': dispenserActual,
+      if (sessionId != null) 'session_id': sessionId,
+      if (unitPriceCents != null) 'unit_price_cents': unitPriceCents,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2180,6 +2273,8 @@ class TransactionsLocalCompanion
     Value<String?>? dispenserTxId,
     Value<int?>? dispenserRequested,
     Value<int?>? dispenserActual,
+    Value<String?>? sessionId,
+    Value<int?>? unitPriceCents,
     Value<int>? rowid,
   }) {
     return TransactionsLocalCompanion(
@@ -2194,6 +2289,8 @@ class TransactionsLocalCompanion
       dispenserTxId: dispenserTxId ?? this.dispenserTxId,
       dispenserRequested: dispenserRequested ?? this.dispenserRequested,
       dispenserActual: dispenserActual ?? this.dispenserActual,
+      sessionId: sessionId ?? this.sessionId,
+      unitPriceCents: unitPriceCents ?? this.unitPriceCents,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2234,6 +2331,12 @@ class TransactionsLocalCompanion
     if (dispenserActual.present) {
       map['dispenser_actual'] = Variable<int>(dispenserActual.value);
     }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (unitPriceCents.present) {
+      map['unit_price_cents'] = Variable<int>(unitPriceCents.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2254,6 +2357,8 @@ class TransactionsLocalCompanion
           ..write('dispenserTxId: $dispenserTxId, ')
           ..write('dispenserRequested: $dispenserRequested, ')
           ..write('dispenserActual: $dispenserActual, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('unitPriceCents: $unitPriceCents, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4707,6 +4812,8 @@ typedef $$TransactionsLocalTableCreateCompanionBuilder =
       Value<String?> dispenserTxId,
       Value<int?> dispenserRequested,
       Value<int?> dispenserActual,
+      Value<String?> sessionId,
+      Value<int?> unitPriceCents,
       Value<int> rowid,
     });
 typedef $$TransactionsLocalTableUpdateCompanionBuilder =
@@ -4722,6 +4829,8 @@ typedef $$TransactionsLocalTableUpdateCompanionBuilder =
       Value<String?> dispenserTxId,
       Value<int?> dispenserRequested,
       Value<int?> dispenserActual,
+      Value<String?> sessionId,
+      Value<int?> unitPriceCents,
       Value<int> rowid,
     });
 
@@ -4834,6 +4943,16 @@ class $$TransactionsLocalTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get unitPriceCents => $composableBuilder(
+    column: $table.unitPriceCents,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$MembersCacheTableFilterComposer get memberId {
     final $$MembersCacheTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -4935,6 +5054,16 @@ class $$TransactionsLocalTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get unitPriceCents => $composableBuilder(
+    column: $table.unitPriceCents,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MembersCacheTableOrderingComposer get memberId {
     final $$MembersCacheTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -5025,6 +5154,14 @@ class $$TransactionsLocalTableAnnotationComposer
 
   GeneratedColumn<int> get dispenserActual => $composableBuilder(
     column: $table.dispenserActual,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<int> get unitPriceCents => $composableBuilder(
+    column: $table.unitPriceCents,
     builder: (column) => column,
   );
 
@@ -5119,6 +5256,8 @@ class $$TransactionsLocalTableTableManager
                 Value<String?> dispenserTxId = const Value.absent(),
                 Value<int?> dispenserRequested = const Value.absent(),
                 Value<int?> dispenserActual = const Value.absent(),
+                Value<String?> sessionId = const Value.absent(),
+                Value<int?> unitPriceCents = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsLocalCompanion(
                 id: id,
@@ -5132,6 +5271,8 @@ class $$TransactionsLocalTableTableManager
                 dispenserTxId: dispenserTxId,
                 dispenserRequested: dispenserRequested,
                 dispenserActual: dispenserActual,
+                sessionId: sessionId,
+                unitPriceCents: unitPriceCents,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5147,6 +5288,8 @@ class $$TransactionsLocalTableTableManager
                 Value<String?> dispenserTxId = const Value.absent(),
                 Value<int?> dispenserRequested = const Value.absent(),
                 Value<int?> dispenserActual = const Value.absent(),
+                Value<String?> sessionId = const Value.absent(),
+                Value<int?> unitPriceCents = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsLocalCompanion.insert(
                 id: id,
@@ -5160,6 +5303,8 @@ class $$TransactionsLocalTableTableManager
                 dispenserTxId: dispenserTxId,
                 dispenserRequested: dispenserRequested,
                 dispenserActual: dispenserActual,
+                sessionId: sessionId,
+                unitPriceCents: unitPriceCents,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
