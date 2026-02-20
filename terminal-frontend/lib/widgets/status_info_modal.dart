@@ -103,6 +103,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   StatusModalTab _currentTab = StatusModalTab.overview;
   List<DispenserOperation> _pendingOps = [];
   StreamSubscription<List<DispenserOperation>>? _opsSub;
+  DispenserHealthService? _healthService;
 
   @override
   void initState() {
@@ -115,22 +116,35 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
         if (mounted) setState(() => _pendingOps = ops);
       });
     }
+    // Subscribe directly to DispenserHealthService so updates propagate
+    // reliably inside the dialog overlay (context.watch is unreliable there).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        _healthService = context.read<DispenserHealthService>();
+        _healthService!.addListener(_onHealthChanged);
+        _healthService!.checkNow();
+      } catch (_) {
+        // Dispenser not configured — leave _healthService null.
+      }
+    });
+  }
+
+  void _onHealthChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _healthService?.removeListener(_onHealthChanged);
     _opsSub?.cancel();
     super.dispose();
   }
 
-  /// Returns live health from DispenserHealthService if available, else the
-  /// snapshot passed at dialog construction time.
-  DispenserHealth? _effectiveHealth(BuildContext context) {
-    try {
-      return context.watch<DispenserHealthService>().currentHealth;
-    } catch (_) {
-      return widget.dispenserHealth;
-    }
+  /// Returns live health from the subscribed service, or the snapshot passed
+  /// at dialog construction time when no service is available.
+  DispenserHealth? _effectiveHealth() {
+    return _healthService?.currentHealth ?? widget.dispenserHealth;
   }
 
   String _translateMachineState(String? state, AppLocalizations l10n) {
@@ -268,7 +282,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final health = _effectiveHealth(context);
+    final health = _effectiveHealth();
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -495,13 +509,26 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
 
   Widget _buildStatusBadge(String status, AppLocalizations l10n) {
     final isIdle = status == 'idle';
+    final isError = status == 'offline' || status == 'error';
+    final Color bg, border, text;
+    if (isError) {
+      bg     = const Color(0x19ef4444);
+      border = const Color(0x33ef4444);
+      text   = const Color(0xffef4444);
+    } else if (isIdle) {
+      bg     = const Color(0x196366f1);
+      border = const Color(0x336366f1);
+      text   = const Color(0xff818cf8);
+    } else {
+      bg     = const Color(0x1934d399);
+      border = const Color(0x3334d399);
+      text   = const Color(0xff34d399);
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       decoration: BoxDecoration(
-        color: isIdle ? const Color(0x196366f1) : const Color(0x1934d399),
-        border: Border.all(
-          color: isIdle ? const Color(0x336366f1) : const Color(0x3334d399),
-        ),
+        color: bg,
+        border: Border.all(color: border),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -510,7 +537,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           fontFamily: 'monospace',
           fontSize: 11,
           fontWeight: FontWeight.w600,
-          color: isIdle ? const Color(0xff818cf8) : const Color(0xff34d399),
+          color: text,
           letterSpacing: 0.08,
         ),
       ),

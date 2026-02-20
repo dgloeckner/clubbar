@@ -407,7 +407,7 @@ abstract class AppLocalizations {
   /// Token dispenser hardware label
   ///
   /// In de, this message translates to:
-  /// **'Spender'**
+  /// **'Ausgabegerät'**
   String get dispenser;
 
   /// Backend API endpoint label
@@ -419,7 +419,7 @@ abstract class AppLocalizations {
   /// Dispenser hardware endpoint URL label
   ///
   /// In de, this message translates to:
-  /// **'Spender-URL'**
+  /// **'Ausgabegerät-URL'**
   String get dispenserEndpoint;
 
   /// Used for timestamps that never occurred
@@ -761,7 +761,7 @@ abstract class AppLocalizations {
   /// No description provided for @tabDispenserStatus.
   ///
   /// In de, this message translates to:
-  /// **'Dispenser Status'**
+  /// **'Ausgabegerät-Status'**
   String get tabDispenserStatus;
 
   /// No description provided for @syncStatus.

@@ -276,7 +276,7 @@
   "@statusWarning": {
     "description": "Connection status: warning (e.g. dispenser offline)"
   },
-  "dispenser": "Spender",
+  "dispenser": "Ausgabegerät",
   "@dispenser": {
     "description": "Token dispenser hardware label"
   },
@@ -284,7 +284,7 @@
   "@backendEndpoint": {
     "description": "Backend API endpoint label"
   },
-  "dispenserEndpoint": "Spender-URL",
+  "dispenserEndpoint": "Ausgabegerät-URL",
   "@dispenserEndpoint": {
     "description": "Dispenser hardware endpoint URL label"
   },
@@ -514,7 +514,7 @@
   "@dispenserStateUnknown": { "description": "Dispenser machine state: unknown/unexpected value" },
 
   "tabOverview": "Übersicht",
-  "tabDispenserStatus": "Dispenser Status",
+  "tabDispenserStatus": "Ausgabegerät-Status",
   "syncStatus": "Sync-Status",
   "successRate": "Erfolgsquote",
   "endpoints": "Endpunkte",

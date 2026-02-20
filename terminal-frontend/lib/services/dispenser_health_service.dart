@@ -14,7 +14,7 @@ class DispenserHealthService extends ChangeNotifier {
 
   DispenserHealthService({
     required this.client,
-    this.interval = const Duration(seconds: 60),
+    this.interval = const Duration(seconds: 15),
   });
 
   /// Get the most recent health check result
@@ -39,6 +39,9 @@ class DispenserHealthService extends ChangeNotifier {
     _healthTimer?.cancel();
     _healthTimer = null;
   }
+
+  /// Perform an immediate health check on demand (e.g. when status modal opens).
+  Future<void> checkNow() => _performHealthCheck();
 
   /// Perform a single health check
   Future<void> _performHealthCheck() async {

@@ -200,13 +200,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get statusWarning => 'Warnung';
 
   @override
-  String get dispenser => 'Spender';
+  String get dispenser => 'Ausgabegerät';
 
   @override
   String get backendEndpoint => 'Backend';
 
   @override
-  String get dispenserEndpoint => 'Spender-URL';
+  String get dispenserEndpoint => 'Ausgabegerät-URL';
 
   @override
   String get never => 'Nie';
@@ -399,7 +399,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get tabOverview => 'Übersicht';
 
   @override
-  String get tabDispenserStatus => 'Dispenser Status';
+  String get tabDispenserStatus => 'Ausgabegerät-Status';
 
   @override
   String get syncStatus => 'Sync-Status';
