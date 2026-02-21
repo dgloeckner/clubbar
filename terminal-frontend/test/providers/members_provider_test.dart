@@ -11,6 +11,20 @@ void main() {
     late MockMembersService mockService;
     late MembersProvider provider;
 
+    setUpAll(() {
+      registerFallbackValue(MembersCacheData(
+        id: 'fallback',
+        cardUid: 'fallback-uid',
+        firstName: 'Fallback',
+        lastName: 'User',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      ));
+    });
+
     setUp(() {
       mockService = MockMembersService();
       provider = MembersProvider(service: mockService);
@@ -146,6 +160,45 @@ void main() {
       await provider.refreshMembers();
 
       expect(provider.isSyncing, isFalse);
+    });
+
+    test('selectMemberByRfid sets a non-null sessionId on success', () async {
+      final fakeMember = createTestMember();
+      // Arrange: mock service returns a member
+      when(() => mockService.lookupByRfid(any()))
+          .thenAnswer((_) async => (fakeMember, null));
+      when(() => mockService.getEffectiveBalance(any()))
+          .thenAnswer((_) async => 0);
+
+      // Act
+      await provider.selectMemberByRfid('test-uid');
+
+      // Assert
+      expect(provider.sessionId, isNotNull);
+      expect(provider.sessionId, hasLength(greaterThan(0)));
+    });
+
+    test('clearSelectedMember clears sessionId', () async {
+      final fakeMember = createTestMember();
+      when(() => mockService.lookupByRfid(any()))
+          .thenAnswer((_) async => (fakeMember, null));
+      when(() => mockService.getEffectiveBalance(any()))
+          .thenAnswer((_) async => 0);
+      await provider.selectMemberByRfid('test-uid');
+
+      provider.clearSelectedMember();
+
+      expect(provider.sessionId, isNull);
+    });
+
+    test('setSelectedMember sets a non-null sessionId', () async {
+      final fakeMember = createTestMember();
+      when(() => mockService.getEffectiveBalance(any()))
+          .thenAnswer((_) async => 0);
+
+      await provider.setSelectedMember(fakeMember);
+
+      expect(provider.sessionId, isNotNull);
     });
   });
 }

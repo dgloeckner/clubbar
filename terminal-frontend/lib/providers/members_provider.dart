@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/services/members_service.dart';
 import 'package:ruderbar_terminal/providers/locale_provider.dart';
@@ -7,8 +8,11 @@ class MembersProvider extends ChangeNotifier {
   final MembersService _service;
   final LocaleProvider? _localeProvider;
 
+  static const _uuid = Uuid();
+
   List<MembersCacheData> _members = [];
   MembersCacheData? _selectedMember;
+  String? _sessionId;
   int? _memberDeckel;
   bool _isLoading = false;
   bool _isSyncing = false;
@@ -23,6 +27,7 @@ class MembersProvider extends ChangeNotifier {
 
   List<MembersCacheData> get members => _members;
   MembersCacheData? get selectedMember => _selectedMember;
+  String? get sessionId => _sessionId;
 
   /// Effective balance: synced backend balance + unsynced local transactions
   int? get memberDeckel => _memberDeckel;
@@ -42,6 +47,7 @@ class MembersProvider extends ChangeNotifier {
 
       if (member != null && error == null) {
         _selectedMember = member;
+        _sessionId = _uuid.v4();
         _memberDeckel = await _service.getEffectiveBalance(member);
         _lastError = null;
         _errorType = null;
@@ -76,6 +82,7 @@ class MembersProvider extends ChangeNotifier {
   /// Set selected member directly and compute effective balance
   Future<void> setSelectedMember(MembersCacheData member) async {
     _selectedMember = member;
+    _sessionId = _uuid.v4();
     _memberDeckel = await _service.getEffectiveBalance(member);
     _lastError = null;
     _errorType = null;
@@ -89,6 +96,7 @@ class MembersProvider extends ChangeNotifier {
   /// Clear selected member
   void clearSelectedMember() {
     _selectedMember = null;
+    _sessionId = null;
     _memberDeckel = null;
 
     // Reset locale to default (German)
