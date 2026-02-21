@@ -737,15 +737,7 @@ void main() {
 
     group('session queries', () {
       test('getSessionTotal returns sum of abs(amountCents) for session', () async {
-        final db = RuderbarDatabase.forTesting(NativeDatabase.memory());
-        final repo = TransactionsRepository(db);
-        // Insert member first (FK constraint)
-        await db.into(db.membersCache).insert(MembersCacheCompanion(
-          id: const Value('m1'), cardUid: const Value('c1'),
-          firstName: const Value('A'), lastName: const Value('B'),
-          preferredLanguage: const Value('de'), isActive: const Value(1),
-          isSepaValid: const Value(1), updatedAt: const Value('2025-01-01T00:00:00Z'),
-        ));
+        await createTestMember('m1');
         // Insert two transactions with session_id 'sess-1'
         await db.into(db.transactionsLocal).insert(TransactionsLocalCompanion(
           id: const Value('t1'), memberId: const Value('m1'),
@@ -770,18 +762,10 @@ void main() {
         final total = await repo.getSessionTotal('sess-1');
 
         expect(total, 850); // 350 + 500
-        await db.close();
       });
 
       test('getSessionDispenserInfo returns dispenser row for session', () async {
-        final db = RuderbarDatabase.forTesting(NativeDatabase.memory());
-        final repo = TransactionsRepository(db);
-        await db.into(db.membersCache).insert(MembersCacheCompanion(
-          id: const Value('m1'), cardUid: const Value('c1'),
-          firstName: const Value('A'), lastName: const Value('B'),
-          preferredLanguage: const Value('de'), isActive: const Value(1),
-          isSepaValid: const Value(1), updatedAt: const Value('2025-01-01T00:00:00Z'),
-        ));
+        await createTestMember('m1');
         await db.into(db.transactionsLocal).insert(TransactionsLocalCompanion(
           id: const Value('t1'), memberId: const Value('m1'),
           amountCents: const Value(500), transactionType: const Value('purchase'),
@@ -799,17 +783,12 @@ void main() {
         expect(info!.dispenserRequested, 5);
         expect(info.dispenserActual, 2);
         expect(info.unitPriceCents, 500);
-        await db.close();
       });
 
       test('getSessionDispenserInfo returns null when no dispenser row', () async {
-        final db = RuderbarDatabase.forTesting(NativeDatabase.memory());
-        final repo = TransactionsRepository(db);
-
         final info = await repo.getSessionDispenserInfo('no-such-session');
 
         expect(info, isNull);
-        await db.close();
       });
     });
 
