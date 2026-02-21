@@ -136,9 +136,28 @@ class TransactionsRepository {
   /// Returns transactions that have dispenser_tx_id but dispenser_actual is null
   Future<List<TransactionsLocalData>> getIncompleteDispenserTransactions() async {
     return (_db.select(_db.transactionsLocal)
-          ..where((t) => 
-              t.dispenserTxId.isNotNull() & 
+          ..where((t) =>
+              t.dispenserTxId.isNotNull() &
               t.dispenserActual.isNull()))
         .get();
+  }
+
+  /// Sum of abs(amountCents) for all transactions belonging to a session.
+  /// This is the actual billed amount for the checkout session.
+  Future<int> getSessionTotal(String sessionId) async {
+    final rows = await (_db.select(_db.transactionsLocal)
+          ..where((t) => t.sessionId.equals(sessionId)))
+        .get();
+    return rows.fold<int>(0, (sum, t) => sum + t.amountCents.abs());
+  }
+
+  /// Returns the dispenser row for a session (the row that has a dispenserTxId),
+  /// or null if the session had no dispenser items.
+  Future<TransactionsLocalData?> getSessionDispenserInfo(String sessionId) async {
+    return (_db.select(_db.transactionsLocal)
+          ..where((t) =>
+              t.sessionId.equals(sessionId) & t.dispenserTxId.isNotNull())
+          ..limit(1))
+        .getSingleOrNull();
   }
 }

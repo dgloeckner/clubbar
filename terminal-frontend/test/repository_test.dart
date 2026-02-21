@@ -735,6 +735,84 @@ void main() {
       expect(txns, isEmpty);
     });
 
+    group('session queries', () {
+      test('getSessionTotal returns sum of abs(amountCents) for session', () async {
+        final db = RuderbarDatabase.forTesting(NativeDatabase.memory());
+        final repo = TransactionsRepository(db);
+        // Insert member first (FK constraint)
+        await db.into(db.membersCache).insert(MembersCacheCompanion(
+          id: const Value('m1'), cardUid: const Value('c1'),
+          firstName: const Value('A'), lastName: const Value('B'),
+          preferredLanguage: const Value('de'), isActive: const Value(1),
+          isSepaValid: const Value(1), updatedAt: const Value('2025-01-01T00:00:00Z'),
+        ));
+        // Insert two transactions with session_id 'sess-1'
+        await db.into(db.transactionsLocal).insert(TransactionsLocalCompanion(
+          id: const Value('t1'), memberId: const Value('m1'),
+          amountCents: const Value(350), transactionType: const Value('purchase'),
+          createdAt: const Value('2025-01-01T12:00:00Z'), synced: const Value(0),
+          sessionId: const Value('sess-1'), unitPriceCents: const Value(350),
+        ));
+        await db.into(db.transactionsLocal).insert(TransactionsLocalCompanion(
+          id: const Value('t2'), memberId: const Value('m1'),
+          amountCents: const Value(500), transactionType: const Value('purchase'),
+          createdAt: const Value('2025-01-01T12:00:01Z'), synced: const Value(0),
+          sessionId: const Value('sess-1'), unitPriceCents: const Value(500),
+        ));
+        // Insert transaction with different session (should not be counted)
+        await db.into(db.transactionsLocal).insert(TransactionsLocalCompanion(
+          id: const Value('t3'), memberId: const Value('m1'),
+          amountCents: const Value(999), transactionType: const Value('purchase'),
+          createdAt: const Value('2025-01-01T13:00:00Z'), synced: const Value(0),
+          sessionId: const Value('sess-2'),
+        ));
+
+        final total = await repo.getSessionTotal('sess-1');
+
+        expect(total, 850); // 350 + 500
+        await db.close();
+      });
+
+      test('getSessionDispenserInfo returns dispenser row for session', () async {
+        final db = RuderbarDatabase.forTesting(NativeDatabase.memory());
+        final repo = TransactionsRepository(db);
+        await db.into(db.membersCache).insert(MembersCacheCompanion(
+          id: const Value('m1'), cardUid: const Value('c1'),
+          firstName: const Value('A'), lastName: const Value('B'),
+          preferredLanguage: const Value('de'), isActive: const Value(1),
+          isSepaValid: const Value(1), updatedAt: const Value('2025-01-01T00:00:00Z'),
+        ));
+        await db.into(db.transactionsLocal).insert(TransactionsLocalCompanion(
+          id: const Value('t1'), memberId: const Value('m1'),
+          amountCents: const Value(500), transactionType: const Value('purchase'),
+          createdAt: const Value('2025-01-01T12:00:00Z'), synced: const Value(0),
+          sessionId: const Value('sess-1'),
+          dispenserTxId: const Value('disp-tx-1'),
+          dispenserRequested: const Value(5),
+          dispenserActual: const Value(2),
+          unitPriceCents: const Value(500),
+        ));
+
+        final info = await repo.getSessionDispenserInfo('sess-1');
+
+        expect(info, isNotNull);
+        expect(info!.dispenserRequested, 5);
+        expect(info.dispenserActual, 2);
+        expect(info.unitPriceCents, 500);
+        await db.close();
+      });
+
+      test('getSessionDispenserInfo returns null when no dispenser row', () async {
+        final db = RuderbarDatabase.forTesting(NativeDatabase.memory());
+        final repo = TransactionsRepository(db);
+
+        final info = await repo.getSessionDispenserInfo('no-such-session');
+
+        expect(info, isNull);
+        await db.close();
+      });
+    });
+
     test('completeSyncAtomically marks transactions synced and updates balances', () async {
       await createTestMember('member-1');
       await createTestMember('member-2');
