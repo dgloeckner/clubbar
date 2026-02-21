@@ -523,6 +523,8 @@ void main() {
           notes: null,
           createdAt: '2025-02-01T12:00:00Z',
           synced: 0,
+          sessionId: null,
+          unitPriceCents: null,
         ),
       );
 

@@ -199,6 +199,8 @@ void main() {
           notes: null,
           createdAt: '2025-02-01T12:00:00Z',
           synced: 0,
+          sessionId: null,
+          unitPriceCents: null,
         ),
         TransactionsLocalData(
           id: 'txn-2',
@@ -209,6 +211,8 @@ void main() {
           notes: null,
           createdAt: '2025-02-01T12:01:00Z',
           synced: 0,
+          sessionId: null,
+          unitPriceCents: null,
         ),
       ];
       when(() => mockTransactionsRepo.getUnsyncedTransactions())
@@ -269,6 +273,8 @@ void main() {
           notes: null,
           createdAt: '2025-02-01T12:00:00Z',
           synced: 0,
+          sessionId: null,
+          unitPriceCents: null,
         ),
       ];
       when(() => mockTransactionsRepo.getUnsyncedTransactions())
@@ -355,6 +361,8 @@ void main() {
             notes: 'test note',
             createdAt: '2025-02-01T12:00:00Z',
             synced: 0,
+            sessionId: null,
+            unitPriceCents: null,
           ),
         ];
         when(() => mockTransactionsRepo.getUnsyncedTransactions())
@@ -425,6 +433,8 @@ void main() {
                     notes: null,
                     createdAt: '2025-02-02T12:00:00Z',
                     synced: 0,
+                    sessionId: null,
+                    unitPriceCents: null,
                   ),
                 ]);
 
@@ -460,6 +470,8 @@ void main() {
                     notes: null,
                     createdAt: '2025-02-03T12:00:00Z',
                     synced: 0,
+                    sessionId: null,
+                    unitPriceCents: null,
                   ),
                 ]);
 

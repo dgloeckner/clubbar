@@ -21,6 +21,8 @@ void main() {
       notes: null,
       createdAt: DateTime.now().toIso8601String(),
       synced: 0,
+      sessionId: null,
+      unitPriceCents: null,
     ));
   });
 
