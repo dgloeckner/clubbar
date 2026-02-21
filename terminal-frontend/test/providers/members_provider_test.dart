@@ -173,9 +173,8 @@ void main() {
       // Act
       await provider.selectMemberByRfid('test-uid');
 
-      // Assert
-      expect(provider.sessionId, isNotNull);
-      expect(provider.sessionId, hasLength(greaterThan(0)));
+      // Assert — must be a valid UUID v4
+      expect(provider.sessionId, matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')));
     });
 
     test('clearSelectedMember clears sessionId', () async {
@@ -191,14 +190,19 @@ void main() {
       expect(provider.sessionId, isNull);
     });
 
-    test('setSelectedMember sets a non-null sessionId', () async {
+    test('setSelectedMember sets a new UUID sessionId on each login', () async {
       final fakeMember = createTestMember();
       when(() => mockService.getEffectiveBalance(any()))
           .thenAnswer((_) async => 0);
 
       await provider.setSelectedMember(fakeMember);
+      final first = provider.sessionId;
 
-      expect(provider.sessionId, isNotNull);
+      await provider.setSelectedMember(fakeMember);
+      final second = provider.sessionId;
+
+      expect(first, matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')));
+      expect(second, isNot(equals(first)));
     });
   });
 }

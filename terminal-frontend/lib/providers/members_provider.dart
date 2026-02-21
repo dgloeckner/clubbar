@@ -128,6 +128,7 @@ class MembersProvider extends ChangeNotifier {
   Future<void> clearCache() async {
     _members = [];
     _selectedMember = null;
+    _sessionId = null;
     notifyListeners();
   }
 
