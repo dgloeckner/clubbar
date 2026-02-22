@@ -6,9 +6,9 @@ import 'package:path_provider/path_provider.dart';
 /// Manages terminal configuration (ADR-0019).
 ///
 /// Loads config from a JSON file at platform-specific path:
-/// - macOS: ~/Library/Containers/com.example.ruderbarTerminal/Data/Library/Application Support/com.example.ruderbarTerminal/config.json
-/// - Linux: ~/.config/com.example.ruderbarTerminal/config.json
-/// - Windows: %APPDATA%\com.example.ruderbarTerminal\config.json
+/// - macOS: ~/Library/Containers/com.example.ruderbar_terminal/Data/Library/Application Support/com.example.ruderbar_terminal/config.json
+/// - Linux: ~/.local/share/com.example.ruderbar_terminal/config.json
+/// - Windows: %APPDATA%\com.example.ruderbar_terminal\config.json
 ///
 /// Environment variables override file values:
 /// - TERMINAL_ID
@@ -30,6 +30,7 @@ class ConfigService {
   String? _dispenserApiKey;
   int _dispenserTimeoutMs = 3000;
   int _dispenserPollIntervalMs = 250;
+  bool _fullscreen = false;
 
   ConfigService({String? configDir}) : _configDirOverride = configDir;
 
@@ -47,6 +48,7 @@ class ConfigService {
   String? get dispenserApiKey => _dispenserApiKey;
   int get dispenserTimeoutMs => _dispenserTimeoutMs;
   int get dispenserPollIntervalMs => _dispenserPollIntervalMs;
+  bool get fullscreen => _fullscreen;
 
   Future<String> _getConfigDir() async {
     if (_configDirOverride != null) {
@@ -73,6 +75,7 @@ class ConfigService {
         _apiUrl = json['apiUrl'] as String?;
         _apiToken = json['apiToken'] as String?;
         _seedTestData = json['seedTestData'] as bool? ?? false;
+        _fullscreen = json['fullscreen'] as bool? ?? false;
 
         // Dispenser config
         final dispenser = json['dispenser'] as Map<String, dynamic>?;
@@ -104,6 +107,9 @@ class ConfigService {
     }
     if (env.containsKey('TERMINAL_SEED_TEST_DATA')) {
       _seedTestData = env['TERMINAL_SEED_TEST_DATA']?.toLowerCase() == 'true';
+    }
+    if (env.containsKey('TERMINAL_FULLSCREEN')) {
+      _fullscreen = env['TERMINAL_FULLSCREEN']?.toLowerCase() == 'true';
     }
     if (env.containsKey('DISPENSER_ENABLED')) {
       _dispenserEnabled = env['DISPENSER_ENABLED']?.toLowerCase() == 'true';
@@ -181,6 +187,7 @@ class ConfigService {
     _dispenserApiKey = null;
     _dispenserTimeoutMs = 3000;
     _dispenserPollIntervalMs = 250;
+    _fullscreen = false;
 
     final configFile = await _getConfigFile();
     if (configFile.existsSync()) {

@@ -367,5 +367,69 @@ void main() {
         expect(contents['dispenser']['apiKey'], '');
       });
     });
+
+    group('fullscreen configuration', () {
+      test('fullscreen defaults to false', () async {
+        await configService.load();
+        expect(configService.fullscreen, isFalse);
+      });
+
+      test('loads fullscreen:true from config file', () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test-Terminal',
+          'apiUrl': 'https://test.example.com/api',
+          'apiToken': 'b' * 64,
+          'fullscreen': true,
+        }));
+
+        await configService.load();
+
+        expect(configService.fullscreen, isTrue);
+      });
+
+      test('loads fullscreen:false from config file', () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test-Terminal',
+          'apiUrl': 'https://test.example.com/api',
+          'apiToken': 'b' * 64,
+          'fullscreen': false,
+        }));
+
+        await configService.load();
+
+        expect(configService.fullscreen, isFalse);
+      });
+
+      test('fullscreen missing from config file defaults to false', () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test-Terminal',
+          'apiUrl': 'https://test.example.com/api',
+          'apiToken': 'b' * 64,
+        }));
+
+        await configService.load();
+
+        expect(configService.fullscreen, isFalse);
+      });
+
+      test('clear resets fullscreen to false', () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test-Terminal',
+          'apiUrl': 'https://test.example.com/api',
+          'apiToken': 'b' * 64,
+          'fullscreen': true,
+        }));
+        await configService.load();
+        expect(configService.fullscreen, isTrue);
+
+        await configService.clear();
+
+        expect(configService.fullscreen, isFalse);
+      });
+    });
   });
 }
