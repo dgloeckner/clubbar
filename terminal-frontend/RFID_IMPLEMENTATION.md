@@ -22,8 +22,9 @@ The terminal frontend now supports **real RFID/NFC card scanning** for member id
    - Displays errors for invalid/unknown cards
 
 3. **IdleWaitingScreen** (`lib/screens/idle_waiting_screen.dart`)
-   - Hidden TextField to capture USB keyboard input
-   - Auto-focus management (prevents focus loss)
+   - `HardwareKeyboard.instance` handler captures USB keyboard input globally
+   - Works on Linux/Wayland and macOS (no widget focus dependency)
+   - Buffers characters, emits on Enter
    - Error display for scan failures
    - Optional demo button for testing without hardware
 
@@ -42,9 +43,9 @@ The terminal frontend now supports **real RFID/NFC card scanning** for member id
    ↓
 2. Reader types card UID + Enter (acts like keyboard)
    ↓
-3. Hidden TextField captures input (always focused)
+3. HardwareKeyboard handler receives key events
    ↓
-4. TextField's onSubmitted callback fires
+4. Characters buffered; Enter triggers emitScan
    ↓
 5. RfidProvider.emitScan(cardUid) called
    ↓
@@ -58,16 +59,19 @@ The terminal frontend now supports **real RFID/NFC card scanning** for member id
    Error: Display error message
 ```
 
-### Hidden TextField Details
+### HardwareKeyboard Handler Details
 
-The hidden TextField is:
-- **Positioned off-screen** (`left: -1000`) but still focusable
-- **Always focused** via focus listener (re-focuses if lost)
-- **Transparent styling** (invisible to user)
-- **Auto-focus on mount** via `autofocus: true`
-- **Re-focuses after scan** to capture next card
+The keyboard handler:
+- Registered via `HardwareKeyboard.instance.addHandler()` when the idle screen mounts
+- Receives **all** key events regardless of which widget (if any) has focus
+- Accumulates characters in a `StringBuffer`; on `Enter` emits the buffered UID
+- Returns `false` (does not consume events) — other handlers continue to work
+- Unregistered in `dispose()` — no resource leak
+- Works on Linux/Wayland, macOS, and Windows without platform-specific code
 
-This approach works because USB RFID readers emulate a keyboard, typing the card UID followed by Enter when a card is scanned.
+This replaces the previous approach of a hidden `TextField` at `left: -1000`, which failed
+on Linux/Wayland because the compositor does not route keyboard events to widgets outside
+the visible viewport.
 
 ## Hardware Setup
 
@@ -180,10 +184,10 @@ If scans aren't working:
    - Scan a card
    - Verify UID appears followed by newline
 
-3. **Check hidden TextField focus**:
-   - Add debug print in `onSubmitted` callback
+3. **Check HardwareKeyboard handler**:
+   - Add `debugPrint('key: ${event.character}')` in `_onKeyEvent`
    - Scan card
-   - Verify callback fires with UID
+   - Verify characters appear in console followed by the UID being emitted
 
 4. **Check member lookup**:
    - Add debug print in `handleCardScan`
@@ -213,19 +217,6 @@ Future<void> handleCardScan(String cardUid) async {
   // Custom success handling here
   _membersProvider.setSelectedMember(member);
   context.go('/products');
-}
-```
-
-### Disabling Auto-Focus
-
-If auto-focus interferes with other inputs, disable focus listener in `idle_waiting_screen.dart`:
-
-```dart
-@override
-void initState() {
-  super.initState();
-  // Comment out focus listener
-  // _rfidFocusNode.addListener(() { ... });
 }
 ```
 
