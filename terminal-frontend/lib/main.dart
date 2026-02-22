@@ -192,25 +192,21 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize window manager for desktop (macOS/Linux/Windows)
-  try {
-    await windowManager.ensureInitialized();
-    windowManager.waitUntilReadyToShow().then((_) async {
-      // Set fixed window size: 1280x720 (HD resolution)
-      await windowManager.setSize(const Size(1280, 720));
-      await windowManager.setMinimumSize(const Size(1280, 720));
-      await windowManager.setMaximumSize(const Size(1280, 720));
-      await windowManager.center();
-      await windowManager.show();
-    });
-  } catch (e) {
-    // Window manager not available (mobile platform or plugin issue)
-    // App will run with default window size
-  }
-
-  // Load terminal configuration (ADR-0019)
+  // Load terminal configuration first — needed to decide fullscreen mode (ADR-0019)
   final configService = ConfigService();
   await configService.load();
+
+  // Initialize window manager for desktop (Linux/macOS/Windows)
+  try {
+    await windowManager.ensureInitialized();
+    await windowManager.waitUntilReadyToShow();
+    if (configService.fullscreen) {
+      await windowManager.setFullScreen(true);
+    }
+    await windowManager.show();
+  } catch (e) {
+    // Window manager not available (mobile platform or plugin issue)
+  }
 
   // Set up file-based error logging
   final logsDir = await configService.getLogsDir();
