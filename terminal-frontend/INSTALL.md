@@ -165,13 +165,14 @@ The app reads its window mode from `config.json` on startup.
 ### Fullscreen / kiosk mode
 
 To run the app fullscreen (recommended for production kiosk deployments), add
-`"fullscreen": true` to the terminal's `config.json`:
+`"fullscreen": true` to the terminal's `config.json` (see
+[Configuration reference](#5-configuration-reference) for the full schema):
 
 ```json
 {
   "terminalId": "Ruderbar-Kühlschrank",
   "apiUrl": "https://club.example.com/api",
-  "apiToken": "...",
+  "apiToken": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
   "fullscreen": true
 }
 ```
@@ -193,7 +194,93 @@ X-GNOME-Autostart-enabled=true
 
 ---
 
-## 5. First-time setup
+## 5. Configuration reference
+
+All runtime configuration lives in a single `config.json` file. The location is
+platform-specific and resolved automatically by the app:
+
+| Platform | Path |
+|----------|------|
+| Linux | `~/.local/share/com.example.ruderbar_terminal/config.json` |
+| macOS | `~/Library/Containers/com.example.ruderbar_terminal/Data/Library/Application Support/com.example.ruderbar_terminal/config.json` |
+| Windows | `%APPDATA%\com.example.ruderbar_terminal\config.json` |
+
+Every key is optional except `terminalId`, `apiUrl`, and `apiToken` (required
+for the app to connect). Omitted keys fall back to the defaults shown below.
+
+```json
+{
+  "terminalId": "Ruderbar-Kühlschrank",
+  "apiUrl": "https://club.example.com/api",
+  "apiToken": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+
+  "fullscreen": false,
+  "seedTestData": false,
+
+  "fontSizes": {
+    "xs":    12,
+    "sm":    13,
+    "base":  14,
+    "lg":    16,
+    "xl":    18,
+    "xxl":   20,
+    "xxxl":  24
+  },
+
+  "dispenser": {
+    "enabled":        false,
+    "baseUrl":        "http://dispenser.local",
+    "apiKey":         "your-dispenser-api-key",
+    "timeoutMs":      3000,
+    "pollIntervalMs": 250
+  }
+}
+```
+
+### Key descriptions
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `terminalId` | string | — | Human-readable terminal name (shown in admin panel). Alphanumeric, hyphens, underscores, spaces; 1–50 chars. |
+| `apiUrl` | string | — | Base URL of the Ruderbar backend API, e.g. `https://club.example.com/api`. No trailing slash. |
+| `apiToken` | string | — | 64-character hex device token generated in the Admin Panel under *Terminals*. Stored with `chmod 600`. |
+| `fullscreen` | bool | `false` | Run the app fullscreen / kiosk mode on startup. Recommended for production deployments. |
+| `seedTestData` | bool | `false` | Pre-populate the local database with mock members, categories, and products. **Development only — never enable in production.** |
+| `fontSizes.xs` | number | `12` | Font size in logical pixels for the `xs` scale step. |
+| `fontSizes.sm` | number | `13` | Font size for the `sm` scale step. |
+| `fontSizes.base` | number | `14` | Base body font size. Used for balance display, labels, and secondary text. |
+| `fontSizes.lg` | number | `16` | Large font size — product names, member name in cart, button labels. |
+| `fontSizes.xl` | number | `18` | Extra-large — quantity badges, line totals, "Neuer Kontostand" in cart. |
+| `fontSizes.xxl` | number | `20` | Used for the "Gesamt" label in the cart footer. |
+| `fontSizes.xxxl` | number | `24` | Checkout confirmation title. |
+| `dispenser.enabled` | bool | `false` | Enable the sauna token dispenser integration. |
+| `dispenser.baseUrl` | string | — | Base URL of the dispenser hardware API, e.g. `http://192.168.1.50`. |
+| `dispenser.apiKey` | string | — | API key for authenticating with the dispenser. |
+| `dispenser.timeoutMs` | integer | `3000` | HTTP request timeout for dispenser calls in milliseconds. |
+| `dispenser.pollIntervalMs` | integer | `250` | Polling interval when waiting for a dispense result in milliseconds. |
+
+### Environment variable overrides
+
+All config file values can be overridden via environment variables — useful
+for CI, Docker deployments, or `.desktop` file `Exec=env ...` lines:
+
+| Variable | Overrides |
+|----------|-----------|
+| `TERMINAL_ID` | `terminalId` |
+| `TERMINAL_API_URL` | `apiUrl` |
+| `TERMINAL_API_TOKEN` | `apiToken` |
+| `TERMINAL_FULLSCREEN` | `fullscreen` (`true`/`false`) |
+| `TERMINAL_SEED_TEST_DATA` | `seedTestData` (`true`/`false`) |
+| `DISPENSER_ENABLED` | `dispenser.enabled` |
+| `DISPENSER_BASE_URL` | `dispenser.baseUrl` |
+| `DISPENSER_API_KEY` | `dispenser.apiKey` |
+
+> **Note:** `fontSizes` cannot be set via environment variables — use the
+> config file.
+
+---
+
+## 6. First-time setup
 
 On first launch the app shows the **Setup Screen**. You will need a physical
 USB keyboard for this one-time configuration:
