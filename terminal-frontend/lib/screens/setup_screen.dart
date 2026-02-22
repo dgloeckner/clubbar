@@ -138,7 +138,7 @@ class _SetupScreenState extends State<SetupScreen> {
                   Text(
                     l10n.setupTitle,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Color(0xfff1f5f9),
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -148,7 +148,7 @@ class _SetupScreenState extends State<SetupScreen> {
                   Text(
                     l10n.setupSubtitle,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Color(0xff94a3b8),
                       fontSize: AppFontSizes.lg,
                     ),
@@ -161,7 +161,7 @@ class _SetupScreenState extends State<SetupScreen> {
                   TextFormField(
                     controller: _terminalIdController,
                     validator: (value) => _validateTerminalId(value, l10n),
-                    style: const TextStyle(color: Color(0xfff1f5f9)),
+                    style: TextStyle(color: Color(0xfff1f5f9)),
                     decoration: _inputDecoration(
                       hintText: 'e.g. Ruderbar-Kühlschrank',
                     ),
@@ -174,7 +174,7 @@ class _SetupScreenState extends State<SetupScreen> {
                   TextFormField(
                     controller: _apiUrlController,
                     validator: (value) => _validateApiUrl(value, l10n),
-                    style: const TextStyle(color: Color(0xfff1f5f9)),
+                    style: TextStyle(color: Color(0xfff1f5f9)),
                     keyboardType: TextInputType.url,
                     decoration: _inputDecoration(
                       hintText: 'https://club.example.com/api',
@@ -188,7 +188,7 @@ class _SetupScreenState extends State<SetupScreen> {
                   TextFormField(
                     controller: _apiTokenController,
                     validator: (value) => _validateApiToken(value, l10n),
-                    style: const TextStyle(color: Color(0xfff1f5f9)),
+                    style: TextStyle(color: Color(0xfff1f5f9)),
                     obscureText: true,
                     decoration: _inputDecoration(
                       hintText: 'Paste token from admin panel',
@@ -202,7 +202,7 @@ class _SetupScreenState extends State<SetupScreen> {
                       padding: const EdgeInsets.only(bottom: AppSpacing.lg),
                       child: Text(
                         _errorMessage!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Color(0xffef4444),
                           fontSize: AppFontSizes.base,
                         ),
@@ -234,7 +234,7 @@ class _SetupScreenState extends State<SetupScreen> {
                             )
                           : Text(
                               l10n.saveAndConnect,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontSize: AppFontSizes.lg,
                                 fontWeight: FontWeight.w600,
@@ -254,7 +254,7 @@ class _SetupScreenState extends State<SetupScreen> {
   Widget _buildLabel(String text) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         color: Color(0xff94a3b8),
         fontSize: AppFontSizes.sm,
         fontWeight: FontWeight.w500,
@@ -265,7 +265,7 @@ class _SetupScreenState extends State<SetupScreen> {
   InputDecoration _inputDecoration({required String hintText}) {
     return InputDecoration(
       hintText: hintText,
-      hintStyle: const TextStyle(color: Color(0xff64748b)),
+      hintStyle: TextStyle(color: Color(0xff64748b)),
       filled: true,
       fillColor: const Color(0xff0d1829),
       border: OutlineInputBorder(

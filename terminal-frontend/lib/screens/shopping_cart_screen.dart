@@ -50,7 +50,7 @@ class ShoppingCartScreen extends StatelessWidget {
                 child: Center(
                   child: Text(
                     l10n.cartEmpty,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Color(0xff94a3b8),
                       fontSize: AppFontSizes.lg,
                     ),
@@ -132,7 +132,7 @@ class ShoppingCartScreen extends StatelessWidget {
                             children: [
                               Text(
                                 item.productName,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Color(0xfff1f5f9),
                                   fontSize: AppFontSizes.lg,
                                   fontWeight: FontWeight.w600,
@@ -141,7 +141,7 @@ class ShoppingCartScreen extends StatelessWidget {
                               const SizedBox(height: 2),
                               Text(
                                 l10n.cartEachPrice('€$unitPriceFormatted'),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Color(0xff0ea5e9),
                                   fontSize: AppFontSizes.base,
                                   fontWeight: FontWeight.w500,
@@ -190,7 +190,7 @@ class ShoppingCartScreen extends StatelessWidget {
                               child: Text(
                                 '${item.quantity}',
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: Colors.white,
                                   fontSize: AppFontSizes.xl,
                                   fontWeight: FontWeight.w600,
@@ -236,7 +236,7 @@ class ShoppingCartScreen extends StatelessWidget {
                           child: Text(
                             '€$lineTotalFormatted',
                             textAlign: TextAlign.right,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: AppFontSizes.xl,
                               fontWeight: FontWeight.w600,
@@ -302,7 +302,7 @@ class ShoppingCartScreen extends StatelessWidget {
                           children: [
                             Text(
                               l10n.cartTotal,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Color(0xff94a3b8),
                                 fontSize: AppFontSizes.xxl,
                                 fontWeight: FontWeight.w500,
@@ -311,7 +311,7 @@ class ShoppingCartScreen extends StatelessWidget {
                             const SizedBox(height: 2),
                             Text(
                               l10n.cartNewBalance(formatPrice(newBalanceCents, locale)),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Color(0xff22c55e),
                                 fontSize: AppFontSizes.xl,
                                 fontWeight: FontWeight.w500,
@@ -323,7 +323,7 @@ class ShoppingCartScreen extends StatelessWidget {
                       ),
                       Text(
                         formatPrice(totalCents, locale),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 48,
                           fontWeight: FontWeight.w700,
@@ -389,7 +389,7 @@ class ShoppingCartScreen extends StatelessWidget {
                             const SizedBox(width: 8),
                             Text(
                               l10n.checkout,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.black,
                                 fontSize: AppFontSizes.xl,
                                 fontWeight: FontWeight.w600,

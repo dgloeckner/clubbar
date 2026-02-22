@@ -33,6 +33,7 @@ import 'package:ruderbar_terminal/services/error_file_output.dart';
 import 'package:ruderbar_terminal/models/category_dto.dart';
 import 'package:ruderbar_terminal/models/product_dto.dart';
 import 'package:ruderbar_terminal/models/member_dto.dart';
+import 'package:ruderbar_terminal/utils/design_tokens.dart';
 
 /// Seed database with mock categories and products for development
 Future<void> _seedMockData(RuderbarDatabase database) async {
@@ -195,6 +196,7 @@ void main() async {
   // Load terminal configuration first — needed to decide fullscreen mode (ADR-0019)
   final configService = ConfigService();
   await configService.load();
+  AppFontSizes.applyConfig(configService.fontSizes);
 
   // Initialize window manager for desktop (Linux/macOS/Windows)
   try {

@@ -55,7 +55,7 @@ class DispenserErrorDialog extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Color(0xfff1f5f9),
                 fontSize: AppFontSizes.xl,
                 fontWeight: FontWeight.w600,
@@ -70,7 +70,7 @@ class DispenserErrorDialog extends StatelessWidget {
         children: [
           Text(
             message,
-            style: const TextStyle(
+            style: TextStyle(
               color: Color(0xff94a3b8),
               fontSize: AppFontSizes.lg,
             ),
@@ -97,7 +97,7 @@ class DispenserErrorDialog extends StatelessWidget {
                 Expanded(
                   child: Text(
                     l10n.dispenserBuyWithoutTokensHint,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Color(0xff0ea5e9),
                       fontSize: AppFontSizes.base,
                     ),
@@ -128,7 +128,7 @@ class DispenserErrorDialog extends StatelessWidget {
           ),
           child: Text(
             l10n.dispenserCancelButton,
-            style: const TextStyle(
+            style: TextStyle(
               color: Color(0xffef4444),
               fontSize: AppFontSizes.lg,
               fontWeight: FontWeight.w600,
@@ -151,7 +151,7 @@ class DispenserErrorDialog extends StatelessWidget {
           ),
           child: Text(
             l10n.dispenserBuyWithoutTokensButton,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.black,
               fontSize: AppFontSizes.lg,
               fontWeight: FontWeight.w600,

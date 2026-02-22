@@ -32,6 +32,7 @@ class ConfigService {
   int _dispenserTimeoutMs = 3000;
   int _dispenserPollIntervalMs = 250;
   bool _fullscreen = false;
+  Map<String, dynamic>? _fontSizes;
 
   ConfigService({String? configDir}) : _configDirOverride = configDir;
 
@@ -50,6 +51,7 @@ class ConfigService {
   int get dispenserTimeoutMs => _dispenserTimeoutMs;
   int get dispenserPollIntervalMs => _dispenserPollIntervalMs;
   bool get fullscreen => _fullscreen;
+  Map<String, dynamic>? get fontSizes => _fontSizes;
 
   Future<String> _getConfigDir() async {
     if (_configDirOverride != null) {
@@ -77,6 +79,7 @@ class ConfigService {
         _apiToken = json['apiToken'] as String?;
         _seedTestData = json['seedTestData'] as bool? ?? false;
         _fullscreen = json['fullscreen'] as bool? ?? false;
+        _fontSizes = json['fontSizes'] as Map<String, dynamic>?;
 
         // Dispenser config
         final dispenser = json['dispenser'] as Map<String, dynamic>?;
@@ -189,6 +192,7 @@ class ConfigService {
     _dispenserTimeoutMs = 3000;
     _dispenserPollIntervalMs = 250;
     _fullscreen = false;
+    _fontSizes = null;
 
     final configFile = await _getConfigFile();
     if (configFile.existsSync()) {

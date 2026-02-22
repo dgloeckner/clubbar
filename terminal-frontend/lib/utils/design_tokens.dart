@@ -41,13 +41,26 @@ class AppSpacing {
 }
 
 class AppFontSizes {
-  static const double xs = 12.0;
-  static const double sm = 13.0;
-  static const double base = 14.0;
-  static const double lg = 16.0;
-  static const double xl = 18.0;
-  static const double xxl = 20.0;
-  static const double xxxl = 24.0;
+  static double xs = 12.0;
+  static double sm = 13.0;
+  static double base = 14.0;
+  static double lg = 16.0;
+  static double xl = 18.0;
+  static double xxl = 20.0;
+  static double xxxl = 24.0;
+
+  /// Apply font size overrides from config (e.g. from config.json `fontSizes` key).
+  /// Only non-null values are applied; omitted keys keep their defaults.
+  static void applyConfig(Map<String, dynamic>? fontSizes) {
+    if (fontSizes == null) return;
+    if (fontSizes['xs'] is num) xs = (fontSizes['xs'] as num).toDouble();
+    if (fontSizes['sm'] is num) sm = (fontSizes['sm'] as num).toDouble();
+    if (fontSizes['base'] is num) base = (fontSizes['base'] as num).toDouble();
+    if (fontSizes['lg'] is num) lg = (fontSizes['lg'] as num).toDouble();
+    if (fontSizes['xl'] is num) xl = (fontSizes['xl'] as num).toDouble();
+    if (fontSizes['xxl'] is num) xxl = (fontSizes['xxl'] as num).toDouble();
+    if (fontSizes['xxxl'] is num) xxxl = (fontSizes['xxxl'] as num).toDouble();
+  }
 }
 
 class AppFontWeights {

@@ -52,7 +52,7 @@ class MemberInfoCard extends StatelessWidget {
             child: Center(
               child: Text(
                 initials,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
                   fontSize: AppFontSizes.lg,
                   fontWeight: FontWeight.bold,
@@ -70,7 +70,7 @@ class MemberInfoCard extends StatelessWidget {
                 // Name
                 Text(
                   '${member.firstName ?? 'Unknown'} ${member.lastName ?? 'Member'}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Color(0xfff1f5f9),
                     fontSize: AppFontSizes.lg,
                     fontWeight: FontWeight.w600,
@@ -92,7 +92,7 @@ class MemberInfoCard extends StatelessWidget {
                 // Language indicator (small, muted)
                 Text(
                   'Language: ${member.preferredLanguage.toUpperCase()}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Color(0xff64748b),
                     fontSize: AppFontSizes.sm,
                     fontWeight: FontWeight.w400,

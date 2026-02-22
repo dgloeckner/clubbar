@@ -106,7 +106,7 @@ class _ProductCardState extends State<ProductCard>
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xfff1f5f9),
                         fontSize: AppFontSizes.xl,
                         fontWeight: FontWeight.w600,
@@ -118,7 +118,7 @@ class _ProductCardState extends State<ProductCard>
                     Text(
                       formatPrice(widget.product.priceCents, widget.locale),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xff0ea5e9),
                         fontSize: AppFontSizes.xxl,
                         fontWeight: FontWeight.bold,
@@ -141,7 +141,7 @@ class _ProductCardState extends State<ProductCard>
                   ),
                   child: Text(
                     '${widget.quantity}x',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,

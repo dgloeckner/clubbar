@@ -171,7 +171,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                                   child: Text(
                                     _getLocalizedError(context, rfidProvider.error!),
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: Colors.white,
                                       fontSize: AppFontSizes.sm,
                                       fontWeight: FontWeight.w600,
@@ -190,7 +190,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                 Text(
                   l10n.idleTitle,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Color(0xfff1f5f9),
                     fontSize: 42,
                     fontWeight: FontWeight.bold,
@@ -201,7 +201,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                 Text(
                   l10n.idleSubtitle,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Color(0xff94a3b8),
                     fontSize: 21,
                     fontWeight: FontWeight.w400,
@@ -226,7 +226,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                       ),
                       child: Text(
                         l10n.demoScanCard,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: AppFontSizes.base,
                           fontWeight: FontWeight.w600,

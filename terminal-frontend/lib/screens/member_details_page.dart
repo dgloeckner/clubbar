@@ -14,7 +14,7 @@ class MemberDetailsPage extends StatelessWidget {
       backgroundColor: const Color(0xff0a1628),
       appBar: AppBar(
         backgroundColor: const Color(0xff0f1d32),
-        title: const Text(
+        title: Text(
           'Member Info',
           style: TextStyle(
             color: Color(0xfff1f5f9),
@@ -57,7 +57,7 @@ class MemberDetailsPage extends StatelessWidget {
                   // Additional info section
                   Text(
                     'Account Information',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Color(0xfff1f5f9),
                       fontSize: AppFontSizes.lg,
                       fontWeight: FontWeight.w600,
@@ -112,7 +112,7 @@ class MemberDetailsPage extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             color: Color(0xff94a3b8),
             fontSize: AppFontSizes.base,
             fontWeight: FontWeight.w500,
