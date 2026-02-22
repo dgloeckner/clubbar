@@ -2,7 +2,7 @@
   "@@locale": "en",
 
   "idleTitle": "Thirsty?",
-  "idleSubtitle": "Hold your card to the scanner",
+  "idleSubtitle": "Hold your token to the scanner",
   "demoScanCard": "Demo: Scan Card",
 
   "setupTitle": "Terminal Setup",

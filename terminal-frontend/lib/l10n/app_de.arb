@@ -6,7 +6,7 @@
   "@idleTitle": {
     "description": "Main title on idle/waiting screen"
   },
-  "idleSubtitle": "Halte deine Karte an den Scanner",
+  "idleSubtitle": "Halte deinen Chip an den Scanner",
   "@idleSubtitle": {
     "description": "Instruction to scan RFID card"
   },
