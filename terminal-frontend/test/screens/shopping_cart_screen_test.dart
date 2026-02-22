@@ -48,7 +48,7 @@ void main() {
       when(() => mockCartProvider.lastError).thenReturn(null);
       when(() => mockCartProvider.removeItem(any())).thenReturn(null);
       when(() => mockCartProvider.updateQuantity(any(), any())).thenReturn(null);
-      when(() => mockCartProvider.checkout(any(), any()))
+      when(() => mockCartProvider.checkout(any(), any(), any()))
           .thenAnswer((_) async {});
       when(() => mockCartProvider.lastTransactionId).thenReturn(null);
       when(() => mockCartProvider.addListener(any())).thenReturn(null);
@@ -68,6 +68,7 @@ void main() {
       );
       when(() => mockMembersProvider.selectedMember).thenReturn(testMember);
       when(() => mockMembersProvider.memberDeckel).thenReturn(0);
+      when(() => mockMembersProvider.sessionId).thenReturn('test-session-id');
       when(() => mockMembersProvider.clearSelectedMember()).thenReturn(null);
       when(() => mockMembersProvider.refreshDeckel()).thenAnswer((_) async {});
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
@@ -130,8 +131,8 @@ void main() {
     });
 
     testWidgets('calls checkout when button pressed', (WidgetTester tester) async {
-      // Setup checkout to return a transaction ID
-      when(() => mockCartProvider.lastTransactionId).thenReturn('txn-123');
+      // Setup checkout to return a session ID
+      when(() => mockCartProvider.lastSessionId).thenReturn('test-session-id');
 
       final router = GoRouter(
         initialLocation: '/',
@@ -177,7 +178,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify checkout was called with the context and selected member
-      verify(() => mockCartProvider.checkout(any(), any())).called(1);
+      verify(() => mockCartProvider.checkout(any(), any(), any())).called(1);
     });
 
     testWidgets('removes item when delete button tapped',

@@ -105,10 +105,10 @@ void main() {
 
       when(() => mockService.validateCartBeforeCheckout(any(), any()))
           .thenAnswer((_) async => (true, null));
-      when(() => mockService.createTransaction(any(), any()))
+      when(() => mockService.createTransaction(any(), any(), sessionId: any(named: 'sessionId')))
           .thenAnswer((_) async => ('txn-123', null));
 
-      await provider.checkout(mockContext, member);
+      await provider.checkout(mockContext, member, 'test-session-id');
 
       expect(provider.items, isEmpty);
       expect(provider.total, equals(0));
@@ -134,7 +134,7 @@ void main() {
       when(() => mockService.validateCartBeforeCheckout(any(), any()))
           .thenAnswer((_) async => (false, 'Member inactive'));
 
-      await provider.checkout(mockContext, member);
+      await provider.checkout(mockContext, member, 'test-session-id');
 
       expect(provider.items, hasLength(1)); // Cart unchanged
       expect(provider.lastError, equals('Member inactive'));

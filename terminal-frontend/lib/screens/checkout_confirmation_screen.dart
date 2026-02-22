@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/models/partial_dispense_info.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
@@ -48,7 +47,15 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
     _scaleController.forward();
 
-    // Start countdown timer
+    // TODO Task 6: rewrite this screen to be DB-driven via sessionId.
+    // Partial dispense detection removed; auto-nav always starts.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _startAutoNav();
+    });
+  }
+
+  void _startAutoNav() {
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
@@ -57,7 +64,6 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
       }
     });
 
-    // Auto-navigate back to idle after 3 seconds
     _autoLoopTimer = Timer(const Duration(seconds: 3), () {
       if (mounted) {
         _performNavigation();
@@ -98,18 +104,16 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     final membersProvider = context.watch<MembersProvider>();
     final selectedMember = membersProvider.selectedMember;
     final locale = selectedMember?.preferredLanguage ?? 'de';
-    final cartTotal = context.watch<CartProvider>().total;
+    // TODO Task 6: load cartTotal from DB via sessionId.
+    const cartTotal = 0;
     final memberName =
         selectedMember != null ? '${selectedMember.firstName} ${selectedMember.lastName}' : 'Member';
 
     // Deckel already includes the transaction (refreshed after checkout)
     final newBalance = membersProvider.memberDeckel ?? 0;
 
-    // Check if this is a partial dispense
-    final partialDispenseInfo = context.watch<CartProvider>().lastPartialDispenseInfo;
-    final isPartial = partialDispenseInfo?.isPartial ?? false;
-
     // Body content only - MainLayout provides Scaffold and header
+    // TODO Task 6: restore partial dispense state (icon, title, totals) via DB query.
     return Center(
       child: ScaleTransition(
           scale: _scaleAnimation,
@@ -121,22 +125,17 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Icon (warning for partial, checkmark for complete)
+                // Icon
                 Icon(
-                  isPartial ? Icons.warning : Icons.check_circle,
+                  Icons.check_circle,
                   size: 48,
-                  color: isPartial
-                      ? hexToColor(AppColors.semanticWarning)
-                      : hexToColor(AppColors.semanticSuccess),
+                  color: hexToColor(AppColors.semanticSuccess),
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // Title (partial vs complete)
+                // Title — TODO Task 6: restore partial dispense title via DB query.
                 Text(
-                  isPartial
-                      ? l10n.checkoutPartialSuccess(
-                          partialDispenseInfo!.actualDispensed)
-                      : l10n.checkoutSuccess,
+                  l10n.checkoutSuccess,
                   style: TextStyle(
                     color: hexToColor(AppColors.textPrimary),
                     fontSize: AppFontSizes.xxxl,
@@ -145,20 +144,6 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppSpacing.lg),
-
-                // Partial dispense explanation message
-                if (isPartial) ...[
-                  Text(
-                    l10n.checkoutPartialMessage(
-                        partialDispenseInfo!.actualDispensed),
-                    style: TextStyle(
-                      color: hexToColor(AppColors.textMuted),
-                      fontSize: AppFontSizes.base,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                ],
 
                 // Member name
                 Text(
@@ -178,21 +163,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                   fontSize: PriceFontSize.large,
                   fullWidth: true,
                 ),
-                // Show crossed-out original amount for partial dispense
-                if (isPartial) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    l10n.checkoutOriginalTotal(
-                      formatPrice(partialDispenseInfo!.originalTotalCents, locale),
-                    ),
-                    style: TextStyle(
-                      color: hexToColor(AppColors.textMuted),
-                      fontSize: AppFontSizes.base,
-                      decoration: TextDecoration.lineThrough,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                // TODO Task 6: show crossed-out original amount for partial dispense via DB query.
                 const SizedBox(height: AppSpacing.lg),
 
                 // Transaction reference ID
@@ -218,7 +189,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
-                // Auto-dismiss countdown message
+                // TODO Task 6: restore partial confirm button via DB query.
                 Text(
                   l10n.redirectingIn(_secondsRemaining),
                   style: TextStyle(

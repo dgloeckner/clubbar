@@ -337,6 +337,7 @@ class ShoppingCartScreen extends StatelessWidget {
                   GestureDetector(
                           onTap: () async {
                             final selectedMember = membersProvider.selectedMember;
+                            final sessionId = membersProvider.sessionId ?? '';
 
                             if (selectedMember == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -348,7 +349,7 @@ class ShoppingCartScreen extends StatelessWidget {
                               return;
                             }
 
-                            await cartProvider.checkout(context, selectedMember);
+                            await cartProvider.checkout(context, selectedMember, sessionId);
 
                             if (cartProvider.lastError != null) {
                               if (context.mounted) {
@@ -366,8 +367,8 @@ class ShoppingCartScreen extends StatelessWidget {
                             // the new unsynced transaction)
                             await membersProvider.refreshDeckel();
 
-                            if (cartProvider.lastTransactionId != null && context.mounted) {
-                              context.go('/confirmation/${cartProvider.lastTransactionId}');
+                            if (cartProvider.lastSessionId != null && context.mounted) {
+                              context.go('/confirmation/${cartProvider.lastSessionId}');
                             }
                           },
                     child: Container(

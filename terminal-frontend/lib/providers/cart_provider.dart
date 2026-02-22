@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/models/partial_dispense_info.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
@@ -17,7 +16,7 @@ class CartProvider extends ChangeNotifier {
   String? _lastError;
   Exception? _errorType;
   String? _lastTransactionId;
-  PartialDispenseInfo? _lastPartialDispenseInfo;
+  String? _lastSessionId;
 
   CartProvider({
     required CartService service,
@@ -32,7 +31,7 @@ class CartProvider extends ChangeNotifier {
   String? get lastError => _lastError;
   Exception? get errorType => _errorType;
   String? get lastTransactionId => _lastTransactionId;
-  PartialDispenseInfo? get lastPartialDispenseInfo => _lastPartialDispenseInfo;
+  String? get lastSessionId => _lastSessionId;
 
   /// Add item to cart (accumulates quantity if product already present)
   void addItem(
@@ -86,6 +85,7 @@ class CartProvider extends ChangeNotifier {
   Future<void> checkout(
     BuildContext context,
     MembersCacheData member,
+    String sessionId,
   ) async {
     _isLoading = true;
     notifyListeners();
@@ -101,6 +101,8 @@ class CartProvider extends ChangeNotifier {
         notifyListeners();
         return;
       }
+
+      _lastSessionId = sessionId;
 
       // Separate token products from regular products
       final tokenProducts =
@@ -196,6 +198,7 @@ class CartProvider extends ChangeNotifier {
               priceCents: tokenProduct.priceCents,
               requestedQty: requestedQty,
               actualDispensed: actualQuantity,
+              sessionId: sessionId,
             );
 
             if (tokenTxnId == null) {
@@ -224,22 +227,6 @@ class CartProvider extends ChangeNotifier {
               // Recovery service will query ESP8266 and clean up after verification
               print('Keeping tracking record for reconciliation (state=${result.state})');
             }
-
-            // Track partial dispense info
-            final originalTotalCents =
-                tokenProducts.fold(0, (sum, item) => sum + item.lineTotalCents);
-
-            if (actualQuantity < requestedQty) {
-              // Partial dispense - store info for confirmation screen
-              _lastPartialDispenseInfo = PartialDispenseInfo(
-                requestedQuantity: requestedQty,
-                actualDispensed: actualQuantity,
-                originalTotalCents: originalTotalCents,
-              );
-            } else {
-              // Full dispense - clear any previous partial info
-              _lastPartialDispenseInfo = null;
-            }
           } else {
             // No tokens dispensed - clean up tracking record
             await _service.cleanupDispenserOperation(dispenserTxId);
@@ -250,7 +237,7 @@ class CartProvider extends ChangeNotifier {
       // Create transactions for regular products
       if (regularProducts.isNotEmpty) {
         final (txnId, createError) =
-            await _service.createTransaction(member, regularProducts);
+            await _service.createTransaction(member, regularProducts, sessionId: sessionId);
 
         if (txnId == null) {
           _lastError = createError;
@@ -342,7 +329,7 @@ class CartProvider extends ChangeNotifier {
   void clearCart() {
     _items = [];
     _lastError = null;
-    _lastPartialDispenseInfo = null;
+    _lastSessionId = null;
     notifyListeners();
   }
 }
