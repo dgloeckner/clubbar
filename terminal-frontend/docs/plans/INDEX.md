@@ -64,6 +64,17 @@
   - **Testing:** Navigation integration tests verifying app flow
   - **Integration:** All screens connected in working app navigation flow
 
+### Fullscreen Kiosk Mode (COMPLETED ✅)
+- **Location:** `docs/plans/2026-02-22-fullscreen-kiosk-mode.md`
+- **Completion Date:** 2026-02-22
+- **Tasks:** 4 completed
+- **Outcomes:**
+  - `fullscreen` config field in ConfigService (JSON + `TERMINAL_FULLSCREEN` env var)
+  - `main.dart` loads config before window init; uses `setFullScreen(true)` when enabled
+  - Removed hardcoded 1280×720 window size constraints
+  - Removed dead `AppConfig.screenWidth/screenHeight` constants
+  - INSTALL.md updated with fullscreen setup instructions
+
 ## Next Phase
 
 ### Phase 6: Advanced Features (FUTURE)

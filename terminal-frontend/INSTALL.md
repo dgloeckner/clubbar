@@ -160,9 +160,36 @@ Hidden=false
 X-GNOME-Autostart-enabled=true
 ```
 
-To launch fullscreen automatically, you can also set the window manager to
-open it maximised. The app manages its own window size via `window_manager`
-(fixed at 1280×720), so no additional flags are needed.
+The app reads its window mode from `config.json` on startup.
+
+### Fullscreen / kiosk mode
+
+To run the app fullscreen (recommended for production kiosk deployments), add
+`"fullscreen": true` to the terminal's `config.json`:
+
+```json
+{
+  "terminalId": "Ruderbar-Kühlschrank",
+  "apiUrl": "https://club.example.com/api",
+  "apiToken": "...",
+  "fullscreen": true
+}
+```
+
+Alternatively, set the environment variable `TERMINAL_FULLSCREEN=true` in the
+`.desktop` file:
+
+```ini
+[Desktop Entry]
+Type=Application
+Name=Ruderbar Terminal
+Exec=env TERMINAL_FULLSCREEN=true /opt/ruderbar-terminal/ruderbar_terminal
+Hidden=false
+X-GNOME-Autostart-enabled=true
+```
+
+> **Development machines:** Leave `fullscreen` unset (defaults to `false`) so
+> the app opens in a normal window. Only set it on deployed kiosk hardware.
 
 ---
 
@@ -187,5 +214,5 @@ the idle RFID scanning screen. The USB keyboard can be unplugged.
 | On-screen keyboard still appears | Check `ls /etc/xdg/autostart/` for other keyboard entries (e.g. `onboard.desktop`) and rename them |
 | Black screen never dismisses | Verify `python3-gi` is installed; check `pgrep -a python3` |
 | `screen-idle.py` can't open input devices | Run `sudo usermod -aG input $USER` and re-login |
-| App doesn't fill the screen | The app targets 1280×720; check display resolution matches or adjust in `main.dart` `windowManager.setSize()` |
+| App doesn't fill the screen | Set `"fullscreen": true` in `config.json` or `TERMINAL_FULLSCREEN=true` env var |
 | RFID scanner not detected | Ensure reader is in keyboard-emulation mode (sends UID + Enter); test with `evtest` |
