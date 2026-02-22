@@ -17,7 +17,6 @@ class AppConfig {
   static const int balanceLimitCents = 10000; // €100.00
 
   // Backend API
-  static const String apiBaseUrl = 'http://localhost:8080/api';
   static const String healthEndpoint = '/health';
   static const String syncEndpointMembers = '/sync/members';
   static const String syncEndpointCategories = '/sync/categories';

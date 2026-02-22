@@ -6,7 +6,6 @@ import 'package:ruderbar_terminal/models/transaction_list_item.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/services/transaction_history_service.dart';
 import 'package:ruderbar_terminal/services/network_service.dart';
-import 'package:ruderbar_terminal/config/app_config.dart';
 import 'package:ruderbar_terminal/utils/formatters.dart';
 import 'package:ruderbar_terminal/utils/icon_registry.dart';
 import 'package:ruderbar_terminal/database/database.dart';
@@ -84,7 +83,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         // Fetch from backend (includes local unsynced + remote)
         final database = context.read<RuderbarDatabase>();
         final service = TransactionHistoryService(
-          baseUrl: AppConfig.apiBaseUrl,
+          baseUrl: networkService.baseUrl,
           authToken: authToken,
           database: database,
         );

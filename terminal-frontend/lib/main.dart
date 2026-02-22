@@ -287,11 +287,9 @@ void main() async {
 
   // Create services (business logic layer)
   final networkService = NetworkService(
-    baseUrl: configService.apiUrl ?? AppConfig.apiBaseUrl,
+    baseUrl: configService.apiUrl!,
   );
-  if (configService.apiToken != null) {
-    networkService.setAuthToken(configService.apiToken!);
-  }
+  networkService.setAuthToken(configService.apiToken!);
   final membersService = MembersService(
     repository: membersRepo,
     transactionsRepository: transactionsRepo,

@@ -23,11 +23,13 @@ class NetworkService {
   String? _authToken;
   final Logger _logger;
 
-  NetworkService({String baseUrl = AppConfig.apiBaseUrl, Logger? logger})
+  NetworkService({required String baseUrl, Logger? logger})
       : _baseUrl = baseUrl,
         _logger = logger ?? Logger();
 
-  /// Update the base URL (e.g. after setup)
+  String get baseUrl => _baseUrl;
+
+  /// Update the base URL at runtime if needed
   void setBaseUrl(String baseUrl) {
     _baseUrl = baseUrl;
   }
