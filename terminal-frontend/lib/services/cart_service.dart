@@ -21,8 +21,9 @@ class CartService {
   /// Returns tuple: (firstTransactionId, errorMessage)
   Future<(String?, String?)> createTransaction(
     MembersCacheData member,
-    List<CartItem> items,
-  ) async {
+    List<CartItem> items, {
+    required String sessionId,
+  }) async {
     try {
       final now = DateTime.now().toUtc().toIso8601String();
       String? firstTxnId;
@@ -32,18 +33,20 @@ class CartService {
           final txnId = _uuid.v4();
           firstTxnId ??= txnId;
 
-          final transaction = TransactionsLocalData(
-            id: txnId,
-            memberId: member.id,
-            productId: item.productId,
-            amountCents: item.priceCents,
-            transactionType: 'purchase',
-            notes: null,
-            createdAt: now,
-            synced: 0,
+          final companion = TransactionsLocalCompanion(
+            id: Value(txnId),
+            memberId: Value(member.id),
+            productId: Value(item.productId),
+            amountCents: Value(item.priceCents),
+            transactionType: const Value('purchase'),
+            notes: const Value(null),
+            createdAt: Value(now),
+            synced: const Value(0),
+            sessionId: Value(sessionId),
+            unitPriceCents: Value(item.priceCents),
           );
 
-          await _repository.insertTransaction(transaction);
+          await _repository.insertTransactionCompanion(companion);
         }
       }
 
@@ -121,6 +124,7 @@ class CartService {
     required int priceCents,
     required int requestedQty,
     required int actualDispensed,
+    required String sessionId,
   }) async {
     try {
       final now = DateTime.now().toUtc().toIso8601String();
@@ -143,6 +147,8 @@ class CartService {
           dispenserTxId: Value(dispenserTxId),
           dispenserRequested: Value(requestedQty),
           dispenserActual: Value(actualDispensed),
+          sessionId: Value(sessionId),
+          unitPriceCents: Value(priceCents),
         );
 
         await _db.into(_db.transactionsLocal).insert(transaction);

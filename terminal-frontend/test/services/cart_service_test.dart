@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value, TransactionsLocalCompanion;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:ruderbar_terminal/database/database.dart';
@@ -23,6 +24,14 @@ void main() {
       synced: 0,
       sessionId: null,
       unitPriceCents: null,
+    ));
+    registerFallbackValue(TransactionsLocalCompanion(
+      id: const Value('fallback'),
+      memberId: const Value('fallback-member'),
+      amountCents: const Value(0),
+      transactionType: const Value('purchase'),
+      createdAt: const Value('2024-01-01T00:00:00.000Z'),
+      synced: const Value(0),
     ));
   });
 
@@ -70,15 +79,19 @@ void main() {
         ),
       ];
 
-      when(() => mockRepo.insertTransaction(any()))
+      when(() => mockRepo.insertTransactionCompanion(any()))
           .thenAnswer((_) async {});
 
-      final (txnId, error) = await service.createTransaction(member, items);
+      final (txnId, error) = await service.createTransaction(
+        member,
+        items,
+        sessionId: 'test-session-uuid',
+      );
 
       expect(txnId, isNotNull);
       expect(error, isNull);
       // 2x Beer + 1x Wine = 3 individual transactions
-      verify(() => mockRepo.insertTransaction(any())).called(3);
+      verify(() => mockRepo.insertTransactionCompanion(any())).called(3);
     });
 
     test('createTransaction returns error when repository fails', () async {
@@ -104,13 +117,54 @@ void main() {
         ),
       ];
 
-      when(() => mockRepo.insertTransaction(any()))
+      when(() => mockRepo.insertTransactionCompanion(any()))
           .thenThrow(Exception('Database error'));
 
-      final (txnId, error) = await service.createTransaction(member, items);
+      final (txnId, error) = await service.createTransaction(
+        member,
+        items,
+        sessionId: 'test-session',
+      );
 
       expect(txnId, isNull);
       expect(error, isNotNull);
+    });
+
+    test('createTransaction passes sessionId to each transaction', () async {
+      final member = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+
+      when(() => mockRepo.insertTransactionCompanion(any()))
+          .thenAnswer((_) async {});
+
+      final items = [
+        CartItem(
+          productId: 'prod-1',
+          productName: 'Beer',
+          quantity: 2,
+          priceCents: 350,
+          language: 'de',
+        ),
+      ];
+
+      final (txnId, error) = await service.createTransaction(
+        member,
+        items,
+        sessionId: 'test-session-uuid',
+      );
+
+      expect(txnId, isNotNull);
+      expect(error, isNull);
+      verify(() => mockRepo.insertTransactionCompanion(any())).called(2);
     });
 
     test('validateCartBeforeCheckout returns valid for active member',
