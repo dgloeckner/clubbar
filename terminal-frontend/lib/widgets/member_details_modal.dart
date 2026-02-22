@@ -459,7 +459,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
             child: Center(
               child: getProductIcon(
                 transaction.productIcon,
-                size: 24,
+                size: 27,
               ),
             ),
           ),

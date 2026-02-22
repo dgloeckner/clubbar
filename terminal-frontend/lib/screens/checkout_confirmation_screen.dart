@@ -43,7 +43,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     with SingleTickerProviderStateMixin {
   Timer? _autoLoopTimer;
   Timer? _countdownTimer;
-  int _secondsRemaining = 3;
+  int _secondsRemaining = 30;
   late AnimationController _scaleController;
   late Animation<double> _scaleAnimation;
   late Future<_SessionData> _sessionDataFuture;
@@ -102,7 +102,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
       }
     });
 
-    _autoLoopTimer = Timer(const Duration(seconds: 3), () {
+    _autoLoopTimer = Timer(const Duration(seconds: 30), () {
       if (mounted) {
         _performNavigation();
       }
@@ -262,13 +262,13 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                     _getBalanceDisplayText(newBalance, l10n, locale),
                     style: TextStyle(
                       color: _getBalanceColor(newBalance),
-                      fontSize: AppFontSizes.base,
+                      fontSize: AppFontSizes.lg,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Partial dispense: show confirm button instead of countdown
+                  // Partial dispense: show confirm button; normal: show countdown + logout
                   if (data.isPartial) ...[
                     ElevatedButton(
                       onPressed: _performNavigation,
@@ -282,6 +282,15 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                         fontSize: AppFontSizes.base,
                       ),
                       textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    ElevatedButton(
+                      onPressed: _performNavigation,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xffDC2626),
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text(l10n.logout),
                     ),
                   ],
                 ],

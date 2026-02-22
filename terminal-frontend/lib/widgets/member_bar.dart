@@ -75,28 +75,31 @@ class MemberBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              // Member name and balance
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$firstName $lastName',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: AppFontSizes.lg,
-                      fontWeight: FontWeight.w600,
+              // Member name and balance (clickable — same action as avatar)
+              GestureDetector(
+                onTap: () => showMemberDetailsModal(context),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$firstName $lastName',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: AppFontSizes.lg,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${l10n.balance}: ${formatPrice(deckelCents ?? member.balanceCents, locale)}',
-                    style: TextStyle(
-                      color: Color(0xffFF6B4A),
-                      fontSize: AppFontSizes.lg,
-                      fontWeight: FontWeight.w500,
+                    Text(
+                      '${l10n.balance}: ${formatPrice(deckelCents ?? member.balanceCents, locale)}',
+                      style: TextStyle(
+                        color: Color(0xffFF6B4A),
+                        fontSize: AppFontSizes.lg,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

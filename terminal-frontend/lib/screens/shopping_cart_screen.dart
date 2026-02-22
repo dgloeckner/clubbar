@@ -176,7 +176,7 @@ class ShoppingCartScreen extends StatelessWidget {
                                     '−',
                                     style: TextStyle(
                                       color: Color(0xffef4444),
-                                      fontSize: 24,
+                                      fontSize: 28,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -218,7 +218,7 @@ class ShoppingCartScreen extends StatelessWidget {
                                     '+',
                                     style: TextStyle(
                                       color: Color(0xff22c55e),
-                                      fontSize: 24,
+                                      fontSize: 28,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -264,7 +264,7 @@ class ShoppingCartScreen extends StatelessWidget {
                               child: Icon(
                                 Icons.delete_outline,
                                 color: Color(0xffef4444),
-                                size: 24,
+                                size: 28,
                               ),
                             ),
                           ),
