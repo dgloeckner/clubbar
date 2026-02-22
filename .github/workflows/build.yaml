@@ -1,6 +1,9 @@
-name: Release
+name: Build
 
 on:
+  push:
+    tags-ignore:
+      - '**'
   release:
     types: [created]
 
@@ -39,12 +42,16 @@ jobs:
         working-directory: terminal-frontend
 
       - name: Package artifact
-        working-directory: terminal-frontend
+        id: package
+        working-directory: terminal-frontend/build/linux/arm64/release/bundle
         run: |
-          cd build/linux/arm64/release/bundle
-          tar -czf "$GITHUB_WORKSPACE/flutter-app-linux-arm64-${{ github.event.release.tag_name }}.tar.gz" .
+          VERSION="${{ github.event.release.tag_name || github.sha }}"
+          ARTIFACT="flutter-app-linux-arm64-${VERSION}.tar.gz"
+          tar -czf "$GITHUB_WORKSPACE/${ARTIFACT}" .
+          echo "artifact=${ARTIFACT}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload terminal app to release
+      - name: Upload to release
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: terminal-frontend/flutter-app-linux-arm64-${{ github.event.release.tag_name }}.tar.gz
+          files: ${{ steps.package.outputs.artifact }}
