@@ -150,6 +150,7 @@
       }
     }
   },
+  "checkoutPartialConfirm": "Alles klar!",
   "redirectingIn": "Weiterleitung in {seconds} {seconds, plural, =1{Sekunde} other{Sekunden}}...",
   "@redirectingIn": {
     "description": "Countdown message before redirecting",

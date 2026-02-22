@@ -111,6 +111,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get checkoutPartialConfirm => 'All good!';
+
+  @override
   String redirectingIn(int seconds) {
     String _temp0 = intl.Intl.pluralLogic(
       seconds,

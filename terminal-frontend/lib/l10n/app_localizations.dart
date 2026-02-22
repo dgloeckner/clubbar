@@ -248,6 +248,12 @@ abstract class AppLocalizations {
   /// **'Neuer Kontostand: {balance}'**
   String checkoutNewBalance(String balance);
 
+  /// No description provided for @checkoutPartialConfirm.
+  ///
+  /// In de, this message translates to:
+  /// **'Alles klar!'**
+  String get checkoutPartialConfirm;
+
   /// Countdown message before redirecting
   ///
   /// In de, this message translates to:

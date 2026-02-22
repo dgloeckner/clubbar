@@ -29,6 +29,7 @@
   "checkoutPartialMessage": "You have been charged for {count} {count, plural, =1{token} other{tokens}} only.\nSorry for the inconvenience.",
   "checkoutOriginalTotal": "(not {amount})",
   "checkoutNewBalance": "New Balance: {balance}",
+  "checkoutPartialConfirm": "All good!",
   "redirectingIn": "Redirecting in {seconds} {seconds, plural, =1{second} other{seconds}}...",
 
   "memberDetails": "Member Details",
