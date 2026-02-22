@@ -282,15 +282,25 @@ for CI, Docker deployments, or `.desktop` file `Exec=env ...` lines:
 
 ## 6. First-time setup
 
-On first launch the app shows the **Setup Screen**. You will need a physical
-USB keyboard for this one-time configuration:
+The app requires a valid `config.json` before it will start. If the file is
+missing or incomplete the app prints the expected path to stderr and exits
+with code 1 — it will not launch into the UI.
 
-1. **Terminal ID** — a human-readable name, e.g. `Ruderbar-Kühlschrank`
-2. **API URL** — base URL of the Ruderbar backend, e.g. `https://club.example.com/api`
-3. **API Token** — device token generated in the Admin Panel under *Terminals*
+Create the config file at the path printed in the error message (see
+[Configuration reference](#5-configuration-reference)) with at least the
+three required fields:
 
-After saving, the app syncs the member and product database and navigates to
-the idle RFID scanning screen. The USB keyboard can be unplugged.
+```json
+{
+  "terminalId": "Ruderbar-Kühlschrank",
+  "apiUrl":     "https://club.example.com/api",
+  "apiToken":   "<64-char hex token from admin panel>"
+}
+```
+
+Generate the API token in the Admin Panel under *Terminals*, then copy it
+into the config file. On the next launch the app syncs the member and product
+database and opens the idle RFID scanning screen.
 
 ---
 
@@ -298,6 +308,7 @@ the idle RFID scanning screen. The USB keyboard can be unplugged.
 
 | Symptom | Fix |
 |---------|-----|
+| App exits immediately with "configuration missing" | Create `config.json` at the path shown in the error — see [First-time setup](#6-first-time-setup) |
 | On-screen keyboard still appears | Check `ls /etc/xdg/autostart/` for other keyboard entries (e.g. `onboard.desktop`) and rename them |
 | Black screen never dismisses | Verify `python3-gi` is installed; check `pgrep -a python3` |
 | `screen-idle.py` can't open input devices | Run `sudo usermod -aG input $USER` and re-login |
