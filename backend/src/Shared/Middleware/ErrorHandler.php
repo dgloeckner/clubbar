@@ -63,7 +63,7 @@ class ErrorHandler implements MiddlewareInterface
                 ];
             }
 
-            if ($this->debug) {
+            if ($this->debug && !in_array($status, [401, 403, 404])) {
                 $body['trace'] = $e->getTraceAsString();
             }
 
