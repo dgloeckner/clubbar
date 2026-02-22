@@ -198,6 +198,24 @@ void main() async {
   await configService.load();
   AppFontSizes.applyConfig(configService.fontSizes);
 
+  if (!configService.isConfigured) {
+    final path = await configService.getConfigFilePath();
+    stderr.writeln('ruderbar-terminal: configuration missing');
+    stderr.writeln('');
+    stderr.writeln('Create a config.json file at:');
+    stderr.writeln('  $path');
+    stderr.writeln('');
+    stderr.writeln('Minimal example:');
+    stderr.writeln('  {');
+    stderr.writeln('    "terminalId": "Ruderbar-Kühlschrank",');
+    stderr.writeln('    "apiUrl":     "https://club.example.com/api",');
+    stderr.writeln('    "apiToken":   "<64-char hex token from admin panel>"');
+    stderr.writeln('  }');
+    stderr.writeln('');
+    stderr.writeln('See INSTALL.md for the full configuration reference.');
+    exit(1);
+  }
+
   // Initialize window manager for desktop (Linux/macOS/Windows)
   try {
     await windowManager.ensureInitialized();

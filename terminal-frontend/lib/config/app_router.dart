@@ -6,28 +6,14 @@ import 'package:ruderbar_terminal/screens/product_selection_screen.dart';
 import 'package:ruderbar_terminal/screens/member_details_screen.dart';
 import 'package:ruderbar_terminal/screens/shopping_cart_screen.dart';
 import 'package:ruderbar_terminal/screens/checkout_confirmation_screen.dart';
-import 'package:ruderbar_terminal/screens/setup_screen.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/widgets/main_layout.dart';
 
-// Create router with dynamic redirect based on member selection and config state
-GoRouter createAppRouter(BuildContext context, {ConfigService? configService}) {
+// Create router with dynamic redirect based on member selection state
+GoRouter createAppRouter(BuildContext context, {configService}) {
   return GoRouter(
-    initialLocation: configService?.isConfigured == false ? '/setup' : '/idle',
+    initialLocation: '/idle',
     redirect: (context, state) {
-      // If unconfigured, redirect to setup (unless already there)
-      if (configService != null &&
-          !configService.isConfigured &&
-          !state.matchedLocation.startsWith('/setup')) {
-        return '/setup';
-      }
-
-      // Don't apply member-based redirects on setup screen
-      if (state.matchedLocation.startsWith('/setup')) {
-        return null;
-      }
-
       // Watch MembersProvider for member selection changes
       final membersProvider = context.read<MembersProvider>();
       final selectedMember = membersProvider.selectedMember;
@@ -52,17 +38,6 @@ GoRouter createAppRouter(BuildContext context, {ConfigService? configService}) {
       return null; // No redirect needed
     },
     routes: [
-      // Setup screen (outside ShellRoute — no MainLayout header)
-      GoRoute(
-        path: '/setup',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: SetupScreen(configService: configService ?? ConfigService()),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-        ),
-      ),
       // Shell route with persistent header
       ShellRoute(
         builder: (context, state, child) => MainLayout(child: child),

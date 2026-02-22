@@ -66,6 +66,12 @@ class ConfigService {
     return File('$dir/$_configFileName');
   }
 
+  /// Returns the absolute path where config.json is expected to exist.
+  Future<String> getConfigFilePath() async {
+    final file = await _getConfigFile();
+    return file.path;
+  }
+
   /// Load configuration from file, then apply env var overrides.
   Future<void> load() async {
     final configFile = await _getConfigFile();
