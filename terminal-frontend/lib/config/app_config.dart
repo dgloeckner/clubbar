@@ -3,8 +3,6 @@ class AppConfig {
   static const String version = '0.1.0';
 
   // Display
-  static const int screenWidth = 800;
-  static const int screenHeight = 480;
   static const bool isProduction = false;
 
   // Sync timing
