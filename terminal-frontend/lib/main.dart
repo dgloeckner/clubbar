@@ -324,6 +324,7 @@ void main() async {
     cartService: cartService,
     syncProvider: syncProvider,
     membersRepository: membersRepo,
+    transactionsRepository: transactionsRepo,
     configService: configService,
     networkService: networkService,
     dispenserHealthService: dispenserHealthService,
@@ -339,6 +340,7 @@ class RuderbarTerminalApp extends StatelessWidget {
   final CartService cartService;
   final SyncProvider syncProvider;
   final MembersRepository membersRepository;
+  final TransactionsRepository transactionsRepository;
   final ConfigService configService;
   final NetworkService networkService;
   final DispenserHealthService? dispenserHealthService;
@@ -353,6 +355,7 @@ class RuderbarTerminalApp extends StatelessWidget {
     required this.cartService,
     required this.syncProvider,
     required this.membersRepository,
+    required this.transactionsRepository,
     required this.configService,
     required this.networkService,
     this.dispenserHealthService,
@@ -366,6 +369,7 @@ class RuderbarTerminalApp extends StatelessWidget {
         Provider<RuderbarDatabase>.value(value: database),
         Provider<NetworkService>.value(value: networkService),
         Provider<ConfigService>.value(value: configService),
+        Provider<TransactionsRepository>.value(value: transactionsRepository),
         if (dispenserHealthService != null)
           ChangeNotifierProvider<DispenserHealthService>.value(value: dispenserHealthService!),
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),

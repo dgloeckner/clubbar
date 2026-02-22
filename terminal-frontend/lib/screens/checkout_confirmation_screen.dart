@@ -150,6 +150,15 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     return FutureBuilder<_SessionData>(
       future: _sessionDataFuture,
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          if (!_autoNavStarted) {
+            _autoNavStarted = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _performNavigation();
+            });
+          }
+          return const Center(child: CircularProgressIndicator());
+        }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }

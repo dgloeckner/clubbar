@@ -14,6 +14,7 @@ import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/providers/products_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/repository/members_repository.dart';
+import 'package:ruderbar_terminal/repository/transactions_repository.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/network_service.dart';
@@ -26,6 +27,7 @@ class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockCartService extends Mock implements CartService {}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockMembersRepository extends Mock implements MembersRepository {}
+class MockTransactionsRepository extends Mock implements TransactionsRepository {}
 class MockConfigService extends Mock implements ConfigService {}
 class MockNetworkService extends Mock implements NetworkService {}
 
@@ -38,6 +40,7 @@ void main() {
     final mockCartService = MockCartService();
     final mockSyncProvider = MockSyncProvider();
     final mockMembersRepository = MockMembersRepository();
+    final mockTransactionsRepository = MockTransactionsRepository();
     final mockConfigService = MockConfigService();
     final mockNetworkService = MockNetworkService();
     when(() => mockConfigService.isConfigured).thenReturn(true);
@@ -56,6 +59,7 @@ void main() {
         cartService: mockCartService,
         syncProvider: mockSyncProvider,
         membersRepository: mockMembersRepository,
+        transactionsRepository: mockTransactionsRepository,
         configService: mockConfigService,
         networkService: mockNetworkService,
       ),
