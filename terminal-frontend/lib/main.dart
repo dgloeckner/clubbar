@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:logger/logger.dart';
@@ -346,6 +347,22 @@ void main() async {
   ));
 }
 
+/// Scroll behaviour for touchscreen kiosk use:
+/// - Enables finger-drag scrolling on Linux (not included in the Flutter
+///   desktop default which only covers mouse/trackpad).
+/// - Uses BouncingScrollPhysics for a natural overscroll feel.
+class _KioskScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => const {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+  };
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+}
+
 class RuderbarTerminalApp extends StatelessWidget {
   final RuderbarDatabase database;
   final LocaleProvider localeProvider;
@@ -400,6 +417,7 @@ class RuderbarTerminalApp extends StatelessWidget {
 
           return MaterialApp.router(
             title: AppConfig.appName,
+            scrollBehavior: _KioskScrollBehavior(),
             theme: ThemeData(
               useMaterial3: true,
               colorScheme: ColorScheme.fromSeed(
