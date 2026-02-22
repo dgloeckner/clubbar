@@ -10,7 +10,7 @@
   "@idleSubtitle": {
     "description": "Instruction to scan RFID card"
   },
-  "demoScanCard": "Demo: Karte scannen",
+  "demoScanCard": "Demo: Chip scannen",
   "@demoScanCard": {
     "description": "Demo button to simulate card scan"
   },
@@ -327,13 +327,13 @@
   "@continueShopping": {
     "description": "Button to continue shopping"
   },
-  "scanCard": "Karte scannen",
+  "scanCard": "Chip scannen",
   "@scanCard": {
     "description": "Button to scan card"
   },
 
   "@_RFID_ERRORS": {},
-  "rfidErrorUnknownCard": "Unbekannte Karte",
+  "rfidErrorUnknownCard": "Unbekannter Chip",
   "@rfidErrorUnknownCard": {
     "description": "Error when scanned card is not in database"
   },
