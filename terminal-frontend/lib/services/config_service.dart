@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 /// - TERMINAL_ID
 /// - TERMINAL_API_URL
 /// - TERMINAL_API_TOKEN
+/// - TERMINAL_FULLSCREEN
 /// - DISPENSER_ENABLED
 /// - DISPENSER_BASE_URL
 /// - DISPENSER_API_KEY
