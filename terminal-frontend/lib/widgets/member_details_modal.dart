@@ -1,3 +1,4 @@
+import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
@@ -177,9 +178,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                   children: [
                     Text(
                       l10n.memberDetails,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 20,
+                        fontSize: AppFontSizes.xxl,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -207,9 +208,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                       child: Center(
                         child: Text(
                           initials,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
-                            fontSize: 18,
+                            fontSize: AppFontSizes.xl,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -222,9 +223,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                       children: [
                         Text(
                           '$firstName $lastName',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
-                            fontSize: 18,
+                            fontSize: AppFontSizes.xl,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -232,7 +233,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                           '${l10n.balance}: ${formatPrice(balanceCents, locale)}',
                           style: TextStyle(
                             color: _balanceColor(balanceCents),
-                            fontSize: 15,
+                            fontSize: AppFontSizes.base,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -250,9 +251,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                   children: [
                     Text(
                       l10n.preferredLanguage,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xffa1a1aa),
-                        fontSize: 14,
+                        fontSize: AppFontSizes.base,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -278,9 +279,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                   children: [
                     Text(
                       l10n.recentTransactions,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xffa1a1aa),
-                        fontSize: 14,
+                        fontSize: AppFontSizes.base,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -322,9 +323,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
             const SizedBox(height: 12),
             Text(
               l10n.loadingTransactions,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Color(0xffa1a1aa),
-                fontSize: 14,
+                fontSize: AppFontSizes.base,
               ),
             ),
           ],
@@ -347,9 +348,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
               const SizedBox(height: 12),
               Text(
                 l10n.errorLoadingTransactions,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: AppFontSizes.lg,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -357,9 +358,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 const SizedBox(height: 8),
                 Text(
                   _errorMessage!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Color(0xffa1a1aa),
-                    fontSize: 13,
+                    fontSize: AppFontSizes.sm,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -395,18 +396,18 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
               const SizedBox(height: 12),
               Text(
                 l10n.offlineMode,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: AppFontSizes.lg,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 l10n.transactionHistoryUnavailableOffline,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Color(0xffa1a1aa),
-                  fontSize: 13,
+                  fontSize: AppFontSizes.sm,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -420,9 +421,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       return Center(
         child: Text(
           l10n.noTransactions,
-          style: const TextStyle(
+          style: TextStyle(
             color: Color(0xffa1a1aa),
-            fontSize: 14,
+            fontSize: AppFontSizes.base,
           ),
         ),
       );
@@ -471,18 +472,18 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
               children: [
                 Text(
                   transaction.details,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 15,
+                    fontSize: AppFontSizes.base,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   _formatTransactionTimestamp(transaction.timestamp, locale),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Color(0xffa1a1aa),
-                    fontSize: 13,
+                    fontSize: AppFontSizes.sm,
                   ),
                 ),
               ],
@@ -495,7 +496,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
               color: transaction.amountCents >= 0
                   ? const Color(0xffFF6B4A)
                   : const Color(0xff22c55e),
-              fontSize: 16,
+              fontSize: AppFontSizes.lg,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -551,7 +552,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
           label,
           style: TextStyle(
             color: isSelected ? Colors.white : const Color(0xffa1a1aa),
-            fontSize: 14,
+            fontSize: AppFontSizes.base,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           ),
         ),

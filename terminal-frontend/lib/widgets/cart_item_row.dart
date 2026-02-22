@@ -1,3 +1,4 @@
+import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:ruderbar_terminal/models/cart_item.dart';
 
@@ -36,16 +37,16 @@ class CartItemRow extends StatelessWidget {
               children: [
                 Text(
                   item.productName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: AppFontSizes.lg,
                   ),
                 ),
                 Text(
                   '$_pricePerUnitFormatted each',
                   style: TextStyle(
                     color: Colors.grey[600],
-                    fontSize: 12,
+                    fontSize: AppFontSizes.xs,
                   ),
                 ),
               ],
@@ -63,7 +64,7 @@ class CartItemRow extends StatelessWidget {
               ),
               Text(
                 '${item.quantity}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
               ),
               IconButton(
                 icon: const Icon(Icons.add),
@@ -75,9 +76,9 @@ class CartItemRow extends StatelessWidget {
             width: 80,
             child: Text(
               _lineTotalFormatted,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 16,
+                fontSize: AppFontSizes.lg,
                 color: Colors.green,
               ),
               textAlign: TextAlign.right,

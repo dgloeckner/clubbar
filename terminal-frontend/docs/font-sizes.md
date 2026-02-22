@@ -16,44 +16,20 @@ They can be overridden at runtime via the `fontSizes` key in `config.json`
 | `sm`   | 13 | RFID error message on idle screen; Member info card language indicator; Checkout confirmation session reference ID (monospace) |
 | `xs`   | 12 | *(not currently used by any widget)* |
 
-## Hardcoded sizes (not affected by config.json)
+## Intentionally fixed sizes (not affected by config.json)
 
-These elements use literal `fontSize` values and are not part of the
-`AppFontSizes` token system. They are listed here for completeness.
+The following elements use hardcoded literal `fontSize` values by design.
+They are display/hero sizes that are part of the kiosk visual identity and
+are not intended to be operator-configurable.
 
-| Screen / widget | Element | Size (px) |
-|-----------------|---------|-----------|
-| `IdleWaitingScreen` | Main title ("Karte scannen") | 42 |
-| `IdleWaitingScreen` | Subtitle | 21 |
-| `ShoppingCartScreen` | Grand total price | 48 |
-| `ShoppingCartScreen` | Quantity stepper ＋ / − symbols | 24 |
-| `ProductCard` | Cart badge item count | 16 |
-| `AppHeader` | Avatar initials in header bar | 18 |
-| `AppHeader` | Member name in header bar | 16 |
-| `AppHeader` | Balance/Deckel in header bar | 13 |
-| `MemberBar` | Avatar initials | 14 |
-| `MemberBar` | Member name | 17 |
-| `MemberBar` | Balance/Deckel | 17 |
-| `MemberBar` | Cart badge item count | 12 |
-| `RuderbarHeader` | App title "Ruderbar" | 20 |
-| `RuderbarHeader` | Sync status badge | 12 |
-| `RuderbarHeader` | Clock | 16 |
-| `CartItemRow` | Product name | 16 |
-| `CartItemRow` | Unit price | 12 |
-| `CartItemRow` | Quantity | 14 |
-| `CartItemRow` | Line total | 16 |
-| `LoadingOverlay` | Loading message | 16 |
-| `MemberDetailsModal` | Modal header "Member Details" | 20 |
-| `MemberDetailsModal` | Avatar initials | 18 |
-| `MemberDetailsModal` | Member name | 18 |
-| `MemberDetailsModal` | Balance/Deckel | 15 |
-| `MemberDetailsModal` | Field labels | 14 |
-| `MemberDetailsModal` | Transaction amount | 16 |
-| `MemberDetailsModal` | Transaction timestamp | 13 |
-| `MemberDetailsModal` | Error / offline messages | 13–16 |
-| `StatusInfoModal` | Tab button labels | 13 |
-| `StatusInfoModal` | Modal section titles | 24 |
-| `StatusInfoModal` | Metric card value | 30 |
-| `StatusInfoModal` | Metric card label | 9 |
-| `StatusInfoModal` | Info row label / value | 13 |
-| `StatusInfoModal` | Various detail labels | 10–14 |
+| Screen / widget | Element | Size (px) | Rationale |
+|-----------------|---------|-----------|-----------|
+| `IdleWaitingScreen` | Main title ("Karte scannen") | 42 | Hero display size |
+| `ShoppingCartScreen` | Grand total price | 48 | Hero display size |
+| `ShoppingCartScreen` | Quantity stepper ＋ / − touch targets | 24 | Touch-target size, same as xxxl |
+
+## StatusInfoModal (developer overlay)
+
+`StatusInfoModal` is a technical debug overlay, not part of the kiosk UI.
+It uses its own internal sizing (9–30 px) and is intentionally excluded
+from the token system.

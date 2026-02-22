@@ -143,7 +143,7 @@ class _ProductCardState extends State<ProductCard>
                     '${widget.quantity}x',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 16,
+                      fontSize: AppFontSizes.lg,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

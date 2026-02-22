@@ -1,3 +1,4 @@
+import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
@@ -95,9 +96,9 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
           // Left: Ruderbar title
           Text(
             'Ruderbar',
-            style: const TextStyle(
+            style: TextStyle(
               color: Color(0xfff1f5f9),
-              fontSize: 20,
+              fontSize: AppFontSizes.xxl,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -120,7 +121,7 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
                     _badgeText(context),
                     style: TextStyle(
                       color: color.withValues(alpha: 0.7),
-                      fontSize: 12,
+                      fontSize: AppFontSizes.xs,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -129,9 +130,9 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
               const SizedBox(width: 12),
               Text(
                 _formatTime(_currentTime),
-                style: const TextStyle(
+                style: TextStyle(
                   color: Color(0xff64748b),
-                  fontSize: 16,
+                  fontSize: AppFontSizes.lg,
                   fontFamily: 'JetBrains Mono',
                   fontWeight: FontWeight.w500,
                 ),

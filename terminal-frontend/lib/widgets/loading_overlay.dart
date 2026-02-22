@@ -1,3 +1,4 @@
+import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
 
 class LoadingOverlay extends StatelessWidget {
@@ -34,9 +35,9 @@ class LoadingOverlay extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 16.0),
                         child: Text(
                           message!,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
-                            fontSize: 16,
+                            fontSize: AppFontSizes.lg,
                           ),
                         ),
                       ),

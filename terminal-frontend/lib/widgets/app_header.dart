@@ -1,3 +1,4 @@
+import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:ruderbar_terminal/providers/auth_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
@@ -44,9 +45,9 @@ class AppHeader extends AppBar {
           child: Center(
             child: Text(
               initials,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: AppFontSizes.xl,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -61,17 +62,17 @@ class AppHeader extends AppBar {
             children: [
               Text(
                 '$firstName $lastName',
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: AppFontSizes.lg,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               Text(
                 'Deckel: ${((membersProvider.memberDeckel ?? member.balanceCents) / 100.0).toStringAsFixed(2)} \u20ac',
-                style: const TextStyle(
+                style: TextStyle(
                   color: Color(0xffFF6B4A), // Coral orange
-                  fontSize: 13,
+                  fontSize: AppFontSizes.sm,
                   fontWeight: FontWeight.w500,
                 ),
               ),

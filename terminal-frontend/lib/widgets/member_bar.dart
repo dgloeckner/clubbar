@@ -1,3 +1,4 @@
+import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
@@ -64,9 +65,9 @@ class MemberBar extends StatelessWidget {
                   child: Center(
                     child: Text(
                       initials,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 14,
+                        fontSize: AppFontSizes.base,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -81,17 +82,17 @@ class MemberBar extends StatelessWidget {
                 children: [
                   Text(
                     '$firstName $lastName',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Colors.white,
-                      fontSize: 17,
+                      fontSize: AppFontSizes.lg,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   Text(
                     '${l10n.balance}: ${formatPrice(deckelCents ?? member.balanceCents, locale)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Color(0xffFF6B4A),
-                      fontSize: 17,
+                      fontSize: AppFontSizes.lg,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -191,9 +192,9 @@ class MemberBar extends StatelessWidget {
                     child: Center(
                       child: Text(
                         itemCount.toString(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: AppFontSizes.xs,
                           fontWeight: FontWeight.w700,
                         ),
                       ),

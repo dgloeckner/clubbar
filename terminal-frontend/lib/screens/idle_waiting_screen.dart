@@ -203,7 +203,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Color(0xff94a3b8),
-                    fontSize: 21,
+                    fontSize: AppFontSizes.xxl,
                     fontWeight: FontWeight.w400,
                   ),
                 ),
