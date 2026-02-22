@@ -279,6 +279,7 @@ void main() async {
   final membersService = MembersService(
     repository: membersRepo,
     transactionsRepository: transactionsRepo,
+    networkService: networkService,
   );
   final productsService = ProductsService(repository: productsRepo);
   final cartService = CartService(

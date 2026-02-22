@@ -58,6 +58,13 @@ class MembersRepository {
         .get();
   }
 
+  /// Find member by ID (for re-reading after balance update)
+  Future<MembersCacheData?> findById(String memberId) async {
+    return (_db.select(_db.membersCache)
+          ..where((m) => m.id.equals(memberId)))
+        .getSingleOrNull();
+  }
+
   /// Update member balance (called during atomic sync completion)
   Future<void> updateMemberBalance(String memberId, int balanceCents) async {
     await (_db.update(_db.membersCache)
