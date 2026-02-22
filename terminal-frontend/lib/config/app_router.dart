@@ -108,12 +108,12 @@ GoRouter createAppRouter(BuildContext context, {ConfigService? configService}) {
             ),
           ),
           GoRoute(
-            path: '/confirmation/:transactionId',
+            path: '/confirmation/:sessionId',
             pageBuilder: (context, state) {
-              final transactionId = state.pathParameters['transactionId'] ?? '';
+              final sessionId = state.pathParameters['sessionId'] ?? '';
               return CustomTransitionPage(
                 key: state.pageKey,
-                child: CheckoutConfirmationScreen(transactionId: transactionId),
+                child: CheckoutConfirmationScreen(sessionId: sessionId),
                 transitionsBuilder: (context, animation, secondaryAnimation, child) {
                   return FadeTransition(opacity: animation, child: child);
                 },

@@ -7,19 +7,23 @@ import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
+import 'package:ruderbar_terminal/repository/transactions_repository.dart';
 import 'package:ruderbar_terminal/screens/checkout_confirmation_screen.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
+class MockTransactionsRepository extends Mock implements TransactionsRepository {}
 
 void main() {
   group('CheckoutConfirmationScreen', () {
     late MockCartProvider mockCartProvider;
     late MockMembersProvider mockMembersProvider;
+    late MockTransactionsRepository mockRepo;
 
     setUp(() {
       mockCartProvider = MockCartProvider();
       mockMembersProvider = MockMembersProvider();
+      mockRepo = MockTransactionsRepository();
 
       // Setup cart provider mocks
       when(() => mockCartProvider.clearCart()).thenReturn(null);
@@ -30,8 +34,13 @@ void main() {
       // Setup members provider mocks
       when(() => mockMembersProvider.clearSelectedMember()).thenReturn(null);
       when(() => mockMembersProvider.selectedMember).thenReturn(null);
+      when(() => mockMembersProvider.memberDeckel).thenReturn(0);
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
+
+      // Setup repository mocks — normal (non-partial) session by default
+      when(() => mockRepo.getSessionTotal(any())).thenAnswer((_) async => 500);
+      when(() => mockRepo.getSessionDispenserInfo(any())).thenAnswer((_) async => null);
     });
 
     testWidgets('displays success message', (WidgetTester tester) async {
@@ -46,9 +55,10 @@ void main() {
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
                 ),
+                Provider<TransactionsRepository>.value(value: mockRepo),
               ],
               child: const CheckoutConfirmationScreen(
-                transactionId: 'txn-12345',
+                sessionId: 'sess-abc123',
               ),
             ),
           ),
@@ -74,6 +84,10 @@ void main() {
           locale: const Locale('de'),
         ),
       );
+
+      // Let FutureBuilder resolve
+      await tester.pump();
+      await tester.pump();
 
       expect(find.text('Buchung erfolgreich!'), findsOneWidget);
       expect(find.byIcon(Icons.check_circle), findsOneWidget);
@@ -91,9 +105,10 @@ void main() {
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
                 ),
+                Provider<TransactionsRepository>.value(value: mockRepo),
               ],
               child: const CheckoutConfirmationScreen(
-                transactionId: 'txn-12345',
+                sessionId: 'sess-abc123',
               ),
             ),
           ),
@@ -120,10 +135,14 @@ void main() {
         ),
       );
 
+      // Let FutureBuilder resolve
+      await tester.pump();
+      await tester.pump();
+
       expect(find.textContaining('Weiterleitung in'), findsOneWidget);
     });
 
-    testWidgets('displays transaction ID', (WidgetTester tester) async {
+    testWidgets('displays session ID', (WidgetTester tester) async {
       final router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -135,9 +154,10 @@ void main() {
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
                 ),
+                Provider<TransactionsRepository>.value(value: mockRepo),
               ],
               child: const CheckoutConfirmationScreen(
-                transactionId: 'txn-abc123',
+                sessionId: 'sess-abc123',
               ),
             ),
           ),
@@ -164,7 +184,11 @@ void main() {
         ),
       );
 
-      expect(find.text('txn-abc123'), findsOneWidget);
+      // Let FutureBuilder resolve
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('sess-abc123'), findsOneWidget);
     });
 
     testWidgets('countdown decrements every second', (WidgetTester tester) async {
@@ -179,9 +203,10 @@ void main() {
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
                 ),
+                Provider<TransactionsRepository>.value(value: mockRepo),
               ],
               child: const CheckoutConfirmationScreen(
-                transactionId: 'txn-12345',
+                sessionId: 'sess-abc123',
               ),
             ),
           ),
@@ -207,6 +232,10 @@ void main() {
           locale: const Locale('de'),
         ),
       );
+
+      // Let FutureBuilder resolve
+      await tester.pump();
+      await tester.pump();
 
       // Initially shows 3 seconds
       expect(find.textContaining('Weiterleitung in 3'), findsOneWidget);
@@ -232,9 +261,10 @@ void main() {
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
                 ),
+                Provider<TransactionsRepository>.value(value: mockRepo),
               ],
               child: const CheckoutConfirmationScreen(
-                transactionId: 'txn-12345',
+                sessionId: 'sess-abc123',
               ),
             ),
           ),
@@ -260,6 +290,10 @@ void main() {
           locale: const Locale('de'),
         ),
       );
+
+      // Let FutureBuilder resolve
+      await tester.pump();
+      await tester.pump();
 
       // Wait for auto-navigation
       await tester.pump(const Duration(seconds: 3));
