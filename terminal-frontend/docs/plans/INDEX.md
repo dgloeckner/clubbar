@@ -75,6 +75,16 @@
   - Removed dead `AppConfig.screenWidth/screenHeight` constants
   - INSTALL.md updated with fullscreen setup instructions
 
+### Terminal UI Sounds (COMPLETED ✅)
+- **Location:** `docs/plans/2026-02-25-terminal-sounds.md`
+- **Completion Date:** 2026-02-25
+- **Tasks:** 8 completed
+- **Outcomes:**
+  - `audioplayers ^6.5.1` added, 8 MP3 sound assets bundled under `assets/sounds/`
+  - `SoundService` with `SoundEvent` enum — pre-loaded players, tier-based volumes
+  - `soundsEnabled` config flag in `config.json` (default: false) with `TERMINAL_SOUNDS_ENABLED` env var override
+  - Full interaction coverage: RFID scan, product add/remove/quantity, category switch, checkout success/error
+
 ## Next Phase
 
 ### Phase 6: Advanced Features (FUTURE)
@@ -96,8 +106,8 @@ d07bca6 feat: create SyncProvider with background timer (Phase 3 Task 8)
 
 | Metric | Value |
 |--------|-------|
-| Total Phases Started | 5 |
-| Completed Phases | 5 (Phase 1-5) ✅ |
+| Total Phases Started | 6 |
+| Completed Phases | 6 (Phase 1-5 + Sounds) ✅ |
 | Tests Passing (Total) | 310/315 (5 pre-existing failures unrelated to fullscreen) |
 | Services Implemented | 5 (MembersService, ProductsService, CartService, SyncService, MockRfidService) |
 | Providers Implemented | 6 (Auth, Members, Products, Cart, Sync, Rfid) |

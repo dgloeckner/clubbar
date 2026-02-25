@@ -228,6 +228,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
   "apiToken": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
 
   "fullscreen": false,
+  "soundsEnabled": false,
   "seedTestData": false,
 
   "fontSizes": {
@@ -258,6 +259,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `apiUrl` | string | — | Base URL of the Ruderbar backend API, e.g. `https://club.example.com/api`. No trailing slash. |
 | `apiToken` | string | — | 64-character hex device token generated in the Admin Panel under *Terminals*. Stored with `chmod 600`. |
 | `fullscreen` | bool | `false` | Run the app fullscreen / kiosk mode on startup. Recommended for production deployments. |
+| `soundsEnabled` | bool | `false` | Enable audio feedback sounds. Natural/warm UI sounds at key interactions. |
 | `seedTestData` | bool | `false` | Pre-populate the local database with mock members, categories, and products. **Development only — never enable in production.** |
 | `fontSizes.xs` | number | `12` | Font size in logical pixels for the `xs` scale step. |
 | `fontSizes.sm` | number | `13` | Font size for the `sm` scale step. |
@@ -283,6 +285,7 @@ for CI, Docker deployments, or `.desktop` file `Exec=env ...` lines:
 | `TERMINAL_API_URL` | `apiUrl` |
 | `TERMINAL_API_TOKEN` | `apiToken` |
 | `TERMINAL_FULLSCREEN` | `fullscreen` (`true`/`false`) |
+| `TERMINAL_SOUNDS_ENABLED` | `soundsEnabled` (`true`/`false`) |
 | `TERMINAL_SEED_TEST_DATA` | `seedTestData` (`true`/`false`) |
 | `DISPENSER_ENABLED` | `dispenser.enabled` |
 | `DISPENSER_BASE_URL` | `dispenser.baseUrl` |
