@@ -289,7 +289,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(
-          maxWidth: 700,
+          maxWidth: 910,
           maxHeight: 600,
         ),
         child: Padding(
