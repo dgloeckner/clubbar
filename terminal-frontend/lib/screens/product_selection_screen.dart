@@ -138,9 +138,16 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     CartProvider cartProvider,
   ) {
     final l10n = AppLocalizations.of(context)!;
+    // Get member's preferred language (needed for sort and display)
+    final memberLang = context.read<MembersProvider>().selectedMember?.preferredLanguage ?? 'de';
     final products = productsProvider.products
         .where((p) => p.categoryId == category.id)
-        .toList();
+        .toList()
+      ..sort((a, b) {
+        final nameA = productsProvider.getTranslatedName(a, memberLang).toLowerCase();
+        final nameB = productsProvider.getTranslatedName(b, memberLang).toLowerCase();
+        return nameA.compareTo(nameB);
+      });
 
     if (products.isEmpty) {
       return Center(
@@ -150,9 +157,6 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
         ),
       );
     }
-
-    // Get member's preferred language
-    final memberLang = context.read<MembersProvider>().selectedMember?.preferredLanguage ?? 'de';
 
     // Use LayoutBuilder to get actual available dimensions
     return LayoutBuilder(
