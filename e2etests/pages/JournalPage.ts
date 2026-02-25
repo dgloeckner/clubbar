@@ -56,6 +56,10 @@ export class JournalPage extends BasePage {
   private readonly concludeSettlementBtn = () => this.page.getByTestId('journal-settlement-conclude-btn')
   private readonly successMessage = () => this.page.getByTestId('journal-success-message')
 
+  // Settlement confirm modal elements
+  private readonly settlementConfirmModal = () => this.page.getByTestId('journal-settlement-confirm-modal')
+  private readonly settlementConfirmSubmitBtn = () => this.page.getByTestId('journal-settlement-confirm-submit-btn')
+
   // Correction modal elements
   private readonly createCorrectionBtn = () => this.page.getByTestId('journal-create-correction-btn')
   private readonly correctionModal = () => this.page.getByTestId('journal-correction-modal')
@@ -455,7 +459,12 @@ export class JournalPage extends BasePage {
     const responsePromise = this.page.waitForResponse(
       (resp) => resp.url().includes('/api/admin/settlements') && resp.status() === 201
     )
+    // Open the confirmation modal
     await this.concludeSettlementBtn().click()
+    // Wait for modal to appear and confirm
+    await expect(this.settlementConfirmModal()).toBeVisible()
+    await this.settlementConfirmSubmitBtn().click()
+    // Capture API response (happens before navigation)
     const response = await responsePromise
     const body = await response.json()
     return body.id

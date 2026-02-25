@@ -450,13 +450,13 @@ test.describe('Settlement E2E: Full Workflow', () => {
       const memberCount = await settlementsPage.getSettlementMemberCount(settlementId)
       expect(memberCount?.trim()).toBe('2')
 
-      // Verify total amount (€55.00)
+      // Verify total amount (€55.00 — displayed as "55,00 €" in German locale)
       const totalAmount = await settlementsPage.getSettlementTotalAmount(settlementId)
-      expect(totalAmount).toContain('55.00')
+      expect(totalAmount).toMatch(/55[,.]00/)
 
-      // Verify status is Active
+      // Verify status is Active (German: "Aktiv" — test admin locale is de)
       const statusText = await settlementsPage.getSettlementStatusText(settlementId)
-      expect(statusText?.trim()).toBe('Active')
+      expect(statusText?.trim()).toBe('Aktiv')
 
       // Verify date is today
       const createdDate = await settlementsPage.getSettlementCreatedDate(settlementId)
@@ -604,9 +604,9 @@ test.describe('Settlement E2E: Full Workflow', () => {
       // Verify settlement row is visible
       await settlementsPage.expectSettlementRowVisible(settlementId)
 
-      // Verify status badge shows "Exported"
+      // Verify status badge shows "Exportiert" (German: test admin locale is de)
       const statusText = await settlementsPage.getSettlementStatusText(settlementId)
-      expect(statusText?.trim()).toBe('Exported')
+      expect(statusText?.trim()).toBe('Exportiert')
     })
 
     // Step 7: Verify undo button is still enabled for exported settlement
