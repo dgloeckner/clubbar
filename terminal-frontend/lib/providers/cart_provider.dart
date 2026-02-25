@@ -3,6 +3,7 @@ import 'package:ruderbar_terminal/database/database.dart';
 import 'package:ruderbar_terminal/models/cart_item.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:ruderbar_terminal/services/sound_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
 import 'package:ruderbar_terminal/widgets/dispensing_progress_dialog.dart';
 import 'package:ruderbar_terminal/widgets/dispenser_error_dialog.dart';
@@ -10,6 +11,7 @@ import 'package:ruderbar_terminal/widgets/dispenser_error_dialog.dart';
 class CartProvider extends ChangeNotifier {
   final CartService _service;
   final ConfigService _config;
+  final SoundService _soundService;
 
   List<CartItem> _items = [];
   bool _isLoading = false;
@@ -21,8 +23,10 @@ class CartProvider extends ChangeNotifier {
   CartProvider({
     required CartService service,
     required ConfigService config,
+    required SoundService soundService,
   })  : _service = service,
-        _config = config;
+        _config = config,
+        _soundService = soundService;
 
   List<CartItem> get items => _items;
   int get itemCount => _items.fold(0, (sum, item) => sum + item.quantity);
@@ -63,12 +67,14 @@ class CartProvider extends ChangeNotifier {
       ));
     }
 
+    _soundService.play(SoundEvent.productAdd);
     notifyListeners();
   }
 
   /// Remove item from cart
   void removeItem(String productId) {
     _items.removeWhere((item) => item.productId == productId);
+    _soundService.play(SoundEvent.productRemove);
     notifyListeners();
   }
 
@@ -78,8 +84,10 @@ class CartProvider extends ChangeNotifier {
     if (index >= 0) {
       if (_items[index].quantity > 1) {
         _items[index].quantity -= 1;
+        _soundService.play(SoundEvent.quantityChange);
       } else {
         _items.removeAt(index);
+        _soundService.play(SoundEvent.productRemove);
       }
       notifyListeners();
     }
@@ -111,6 +119,7 @@ class CartProvider extends ChangeNotifier {
       if (!valid) {
         _lastError = error;
         _isLoading = false;
+        _soundService.play(SoundEvent.checkoutError);
         notifyListeners();
         return;
       }
@@ -266,11 +275,13 @@ class CartProvider extends ChangeNotifier {
       _items = [];
       _lastError = null;
       _errorType = null;
+      _soundService.play(SoundEvent.checkoutSuccess);
     } catch (e) {
       _lastError = 'Checkout failed: $e';
       if (e is Exception) {
         _errorType = e;
       }
+      _soundService.play(SoundEvent.checkoutError);
     } finally {
       _isLoading = false;
       notifyListeners();

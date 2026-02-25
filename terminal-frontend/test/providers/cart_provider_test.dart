@@ -6,10 +6,12 @@ import 'package:ruderbar_terminal/models/cart_item.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:ruderbar_terminal/services/sound_service.dart';
 
 class MockCartService extends Mock implements CartService {}
 class MockConfigService extends Mock implements ConfigService {}
 class MockBuildContext extends Mock implements BuildContext {}
+class MockSoundService extends Mock implements SoundService {}
 
 void main() {
   setUpAll(() {
@@ -31,18 +33,22 @@ void main() {
       balanceCents: 0,
       updatedAt: DateTime.now().toIso8601String(),
     ));
+    registerFallbackValue(SoundEvent.productAdd);
   });
 
   group('CartProvider', () {
     late MockCartService mockService;
     late MockConfigService mockConfig;
+    late MockSoundService mockSoundService;
     late CartProvider provider;
 
     setUp(() {
       mockService = MockCartService();
       mockConfig = MockConfigService();
+      mockSoundService = MockSoundService();
       when(() => mockConfig.dispenserEnabled).thenReturn(false);
-      provider = CartProvider(service: mockService, config: mockConfig);
+      when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+      provider = CartProvider(service: mockService, config: mockConfig, soundService: mockSoundService);
     });
 
     test('initial state is empty', () {
@@ -148,6 +154,55 @@ void main() {
 
       expect(provider.items, isEmpty);
       expect(provider.total, equals(0));
+    });
+  });
+
+  group('CartProvider sounds', () {
+    late MockCartService mockService;
+    late MockConfigService mockConfig;
+    late MockSoundService mockSoundService;
+    late CartProvider provider;
+
+    setUp(() {
+      mockService = MockCartService();
+      mockConfig = MockConfigService();
+      mockSoundService = MockSoundService();
+      when(() => mockConfig.dispenserEnabled).thenReturn(false);
+      when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+      provider = CartProvider(service: mockService, config: mockConfig, soundService: mockSoundService);
+    });
+
+    test('plays productAdd when item added to cart', () {
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      verify(() => mockSoundService.play(SoundEvent.productAdd)).called(1);
+    });
+
+    test('plays productAdd again when same item quantity increased', () {
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      verify(() => mockSoundService.play(SoundEvent.productAdd)).called(2);
+    });
+
+    test('plays quantityChange when item quantity decreased (item stays)', () {
+      provider.addItem('prod-1', 'Beer', 500, 2, 'de');
+      clearInteractions(mockSoundService);
+      provider.decreaseItem('prod-1');
+      verify(() => mockSoundService.play(SoundEvent.quantityChange)).called(1);
+      verifyNever(() => mockSoundService.play(SoundEvent.productRemove));
+    });
+
+    test('plays productRemove when decreaseItem removes last unit', () {
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      clearInteractions(mockSoundService);
+      provider.decreaseItem('prod-1');
+      verify(() => mockSoundService.play(SoundEvent.productRemove)).called(1);
+    });
+
+    test('plays productRemove when removeItem called', () {
+      provider.addItem('prod-1', 'Beer', 500, 2, 'de');
+      clearInteractions(mockSoundService);
+      provider.removeItem('prod-1');
+      verify(() => mockSoundService.play(SoundEvent.productRemove)).called(1);
     });
   });
 }

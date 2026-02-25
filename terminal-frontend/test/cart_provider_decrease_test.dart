@@ -3,19 +3,28 @@ import 'package:mocktail/mocktail.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:ruderbar_terminal/services/sound_service.dart';
 
 class MockCartService extends Mock implements CartService {}
 class MockConfigService extends Mock implements ConfigService {}
+class MockSoundService extends Mock implements SoundService {}
 
 void main() {
   late CartProvider cart;
   late MockCartService mockCartService;
   late MockConfigService mockConfigService;
+  late MockSoundService mockSoundService;
+
+  setUpAll(() {
+    registerFallbackValue(SoundEvent.productAdd);
+  });
 
   setUp(() {
     mockCartService = MockCartService();
     mockConfigService = MockConfigService();
-    cart = CartProvider(service: mockCartService, config: mockConfigService);
+    mockSoundService = MockSoundService();
+    when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+    cart = CartProvider(service: mockCartService, config: mockConfigService, soundService: mockSoundService);
     // Add an item to work with
     cart.addItem('prod1', 'Bier', 200, 3, 'de');
   });
