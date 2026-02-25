@@ -168,7 +168,7 @@ Create `~/.config/autostart/ruderbar-terminal.desktop`:
 [Desktop Entry]
 Type=Application
 Name=Ruderbar Terminal
-Exec=/opt/ruderbar-terminal/ruderbar_terminal
+Exec=env GST_AUDIO_SINK=alsasink /opt/ruderbar-terminal/ruderbar_terminal
 Hidden=false
 X-GNOME-Autostart-enabled=true
 ```
@@ -330,3 +330,4 @@ database and opens the idle RFID scanning screen.
 | `screen-idle.py` can't open input devices | Run `sudo usermod -aG input $USER` and re-login |
 | App doesn't fill the screen | Set `"fullscreen": true` in `config.json` or `TERMINAL_FULLSCREEN=true` env var |
 | RFID scanner not detected | Ensure reader is in keyboard-emulation mode (sends UID + Enter); test with `evtest` |
+| No sound / audio not working | See [Audio setup on Raspberry Pi](docs/audio-setup-raspberry-pi.md) for GStreamer and ALSA configuration |
