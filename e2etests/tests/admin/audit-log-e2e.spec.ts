@@ -314,4 +314,39 @@ test.describe('Audit Log E2E: Filtering & UI', () => {
       expect(cells.admin).not.toBe('(Failed Login)')
     })
   })
+
+  test('admin name for create action shows real name, not failed-login fallback', async ({ page, testTransactions }) => {
+    // Regression test: AuditLogDto read wrong column (admin_display_name instead of admin_user_name),
+    // causing admin_user_name to always be null. The frontend then showed the failedLogin fallback
+    // text for ALL entries, not just login_failed entries.
+    const auditLog = new AuditLogPage(page)
+    let memberId: string
+
+    await test.step('Create member via authenticated API to generate a create audit entry', async () => {
+      const member = await testTransactions.createMember(`AuditReg${Date.now()}`, 'RegressionAdminName')
+      memberId = member.id
+    })
+
+    await test.step('Navigate to audit log and find the create entry', async () => {
+      await auditLog.navigateTo()
+      await auditLog.expectPageVisible()
+      await auditLog.filterByAction('create')
+      await auditLog.filterByEntityType('member')
+      await auditLog.search(memberId!)
+    })
+
+    await test.step('Verify admin column shows real admin name, not any fallback string', async () => {
+      await auditLog.expectEntryExists(memberId!)
+      const row = auditLog.findRowByEntityId(memberId!)
+      const entryId = await auditLog.getEntryIdFromRow(row.first())
+      const adminName = await auditLog.getAdminName(entryId)
+
+      // The action is 'create', not 'login_failed', so the admin name MUST be the actual
+      // admin user's display name. Neither the German nor the English fallback is acceptable.
+      expect(adminName).not.toBe('(Fehlgeschlagene Anmeldung)')
+      expect(adminName).not.toBe('(Failed Login)')
+      // The name must be a non-empty real value
+      expect(adminName.trim()).toBeTruthy()
+    })
+  })
 })

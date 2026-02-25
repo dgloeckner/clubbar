@@ -356,7 +356,7 @@ export function AuditLogPage() {
                         {formatDateTime(entry.created_at)}
                       </td>
                       <td style={{ padding: '12px 16px' }} data-testid={`audit-log-admin-${entry.id}`}>
-                        {entry.admin_user_name || t('auditLog.failedLogin')}
+                        {entry.admin_user_name || (entry.action === 'login_failed' ? t('auditLog.failedLogin') : '—')}
                       </td>
                       <td style={{ padding: '12px 16px' }} data-testid={`audit-log-action-${entry.id}`}>
                         <span style={{

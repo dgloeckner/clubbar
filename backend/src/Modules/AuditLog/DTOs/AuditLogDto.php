@@ -25,7 +25,7 @@ final readonly class AuditLogDto
         return new self(
             id: (int) $row['id'],
             adminUserId: $row['admin_user_id'] ?? null,
-            adminUserName: $row['admin_display_name'] ?? $row['display_name'] ?? null,
+            adminUserName: $row['admin_user_name'] ?? null,
             action: $row['action'],
             entityType: $row['entity_type'],
             entityId: $row['entity_id'],

@@ -204,6 +204,15 @@ export class AuditLogPage extends BasePage {
     return await cell.textContent() || ''
   }
 
+  /**
+   * Get admin name cell text for a specific entry by its numeric ID.
+   * Used for regression testing that the correct admin user name is displayed
+   * (not a fallback string).
+   */
+  async getAdminName(entryId: number): Promise<string> {
+    return await this.page.getByTestId(`audit-log-admin-${entryId}`).textContent() || ''
+  }
+
   async getAction(rowIndex: number = 0): Promise<string> {
     const row = this.page.locator('[data-testid^="audit-log-table-row-"]').nth(rowIndex)
     const cell = row.locator('[data-testid^="audit-log-action-"]')
