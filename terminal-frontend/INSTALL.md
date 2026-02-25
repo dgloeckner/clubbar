@@ -16,7 +16,11 @@ embedded Linux, typically running fullscreen on a touchscreen display.
 
 ---
 
-## 1. Build and install the Flutter app
+## 0. Getting a Flutter app binary
+
+You may either build from sources or use a pre-built binary.
+
+### Building from sources
 
 On a development machine with Flutter installed:
 
@@ -25,7 +29,14 @@ cd terminal-frontend
 flutter build linux --release
 ```
 
-Copy the build output to the Pi:
+### Downloading from Github
+
+You can download arm64 builds from https://github.com/dgloeckner/ruderbar.
+Development builds can be found in each CI build run.
+
+## 1. Build and install the Flutter app
+
+Copy the app to the Pi:
 
 ```bash
 rsync -av build/linux/x64/release/bundle/ pi@<PI_IP>:/opt/ruderbar-terminal/
@@ -137,6 +148,8 @@ Hidden=false
 X-GNOME-Autostart-enabled=true
 ```
 
+Alternative - add to `~/.config/labwc/autostart`.
+
 Reboot and verify the process is running:
 
 ```bash
@@ -201,7 +214,7 @@ platform-specific and resolved automatically by the app:
 
 | Platform | Path |
 |----------|------|
-| Linux | `~/.local/share/com.example.ruderbar_terminal/config.json` |
+| Linux | `~/.local/share/ruderbar_terminal/config.json` |
 | macOS | `~/Library/Containers/com.example.ruderbar_terminal/Data/Library/Application Support/com.example.ruderbar_terminal/config.json` |
 | Windows | `%APPDATA%\com.example.ruderbar_terminal\config.json` |
 

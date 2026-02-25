@@ -3,6 +3,14 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+// Thrown when config.json exists but cannot be parsed or is structurally invalid.
+class ConfigParseException implements Exception {
+  final String message;
+  ConfigParseException(this.message);
+  @override
+  String toString() => 'ConfigParseException: $message';
+}
+
 /// Manages terminal configuration (ADR-0019).
 ///
 /// Loads config from a JSON file at platform-specific path:
@@ -96,11 +104,10 @@ class ConfigService {
           _dispenserTimeoutMs = dispenser['timeoutMs'] as int? ?? 3000;
           _dispenserPollIntervalMs = dispenser['pollIntervalMs'] as int? ?? 250;
         }
-      } catch (_) {
-        // Corrupt file — leave fields null
-        _terminalId = null;
-        _apiUrl = null;
-        _apiToken = null;
+      } catch (e) {
+        throw ConfigParseException(
+          'Failed to parse ${configFile.path}: $e',
+        );
       }
     }
 

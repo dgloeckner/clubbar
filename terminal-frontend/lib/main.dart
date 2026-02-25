@@ -196,7 +196,16 @@ void main() async {
 
   // Load terminal configuration first — needed to decide fullscreen mode (ADR-0019)
   final configService = ConfigService();
-  await configService.load();
+  try {
+    await configService.load();
+  } on ConfigParseException catch (e) {
+    stderr.writeln('ruderbar-terminal: configuration invalid');
+    stderr.writeln('');
+    stderr.writeln(e.message);
+    stderr.writeln('');
+    stderr.writeln('Fix the JSON syntax errors, then restart the app.');
+    exit(1);
+  }
   AppFontSizes.applyConfig(configService.fontSizes);
 
   if (!configService.isConfigured) {
