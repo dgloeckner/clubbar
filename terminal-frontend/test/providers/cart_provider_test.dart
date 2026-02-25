@@ -204,5 +204,55 @@ void main() {
       provider.removeItem('prod-1');
       verify(() => mockSoundService.play(SoundEvent.productRemove)).called(1);
     });
+
+    test('plays checkoutSuccess when checkout succeeds', () async {
+      final member = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+      final mockContext = MockBuildContext();
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      clearInteractions(mockSoundService);
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (true, null));
+      when(() => mockService.createTransaction(any(), any(), sessionId: any(named: 'sessionId')))
+          .thenAnswer((_) async => ('txn-123', null));
+
+      await provider.checkout(mockContext, member, 'test-session-id');
+
+      verify(() => mockSoundService.play(SoundEvent.checkoutSuccess)).called(1);
+      verifyNever(() => mockSoundService.play(SoundEvent.checkoutError));
+    });
+
+    test('plays checkoutError when validation fails', () async {
+      final member = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 0,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+      final mockContext = MockBuildContext();
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      clearInteractions(mockSoundService);
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (false, 'Member inactive'));
+
+      await provider.checkout(mockContext, member, 'test-session-id');
+
+      verify(() => mockSoundService.play(SoundEvent.checkoutError)).called(1);
+      verifyNever(() => mockSoundService.play(SoundEvent.checkoutSuccess));
+    });
   });
 }

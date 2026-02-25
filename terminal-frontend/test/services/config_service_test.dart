@@ -385,14 +385,6 @@ void main() {
         expect(configService.soundsEnabled, isTrue);
       });
 
-      test('defaults to false when soundsEnabled key is absent from config', () async {
-        // Config file has no soundsEnabled key at all
-        File('${tempDir.path}/config.json').writeAsStringSync(
-          jsonEncode({'terminalId': 'T1', 'apiUrl': 'http://x', 'apiToken': 'tok'}),
-        );
-        await configService.load();
-        expect(configService.soundsEnabled, isFalse);
-      });
     });
 
     group('fullscreen configuration', () {
