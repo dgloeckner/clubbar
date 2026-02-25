@@ -23,6 +23,7 @@ class ConfigParseException implements Exception {
 /// - TERMINAL_API_URL
 /// - TERMINAL_API_TOKEN
 /// - TERMINAL_FULLSCREEN
+/// - TERMINAL_DEMO_MODE
 /// - DISPENSER_ENABLED
 /// - DISPENSER_BASE_URL
 /// - DISPENSER_API_KEY
@@ -34,6 +35,7 @@ class ConfigService {
   String? _apiUrl;
   String? _apiToken;
   bool _seedTestData = false;
+  bool _demoMode = false;
   bool _dispenserEnabled = false;
   String? _dispenserBaseUrl;
   String? _dispenserApiKey;
@@ -53,6 +55,7 @@ class ConfigService {
   String? get apiUrl => _apiUrl;
   String? get apiToken => _apiToken;
   bool get seedTestData => _seedTestData;
+  bool get demoMode => _demoMode;
   bool get dispenserEnabled => _dispenserEnabled;
   String? get dispenserBaseUrl => _dispenserBaseUrl;
   String? get dispenserApiKey => _dispenserApiKey;
@@ -92,6 +95,7 @@ class ConfigService {
         _apiUrl = json['apiUrl'] as String?;
         _apiToken = json['apiToken'] as String?;
         _seedTestData = json['seedTestData'] as bool? ?? false;
+        _demoMode = json['demoMode'] as bool? ?? false;
         _fullscreen = json['fullscreen'] as bool? ?? false;
         _fontSizes = json['fontSizes'] as Map<String, dynamic>?;
 
@@ -127,6 +131,9 @@ class ConfigService {
     }
     if (env.containsKey('TERMINAL_FULLSCREEN')) {
       _fullscreen = env['TERMINAL_FULLSCREEN']?.toLowerCase() == 'true';
+    }
+    if (env.containsKey('TERMINAL_DEMO_MODE')) {
+      _demoMode = env['TERMINAL_DEMO_MODE']?.toLowerCase() == 'true';
     }
     if (env.containsKey('DISPENSER_ENABLED')) {
       _dispenserEnabled = env['DISPENSER_ENABLED']?.toLowerCase() == 'true';
@@ -199,6 +206,7 @@ class ConfigService {
     _terminalId = null;
     _apiUrl = null;
     _apiToken = null;
+    _demoMode = false;
     _dispenserEnabled = false;
     _dispenserBaseUrl = null;
     _dispenserApiKey = null;

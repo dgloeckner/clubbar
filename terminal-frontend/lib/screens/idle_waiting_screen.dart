@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/rfid_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
+import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/utils/design_tokens.dart';
 import 'package:ruderbar_terminal/widgets/rfid_detector_button.dart';
 
@@ -208,34 +209,35 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xxxl),
-                Consumer<RfidProvider>(
-                  builder: (context, rfidProvider, child) {
-                    return ElevatedButton(
-                      onPressed: !rfidProvider.isScanning
-                          ? () => rfidProvider.simulateCardDetection(context)
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xff3b82f6),
-                        disabledBackgroundColor: const Color(0xff334155),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.xl,
-                          vertical: AppSpacing.md,
+                if (context.read<ConfigService>().demoMode)
+                  Consumer<RfidProvider>(
+                    builder: (context, rfidProvider, child) {
+                      return ElevatedButton(
+                        onPressed: !rfidProvider.isScanning
+                            ? () => rfidProvider.simulateCardDetection(context)
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xff3b82f6),
+                          disabledBackgroundColor: const Color(0xff334155),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xl,
+                            vertical: AppSpacing.md,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                          ),
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                        child: Text(
+                          l10n.demoScanCard,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: AppFontSizes.base,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        l10n.demoScanCard,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: AppFontSizes.base,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                      );
+                    },
+                  ),
               ],
             ),
           ),
