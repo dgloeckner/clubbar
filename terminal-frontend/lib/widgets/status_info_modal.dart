@@ -7,6 +7,7 @@ import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/services/dispenser_health_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:ruderbar_terminal/utils/design_tokens.dart';
 
 void showStatusInfoModal(BuildContext context) {
   try {
@@ -226,7 +227,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: AppFontSizes.sm,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
             color: isActive ? Colors.white : const Color(0xff94a3b8),
           ),
@@ -308,8 +309,8 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   const SizedBox(width: 12),
                   Text(
                     _statusTitle(health, l10n),
-                    style: const TextStyle(
-                      fontSize: 24,
+                    style: TextStyle(
+                      fontSize: AppFontSizes.xxxl,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -401,9 +402,9 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               children: [
                 Text(
                   widget.lastError!,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xff94a3b8),
+                  style: TextStyle(
+                    fontSize: AppFontSizes.xs,
+                    color: const Color(0xff94a3b8),
                   ),
                 ),
               ],
@@ -421,7 +422,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           padding: const EdgeInsets.all(24),
           child: Text(
             l10n.dispenserNotAvailable,
-            style: const TextStyle(fontSize: 14, color: Color(0xff94a3b8)),
+            style: TextStyle(fontSize: AppFontSizes.base, color: const Color(0xff94a3b8)),
           ),
         ),
       );
@@ -464,7 +465,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           Text(
             '$value',
             style: TextStyle(
-              fontSize: 30,
+              fontSize: AppFontSizes.xxxl,
               fontWeight: FontWeight.w700,
               color: accentColor ?? const Color(0xffe2e8f0),
             ),
@@ -472,9 +473,9 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           const SizedBox(height: 8),
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 9,
-              color: Color(0xff475569),
+            style: TextStyle(
+              fontSize: AppFontSizes.xs,
+              color: const Color(0xff475569),
               letterSpacing: 0.1,
             ),
             textAlign: TextAlign.center,
@@ -535,7 +536,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
         _translateMachineState(status, l10n).toUpperCase(),
         style: TextStyle(
           fontFamily: 'monospace',
-          fontSize: 11,
+          fontSize: AppFontSizes.xs,
           fontWeight: FontWeight.w600,
           color: text,
           letterSpacing: 0.08,
@@ -564,21 +565,21 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             children: [
               Text(
                 l10n.dispenserUptime.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 10,
+                style: TextStyle(
+                  fontSize: AppFontSizes.xs,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xff475569),
+                  color: const Color(0xff475569),
                   letterSpacing: 0.12,
                 ),
               ),
               const SizedBox(width: 8),
               Text(
                 uptimeFormatted,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'monospace',
-                  fontSize: 18,
+                  fontSize: AppFontSizes.xl,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xff34d399),
+                  color: const Color(0xff34d399),
                   letterSpacing: 0.05,
                 ),
               ),
@@ -586,10 +587,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           ),
           Text(
             'fw $firmware',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'monospace',
-              fontSize: 10,
-              color: Color(0xff334155),
+              fontSize: AppFontSizes.xs,
+              color: const Color(0xff334155),
             ),
           ),
         ],
@@ -621,10 +622,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             children: [
               Text(
                 l10n.dispenserMachineState.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 10,
+                style: TextStyle(
+                  fontSize: AppFontSizes.xs,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xff475569),
+                  color: const Color(0xff475569),
                   letterSpacing: 0.12,
                 ),
               ),
@@ -686,20 +687,20 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           children: [
             Text(
               l10n.dispenserNetwork.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 10,
+              style: TextStyle(
+                fontSize: AppFontSizes.xs,
                 fontWeight: FontWeight.w600,
-                color: Color(0xff475569),
+                color: const Color(0xff475569),
                 letterSpacing: 0.12,
               ),
             ),
             const SizedBox(height: 16),
             Text(
               l10n.dispenserNetworkNotAvailable,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'monospace',
-                fontSize: 12,
-                color: Color(0xff475569),
+                fontSize: AppFontSizes.xs,
+                color: const Color(0xff475569),
               ),
             ),
           ],
@@ -722,10 +723,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
         children: [
           Text(
             l10n.dispenserNetwork.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 10,
+            style: TextStyle(
+              fontSize: AppFontSizes.xs,
               fontWeight: FontWeight.w600,
-              color: Color(0xff475569),
+              color: const Color(0xff475569),
               letterSpacing: 0.12,
             ),
           ),
@@ -742,19 +743,19 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                     children: [
                       Text(
                         wifi.ssid,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'monospace',
-                          fontSize: 14,
+                          fontSize: AppFontSizes.base,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xffe2e8f0),
+                          color: const Color(0xffe2e8f0),
                         ),
                       ),
                       Text(
                         '${wifi.rssi} dBm · $wifiPercent%',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'monospace',
-                          fontSize: 10,
-                          color: Color(0xff475569),
+                          fontSize: AppFontSizes.xs,
+                          color: const Color(0xff475569),
                         ),
                       ),
                     ],
@@ -769,10 +770,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                 ),
                 child: Text(
                   wifi.ip,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 11,
-                    color: Color(0xff94a3b8),
+                    fontSize: AppFontSizes.xs,
+                    color: const Color(0xff94a3b8),
                   ),
                 ),
               ),
@@ -799,10 +800,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
         children: [
           Text(
             l10n.dispenserErrorHistory.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 10,
+            style: TextStyle(
+              fontSize: AppFontSizes.xs,
               fontWeight: FontWeight.w600,
-              color: Color(0xff475569),
+              color: const Color(0xff475569),
               letterSpacing: 0.12,
             ),
           ),
@@ -810,10 +811,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           errors.isEmpty
               ? Text(
                   l10n.dispenserNoErrors,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 12,
-                    color: Color(0xff334155),
+                    fontSize: AppFontSizes.xs,
+                    color: const Color(0xff334155),
                   ),
                   textAlign: TextAlign.center,
                 )
@@ -849,7 +850,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               child: Text(
                 error.cleared ? '✓' : '⚠',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: AppFontSizes.base,
                   color: error.cleared ? const Color(0xff34d399) : const Color(0xffef4444),
                 ),
               ),
@@ -864,7 +865,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   'E${error.code} · ${error.type}',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 12,
+                    fontSize: AppFontSizes.xs,
                     fontWeight: FontWeight.w600,
                     color: error.cleared ? const Color(0xff94a3b8) : const Color(0xffef4444),
                   ),
@@ -872,10 +873,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                 const SizedBox(height: 2),
                 Text(
                   '${_formatErrorTimestamp(error.timestamp)}${error.cleared ? " · ${l10n.dispenserErrorCleared}" : ""}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 10,
-                    color: Color(0xff475569),
+                    fontSize: AppFontSizes.xs,
+                    color: const Color(0xff475569),
                   ),
                 ),
               ],
@@ -912,7 +913,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               Text(
                 l10n.dispenserLocalTransactionLog.toUpperCase(),
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: AppFontSizes.xs,
                   fontWeight: FontWeight.w600,
                   color: notFound.isNotEmpty ? const Color(0xffef4444) : const Color(0xff475569),
                   letterSpacing: 0.12,
@@ -924,10 +925,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           if (notFound.isNotEmpty) ...[
             Text(
               l10n.dispenserManualReconciliationRequired.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 11,
+              style: TextStyle(
+                fontSize: AppFontSizes.xs,
                 fontWeight: FontWeight.w700,
-                color: Color(0xffef4444),
+                color: const Color(0xffef4444),
                 letterSpacing: 0.08,
               ),
             ),
@@ -938,10 +939,10 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             if (notFound.isNotEmpty) const SizedBox(height: 12),
             Text(
               l10n.dispenserInProgress.toUpperCase(),
-              style: const TextStyle(
-                fontSize: 11,
+              style: TextStyle(
+                fontSize: AppFontSizes.xs,
                 fontWeight: FontWeight.w600,
-                color: Color(0xff475569),
+                color: const Color(0xff475569),
                 letterSpacing: 0.08,
               ),
             ),
@@ -976,18 +977,18 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               children: [
                 Text(
                   shortId,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 11,
-                    color: Color(0xff94a3b8),
+                    fontSize: AppFontSizes.xs,
+                    color: const Color(0xff94a3b8),
                   ),
                 ),
                 Text(
                   'member: ${op.memberId}  ·  qty: ${op.requestedQty}  ·  created: ${op.createdAt.substring(0, 10)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'monospace',
-                    fontSize: 10,
-                    color: Color(0xff475569),
+                    fontSize: AppFontSizes.xs,
+                    color: const Color(0xff475569),
                   ),
                 ),
               ],
@@ -1004,7 +1005,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               stateLabel,
               style: TextStyle(
                 fontFamily: 'monospace',
-                fontSize: 9,
+                fontSize: AppFontSizes.xs,
                 fontWeight: FontWeight.w600,
                 color: stateColor,
               ),
@@ -1026,7 +1027,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
         Text(
           title,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: AppFontSizes.base,
             fontWeight: FontWeight.w600,
             color: titleColor ?? const Color(0xff64748b),
             letterSpacing: 0.5,
@@ -1051,8 +1052,8 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13)),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        Text(label, style: TextStyle(fontSize: AppFontSizes.sm)),
+        Text(value, style: TextStyle(fontSize: AppFontSizes.sm, fontWeight: FontWeight.w500)),
       ],
     );
   }
@@ -1063,12 +1064,12 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          style: TextStyle(fontSize: AppFontSizes.sm, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 4),
         Text(
           url,
-          style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+          style: TextStyle(fontSize: AppFontSizes.xs, fontFamily: 'monospace'),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),

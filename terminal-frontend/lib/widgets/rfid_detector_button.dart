@@ -88,8 +88,8 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
             animation: _glowAnimation,
             builder: (context, child) {
               return Container(
-                width: 182,
-                height: 182,
+                width: 237,
+                height: 237,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
@@ -115,8 +115,8 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
                 child: Center(
                   child: rfidProvider.isScanning
                       ? SizedBox(
-                          width: 78,
-                          height: 78,
+                          width: 101,
+                          height: 101,
                           child: CircularProgressIndicator(
                             valueColor: AlwaysStoppedAnimation(
                               Colors.white.withValues(alpha: 0.8),
@@ -126,8 +126,8 @@ class _RfidDetectorButtonState extends State<RfidDetectorButton>
                         )
                       : SvgPicture.asset(
                           'assets/icons/ui/rfid_icon.svg',
-                          width: 104,
-                          height: 104,
+                          width: 135,
+                          height: 135,
                         ),
                 ),
               );

@@ -289,6 +289,10 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xffDC2626),
                         foregroundColor: Colors.white,
+                        textStyle: TextStyle(
+                          fontSize: AppFontSizes.lg,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       child: Text(l10n.logout),
                     ),

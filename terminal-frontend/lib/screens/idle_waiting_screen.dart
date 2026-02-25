@@ -139,7 +139,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
 
                     return SizedBox(
                       width: 300,
-                      height: 182,
+                      height: 237,
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
@@ -192,7 +192,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Color(0xfff1f5f9),
-                    fontSize: 42,
+                    fontSize: 55,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -207,6 +207,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                     fontWeight: FontWeight.w400,
                   ),
                 ),
+                const SizedBox(height: AppSpacing.xxxl),
                 Consumer<RfidProvider>(
                   builder: (context, rfidProvider, child) {
                     return ElevatedButton(
