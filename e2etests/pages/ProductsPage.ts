@@ -66,11 +66,11 @@ export class ProductsPage extends BasePage {
 
   // Confirmation dialog locators (PRIVATE)
   private readonly confirmDialog = () =>
-    this.page.getByTestId('products-confirm-dialog')
+    this.page.getByTestId('confirm-dialog')
   private readonly confirmOkBtn = () =>
-    this.page.getByTestId('products-confirm-ok')
+    this.page.getByTestId('confirm-dialog-ok')
   private readonly confirmCancelBtn = () =>
-    this.page.getByTestId('products-confirm-cancel')
+    this.page.getByTestId('confirm-dialog-cancel')
 
   constructor(page: Page) {
     super(page)

@@ -38,6 +38,7 @@ import {
 } from '../styles/tableTokens'
 import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { useFormatters } from '../hooks/useFormatters'
+import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 
 interface Product {
   id: string
@@ -891,95 +892,14 @@ export function ProductsPage() {
       )}
 
       {/* Confirmation Dialog */}
-      {confirmDialog && (
-        <div
-          data-testid="products-confirm-dialog"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2000,
-          }}
-        >
-          <div
-            data-testid="products-confirm-dialog-content"
-            style={{
-              backgroundColor: '#1a2744',
-              padding: '24px',
-              borderRadius: '8px',
-              maxWidth: '500px',
-              width: '90%',
-            }}
-          >
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'flex-start' }}>
-              {confirmDialog.type === 'delete' && (
-                <div
-                  style={{
-                    fontSize: '24px',
-                    color: '#fbbf24',
-                    flexShrink: 0,
-                  }}
-                >
-                  ⚠️
-                </div>
-              )}
-              <p
-                data-testid="products-confirm-message"
-                style={{
-                  color: '#e2e8f0',
-                  marginBottom: '0',
-                  fontSize: '16px',
-                  margin: '0',
-                }}
-              >
-                {confirmDialog.message}
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                data-testid="products-confirm-cancel"
-                onClick={cancelConfirmation}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: 'rgba(107, 114, 128, 0.1)',
-                  border: '1px solid rgba(107, 114, 128, 0.3)',
-                  borderRadius: '4px',
-                  color: '#9ca3af',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                }}
-              >
-                {t('common.cancel')}
-              </button>
-
-              <button
-                data-testid="products-confirm-ok"
-                onClick={confirmAction}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '4px',
-                  color: '#ef4444',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                }}
-              >
-                {confirmDialog.type === 'delete' ? t('common.delete') : t('common.deactivate')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={!!confirmDialog}
+        message={confirmDialog?.message ?? ''}
+        confirmLabel={confirmDialog?.type === 'delete' ? t('common.delete') : t('common.deactivate')}
+        variant="danger"
+        onConfirm={confirmAction}
+        onCancel={cancelConfirmation}
+      />
     </div>
   )
 }

@@ -50,10 +50,10 @@ export class CategoriesPage extends BasePage {
   private readonly languageTab = (lang: string) => this.page.getByTestId(`categories-form-name-tab-${lang}`)
 
   // Confirmation dialog
-  private readonly confirmDialog = () => this.page.getByTestId('categories-confirm-dialog')
-  private readonly confirmMessage = () => this.page.getByTestId('categories-confirm-message')
-  private readonly confirmOkBtn = () => this.page.getByTestId('categories-confirm-ok')
-  private readonly confirmCancelBtn = () => this.page.getByTestId('categories-confirm-cancel')
+  private readonly confirmDialog = () => this.page.getByTestId('confirm-dialog')
+  private readonly confirmMessage = () => this.page.getByTestId('confirm-dialog-message')
+  private readonly confirmOkBtn = () => this.page.getByTestId('confirm-dialog-ok')
+  private readonly confirmCancelBtn = () => this.page.getByTestId('confirm-dialog-cancel')
 
   constructor(page: Page) {
     super(page)

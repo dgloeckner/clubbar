@@ -349,14 +349,12 @@ export class SettlementsPage extends BasePage {
   }
 
   /**
-   * Click the undo button for a settlement, accept the native confirm() dialog,
+   * Click the undo button for a settlement, confirm via the custom ConfirmDialog modal,
    * and wait for the settlement list to reload.
    *
    * After undo the settlement row remains visible with status "Storniert".
    */
   async undoSettlement(settlementId: string) {
-    // Register dialog handler before click — native confirm() fires synchronously
-    this.page.once('dialog', (dialog) => dialog.accept())
     const responsePromise = this.page.waitForResponse(
       (resp) =>
         resp.url().includes(`/api/admin/settlements/${settlementId}`) &&
@@ -364,6 +362,9 @@ export class SettlementsPage extends BasePage {
         resp.status() === 204
     )
     await this.page.getByTestId(`settlements-undo-btn-${settlementId}`).click()
+    // Custom confirm dialog should appear
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible()
+    await this.page.getByTestId('confirm-dialog-ok').click()
     await responsePromise
     await this.waitForPageLoad()
   }

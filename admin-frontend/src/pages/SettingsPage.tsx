@@ -16,6 +16,7 @@ import { AdminUsersTab } from '../components/settings/AdminUsersTab'
 import { CreateAdminModal } from '../components/modals/CreateAdminModal'
 import { EditAdminModal } from '../components/modals/EditAdminModal'
 import { PasswordDisplayModal } from '../components/modals/PasswordDisplayModal'
+import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -74,6 +75,7 @@ export function SettingsPage() {
   })
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null)
 
   // Load SEPA config on mount
   useEffect(() => {
@@ -167,8 +169,14 @@ export function SettingsPage() {
     }
   }
 
-  const handleDeactivateAdmin = async (id: string) => {
-    if (!window.confirm(t('settings.deactivateAdminConfirm'))) return
+  const handleDeactivateAdmin = (id: string) => {
+    setDeactivateConfirm(id)
+  }
+
+  const handleDeactivateAdminConfirmed = async () => {
+    if (!deactivateConfirm) return
+    const id = deactivateConfirm
+    setDeactivateConfirm(null)
     try {
       await deactivateAdminUser(id)
       await loadAdminUsers()
@@ -497,6 +505,15 @@ export function SettingsPage() {
           setShowPasswordModal(false)
           setGeneratedPassword(null)
         }}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deactivateConfirm}
+        message={t('settings.deactivateAdminConfirm')}
+        confirmLabel={t('common.deactivate')}
+        variant="danger"
+        onConfirm={handleDeactivateAdminConfirmed}
+        onCancel={() => setDeactivateConfirm(null)}
       />
     </div>
   )

@@ -21,6 +21,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { theme as _theme } from '../styles/design-system'
+import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { useFormatters } from '../hooks/useFormatters'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { StatusFilter } from '../components/forms/StatusFilter'
@@ -66,6 +67,9 @@ export function SettlementsPage() {
   // Sorting
   const [sortKey, setSortKey] = useState<'created_at' | 'created_by'>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+
+  // Undo confirmation dialog
+  const [undoConfirm, setUndoConfirm] = useState<string | null>(null)
 
   // Load settlements when filters, sorting, or pagination changes
   useEffect(() => {
@@ -138,11 +142,14 @@ export function SettlementsPage() {
     }
   }
 
-  const handleUndoSettlement = async (settlementId: string) => {
-    if (!confirm(t('settlements.undoConfirm'))) {
-      return
-    }
+  const handleUndoSettlement = (settlementId: string) => {
+    setUndoConfirm(settlementId)
+  }
 
+  const handleUndoSettlementConfirmed = async () => {
+    if (!undoConfirm) return
+    const settlementId = undoConfirm
+    setUndoConfirm(null)
     try {
       setLoading(true)
       setError(null)
@@ -561,6 +568,14 @@ export function SettlementsPage() {
               )}
             </>
           )}
+      <ConfirmDialog
+        isOpen={!!undoConfirm}
+        message={t('settlements.undoConfirm')}
+        confirmLabel={t('common.undo')}
+        variant="danger"
+        onConfirm={handleUndoSettlementConfirmed}
+        onCancel={() => setUndoConfirm(null)}
+      />
       </div>
     )
 }

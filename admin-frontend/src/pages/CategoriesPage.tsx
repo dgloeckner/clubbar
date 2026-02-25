@@ -37,6 +37,7 @@ import {
   tableSpacing,
   getRowStyle,
 } from '../styles/tableTokens'
+import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 
 interface Category {
   id: string
@@ -566,85 +567,15 @@ export function CategoriesPage() {
       )}
 
       {/* Confirmation Dialog */}
-      {confirmDialog && (
-        <div
-          data-testid="categories-confirm-dialog"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1001,
-          }}
-          onClick={() => setConfirmDialog(null)}
-        >
-          <div
-            style={{
-              background: theme.colors.bg.secondary,
-              borderRadius: theme.borderRadius.lg,
-              padding: theme.spacing.xl,
-              maxWidth: '400px',
-              width: '90%',
-              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.lg }}>
-              {confirmDialog.type === 'delete' ? t('categories.deleteCategory') : t('common.confirm')}
-            </h2>
-            <p
-              data-testid="categories-confirm-message"
-              style={{
-                color: theme.colors.text.secondary,
-                marginBottom: theme.spacing.lg,
-                fontSize: '14px',
-              }}
-            >
-              {confirmDialog.message}
-            </p>
-
-            <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end' }}>
-              <button
-                data-testid="categories-confirm-cancel"
-                onClick={() => setConfirmDialog(null)}
-                style={{
-                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                  background: 'transparent',
-                  border: `1px solid ${theme.colors.border.light}`,
-                  borderRadius: theme.borderRadius.md,
-                  color: theme.colors.text.primary,
-                  cursor: 'pointer',
-                  fontSize: theme.typography.fontSize.sm,
-                  fontWeight: theme.typography.fontWeight.semibold,
-                }}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                data-testid="categories-confirm-ok"
-                onClick={confirmAction}
-                style={{
-                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                  background: confirmDialog.type === 'delete' ? theme.colors.semantic.danger : theme.colors.semantic.primary,
-                  border: 'none',
-                  borderRadius: theme.borderRadius.md,
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: theme.typography.fontSize.sm,
-                  fontWeight: theme.typography.fontWeight.semibold,
-                }}
-              >
-                {confirmDialog.type === 'delete' ? t('common.delete') : t('common.confirm')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={!!confirmDialog}
+        title={confirmDialog?.type === 'delete' ? t('categories.deleteCategory') : undefined}
+        message={confirmDialog?.message ?? ''}
+        confirmLabel={confirmDialog?.type === 'delete' ? t('common.delete') : t('common.confirm')}
+        variant={confirmDialog?.type === 'delete' ? 'danger' : 'primary'}
+        onConfirm={confirmAction}
+        onCancel={() => setConfirmDialog(null)}
+      />
     </div>
   )
 }

@@ -281,7 +281,7 @@ test.describe('Products Page - Complete User Workflows', () => {
     // Reactivate (no confirmation dialog)
     await authenticatedProductsPage.clickStatusToggle(productId)
     const dialogVisible = await authenticatedProductsPage.page
-      .getByTestId('products-confirm-dialog')
+      .getByTestId('confirm-dialog')
       .isVisible({ timeout: 1000 })
       .catch(() => false)
     expect(dialogVisible).toBe(false)

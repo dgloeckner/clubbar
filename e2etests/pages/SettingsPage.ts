@@ -521,7 +521,8 @@ export class SettingsPage {
   }
 
   /**
-   * Click deactivate button for admin user by email
+   * Click deactivate button for admin user by email and confirm via ConfirmDialog modal.
+   * Waits for the admin users list to reload after deactivation.
    */
   async clickDeactivateButton(email: string) {
     const adminId = await this.getAdminUserIdByEmail(email)
@@ -529,7 +530,19 @@ export class SettingsPage {
       throw new Error(`Admin user with email ${email} not found`)
     }
 
+    // Set up response watcher before any interaction
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET',
+      { timeout: 15000 }
+    )
     await this.page.getByTestId(`settings-admin-deactivate-button-${adminId}`).click()
+    // Confirm via the shared ConfirmDialog modal (replaces window.confirm())
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible()
+    await this.page.getByTestId('confirm-dialog-ok').click()
+    // Wait for admin list to reload (triggered by loadAdminUsers() after deactivation)
+    await responsePromise
   }
 
   /**
