@@ -10,6 +10,7 @@ class ProductCard extends StatefulWidget {
   final String locale;
   final VoidCallback onTap;
   final int quantity;
+  final VoidCallback? onDecrement;
 
   const ProductCard({
     super.key,
@@ -18,6 +19,7 @@ class ProductCard extends StatefulWidget {
     required this.locale,
     required this.onTap,
     this.quantity = 0,
+    this.onDecrement,
   });
 
   @override
@@ -145,6 +147,29 @@ class _ProductCardState extends State<ProductCard>
                       color: Colors.white,
                       fontSize: AppFontSizes.lg,
                       fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            // Minus button — shown to the left of the quantity badge when in cart
+            if (isInCart && widget.onDecrement != null)
+              Positioned(
+                top: 8,
+                right: 62, // position to the left of the badge (badge is at right: 16)
+                child: GestureDetector(
+                  onTap: widget.onDecrement,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xff1e293b),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xff3b82f6), width: 1),
+                    ),
+                    child: const Icon(
+                      Icons.remove,
+                      color: Color(0xff94a3b8),
+                      size: 16,
                     ),
                   ),
                 ),

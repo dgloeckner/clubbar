@@ -72,6 +72,19 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Decrease item quantity by 1. Removes the item if quantity reaches 0.
+  void decreaseItem(String productId) {
+    final index = _items.indexWhere((item) => item.productId == productId);
+    if (index >= 0) {
+      if (_items[index].quantity > 1) {
+        _items[index].quantity -= 1;
+      } else {
+        _items.removeAt(index);
+      }
+      notifyListeners();
+    }
+  }
+
   /// Update item quantity
   void updateQuantity(String productId, int quantity) {
     final index = _items.indexWhere((item) => item.productId == productId);

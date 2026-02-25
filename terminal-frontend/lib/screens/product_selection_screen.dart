@@ -200,6 +200,9 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
               productName: name,
               locale: memberLang,
               quantity: quantity,
+              onDecrement: quantity > 0
+                ? () => cartProvider.decreaseItem(product.id)
+                : null,
               onTap: () {
                 // Debug: Log product details when adding to cart
                 print('Adding product to cart: $name');
