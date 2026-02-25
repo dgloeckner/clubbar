@@ -111,21 +111,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
 
   Future<void> _updateLanguage(String newLanguage) async {
     try {
-      // TODO: Implement language update via backend API
-      // PATCH /api/sync/members/{memberId}/language
-      // Request body: {"preferred_language": "de" | "en"}
-
-      debugPrint('Language update to $newLanguage requested (not yet implemented)');
-
-      // Show a snackbar to inform user
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Language switching to $newLanguage (feature in progress)'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      await context.read<MembersProvider>().updateSelectedMemberLanguage(newLanguage);
     } catch (e) {
       debugPrint('Failed to update language: $e');
     }

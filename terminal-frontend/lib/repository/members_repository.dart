@@ -79,6 +79,13 @@ class MembersRepository {
         .go();
   }
 
+  /// Update member's preferred language in local cache
+  Future<void> updatePreferredLanguage(String memberId, String language) async {
+    await (_db.update(_db.membersCache)
+          ..where((m) => m.id.equals(memberId)))
+        .write(MembersCacheCompanion(preferredLanguage: Value(language)));
+  }
+
   /// Clear all member cache (for logout or reset)
   Future<void> clearCache() async {
     await _db.delete(_db.membersCache).go();

@@ -75,4 +75,27 @@ class MembersService {
   Future<List<MembersCacheData>> refreshMembers() async {
     return _repository.getAllActive();
   }
+
+  /// Find member by ID
+  Future<MembersCacheData?> findMemberById(String memberId) async {
+    return _repository.findById(memberId);
+  }
+
+  /// Update member's preferred language in local cache and backend (best-effort).
+  /// Always updates local cache immediately; silently skips backend if offline.
+  Future<void> updateLanguage(String memberId, String language) async {
+    await _repository.updatePreferredLanguage(memberId, language);
+
+    final network = _networkService;
+    if (network != null) {
+      try {
+        await network.patch(
+          '/sync/members/$memberId/language',
+          {'preferred_language': language},
+        );
+      } catch (_) {
+        // Offline or network error — local cache updated, backend will sync later
+      }
+    }
+  }
 }

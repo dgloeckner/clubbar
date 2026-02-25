@@ -132,6 +132,21 @@ class MembersProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Update the selected member's preferred language.
+  /// Persists to local DB and backend (best-effort), then updates app locale.
+  Future<void> updateSelectedMemberLanguage(String language) async {
+    final member = _selectedMember;
+    if (member == null) return;
+
+    await _service.updateLanguage(member.id, language);
+
+    final updated = await _service.findMemberById(member.id);
+    _selectedMember = updated ?? member;
+
+    _localeProvider?.setLocaleFromMember(language);
+    notifyListeners();
+  }
+
   /// Set error state
   void setError(String message) {
     _lastError = message;
