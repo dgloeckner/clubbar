@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { useFormatters } from '../hooks/useFormatters'
@@ -35,6 +36,7 @@ import {
 import {
   createSettlement
 } from '../services/settlements'
+import { SettlementConfirmModal } from '../components/modals/SettlementConfirmModal'
 import { getMembers, type Member } from '../services/members'
 import { theme } from '../styles/design-system'
 import {
@@ -56,6 +58,7 @@ const defaultPageSize = 20
 export function JournalPage() {
   const { t } = useTranslation()
   const { formatPrice, intlLocale } = useFormatters()
+  const navigate = useNavigate()
 
   // Data state
   const [state, setState] = useState<JournalPageState>({
@@ -84,6 +87,12 @@ export function JournalPage() {
   type SettlementMode = 'none' | 'edit'
   const [settlementMode, setSettlementMode] = useState<SettlementMode>('none')
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set())
+
+  // Settlement confirm modal state
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false)
+  const [pendingTransactions, setPendingTransactions] = useState<GlobalTransaction[]>([])
+  const [confirmLoading, setConfirmLoading] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
 
   // Correction modal state
   const [showCorrectionModal, setShowCorrectionModal] = useState(false)
@@ -281,64 +290,52 @@ export function JournalPage() {
     setSettlementStatus('open')
   }
 
-  const handleSettleAll = async () => {
-    if (!confirm('Settle all open transactions?')) return
-
-    try {
-      setState((prev) => ({ ...prev, loading: true, error: null }))
-
-      const openTransactions = state.transactions.filter(t => !t.is_settled)
-      if (openTransactions.length === 0) {
-        setState((prev) => ({ ...prev, loading: false, error: 'No open transactions to settle' }))
-        return
-      }
-
-      const today = new Date().toISOString().split('T')[0]
-      const executionDate = new Date()
-      executionDate.setDate(executionDate.getDate() + 7)
-      const executionDateStr = executionDate.toISOString().split('T')[0]
-
-      await createSettlement(
-        openTransactions.map(t => t.id),
-        today,
-        executionDateStr
-      )
-
-      setSettlementMode('none')
-      setSelectedTransactionIds(new Set())
-      await loadTransactions()
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to settle all transactions'
-      setState((prev) => ({ ...prev, loading: false, error: errorMsg }))
-    }
-  }
-
-  const handleConcludeSettlement = async () => {
-    if (selectedTransactionIds.size === 0) {
-      alert('Please select at least one transaction')
+  const handleSettleAll = () => {
+    const openTransactions = state.transactions.filter((tx) => !tx.is_settled)
+    if (openTransactions.length === 0) {
+      setState((prev) => ({ ...prev, error: t('journal.settlementNoOpen') }))
       return
     }
+    setPendingTransactions(openTransactions)
+    setConfirmError(null)
+    setConfirmModalOpen(true)
+  }
 
+  const handleConcludeSettlement = () => {
+    if (selectedTransactionIds.size === 0) {
+      setState((prev) => ({ ...prev, error: t('journal.selectAtLeastOne') }))
+      return
+    }
+    const selected = state.transactions.filter((tx) => selectedTransactionIds.has(tx.id))
+    setPendingTransactions(selected)
+    setConfirmError(null)
+    setConfirmModalOpen(true)
+  }
+
+  const handleConfirmSettlement = async () => {
+    setConfirmLoading(true)
+    setConfirmError(null)
     try {
-      setState((prev) => ({ ...prev, loading: true, error: null }))
-
       const today = new Date().toISOString().split('T')[0]
       const executionDate = new Date()
       executionDate.setDate(executionDate.getDate() + 7)
       const executionDateStr = executionDate.toISOString().split('T')[0]
 
       await createSettlement(
-        Array.from(selectedTransactionIds),
+        pendingTransactions.map((tx) => tx.id),
         today,
         executionDateStr
       )
 
+      setConfirmModalOpen(false)
+      setPendingTransactions([])
       setSettlementMode('none')
       setSelectedTransactionIds(new Set())
-      await loadTransactions()
+      navigate('/settlements')
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to create settlement'
-      setState((prev) => ({ ...prev, loading: false, error: errorMsg }))
+      setConfirmError(err instanceof Error ? err.message : 'Failed to create settlement')
+    } finally {
+      setConfirmLoading(false)
     }
   }
 
@@ -909,6 +906,16 @@ export function JournalPage() {
               )}
             </div>
         )}
+
+        {/* Settlement Confirm Modal */}
+        <SettlementConfirmModal
+          isOpen={confirmModalOpen}
+          transactions={pendingTransactions}
+          onConfirm={handleConfirmSettlement}
+          onCancel={() => setConfirmModalOpen(false)}
+          isLoading={confirmLoading}
+          error={confirmError}
+        />
 
         {/* Correction Modal */}
         {showCorrectionModal && (

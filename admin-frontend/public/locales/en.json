@@ -200,6 +200,17 @@
     "cancelSettlement": "Cancel Settlement",
     "settleAllConfirm": "Settle all open transactions?",
     "selectAtLeastOne": "Please select at least one transaction",
+    "settlementNoOpen": "No open transactions",
+    "settlementConfirm": {
+      "title": "Create Settlement",
+      "transactions": "Transactions",
+      "members": "Members",
+      "totalAmount": "Total amount",
+      "settlementDate": "Settlement date",
+      "executionDate": "Execution date",
+      "confirm": "Create settlement",
+      "cancel": "Cancel"
+    },
     "date": "Date",
     "type": "Type",
     "details": "Details",
