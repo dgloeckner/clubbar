@@ -666,4 +666,150 @@ test.describe('Settlement E2E: Full Workflow', () => {
       expect(settlement.total_amount_cents).toBeGreaterThan(0)
     })
   })
+
+  test('should settle all visible transactions via Journal UI using "Abrechnung (alle)"', async ({
+    page,
+    testTransactions,
+  }) => {
+    // Use a unique suffix so we can search for exactly our test transactions
+    const suffix = `SettleAll${Date.now()}`
+    const member1Amount = 1200 // €12.00
+    const member2Amount = 800  // €8.00
+
+    let member1Id: string
+    let member2Id: string
+    let txn1Id: string
+    let txn2Id: string
+    let settlementId: string
+
+    await test.step('Create 2 members and 1 correction each', async () => {
+      const member1 = await testTransactions.createMember(`${suffix}A`, 'Buyer')
+      const member2 = await testTransactions.createMember(`${suffix}B`, 'Buyer')
+      member1Id = member1.id
+      member2Id = member2.id
+
+      txn1Id = await testTransactions.createCorrection(member1Id, member1Amount, `${suffix} charge 1`)
+      txn2Id = await testTransactions.createCorrection(member2Id, member2Amount, `${suffix} charge 2`)
+      expect(txn1Id).toBeTruthy()
+      expect(txn2Id).toBeTruthy()
+    })
+
+    await test.step('Navigate to Journal, search for test members, filter open', async () => {
+      const journalPage = new JournalPage(page)
+      await journalPage.navigate()
+      await journalPage.waitForPageLoad()
+      // Search isolates the view to our 2 test transactions only
+      await journalPage.search(suffix)
+      await journalPage.filterBySettlementStatus('open')
+    })
+
+    await test.step('Open "Abrechnung (alle)" modal and verify stats', async () => {
+      const journalPage = new JournalPage(page)
+      // Open modal via public method (private locator is hidden from tests)
+      await journalPage.openSettleAllModal()
+
+      const stats = await journalPage.getSettlementConfirmStats()
+      expect(stats.transactions).toBe(2)
+      expect(stats.members).toBe(2)
+    })
+
+    await test.step('Confirm and verify navigation to /settlements', async () => {
+      const journalPage = new JournalPage(page)
+      // Modal is already open — just confirm (don't re-open via settleAll())
+      settlementId = await journalPage.confirmOpenSettlement()
+      expect(settlementId).toBeTruthy()
+      await expect(page).toHaveURL(/\/settlements/)
+    })
+
+    await test.step('Verify settlement row appears in list as "Aktiv"', async () => {
+      const settlementsPage = new SettlementsPage(page)
+      await settlementsPage.waitForPageLoad()
+      await settlementsPage.expectSettlementRowVisible(settlementId)
+
+      const status = await settlementsPage.getSettlementStatusText(settlementId)
+      expect(status?.trim()).toBe('Aktiv')
+
+      // Verify member count and amounts are correct
+      const memberCount = await settlementsPage.getSettlementMemberCount(settlementId)
+      expect(memberCount?.trim()).toBe('2')
+
+      const totalAmount = await settlementsPage.getSettlementTotalAmount(settlementId)
+      expect(totalAmount).toMatch(/20[,.]00/)
+    })
+
+    await test.step('Verify both transactions are now settled in Journal', async () => {
+      const journalPage = new JournalPage(page)
+      await journalPage.navigate()
+      await journalPage.waitForPageLoad()
+      await journalPage.search(suffix)
+      await journalPage.filterBySettlementStatus('settled')
+
+      // Both our transactions should appear in the settled view
+      await expect(page.getByTestId(`journal-table-row-${txn1Id}`)).toBeVisible()
+      await expect(page.getByTestId(`journal-table-row-${txn2Id}`)).toBeVisible()
+    })
+  })
+
+  test('should undo a settlement and restore transactions to open state', async ({
+    page,
+    testTransactions,
+  }) => {
+    const suffix = `Undo${Date.now()}`
+    const amount = 1500 // €15.00
+
+    let memberId: string
+    let txn1Id: string
+    let txn2Id: string
+    let settlementId: string
+
+    await test.step('Create member with 2 transactions and settle them via API', async () => {
+      const member = await testTransactions.createMember(suffix, 'Tester')
+      memberId = member.id
+
+      txn1Id = await testTransactions.createCorrection(memberId, amount, `${suffix} charge 1`)
+      txn2Id = await testTransactions.createCorrection(memberId, amount, `${suffix} charge 2`)
+      expect(txn1Id).toBeTruthy()
+      expect(txn2Id).toBeTruthy()
+
+      settlementId = await testTransactions.createSettlement([txn1Id, txn2Id], 7)
+      expect(settlementId).toBeTruthy()
+    })
+
+    await test.step('Navigate to Settlements page, verify settlement is "Aktiv"', async () => {
+      const settlementsPage = new SettlementsPage(page)
+      await settlementsPage.navigate()
+      await settlementsPage.waitForPageLoad()
+      await settlementsPage.expectSettlementRowVisible(settlementId)
+
+      const status = await settlementsPage.getSettlementStatusText(settlementId)
+      expect(status?.trim()).toBe('Aktiv')
+    })
+
+    await test.step('Undo the settlement', async () => {
+      const settlementsPage = new SettlementsPage(page)
+      await settlementsPage.undoSettlement(settlementId)
+    })
+
+    await test.step('Verify settlement row now shows "Storniert"', async () => {
+      const settlementsPage = new SettlementsPage(page)
+      const status = await settlementsPage.getSettlementStatusText(settlementId)
+      expect(status?.trim()).toBe('Storniert')
+
+      // Undo button should be disabled after cancellation
+      const undoBtn = page.getByTestId(`settlements-undo-btn-${settlementId}`)
+      await expect(undoBtn).toBeDisabled()
+    })
+
+    await test.step('Verify transactions are open again in Journal', async () => {
+      const journalPage = new JournalPage(page)
+      await journalPage.navigate()
+      await journalPage.waitForPageLoad()
+      await journalPage.search(suffix)
+      await journalPage.filterBySettlementStatus('open')
+
+      // Both transactions should now appear as unsettled
+      await expect(page.getByTestId(`journal-table-row-${txn1Id}`)).toBeVisible()
+      await expect(page.getByTestId(`journal-table-row-${txn2Id}`)).toBeVisible()
+    })
+  })
 })

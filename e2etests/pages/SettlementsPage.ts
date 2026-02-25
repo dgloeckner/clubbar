@@ -347,4 +347,24 @@ export class SettlementsPage extends BasePage {
     const rowCount = await this.getSettlementCount()
     return rowCount === 0
   }
+
+  /**
+   * Click the undo button for a settlement, accept the native confirm() dialog,
+   * and wait for the settlement list to reload.
+   *
+   * After undo the settlement row remains visible with status "Storniert".
+   */
+  async undoSettlement(settlementId: string) {
+    // Register dialog handler before click — native confirm() fires synchronously
+    this.page.once('dialog', (dialog) => dialog.accept())
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes(`/api/admin/settlements/${settlementId}`) &&
+        resp.request().method() === 'DELETE' &&
+        resp.status() === 204
+    )
+    await this.page.getByTestId(`settlements-undo-btn-${settlementId}`).click()
+    await responsePromise
+    await this.waitForPageLoad()
+  }
 }

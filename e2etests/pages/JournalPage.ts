@@ -59,6 +59,9 @@ export class JournalPage extends BasePage {
   // Settlement confirm modal elements
   private readonly settlementConfirmModal = () => this.page.getByTestId('journal-settlement-confirm-modal')
   private readonly settlementConfirmSubmitBtn = () => this.page.getByTestId('journal-settlement-confirm-submit-btn')
+  private readonly settlementAllBtn = () => this.page.getByTestId('journal-settlement-all-btn')
+  private readonly settlementConfirmTxCount = () => this.page.getByTestId('journal-settlement-confirm-transaction-count')
+  private readonly settlementConfirmMemberCount = () => this.page.getByTestId('journal-settlement-confirm-member-count')
 
   // Correction modal elements
   private readonly createCorrectionBtn = () => this.page.getByTestId('journal-create-correction-btn')
@@ -468,6 +471,57 @@ export class JournalPage extends BasePage {
     const response = await responsePromise
     const body = await response.json()
     return body.id
+  }
+
+  /**
+   * Click "Abrechnung (alle)" and wait for the confirmation modal to appear.
+   * Use getSettlementConfirmStats() to inspect modal content, then
+   * confirmOpenSettlement() to proceed.
+   */
+  async openSettleAllModal() {
+    await this.settlementAllBtn().click()
+    await expect(this.settlementConfirmModal()).toBeVisible()
+  }
+
+  /**
+   * Click the confirm button in an already-open settlement confirm modal,
+   * wait for the API call, and return the created settlement ID.
+   * After success the app navigates to /settlements.
+   */
+  async confirmOpenSettlement(): Promise<string> {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/settlements') && resp.status() === 201
+    )
+    await this.settlementConfirmSubmitBtn().click()
+    const response = await responsePromise
+    const body = await response.json()
+    return body.id
+  }
+
+  /**
+   * Convenience: opens the "Abrechnung (alle)" modal and immediately confirms.
+   * Use openSettleAllModal() + getSettlementConfirmStats() + confirmOpenSettlement()
+   * when you need to inspect the modal first.
+   *
+   * @returns The created settlement ID
+   */
+  async settleAll(): Promise<string> {
+    await this.openSettleAllModal()
+    return this.confirmOpenSettlement()
+  }
+
+  /**
+   * Read the transaction count and member count shown in the settlement confirm modal.
+   * Call after opening the modal (via openSettleAllModal or concludeSettlementBtn),
+   * before confirming.
+   */
+  async getSettlementConfirmStats(): Promise<{ transactions: number; members: number }> {
+    const txText = await this.settlementConfirmTxCount().textContent()
+    const memberText = await this.settlementConfirmMemberCount().textContent()
+    return {
+      transactions: parseInt(txText?.trim() ?? '0', 10),
+      members: parseInt(memberText?.trim() ?? '0', 10),
+    }
   }
 
   async getSuccessMessage(): Promise<string | null> {
