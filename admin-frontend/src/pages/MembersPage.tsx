@@ -128,10 +128,16 @@ export function MembersPage() {
       // Clear previous form errors
       setFormErrors({})
 
-      // Build payload, omit card_uid if empty
+      // Build payload
       const payload: any = { ...formData }
-      if (!formData.card_uid) {
-        delete payload.card_uid
+      if (editingMember) {
+        // When editing: explicitly send null to clear card_uid in DB
+        payload.card_uid = formData.card_uid || null
+      } else {
+        // When creating: omit card_uid if empty (backend treats absence as no card)
+        if (!formData.card_uid) {
+          delete payload.card_uid
+        }
       }
 
       if (editingMember) {

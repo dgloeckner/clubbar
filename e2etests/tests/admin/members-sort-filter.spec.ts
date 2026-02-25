@@ -170,4 +170,79 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     await expect(page.locator('text=' + testId + 'With')).toBeVisible()
     await expect(page.locator('text=' + testId + 'Without')).toBeVisible()
   })
+
+  test('E2E: clearing card_uid via edit form moves member to ohne-karte filter', async ({ authenticatedMembersPage }) => {
+    /**
+     * Regression test for bug: clearing card_uid in the edit form did not send
+     * null to the backend (it omitted the field entirely), so the DB value was
+     * never cleared and the member did not appear in the "Ohne Karte" filter.
+     *
+     * Pattern 001: Unique test data per test (timestamp-based IDs)
+     * Pattern 008: expect() assertions, no try-catch visibility checks
+     */
+    const timestamp = Date.now()
+    const testId = `CUC${timestamp}`.slice(0, 18) // Short prefix, stays under 20 chars
+    const cardUid = `${timestamp}`.slice(-16)      // Last 16 hex-compatible digits
+    const page = authenticatedMembersPage.page
+
+    // Step 1: Create a member WITH a card UID via API (Pattern 001: isolated test data)
+    const createResp = await page.request.post('http://localhost:8080/api/admin/members', {
+      data: {
+        first_name: testId,
+        last_name: 'ClearTest',
+        email: `${testId.slice(0, 30)}@t.com`,
+        iban: 'DE89370400440532013000',
+        mandate_reference: `MAN${testId.slice(-8)}`,
+        mandate_signed_at: '2024-01-15',
+        preferred_language: 'de',
+        card_uid: cardUid,
+      }
+    })
+    expect(createResp.status()).toBe(201)
+    const createdMember = await createResp.json()
+    const memberId = createdMember.id
+
+    // Step 2: Navigate, verify member appears in "Mit Karte" filter
+    await authenticatedMembersPage.navigate()
+    await authenticatedMembersPage.expectPageVisible()
+
+    await page.click('[data-testid="filter-card-with"]')
+    await page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
+    await expect(page.locator(`text=${testId}`)).toBeVisible()
+
+    // Step 3: Reset to "All" filter so the member is visible for editing
+    await page.click('[data-testid="filter-card-all"]')
+    await page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
+
+    // Step 4: Open edit modal for the member and clear the card_uid field
+    await authenticatedMembersPage.openEditModalForMember(memberId)
+    await authenticatedMembersPage.expectFormModalVisible()
+
+    // Clear the card_uid input
+    const cardUidInput = page.getByTestId('member-form-card-uid')
+    await expect(cardUidInput).toBeVisible()
+    await cardUidInput.clear()
+
+    // Step 5: Submit the form and wait for PATCH to succeed
+    const patchResponse = page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/members') && resp.request().method() === 'PATCH' && resp.status() === 200
+    )
+    await authenticatedMembersPage.submitForm()
+    await patchResponse
+
+    // Verify form closes (indicates API call succeeded)
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    // Step 6: Apply "Ohne Karte" filter — member must now appear
+    await page.click('[data-testid="filter-card-without"]')
+    await page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
+
+    // Pattern 008: Use expect() for clear error messages on failure
+    await expect(page.locator(`text=${testId}`)).toBeVisible()
+
+    // Verify member no longer appears in "Mit Karte" filter
+    await page.click('[data-testid="filter-card-with"]')
+    await page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
+    await expect(page.locator(`text=${testId}`)).not.toBeVisible()
+  })
 })
