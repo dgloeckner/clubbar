@@ -8,6 +8,7 @@ import 'package:ruderbar_terminal/l10n/app_localizations.dart';
 import 'package:ruderbar_terminal/providers/cart_provider.dart';
 import 'package:ruderbar_terminal/providers/products_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
+import 'package:ruderbar_terminal/services/sound_service.dart';
 import 'package:ruderbar_terminal/widgets/member_bar.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/product_card.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
@@ -96,6 +97,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                             categoryName: _getCategoryName(categories[index], memberLang, l10n.categoryDefault),
                             selected: _selectedCategoryIndex == index,
                             onSelected: () {
+                              context.read<SoundService>().play(SoundEvent.categorySwitch);
                               setState(() {
                                 _selectedCategoryIndex = index;
                               });

@@ -10,6 +10,7 @@ import 'package:ruderbar_terminal/providers/auth_provider.dart';
 import 'package:ruderbar_terminal/providers/sync_provider.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
 import 'package:ruderbar_terminal/screens/product_selection_screen.dart';
+import 'package:ruderbar_terminal/services/sound_service.dart';
 import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
 import '../test_helpers.dart';
 
@@ -18,6 +19,7 @@ class MockCartProvider extends Mock implements CartProvider {}
 class MockAuthProvider extends Mock implements AuthProvider {}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
+class MockSoundService extends Mock implements SoundService {}
 
 void main() {
   setUpAll(() {
@@ -32,6 +34,7 @@ void main() {
       iconName: null,
       updatedAt: '2025-02-01T10:00:00Z',
     ));
+    registerFallbackValue(SoundEvent.categorySwitch);
   });
 
   group('ProductSelectionScreen', () {
@@ -40,6 +43,7 @@ void main() {
     late MockAuthProvider mockAuthProvider;
     late MockSyncProvider mockSyncProvider;
     late MockMembersProvider mockMembersProvider;
+    late MockSoundService mockSoundService;
 
     setUp(() {
       mockProductsProvider = MockProductsProvider();
@@ -47,6 +51,7 @@ void main() {
       mockAuthProvider = MockAuthProvider();
       mockSyncProvider = MockSyncProvider();
       mockMembersProvider = MockMembersProvider();
+      mockSoundService = MockSoundService();
 
       // Setup auth provider mocks
       when(() => mockAuthProvider.isAuthenticated).thenReturn(true);
@@ -220,6 +225,59 @@ void main() {
       );
 
       expect(find.byType(ProductSelectionScreen), findsOneWidget);
+    });
+
+    testWidgets('plays categorySwitch sound when category chip is tapped', (WidgetTester tester) async {
+      final categories = [
+        CategoriesCacheData(
+          id: 'cat-1',
+          names: jsonEncode({'de': 'Bier'}),
+          displayOrder: 1,
+          isActive: 1,
+          updatedAt: '2025-02-01T10:00:00Z',
+        ),
+        CategoriesCacheData(
+          id: 'cat-2',
+          names: jsonEncode({'de': 'Snacks'}),
+          displayOrder: 2,
+          isActive: 1,
+          updatedAt: '2025-02-01T10:00:00Z',
+        ),
+      ];
+
+      when(() => mockProductsProvider.categories).thenReturn(categories);
+      when(() => mockProductsProvider.products).thenReturn([]);
+      when(() => mockProductsProvider.addListener(any())).thenReturn(null);
+      when(() => mockProductsProvider.removeListener(any())).thenReturn(null);
+      when(() => mockCartProvider.addListener(any())).thenReturn(null);
+      when(() => mockCartProvider.removeListener(any())).thenReturn(null);
+      when(() => mockCartProvider.itemCount).thenReturn(0);
+      when(() => mockCartProvider.items).thenReturn([]);
+      when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        createTestApp(
+          child: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
+              ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+              ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
+              ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
+              ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
+              Provider<SoundService>.value(value: mockSoundService),
+            ],
+            child: const Scaffold(body: ProductSelectionScreen()),
+          ),
+        ),
+      );
+
+      // Tap the second category chip to trigger categorySwitch sound
+      final chips = find.byType(CategoryChip);
+      expect(chips, findsNWidgets(2));
+      await tester.tap(chips.at(1));
+      await tester.pump();
+
+      verify(() => mockSoundService.play(SoundEvent.categorySwitch)).called(1);
     });
   });
 }
