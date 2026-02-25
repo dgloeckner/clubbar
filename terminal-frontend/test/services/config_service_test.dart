@@ -370,38 +370,28 @@ void main() {
 
     group('soundsEnabled', () {
       test('defaults to false when not in config', () async {
-        final dir = Directory.systemTemp.createTempSync('cfg_sounds_test_');
-        final service = ConfigService(configDir: dir.path);
-        // Write a config without soundsEnabled
-        File('${dir.path}/config.json').writeAsStringSync(
+        File('${tempDir.path}/config.json').writeAsStringSync(
           jsonEncode({'terminalId': 'T1', 'apiUrl': 'http://x', 'apiToken': 'tok'}),
         );
-        await service.load();
-        expect(service.soundsEnabled, isFalse);
-        dir.deleteSync(recursive: true);
+        await configService.load();
+        expect(configService.soundsEnabled, isFalse);
       });
 
       test('reads true from config', () async {
-        final dir = Directory.systemTemp.createTempSync('cfg_sounds_test_');
-        final service = ConfigService(configDir: dir.path);
-        File('${dir.path}/config.json').writeAsStringSync(
+        File('${tempDir.path}/config.json').writeAsStringSync(
           jsonEncode({'terminalId': 'T1', 'apiUrl': 'http://x', 'apiToken': 'tok', 'soundsEnabled': true}),
         );
-        await service.load();
-        expect(service.soundsEnabled, isTrue);
-        dir.deleteSync(recursive: true);
+        await configService.load();
+        expect(configService.soundsEnabled, isTrue);
       });
 
       test('defaults to false when soundsEnabled key is absent from config', () async {
-        final dir = Directory.systemTemp.createTempSync('cfg_sounds_test_');
-        final service = ConfigService(configDir: dir.path);
         // Config file has no soundsEnabled key at all
-        File('${dir.path}/config.json').writeAsStringSync(
+        File('${tempDir.path}/config.json').writeAsStringSync(
           jsonEncode({'terminalId': 'T1', 'apiUrl': 'http://x', 'apiToken': 'tok'}),
         );
-        await service.load();
-        expect(service.soundsEnabled, isFalse);
-        dir.deleteSync(recursive: true);
+        await configService.load();
+        expect(configService.soundsEnabled, isFalse);
       });
     });
 
