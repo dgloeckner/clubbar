@@ -200,6 +200,17 @@
     "cancelSettlement": "Abrechnung abbrechen",
     "settleAllConfirm": "Alle offenen Buchungen abrechnen?",
     "selectAtLeastOne": "Bitte mindestens eine Buchung auswählen",
+    "settlementNoOpen": "Keine offenen Transaktionen",
+    "settlementConfirm": {
+      "title": "Abrechnung erstellen",
+      "transactions": "Transaktionen",
+      "members": "Mitglieder",
+      "totalAmount": "Betrag",
+      "settlementDate": "Buchungsdatum",
+      "executionDate": "Ausführungsdatum",
+      "confirm": "Abrechnung erstellen",
+      "cancel": "Abbrechen"
+    },
     "date": "Datum",
     "type": "Typ",
     "details": "Details",
