@@ -18,6 +18,7 @@ import 'package:ruderbar_terminal/repository/transactions_repository.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
 import 'package:ruderbar_terminal/services/network_service.dart';
+import 'package:ruderbar_terminal/services/sound_service.dart';
 import 'package:ruderbar_terminal/main.dart';
 
 class MockRuderbarDatabase extends Mock implements RuderbarDatabase {}
@@ -30,6 +31,7 @@ class MockMembersRepository extends Mock implements MembersRepository {}
 class MockTransactionsRepository extends Mock implements TransactionsRepository {}
 class MockConfigService extends Mock implements ConfigService {}
 class MockNetworkService extends Mock implements NetworkService {}
+class MockSoundService extends Mock implements SoundService {}
 
 void main() {
   testWidgets('App initializes with Material 3 theme', (WidgetTester tester) async {
@@ -43,6 +45,7 @@ void main() {
     final mockTransactionsRepository = MockTransactionsRepository();
     final mockConfigService = MockConfigService();
     final mockNetworkService = MockNetworkService();
+    final mockSoundService = MockSoundService();
     when(() => mockConfigService.isConfigured).thenReturn(true);
     when(() => mockSyncProvider.connectionStatus).thenReturn(ConnectionStatus.online);
     when(() => mockLocaleProvider.locale).thenReturn(const Locale('de'));
@@ -62,6 +65,7 @@ void main() {
         transactionsRepository: mockTransactionsRepository,
         configService: mockConfigService,
         networkService: mockNetworkService,
+        soundService: mockSoundService,
       ),
     );
 

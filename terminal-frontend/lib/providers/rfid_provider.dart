@@ -7,12 +7,14 @@ import 'package:ruderbar_terminal/models/member_dto.dart';
 import 'package:ruderbar_terminal/services/mock_rfid_service.dart';
 import 'package:ruderbar_terminal/services/real_rfid_service.dart';
 import 'package:ruderbar_terminal/providers/members_provider.dart';
+import 'package:ruderbar_terminal/services/sound_service.dart';
 
 class RfidProvider extends ChangeNotifier {
   final MockRfidService _mockRfidService = MockRfidService();
   final RealRfidService _realRfidService = RealRfidService();
   final MembersProvider _membersProvider;
   final MembersRepository _membersRepository;
+  final SoundService _soundService;
 
   MembersCacheData? _detectedMember;
   bool _isScanning = false;
@@ -20,7 +22,7 @@ class RfidProvider extends ChangeNotifier {
   StreamSubscription<String>? _scanSubscription;
   BuildContext? _context;
 
-  RfidProvider(this._membersProvider, this._membersRepository);
+  RfidProvider(this._membersProvider, this._membersRepository, this._soundService);
 
   MembersCacheData? get detectedMember => _detectedMember;
   bool get isScanning => _isScanning;
@@ -51,7 +53,7 @@ class RfidProvider extends ChangeNotifier {
   /// Handle a card scan (lookup member by card UID and navigate).
   /// Errors are i18n keys (e.g., 'rfidErrorUnknownCard') to be translated by UI.
   Future<void> handleCardScan(String cardUid) async {
-    if (_isScanning || _context == null || !_context!.mounted) return;
+    if (_isScanning) return;
 
     _isScanning = true;
     _error = null;
@@ -66,12 +68,13 @@ class RfidProvider extends ChangeNotifier {
         _detectedMember = member;
         _error = null;
         _membersProvider.setSelectedMember(member);
+        _soundService.play(SoundEvent.scanSuccess);
 
         _isScanning = false;
         notifyListeners();
 
-        // Navigate to product selection
-        if (_context!.mounted) {
+        // Navigate to product selection (only if context is available and mounted)
+        if (_context != null && _context!.mounted) {
           _context!.go('/products');
         }
       } else {
@@ -79,6 +82,7 @@ class RfidProvider extends ChangeNotifier {
         _error = errorKey ?? 'rfidErrorDatabaseError';
         _detectedMember = null;
         _membersProvider.setError(_error!);
+        _soundService.play(SoundEvent.scanError);
         _isScanning = false;
         notifyListeners();
       }
@@ -86,6 +90,7 @@ class RfidProvider extends ChangeNotifier {
       _error = 'rfidErrorDatabaseError';
       _detectedMember = null;
       _membersProvider.setError(_error!);
+      _soundService.play(SoundEvent.scanError);
       _isScanning = false;
       notifyListeners();
     }

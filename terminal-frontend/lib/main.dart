@@ -27,6 +27,7 @@ import 'package:ruderbar_terminal/services/products_service.dart';
 import 'package:ruderbar_terminal/services/cart_service.dart';
 import 'package:ruderbar_terminal/services/sync_service.dart';
 import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:ruderbar_terminal/services/sound_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_client.dart';
 import 'package:ruderbar_terminal/services/dispenser_recovery_service.dart';
 import 'package:ruderbar_terminal/services/dispenser_health_service.dart';
@@ -208,6 +209,10 @@ void main() async {
   }
   AppFontSizes.applyConfig(configService.fontSizes);
 
+  // Initialize sound service
+  final soundService = SoundService(enabled: configService.soundsEnabled);
+  await soundService.init();
+
   if (!configService.isConfigured) {
     final path = await configService.getConfigFilePath();
     stderr.writeln('ruderbar-terminal: configuration missing');
@@ -351,6 +356,7 @@ void main() async {
     transactionsRepository: transactionsRepo,
     configService: configService,
     networkService: networkService,
+    soundService: soundService,
     dispenserHealthService: dispenserHealthService,
     dispenserRecoveryService: dispenserRecoveryService,
   ));
@@ -383,6 +389,7 @@ class RuderbarTerminalApp extends StatelessWidget {
   final TransactionsRepository transactionsRepository;
   final ConfigService configService;
   final NetworkService networkService;
+  final SoundService soundService;
   final DispenserHealthService? dispenserHealthService;
   final DispenserRecoveryService? dispenserRecoveryService;
 
@@ -398,6 +405,7 @@ class RuderbarTerminalApp extends StatelessWidget {
     required this.transactionsRepository,
     required this.configService,
     required this.networkService,
+    required this.soundService,
     this.dispenserHealthService,
     this.dispenserRecoveryService,
   });
@@ -409,6 +417,7 @@ class RuderbarTerminalApp extends StatelessWidget {
         Provider<RuderbarDatabase>.value(value: database),
         Provider<NetworkService>.value(value: networkService),
         Provider<ConfigService>.value(value: configService),
+        Provider<SoundService>.value(value: soundService),
         Provider<TransactionsRepository>.value(value: transactionsRepository),
         if (dispenserHealthService != null)
           ChangeNotifierProvider<DispenserHealthService>.value(value: dispenserHealthService!),
@@ -418,7 +427,7 @@ class RuderbarTerminalApp extends StatelessWidget {
         ChangeNotifierProvider<ProductsProvider>(create: (_) => productsProvider),
         ChangeNotifierProvider(create: (_) => CartProvider(service: cartService, config: configService)),
         ChangeNotifierProvider<SyncProvider>(create: (_) => syncProvider),
-        ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider, membersRepository)),
+        ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider, membersRepository, soundService)),
       ],
       child: Builder(
         builder: (context) {
