@@ -44,6 +44,9 @@ dependencies:
   # Desktop window management (macOS/Linux/Windows)
   window_manager: ^0.3.9
 
+  # Audio feedback
+  audioplayers: ^6.5.1
+
   # Platform-specific paths (ADR-0019)
   path_provider: ^2.1.0
   path: ^1.9.1
@@ -70,3 +73,4 @@ flutter:
     - assets/icons/products/
     - assets/icons/categories/
     - assets/icons/ui/
+    - sounds/
