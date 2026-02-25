@@ -24,6 +24,7 @@ class ConfigParseException implements Exception {
 /// - TERMINAL_API_TOKEN
 /// - TERMINAL_FULLSCREEN
 /// - TERMINAL_DEMO_MODE
+/// - TERMINAL_SOUNDS_ENABLED
 /// - DISPENSER_ENABLED
 /// - DISPENSER_BASE_URL
 /// - DISPENSER_API_KEY
@@ -42,6 +43,7 @@ class ConfigService {
   int _dispenserTimeoutMs = 3000;
   int _dispenserPollIntervalMs = 250;
   bool _fullscreen = false;
+  bool _soundsEnabled = false;
   Map<String, dynamic>? _fontSizes;
 
   ConfigService({String? configDir}) : _configDirOverride = configDir;
@@ -62,6 +64,7 @@ class ConfigService {
   int get dispenserTimeoutMs => _dispenserTimeoutMs;
   int get dispenserPollIntervalMs => _dispenserPollIntervalMs;
   bool get fullscreen => _fullscreen;
+  bool get soundsEnabled => _soundsEnabled;
   Map<String, dynamic>? get fontSizes => _fontSizes;
 
   Future<String> _getConfigDir() async {
@@ -97,6 +100,7 @@ class ConfigService {
         _seedTestData = json['seedTestData'] as bool? ?? false;
         _demoMode = json['demoMode'] as bool? ?? false;
         _fullscreen = json['fullscreen'] as bool? ?? false;
+        _soundsEnabled = json['soundsEnabled'] as bool? ?? false;
         _fontSizes = json['fontSizes'] as Map<String, dynamic>?;
 
         // Dispenser config
@@ -134,6 +138,9 @@ class ConfigService {
     }
     if (env.containsKey('TERMINAL_DEMO_MODE')) {
       _demoMode = env['TERMINAL_DEMO_MODE']?.toLowerCase() == 'true';
+    }
+    if (env.containsKey('TERMINAL_SOUNDS_ENABLED')) {
+      _soundsEnabled = env['TERMINAL_SOUNDS_ENABLED']?.toLowerCase() == 'true';
     }
     if (env.containsKey('DISPENSER_ENABLED')) {
       _dispenserEnabled = env['DISPENSER_ENABLED']?.toLowerCase() == 'true';
@@ -213,6 +220,7 @@ class ConfigService {
     _dispenserTimeoutMs = 3000;
     _dispenserPollIntervalMs = 250;
     _fullscreen = false;
+    _soundsEnabled = false;
     _fontSizes = null;
 
     final configFile = await _getConfigFile();
