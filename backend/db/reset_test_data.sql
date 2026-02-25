@@ -18,8 +18,7 @@
 -- Creates:
 --   - 2 categories: Getränke, Sauna
 --   - 13 products with nice icons (including Sauna-Token with dispenser)
---   - 8 members with nice names and valid SEPA data
---   - Some sample transactions for testing
+--   - 8 members with nice names and valid SEPA data (2 with real card UIDs)
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -264,7 +263,7 @@ VALUES (
 INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
 VALUES (
     '55555551-5555-5555-5555-555555555551',
-    'CARD001',
+    '0003195661',
     'Hans',
     'Müller',
     'hans.mueller@example.de',
@@ -283,7 +282,7 @@ VALUES (
 INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
 VALUES (
     '55555552-5555-5555-5555-555555555552',
-    'CARD002',
+    '0013466849',
     'Maria',
     'Schmidt',
     'maria.schmidt@example.de',
@@ -413,135 +412,9 @@ VALUES (
 );
 
 -- ---------------------------------------------------------------------------
--- 6. Create Sample Transactions (for testing Journal/Statistics)
--- ---------------------------------------------------------------------------
--- Get terminal ID for transactions
-SET @terminal_id = '44e4567-e89b-12d3-a456-426614174000';
-
--- Hans buys a Pils (yesterday)
-INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
-VALUES (
-    '66666661-6666-6666-6666-666666666661',
-    '55555551-5555-5555-5555-555555555551',
-    '33333331-3333-3333-3333-333333333331',
-    @terminal_id,
-    -350,
-    'purchase',
-    DATE_SUB(NOW(), INTERVAL 1 DAY)
-);
-
--- Maria buys Weizen (yesterday)
-INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
-VALUES (
-    '66666662-6666-6666-6666-666666666662',
-    '55555552-5555-5555-5555-555555555552',
-    '33333332-3333-3333-3333-333333333332',
-    @terminal_id,
-    -380,
-    'purchase',
-    DATE_SUB(NOW(), INTERVAL 1 DAY)
-);
-
--- Anna buys Sauna Tageskarte (today)
-INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
-VALUES (
-    '66666663-6666-6666-6666-666666666663',
-    '55555554-5555-5555-5555-555555555554',
-    '44444441-4444-4444-4444-444444444441',
-    @terminal_id,
-    -1500,
-    'purchase',
-    NOW()
-);
-
--- Thomas buys Coffee (today)
-INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
-VALUES (
-    '66666664-6666-6666-6666-666666666664',
-    '55555553-5555-5555-5555-555555555553',
-    '33333337-3333-3333-3333-333333333337',
-    @terminal_id,
-    -150,
-    'purchase',
-    NOW()
-);
-
--- Michael buys Äppler (2 days ago)
-INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
-VALUES (
-    '66666665-6666-6666-6666-666666666665',
-    '55555555-5555-5555-5555-555555555555',
-    '33333338-3333-3333-3333-333333333338',
-    @terminal_id,
-    -350,
-    'purchase',
-    DATE_SUB(NOW(), INTERVAL 2 DAY)
-);
-
--- Peter buys Apfelschorle (3 days ago)
-INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
-VALUES (
-    '66666666-6666-6666-6666-666666666666',
-    '55555557-5555-5555-5555-555555555557',
-    '33333335-3333-3333-3333-333333333335',
-    @terminal_id,
-    -280,
-    'purchase',
-    DATE_SUB(NOW(), INTERVAL 3 DAY)
-);
-
--- Julia buys Sauna 2 Stunden + Handtuch (today)
-INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
-VALUES (
-    '66666667-6666-6666-6666-666666666667',
-    '55555558-5555-5555-5555-555555555558',
-    '44444442-4444-4444-4444-444444444442',
-    @terminal_id,
-    -800,
-    'purchase',
-    NOW()
-);
-
-INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
-VALUES (
-    '66666668-6666-6666-6666-666666666668',
-    '55555558-5555-5555-5555-555555555558',
-    '44444443-4444-4444-4444-444444444443',
-    @terminal_id,
-    -300,
-    'purchase',
-    NOW()
-);
-
--- Sabine buys Wasser (today)
-INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
-VALUES (
-    '66666669-6666-6666-6666-666666666669',
-    '55555556-5555-5555-5555-555555555556',
-    '33333336-3333-3333-3333-333333333336',
-    @terminal_id,
-    -200,
-    'purchase',
-    NOW()
-);
-
--- Hans buys another Pils (today)
-INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, created_at)
-VALUES (
-    '6666666a-6666-6666-6666-66666666666a',
-    '55555551-5555-5555-5555-555555555551',
-    '33333331-3333-3333-3333-333333333331',
-    @terminal_id,
-    -350,
-    'purchase',
-    NOW()
-);
-
--- ---------------------------------------------------------------------------
 -- Summary
 -- ---------------------------------------------------------------------------
 SELECT 'Test data reset complete!' AS status;
 SELECT COUNT(*) AS categories FROM categories;
 SELECT COUNT(*) AS products FROM products;
 SELECT COUNT(*) AS members FROM members;
-SELECT COUNT(*) AS transactions FROM transactions;

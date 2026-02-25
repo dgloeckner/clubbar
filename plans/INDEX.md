@@ -79,6 +79,16 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
+### Bugfix Batch (📍 ACTIVE)
+
+**Plan**: [2026-02-25-bugfix-batch.md](./2026-02-25-bugfix-batch.md)
+
+**Goal**: Fix 6 bugs from bugs.txt — audit log admin name display, card UID filter, settlement undo modal, inconsistent confirm dialogs, terminal product sorting, terminal product card minus button.
+
+**Status**: Plan written, ready for execution. 6 tasks, increasing complexity (backend fix → frontend fix → shared component → Flutter features).
+
+---
+
 ### Flutter Terminal Frontend (📍 READY TO START)
 
 **Plan**: [2026-02-01-flutter-terminal-frontend.md](./2026-02-01-flutter-terminal-frontend.md)
