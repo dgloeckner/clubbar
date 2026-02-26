@@ -36,11 +36,16 @@ class AdminController
     {
         $params = $request->getQueryParams();
 
-        $filters = [];
-        if (isset($params['date_from'])) $filters['date_from'] = $params['date_from'];
-        if (isset($params['date_to']))   $filters['date_to']   = $params['date_to'];
-        if (isset($params['search']))    $filters['search']    = $params['search'];
-        if (isset($params['member_id'])) $filters['member_id'] = $params['member_id'];
+        // Validate optional filter params
+        if (!$this->validator->validate($params, [
+            'date_from'  => ['date'],
+            'date_to'    => ['date'],
+            'member_id'  => ['string'],
+        ])) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        $filters = $this->extractTransactionFilters($params);
 
         $result = $this->settlementsService->previewByFilters($filters);
 
@@ -55,15 +60,14 @@ class AdminController
         if (!$this->validator->validate($body, [
             'settlement_date' => ['required', 'date'],
             'execution_date'  => ['required', 'date'],
+            'date_from'       => ['date'],
+            'date_to'         => ['date'],
+            'member_id'       => ['string'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
-        $filters = [];
-        if (isset($body['date_from'])) $filters['date_from'] = $body['date_from'];
-        if (isset($body['date_to']))   $filters['date_to']   = $body['date_to'];
-        if (isset($body['search']))    $filters['search']    = $body['search'];
-        if (isset($body['member_id'])) $filters['member_id'] = $body['member_id'];
+        $filters = $this->extractTransactionFilters($body);
 
         $settlement = $this->settlementsService->createSettlementByFilters(
             filters: $filters,
@@ -205,6 +209,23 @@ class AdminController
             ->withHeader('Content-Type', 'text/csv; charset=utf-8')
             ->withHeader('Content-Disposition', 'attachment; filename="settlement-transactions-' . $id . '.csv"')
             ->withStatus(200);
+    }
+
+    /**
+     * Extract transaction filter parameters from a parameter array.
+     * Accepted keys: date_from, date_to, search, member_id
+     *
+     * @param array<string,mixed> $source  Query params or request body
+     * @return array{ date_from?: string, date_to?: string, search?: string, member_id?: string }
+     */
+    private function extractTransactionFilters(array $source): array
+    {
+        $filters = [];
+        if (isset($source['date_from'])) $filters['date_from'] = $source['date_from'];
+        if (isset($source['date_to']))   $filters['date_to']   = $source['date_to'];
+        if (isset($source['search']))    $filters['search']    = $source['search'];
+        if (isset($source['member_id'])) $filters['member_id'] = $source['member_id'];
+        return $filters;
     }
 
     private function buildSettlementCsv(array $settlement): string
