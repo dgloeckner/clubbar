@@ -98,6 +98,11 @@
   },
   "members": {
     "title": "Mitglieder",
+    "stats": {
+      "activeMembers": "Aktive Mitglieder",
+      "openItems": "Offene Posten",
+      "lastSettlementDate": "Letztes Abrechnungsdatum"
+    },
     "createMember": "Mitglied erstellen",
     "editMember": "Mitglied bearbeiten",
     "deleteMember": "Mitglied löschen",

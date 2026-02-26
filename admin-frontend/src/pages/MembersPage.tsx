@@ -319,19 +319,19 @@ export function MembersPage() {
       >
         <StatCard
           icon={<UsersIcon />}
-          label={t('members.title')}
+          label={t('members.stats.activeMembers')}
           value={activeMembersCount}
           color="green"
         />
         <StatCard
           icon={<BankIcon />}
-          label={t('common.balance')}
+          label={t('members.stats.openItems')}
           value={formatters.formatPrice(totalBalance)}
           color="blue"
         />
         <StatCard
           icon={<CalendarIcon />}
-          label={t('settlements.settlementDate')}
+          label={t('members.stats.lastSettlementDate')}
           value={lastSettlementDate ? formatters.formatDate(lastSettlementDate.split('T')[0]) : '—'}
           color="blue"
         />

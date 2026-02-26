@@ -98,6 +98,11 @@
   },
   "members": {
     "title": "Members",
+    "stats": {
+      "activeMembers": "Active Members",
+      "openItems": "Outstanding Balance",
+      "lastSettlementDate": "Last Settlement Date"
+    },
     "createMember": "Create Member",
     "editMember": "Edit Member",
     "deleteMember": "Delete Member",

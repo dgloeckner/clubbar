@@ -26,9 +26,9 @@ import { BasePage } from './BasePage'
 
 export class MembersPage extends BasePage {
   // Stats cards
-  private readonly statCardMitglieder = () => this.page.getByTestId('stat-card-mitglieder')
+  private readonly statCardMitglieder = () => this.page.getByTestId('stat-card-aktive-mitglieder')
   private readonly statCardOffenePosten = () => this.page.getByTestId('stat-card-offene-posten')
-  private readonly statCardLetzteAbrechnung = () => this.page.getByTestId('stat-card-letzte-abrechnung')
+  private readonly statCardLetzteAbrechnung = () => this.page.getByTestId('stat-card-letztes-abrechnungsdatum')
 
   // Search and filter
   private readonly searchInput = () => this.page.getByTestId('members-search-input')
