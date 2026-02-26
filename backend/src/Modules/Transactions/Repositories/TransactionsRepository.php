@@ -246,6 +246,9 @@ class TransactionsRepository
         );
         $stmt->execute($params);
         $row = $stmt->fetch();
+        if ($row === false) {
+            return ['transaction_count' => 0, 'member_count' => 0, 'total_amount_cents' => 0];
+        }
 
         return [
             'transaction_count'  => (int) $row['transaction_count'],
