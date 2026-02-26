@@ -79,6 +79,18 @@ class SettlementsService
         );
     }
 
+    /**
+     * Return lightweight aggregate preview for all unsettled transactions
+     * matching the given journal filters.
+     *
+     * @param array{ date_from?: string, date_to?: string, search?: string, member_id?: string } $filters
+     * @return array{ transaction_count: int, member_count: int, total_amount_cents: int }
+     */
+    public function previewByFilters(array $filters): array
+    {
+        return $this->transactionsRepository->summarizeUnsettledByFilters($filters);
+    }
+
     public function createSettlement(array $transactionIds, string $settlementDate, string $executionDate, ?string $periodStart, ?string $periodEnd, ?string $manualReason, ?string $notes, string $adminUserId): SettlementDto
     {
         $this->db->beginTransaction();
@@ -141,6 +153,35 @@ class SettlementsService
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Create a settlement for all unsettled transactions matching the given filters.
+     *
+     * @param array{ date_from?: string, date_to?: string, search?: string, member_id?: string } $filters
+     */
+    public function createSettlementByFilters(
+        array $filters,
+        string $settlementDate,
+        string $executionDate,
+        string $adminUserId,
+        ?string $notes = null,
+    ): SettlementDto {
+        $transactionIds = $this->transactionsRepository->findAllUnsettledByFilters($filters);
+        if (empty($transactionIds)) {
+            throw new BusinessRuleException('No unsettled transactions found for the given filters');
+        }
+
+        return $this->createSettlement(
+            transactionIds: $transactionIds,
+            settlementDate: $settlementDate,
+            executionDate: $executionDate,
+            periodStart: $filters['date_from'] ?? null,
+            periodEnd: $filters['date_to'] ?? null,
+            manualReason: null,
+            notes: $notes,
+            adminUserId: $adminUserId,
+        );
     }
 
     public function getSettlement(string $settlementId): ?SettlementDto
