@@ -519,7 +519,7 @@ test.describe('Settlements API', () => {
    */
   test.describe('GET /api/admin/settlements/filter-preview', () => {
     test('returns aggregate stats for unsettled transactions', async ({ authenticatedRequest }) => {
-      const testId = `prev-${Date.now()}`;
+      const testId = `prev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
       // Create member + 2 unsettled correction transactions (corrections are unsettled by default)
       const memberRes = await authenticatedRequest.post('/api/admin/members', {
@@ -542,19 +542,22 @@ test.describe('Settlements API', () => {
         data: { amount_cents: 300, reason: 'adjustment', notes: `fp-note2-${testId}` },
       });
 
-      const res = await authenticatedRequest.get('/api/admin/settlements/filter-preview');
+      const res = await authenticatedRequest.get(
+        `/api/admin/settlements/filter-preview?search=${encodeURIComponent(`Test${testId}`)}`,
+      );
       expect(res.status()).toBe(200);
       const body = await res.json();
 
       expect(typeof body.transaction_count).toBe('number');
       expect(typeof body.member_count).toBe('number');
       expect(typeof body.total_amount_cents).toBe('number');
-      expect(body.transaction_count).toBeGreaterThanOrEqual(2);
-      expect(body.total_amount_cents).toBeGreaterThanOrEqual(800);
+      expect(body.transaction_count).toBe(2);
+      expect(body.member_count).toBe(1);
+      expect(body.total_amount_cents).toBe(800);
     });
 
     test('search filter reduces result to matching transactions', async ({ authenticatedRequest }) => {
-      const testId = `srch-${Date.now()}`;
+      const testId = `srch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const uniqueLastName = `SrchPrev${testId}`;
 
       const memberRes = await authenticatedRequest.post('/api/admin/members', {
@@ -607,7 +610,7 @@ test.describe('Settlements API', () => {
    */
   test.describe('POST /api/admin/settlements/settle-filter', () => {
     test('creates settlement for all unsettled transactions matching search filter', async ({ authenticatedRequest }) => {
-      const testId = `sf-${Date.now()}`;
+      const testId = `sf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const uniqueLastName = `SFilter${testId}`;
 
       const memberRes = await authenticatedRequest.post('/api/admin/members', {
@@ -651,17 +654,25 @@ test.describe('Settlements API', () => {
     });
 
     test('returns 422 when settlement_date is missing', async ({ authenticatedRequest }) => {
+      const futureDate = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
       const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
-        data: { execution_date: '2026-03-05' },
+        data: { execution_date: futureDate },
       });
       expect(res.status()).toBe(422);
+      const body = await res.json();
+      expect(body.error).toBe('validation_failed');
+      expect(body.messages).toBeDefined();
     });
 
     test('returns 422 when execution_date is missing', async ({ authenticatedRequest }) => {
+      const today = new Date().toISOString().split('T')[0];
       const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
-        data: { settlement_date: '2026-02-26' },
+        data: { settlement_date: today },
       });
       expect(res.status()).toBe(422);
+      const body = await res.json();
+      expect(body.error).toBe('validation_failed');
+      expect(body.messages).toBeDefined();
     });
   });
 });
