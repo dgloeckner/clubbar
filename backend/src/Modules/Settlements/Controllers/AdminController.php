@@ -32,6 +32,50 @@ class AdminController
         return $this->json($response, $result->toArray());
     }
 
+    public function filterPreview(Request $request, Response $response): Response
+    {
+        $params = $request->getQueryParams();
+
+        $filters = [];
+        if (isset($params['date_from'])) $filters['date_from'] = $params['date_from'];
+        if (isset($params['date_to']))   $filters['date_to']   = $params['date_to'];
+        if (isset($params['search']))    $filters['search']    = $params['search'];
+        if (isset($params['member_id'])) $filters['member_id'] = $params['member_id'];
+
+        $result = $this->settlementsService->previewByFilters($filters);
+
+        return $this->json($response, $result);
+    }
+
+    public function settleFilter(Request $request, Response $response): Response
+    {
+        $body = $request->getParsedBody() ?? [];
+        $adminId = $request->getAttribute('admin_user_id');
+
+        if (!$this->validator->validate($body, [
+            'settlement_date' => ['required', 'date'],
+            'execution_date'  => ['required', 'date'],
+        ])) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        $filters = [];
+        if (isset($body['date_from'])) $filters['date_from'] = $body['date_from'];
+        if (isset($body['date_to']))   $filters['date_to']   = $body['date_to'];
+        if (isset($body['search']))    $filters['search']    = $body['search'];
+        if (isset($body['member_id'])) $filters['member_id'] = $body['member_id'];
+
+        $settlement = $this->settlementsService->createSettlementByFilters(
+            filters: $filters,
+            settlementDate: $body['settlement_date'],
+            executionDate: $body['execution_date'],
+            adminUserId: $adminId,
+            notes: $body['notes'] ?? null,
+        );
+
+        return $this->json($response, $settlement->toArray(), 201);
+    }
+
     public function store(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody() ?? [];

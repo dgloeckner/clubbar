@@ -95,6 +95,8 @@ return function (App $app): void {
         $group->get('/audit-log', [AuditLogAdminController::class, 'index']);
 
         // Settlements
+        $group->get('/settlements/filter-preview', [SettlementsAdminController::class, 'filterPreview']);
+        $group->post('/settlements/settle-filter', [SettlementsAdminController::class, 'settleFilter']);
         $group->post('/settlements/preview', [SettlementsAdminController::class, 'preview']);
         $group->post('/settlements', [SettlementsAdminController::class, 'store']);
         $group->get('/settlements', [SettlementsAdminController::class, 'index']);
