@@ -115,8 +115,8 @@ class TransactionsRepository
         }
         if (isset($filters['search'])) {
             $escaped = SafeQuery::escapeLike($filters['search']);
-            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ?)";
-            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%"]);
+            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR p.names LIKE ?)";
+            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$escaped}%"]);
         }
         if (isset($filters['settlement_status'])) {
             if ($filters['settlement_status'] === 'unsettled') {
@@ -132,7 +132,7 @@ class TransactionsRepository
         $sortCol = $sortMap[$sortKey] ?? 't.created_at';
         $dir = SafeQuery::direction($sortOrder);
 
-        $countStmt = $this->db->prepare("SELECT COUNT(*) FROM transactions t LEFT JOIN members m ON t.member_id = m.id {$whereClause}");
+        $countStmt = $this->db->prepare("SELECT COUNT(*) FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause}");
         $countStmt->execute($params);
         $total = (int) $countStmt->fetchColumn();
 
