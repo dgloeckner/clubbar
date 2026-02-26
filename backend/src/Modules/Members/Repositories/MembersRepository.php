@@ -144,6 +144,14 @@ class MembersRepository
                 $where[] = 'card_uid IS NULL';
             }
         }
+        // SEPA status filter (is_sepa_valid = !empty(iban) && !empty(mandate_reference))
+        if (isset($filters['sepa_status'])) {
+            if ($filters['sepa_status'] === 'valid') {
+                $where[] = "(iban IS NOT NULL AND iban != '' AND mandate_reference IS NOT NULL AND mandate_reference != '')";
+            } else {
+                $where[] = "(iban IS NULL OR iban = '' OR mandate_reference IS NULL OR mandate_reference = '')";
+            }
+        }
         if ($search) {
             $escaped = SafeQuery::escapeLike($search);
             $where[] = "(CONCAT(first_name, ' ', last_name) LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)";

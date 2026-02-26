@@ -47,6 +47,11 @@ class AdminController
             $filters['has_card_uid'] = filter_var($params['filters']['has_card_uid'], FILTER_VALIDATE_BOOLEAN);
         }
 
+        // SEPA status filter
+        if (isset($params['filters']['sepa_status']) && in_array($params['filters']['sepa_status'], ['valid', 'missing'], true)) {
+            $filters['sepa_status'] = $params['filters']['sepa_status'];
+        }
+
         $result = $this->membersService->listMembers($limit, $offset, $filters, $sortKey, $sortOrder, $search);
 
         // Add has_more field to pagination

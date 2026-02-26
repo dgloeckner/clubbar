@@ -465,6 +465,13 @@ export class MembersPage extends BasePage {
     await this.page.waitForTimeout(300)
   }
 
+  async setSepaFilter(filterOption: 'all' | 'valid' | 'missing') {
+    const btn = this.page.getByTestId(`filter-sepa-${filterOption}`)
+    await expect(btn).toBeVisible()
+    await btn.click()
+    await this.page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
+  }
+
   async setStatusFilter(filterOption: 'all' | 'active' | 'inactive') {
     // Click the trigger button to open dropdown
     const trigger = this.page.getByTestId('members-filter-status-trigger')

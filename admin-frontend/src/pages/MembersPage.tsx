@@ -51,6 +51,7 @@ export function MembersPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterIsActive, setFilterIsActive] = useState<'all' | 'active' | 'inactive'>('all')
   const [filterCardUid, setFilterCardUid] = useState<'all' | 'with' | 'without'>('all')
+  const [filterSepaStatus, setFilterSepaStatus] = useState<'all' | 'valid' | 'missing'>('all')
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -72,7 +73,7 @@ export function MembersPage() {
         setIsLoading(true)
 
         // Build filter object
-        const filter: { is_active?: boolean; has_card_uid?: boolean } = {}
+        const filter: { is_active?: boolean; has_card_uid?: boolean; sepa_status?: 'valid' | 'missing' } = {}
         if (filterIsActive === 'active') {
           filter.is_active = true
         } else if (filterIsActive === 'inactive') {
@@ -82,6 +83,11 @@ export function MembersPage() {
           filter.has_card_uid = true
         } else if (filterCardUid === 'without') {
           filter.has_card_uid = false
+        }
+        if (filterSepaStatus === 'valid') {
+          filter.sepa_status = 'valid'
+        } else if (filterSepaStatus === 'missing') {
+          filter.sepa_status = 'missing'
         }
 
         const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
@@ -100,7 +106,7 @@ export function MembersPage() {
 
     const timer = setTimeout(loadMembers, search ? 500 : 0) // Debounce search
     return () => clearTimeout(timer)
-  }, [page, search, filterIsActive, filterCardUid, sortKey, sortDirection, setIsLoading])
+  }, [page, search, filterIsActive, filterCardUid, filterSepaStatus, sortKey, sortDirection, setIsLoading])
 
   // Load dashboard metrics (active members count, outstanding balance, last settlement date)
   useEffect(() => {
@@ -573,8 +579,87 @@ export function MembersPage() {
           </button>
         </div>
 
+        {/* Divider */}
+        <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.08)' }} />
+
+        {/* SEPA filter group */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span
+            style={{
+              fontSize: '12px',
+              color: 'rgba(255,255,255,0.35)',
+              marginRight: '4px',
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+            }}
+          >
+            SEPA
+          </span>
+          <button
+            data-testid="filter-sepa-all"
+            onClick={() => {
+              setFilterSepaStatus('all')
+              setPage(1)
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterSepaStatus === 'all' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+              color: filterSepaStatus === 'all' ? '#fff' : 'rgba(255,255,255,0.55)',
+            }}
+          >
+            {t('members.filters.sepa.all')}
+          </button>
+          <button
+            data-testid="filter-sepa-valid"
+            onClick={() => {
+              setFilterSepaStatus('valid')
+              setPage(1)
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterSepaStatus === 'valid' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+              color: filterSepaStatus === 'valid' ? '#fff' : 'rgba(255,255,255,0.55)',
+            }}
+          >
+            {t('members.filters.sepa.valid')}
+          </button>
+          <button
+            data-testid="filter-sepa-missing"
+            onClick={() => {
+              setFilterSepaStatus('missing')
+              setPage(1)
+            }}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              background: filterSepaStatus === 'missing' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+              color: filterSepaStatus === 'missing' ? '#fff' : 'rgba(255,255,255,0.55)',
+            }}
+          >
+            {t('members.filters.sepa.missing')}
+          </button>
+        </div>
+
         {/* Clear filters */}
-        {((filterIsActive !== 'all') || (filterCardUid !== 'all') || search) && (
+        {((filterIsActive !== 'all') || (filterCardUid !== 'all') || (filterSepaStatus !== 'all') || search) && (
           <>
             <div style={{ flex: 1 }} />
             <button
@@ -582,6 +667,7 @@ export function MembersPage() {
                 setSearch('')
                 setFilterIsActive('all')
                 setFilterCardUid('all')
+                setFilterSepaStatus('all')
                 setPage(1)
               }}
               data-testid="members-clear-filters"

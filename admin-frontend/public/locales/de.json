@@ -137,6 +137,11 @@
         "all": "Alle",
         "withCard": "Mit Karte",
         "withoutCard": "Ohne Karte"
+      },
+      "sepa": {
+        "all": "Alle",
+        "valid": "Gültig",
+        "missing": "Fehlend"
       }
     },
     "validation": {

@@ -137,6 +137,11 @@
         "all": "All",
         "withCard": "With Card",
         "withoutCard": "Without Card"
+      },
+      "sepa": {
+        "all": "All",
+        "valid": "Valid",
+        "missing": "Missing"
       }
     },
     "validation": {

@@ -37,7 +37,7 @@ export async function getMembers(
   page: number = 1,
   perPage: number = 20,
   search?: string,
-  filter?: { is_active?: boolean; has_card_uid?: boolean },
+  filter?: { is_active?: boolean; has_card_uid?: boolean; sepa_status?: 'valid' | 'missing' },
   sort: string = 'created_at',
   order: 'asc' | 'desc' = 'desc'
 ): Promise<MembersResponse> {
@@ -58,6 +58,9 @@ export async function getMembers(
   }
   if (filter?.has_card_uid !== undefined) {
     params['filters[has_card_uid]'] = filter.has_card_uid ? 'true' : 'false'
+  }
+  if (filter?.sepa_status !== undefined) {
+    params['filters[sepa_status]'] = filter.sepa_status
   }
 
   const apiResponse = await get<MembersResponse>('/admin/members', { params })
