@@ -9,11 +9,10 @@ class ProductsRepository {
 
   ProductsRepository(this._db);
 
-  /// Get all active categories with their active products
+  /// Get all active categories with their active products, sorted lexicographically by name
   Future<List<(CategoriesCacheData, List<ProductsCacheData>)>> getActiveCategoriesWithProducts() async {
     final categories = await (_db.select(_db.categoriesCache)
-          ..where((c) => c.isActive.equals(1))
-          ..orderBy([(c) => OrderingTerm(expression: c.displayOrder)]))
+          ..where((c) => c.isActive.equals(1)))
         .get();
 
     final result = <(CategoriesCacheData, List<ProductsCacheData>)>[];
@@ -27,6 +26,15 @@ class ProductsRepository {
         result.add((category, products));
       }
     }
+
+    // Sort lexicographically by German name (fallback to English)
+    result.sort((a, b) {
+      final namesA = jsonDecode(a.$1.names) as Map<String, dynamic>;
+      final namesB = jsonDecode(b.$1.names) as Map<String, dynamic>;
+      final nameA = ((namesA['de'] ?? namesA['en'] ?? '') as String).toLowerCase();
+      final nameB = ((namesB['de'] ?? namesB['en'] ?? '') as String).toLowerCase();
+      return nameA.compareTo(nameB);
+    });
 
     return result;
   }
@@ -55,7 +63,6 @@ class ProductsRepository {
         CategoriesCacheCompanion(
           id: Value(dto.id),
           names: Value(jsonEncode(dto.names)),
-          displayOrder: Value(dto.displayOrder),
           isActive: Value(dto.isActive ? 1 : 0),
           iconName: Value(dto.iconName),
           updatedAt: Value(dto.updatedAt),

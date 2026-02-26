@@ -37,7 +37,6 @@ class ProductsRepositoryTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Test Kategorie', 'en' => 'Test Category'],
-            'display_order' => 999,
             'is_active' => true,
         ];
         $this->testCategoryIds[] = $testCategoryId;
@@ -89,7 +88,6 @@ class ProductsRepositoryTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Zukunft Kategorie', 'en' => 'Future Category'],
-            'display_order' => 998,
             'is_active' => true,
         ];
         $this->testCategoryIds[] = $testCategoryId;
@@ -135,7 +133,6 @@ class ProductsRepositoryTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Bug Kategorie', 'en' => 'Bug Category'],
-            'display_order' => 997,
             'is_active' => true,
         ];
         $this->testCategoryIds[] = $testCategoryId;
@@ -186,7 +183,6 @@ class ProductsRepositoryTest extends DatabaseTestCase
         $this->categoriesRepository->create([
             'id' => $testCategoryId,
             'names' => json_encode(['de' => 'Test Category', 'en' => 'Test Category']),
-            'display_order' => 100,
             'is_active' => 1,
         ]);
         $this->testCategoryIds[] = $testCategoryId;
@@ -233,7 +229,6 @@ class ProductsRepositoryTest extends DatabaseTestCase
         $this->categoriesRepository->create([
             'id' => $testCategoryId,
             'names' => json_encode(['de' => 'Test Category', 'en' => 'Test Category']),
-            'display_order' => 100,
             'is_active' => 1,
         ]);
         $this->testCategoryIds[] = $testCategoryId;

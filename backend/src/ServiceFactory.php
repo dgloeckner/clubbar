@@ -210,7 +210,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getCategoriesService(): CategoriesService
     {
-        return $this->resolve(CategoriesService::class, fn() => new CategoriesService($this->getCategoriesRepository(), $this->getProductsRepository(), $this->getAuditService()));
+        return $this->resolve(CategoriesService::class, fn() => new CategoriesService($this->getCategoriesRepository(), $this->getAuditService()));
     }
 
     public function getMembersService(): MembersService

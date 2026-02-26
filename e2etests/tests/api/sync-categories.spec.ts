@@ -40,7 +40,6 @@ test.describe('Sync Categories Endpoint', () => {
     expect(category.id).toBeDefined();
     expect(category.names).toBeDefined();
     expect(typeof category.names).toBe('object');
-    expect(typeof category.display_order).toBe('number');
     expect(typeof category.is_active).toBe('boolean');
     expect(category.created_at).toBeDefined();
     expect(category.updated_at).toBeDefined();

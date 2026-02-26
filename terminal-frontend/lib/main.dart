@@ -53,7 +53,6 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
       CategoryDTO(
         id: 'cat-1',
         names: {'de': 'Getränke', 'en': 'Drinks'},
-        displayOrder: 1,
         isActive: true,
         iconName: 'CategoryDrinksIcon',
         updatedAt: '2025-02-01T10:00:00Z',
@@ -61,7 +60,6 @@ Future<void> _seedMockData(RuderbarDatabase database) async {
       CategoryDTO(
         id: 'cat-2',
         names: {'de': 'Sauna', 'en': 'Sauna'},
-        displayOrder: 2,
         isActive: true,
         iconName: 'CategorySaunaIcon',
         updatedAt: '2025-02-01T10:00:00Z',

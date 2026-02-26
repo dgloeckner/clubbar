@@ -185,7 +185,6 @@
     "activateConfirm": "\"{{name}}\" aktivieren? Alle {{count}} Produkte in dieser Kategorie werden im Terminal wieder angezeigt.",
     "cannotDeleteWithProducts": "Kategorie mit {{count}} Produkten kann nicht gelöscht werden. Bitte stattdessen deaktivieren.",
     "categoryName": "Kategoriename",
-    "sortOrder": "Sortierung",
     "productCount": "Produkte",
     "noCategories": "Keine Kategorien gefunden"
   },

@@ -45,7 +45,7 @@ class RuderbarDatabase extends _$RuderbarDatabase {
   RuderbarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -122,6 +122,11 @@ class RuderbarDatabase extends _$RuderbarDatabase {
                 m, 'transactions_local', 'session_id', 'TEXT');
             await _addColumnIfNotExists(
                 m, 'transactions_local', 'unit_price_cents', 'INTEGER');
+          }
+          if (from < 7) {
+            // Remove display_order column — categories are now sorted lexicographically
+            await m.database.customStatement(
+                'ALTER TABLE "categories_cache" DROP COLUMN "display_order"');
           }
         },
       );

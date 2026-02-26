@@ -10,14 +10,12 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\NotFoundException;
 use App\Modules\Products\Repositories\CategoriesRepository;
-use App\Modules\Products\Repositories\ProductsRepository;
 use App\Shared\Services\AuditService;
 
 class CategoriesService
 {
     public function __construct(
         private CategoriesRepository $categoriesRepository,
-        private ProductsRepository $productsRepository,
         private AuditService $auditService,
     ) {}
 
@@ -121,16 +119,4 @@ class CategoriesService
         return true;
     }
 
-    public function reorderCategories(array $categoryIds, ?string $adminUserId = null): void
-    {
-        $this->categoriesRepository->reorder($categoryIds);
-
-        $this->auditService->log(
-            action: AuditAction::REORDER,
-            entityType: EntityType::CATEGORY,
-            entityId: 'batch',
-            newValues: ['order' => $categoryIds],
-            adminUserId: $adminUserId,
-        );
-    }
 }

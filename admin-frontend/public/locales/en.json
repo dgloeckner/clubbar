@@ -185,7 +185,6 @@
     "activateConfirm": "Activate \"{{name}}\"? All {{count}} products in this category will become visible in the terminal again.",
     "cannotDeleteWithProducts": "Cannot delete category with {{count}} products. Deactivate instead.",
     "categoryName": "Category Name",
-    "sortOrder": "Sort Order",
     "productCount": "Products",
     "noCategories": "No categories found"
   },

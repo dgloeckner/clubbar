@@ -50,7 +50,6 @@ class ProductsServiceTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Test Kategorie', 'en' => 'Test Category'],
-            'display_order' => 999,
             'is_active' => true,
         ];
         $this->testCategoryIds[] = $testCategoryId;
@@ -85,7 +84,6 @@ class ProductsServiceTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Test Kategorie', 'en' => 'Test Category'],
-            'display_order' => 998,
             'is_active' => true,
         ];
         $this->testCategoryIds[] = $testCategoryId;
@@ -118,7 +116,6 @@ class ProductsServiceTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Test Kategorie', 'en' => 'Test Category'],
-            'display_order' => 997,
             'is_active' => true,
         ];
         $this->testCategoryIds[] = $testCategoryId;
@@ -151,7 +148,6 @@ class ProductsServiceTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Test Kategorie', 'en' => 'Test Category'],
-            'display_order' => 996,
             'is_active' => true,
         ];
         $this->testCategoryIds[] = $testCategoryId;
@@ -190,7 +186,6 @@ class ProductsServiceTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Test Kategorie', 'en' => 'Test Category'],
-            'display_order' => 995,
             'is_active' => true,
         ];
         $this->testCategoryIds[] = $testCategoryId;
@@ -229,7 +224,6 @@ class ProductsServiceTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Test Kategorie', 'en' => 'Test Category'],
-            'display_order' => 994,
             'is_active' => true,
         ];
         $this->testCategoryIds[] = $testCategoryId;

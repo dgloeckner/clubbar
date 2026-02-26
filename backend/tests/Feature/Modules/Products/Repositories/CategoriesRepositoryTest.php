@@ -32,7 +32,6 @@ class CategoriesRepositoryTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Millisekunden Test', 'en' => 'Milliseconds Test'],
-            'display_order' => 999,
             'is_active' => true,
             'icon_name' => 'test',
         ];
@@ -71,7 +70,6 @@ class CategoriesRepositoryTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Zukunft Test', 'en' => 'Future Test'],
-            'display_order' => 998,
             'is_active' => true,
         ];
 
@@ -105,7 +103,6 @@ class CategoriesRepositoryTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => ['de' => 'Bug Test', 'en' => 'Bug Test'],
-            'display_order' => 997,
             'is_active' => true,
         ];
 
@@ -144,7 +141,6 @@ class CategoriesRepositoryTest extends DatabaseTestCase
         $testCategory = [
             'id' => $testCategoryId,
             'names' => json_encode(['de' => 'Tombstone Category', 'en' => 'Tombstone Category']),
-            'display_order' => 100,
             'is_active' => 1,
         ];
         $this->categoriesRepository->create($testCategory);
@@ -182,14 +178,12 @@ class CategoriesRepositoryTest extends DatabaseTestCase
         $this->categoriesRepository->create([
             'id' => $updatedCategoryId,
             'names' => json_encode(['de' => 'Updated Category', 'en' => 'Updated Category']),
-            'display_order' => 101,
             'is_active' => 1,
         ]);
 
         $this->categoriesRepository->create([
             'id' => $deletedCategoryId,
             'names' => json_encode(['de' => 'Deleted Category', 'en' => 'Deleted Category']),
-            'display_order' => 102,
             'is_active' => 1,
         ]);
 

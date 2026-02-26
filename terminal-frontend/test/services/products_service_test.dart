@@ -21,7 +21,6 @@ void main() {
       final category = CategoriesCacheData(
         id: 'cat-1',
         names: jsonEncode({'de': 'Getränke', 'en': 'Drinks'}),
-        displayOrder: 1,
         isActive: 1,
         updatedAt: DateTime.now().toIso8601String(),
       );

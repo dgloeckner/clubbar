@@ -68,7 +68,6 @@ return function (App $app): void {
         $group->patch('/categories/{categoryId}', [ProductsAdminController::class, 'updateCategory']);
         $group->patch('/categories/{categoryId}/status', [ProductsAdminController::class, 'toggleCategoryStatus']);
         $group->delete('/categories/{categoryId}', [ProductsAdminController::class, 'deleteCategory']);
-        $group->post('/categories/reorder', [ProductsAdminController::class, 'reorderCategories']);
 
         // Products
         $group->get('/products', [ProductsAdminController::class, 'listProducts']);

@@ -74,7 +74,6 @@ void main() {
         CategoriesCacheData(
           id: 'cat-1',
           names: jsonEncode({'de': 'Bier'}),
-          displayOrder: 1,
           isActive: 1,
           updatedAt: '2025-02-01T10:00:00Z',
         ),
@@ -112,7 +111,6 @@ void main() {
         CategoriesCacheData(
           id: 'cat-1',
           names: jsonEncode({'de': 'Bier'}),
-          displayOrder: 1,
           isActive: 1,
           updatedAt: '2025-02-01T10:00:00Z',
         ),
@@ -151,7 +149,6 @@ void main() {
         CategoriesCacheData(
           id: 'cat-1',
           names: jsonEncode({'de': 'Bier'}),
-          displayOrder: 1,
           isActive: 1,
           updatedAt: '2025-02-01T10:00:00Z',
         ),
@@ -232,14 +229,12 @@ void main() {
         CategoriesCacheData(
           id: 'cat-1',
           names: jsonEncode({'de': 'Bier'}),
-          displayOrder: 1,
           isActive: 1,
           updatedAt: '2025-02-01T10:00:00Z',
         ),
         CategoriesCacheData(
           id: 'cat-2',
           names: jsonEncode({'de': 'Snacks'}),
-          displayOrder: 2,
           isActive: 1,
           updatedAt: '2025-02-01T10:00:00Z',
         ),

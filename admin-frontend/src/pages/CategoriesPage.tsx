@@ -42,7 +42,6 @@ import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 interface Category {
   id: string
   names: { [lang: string]: string }
-  display_order: number
   is_active: boolean
   product_count: number
   icon_name?: string | null
@@ -339,7 +338,6 @@ export function CategoriesPage() {
                   />
                 </th>
                 <th style={headerCellBaseStyle}>{t('categories.productCount')}</th>
-                <th style={headerCellBaseStyle}>{t('categories.sortOrder')}</th>
                 <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>{t('common.actions')}</th>
               </tr>
             </thead>
@@ -379,13 +377,6 @@ export function CategoriesPage() {
                   <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
                     <span data-testid={`categories-table-cell-product-count-${category.id}`}>
                       {category.product_count}
-                    </span>
-                  </td>
-
-                  {/* Order */}
-                  <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
-                    <span data-testid={`categories-table-cell-order-${category.id}`}>
-                      {category.display_order}
                     </span>
                   </td>
 

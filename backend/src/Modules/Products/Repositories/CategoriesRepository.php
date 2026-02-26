@@ -24,7 +24,7 @@ class CategoriesRepository
 
     public function findAll(): array
     {
-        return $this->db->query('SELECT * FROM categories ORDER BY display_order ASC')->fetchAll();
+        return $this->db->query('SELECT * FROM categories ORDER BY created_at ASC')->fetchAll();
     }
 
     public function findModifiedSince(int $sinceTimestamp): array
@@ -48,13 +48,13 @@ class CategoriesRepository
 
     public function findActive(): array
     {
-        return $this->db->query('SELECT * FROM categories WHERE is_active = 1 ORDER BY display_order ASC')->fetchAll();
+        return $this->db->query('SELECT * FROM categories WHERE is_active = 1 ORDER BY created_at ASC')->fetchAll();
     }
 
     public function getWithProductCount(): array
     {
         return $this->db->query(
-            'SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) AS product_count FROM categories c ORDER BY c.display_order ASC'
+            'SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) AS product_count FROM categories c ORDER BY c.created_at ASC'
         )->fetchAll();
     }
 
@@ -65,12 +65,6 @@ class CategoriesRepository
         return (bool) $stmt->fetch();
     }
 
-    public function getNextDisplayOrder(): int
-    {
-        $max = $this->db->query('SELECT MAX(display_order) FROM categories')->fetchColumn();
-        return ($max !== null && $max !== false) ? ((int) $max + 1) : 0;
-    }
-
     public function create(array $data): array
     {
         $id = $data['id'] ?? $this->generateUuid();
@@ -78,12 +72,11 @@ class CategoriesRepository
         $names = is_array($data['names']) ? json_encode($data['names']) : $data['names'];
 
         $stmt = $this->db->prepare(
-            'INSERT INTO categories (id, names, display_order, is_active, icon_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO categories (id, names, is_active, icon_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id,
             $names,
-            $data['display_order'] ?? $this->getNextDisplayOrder(),
             ($data['is_active'] ?? true) ? 1 : 0,
             $data['icon_name'] ?? null,
             $now,
@@ -100,7 +93,7 @@ class CategoriesRepository
         $values = [];
 
         foreach ($data as $key => $value) {
-            $col = SafeQuery::column($key, ['names', 'display_order', 'is_active', 'icon_name', 'deleted_at', 'deleted_by_admin_id']);
+            $col = SafeQuery::column($key, ['names', 'is_active', 'icon_name', 'deleted_at', 'deleted_by_admin_id']);
             if ($key === 'names' && is_array($value)) {
                 $value = json_encode($value);
             }
@@ -128,15 +121,6 @@ class CategoriesRepository
         $result = $stmt->execute([$id]);
         $this->logger->info('Category deleted', ['id' => $id]);
         return $result && $stmt->rowCount() > 0;
-    }
-
-    public function reorder(array $categoryIds): void
-    {
-        $stmt = $this->db->prepare('UPDATE categories SET display_order = ?, updated_at = ? WHERE id = ?');
-        $now = date('Y-m-d H:i:s');
-        foreach ($categoryIds as $index => $categoryId) {
-            $stmt->execute([$index, $now, $categoryId]);
-        }
     }
 
     public function count(): int

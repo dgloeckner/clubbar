@@ -604,17 +604,6 @@ class $CategoriesCacheTable extends CategoriesCache
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _displayOrderMeta = const VerificationMeta(
-    'displayOrder',
-  );
-  @override
-  late final GeneratedColumn<int> displayOrder = GeneratedColumn<int>(
-    'display_order',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
   static const VerificationMeta _isActiveMeta = const VerificationMeta(
     'isActive',
   );
@@ -653,7 +642,6 @@ class $CategoriesCacheTable extends CategoriesCache
   List<GeneratedColumn> get $columns => [
     id,
     names,
-    displayOrder,
     isActive,
     iconName,
     updatedAt,
@@ -682,17 +670,6 @@ class $CategoriesCacheTable extends CategoriesCache
       );
     } else if (isInserting) {
       context.missing(_namesMeta);
-    }
-    if (data.containsKey('display_order')) {
-      context.handle(
-        _displayOrderMeta,
-        displayOrder.isAcceptableOrUnknown(
-          data['display_order']!,
-          _displayOrderMeta,
-        ),
-      );
-    } else if (isInserting) {
-      context.missing(_displayOrderMeta);
     }
     if (data.containsKey('is_active')) {
       context.handle(
@@ -731,10 +708,6 @@ class $CategoriesCacheTable extends CategoriesCache
         DriftSqlType.string,
         data['${effectivePrefix}names'],
       )!,
-      displayOrder: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}display_order'],
-      )!,
       isActive: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}is_active'],
@@ -760,14 +733,12 @@ class CategoriesCacheData extends DataClass
     implements Insertable<CategoriesCacheData> {
   final String id;
   final String names;
-  final int displayOrder;
   final int isActive;
   final String? iconName;
   final String updatedAt;
   const CategoriesCacheData({
     required this.id,
     required this.names,
-    required this.displayOrder,
     required this.isActive,
     this.iconName,
     required this.updatedAt,
@@ -777,7 +748,6 @@ class CategoriesCacheData extends DataClass
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['names'] = Variable<String>(names);
-    map['display_order'] = Variable<int>(displayOrder);
     map['is_active'] = Variable<int>(isActive);
     if (!nullToAbsent || iconName != null) {
       map['icon_name'] = Variable<String>(iconName);
@@ -790,7 +760,6 @@ class CategoriesCacheData extends DataClass
     return CategoriesCacheCompanion(
       id: Value(id),
       names: Value(names),
-      displayOrder: Value(displayOrder),
       isActive: Value(isActive),
       iconName: iconName == null && nullToAbsent
           ? const Value.absent()
@@ -807,7 +776,6 @@ class CategoriesCacheData extends DataClass
     return CategoriesCacheData(
       id: serializer.fromJson<String>(json['id']),
       names: serializer.fromJson<String>(json['names']),
-      displayOrder: serializer.fromJson<int>(json['displayOrder']),
       isActive: serializer.fromJson<int>(json['isActive']),
       iconName: serializer.fromJson<String?>(json['iconName']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
@@ -819,7 +787,6 @@ class CategoriesCacheData extends DataClass
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'names': serializer.toJson<String>(names),
-      'displayOrder': serializer.toJson<int>(displayOrder),
       'isActive': serializer.toJson<int>(isActive),
       'iconName': serializer.toJson<String?>(iconName),
       'updatedAt': serializer.toJson<String>(updatedAt),
@@ -829,14 +796,12 @@ class CategoriesCacheData extends DataClass
   CategoriesCacheData copyWith({
     String? id,
     String? names,
-    int? displayOrder,
     int? isActive,
     Value<String?> iconName = const Value.absent(),
     String? updatedAt,
   }) => CategoriesCacheData(
     id: id ?? this.id,
     names: names ?? this.names,
-    displayOrder: displayOrder ?? this.displayOrder,
     isActive: isActive ?? this.isActive,
     iconName: iconName.present ? iconName.value : this.iconName,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -845,9 +810,6 @@ class CategoriesCacheData extends DataClass
     return CategoriesCacheData(
       id: data.id.present ? data.id.value : this.id,
       names: data.names.present ? data.names.value : this.names,
-      displayOrder: data.displayOrder.present
-          ? data.displayOrder.value
-          : this.displayOrder,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       iconName: data.iconName.present ? data.iconName.value : this.iconName,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -859,7 +821,6 @@ class CategoriesCacheData extends DataClass
     return (StringBuffer('CategoriesCacheData(')
           ..write('id: $id, ')
           ..write('names: $names, ')
-          ..write('displayOrder: $displayOrder, ')
           ..write('isActive: $isActive, ')
           ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt')
@@ -868,15 +829,13 @@ class CategoriesCacheData extends DataClass
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, names, displayOrder, isActive, iconName, updatedAt);
+  int get hashCode => Object.hash(id, names, isActive, iconName, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is CategoriesCacheData &&
           other.id == this.id &&
           other.names == this.names &&
-          other.displayOrder == this.displayOrder &&
           other.isActive == this.isActive &&
           other.iconName == this.iconName &&
           other.updatedAt == this.updatedAt);
@@ -885,7 +844,6 @@ class CategoriesCacheData extends DataClass
 class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
   final Value<String> id;
   final Value<String> names;
-  final Value<int> displayOrder;
   final Value<int> isActive;
   final Value<String?> iconName;
   final Value<String> updatedAt;
@@ -893,7 +851,6 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
   const CategoriesCacheCompanion({
     this.id = const Value.absent(),
     this.names = const Value.absent(),
-    this.displayOrder = const Value.absent(),
     this.isActive = const Value.absent(),
     this.iconName = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -902,19 +859,16 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
   CategoriesCacheCompanion.insert({
     required String id,
     required String names,
-    required int displayOrder,
     this.isActive = const Value.absent(),
     this.iconName = const Value.absent(),
     required String updatedAt,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        names = Value(names),
-       displayOrder = Value(displayOrder),
        updatedAt = Value(updatedAt);
   static Insertable<CategoriesCacheData> custom({
     Expression<String>? id,
     Expression<String>? names,
-    Expression<int>? displayOrder,
     Expression<int>? isActive,
     Expression<String>? iconName,
     Expression<String>? updatedAt,
@@ -923,7 +877,6 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (names != null) 'names': names,
-      if (displayOrder != null) 'display_order': displayOrder,
       if (isActive != null) 'is_active': isActive,
       if (iconName != null) 'icon_name': iconName,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -934,7 +887,6 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
   CategoriesCacheCompanion copyWith({
     Value<String>? id,
     Value<String>? names,
-    Value<int>? displayOrder,
     Value<int>? isActive,
     Value<String?>? iconName,
     Value<String>? updatedAt,
@@ -943,7 +895,6 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     return CategoriesCacheCompanion(
       id: id ?? this.id,
       names: names ?? this.names,
-      displayOrder: displayOrder ?? this.displayOrder,
       isActive: isActive ?? this.isActive,
       iconName: iconName ?? this.iconName,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -959,9 +910,6 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     }
     if (names.present) {
       map['names'] = Variable<String>(names.value);
-    }
-    if (displayOrder.present) {
-      map['display_order'] = Variable<int>(displayOrder.value);
     }
     if (isActive.present) {
       map['is_active'] = Variable<int>(isActive.value);
@@ -983,7 +931,6 @@ class CategoriesCacheCompanion extends UpdateCompanion<CategoriesCacheData> {
     return (StringBuffer('CategoriesCacheCompanion(')
           ..write('id: $id, ')
           ..write('names: $names, ')
-          ..write('displayOrder: $displayOrder, ')
           ..write('isActive: $isActive, ')
           ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt, ')
@@ -3944,7 +3891,6 @@ typedef $$CategoriesCacheTableCreateCompanionBuilder =
     CategoriesCacheCompanion Function({
       required String id,
       required String names,
-      required int displayOrder,
       Value<int> isActive,
       Value<String?> iconName,
       required String updatedAt,
@@ -3954,7 +3900,6 @@ typedef $$CategoriesCacheTableUpdateCompanionBuilder =
     CategoriesCacheCompanion Function({
       Value<String> id,
       Value<String> names,
-      Value<int> displayOrder,
       Value<int> isActive,
       Value<String?> iconName,
       Value<String> updatedAt,
@@ -4013,11 +3958,6 @@ class $$CategoriesCacheTableFilterComposer
 
   ColumnFilters<String> get names => $composableBuilder(
     column: $table.names,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<int> get displayOrder => $composableBuilder(
-    column: $table.displayOrder,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4081,11 +4021,6 @@ class $$CategoriesCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get displayOrder => $composableBuilder(
-    column: $table.displayOrder,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<int> get isActive => $composableBuilder(
     column: $table.isActive,
     builder: (column) => ColumnOrderings(column),
@@ -4116,11 +4051,6 @@ class $$CategoriesCacheTableAnnotationComposer
 
   GeneratedColumn<String> get names =>
       $composableBuilder(column: $table.names, builder: (column) => column);
-
-  GeneratedColumn<int> get displayOrder => $composableBuilder(
-    column: $table.displayOrder,
-    builder: (column) => column,
-  );
 
   GeneratedColumn<int> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
@@ -4189,7 +4119,6 @@ class $$CategoriesCacheTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> names = const Value.absent(),
-                Value<int> displayOrder = const Value.absent(),
                 Value<int> isActive = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
@@ -4197,7 +4126,6 @@ class $$CategoriesCacheTableTableManager
               }) => CategoriesCacheCompanion(
                 id: id,
                 names: names,
-                displayOrder: displayOrder,
                 isActive: isActive,
                 iconName: iconName,
                 updatedAt: updatedAt,
@@ -4207,7 +4135,6 @@ class $$CategoriesCacheTableTableManager
               ({
                 required String id,
                 required String names,
-                required int displayOrder,
                 Value<int> isActive = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 required String updatedAt,
@@ -4215,7 +4142,6 @@ class $$CategoriesCacheTableTableManager
               }) => CategoriesCacheCompanion.insert(
                 id: id,
                 names: names,
-                displayOrder: displayOrder,
                 isActive: isActive,
                 iconName: iconName,
                 updatedAt: updatedAt,

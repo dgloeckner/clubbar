@@ -35,7 +35,6 @@ class AdminController
 
         if (!$this->validator->validate($body, [
             'names' => ['required', 'array', 'min:1'],
-            'display_order' => ['nullable', 'integer'],
             'is_active' => ['nullable', 'boolean'],
             'icon_name' => ['nullable', 'string', 'max:50'],
         ])) {
@@ -55,7 +54,6 @@ class AdminController
 
         if (!$this->validator->validate($body, [
             'names' => ['nullable', 'array', 'min:1'],
-            'display_order' => ['nullable', 'integer'],
             'is_active' => ['nullable', 'boolean'],
             'icon_name' => ['nullable', 'string', 'max:50'],
         ])) {
@@ -104,22 +102,6 @@ class AdminController
         $this->categoriesService->deleteCategory($categoryId, $adminId);
 
         return $response->withStatus(204);
-    }
-
-    public function reorderCategories(Request $request, Response $response): Response
-    {
-        $body = $request->getParsedBody() ?? [];
-        $adminId = $request->getAttribute('admin_user_id');
-
-        if (!$this->validator->validate($body, [
-            'category_ids' => ['required', 'array'],
-        ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
-        }
-
-        $this->categoriesService->reorderCategories($body['category_ids'], $adminId);
-
-        return $this->json($response, ['message' => 'Categories reordered']);
     }
 
     // --- Products ---

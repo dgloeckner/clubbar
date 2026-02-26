@@ -74,16 +74,6 @@ test.describe('Categories API - List', () => {
     }
   });
 
-  test('GET /api/admin/categories returns category with display_order', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.get('/api/admin/categories');
-    const body = await response.json();
-
-    if (body.categories.length > 0) {
-      const category = body.categories[0];
-      expect(category.display_order).toBeDefined();
-      expect(typeof category.display_order).toBe('number');
-    }
-  });
 });
 
 // Test: Create Category
@@ -101,18 +91,6 @@ test.describe('Categories API - Create', () => {
     expect(body.id).toBeDefined();
     expect(body.names).toEqual(categoryData.names);
     expect(body.is_active).toBe(true);
-    expect(body.display_order).toBeDefined();
-  });
-
-  test('POST /api/admin/categories auto-assigns display_order', async ({ authenticatedRequest }) => {
-    const categoryData = createValidCategory();
-
-    const response = await authenticatedRequest.post('/api/admin/categories', {
-      data: categoryData,
-    });
-
-    const body = await response.json();
-    expect(body.display_order).toBeGreaterThan(0);
   });
 
   test('POST /api/admin/categories creates with single language', async ({ authenticatedRequest }) => {

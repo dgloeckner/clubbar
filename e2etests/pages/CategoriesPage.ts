@@ -19,7 +19,6 @@ import { BasePage } from './BasePage'
 export interface Category {
   id: string
   names: { [lang: string]: string }
-  display_order: number
   is_active: boolean
   product_count: number
 }
@@ -145,13 +144,6 @@ export class CategoriesPage extends BasePage {
       .getByTestId(`categories-table-cell-product-count-${categoryId}`)
       .textContent()
     return parseInt(count || '0', 10)
-  }
-
-  async getCategoryOrder(categoryId: string): Promise<number> {
-    const order = await this.page
-      .getByTestId(`categories-table-cell-order-${categoryId}`)
-      .textContent()
-    return parseInt(order || '0', 10)
   }
 
   async findCategoryByName(name: string): Promise<string | null> {
@@ -346,19 +338,6 @@ export class CategoriesPage extends BasePage {
   async cancelDelete() {
     await this.confirmCancelBtn().click()
     await this.expectConfirmDialogHidden()
-  }
-
-  /**
-   * DRAG & DROP INTERACTIONS
-   */
-
-  async dragCategory(fromIndex: number, toIndex: number) {
-    const rows = this.tableRows()
-    const fromRow = rows.nth(fromIndex)
-    const toRow = rows.nth(toIndex)
-
-    await fromRow.dragTo(toRow)
-    await this.page.waitForLoadState('networkidle')
   }
 
   /**

@@ -1136,48 +1136,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /categories/reorder:
-    post:
-      tags: [Products]
-      summary: Reorder categories
-      description: |
-        Update the display order of all categories.
-
-        **Use Case**: UC-A44
-      operationId: reorderCategories
-      security:
-        - sessionAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [order]
-              properties:
-                order:
-                  type: array
-                  description: Category IDs in desired order
-                  items:
-                    type: string
-                    format: uuid
-      responses:
-        '200':
-          description: Categories reordered
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Category'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
   # ============================================================================
   # SETTLEMENTS
   # ============================================================================
@@ -2906,9 +2864,6 @@ components:
           format: uuid
         names:
           $ref: '#/components/schemas/MultilingualText'
-        display_order:
-          type: integer
-          minimum: 0
         is_active:
           type: boolean
         icon_name:

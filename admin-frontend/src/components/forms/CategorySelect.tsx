@@ -23,7 +23,6 @@ interface Category {
   id: string
   names: { [lang: string]: string }
   is_active: boolean
-  display_order: number
 }
 
 interface CategorySelectProps {

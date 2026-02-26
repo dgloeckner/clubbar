@@ -260,7 +260,6 @@ void main() {
         CategoriesCacheCompanion(
           id: const Value('cat-1'),
           names: const Value('{"de":"Getränke","en":"Beverages"}'),
-          displayOrder: const Value(1),
           isActive: const Value(1),
           updatedAt: const Value('2025-02-01T12:00:00Z'),
         ),
@@ -294,7 +293,6 @@ void main() {
         CategoriesCacheCompanion(
           id: const Value('cat-inactive'),
           names: const Value('{"de":"Inaktiv"}'),
-          displayOrder: const Value(1),
           isActive: const Value(0),
           updatedAt: const Value('2025-02-01T12:00:00Z'),
         ),
@@ -312,7 +310,6 @@ void main() {
         CategoriesCacheCompanion(
           id: const Value('cat-1'),
           names: const Value('{"de":"Getränke"}'),
-          displayOrder: const Value(1),
           isActive: const Value(1),
           updatedAt: const Value('2025-02-01T12:00:00Z'),
         ),
@@ -347,7 +344,6 @@ void main() {
         CategoriesCacheCompanion(
           id: const Value('cat-1'),
           names: const Value('{"de":"Getränke"}'),
-          displayOrder: const Value(1),
           isActive: const Value(1),
           updatedAt: const Value('2025-02-01T12:00:00Z'),
         ),
@@ -401,7 +397,7 @@ void main() {
         CategoryDTO(
           id: 'cat-1',
           names: {'de': 'Getränke', 'en': 'Beverages'},
-          displayOrder: 1,
+
           isActive: true,
           updatedAt: '2025-02-01T12:00:00Z',
         ),
@@ -420,7 +416,7 @@ void main() {
         CategoryDTO(
           id: 'cat-1',
           names: {'de': 'Getränke'},
-          displayOrder: 1,
+
           isActive: true,
           updatedAt: '2025-02-01T12:00:00Z',
         ),
@@ -453,7 +449,6 @@ void main() {
         CategoriesCacheCompanion(
           id: const Value('cat-1'),
           names: const Value('{"de":"Getränke"}'),
-          displayOrder: const Value(1),
           isActive: const Value(1),
           updatedAt: const Value('2025-02-01T12:00:00Z'),
         ),

@@ -232,12 +232,11 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $this->testCategoryIds[] = $categoryId;
 
         $names = json_encode(['de' => $name, 'en' => $name]);
-        $displayOrder = rand(1000, 9999); // Random to avoid conflicts
 
         $stmt = $this->db->prepare(
-            'INSERT INTO categories (id, names, display_order, is_active) VALUES (?, ?, ?, ?)'
+            'INSERT INTO categories (id, names, is_active) VALUES (?, ?, ?)'
         );
-        $stmt->execute([$categoryId, $names, $displayOrder, 1]);
+        $stmt->execute([$categoryId, $names, 1]);
 
         return $categoryId;
     }

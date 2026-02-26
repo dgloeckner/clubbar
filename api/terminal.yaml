@@ -174,7 +174,7 @@ paths:
         JSON field. All translations are always included in the response. Terminal caches all
         translations and applies localization at display time based on member's `preferred_language`.
 
-        **Display order**: Categories should be displayed as tabs sorted by `display_order` (ascending).
+        **Display**: Categories are sorted lexicographically by name in the terminal.
 
         **Inactive categories**: Returned with `is_active: false`. Terminal should hide these
         categories AND all products in them, regardless of product's own `is_active` status.
@@ -711,7 +711,7 @@ components:
         **Internationalization (i18n)**: Categories support multilingual names via JSON field.
         Terminal applies localization at display time based on member's `preferred_language`.
 
-        **Display**: Categories are shown as tabs in the terminal product view, sorted by `display_order`.
+        **Display**: Categories are shown as tabs in the terminal product view, sorted lexicographically by name.
         Only categories with `is_active: true` AND at least one active product should be displayed.
       properties:
         id:
@@ -727,12 +727,6 @@ components:
             All available translations of category name (keyed by ISO 639-1 language code).
             Example: {"en": "Beverages", "de": "Getränke", "fr": "Boissons"}
             Terminal displays name for member's preferred_language (with fallback to backend default).
-        display_order:
-          type: integer
-          minimum: 0
-          description: |
-            Sort position for tab ordering (ascending).
-            Categories with lower display_order appear first.
         is_active:
           type: boolean
           description: |
@@ -749,7 +743,6 @@ components:
       required:
         - id
         - names
-        - display_order
         - is_active
         - created_at
         - updated_at
@@ -759,7 +752,6 @@ components:
           en: Beverages
           de: Getränke
           fr: Boissons
-        display_order: 1
         is_active: true
         created_at: '2024-01-01T00:00:00Z'
         updated_at: '2025-01-10T10:15:30Z'
@@ -1007,7 +999,6 @@ components:
               en: Beverages
               de: Getränke
               fr: Boissons
-            display_order: 1
             is_active: true
             created_at: '2024-01-01T00:00:00Z'
             updated_at: '2025-01-10T10:15:30Z'
@@ -1016,7 +1007,6 @@ components:
               en: Snacks
               de: Snacks
               fr: Encas
-            display_order: 2
             is_active: true
             created_at: '2024-01-01T00:00:00Z'
             updated_at: '2025-01-10T10:15:30Z'
@@ -1409,7 +1399,7 @@ x-internal-notes: |
 
   ### Delta Sync Algorithm (Categories)
   ```
-  SELECT id, names, display_order, is_active, created_at, updated_at
+  SELECT id, names, is_active, created_at, updated_at
   FROM categories
   WHERE updated_at >= {since_timestamp}
   ORDER BY updated_at ASC

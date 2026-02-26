@@ -9,7 +9,6 @@ final readonly class CategoryDto
     public function __construct(
         public string $id,
         public array $names,
-        public int $displayOrder,
         public bool $isActive,
         public ?string $iconName,
         public string $createdAt,
@@ -23,7 +22,6 @@ final readonly class CategoryDto
         return new self(
             id: $row['id'],
             names: is_string($row['names']) ? json_decode($row['names'], true) : $row['names'],
-            displayOrder: (int) $row['display_order'],
             isActive: (bool) $row['is_active'],
             iconName: $row['icon_name'] ?? null,
             createdAt: $row['created_at'],
@@ -38,7 +36,6 @@ final readonly class CategoryDto
         $data = [
             'id' => $this->id,
             'names' => $this->names ?: new \stdClass(),
-            'display_order' => $this->displayOrder,
             'is_active' => $this->isActive,
             'icon_name' => $this->iconName,
             'created_at' => $this->createdAt,

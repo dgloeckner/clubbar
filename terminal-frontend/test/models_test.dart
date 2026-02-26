@@ -28,7 +28,6 @@ void main() {
       final json = {
         'id': '456',
         'names': '{"de":"Getränke","en":"Beverages"}',
-        'display_order': 1,
         'is_active': 1,
         'updated_at': '2025-02-01T10:00:00Z',
       };
