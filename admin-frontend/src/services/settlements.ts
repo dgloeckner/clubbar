@@ -178,6 +178,64 @@ export async function createSettlement(
   throw new Error('Invalid response from settlement creation API')
 }
 
+export interface SettlementFilterPreview {
+  transaction_count: number
+  member_count: number
+  total_amount_cents: number
+}
+
+/**
+ * Get aggregate preview stats for all unsettled transactions matching the given filters.
+ * Used to populate the "Abrechnung (alle)" confirm modal without fetching transaction IDs.
+ */
+export async function getSettlementFilterPreview(
+  dateFrom?: string,
+  dateTo?: string,
+  search?: string,
+  memberId?: string,
+): Promise<SettlementFilterPreview> {
+  const params: Record<string, string> = {}
+  if (dateFrom) params.date_from = dateFrom
+  if (dateTo)   params.date_to   = dateTo
+  if (search)   params.search    = search
+  if (memberId) params.member_id = memberId
+
+  const apiResponse = await get<SettlementFilterPreview>('/admin/settlements/filter-preview', { params })
+  return apiResponse as unknown as SettlementFilterPreview
+}
+
+/**
+ * Create a settlement for all unsettled transactions matching the given filters.
+ * The backend resolves matching transaction IDs server-side.
+ */
+export async function createSettlementByFilters(
+  settlementDate: string,
+  executionDate: string,
+  dateFrom?: string,
+  dateTo?: string,
+  search?: string,
+  memberId?: string,
+  notes?: string,
+): Promise<Settlement> {
+  const payload: Record<string, string | undefined> = {
+    settlement_date: settlementDate,
+    execution_date: executionDate,
+  }
+  if (dateFrom) payload.date_from = dateFrom
+  if (dateTo)   payload.date_to   = dateTo
+  if (search)   payload.search    = search
+  if (memberId) payload.member_id = memberId
+  if (notes)    payload.notes     = notes
+
+  const apiResponse = await post<Settlement>('/admin/settlements/settle-filter', payload)
+  const response = apiResponse as any
+  if (response && typeof response === 'object') {
+    if ('id' in response && 'settlement_date' in response) return response as Settlement
+    if ('data' in response && response.data) return response.data as Settlement
+  }
+  throw new Error('Invalid response from settle-filter API')
+}
+
 /**
  * Undo a settlement (cancel and unmark transactions) (UC-A33)
  *
