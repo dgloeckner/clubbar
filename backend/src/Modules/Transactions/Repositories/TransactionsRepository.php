@@ -200,4 +200,102 @@ class TransactionsRepository
         $stmt->execute();
         return (int) $stmt->fetchColumn();
     }
+
+    /**
+     * Return aggregate stats for transactions matching the given filters,
+     * restricted to only unsettled transactions.
+     * Accepted filter keys: date_from, date_to, search, member_id
+     *
+     * @return array{ transaction_count: int, member_count: int, total_amount_cents: int }
+     */
+    public function summarizeUnsettledByFilters(array $filters = []): array
+    {
+        $where = [
+            'NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0)',
+        ];
+        $params = [];
+
+        if (isset($filters['date_from'])) {
+            $where[] = 't.created_at >= ?';
+            $params[] = $filters['date_from'];
+        }
+        if (isset($filters['date_to'])) {
+            $where[] = 't.created_at <= ?';
+            $params[] = $filters['date_to'] . ' 23:59:59';
+        }
+        if (isset($filters['search'])) {
+            $escaped = SafeQuery::escapeLike($filters['search']);
+            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR p.names LIKE ?)";
+            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$escaped}%"]);
+        }
+        if (isset($filters['member_id'])) {
+            $where[] = 't.member_id = ?';
+            $params[] = $filters['member_id'];
+        }
+
+        $whereClause = 'WHERE ' . implode(' AND ', $where);
+
+        $stmt = $this->db->prepare(
+            "SELECT COUNT(*) as transaction_count,
+                    COUNT(DISTINCT t.member_id) as member_count,
+                    COALESCE(SUM(t.amount_cents), 0) as total_amount_cents
+             FROM transactions t
+             LEFT JOIN members m ON t.member_id = m.id
+             LEFT JOIN products p ON t.product_id = p.id
+             {$whereClause}"
+        );
+        $stmt->execute($params);
+        $row = $stmt->fetch();
+
+        return [
+            'transaction_count'  => (int) $row['transaction_count'],
+            'member_count'       => (int) $row['member_count'],
+            'total_amount_cents' => (int) $row['total_amount_cents'],
+        ];
+    }
+
+    /**
+     * Fetch IDs of all unsettled transactions matching filters.
+     * Accepted filter keys: date_from, date_to, search, member_id
+     *
+     * @return string[]
+     */
+    public function findAllUnsettledByFilters(array $filters = []): array
+    {
+        $where = [
+            'NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0)',
+        ];
+        $params = [];
+
+        if (isset($filters['date_from'])) {
+            $where[] = 't.created_at >= ?';
+            $params[] = $filters['date_from'];
+        }
+        if (isset($filters['date_to'])) {
+            $where[] = 't.created_at <= ?';
+            $params[] = $filters['date_to'] . ' 23:59:59';
+        }
+        if (isset($filters['search'])) {
+            $escaped = SafeQuery::escapeLike($filters['search']);
+            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR p.names LIKE ?)";
+            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$escaped}%"]);
+        }
+        if (isset($filters['member_id'])) {
+            $where[] = 't.member_id = ?';
+            $params[] = $filters['member_id'];
+        }
+
+        $whereClause = 'WHERE ' . implode(' AND ', $where);
+
+        $stmt = $this->db->prepare(
+            "SELECT t.id
+             FROM transactions t
+             LEFT JOIN members m ON t.member_id = m.id
+             LEFT JOIN products p ON t.product_id = p.id
+             {$whereClause}
+             ORDER BY t.created_at ASC"
+        );
+        $stmt->execute($params);
+        return array_column($stmt->fetchAll(), 'id');
+    }
 }
