@@ -34,7 +34,10 @@ import {
   type GlobalTransaction
 } from '../services/transactions'
 import {
-  createSettlement
+  createSettlement,
+  createSettlementByFilters,
+  getSettlementFilterPreview,
+  type SettlementFilterPreview,
 } from '../services/settlements'
 import { SettlementConfirmModal } from '../components/modals/SettlementConfirmModal'
 import { getMembers, type Member } from '../services/members'
@@ -93,6 +96,8 @@ export function JournalPage() {
   const [pendingTransactions, setPendingTransactions] = useState<GlobalTransaction[]>([])
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
+  const [settleAllPreview, setSettleAllPreview] = useState<SettlementFilterPreview | null>(null)
+  const [settleAllLoading, setSettleAllLoading] = useState(false)
 
   // Correction modal state
   const [showCorrectionModal, setShowCorrectionModal] = useState(false)
@@ -290,15 +295,26 @@ export function JournalPage() {
     setSettlementStatus('open')
   }
 
-  const handleSettleAll = () => {
-    const openTransactions = state.transactions.filter((tx) => !tx.is_settled)
-    if (openTransactions.length === 0) {
-      setState((prev) => ({ ...prev, error: t('journal.settlementNoOpen') }))
-      return
+  const handleSettleAll = async () => {
+    setSettleAllLoading(true)
+    try {
+      const preview = await getSettlementFilterPreview(
+        dateFrom || undefined,
+        dateTo || undefined,
+        search || undefined,
+      )
+      if (preview.transaction_count === 0) {
+        setState((prev) => ({ ...prev, error: t('journal.settlementNoOpen') }))
+        return
+      }
+      setSettleAllPreview(preview)
+      setConfirmError(null)
+      setConfirmModalOpen(true)
+    } catch (err) {
+      setState((prev) => ({ ...prev, error: err instanceof Error ? err.message : 'Failed to load preview' }))
+    } finally {
+      setSettleAllLoading(false)
     }
-    setPendingTransactions(openTransactions)
-    setConfirmError(null)
-    setConfirmModalOpen(true)
   }
 
   const handleConcludeSettlement = () => {
@@ -321,13 +337,24 @@ export function JournalPage() {
       executionDate.setDate(executionDate.getDate() + 7)
       const executionDateStr = executionDate.toISOString().split('T')[0]
 
-      await createSettlement(
-        pendingTransactions.map((tx) => tx.id),
-        today,
-        executionDateStr
-      )
+      if (settleAllPreview) {
+        await createSettlementByFilters(
+          today,
+          executionDateStr,
+          dateFrom || undefined,
+          dateTo || undefined,
+          search || undefined,
+        )
+      } else {
+        await createSettlement(
+          pendingTransactions.map((tx) => tx.id),
+          today,
+          executionDateStr
+        )
+      }
 
       setConfirmModalOpen(false)
+      setSettleAllPreview(null)
       setPendingTransactions([])
       setSettlementMode('none')
       setSelectedTransactionIds(new Set())
@@ -409,25 +436,26 @@ export function JournalPage() {
               <button
                 data-testid="journal-settlement-all-btn"
                 onClick={handleSettleAll}
+                disabled={settleAllLoading}
                 style={{
                   padding: '8px 16px',
-                  backgroundColor: '#10b981',
+                  backgroundColor: settleAllLoading ? '#6b7280' : '#10b981',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: 6,
                   fontSize: 14,
                   fontWeight: 500,
-                  cursor: 'pointer',
+                  cursor: settleAllLoading ? 'not-allowed' : 'pointer',
                   transition: 'background-color 0.15s',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#059669'
+                  if (!settleAllLoading) e.currentTarget.style.backgroundColor = '#059669'
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#10b981'
+                  if (!settleAllLoading) e.currentTarget.style.backgroundColor = '#10b981'
                 }}
               >
-                + {t('journal.settlementAll')}
+                {settleAllLoading ? '...' : `+ ${t('journal.settlementAll')}`}
               </button>
             </div>
           )}
@@ -910,9 +938,14 @@ export function JournalPage() {
         {/* Settlement Confirm Modal */}
         <SettlementConfirmModal
           isOpen={confirmModalOpen}
-          transactions={pendingTransactions}
+          transactions={settleAllPreview ? undefined : pendingTransactions}
+          preview={settleAllPreview ?? undefined}
           onConfirm={handleConfirmSettlement}
-          onCancel={() => setConfirmModalOpen(false)}
+          onCancel={() => {
+            setConfirmModalOpen(false)
+            setSettleAllPreview(null)
+            setConfirmError(null)
+          }}
           isLoading={confirmLoading}
           error={confirmError}
         />
