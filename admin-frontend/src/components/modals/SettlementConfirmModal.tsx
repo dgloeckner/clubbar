@@ -9,9 +9,17 @@ import { theme } from '../../styles/design-system'
 import { useFormatters } from '../../hooks/useFormatters'
 import type { GlobalTransaction } from '../../services/transactions'
 
+export interface SettlementFilterPreview {
+  transaction_count: number
+  member_count: number
+  total_amount_cents: number
+}
+
 export interface SettlementConfirmModalProps {
   isOpen: boolean
-  transactions: GlobalTransaction[]
+  /** Provide either transactions (settle-selected) or preview (settle-all) */
+  transactions?: GlobalTransaction[]
+  preview?: SettlementFilterPreview
   onConfirm: () => void
   onCancel: () => void
   isLoading: boolean
@@ -25,6 +33,7 @@ function formatIsoDate(date: Date): string {
 export function SettlementConfirmModal({
   isOpen,
   transactions,
+  preview,
   onConfirm,
   onCancel,
   isLoading,
@@ -35,9 +44,9 @@ export function SettlementConfirmModal({
 
   if (!isOpen) return null
 
-  const transactionCount = transactions.length
-  const memberCount = new Set(transactions.map((tx) => tx.member_id)).size
-  const totalCents = transactions.reduce((sum, tx) => sum + tx.amount_cents, 0)
+  const transactionCount = preview?.transaction_count ?? transactions?.length ?? 0
+  const memberCount = preview?.member_count ?? new Set(transactions?.map((tx) => tx.member_id) ?? []).size
+  const totalCents = preview?.total_amount_cents ?? transactions?.reduce((sum, tx) => sum + tx.amount_cents, 0) ?? 0
 
   const today = new Date()
   const executionDate = new Date()
