@@ -128,7 +128,7 @@ class AdminController
         return $this->json($response, $result->toArray());
     }
 
-    public function show(Request $request, Response $response, array $args): Response
+    public function show(Request $_request, Response $response, array $args): Response
     {
         $id = $args['id'];
         $settlement = $this->settlementsService->getSettlement($id);
@@ -168,7 +168,7 @@ class AdminController
             ->withStatus(200);
     }
 
-    public function exportCsv(Request $request, Response $response, array $args): Response
+    public function exportCsv(Request $_request, Response $response, array $args): Response
     {
         $id = $args['id'];
         $settlement = $this->settlementsService->getSettlement($id);
@@ -186,7 +186,7 @@ class AdminController
             ->withStatus(200);
     }
 
-    public function exportTransactionsCsv(Request $request, Response $response, array $args): Response
+    public function exportTransactionsCsv(Request $_request, Response $response, array $args): Response
     {
         $id = $args['id'];
         $settlement = $this->settlementsService->getSettlement($id);
