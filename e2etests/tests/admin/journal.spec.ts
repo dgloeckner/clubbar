@@ -1671,12 +1671,11 @@ test.describe('Journal Page - Settle All (Filter-Based Settlement)', () => {
     const uniqueName = `SettleAll${testId}`
 
     // Create test member via API
-    console.log(`Creating test member: ${uniqueName}`)
     const memberRes = await page.request.post('http://localhost:8080/api/admin/members', {
       data: {
         first_name: uniqueName,
         last_name: 'UITest',
-        email: `${testId.slice(0, 20)}@test.example`,
+        email: `${testId}@test.example`,
         iban: 'DE89370400440532013000',
         mandate_signed_at: '2024-01-01',
         preferred_language: 'de',
@@ -1685,10 +1684,8 @@ test.describe('Journal Page - Settle All (Filter-Based Settlement)', () => {
     expect(memberRes.ok(), 'Member creation should succeed').toBeTruthy()
     const member = await memberRes.json()
     const memberId = member.id
-    console.log(`Created member: ${memberId}`)
 
     // Create a correction transaction for this member
-    console.log('Creating correction transaction...')
     const txRes = await page.request.post(
       `http://localhost:8080/api/admin/members/${memberId}/transactions/correction`,
       {
@@ -1696,54 +1693,36 @@ test.describe('Journal Page - Settle All (Filter-Based Settlement)', () => {
       }
     )
     expect(txRes.ok(), 'Correction creation should succeed').toBeTruthy()
-    console.log('Correction transaction created')
 
     // === ACT: Navigate to journal and search for unique member ===
-    console.log('Navigating to journal page...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Search for unique member name to scope settle-all to only our transaction
-    console.log(`Searching for unique member: ${uniqueName}`)
     await authenticatedJournalPage.search(uniqueName)
-    await authenticatedJournalPage.waitForTableToLoad()
 
     // Verify exactly 1 transaction is visible before proceeding
     const txCountBefore = await authenticatedJournalPage.getTransactionCount()
     expect(txCountBefore, 'Should find exactly 1 transaction for unique member').toBe(1)
 
     // === ACT: Click "Abrechnung (alle)" and wait for preview API call ===
-    console.log('Clicking Abrechnung (alle) button...')
     const previewResponsePromise = page.waitForResponse(
       (resp) => resp.url().includes('/api/admin/settlements/filter-preview') && resp.status() === 200
     )
     await authenticatedJournalPage.openSettleAllModal()
-    const previewResponse = await previewResponsePromise
-    console.log('filter-preview API responded with status:', previewResponse.status())
+    await previewResponsePromise
 
     // === ASSERT: Confirm modal is visible with correct stats ===
-    console.log('Verifying confirm modal content...')
     const stats = await authenticatedJournalPage.getSettlementConfirmStats()
-    console.log('Modal stats:', stats)
 
     expect(stats.transactions, 'Modal should show exactly 1 transaction').toBe(1)
     expect(stats.members, 'Modal should show exactly 1 member').toBe(1)
 
     // === ACT: Confirm settlement ===
-    console.log('Confirming settlement...')
-    const settleResponsePromise = page.waitForResponse(
-      (resp) => resp.url().includes('/api/admin/settlements') && resp.status() === 201
-    )
     const settlementId = await authenticatedJournalPage.confirmOpenSettlement()
-    await settleResponsePromise
-    console.log('Settlement created with ID:', settlementId)
 
     // === ASSERT: Navigation to /settlements ===
-    console.log('Waiting for navigation to /settlements...')
-    await page.waitForURL('**/settlements', { timeout: 10000 })
-    expect(page.url(), 'Should navigate to settlements page').toContain('/settlements')
-
-    console.log('✅ Settle-all flow completed: preview modal verified, settlement created, navigation to /settlements')
+    await expect(page).toHaveURL(/\/settlements$/, { timeout: 10000 })
   })
 })
