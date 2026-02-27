@@ -393,6 +393,16 @@ export class SettingsPage {
    * Find admin user row by email text content
    */
   private async findAdminUserRowByEmail(email: string) {
+    // Wait for the admin users list to finish loading before searching.
+    // After a GET response, adminUsersLoading may still be true and the rows are
+    // not yet in the DOM. Waiting for ANY row to appear ensures the list has rendered.
+    // If no rows exist at all (empty list), the wait times out silently and count() returns 0.
+    await this.page
+      .locator('[data-testid^="settings-admin-user-row-"]')
+      .first()
+      .waitFor({ state: 'attached', timeout: 5000 })
+      .catch(() => {})
+
     // Use Playwright's filter() for efficient row lookup without iterating all rows
     const row = this.page
       .locator('[data-testid^="settings-admin-user-row-"]')

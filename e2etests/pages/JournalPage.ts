@@ -346,7 +346,12 @@ export class JournalPage extends BasePage {
   }
 
   async waitForTableToLoad() {
-    // Wait for either table or empty state
+    // Wait for loading indicator to disappear first (Pattern 008: expect for auto-waiting).
+    // The PeriodPicker's onPeriodChange fires twice (non-memoized callback triggers a second
+    // useEffect run), causing a second loadTransactions() → loading:true after the first
+    // response. Waiting for loading to be hidden ensures the DOM has fully settled.
+    await expect(this.loadingIndicator()).toBeHidden({ timeout: 10000 })
+    // Then verify table or empty state is present
     await this.page
       .locator('[data-testid="journal-table"], [data-testid="journal-empty-state"]')
       .first()
