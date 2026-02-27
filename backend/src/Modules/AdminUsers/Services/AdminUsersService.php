@@ -141,6 +141,16 @@ class AdminUsersService
         return ['admin' => AdminUserDto::fromRow($admin), 'password' => $password];
     }
 
+    public function verifyCurrentPassword(string $adminId, string $currentPassword): bool
+    {
+        $admin = $this->adminUsersRepository->findById($adminId);
+        if (!$admin) {
+            return false;
+        }
+
+        return password_verify($currentPassword, $admin['password_hash']);
+    }
+
     public function changeOwnPassword(string $adminId, string $newPassword): void
     {
         $admin = $this->adminUsersRepository->findById($adminId);

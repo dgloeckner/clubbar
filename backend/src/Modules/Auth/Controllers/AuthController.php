@@ -153,10 +153,18 @@ class AuthController
         $body = $request->getParsedBody() ?? [];
 
         if (!$this->validator->validate($body, [
+            'current_password' => ['required', 'string'],
             'new_password' => ['required', 'string', 'min:8', 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/'],
             'new_password_confirmation' => ['required', 'same:new_password'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        if (!$this->adminUsersService->verifyCurrentPassword($adminId, $body['current_password'])) {
+            return $this->json($response, [
+                'error' => 'invalid_credentials',
+                'message' => 'Current password is incorrect',
+            ], 401);
         }
 
         $this->adminUsersService->changeOwnPassword($adminId, $body['new_password']);
