@@ -40,11 +40,10 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- 2. Create Categories
 -- ---------------------------------------------------------------------------
 -- Category: Getränke (Beverages)
-INSERT INTO categories (id, names, display_order, icon_name, is_active, created_at, updated_at)
+INSERT INTO categories (id, names, icon_name, is_active, created_at, updated_at)
 VALUES (
     '11111111-1111-1111-1111-111111111111',
     '{"de": "Getränke", "en": "Beverages"}',
-    1,
     'beer-pils',
     1,
     NOW(),
@@ -52,11 +51,10 @@ VALUES (
 );
 
 -- Category: Sauna
-INSERT INTO categories (id, names, display_order, icon_name, is_active, created_at, updated_at)
+INSERT INTO categories (id, names, icon_name, is_active, created_at, updated_at)
 VALUES (
     '22222222-2222-2222-2222-222222222222',
     '{"de": "Sauna", "en": "Sauna"}',
-    2,
     'sauna-cabin',
     1,
     NOW(),
