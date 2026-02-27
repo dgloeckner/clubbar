@@ -13,6 +13,7 @@ use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\DuplicateResourceException;
+use App\Modules\Auth\Services\TokenService;
 
 class TerminalsService
 {
