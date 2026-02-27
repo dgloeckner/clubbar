@@ -17,7 +17,7 @@ class MembersRepository
 
     public function findById(string $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM members WHERE id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM members WHERE id = ? AND deleted_at IS NULL');
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
@@ -125,7 +125,7 @@ class MembersRepository
 
     public function listPaginated(int $limit, int $offset, array $filters = [], string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $search = null): array
     {
-        $where = [];
+        $where = ['deleted_at IS NULL'];
         $params = [];
 
         if (isset($filters['is_active'])) {
