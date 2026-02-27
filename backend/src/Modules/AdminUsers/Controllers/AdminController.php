@@ -108,15 +108,6 @@ class AdminController
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
-        // Check for duplicate email
-        $existing = $this->adminUsersRepository->findByEmail($body['email']);
-        if ($existing) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'messages' => ['email' => ['Email already exists']]
-            ], 422);
-        }
-
         // Check email uniqueness if provided
         if (isset($body['email'])) {
             $existing = $this->adminUsersRepository->findByEmail($body['email']);
