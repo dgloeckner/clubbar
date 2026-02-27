@@ -171,10 +171,7 @@ test.describe('Admin Frontend - Members Page', () => {
         language: 'de',
       }
 
-      // Step 1: Get baseline count before creating member
-      const initialCount = await authenticatedMembersPage.getMemberRowCount()
-
-      // Step 2: Open create modal and fill all fields
+      // Step 1: Open create modal and fill all fields
       await authenticatedMembersPage.openCreateModal()
       await authenticatedMembersPage.expectFormModalVisible()
 
@@ -309,60 +306,97 @@ test.describe('Admin Frontend - Members Page', () => {
    * UC-A12: Search & Filter Members
    */
   test.describe('UC-A12: Search & Filter Members', () => {
-    test('E2E: should filter members by search text with existing members', async ({ authenticatedMembersPage }) => {
-      // CRITICAL: TRUE E2E test that verifies search integration WITHOUT creating new members
+    test('E2E: should filter members by search text with existing members', async ({ authenticatedMembersPage, page }) => {
+      // CRITICAL: TRUE E2E test that verifies search integration
+      // ========================================================================
+      // Pattern 001 (Test Data Isolation): Create unique member in this test — do NOT
+      // rely on seeded data or getMemberNameAtRowIndex(0) which is flaky in parallel runs.
+      // Pattern 004 (Parallel Execution Safety): Unique name via timestamp ensures no
+      // collision with concurrent tests creating/deleting members.
       // ========================================================================
       // Expected Flow:
-      // 1. Get full list of members (unfiltered count)
-      // 2. Get first member's name from the list
-      // 3. Enter search term in input field
-      // 4. Frontend sends GET /api/admin/members?search=term
-      // 5. Backend filters members by name/email
-      // 6. API returns filtered results
-      // 7. UI updates to show only matching members
-      // 8. Verify: filtered count is less than or equal to total
-      // 9. Verify: search term appears in results
-      // 10. Clear search and verify count returns to original
+      // 1. Create a unique member so we have a known, isolated search target
+      // 2. Enter that member's unique first name as search term
+      // 3. Frontend sends GET /api/admin/members?search=term
+      // 4. Backend filters members by name/email
+      // 5. API returns filtered results
+      // 6. UI updates to show only matching members
+      // 7. Verify: at least one result returned
+      // 8. Verify: our unique member appears in filtered results
+      // 9. Clear search and verify the list is no longer filtered
       // ========================================================================
 
-      // Step 1: Get baseline count (unfiltered)
-      const initialCount = await authenticatedMembersPage.getMemberRowCount()
+      // Step 1: Create a unique member to guarantee an isolated search target.
+      // Pattern 001: unique data per test; Pattern 004: timestamp prevents parallel collisions.
+      // Email local part kept ≤64 chars (RFC 5321): "srch-" (5) + 13-digit timestamp = 18 chars.
+      // mandateReference: "REF" (3) + 13-digit timestamp = 16 chars (≤35 SEPA limit).
+      const timestamp = Date.now()
+      const uniqueFirstName = `Srch${timestamp}`
+      const uniqueLastName = `Filter${timestamp}`
+      const testEmail = `srch-${timestamp}@example.com`
+      const testIban = 'DE89370400440532013000'
+      const testMandateDate = '2025-01-15'
+      const testMandateRef = `REF${timestamp}`
 
-      // Only run test if members exist
-      if (initialCount === 0) {
-        console.log('Skipping search test - no members exist to search')
-        return
-      }
+      await authenticatedMembersPage.openCreateModal()
+      await authenticatedMembersPage.expectFormModalVisible()
+      await authenticatedMembersPage.fillMemberForm(
+        uniqueFirstName,
+        uniqueLastName,
+        testIban,
+        testMandateDate,
+        testEmail
+      )
+      // The mandate reference field is required by the frontend form (HTML required attribute).
+      // The backend auto-generates one if omitted, but the frontend does not — must be filled manually.
+      await authenticatedMembersPage.fillMandateReference(testMandateRef)
 
-      // Step 2: Get first member's name to use as search term
-      const firstMemberName = await authenticatedMembersPage.getMemberNameAtRowIndex(0)
-      expect(firstMemberName).toBeTruthy()
+      // Set up response watchers BEFORE submit to avoid missing fast responses
+      const createResponsePromise = page.waitForResponse(
+        (resp) => resp.url().includes('/api/admin/members') && resp.request().method() === 'POST',
+        { timeout: 10000 }
+      )
+      const listReloadPromise = page.waitForResponse(
+        (resp) => resp.url().includes('/api/admin/members') && resp.request().method() === 'GET' && resp.status() === 200,
+        { timeout: 15000 }
+      )
+      await authenticatedMembersPage.submitForm()
 
-      // Extract first name (format: "FirstName LastName")
-      const firstName = firstMemberName.trim().split(' ')[0]
+      // Verify creation succeeded: form closed and POST returned 201
+      await authenticatedMembersPage.expectFormModalHidden()
+      const createResponse = await createResponsePromise
+      expect(createResponse.status()).toBe(201)
 
-      // Step 3: Enter search term (E2E: input → API call with ?search= param)
-      await authenticatedMembersPage.search(firstName)
+      // Wait for the post-create list reload then verify no error
+      await listReloadPromise
+      const errorMsg = await authenticatedMembersPage.getErrorMessage()
+      expect(errorMsg).toBeNull()
 
-      // Step 4: Verify search input field updated
+      // Get count after creation (this is our baseline for the clear-search assertion)
+      const countAfterCreate = await authenticatedMembersPage.getMemberRowCount()
+
+      // Step 2: Enter the unique first name as search term (E2E: input → API call ?search=)
+      await authenticatedMembersPage.search(uniqueFirstName)
+
+      // Step 3: Verify search input field updated
       const searchValue = await authenticatedMembersPage.getSearchValue()
-      expect(searchValue).toBe(firstName)
+      expect(searchValue).toBe(uniqueFirstName)
 
-      // Step 5: Verify filtered results (E2E: backend filtered, UI updated)
+      // Step 4: Verify filtered results (E2E: backend filtered, UI updated)
       const filteredCount = await authenticatedMembersPage.getMemberRowCount()
-      expect(filteredCount).toBeGreaterThanOrEqual(1) // At least one match
-      expect(filteredCount).toBeLessThanOrEqual(initialCount) // Filtered count <= total
+      expect(filteredCount).toBeGreaterThanOrEqual(1) // At least our newly created member
 
-      // Step 6: Verify the searched member appears in filtered results
-      const memberInFilteredList = await authenticatedMembersPage.getMemberFirstNameInTable(firstName)
-      expect(memberInFilteredList).toContain(firstName)
+      // Step 5: Verify our unique member appears in filtered results
+      // Pattern 003 (Database-Agnostic): search by known data value, not by row index
+      const memberInFilteredList = await authenticatedMembersPage.getMemberFirstNameInTable(uniqueFirstName)
+      expect(memberInFilteredList).toContain(uniqueFirstName)
 
-      // Step 7: Clear search (E2E: API call without ?search= param)
+      // Step 6: Clear search (E2E: API call without ?search= param)
       await authenticatedMembersPage.clearSearch()
 
-      // Step 8: Verify all members returned (count restored)
+      // Step 7: Verify all members returned (count restored to post-create baseline)
       const countAfterClear = await authenticatedMembersPage.getMemberRowCount()
-      expect(countAfterClear).toBe(initialCount)
+      expect(countAfterClear).toBe(countAfterCreate)
     })
 
     test('should search members by text', async ({ authenticatedMembersPage }) => {

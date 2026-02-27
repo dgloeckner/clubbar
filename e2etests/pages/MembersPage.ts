@@ -239,8 +239,21 @@ export class MembersPage extends BasePage {
   }
 
   async clearSearch() {
+    // Wait for the unfiltered list response (search param absent or empty) before returning.
+    const responsePromise = this.page.waitForResponse(
+      (resp) => {
+        if (!resp.url().includes('/api/admin/members') || resp.status() !== 200) return false
+        try {
+          const search = new URL(resp.url()).searchParams.get('search')
+          return !search || search === ''
+        } catch {
+          return false
+        }
+      },
+      { timeout: 10000 }
+    )
     await this.searchInput().clear()
-    await this.waitForDebounce(500)
+    await responsePromise
   }
 
   async getSearchValue(): Promise<string> {
