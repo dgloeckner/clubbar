@@ -186,6 +186,14 @@ export class MembersPage extends BasePage {
     return null
   }
 
+  /** Wait (auto-retry) for a member with the given first name to appear in the table. */
+  async expectMemberVisibleInTable(firstName: string) {
+    // Pattern 008: use expect() for auto-waiting, not count() which is instant.
+    await expect(
+      this.page.locator('[data-testid^="members-table-cell-name-"]').filter({ hasText: firstName })
+    ).toBeVisible({ timeout: 10000 })
+  }
+
   async getMemberLastNameInTable(lastName: string): Promise<string | null> {
     // Search for member by last name in the table
     const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
@@ -236,6 +244,12 @@ export class MembersPage extends BasePage {
     )
     await this.searchInput().fill(query)
     await responsePromise
+    // Wait for loading indicator to disappear (Pattern 008, same as JournalPage).
+    // waitForResponse resolves when the HTTP response arrives, but React may not have
+    // re-rendered yet. If members-empty-state is still in the DOM from a prior state,
+    // getMemberRowCount() / count() would read stale 0. Waiting for loading to be hidden
+    // ensures the DOM has fully settled with the search results.
+    await expect(this.loadingIndicator()).toBeHidden({ timeout: 10000 })
   }
 
   async clearSearch() {
@@ -254,6 +268,7 @@ export class MembersPage extends BasePage {
     )
     await this.searchInput().clear()
     await responsePromise
+    await expect(this.loadingIndicator()).toBeHidden({ timeout: 10000 })
   }
 
   async getSearchValue(): Promise<string> {

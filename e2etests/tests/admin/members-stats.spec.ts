@@ -319,9 +319,18 @@ test.describe('Members Page - Statistics', () => {
   test('should display all three stat cards with proper structure', async ({ page }) => {
     const membersPage = new MembersPage(page)
 
+    // Register dashboard response watcher BEFORE navigation (Pattern 008: register before trigger)
+    const dashboardResponsePromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/dashboard') && resp.status() === 200,
+      { timeout: 10000 }
+    )
+
     // Act: Navigate to members page
     await membersPage.navigate()
     await membersPage.expectPageVisible()
+
+    // Wait for dashboard API to load stat card data (async, fires after page mount)
+    await dashboardResponsePromise
 
     // Assert: All three stat values should be retrievable (cards are visible)
     const memberCount = await membersPage.getMemberCount()

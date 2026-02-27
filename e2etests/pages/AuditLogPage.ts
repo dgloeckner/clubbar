@@ -128,6 +128,10 @@ export class AuditLogPage extends BasePage {
     const select = this.page.getByTestId('audit-log-filter-entity-type')
     await select.selectOption(entityType)
     await responsePromise
+    // Pattern 008: After the API response arrives, React processes it asynchronously.
+    // Wait for the loading indicator to disappear — this confirms the component has
+    // committed the new filtered data to the DOM before we read from it.
+    await expect(this.page.getByTestId('audit-log-loading')).toBeHidden({ timeout: 10000 })
   }
 
   async search(text: string) {

@@ -307,96 +307,78 @@ test.describe('Admin Frontend - Members Page', () => {
    */
   test.describe('UC-A12: Search & Filter Members', () => {
     test('E2E: should filter members by search text with existing members', async ({ authenticatedMembersPage, page }) => {
-      // CRITICAL: TRUE E2E test that verifies search integration
+      // CRITICAL: TRUE E2E test that verifies search integration (UC-A12)
       // ========================================================================
-      // Pattern 001 (Test Data Isolation): Create unique member in this test — do NOT
-      // rely on seeded data or getMemberNameAtRowIndex(0) which is flaky in parallel runs.
-      // Pattern 004 (Parallel Execution Safety): Unique name via timestamp ensures no
-      // collision with concurrent tests creating/deleting members.
+      // Pattern 001 (Test Data Isolation): Create unique member via API — not via UI
+      // form — for reliable, race-condition-free test data setup. The UI form involves
+      // React state, debouncing, and multi-response matching; using the API directly
+      // is the correct Pattern 001 approach for data that is SETUP, not what's being tested.
+      // Pattern 004 (Parallel Execution Safety): Timestamp + random IBAN suffix prevents
+      // collision with concurrent tests creating members.
       // ========================================================================
       // Expected Flow:
-      // 1. Create a unique member so we have a known, isolated search target
-      // 2. Enter that member's unique first name as search term
-      // 3. Frontend sends GET /api/admin/members?search=term
-      // 4. Backend filters members by name/email
-      // 5. API returns filtered results
-      // 6. UI updates to show only matching members
-      // 7. Verify: at least one result returned
+      // 1. Create a unique member via API so we have a known, isolated search target
+      // 2. Navigate fresh to members page
+      // 3. Enter that member's unique first name as search term
+      // 4. Frontend sends GET /api/admin/members?search=term
+      // 5. Backend filters members by name/email
+      // 6. API returns filtered results
+      // 7. UI updates to show only matching members
       // 8. Verify: our unique member appears in filtered results
       // 9. Clear search and verify the list is no longer filtered
       // ========================================================================
 
-      // Step 1: Create a unique member to guarantee an isolated search target.
+      // Step 1: Create a unique member via API for reliable isolated test data.
       // Pattern 001: unique data per test; Pattern 004: timestamp prevents parallel collisions.
       // Email local part kept ≤64 chars (RFC 5321): "srch-" (5) + 13-digit timestamp = 18 chars.
       // mandateReference: "REF" (3) + 13-digit timestamp = 16 chars (≤35 SEPA limit).
+      // Random IBAN suffix avoids any accidental uniqueness conflicts.
       const timestamp = Date.now()
       const uniqueFirstName = `Srch${timestamp}`
-      const uniqueLastName = `Filter${timestamp}`
-      const testEmail = `srch-${timestamp}@example.com`
-      const testIban = 'DE89370400440532013000'
-      const testMandateDate = '2025-01-15'
-      const testMandateRef = `REF${timestamp}`
+      const ibanSuffix = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0')
 
-      await authenticatedMembersPage.openCreateModal()
-      await authenticatedMembersPage.expectFormModalVisible()
-      await authenticatedMembersPage.fillMemberForm(
-        uniqueFirstName,
-        uniqueLastName,
-        testIban,
-        testMandateDate,
-        testEmail
-      )
-      // The mandate reference field is required by the frontend form (HTML required attribute).
-      // The backend auto-generates one if omitted, but the frontend does not — must be filled manually.
-      await authenticatedMembersPage.fillMandateReference(testMandateRef)
+      const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
+        data: {
+          first_name: uniqueFirstName,
+          last_name: `Filter${timestamp}`,
+          email: `srch-${timestamp}@example.com`,
+          iban: `DE89370400440532${ibanSuffix}`,
+          mandate_reference: `REF${timestamp}`,
+          mandate_signed_at: '2025-01-15',
+          preferred_language: 'de',
+          is_active: true,
+        },
+      })
+      expect(memberResponse.status()).toBe(201)
 
-      // Set up response watchers BEFORE submit to avoid missing fast responses
-      const createResponsePromise = page.waitForResponse(
-        (resp) => resp.url().includes('/api/admin/members') && resp.request().method() === 'POST',
-        { timeout: 10000 }
-      )
-      const listReloadPromise = page.waitForResponse(
-        (resp) => resp.url().includes('/api/admin/members') && resp.request().method() === 'GET' && resp.status() === 200,
-        { timeout: 15000 }
-      )
-      await authenticatedMembersPage.submitForm()
+      // Step 2: Navigate fresh to members page so the list includes our new member.
+      await authenticatedMembersPage.navigate()
+      await authenticatedMembersPage.expectPageVisible()
 
-      // Verify creation succeeded: form closed and POST returned 201
-      await authenticatedMembersPage.expectFormModalHidden()
-      const createResponse = await createResponsePromise
-      expect(createResponse.status()).toBe(201)
+      // Get baseline row count (used to verify search clears correctly)
+      const countBeforeSearch = await authenticatedMembersPage.getMemberRowCount()
 
-      // Wait for the post-create list reload then verify no error
-      await listReloadPromise
-      const errorMsg = await authenticatedMembersPage.getErrorMessage()
-      expect(errorMsg).toBeNull()
-
-      // Get count after creation (this is our baseline for the clear-search assertion)
-      const countAfterCreate = await authenticatedMembersPage.getMemberRowCount()
-
-      // Step 2: Enter the unique first name as search term (E2E: input → API call ?search=)
+      // Step 3: Enter the unique first name as search term (E2E: input → API call ?search=)
       await authenticatedMembersPage.search(uniqueFirstName)
 
-      // Step 3: Verify search input field updated
+      // Step 4: Verify search input field updated
       const searchValue = await authenticatedMembersPage.getSearchValue()
       expect(searchValue).toBe(uniqueFirstName)
 
-      // Step 4: Verify filtered results (E2E: backend filtered, UI updated)
-      const filteredCount = await authenticatedMembersPage.getMemberRowCount()
-      expect(filteredCount).toBeGreaterThanOrEqual(1) // At least our newly created member
-
-      // Step 5: Verify our unique member appears in filtered results
-      // Pattern 003 (Database-Agnostic): search by known data value, not by row index
-      const memberInFilteredList = await authenticatedMembersPage.getMemberFirstNameInTable(uniqueFirstName)
-      expect(memberInFilteredList).toContain(uniqueFirstName)
+      // Step 5: Verify our unique member appears in filtered results.
+      // Pattern 008: expect() with auto-retry handles React render delay after
+      // waitForResponse resolves.
+      await authenticatedMembersPage.expectMemberVisibleInTable(uniqueFirstName)
 
       // Step 6: Clear search (E2E: API call without ?search= param)
       await authenticatedMembersPage.clearSearch()
 
-      // Step 7: Verify all members returned (count restored to post-create baseline)
+      // Step 7: Verify full list is restored (count matches pre-search baseline).
+      // Pattern 004: In parallel execution, other tests may create members between the
+      // baseline snapshot (countBeforeSearch) and the clear step. Use >= instead of exact
+      // equality to tolerate concurrent insertions.
       const countAfterClear = await authenticatedMembersPage.getMemberRowCount()
-      expect(countAfterClear).toBe(countAfterCreate)
+      expect(countAfterClear).toBeGreaterThanOrEqual(countBeforeSearch)
     })
 
     test('should search members by text', async ({ authenticatedMembersPage }) => {
