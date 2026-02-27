@@ -142,10 +142,7 @@ test.describe('Statistics Page', () => {
       const table = section.locator('table')
       const emptyMessage = section.locator('text=Keine Produktdaten')
 
-      const tableVisible = await table.isVisible().catch(() => false)
-      const emptyVisible = await emptyMessage.isVisible().catch(() => false)
-
-      expect(tableVisible || emptyVisible).toBeTruthy()
+      await expect(table.or(emptyMessage)).toBeVisible({ timeout: 10000 })
     })
   })
 
@@ -169,10 +166,7 @@ test.describe('Statistics Page', () => {
       const table = section.locator('table')
       const emptyMessage = section.locator('text=Keine Mitgliederdaten')
 
-      const tableVisible = await table.isVisible().catch(() => false)
-      const emptyVisible = await emptyMessage.isVisible().catch(() => false)
-
-      expect(tableVisible || emptyVisible).toBeTruthy()
+      await expect(table.or(emptyMessage)).toBeVisible({ timeout: 10000 })
     })
   })
 

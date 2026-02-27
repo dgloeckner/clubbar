@@ -96,11 +96,7 @@ export class StatisticsPage extends BasePage {
    */
 
   async getCurrentMonth(): Promise<string | null> {
-    try {
-      return await this.monthLabel().textContent()
-    } catch {
-      return null
-    }
+    return (await this.monthLabel().count()) > 0 ? this.monthLabel().textContent() : null
   }
 
   async goToPreviousMonth() {
@@ -124,35 +120,19 @@ export class StatisticsPage extends BasePage {
    */
 
   async getTotalRevenue(): Promise<string | null> {
-    try {
-      return await this.valueTotalRevenue().textContent()
-    } catch {
-      return null
-    }
+    return (await this.valueTotalRevenue().count()) > 0 ? this.valueTotalRevenue().textContent() : null
   }
 
   async getSoldItemsCount(): Promise<string | null> {
-    try {
-      return await this.valueSoldItems().textContent()
-    } catch {
-      return null
-    }
+    return (await this.valueSoldItems().count()) > 0 ? this.valueSoldItems().textContent() : null
   }
 
   async getTopProductName(): Promise<string | null> {
-    try {
-      return await this.valueTopProductName().textContent()
-    } catch {
-      return null
-    }
+    return (await this.valueTopProductName().count()) > 0 ? this.valueTopProductName().textContent() : null
   }
 
   async getTopProductSoldCount(): Promise<string | null> {
-    try {
-      return await this.valueTopProductCount().textContent()
-    } catch {
-      return null
-    }
+    return (await this.valueTopProductCount().count()) > 0 ? this.valueTopProductCount().textContent() : null
   }
 
   /**
@@ -256,6 +236,6 @@ export class StatisticsPage extends BasePage {
   }
 
   async isDataLoaded(): Promise<boolean> {
-    return await this.summaryBoxes().isVisible().catch(() => false)
+    return (await this.summaryBoxes().count()) > 0
   }
 }
