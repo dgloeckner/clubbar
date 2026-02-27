@@ -21,9 +21,25 @@ class AdminController
     {
         $params = $request->getQueryParams();
 
+        // Validate limit: reject non-numeric or values exceeding 100
+        $rawLimit = $params['per_page'] ?? $params['limit'] ?? null;
+        if ($rawLimit !== null) {
+            if (!is_numeric($rawLimit) || (int) $rawLimit != $rawLimit) {
+                return $this->json($response, [
+                    'error' => 'invalid_request',
+                    'messages' => ['limit' => ['limit must be a positive integer']],
+                ], 400);
+            }
+            if ((int) $rawLimit > 100) {
+                return $this->json($response, [
+                    'error' => 'invalid_request',
+                    'messages' => ['limit' => ['limit must not exceed 100']],
+                ], 400);
+            }
+        }
+
         // Support both page/per_page (frontend) and limit/offset (direct) formats
-        $limit = (int) ($params['per_page'] ?? $params['limit'] ?? 50);
-        $limit = min($limit, 100); // Enforce maximum limit
+        $limit = (int) ($rawLimit ?? 50);
         $page = (int) ($params['page'] ?? 1);
         $offset = ($page - 1) * $limit; // Convert page number to offset
 
@@ -40,6 +56,13 @@ class AdminController
         } elseif (isset($params['is_active'])) {
             // Convert string "true"/"false" to boolean
             $filters['is_active'] = filter_var($params['is_active'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        // Language filter
+        if (isset($params['filters']['language'])) {
+            $filters['language'] = $params['filters']['language'];
+        } elseif (isset($params['language'])) {
+            $filters['language'] = $params['language'];
         }
 
         // Card UID filter
@@ -116,6 +139,15 @@ class AdminController
         if (isset($body['card_uid'])) {
             if (!$this->validator->validate($body, [
                 'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/', "unique:members,card_uid,{$memberId}"],
+            ])) {
+                return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            }
+        }
+
+        // Validate preferred_language if provided
+        if (isset($body['preferred_language'])) {
+            if (!$this->validator->validate($body, [
+                'preferred_language' => ['string', 'in:de,en,fr'],
             ])) {
                 return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
             }
