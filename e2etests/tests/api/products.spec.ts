@@ -240,7 +240,7 @@ test.describe('Products API - Create', () => {
       data: createValidProduct(category.id),
     });
 
-    expect(response.status()).toBe(400);
+    expect(response.status()).toBe(409);
   });
 
   test('POST /api/admin/products stores descriptions', async ({ authenticatedRequest }) => {
