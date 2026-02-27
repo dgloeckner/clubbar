@@ -173,16 +173,25 @@ test.describe('Admin Frontend - UI Features', () => {
       expect(cardCount).toBeGreaterThanOrEqual(1)
     })
 
-    test('should display member count statistic', async ({ authenticatedMembersPage }) => {
+    test('should display member count statistic', async ({ authenticatedMembersPage, page }) => {
+      // The stat card loads its value asynchronously via /api/admin/dashboard.
+      // Navigate fresh and capture the dashboard response before reading the stat.
+      const dashboardResponsePromise = page.waitForResponse(
+        (resp) => resp.url().includes('/api/admin/dashboard') && resp.status() === 200,
+        { timeout: 10000 }
+      )
+      await page.goto('/members')
+      await dashboardResponsePromise
+
       // Get member count from stat card
       const memberCount = await authenticatedMembersPage.getMemberCount()
 
       // Should be a number
       expect(memberCount).toMatch(/^\d+$/)
 
-      // Count should be >= 0
+      // Count should be >= 1 (seeded data has 8 active members)
       const count = parseInt(memberCount, 10)
-      expect(count).toBeGreaterThanOrEqual(0)
+      expect(count).toBeGreaterThanOrEqual(1)
     })
 
     test('should display balance statistic', async ({ authenticatedMembersPage }) => {

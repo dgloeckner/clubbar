@@ -68,14 +68,14 @@ test.describe("Dashboard API", () => {
     const metrics = data.metrics;
 
     // All counts should be non-negative integers
-    expect(metrics.active_members).toBeGreaterThanOrEqual(0);
-    expect(metrics.inactive_members).toBeGreaterThanOrEqual(0);
+    expect(metrics.active_members).toBeGreaterThanOrEqual(1); // Seeded data has 8 active members
+    expect(metrics.inactive_members).toBeGreaterThanOrEqual(0); // Seeded data has 0 inactive members; 0 is valid
     expect(metrics.outstanding_balance_cents).toBeGreaterThanOrEqual(-Infinity); // Can be negative
     expect(metrics.todays_revenue_cents).toBeGreaterThanOrEqual(-Infinity); // Can be negative
-    expect(metrics.terminal_count).toBeGreaterThanOrEqual(0);
-    expect(metrics.active_terminals).toBeGreaterThanOrEqual(0);
-    expect(metrics.settled_members).toBeGreaterThanOrEqual(0);
-    expect(metrics.sepa_issue_count).toBeGreaterThanOrEqual(0);
+    expect(metrics.terminal_count).toBeGreaterThanOrEqual(1); // Seeded data has 1 terminal
+    expect(metrics.active_terminals).toBeGreaterThanOrEqual(1); // Seeded data has 1 active terminal
+    expect(metrics.settled_members).toBeGreaterThanOrEqual(0); // No settlements seeded; 0 is valid
+    expect(metrics.sepa_issue_count).toBeGreaterThanOrEqual(0); // Seeded members all have valid SEPA data; 0 is valid
 
     // Verify active terminals <= total terminals
     expect(metrics.active_terminals).toBeLessThanOrEqual(metrics.terminal_count);

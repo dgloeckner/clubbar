@@ -328,8 +328,8 @@ test.describe('Members Page - Statistics', () => {
     const openBalance = await membersPage.getOpenBalance()
     const lastSettlement = await membersPage.getLastSettlementDate()
 
-    // Member count should be a number
-    expect(parseInt(memberCount, 10)).toBeGreaterThanOrEqual(0)
+    // Member count should be a positive number (seeded data has 8 active members)
+    expect(parseInt(memberCount, 10)).toBeGreaterThanOrEqual(1)
 
     // Open balance should contain currency symbol or number
     expect(openBalance).toMatch(/[\d.,€]/)

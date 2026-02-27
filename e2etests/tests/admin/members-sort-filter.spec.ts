@@ -87,13 +87,13 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     // Step 2: Get count of active members
     await authenticatedMembersPage.setStatusFilter('active')
     const activeCount = await authenticatedMembersPage.getMemberRowCount()
-    expect(activeCount).toBeGreaterThanOrEqual(0)  // Could be 0 if all are inactive
+    expect(activeCount).toBeGreaterThanOrEqual(1)  // Seeded data has 8 active members
     expect(activeCount).toBeLessThanOrEqual(allCount)  // Active is subset of all
 
     // Step 3: Get count of inactive members
     await authenticatedMembersPage.setStatusFilter('inactive')
     const inactiveCount = await authenticatedMembersPage.getMemberRowCount()
-    expect(inactiveCount).toBeGreaterThanOrEqual(0)  // Could be 0 if all are active
+    expect(inactiveCount).toBeGreaterThanOrEqual(0)  // Seeded data has 0 inactive members; 0 is valid
     expect(inactiveCount).toBeLessThanOrEqual(allCount)  // Inactive is subset of all
 
     // Step 4: Verify logic: sum of filtered results <= total (respects pagination)
