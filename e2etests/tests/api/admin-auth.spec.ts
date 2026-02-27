@@ -53,7 +53,8 @@ test.describe("Admin Authentication", () => {
       expect(data.admin).toHaveProperty("id");
       expect(data.admin).toHaveProperty("email", ADMIN_EMAIL);
       expect(data.admin).toHaveProperty("display_name");
-      expect(data.admin).toHaveProperty("locale", "de");
+      expect(data.admin).toHaveProperty("locale"); // mutable by i18n tests — don't assert specific value
+      expect(["de", "en"]).toContain(data.admin.locale); // but must be a valid locale
 
       // Verify session cookie is set
       const setCookieHeader = response.headers()["set-cookie"];
@@ -194,7 +195,8 @@ test.describe("Admin Authentication", () => {
       expect(data.admin).toHaveProperty("id", "33e4567-e89b-12d3-a456-426614174000");
       expect(data.admin).toHaveProperty("email", ADMIN_EMAIL);
       expect(data.admin).toHaveProperty("display_name"); // mutable by profile tests — don't assert specific value
-      expect(data.admin).toHaveProperty("locale", "de");
+      expect(data.admin).toHaveProperty("locale"); // mutable by i18n tests — don't assert specific value
+      expect(["de", "en"]).toContain(data.admin.locale); // but must be a valid locale
       expect(data.admin).toHaveProperty("last_login_at");
     });
 
