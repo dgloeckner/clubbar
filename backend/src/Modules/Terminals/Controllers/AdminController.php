@@ -112,7 +112,7 @@ class AdminController
         $terminal = $this->terminalsService->updateTerminal(
             $id,
             $body['name'] ?? null,
-            isset($body['is_active']) ? (bool) $body['is_active'] : null,
+            isset($body['is_active']) ? filter_var($body['is_active'], FILTER_VALIDATE_BOOLEAN) : null,
             $adminId,
         );
 
