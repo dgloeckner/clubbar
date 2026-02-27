@@ -21,27 +21,36 @@ class AdminController
         $limit = (int) ($params['limit'] ?? 50);
         $offset = (int) ($params['offset'] ?? 0);
 
+        $nested = $params['filters'] ?? [];
+
         $filters = [];
-        if (isset($params['date_from'])) {
-            $filters['date_from'] = $params['date_from'];
+        $dateFrom = $nested['date_from'] ?? $params['date_from'] ?? null;
+        if ($dateFrom !== null) {
+            $filters['date_from'] = $dateFrom;
         }
-        if (isset($params['date_to'])) {
-            $filters['date_to'] = $params['date_to'];
+        $dateTo = $nested['date_to'] ?? $params['date_to'] ?? null;
+        if ($dateTo !== null) {
+            $filters['date_to'] = $dateTo;
         }
-        if (isset($params['action'])) {
-            $filters['action'] = $params['action'];
+        $action = $nested['action'] ?? $params['action'] ?? null;
+        if ($action !== null) {
+            $filters['action'] = $action;
         }
-        if (isset($params['entity_type'])) {
-            $filters['entity_type'] = $params['entity_type'];
+        $entityType = $nested['entity_type'] ?? $params['entity_type'] ?? null;
+        if ($entityType !== null) {
+            $filters['entity_type'] = $entityType;
         }
-        if (isset($params['admin_user_id'])) {
-            $filters['admin_user_id'] = $params['admin_user_id'];
+        $adminUserId = $nested['admin_user_id'] ?? $params['admin_user_id'] ?? null;
+        if ($adminUserId !== null) {
+            $filters['admin_user_id'] = $adminUserId;
         }
-        if (isset($params['search'])) {
-            $filters['search'] = $params['search'];
+        $search = $nested['search'] ?? $params['search'] ?? null;
+        if ($search !== null) {
+            $filters['search'] = $search;
         }
-        if (isset($params['filters']['entity_id'])) {
-            $filters['entity_id'] = $params['filters']['entity_id'];
+        $entityId = $nested['entity_id'] ?? $params['entity_id'] ?? null;
+        if ($entityId !== null) {
+            $filters['entity_id'] = $entityId;
         }
 
         $result = $this->auditLogRepository->listWithFilters($limit, $offset, $filters);

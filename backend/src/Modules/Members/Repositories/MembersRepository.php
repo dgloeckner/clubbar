@@ -22,6 +22,13 @@ class MembersRepository
         return $stmt->fetch() ?: null;
     }
 
+    public function findByIdIncludingDeleted(string $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM members WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
+    }
+
     public function findAll(): array
     {
         return $this->db->query('SELECT * FROM members ORDER BY created_at DESC')->fetchAll();

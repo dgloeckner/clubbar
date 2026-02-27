@@ -198,14 +198,14 @@ class MembersService
         }
 
         $this->membersRepository->anonymize($memberId);
-        $member = $this->membersRepository->findById($memberId);
+        $member = $this->membersRepository->findByIdIncludingDeleted($memberId);
 
         $this->auditService->log(
             action: AuditAction::ANONYMIZE,
             entityType: EntityType::MEMBER,
             entityId: $memberId,
             oldValues: ['first_name' => $oldMember['first_name'], 'last_name' => $oldMember['last_name'], 'iban' => '[MASKED]'],
-            newValues: ['first_name' => 'DELETED', 'last_name' => 'DELETED'],
+            newValues: ['first_name' => 'DELETED', 'last_name' => 'DELETED', 'deleted_at' => $member['deleted_at']],
             adminUserId: $adminUserId,
         );
 
