@@ -77,7 +77,7 @@ test.describe('Delta Sync Behavior - Members', () => {
     const initialBody = await initialResponse.json();
     const cursor = initialBody.cursor;
     expect(cursor).toBeDefined();
-    expect(typeof cursor).toBe('string'); // Cursor is a Unix timestamp in milliseconds, returned as string
+    expect(typeof cursor).toBe('number'); // Cursor is a Unix timestamp in milliseconds
 
     // Small delay
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -186,7 +186,7 @@ test.describe('Delta Sync Behavior - Categories', () => {
     const initialBody = await initialResponse.json();
     const cursor = initialBody.cursor;
     expect(cursor).toBeDefined();
-    expect(typeof cursor).toBe('string'); // Cursor is a Unix timestamp in milliseconds, returned as string
+    expect(typeof cursor).toBe('number'); // Cursor is a Unix timestamp in milliseconds
 
     // Small delay
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -286,7 +286,7 @@ test.describe('Delta Sync Behavior - Products', () => {
     const initialBody = await initialResponse.json();
     const cursor = initialBody.cursor;
     expect(cursor).toBeDefined();
-    expect(typeof cursor).toBe('string'); // Cursor is a Unix timestamp in milliseconds, returned as string
+    expect(typeof cursor).toBe('number'); // Cursor is a Unix timestamp in milliseconds
 
     // Small delay
     await new Promise((resolve) => setTimeout(resolve, 100));

@@ -17,7 +17,7 @@ final readonly class SyncResultDto
         $mappedItems = array_map(fn($item) => is_object($item) && method_exists($item, 'toArray') ? $item->toArray() : $item, $this->items);
         return [
             $itemsKey => $mappedItems,
-            'cursor' => (string) $this->cursor,
+            'cursor' => $this->cursor,
             'count' => count($mappedItems),
             'has_more' => $this->hasMore,
         ];

@@ -589,7 +589,7 @@ test.describe('Products API - Terminal Sync', () => {
     const body = await response.json();
 
     expect(body.cursor).toBeDefined();
-    expect(typeof body.cursor).toBe('string');
+    expect(typeof body.cursor).toBe('number');
   });
 
   test('GET /api/sync/products returns product names in all languages', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
