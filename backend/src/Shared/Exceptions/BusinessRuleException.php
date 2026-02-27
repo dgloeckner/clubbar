@@ -11,7 +11,7 @@ class BusinessRuleException extends AppException
 {
     public function getHttpStatusCode(): int
     {
-        return 400;
+        return 409;
     }
 
     public function getErrorCode(): string
