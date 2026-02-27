@@ -6,7 +6,6 @@ namespace App\Modules\Terminals\Controllers;
 
 use App\Modules\Terminals\Services\TerminalsService;
 use App\Shared\Exceptions\DuplicateResourceException;
-use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Validation\Validator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
