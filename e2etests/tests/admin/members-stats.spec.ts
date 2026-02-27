@@ -285,6 +285,7 @@ test.describe('Members Page - Statistics', () => {
         transaction_ids: [transaction.id],
         settlement_date: settlementDate,
         execution_date: executionDate,
+        settlement_type: 'sepa',
         description: `Test Settlement ${uniqueId}`,
       },
     })

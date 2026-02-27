@@ -29,7 +29,7 @@ test.describe('Profile Page', () => {
     })
 
     test('should display page title', async ({ page }) => {
-      await expect(page.getByRole('heading', { name: 'Mein Profil' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Profil' })).toBeVisible()
     })
   })
 

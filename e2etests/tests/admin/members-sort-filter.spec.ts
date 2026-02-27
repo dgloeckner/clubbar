@@ -116,14 +116,18 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     const cardUid = `${timestamp}`.slice(-16) // Use last 16 digits (fits in VARCHAR(20))
     const page = authenticatedMembersPage.page
 
+    // Use distinct names that are not substrings of each other
+    const withCardName = `${testId}HasCard`
+    const withoutCardName = `${testId}NoCard`
+
     // Create member WITH card (use unique card_uid based on timestamp)
     await page.request.post('http://localhost:8080/api/admin/members', {
       data: {
-        first_name: `${testId}With`,
+        first_name: withCardName,
         last_name: 'Test',
-        email: `${testId}with@test.com`,
+        email: `${testId}hc@test.com`,
         iban: 'DE89370400440532013000',
-        mandate_reference: `MAN${testId}W`,
+        mandate_reference: `MAN${testId}HC`,
         mandate_signed_at: '2024-01-15',
         preferred_language: 'de',
         card_uid: cardUid
@@ -133,11 +137,11 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     // Create member WITHOUT card
     await page.request.post('http://localhost:8080/api/admin/members', {
       data: {
-        first_name: `${testId}Without`,
+        first_name: withoutCardName,
         last_name: 'Test',
-        email: `${testId}without@test.com`,
+        email: `${testId}nc@test.com`,
         iban: 'DE89370400440532013001',
-        mandate_reference: `MAN${testId}WO`,
+        mandate_reference: `MAN${testId}NC`,
         mandate_signed_at: '2024-01-15',
         preferred_language: 'de'
       }
@@ -150,25 +154,25 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     await page.click('[data-testid="filter-card-with"]')
     await page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
 
-    // Verify only "With" member shown
-    await expect(page.locator('text=' + testId + 'With')).toBeVisible()
-    await expect(page.locator('text=' + testId + 'Without')).not.toBeVisible()
+    // Verify only "HasCard" member shown (use exact text match via getByText)
+    await expect(page.getByText(withCardName, { exact: false })).toBeVisible()
+    await expect(page.getByText(withoutCardName, { exact: false })).not.toBeVisible()
 
     // Click "Without Card" filter
     await page.click('[data-testid="filter-card-without"]')
     await page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
 
-    // Verify only "Without" member shown
-    await expect(page.locator('text=' + testId + 'With')).not.toBeVisible()
-    await expect(page.locator('text=' + testId + 'Without')).toBeVisible()
+    // Verify only "NoCard" member shown
+    await expect(page.getByText(withCardName, { exact: false })).not.toBeVisible()
+    await expect(page.getByText(withoutCardName, { exact: false })).toBeVisible()
 
     // Click "All" to reset
     await page.click('[data-testid="filter-card-all"]')
     await page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
 
     // Verify both shown
-    await expect(page.locator('text=' + testId + 'With')).toBeVisible()
-    await expect(page.locator('text=' + testId + 'Without')).toBeVisible()
+    await expect(page.getByText(withCardName, { exact: false })).toBeVisible()
+    await expect(page.getByText(withoutCardName, { exact: false })).toBeVisible()
   })
 
   test('E2E: clearing card_uid via edit form moves member to ohne-karte filter', async ({ authenticatedMembersPage }) => {

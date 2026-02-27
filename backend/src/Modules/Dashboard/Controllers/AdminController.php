@@ -8,6 +8,7 @@ use App\Modules\Dashboard\DTOs\DashboardDto;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
+use App\Modules\Terminals\Repositories\TerminalsRepository;
 use PDO;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -18,6 +19,7 @@ class AdminController
         private MembersRepository $membersRepository,
         private TransactionsRepository $transactionsRepository,
         private SettlementsRepository $settlementsRepository,
+        private TerminalsRepository $terminalsRepository,
         private PDO $db,
     ) {}
 
@@ -36,6 +38,62 @@ class AdminController
         // Calculate outstanding balance (unsettled transactions)
         $outstandingBalanceCents = $this->transactionsRepository->sumUnsettledAmountCents();
 
+        // Get recent transactions (last 10, ordered by created_at DESC)
+        $recentTxStmt = $this->db->prepare(
+            "SELECT t.id, t.member_id, CONCAT(m.first_name, ' ', m.last_name) as member_name,
+                    t.transaction_type as type, t.amount_cents,
+                    p.names as product_names, t.created_at as timestamp
+             FROM transactions t
+             LEFT JOIN members m ON t.member_id = m.id
+             LEFT JOIN products p ON t.product_id = p.id
+             ORDER BY t.created_at DESC
+             LIMIT 10"
+        );
+        $recentTxStmt->execute();
+        $recentTransactionRows = $recentTxStmt->fetchAll();
+        $recentTransactionsList = [];
+        foreach ($recentTransactionRows as $row) {
+            $productName = null;
+            if ($row['product_names']) {
+                $names = json_decode($row['product_names'], true);
+                $productName = $names['de'] ?? $names['en'] ?? null;
+            }
+            $recentTransactionsList[] = [
+                'id' => $row['id'],
+                'member_id' => $row['member_id'],
+                'member_name' => $row['member_name'],
+                'type' => $row['type'],
+                'amount_cents' => (int) $row['amount_cents'],
+                'product_name' => $productName,
+                'timestamp' => $row['timestamp'],
+            ];
+        }
+
+        // Get terminal status
+        $terminalRows = $this->terminalsRepository->findAll();
+        $terminalStatusList = [];
+        foreach ($terminalRows as $terminal) {
+            $terminalStatusList[] = [
+                'id' => $terminal['id'],
+                'name' => $terminal['name'],
+                'device_id' => $terminal['device_id'],
+                'is_active' => (bool) $terminal['is_active'],
+                'last_sync_at' => $terminal['last_sync_at'] ?? null,
+            ];
+        }
+
+        // SEPA alerts
+        $sepaIssueCount = (int) $this->db->query(
+            "SELECT COUNT(*) FROM members WHERE (iban IS NULL OR mandate_reference IS NULL) AND deleted_at IS NULL"
+        )->fetchColumn();
+        $sepaAlert = [
+            'count' => $sepaIssueCount,
+            'severity' => $sepaIssueCount === 0 ? 'none' : ($sepaIssueCount <= 5 ? 'warning' : 'error'),
+            'message' => $sepaIssueCount === 0 ? 'No SEPA data issues' : "{$sepaIssueCount} members missing SEPA data",
+        ];
+
+        $activeTerminalCount = $this->terminalsRepository->countActive();
+
         // Build dashboard DTO with proper structure
         $dto = new DashboardDto(
             metrics: [
@@ -43,13 +101,13 @@ class AdminController
                 'inactive_members' => $totalMembers - $activeMembers,
                 'outstanding_balance_cents' => $outstandingBalanceCents,
                 'todays_revenue_cents' => $this->transactionsRepository->sumRecentAmountCents(days: 1),
-                'terminal_count' => 0, // Future: Implement terminal counting
-                'active_terminals' => 0, // Future: Implement active terminal counting
-                'settled_members' => 0, // Future: Implement settled members counting
-                'sepa_issue_count' => 0, // Future: Implement SEPA issue counting
+                'terminal_count' => count($terminalRows),
+                'active_terminals' => $activeTerminalCount,
+                'settled_members' => 0,
+                'sepa_issue_count' => $sepaIssueCount,
             ],
-            recentTransactions: [], // Future: Implement recent transactions
-            terminalStatus: [], // Future: Implement terminal status
+            recentTransactions: $recentTransactionsList,
+            terminalStatus: $terminalStatusList,
             systemStatus: [
                 'last_settlement_date' => $lastSettlementDate,
                 'pending_settlement_count' => $pendingSettlements,
@@ -57,7 +115,7 @@ class AdminController
                 'total_transactions' => $recentTransactions,
                 'database_health' => 'ok',
             ],
-            alerts: [], // Future: Implement alerts
+            alerts: ['sepa_issues' => $sepaAlert],
         );
 
         return $this->json($response, $dto->toArray());

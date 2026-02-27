@@ -200,29 +200,37 @@ test.describe('Admin Frontend - Members Page', () => {
       expect(await authenticatedMembersPage.getFormLanguageValue()).toBe(testData.language)
 
       // Step 4: Submit form (E2E: POST to backend, database save)
+      // Set up watchers BEFORE submit to avoid missing fast responses
+      const createResponsePromise = page.waitForResponse(
+        (resp) => resp.url().includes('/api/admin/members') && resp.request().method() === 'POST',
+        { timeout: 10000 }
+      )
+      const listReloadPromise = page.waitForResponse(
+        (resp) => resp.url().includes('/api/admin/members') && resp.request().method() === 'GET' && resp.status() === 200,
+        { timeout: 15000 }
+      )
       await authenticatedMembersPage.submitForm()
 
       // Step 5: Verify form closes (indicates API success)
       await authenticatedMembersPage.expectFormModalHidden()
 
-      // Step 6: Give UI a moment to start reloading
-      await page.waitForTimeout(500)
+      // Step 6: Verify POST succeeded (member was saved in DB)
+      const createResponse = await createResponsePromise
+      expect(createResponse.status()).toBe(201)
 
       // Step 7: Verify page is still accessible (no crash/navigation)
       await expect(page.locator('[data-testid="members-page"]')).toBeVisible()
 
-      // Step 8: Wait a bit more for list to reload
-      await page.waitForTimeout(1500)
+      // Step 8: Wait for the post-create list reload to complete
+      await listReloadPromise
 
       // Step 9: Search for created member (handles pagination)
-      // Note: We search instead of checking count because list is paginated (20 items/page)
-      // and sorted by created_at desc, so new member should be on page 1 but we search to be safe
       await authenticatedMembersPage.search(testData.firstName)
-      await authenticatedMembersPage.waitForLoadingToComplete()
 
-      // Step 10: Verify created member appears in table
-      const createdMemberRow = await authenticatedMembersPage.getMemberFirstNameInTable(testData.firstName)
-      expect(createdMemberRow).toBeTruthy()
+      // Step 10: Verify created member appears in table using Playwright auto-retry
+      const memberCell = page.locator('[data-testid^="members-table-cell-name-"]').filter({ hasText: testData.firstName })
+      await expect(memberCell).toBeVisible({ timeout: 10000 })
+      const createdMemberRow = await memberCell.first().textContent()
       expect(createdMemberRow).toContain(testData.firstName)
       expect(createdMemberRow).toContain(testData.lastName)
 
@@ -692,19 +700,19 @@ test.describe('Admin Frontend - Members Page', () => {
       await page.fill('[data-testid="member-form-card-uid"]', cardUid)
 
       // Step 3: Submit form (E2E: POST to backend)
+      // Set up response waiter BEFORE clicking (Pattern: avoid race condition)
+      const responsePromise = page.waitForResponse(
+        (resp) => resp.url().includes('/api/admin/members') && resp.request().method() === 'POST',
+        { timeout: 15000 }
+      )
       await page.click('[data-testid="members-form-submit-button"]')
 
-      // Wait a moment to see if error appears
-      await page.waitForTimeout(1000)
-
-      // Check if there's an error message
-      const errorMsg = await page.locator('[data-testid="members-error-message"]').textContent().catch(() => null)
-      if (errorMsg) {
-        console.log('Error message visible:', errorMsg)
-      }
+      // Wait for API response
+      const response = await responsePromise
+      expect(response.status()).toBe(201)
 
       // Step 4: Verify form closes (indicates API success)
-      await page.waitForSelector('[data-testid="members-form-modal"]', { state: 'hidden' })
+      await authenticatedMembersPage.expectFormModalHidden()
 
       // Step 5: Wait for list to reload
       await page.waitForTimeout(1500)
@@ -735,7 +743,8 @@ test.describe('Admin Frontend - Members Page', () => {
       // Test: Card UID must be 8-20 hex characters
       await authenticatedMembersPage.openCreateModal()
 
-      // Try invalid format (too short - less than 8 characters)
+      // Try invalid format (too short - less than 8 valid hex characters)
+      // Note: input auto-strips non-hex, so use a short valid hex string
       await page.fill('[data-testid="member-form-card-uid"]', '123')
 
       // Blur to trigger validation
@@ -744,16 +753,19 @@ test.describe('Admin Frontend - Members Page', () => {
       // Wait for validation message to appear
       await page.waitForTimeout(300)
 
-      // Verify validation error appears (partial match)
-      await expect(page.locator(':text("Invalid card UID format")')).toBeVisible()
+      // Verify validation error appears using data-testid
+      await expect(page.getByTestId('member-form-card-uid-format-error')).toBeVisible()
     })
 
     test('should validate card_uid format - non-hex characters', async ({ page, authenticatedMembersPage }) => {
       // Test: Card UID must contain only hex characters (0-9, A-F)
+      // Note: input auto-strips non-hex chars (onChange handler), so test with a
+      // value that after stripping is still too short (< 8 chars)
       await authenticatedMembersPage.openCreateModal()
 
-      // Try invalid format (non-hex characters)
-      await page.fill('[data-testid="member-form-card-uid"]', '00031956XY')
+      // Enter a value with non-hex chars that strips to < 8 valid hex chars
+      // 'ABCXYZ' strips to 'ABC' (3 valid hex chars) — format error triggers
+      await page.fill('[data-testid="member-form-card-uid"]', 'ABCXYZ')
 
       // Blur to trigger validation
       await page.locator('[data-testid="member-form-card-uid"]').blur()
@@ -761,15 +773,15 @@ test.describe('Admin Frontend - Members Page', () => {
       // Wait for validation message
       await page.waitForTimeout(300)
 
-      // Verify validation error appears (partial match)
-      await expect(page.locator(':text("Invalid card UID format")')).toBeVisible()
+      // Verify validation error appears using data-testid
+      await expect(page.getByTestId('member-form-card-uid-format-error')).toBeVisible()
     })
 
     test('should accept valid card_uid format', async ({ page, authenticatedMembersPage }) => {
       // Test: Valid card UID (8-20 hex characters) should not show error
       await authenticatedMembersPage.openCreateModal()
 
-      // Enter valid card UID
+      // Enter valid card UID (8+ hex characters)
       await page.fill('[data-testid="member-form-card-uid"]', '0003195661')
 
       // Blur to trigger validation
@@ -778,8 +790,8 @@ test.describe('Admin Frontend - Members Page', () => {
       // Wait a moment
       await page.waitForTimeout(300)
 
-      // Verify NO validation error appears
-      await expect(page.locator(':text("Invalid card UID format")')).not.toBeVisible()
+      // Verify NO validation error appears using data-testid
+      await expect(page.getByTestId('member-form-card-uid-format-error')).not.toBeVisible()
     })
 
     test('should auto-uppercase and strip non-hex characters', async ({ page, authenticatedMembersPage }) => {
@@ -887,6 +899,7 @@ test.describe('Admin Frontend - Members Page', () => {
       // Fill required fields WITHOUT card_uid
       await page.fill('[data-testid="members-form-first-name-input"]', testId)
       await page.fill('[data-testid="members-form-last-name-input"]', 'Test')
+      await page.fill('[data-testid="members-form-email-input"]', `${testId}@test.com`)
       await page.fill('[data-testid="members-form-iban-input"]', 'DE89370400440532013001')
       await page.fill('[data-testid="members-form-mandate-reference-input"]', `MAN${testId}`)
       await page.fill('[data-testid="members-form-mandate-date-input"]', '2024-01-15')
@@ -896,20 +909,19 @@ test.describe('Admin Frontend - Members Page', () => {
       const cardUidValue = await page.inputValue('[data-testid="member-form-card-uid"]')
       expect(cardUidValue).toBe('')
 
-      // Submit form
+      // Submit form - wait for API response BEFORE clicking to avoid race condition
+      const responsePromise = page.waitForResponse(
+        (resp) => resp.url().includes('/api/admin/members') && resp.request().method() === 'POST',
+        { timeout: 15000 }
+      )
       await page.click('[data-testid="members-form-submit-button"]')
 
-      // Wait a moment to see if error appears
-      await page.waitForTimeout(1000)
-
-      // Check if there's an error message
-      const errorMsg = await page.locator('[data-testid="members-error-message"]').textContent().catch(() => null)
-      if (errorMsg) {
-        console.log('Error message visible:', errorMsg)
-      }
+      // Wait for API response
+      const response = await responsePromise
+      expect(response.status()).toBe(201)
 
       // Verify form closes (indicates success)
-      await page.waitForSelector('[data-testid="members-form-modal"]', { state: 'hidden' })
+      await authenticatedMembersPage.expectFormModalHidden()
 
       // Verify member was created (no error occurred)
       await page.waitForTimeout(1500)

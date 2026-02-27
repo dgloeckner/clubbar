@@ -41,7 +41,7 @@ class AdminController
         // Support both page/per_page (frontend) and limit/offset (direct) formats
         $limit = (int) ($rawLimit ?? 50);
         $page = (int) ($params['page'] ?? 1);
-        $offset = ($page - 1) * $limit; // Convert page number to offset
+        $offset = isset($params['offset']) ? (int) $params['offset'] : ($page - 1) * $limit;
 
         // Support both sort/order (frontend) and sort_key/sort_order (direct) formats
         $sortKey = $params['sort'] ?? $params['sort_key'] ?? 'created_at';
@@ -111,10 +111,10 @@ class AdminController
             phone: $body['phone'] ?? null,
             cardUid: $body['card_uid'] ?? null,
             language: $language,
-            iban: $body['iban'] ?? null,
-            accountHolderName: $body['account_holder_name'] ?? null,
-            mandateReference: $body['mandate_reference'] ?? null,
-            mandateSignedAt: $body['mandate_signed_at'] ?? null,
+            iban: ($body['iban'] ?? null) ?: null,
+            accountHolderName: ($body['account_holder_name'] ?? null) ?: null,
+            mandateReference: ($body['mandate_reference'] ?? null) ?: null,
+            mandateSignedAt: ($body['mandate_signed_at'] ?? null) ?: null,
             adminUserId: $adminId,
         );
 

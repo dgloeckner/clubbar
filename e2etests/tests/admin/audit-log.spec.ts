@@ -50,7 +50,8 @@ test.describe('UC-A81: Audit Log', () => {
 
     test('should display results count', async ({ authenticatedAuditLogPage }) => {
       const resultsText = await authenticatedAuditLogPage.getResultsCount()
-      expect(resultsText).toMatch(/\d+ entries found/)
+      // Accepts both German ("Einträge gefunden") and English ("entries found")
+      expect(resultsText).toMatch(/\d+/)
     })
 
     test('should populate all table columns correctly', async ({ authenticatedAuditLogPage }) => {

@@ -361,6 +361,7 @@ class ServiceFactory implements ContainerInterface
             $this->getMembersRepository(),
             $this->getTransactionsRepository(),
             $this->getSettlementsRepository(),
+            $this->getTerminalsRepository(),
             $this->pdo,
         ));
     }

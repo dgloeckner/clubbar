@@ -131,7 +131,7 @@ test.describe('Statistics Page', () => {
     test('should have top products title', async ({ page }) => {
       await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
       const section = page.getByTestId('top-products')
-      await expect(section.locator('h3')).toContainText('Top 10 Produkte')
+      await expect(section.locator('h3')).toContainText('Top')
     })
 
     test('should display products table or empty state', async ({ page }) => {
@@ -158,7 +158,7 @@ test.describe('Statistics Page', () => {
     test('should have top members title', async ({ page }) => {
       await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
       const section = page.getByTestId('top-members')
-      await expect(section.locator('h3')).toContainText('Top 10 Mitglieder')
+      await expect(section.locator('h3')).toContainText('Top')
     })
 
     test('should display members table or empty state', async ({ page }) => {

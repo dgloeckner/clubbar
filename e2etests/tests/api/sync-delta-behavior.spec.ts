@@ -24,7 +24,7 @@ test.describe('Delta Sync Behavior - Members', () => {
     const beforeCreate = toUnixTimestamp(new Date());
 
     // Small delay to ensure time difference
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 1100)); // MySQL DATETIME has second precision
 
     // Create a new member
     const member = await testTransactions.createMember('DeltaTest', 'Member');
@@ -80,7 +80,7 @@ test.describe('Delta Sync Behavior - Members', () => {
     expect(typeof cursor).toBe('number'); // Cursor is a Unix timestamp in milliseconds
 
     // Small delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 1100)); // MySQL DATETIME has second precision
 
     // Create a new member after capturing cursor
     const newMember = await testTransactions.createMember('DeltaCursor', 'Member');
@@ -111,7 +111,7 @@ test.describe('Delta Sync Behavior - Categories', () => {
     const beforeCreate = toUnixTimestamp(new Date());
 
     // Small delay to ensure time difference
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 1100)); // MySQL DATETIME has second precision
 
     // Create a new category
     const uniqueName = `DeltaCat_${Date.now()}`;
@@ -189,7 +189,7 @@ test.describe('Delta Sync Behavior - Categories', () => {
     expect(typeof cursor).toBe('number'); // Cursor is a Unix timestamp in milliseconds
 
     // Small delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 1100)); // MySQL DATETIME has second precision
 
     // Create a new category after capturing cursor
     const uniqueName = `DeltaCatCursor_${Date.now()}`;
@@ -231,7 +231,7 @@ test.describe('Delta Sync Behavior - Products', () => {
     const beforeCreate = toUnixTimestamp(new Date());
 
     // Small delay to ensure time difference
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 1100)); // MySQL DATETIME has second precision
 
     // Create a new product (this also creates a category)
     const uniqueName = `DeltaProd_${Date.now()}`;
@@ -289,7 +289,7 @@ test.describe('Delta Sync Behavior - Products', () => {
     expect(typeof cursor).toBe('number'); // Cursor is a Unix timestamp in milliseconds
 
     // Small delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 1100)); // MySQL DATETIME has second precision
 
     // Create a new product after capturing cursor
     const uniqueName = `DeltaProdCursor_${Date.now()}`;
@@ -321,9 +321,9 @@ test.describe('Delta Sync Behavior - Products', () => {
     const product = await testTransactions.createProduct(uniqueName, 500);
 
     // Small delay then capture Unix timestamp
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 1100)); // MySQL DATETIME has second precision
     const beforeUpdate = toUnixTimestamp(new Date());
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 1100)); // MySQL DATETIME has second precision
 
     // Update the product
     const updatedName = `${uniqueName}_Updated`;

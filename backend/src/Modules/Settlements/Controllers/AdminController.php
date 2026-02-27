@@ -88,9 +88,36 @@ class AdminController
         if (!$this->validator->validate($body, [
             'transaction_ids' => ['required', 'array'],
             'settlement_date' => ['required', 'date'],
-            'execution_date' => ['required', 'date'],
+            'execution_date'  => ['required', 'date'],
+            'settlement_type' => ['required', 'in:sepa,manual'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        if (empty($body['transaction_ids'])) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'messages' => ['transaction_ids' => ['transaction_ids must not be empty']],
+            ], 422);
+        }
+
+        if (isset($body['settlement_date']) && isset($body['execution_date'])) {
+            $settleDate = new \DateTime($body['settlement_date']);
+            $execDate = new \DateTime($body['execution_date']);
+            $minExecDate = (clone $settleDate)->modify('+7 days');
+            if ($execDate < $minExecDate) {
+                return $this->json($response, [
+                    'error' => 'validation_failed',
+                    'messages' => ['execution_date' => ['execution_date must be at least 7 days after settlement_date']],
+                ], 422);
+            }
+        }
+
+        if (($body['settlement_type'] ?? '') === 'manual' && empty($body['manual_reason'])) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'messages' => ['manual_reason' => ['manual_reason is required for manual settlement type']],
+            ], 422);
         }
 
         $settlement = $this->settlementsService->createSettlement(
@@ -129,7 +156,15 @@ class AdminController
 
         $result = $this->settlementsService->listSettlements($limit, $offset, $status, $sortKey, $sortOrder, $dateFrom, $dateTo);
 
-        return $this->json($response, $result->toArray());
+        $data = $result->toArray();
+        return $this->json($response, [
+            'data' => $data['items'],
+            'pagination' => [
+                'total' => $data['total'],
+                'per_page' => $perPage,
+                'current_page' => $page,
+            ],
+        ]);
     }
 
     public function show(Request $request, Response $response, array $args): Response

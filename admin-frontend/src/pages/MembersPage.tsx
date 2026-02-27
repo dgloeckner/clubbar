@@ -440,6 +440,7 @@ export function MembersPage() {
           </span>
           <button
             data-testid="members-filter-status-all"
+            aria-pressed={filterIsActive === 'all'}
             onClick={() => {
               setFilterIsActive('all')
               setPage(1)
@@ -460,6 +461,7 @@ export function MembersPage() {
           </button>
           <button
             data-testid="members-filter-status-active"
+            aria-pressed={filterIsActive === 'active'}
             onClick={() => {
               setFilterIsActive('active')
               setPage(1)
@@ -480,6 +482,7 @@ export function MembersPage() {
           </button>
           <button
             data-testid="members-filter-status-inactive"
+            aria-pressed={filterIsActive === 'inactive'}
             onClick={() => {
               setFilterIsActive('inactive')
               setPage(1)
@@ -760,6 +763,7 @@ export function MembersPage() {
                         setSortDirection(direction)
                         setPage(1)
                       }}
+                      testId="members-table-header-created"
                     />
                   </th>
                   <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>{t('common.actions')}</th>
@@ -1040,7 +1044,7 @@ export function MembersPage() {
                   }}
                 />
                 {formData.card_uid && !/^[0-9A-F]{8,20}$/.test(formData.card_uid) && (
-                  <p style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                  <p data-testid="member-form-card-uid-format-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
                     {t('members.validation.invalidCardUid')}
                   </p>
                 )}

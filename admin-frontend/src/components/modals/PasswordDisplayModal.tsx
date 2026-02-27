@@ -65,29 +65,47 @@ export function PasswordDisplayModal({ isOpen, password, onClose }: PasswordDisp
         >
           {password}
         </div>
-        <button
-          data-testid="settings-admin-password-copy-button"
-          onClick={handleCopy}
-          style={{
-            width: '100%',
-            padding: theme.spacing.md,
-            background: theme.colors.semantic.primary,
-            color: 'white',
-            border: 'none',
-            borderRadius: theme.borderRadius.md,
-            cursor: 'pointer',
-            transition: `all ${theme.transitions.default}`,
-            fontWeight: theme.typography.fontWeight.semibold,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgb(37, 99, 235)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = theme.colors.semantic.primary
-          }}
-        >
-          Copy & Close
-        </button>
+        <div style={{ display: 'flex', gap: theme.spacing.sm }}>
+          <button
+            data-testid="settings-admin-password-copy-button"
+            onClick={handleCopy}
+            style={{
+              flex: 1,
+              padding: theme.spacing.md,
+              background: theme.colors.semantic.primary,
+              color: 'white',
+              border: 'none',
+              borderRadius: theme.borderRadius.md,
+              cursor: 'pointer',
+              transition: `all ${theme.transitions.default}`,
+              fontWeight: theme.typography.fontWeight.semibold,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgb(37, 99, 235)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = theme.colors.semantic.primary
+            }}
+          >
+            Copy & Close
+          </button>
+          <button
+            data-testid="settings-admin-password-close-button"
+            onClick={onClose}
+            style={{
+              padding: theme.spacing.md,
+              background: theme.colors.bg.tertiary,
+              color: theme.colors.text.primary,
+              border: `1px solid ${theme.colors.border.light}`,
+              borderRadius: theme.borderRadius.md,
+              cursor: 'pointer',
+              transition: `all ${theme.transitions.default}`,
+              fontWeight: theme.typography.fontWeight.semibold,
+            }}
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   )

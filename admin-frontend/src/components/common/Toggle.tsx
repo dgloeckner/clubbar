@@ -16,6 +16,7 @@ export function Toggle({ isEnabled, onChange, disabled = false, testId }: Toggle
   return (
     <button
       data-testid={testId}
+      aria-pressed={isEnabled}
       onClick={() => {
         if (!disabled) {
           onChange(!isEnabled)

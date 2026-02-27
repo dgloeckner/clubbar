@@ -193,7 +193,7 @@ test.describe("Admin Authentication", () => {
       expect(data).toHaveProperty("admin");
       expect(data.admin).toHaveProperty("id", "33e4567-e89b-12d3-a456-426614174000");
       expect(data.admin).toHaveProperty("email", ADMIN_EMAIL);
-      expect(data.admin).toHaveProperty("display_name", "Admin User");
+      expect(data.admin).toHaveProperty("display_name"); // mutable by profile tests — don't assert specific value
       expect(data.admin).toHaveProperty("locale", "de");
       expect(data.admin).toHaveProperty("last_login_at");
     });

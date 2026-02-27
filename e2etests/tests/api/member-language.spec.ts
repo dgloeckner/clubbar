@@ -8,10 +8,12 @@ import { test, expect } from '../../fixtures/auth.fixture';
  */
 
 test.describe('Member Language Update Endpoint', () => {
-  const validMemberId = '123e4567-e89b-12d3-a456-426614174000';
-
-  test('PATCH /api/sync/members/{memberId}/language updates language successfully', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
+  test('PATCH /api/sync/members/{memberId}/language updates language successfully', async ({
+    authenticatedTerminalRequest,
+    testTransactions,
+  }) => {
+    const member = await testTransactions.createMember('LangUpdate', 'Test');
+    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${member.id}/language`, {
       data: { preferred_language: 'de' },
     });
 
@@ -19,18 +21,20 @@ test.describe('Member Language Update Endpoint', () => {
     expect(response.status()).toBe(200);
 
     const body = await response.json();
-
-    // Validate response structure
-    expect(body.id).toBe(validMemberId);
+    expect(body.id).toBe(member.id);
     expect(body.preferred_language).toBe('de');
     expect(body.updated_at).toBeDefined();
   });
 
-  test('PATCH /api/sync/members/{memberId}/language accepts different languages', async ({ authenticatedTerminalRequest }) => {
+  test('PATCH /api/sync/members/{memberId}/language accepts different languages', async ({
+    authenticatedTerminalRequest,
+    testTransactions,
+  }) => {
+    const member = await testTransactions.createMember('LangAccept', 'Test');
     const languages = ['de', 'en', 'fr'];
 
     for (const lang of languages) {
-      const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
+      const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${member.id}/language`, {
         data: { preferred_language: lang },
       });
 
@@ -41,10 +45,16 @@ test.describe('Member Language Update Endpoint', () => {
     }
   });
 
-  test('PATCH /api/sync/members/{memberId}/language rejects invalid language code', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
-      data: { preferred_language: 'xx' },
-    });
+  test('PATCH /api/sync/members/{memberId}/language rejects invalid language code', async ({
+    authenticatedTerminalRequest,
+  }) => {
+    // Use a valid UUID format - validation fires before DB lookup
+    const response = await authenticatedTerminalRequest.patch(
+      `/api/sync/members/00000000-0000-0000-0000-000000000001/language`,
+      {
+        data: { preferred_language: 'xx' },
+      },
+    );
 
     expect(response.status()).toBe(400);
 
@@ -53,10 +63,15 @@ test.describe('Member Language Update Endpoint', () => {
     expect(body.message).toContain('xx');
   });
 
-  test('PATCH /api/sync/members/{memberId}/language rejects missing language', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
-      data: {},
-    });
+  test('PATCH /api/sync/members/{memberId}/language rejects missing language', async ({
+    authenticatedTerminalRequest,
+  }) => {
+    const response = await authenticatedTerminalRequest.patch(
+      `/api/sync/members/00000000-0000-0000-0000-000000000001/language`,
+      {
+        data: {},
+      },
+    );
 
     expect(response.status()).toBe(400);
 
@@ -64,7 +79,9 @@ test.describe('Member Language Update Endpoint', () => {
     expect(body.error).toBe('invalid_request');
   });
 
-  test('PATCH /api/sync/members/{memberId}/language returns 404 for invalid UUID', async ({ authenticatedTerminalRequest }) => {
+  test('PATCH /api/sync/members/{memberId}/language returns 404 for invalid UUID', async ({
+    authenticatedTerminalRequest,
+  }) => {
     const response = await authenticatedTerminalRequest.patch('/api/sync/members/invalid-uuid/language', {
       data: { preferred_language: 'de' },
     });
@@ -75,8 +92,12 @@ test.describe('Member Language Update Endpoint', () => {
     expect(body.error).toBe('not_found');
   });
 
-  test('PATCH /api/sync/members/{memberId}/language returns JSON content type', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
+  test('PATCH /api/sync/members/{memberId}/language returns JSON content type', async ({
+    authenticatedTerminalRequest,
+    testTransactions,
+  }) => {
+    const member = await testTransactions.createMember('LangContent', 'Test');
+    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${member.id}/language`, {
       data: { preferred_language: 'en' },
     });
 
@@ -84,8 +105,12 @@ test.describe('Member Language Update Endpoint', () => {
     expect(contentType).toContain('application/json');
   });
 
-  test('PATCH /api/sync/members/{memberId}/language returns valid ISO 8601 timestamp', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${validMemberId}/language`, {
+  test('PATCH /api/sync/members/{memberId}/language returns valid ISO 8601 timestamp', async ({
+    authenticatedTerminalRequest,
+    testTransactions,
+  }) => {
+    const member = await testTransactions.createMember('LangTimestamp', 'Test');
+    const response = await authenticatedTerminalRequest.patch(`/api/sync/members/${member.id}/language`, {
       data: { preferred_language: 'de' },
     });
 

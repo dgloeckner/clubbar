@@ -105,7 +105,7 @@ class AdminUsersRepository
         $total = (int) $countStmt->fetchColumn();
 
         $dataParams = array_merge($params, [$limit, $offset]);
-        $stmt = $this->db->prepare("SELECT * FROM admin_users {$whereClause} ORDER BY created_at ASC LIMIT ? OFFSET ?");
+        $stmt = $this->db->prepare("SELECT * FROM admin_users {$whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?");
         $stmt->execute($dataParams);
 
         return ['items' => $stmt->fetchAll(), 'total' => $total];

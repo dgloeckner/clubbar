@@ -8,6 +8,7 @@ use App\Modules\Transactions\DTOs\TransactionBatchResultDto;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\SepaValidationException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\Logging\Logger;
 
@@ -33,7 +34,17 @@ class TransactionsService
 
             $member = $this->membersRepository->findById($tx['member_id']);
             if (!$member) {
-                $errors[] = ['id' => $tx['id'], 'error' => 'Member not found'];
+                $errors[] = ['error' => 'not_found', 'transaction_id' => $tx['id'], 'message' => 'Member not found'];
+                continue;
+            }
+
+            // Check SEPA validity: both iban and mandate_reference must be present
+            if (empty($member['iban']) || empty($member['mandate_reference'])) {
+                $errors[] = [
+                    'error' => 'sepa_invalid',
+                    'transaction_id' => $tx['id'],
+                    'message' => 'SEPA mandate is required to process transactions for this member',
+                ];
                 continue;
             }
 
@@ -65,6 +76,11 @@ class TransactionsService
         $member = $this->membersRepository->findById($memberId);
         if (!$member) {
             throw NotFoundException::forResource('Member', $memberId);
+        }
+
+        // Check SEPA validity: both iban and mandate_reference must be present
+        if (empty($member['iban']) || empty($member['mandate_reference'])) {
+            throw new SepaValidationException('SEPA mandate is required to create corrections for this member');
         }
 
         $id = $this->generateUuid();
@@ -114,6 +130,41 @@ class TransactionsService
     public function getRecentTransactions(string $memberId, int $limit = 50, int $offset = 0, ?string $since = null): array
     {
         return $this->transactionsRepository->findByMemberId($memberId, $limit, $offset, null, $since);
+    }
+
+    /**
+     * Fetch recent transactions for a member with member existence check.
+     * Adds translated product_name and normalized type field.
+     *
+     * @throws NotFoundException when member does not exist
+     */
+    public function getRecentTransactionsForMember(string $memberId, int $limit = 50, int $offset = 0, ?string $since = null): array
+    {
+        $member = $this->membersRepository->findById($memberId);
+        if (!$member) {
+            throw NotFoundException::forResource('Member', $memberId);
+        }
+
+        $language = $member['preferred_language'] ?? 'de';
+        $rows = $this->transactionsRepository->findByMemberId($memberId, $limit, $offset, null, $since);
+
+        foreach ($rows as &$row) {
+            // Normalize type field
+            $row['type'] = $row['transaction_type'] ?? null;
+
+            // Translate product_name from JSON names column
+            $productNames = $row['product_names'] ?? null;
+            if ($productNames !== null) {
+                $names = is_array($productNames) ? $productNames : (json_decode($productNames, true) ?? []);
+                $row['product_name'] = $names[$language] ?? $names['de'] ?? $names['en'] ?? reset($names) ?: null;
+            } else {
+                // No product (e.g. correction): use notes as product_name or null
+                $row['product_name'] = $row['notes'] ?? null;
+            }
+        }
+        unset($row);
+
+        return $rows;
     }
 
     private function generateUuid(): string

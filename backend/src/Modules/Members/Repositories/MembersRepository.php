@@ -61,6 +61,14 @@ class MembersRepository
             'INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, is_active, iban, account_holder_name, mandate_reference, mandate_signed_at, created_at, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
+        $iban = $data['iban'] ?? null;
+        // Per data model: mandate_reference defaults to UUID without hyphens when IBAN is present,
+        // but only when mandate_reference is not explicitly provided (key missing from data).
+        // If key is present but null, respect the explicit null (no auto-generation).
+        $mandateReference = array_key_exists('mandate_reference', $data)
+            ? $data['mandate_reference']
+            : ($iban !== null ? str_replace('-', '', $id) : null);
+
         $stmt->execute([
             $id,
             $data['card_uid'] ?? null,
@@ -70,9 +78,9 @@ class MembersRepository
             $data['phone'] ?? null,
             $data['preferred_language'] ?? 'de',
             $data['is_active'] ?? true ? 1 : 0,
-            $data['iban'] ?? null,
+            $iban,
             $data['account_holder_name'] ?? null,
-            $data['mandate_reference'] ?? null,
+            $mandateReference,
             $data['mandate_signed_at'] ?? null,
             $now,
             $now,

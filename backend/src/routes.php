@@ -81,6 +81,7 @@ return function (App $app): void {
         $group->get('/transactions/export', [TransactionsAdminController::class, 'exportTransactions']);
         $group->get('/members/{memberId}/transactions', [TransactionsAdminController::class, 'getTransactionHistory']);
         $group->post('/members/{memberId}/transactions/correction', [TransactionsAdminController::class, 'recordCorrection']);
+        $group->post('/members/{memberId}/transactions/correct', [TransactionsAdminController::class, 'recordCorrection']);
 
         // Admin users
         $group->get('/admin-users', [AdminUsersAdminController::class, 'index']);

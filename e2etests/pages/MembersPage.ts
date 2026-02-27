@@ -221,8 +221,21 @@ export class MembersPage extends BasePage {
    */
 
   async search(query: string) {
+    // Set up response watcher BEFORE fill to avoid race condition where fast API response is missed.
+    // Use URL.searchParams to decode the URL properly (handles both %20 and + encoding).
+    const responsePromise = this.page.waitForResponse(
+      (resp) => {
+        if (!resp.url().includes('/api/admin/members') || resp.status() !== 200) return false
+        try {
+          return new URL(resp.url()).searchParams.get('search') === query
+        } catch {
+          return false
+        }
+      },
+      { timeout: 10000 }
+    )
     await this.searchInput().fill(query)
-    await this.waitForDebounce(500)
+    await responsePromise
   }
 
   async clearSearch() {
@@ -350,11 +363,10 @@ export class MembersPage extends BasePage {
    */
 
   async getErrorMessage(): Promise<string | null> {
-    try {
-      return await this.errorMessage().textContent()
-    } catch {
-      return null
-    }
+    // Use count() (non-waiting) to check existence first - avoids 30s auto-wait anti-pattern
+    const count = await this.errorMessage().count()
+    if (count === 0) return null
+    return await this.errorMessage().textContent({ timeout: 1000 })
   }
 
   /**
@@ -473,18 +485,20 @@ export class MembersPage extends BasePage {
   }
 
   async setStatusFilter(filterOption: 'all' | 'active' | 'inactive') {
-    // Click the trigger button to open dropdown
-    const trigger = this.page.getByTestId('members-filter-status-trigger')
-    await expect(trigger).toBeVisible()
-    await trigger.click()
+    // Click the corresponding filter button directly
+    const btn = this.page.getByTestId(`members-filter-status-${filterOption}`)
+    await expect(btn).toBeVisible()
 
-    // Click the option in the dropdown
-    const option = this.page.getByTestId(`members-filter-status-option-${filterOption}`)
-    await expect(option).toBeVisible()
-    await option.click()
+    // Check if already selected (aria-pressed="true") — skip click and API wait if so
+    const pressedAttr = await btn.getAttribute('aria-pressed')
+    if (pressedAttr === 'true') {
+      return // Already selected, no state change, no API call
+    }
 
-    // Wait for React to process the change
-    await this.page.waitForTimeout(300)
+    await btn.click()
+
+    // Wait for API response
+    await this.page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
   }
 
   async setSortBy(sortValue: string) {
@@ -519,12 +533,16 @@ export class MembersPage extends BasePage {
   }
 
   async getStatusFilterValue(): Promise<'all' | 'active' | 'inactive'> {
-    // Read the trigger button text to determine selected status
-    const trigger = this.page.getByTestId('members-filter-status-trigger')
-    const text = await trigger.textContent() || ''
+    // Check which button has aria-pressed="true"
+    const activeBtn = this.page.getByTestId('members-filter-status-active')
+    const inactiveBtn = this.page.getByTestId('members-filter-status-inactive')
 
-    if (text.includes('Active Only')) return 'active'
-    if (text.includes('Inactive Only')) return 'inactive'
+    const activePressedAttr = await activeBtn.getAttribute('aria-pressed')
+    if (activePressedAttr === 'true') return 'active'
+
+    const inactivePressedAttr = await inactiveBtn.getAttribute('aria-pressed')
+    if (inactivePressedAttr === 'true') return 'inactive'
+
     return 'all'
   }
 
@@ -594,18 +612,18 @@ export class MembersPage extends BasePage {
 
   async expectCreatedColumnHeaderVisible() {
     // Pattern 008: Use expect() for visibility assertions
-    const header = this.page.locator('th:has-text("Created")')
+    const header = this.page.getByTestId('members-table-header-created')
     await expect(header).toBeVisible()
   }
 
   async clickCreatedColumnHeader() {
     // Click the "Created" column header to toggle sort
-    const header = this.page.locator('th:has-text("Created")')
+    const header = this.page.getByTestId('members-table-header-created')
     await expect(header).toBeVisible()
     await header.click()
 
     // Wait for API to process sort change
-    await this.page.waitForTimeout(500)
+    await this.page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
   }
 
   async getMemberCreatedDateAtRowIndex(rowIndex: number): Promise<string> {

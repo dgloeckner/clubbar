@@ -28,7 +28,9 @@ class AdminController
         $offset = ($page - 1) * $perPage;
 
         $filters = [];
-        if (isset($params['filters']['is_active'])) {
+        if (isset($params['status'])) {
+            $filters['status'] = $params['status']; // 'active' or 'inactive'
+        } elseif (isset($params['filters']['is_active'])) {
             $isActive = filter_var($params['filters']['is_active'], FILTER_VALIDATE_BOOLEAN);
             $filters['status'] = $isActive ? 'active' : 'inactive';
         }

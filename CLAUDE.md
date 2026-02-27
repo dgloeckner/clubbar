@@ -161,6 +161,50 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
 - **Validate against use cases** before marking work complete
 - **Follow backend patterns** — reference `backend/patterns/` directory for consistent implementation
 
+### MCP Servers
+
+#### sequential-thinking
+
+The `sequential-thinking` MCP server provides a structured, multi-step reasoning tool (`mcp__sequential-thinking__sequentialthinking`). It guides problem-solving through an explicit chain of thoughts that can branch, revise, and self-correct.
+
+**When to use it:**
+
+| Situation | Example |
+|-----------|---------|
+| Complex debugging with multiple possible root causes | A test fails with a confusing error — use sequential-thinking to systematically rule out causes before touching code |
+| Architectural decisions with non-obvious trade-offs | Deciding whether to add a new module vs. extend an existing one |
+| Multi-step planning before writing code | Breaking a large feature into safe, ordered implementation steps |
+| Algorithms or query logic that are hard to reason about inline | Designing a sync delta algorithm or a SEPA batch generation flow |
+| Ambiguous requirements that need decomposition | Translating a vague use case into concrete API contracts and data-model changes |
+
+**When NOT to use it:**
+
+- Straightforward tasks with a clear single solution (editing a typo, renaming a variable)
+- Tasks where code exploration tools (Grep, Glob, Read) give the answer directly
+- Any task where the action is obvious and the cost of extra reasoning exceeds its benefit
+
+**How to use it:**
+
+1. Call `mcp__sequential-thinking__sequentialthinking` with an initial `thought` describing the problem.
+2. Set a rough `totalThoughts` estimate (adjust up/down as reasoning evolves).
+3. Each subsequent call builds on, revises, or branches from earlier thoughts.
+4. Set `nextThoughtNeeded: false` only when you have a verified, satisfactory conclusion.
+5. Use the final conclusion to drive the actual implementation or decision — do not treat intermediate thoughts as the answer.
+
+**Key parameters:**
+
+- `thought` — Current reasoning step (analysis, question, hypothesis, or verification)
+- `nextThoughtNeeded` — `true` to continue; `false` when done
+- `thoughtNumber` / `totalThoughts` — Track position; `totalThoughts` can be revised mid-stream
+- `isRevision` + `revisesThought` — Explicitly revise a previous thought when new evidence changes the conclusion
+- `branchFromThought` + `branchId` — Explore an alternative path without discarding the main line
+
+**Example trigger phrases** (when you see these, reach for sequential-thinking):
+- "Why is this failing?" with no obvious single cause
+- "What's the best approach for…" with real trade-offs
+- "How should I structure…" before writing the first line of code
+- "Walk me through the logic of…" for non-trivial algorithms
+
 ### Debugging & Testing Best Practices
 
 **When tests fail or requests behave unexpectedly, follow this checklist:**

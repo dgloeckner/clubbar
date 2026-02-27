@@ -124,7 +124,7 @@ export function SettingsPage() {
   const loadAdminUsers = async () => {
     try {
       setAdminUsersLoading(true)
-      const response = await getAdminUsers(1, 50, 'all')
+      const response = await getAdminUsers(1, 500, 'all')
       setAdminUsers(response.data || [])
     } catch (err) {
       console.error('Failed to load admin users:', err)

@@ -444,14 +444,14 @@ test.describe('Products Page - Complete User Workflows', () => {
     await authenticatedProductsPage.expectFormModalVisible()
 
     // Select first icon
-    await authenticatedProductsPage.selectIcon('PilsIcon')
+    await authenticatedProductsPage.selectIcon('beer-pils')
     let selectedIcon = await authenticatedProductsPage.getSelectedIconName()
-    expect(selectedIcon).toContain('PilsIcon')
+    expect(selectedIcon).toContain('beer-pils')
 
     // Select different icon
-    await authenticatedProductsPage.selectIcon('WeizenIcon')
+    await authenticatedProductsPage.selectIcon('beer-weizen')
     selectedIcon = await authenticatedProductsPage.getSelectedIconName()
-    expect(selectedIcon).toContain('WeizenIcon')
+    expect(selectedIcon).toContain('beer-weizen')
   })
 
   test('should clear icon when selecting none', async ({ authenticatedProductsPage }) => {
@@ -460,9 +460,9 @@ test.describe('Products Page - Complete User Workflows', () => {
     await authenticatedProductsPage.expectFormModalVisible()
 
     // Select an icon
-    await authenticatedProductsPage.selectIcon('PilsIcon')
+    await authenticatedProductsPage.selectIcon('beer-pils')
     let selectedIcon = await authenticatedProductsPage.getSelectedIconName()
-    expect(selectedIcon).toContain('PilsIcon')
+    expect(selectedIcon).toContain('beer-pils')
 
     // Clear icon
     await authenticatedProductsPage.clearIcon()

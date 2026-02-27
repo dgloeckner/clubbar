@@ -61,8 +61,13 @@ class MembersService
 
     public function getMember(string $memberId): MemberAdminDto
     {
-        $member = $this->membersRepository->findById($memberId);
+        $member = $this->membersRepository->findByIdIncludingDeleted($memberId);
         if (!$member) {
+            throw NotFoundException::forResource('Member', $memberId);
+        }
+        // Truly-deleted members (not anonymized) are inaccessible via the admin API.
+        // Anonymized members retain their (scrubbed) record with first_name='DELETED'.
+        if ($member['deleted_at'] !== null && $member['first_name'] !== 'DELETED') {
             throw NotFoundException::forResource('Member', $memberId);
         }
         return MemberAdminDto::fromRow($member);
@@ -70,7 +75,11 @@ class MembersService
 
     public function exportMember(string $memberId): array
     {
-        $member = $this->getMember($memberId);
+        $row = $this->membersRepository->findByIdIncludingDeleted($memberId);
+        if (!$row) {
+            throw NotFoundException::forResource('Member', $memberId);
+        }
+        $member = MemberAdminDto::fromRow($row);
         $transactions = $this->transactionsRepository->findByMemberId($memberId, limit: 1000);
 
         return [

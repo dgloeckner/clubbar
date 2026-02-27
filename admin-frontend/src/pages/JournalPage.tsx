@@ -206,7 +206,7 @@ export function JournalPage() {
 
     // Load members for dropdown
     try {
-      const response = await getMembers(1, 1000, undefined, {}, 'first_name', 'asc')
+      const response = await getMembers(1, 100, undefined, {}, 'first_name', 'asc')
       setMembers(response.items)
     } catch (err) {
       setCorrectionError('Failed to load members')

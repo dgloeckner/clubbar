@@ -78,19 +78,35 @@ class AdminController
 
         if (!$this->validator->validate($body, [
             'amount_cents' => ['required', 'integer'],
-            'reason' => ['required', 'string'],
+            'reason' => ['required', 'string', 'max:255'],
         ])) {
-            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'message' => 'The given data was invalid.',
+                'errors' => $this->validator->errors(),
+            ], 422);
+        }
+
+        // Reject zero amount explicitly
+        $amountCents = (int) $body['amount_cents'];
+        if ($amountCents === 0) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'message' => 'The given data was invalid.',
+                'errors' => ['amount_cents' => ['amount_cents must not be zero']],
+            ], 422);
         }
 
         $result = $this->transactionsService->recordCorrection(
             $memberId,
-            (int) $body['amount_cents'],
+            $amountCents,
             $body['reason'],
             $adminId,
         );
 
-        return $this->json($response, $result, 201);
+        // Return flat transaction fields directly (not wrapped)
+        $transaction = $result['transaction'] ?? $result;
+        return $this->json($response, $transaction, 201);
     }
 
     public function exportTransactions(Request $request, Response $response): Response
@@ -99,39 +115,98 @@ class AdminController
         $limit = 10000;
         $offset = 0;
 
+        // Accept from_date/to_date as primary names (also support legacy date_from/date_to)
+        $fromDate = $params['from_date'] ?? $params['date_from'] ?? null;
+        $toDate = $params['to_date'] ?? $params['date_to'] ?? null;
+
+        // Validate date formats (must be YYYY-MM-DD)
+        $dateErrors = [];
+        if ($fromDate !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromDate)) {
+            $dateErrors['from_date'] = ['from_date must be a valid date in YYYY-MM-DD format'];
+        }
+        if ($toDate !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $toDate)) {
+            $dateErrors['to_date'] = ['to_date must be a valid date in YYYY-MM-DD format'];
+        }
+        if (!empty($dateErrors)) {
+            return $this->json($response, ['error' => 'validation_failed', 'errors' => $dateErrors], 422);
+        }
+
+        // Validate date range (to_date must not be before from_date)
+        if ($fromDate !== null && $toDate !== null && $toDate < $fromDate) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'errors' => ['to_date' => ['to_date must not be before from_date']],
+            ], 422);
+        }
+
         $filters = [];
         if (isset($params['member_id'])) {
             $filters['member_id'] = $params['member_id'];
         }
-        if (isset($params['date_from'])) {
-            $filters['date_from'] = $params['date_from'];
+        if ($fromDate !== null) {
+            $filters['date_from'] = $fromDate;
         }
-        if (isset($params['date_to'])) {
-            $filters['date_to'] = $params['date_to'];
+        if ($toDate !== null) {
+            $filters['date_to'] = $toDate;
+        }
+        // Support type filter (e.g. type=purchase, type=correction)
+        if (isset($params['type']) && $params['type'] !== '' && $params['type'] !== 'all') {
+            $filters['type'] = $params['type'];
         }
 
         $result = $this->transactionsService->getTransactions($limit, $offset, $filters);
 
         $csv = $this->buildCsv($result->items);
 
+        // Build filename with date range when provided
+        if ($fromDate !== null && $toDate !== null) {
+            $filename = "transactions-{$fromDate}-to-{$toDate}.csv";
+        } else {
+            $filename = 'transactions-export.csv';
+        }
+
         $response->getBody()->write($csv);
         return $response
             ->withHeader('Content-Type', 'text/csv; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="transactions-export.csv"')
+            ->withHeader('Content-Disposition', "attachment; filename=\"{$filename}\"")
             ->withStatus(200);
     }
 
     private function buildCsv(array $items): string
     {
-        if (empty($items)) {
-            return '';
+        $output = fopen('php://temp', 'r+');
+
+        // Write fixed semantic headers (semicolon-separated)
+        fwrite($output, "date;member_name;product;type;amount\n");
+
+        foreach ($items as $item) {
+            $item = (array) $item;
+            // Resolve product name from JSON names column (prefer 'de', fallback to first available)
+            $productName = '';
+            $productNames = $item['product_names'] ?? null;
+            if ($productNames !== null) {
+                $names = is_array($productNames) ? $productNames : (json_decode((string)$productNames, true) ?? []);
+                $productName = $names['de'] ?? $names['en'] ?? reset($names) ?: '';
+            }
+            // For corrections with no product, use notes
+            if ($productName === '' && isset($item['notes'])) {
+                $productName = (string) $item['notes'];
+            }
+
+            $row = [
+                'date'        => substr((string)($item['created_at'] ?? ''), 0, 10),
+                'member_name' => $item['member_name'] ?? '',
+                'product'     => $productName,
+                'type'        => $item['transaction_type'] ?? $item['type'] ?? '',
+                'amount'      => $item['amount_cents'] ?? '',
+            ];
+
+            fwrite($output, implode(';', array_map(
+                static fn($v) => str_replace([';', "\n", "\r"], [',', ' ', ' '], (string)$v),
+                $row
+            )) . "\n");
         }
 
-        $output = fopen('php://temp', 'r+');
-        fputcsv($output, array_keys((array) $items[0]));
-        foreach ($items as $item) {
-            fputcsv($output, (array) $item);
-        }
         rewind($output);
         $csv = stream_get_contents($output);
         fclose($output);

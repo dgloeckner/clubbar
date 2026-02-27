@@ -61,6 +61,7 @@ export async function getAdminUser(id: string): Promise<AdminUser | null> {
 
 /**
  * Update an admin user
+ * Backend returns { admin: {...} } directly (not wrapped in ApiResponse)
  */
 export async function updateAdminUser(id: string, data: UpdateAdminUserRequest): Promise<AdminUser> {
   const response = await patch<{ admin: AdminUser }>(`/admin/admin-users/${id}`, {
@@ -69,8 +70,14 @@ export async function updateAdminUser(id: string, data: UpdateAdminUserRequest):
     locale: data.locale,
   })
 
+  // Backend returns { admin: {...} } directly - handle both wrapped and unwrapped formats
+  const responseAny = response as any
+  if (responseAny.admin) {
+    return responseAny.admin
+  }
+
   if (response.data) {
-    return response.data.admin
+    return (response.data as any).admin
   }
 
   throw new Error('Invalid response format')
@@ -78,12 +85,19 @@ export async function updateAdminUser(id: string, data: UpdateAdminUserRequest):
 
 /**
  * Deactivate an admin user
+ * Backend returns { admin: {...} } directly (not wrapped in ApiResponse)
  */
 export async function deactivateAdminUser(id: string): Promise<AdminUser> {
   const response = await del<{ admin: AdminUser }>(`/admin/admin-users/${id}`)
 
+  // Backend returns { admin: {...} } directly - handle both wrapped and unwrapped formats
+  const responseAny = response as any
+  if (responseAny.admin) {
+    return responseAny.admin
+  }
+
   if (response.data) {
-    return response.data.admin
+    return (response.data as any).admin
   }
 
   throw new Error('Invalid response format')
@@ -91,12 +105,19 @@ export async function deactivateAdminUser(id: string): Promise<AdminUser> {
 
 /**
  * Reactivate a deactivated admin user
+ * Backend returns { admin: {...} } directly (not wrapped in ApiResponse)
  */
 export async function reactivateAdminUser(id: string): Promise<AdminUser> {
   const response = await post<{ admin: AdminUser }>(`/admin/admin-users/${id}/reactivate`, {})
 
+  // Backend returns { admin: {...} } directly - handle both wrapped and unwrapped formats
+  const responseAny = response as any
+  if (responseAny.admin) {
+    return responseAny.admin
+  }
+
   if (response.data) {
-    return response.data.admin
+    return (response.data as any).admin
   }
 
   throw new Error('Invalid response format')

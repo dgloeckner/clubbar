@@ -374,10 +374,10 @@ export class SettingsPage {
   }
 
   /**
-   * Close password display modal by clicking the copy & close button
+   * Close password display modal by clicking the dedicated close button
    */
   async closePasswordModal() {
-    const closeButton = this.page.getByTestId('settings-admin-password-copy-button')
+    const closeButton = this.page.getByTestId('settings-admin-password-close-button')
     await closeButton.click()
   }
 
@@ -393,39 +393,31 @@ export class SettingsPage {
    * Find admin user row by email text content
    */
   private async findAdminUserRowByEmail(email: string) {
-    // Find the row that contains this email in the email column
-    const rows = this.page.locator('[data-testid^="settings-admin-user-row-"]')
-    const count = await rows.count()
-
-    for (let i = 0; i < count; i++) {
-      const row = rows.nth(i)
-      const emailText = await row.locator('[data-testid^="settings-admin-user-email-"]').textContent()
-      if (emailText?.trim() === email) {
-        return row
-      }
+    // Use Playwright's filter() for efficient row lookup without iterating all rows
+    const row = this.page
+      .locator('[data-testid^="settings-admin-user-row-"]')
+      .filter({ has: this.page.locator(`[data-testid^="settings-admin-user-email-"]:text-is("${email}")`) })
+    const count = await row.count()
+    if (count === 0) {
+      return null
     }
-    return null
+    return row.first()
   }
 
   /**
    * Get admin user ID by email (needed for button test IDs)
    */
   private async getAdminUserIdByEmail(email: string): Promise<string | null> {
-    const rows = this.page.locator('[data-testid^="settings-admin-user-row-"]')
-    const count = await rows.count()
-
-    for (let i = 0; i < count; i++) {
-      const row = rows.nth(i)
-      const rowTestId = await row.getAttribute('data-testid')
-      const emailText = await row.locator('[data-testid^="settings-admin-user-email-"]').textContent()
-
-      if (emailText?.trim() === email && rowTestId) {
-        // Extract ID from data-testid like "settings-admin-user-row-<id>"
-        const id = rowTestId.replace('settings-admin-user-row-', '')
-        return id
-      }
+    const row = await this.findAdminUserRowByEmail(email)
+    if (!row) {
+      return null
     }
-    return null
+    const rowTestId = await row.getAttribute('data-testid')
+    if (!rowTestId) {
+      return null
+    }
+    // Extract ID from data-testid like "settings-admin-user-row-<id>"
+    return rowTestId.replace('settings-admin-user-row-', '')
   }
 
   /**
@@ -439,12 +431,15 @@ export class SettingsPage {
 
     const emailText = await row.locator('[data-testid^="settings-admin-user-email-"]').textContent()
     const nameText = await row.locator('[data-testid^="settings-admin-user-name-"]').textContent()
-    const statusText = await row.locator('[data-testid^="settings-admin-user-status-"]').textContent()
+    // Status is determined by the toggle button's aria-pressed attribute
+    const toggleBtn = row.locator('[data-testid^="settings-admin-user-toggle-"]')
+    const isPressed = await toggleBtn.getAttribute('aria-pressed')
+    const status = isPressed === 'true' ? 'active' : 'inactive'
 
     return {
       email: emailText?.trim() || '',
       displayName: nameText?.trim() || '',
-      status: statusText?.trim() || '',
+      status,
     }
   }
 
@@ -486,10 +481,16 @@ export class SettingsPage {
   }
 
   /**
-   * Click edit admin confirm button
+   * Click edit admin confirm button and wait for admin list to reload
    */
   async clickEditAdminConfirm() {
+    // Set up response watcher BEFORE click to avoid race condition
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/admin-users') && resp.request().method() === 'GET',
+      { timeout: 10000 }
+    )
     await this.page.getByTestId('settings-admin-edit-confirm-button').click()
+    await responsePromise
   }
 
   /**
@@ -521,8 +522,8 @@ export class SettingsPage {
   }
 
   /**
-   * Click deactivate button for admin user by email and confirm via ConfirmDialog modal.
-   * Waits for the admin users list to reload after deactivation.
+   * Click toggle to deactivate admin user by email and confirm via ConfirmDialog modal.
+   * The Toggle click triggers ConfirmDialog. Waits for the admin users list to reload after deactivation.
    */
   async clickDeactivateButton(email: string) {
     const adminId = await this.getAdminUserIdByEmail(email)
@@ -530,23 +531,26 @@ export class SettingsPage {
       throw new Error(`Admin user with email ${email} not found`)
     }
 
-    // Set up response watcher before any interaction
+    // Click the toggle (currently ON → triggers deactivate confirm dialog)
+    await this.page.getByTestId(`settings-admin-user-toggle-${adminId}`).scrollIntoViewIfNeeded()
+    await this.page.getByTestId(`settings-admin-user-toggle-${adminId}`).click()
+    // Confirm via the shared ConfirmDialog modal
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 10000 })
+    // Set up response watcher before clicking OK (to capture the reload GET)
     const responsePromise = this.page.waitForResponse(
       (resp) =>
         resp.url().includes('/api/admin/admin-users') &&
         resp.request().method() === 'GET',
       { timeout: 15000 }
     )
-    await this.page.getByTestId(`settings-admin-deactivate-button-${adminId}`).click()
-    // Confirm via the shared ConfirmDialog modal (replaces window.confirm())
-    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible()
     await this.page.getByTestId('confirm-dialog-ok').click()
     // Wait for admin list to reload (triggered by loadAdminUsers() after deactivation)
     await responsePromise
   }
 
   /**
-   * Click reactivate button for admin user by email
+   * Click toggle to reactivate admin user by email.
+   * Waits for the admin users list to reload after reactivation.
    */
   async clickReactivateButton(email: string) {
     const adminId = await this.getAdminUserIdByEmail(email)
@@ -554,7 +558,18 @@ export class SettingsPage {
       throw new Error(`Admin user with email ${email} not found`)
     }
 
-    await this.page.getByTestId(`settings-admin-reactivate-button-${adminId}`).click()
+    // Set up response watcher before clicking toggle (to capture the reload GET)
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET',
+      { timeout: 15000 }
+    )
+    // Click the toggle (currently OFF → triggers reactivate directly, no confirm dialog)
+    await this.page.getByTestId(`settings-admin-user-toggle-${adminId}`).scrollIntoViewIfNeeded()
+    await this.page.getByTestId(`settings-admin-user-toggle-${adminId}`).click()
+    // Wait for admin list to reload (triggered by loadAdminUsers() after reactivation)
+    await responsePromise
   }
 
   /**
@@ -566,8 +581,10 @@ export class SettingsPage {
       return null
     }
 
-    const statusText = await row.locator('[data-testid^="settings-admin-user-status-"]').textContent()
-    return statusText?.trim() || null
+    // Status is determined by the toggle button's aria-pressed attribute
+    const toggleBtn = row.locator('[data-testid^="settings-admin-user-toggle-"]')
+    const isPressed = await toggleBtn.getAttribute('aria-pressed')
+    return isPressed === 'true' ? 'active' : 'inactive'
   }
 
   /**

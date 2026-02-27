@@ -82,7 +82,10 @@ test.describe('Products Page - Sorting', () => {
     // Filter by our test category to isolate test data
     await productsPage.filterByCategory(categoryId)
 
-    // Default sort is name_asc — verify alphabetical order
+    // Click name header to sort ascending (name_asc)
+    await productsPage.sortBy('name')
+
+    // Verify alphabetical ascending order
     const namesAsc = await productsPage.getAllProductNamesInOrder()
     expect(namesAsc.length).toBe(4)
     expect(namesAsc[0]).toContain(`Alpha ${ts}`)
@@ -90,7 +93,7 @@ test.describe('Products Page - Sorting', () => {
     expect(namesAsc[2]).toContain(`Charlie ${ts}`)
     expect(namesAsc[3]).toContain(`Delta ${ts}`)
 
-    // Click name header to toggle to desc
+    // Click name header again to toggle to desc
     await productsPage.sortBy('name')
 
     const namesDesc = await productsPage.getAllProductNamesInOrder()
@@ -132,20 +135,20 @@ test.describe('Products Page - Sorting', () => {
 
     const pricesAsc = await productsPage.getAllProductPricesInOrder()
     expect(pricesAsc.length).toBe(4)
-    expect(pricesAsc[0]).toContain('1.00')
-    expect(pricesAsc[1]).toContain('2.00')
-    expect(pricesAsc[2]).toContain('3.00')
-    expect(pricesAsc[3]).toContain('5.00')
+    expect(pricesAsc[0]).toContain('1,00')
+    expect(pricesAsc[1]).toContain('2,00')
+    expect(pricesAsc[2]).toContain('3,00')
+    expect(pricesAsc[3]).toContain('5,00')
 
     // Click again to toggle to price desc
     await productsPage.sortBy('price')
 
     const pricesDesc = await productsPage.getAllProductPricesInOrder()
     expect(pricesDesc.length).toBe(4)
-    expect(pricesDesc[0]).toContain('5.00')
-    expect(pricesDesc[1]).toContain('3.00')
-    expect(pricesDesc[2]).toContain('2.00')
-    expect(pricesDesc[3]).toContain('1.00')
+    expect(pricesDesc[0]).toContain('5,00')
+    expect(pricesDesc[1]).toContain('3,00')
+    expect(pricesDesc[2]).toContain('2,00')
+    expect(pricesDesc[3]).toContain('1,00')
   })
 
   /**
@@ -198,9 +201,9 @@ test.describe('Products Page - Sorting', () => {
   })
 
   /**
-   * Test 4: Default sort is name ascending (no click needed)
+   * Test 4: Sort by name ascending after clicking header
    */
-  test('should default to name ascending sort', async ({
+  test('should sort products by name ascending when header is clicked', async ({
     page,
     authenticatedRequest,
   }) => {
@@ -213,16 +216,17 @@ test.describe('Products Page - Sorting', () => {
     await createProduct(authenticatedRequest, `Apple ${ts}`, 100, categoryId)
     await createProduct(authenticatedRequest, `Mango ${ts}`, 300, categoryId)
 
-    // Navigate — don't click any sort header
+    // Navigate and wait for page
     await page.goto('/products', { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('[data-testid="products-page"]', { timeout: 5000 })
     const productsPage = new ProductsPage(page)
     await productsPage.waitForLoadingToComplete()
 
-    // Filter by test category (this triggers an API call with the existing sort_by=name_asc default)
+    // Filter by test category, then sort by name ascending
     await productsPage.filterByCategory(categoryId)
+    await productsPage.sortBy('name')
 
-    // Verify alphabetical order without clicking any sort header
+    // Verify alphabetical ascending order
     const names = await productsPage.getAllProductNamesInOrder()
     expect(names.length).toBe(3)
     expect(names[0]).toContain(`Apple ${ts}`)

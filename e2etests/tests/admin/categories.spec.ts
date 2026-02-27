@@ -400,14 +400,14 @@ test.describe('Admin Frontend - Categories Page', () => {
       await authenticatedCategoriesPage.expectFormModalVisible()
 
       // Select first icon
-      await authenticatedCategoriesPage.selectIcon('PilsIcon')
+      await authenticatedCategoriesPage.selectIcon('beer-pils')
       let selectedIcon = await authenticatedCategoriesPage.getSelectedIconName()
-      expect(selectedIcon).toContain('PilsIcon')
+      expect(selectedIcon).toContain('beer-pils')
 
       // Select different icon
-      await authenticatedCategoriesPage.selectIcon('WeizenIcon')
+      await authenticatedCategoriesPage.selectIcon('beer-weizen')
       selectedIcon = await authenticatedCategoriesPage.getSelectedIconName()
-      expect(selectedIcon).toContain('WeizenIcon')
+      expect(selectedIcon).toContain('beer-weizen')
     })
 
     test('should clear icon when selecting none', async ({ authenticatedCategoriesPage }) => {
@@ -416,9 +416,9 @@ test.describe('Admin Frontend - Categories Page', () => {
       await authenticatedCategoriesPage.expectFormModalVisible()
 
       // Select an icon (categories use universal product icons)
-      await authenticatedCategoriesPage.selectIcon('PilsIcon')
+      await authenticatedCategoriesPage.selectIcon('beer-pils')
       let selectedIcon = await authenticatedCategoriesPage.getSelectedIconName()
-      expect(selectedIcon).toContain('PilsIcon')
+      expect(selectedIcon).toContain('beer-pils')
 
       // Clear icon
       await authenticatedCategoriesPage.clearIcon()
@@ -444,7 +444,7 @@ test.describe('Admin Frontend - Categories Page', () => {
           de: `Getränke E2E ${timestamp}`,
           en: `Beverages E2E ${timestamp}`,
         },
-        icon: 'PilsIcon',
+        icon: 'beer-pils',
       }
 
       const initialCount = await authenticatedCategoriesPage.getCategoryCount()
@@ -504,7 +504,7 @@ test.describe('Admin Frontend - Categories Page', () => {
         en: `Original English ${timestamp}`,
       }
 
-      await authenticatedCategoriesPage.createCategory(originalData, 'WeizenIcon')
+      await authenticatedCategoriesPage.createCategory(originalData, 'beer-weizen')
       // createCategory waits for loading to complete
 
       // Find the created category
@@ -522,7 +522,7 @@ test.describe('Admin Frontend - Categories Page', () => {
             de: `Bearbeitet DE ${Date.now()}`,
             en: `Edited EN ${Date.now()}`,
           },
-          icon: 'RadlerIcon',
+          icon: 'beer-radler',
         }
 
         // Fill German name

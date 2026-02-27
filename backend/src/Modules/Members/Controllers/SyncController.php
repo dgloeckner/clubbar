@@ -33,12 +33,12 @@ class SyncController
 
         $langValue = $body['preferred_language'] ?? null;
         if (!$langValue) {
-            return $this->json($response, ['error' => 'preferred_language is required'], 422);
+            return $this->json($response, ['error' => 'invalid_request', 'message' => 'preferred_language is required'], 400);
         }
 
         $language = SupportedLanguage::tryFrom($langValue);
         if (!$language) {
-            return $this->json($response, ['error' => 'Invalid language. Supported: de, en, fr'], 422);
+            return $this->json($response, ['error' => 'invalid_request', 'message' => "Invalid language code: {$langValue}"], 400);
         }
 
         $member = $this->membersService->updateLanguage($memberId, $language);

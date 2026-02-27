@@ -61,11 +61,9 @@ class SettlementsService
             $isSepaEligible = !empty($member['iban']) && !empty($member['mandate_reference']) && (bool) $member['is_active'];
             if ($isSepaEligible) {
                 $eligible[] = $entry;
-            } else {
+            } elseif (!$sepaEligibleOnly) {
                 $ineligible[] = $entry;
-                if (!$sepaEligibleOnly) {
-                    $warnings[] = "Member {$member['first_name']} {$member['last_name']} is not SEPA-eligible";
-                }
+                $warnings[] = "Member {$member['first_name']} {$member['last_name']} is not SEPA-eligible";
             }
         }
 

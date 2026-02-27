@@ -158,6 +158,7 @@ export async function createSettlement(
     transaction_ids: transactionIds,
     settlement_date: settlementDate,
     execution_date: executionDate,
+    settlement_type: 'sepa',
     notes,
   }
 

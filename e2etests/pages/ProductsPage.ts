@@ -806,7 +806,14 @@ export class ProductsPage extends BasePage {
     // Wait for any pending requests to settle
     await this.page.waitForTimeout(100)
     const responsePromise = this.page.waitForResponse(
-      (resp) => resp.url().includes('/api/admin/products') && resp.url().includes(`search=${encodeURIComponent(term)}`),
+      (resp) => {
+        if (!resp.url().includes('/api/admin/products')) return false
+        try {
+          return new URL(resp.url()).searchParams.get('search') === term
+        } catch {
+          return false
+        }
+      },
       { timeout: 10000 }
     )
     await this.searchInput().fill(term)

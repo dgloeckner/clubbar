@@ -145,7 +145,8 @@ async function createCorrection(
   }
 
   const result = await response.json()
-  return result.transaction.id
+  // API returns the transaction flat (not wrapped in { transaction: ... })
+  return result.id
 }
 
 test.describe('Journal Page - Transaction Display', () => {
@@ -393,6 +394,7 @@ test.describe('Journal Page - Transaction Display', () => {
       last_name: 'Member',
       email: `${testId}@example.com`,
       iban: 'DE89370400440532013004',
+      mandate_reference: testId.replace(/[^A-Z0-9]/gi, '').substring(0, 35).toUpperCase(),
       mandate_signed_at: new Date().toISOString().split('T')[0],
       preferred_language: 'de',
     }
@@ -406,8 +408,8 @@ test.describe('Journal Page - Transaction Display', () => {
     const memberId = (await memberResponse.json()).id
 
     // Create purchase transaction via terminal sync API with existing product
-    // Use existing product: "Äppler 0,5L" / "Apple Cider 0.5L"
-    const productId = 'prod-appler-0001-0001-000000000008'
+    // Use existing product: "Äppler 0,5L" / "Apple Cider 0.5L" (seeded with UUID 33333338-...)
+    const productId = '33333338-3333-3333-3333-333333333338'
 
     console.log('Creating purchase transaction with product...')
     const txId = await createTransaction(page, memberId, 350, undefined, productId)
@@ -684,7 +686,7 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
       `http://localhost:8080/api/admin/members/${memberId}/transactions/correction`,
       { data: { amount_cents: 1000, reason: `Settle date test settled ${testId}` } }
     )
-    const tx1Id = (await tx1Response.json()).transaction.id
+    const tx1Id = (await tx1Response.json()).id
 
     const tx2Response = await page.request.post(
       `http://localhost:8080/api/admin/members/${memberId}/transactions/correction`,
@@ -700,6 +702,7 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
         transaction_ids: [tx1Id],
         settlement_date: today,
         execution_date: execDate.toISOString().split('T')[0],
+        settlement_type: 'sepa',
       },
     })
 
@@ -825,8 +828,8 @@ test.describe('Journal Page - Sorting', () => {
     const txAmounts = [100, 200, 300]
     for (let i = 0; i < txAmounts.length; i++) {
       await createCorrection(page, memberId, txAmounts[i], `Sort test transaction ${i + 1}`)
-      // Small delay to ensure different created_at timestamps
-      await page.waitForTimeout(100)
+      // Delay to ensure different created_at timestamps (MySQL DATETIME has second precision)
+      await page.waitForTimeout(1100)
     }
 
     // === ACT ===
@@ -854,10 +857,11 @@ test.describe('Journal Page - Sorting', () => {
       console.log('First row date:', firstRow.date)
       console.log('Second row date:', secondRow.date)
 
-      // Parse dates (format: "MM/DD/YYYY\nHH:MM:SS")
+      // Parse dates (format: "DD.MM.YYYY\nHH:MM:SS" — German locale)
       const parseDateTime = (dateStr: string) => {
         const [datePart, timePart] = dateStr.split('\n')
-        return new Date(`${datePart} ${timePart}`).getTime()
+        const [day, month, year] = datePart.split('.')
+        return new Date(`${year}-${month}-${day} ${timePart}`).getTime()
       }
 
       const firstDate = parseDateTime(firstRow.date)
@@ -891,7 +895,8 @@ test.describe('Journal Page - Sorting', () => {
 
       const parseDateTime = (dateStr: string) => {
         const [datePart, timePart] = dateStr.split('\n')
-        return new Date(`${datePart} ${timePart}`).getTime()
+        const [day, month, year] = datePart.split('.')
+        return new Date(`${year}-${month}-${day} ${timePart}`).getTime()
       }
 
       const firstDateAsc = parseDateTime(firstRowAsc.date)
@@ -1446,7 +1451,7 @@ test.describe('Journal Page - Search and Filtering', () => {
 
     // Create a settlement for the first 2 transactions
     console.log('Creating settlement for first 2 transactions...')
-    console.log('Transaction IDs:', [txResponses[0].transaction.id, txResponses[1].transaction.id])
+    console.log('Transaction IDs:', [txResponses[0].id, txResponses[1].id])
     const today = new Date().toISOString().split('T')[0]
     const executionDate = new Date()
     executionDate.setDate(executionDate.getDate() + 7)
@@ -1454,9 +1459,10 @@ test.describe('Journal Page - Search and Filtering', () => {
 
     const settlementResponse = await page.request.post('http://localhost:8080/api/admin/settlements', {
       data: {
-        transaction_ids: [txResponses[0].transaction.id, txResponses[1].transaction.id],
+        transaction_ids: [txResponses[0].id, txResponses[1].id],
         settlement_date: today,
         execution_date: executionDateStr,
+        settlement_type: 'sepa',
       },
     })
 
