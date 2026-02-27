@@ -27,7 +27,7 @@ async function createGdprTestMember(authenticatedRequest: any, testId: string) {
 test.describe('Admin Members GDPR Endpoints', () => {
   // GDPR Export
   test('POST /api/admin/members/{id}/export returns member export data', async ({ authenticatedRequest }) => {
-    const testId = Date.now().toString();
+    const testId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const member = await createGdprTestMember(authenticatedRequest, testId);
 
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/export`);
@@ -58,7 +58,7 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('POST /api/admin/members/{id}/export includes member details', async ({ authenticatedRequest }) => {
-    const testId = Date.now().toString();
+    const testId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const member = await createGdprTestMember(authenticatedRequest, testId);
 
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/export`);
@@ -87,7 +87,7 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('POST /api/admin/members/{id}/export returns JSON content type', async ({ authenticatedRequest }) => {
-    const testId = Date.now().toString();
+    const testId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const member = await createGdprTestMember(authenticatedRequest, testId);
 
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/export`);
@@ -98,7 +98,7 @@ test.describe('Admin Members GDPR Endpoints', () => {
 
   // GDPR Anonymization
   test('POST /api/admin/members/{id}/anonymize anonymizes member data', async ({ authenticatedRequest }) => {
-    const testId = Date.now().toString();
+    const testId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const member = await createGdprTestMember(authenticatedRequest, testId);
 
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/anonymize`);
@@ -127,7 +127,7 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('POST /api/admin/members/{id}/anonymize preserves original timestamps', async ({ authenticatedRequest }) => {
-    const testId = Date.now().toString();
+    const testId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const member = await createGdprTestMember(authenticatedRequest, testId);
     const originalCreatedAt = member.created_at;
 
@@ -144,7 +144,7 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('POST /api/admin/members/{id}/anonymize preserves language preference', async ({ authenticatedRequest }) => {
-    const testId = Date.now().toString();
+    const testId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const member = await createGdprTestMember(authenticatedRequest, testId);
 
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/anonymize`);
@@ -167,7 +167,7 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('POST /api/admin/members/{id}/anonymize returns JSON content type', async ({ authenticatedRequest }) => {
-    const testId = Date.now().toString();
+    const testId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const member = await createGdprTestMember(authenticatedRequest, testId);
 
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/anonymize`);
@@ -188,7 +188,7 @@ test.describe('Admin Members GDPR Endpoints', () => {
 
   test('GDPR export and anonymize operations are atomic', async ({ authenticatedRequest }) => {
     // Pattern 001: Create unique test data per test
-    const testId = Date.now().toString();
+    const testId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const createResponse = await authenticatedRequest.post('/api/admin/members', {
       data: {
         first_name: `Atomic${testId}`,
