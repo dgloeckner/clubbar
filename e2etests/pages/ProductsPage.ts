@@ -144,11 +144,7 @@ export class ProductsPage extends BasePage {
    */
   async getProductIdByName(productName: string): Promise<string | null> {
     // Ensure loading indicator is not visible (data should be loaded)
-    // Use short timeout since caller should have already waited
-    await expect(this.globalLoadingIndicator()).not.toBeVisible({ timeout: 5000 }).catch(() => {
-      // If still loading, wait for it to complete
-      return expect(this.globalLoadingIndicator()).not.toBeVisible({ timeout: 30000 })
-    })
+    await expect(this.globalLoadingIndicator()).not.toBeVisible({ timeout: 30000 })
 
     const rows = await this.tableRows().all()
     for (const row of rows) {
@@ -214,9 +210,9 @@ export class ProductsPage extends BasePage {
     }
 
     const row = this.page.locator(`[data-testid="${productId}"]`)
-    const isVisible = await row.isVisible({ timeout: 1000 }).catch(() => false)
+    const rowCount = await row.count()
 
-    if (!isVisible) {
+    if (rowCount === 0) {
       return null
     }
 
@@ -259,9 +255,9 @@ export class ProductsPage extends BasePage {
     isActive: boolean
   } | null> {
     const row = this.page.locator(`[data-testid="${productId}"]`)
-    const isVisible = await row.isVisible({ timeout: 1000 }).catch(() => false)
+    const rowCount = await row.count()
 
-    if (!isVisible) {
+    if (rowCount === 0) {
       return null
     }
 
@@ -378,10 +374,7 @@ export class ProductsPage extends BasePage {
     await option.click()
 
     // Wait for dropdown to close after selection
-    await expect(dropdown).not.toBeVisible({ timeout: 5000 }).catch(() => {
-      // If dropdown doesn't close, click trigger again to close it
-      return trigger.click()
-    })
+    await expect(dropdown).not.toBeVisible({ timeout: 5000 })
   }
 
   async getSelectedCategory(): Promise<string> {
@@ -554,8 +547,8 @@ export class ProductsPage extends BasePage {
    */
   async getDispenserBadge(productId: string) {
     const badge = this.page.getByTestId(`products-list-dispenser-badge-${productId}`)
-    const isVisible = await badge.isVisible({ timeout: 1000 }).catch(() => false)
-    return isVisible ? badge : null
+    const badgeCount = await badge.count()
+    return badgeCount > 0 ? badge : null
   }
 
   /**
@@ -571,19 +564,13 @@ export class ProductsPage extends BasePage {
    */
 
   async getErrorMessage(): Promise<string | null> {
-    try {
-      return await this.errorMessage().textContent()
-    } catch {
-      return null
-    }
+    if (await this.errorMessage().count() === 0) return null
+    return this.errorMessage().textContent()
   }
 
   async getFormErrorMessage(): Promise<string | null> {
-    try {
-      return await this.formError().textContent()
-    } catch {
-      return null
-    }
+    if (await this.formError().count() === 0) return null
+    return this.formError().textContent()
   }
 
   /**
@@ -839,8 +826,13 @@ export class ProductsPage extends BasePage {
    */
 
   async reloadPage() {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/products') && resp.status() === 200,
+      { timeout: 15000 }
+    )
     await this.page.reload()
-    await this.page.waitForLoadState('networkidle')
+    await responsePromise
+    await this.waitForLoadingToComplete()
   }
 
   /**

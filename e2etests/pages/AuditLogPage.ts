@@ -34,16 +34,6 @@ export class AuditLogPage extends BasePage {
   }
 
   /**
-   * PRIVATE: API response waiter for audit-log endpoint
-   * Sets up listener BEFORE action to avoid race conditions (Pattern from JournalPage)
-   */
-  private waitForAuditLogResponse() {
-    return this.page.waitForResponse(
-      (resp) => resp.url().includes('/api/admin/audit-log') && resp.status() === 200
-    )
-  }
-
-  /**
    * TABLE INTERACTIONS
    */
 
@@ -69,19 +59,40 @@ export class AuditLogPage extends BasePage {
    */
 
   async setDateFromFilter(date: string) {
-    const responsePromise = this.waitForAuditLogResponse()
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
+      try {
+        return new URL(resp.url()).searchParams.get('date_from') === date
+      } catch {
+        return false
+      }
+    })
     await this.page.getByTestId('audit-log-filter-date-from').fill(date)
     await responsePromise
   }
 
   async setDateToFilter(date: string) {
-    const responsePromise = this.waitForAuditLogResponse()
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
+      try {
+        return new URL(resp.url()).searchParams.get('date_to') === date
+      } catch {
+        return false
+      }
+    })
     await this.page.getByTestId('audit-log-filter-date-to').fill(date)
     await responsePromise
   }
 
   async filterByAdmin(adminId: string) {
-    const responsePromise = this.waitForAuditLogResponse()
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
+      try {
+        return new URL(resp.url()).searchParams.get('admin_id') === adminId
+      } catch {
+        return false
+      }
+    })
     const select = this.page.getByTestId('audit-log-filter-admin')
     await select.selectOption(adminId)
     await responsePromise
@@ -137,7 +148,16 @@ export class AuditLogPage extends BasePage {
   }
 
   async clearSearch() {
-    const responsePromise = this.waitForAuditLogResponse()
+    // An empty search parameter means the key is absent or empty string
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
+      try {
+        const searchParam = new URL(resp.url()).searchParams.get('search')
+        return searchParam === null || searchParam === ''
+      } catch {
+        return false
+      }
+    })
     const input = this.page.getByTestId('audit-log-search-input')
     await input.clear()
     await input.fill('')
@@ -160,13 +180,27 @@ export class AuditLogPage extends BasePage {
   }
 
   async goToPage(pageNumber: number) {
-    const responsePromise = this.waitForAuditLogResponse()
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
+      try {
+        return new URL(resp.url()).searchParams.get('page') === pageNumber.toString()
+      } catch {
+        return false
+      }
+    })
     await this.page.getByTestId(`pagination-page-${pageNumber}`).click()
     await responsePromise
   }
 
   async setPageSize(size: number) {
-    const responsePromise = this.waitForAuditLogResponse()
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
+      try {
+        return new URL(resp.url()).searchParams.get('per_page') === size.toString()
+      } catch {
+        return false
+      }
+    })
     const select = this.page.getByTestId('pagination-page-size-select')
     await select.selectOption(size.toString())
     await responsePromise
@@ -177,7 +211,14 @@ export class AuditLogPage extends BasePage {
    */
 
   async sortByTimestamp() {
-    const responsePromise = this.waitForAuditLogResponse()
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
+      try {
+        return new URL(resp.url()).searchParams.get('sort_by') === 'timestamp'
+      } catch {
+        return false
+      }
+    })
     const header = this.page.locator('[data-testid="audit-log-table"] th').first()
     await header.click()
     await responsePromise

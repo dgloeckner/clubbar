@@ -112,8 +112,6 @@ export class CategoriesPage extends BasePage {
 
   async waitForLoadingToComplete() {
     await expect(this.loadingIndicator()).not.toBeVisible({ timeout: 10000 })
-    // Wait for network to be idle to ensure all data has loaded
-    await this.page.waitForLoadState('networkidle', { timeout: 5000 })
   }
 
   /**
@@ -193,22 +191,21 @@ export class CategoriesPage extends BasePage {
   }
 
   async submitForm() {
-    // Click the submit button
+    // Set up response promise BEFORE clicking to capture the categories list reload
+    const categoriesReloadPromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/categories') && resp.request().method() === 'GET',
+      { timeout: 15000 }
+    )
     await this.formSubmitBtn().click()
 
-    // Wait for form to close (indicates API call started)
+    // Wait for form to close (indicates API call succeeded)
     await this.expectFormModalHidden()
 
-    // Wait for loading to complete (list reload)
-    await this.waitForLoadingToComplete()
+    // Wait for categories list reload response
+    await categoriesReloadPromise
 
-    // Ensure table or empty state is visible
-    try {
-      await expect(this.table()).toBeVisible({ timeout: 2000 })
-    } catch {
-      // If no table, empty state should be visible
-      await expect(this.emptyState()).toBeVisible({ timeout: 2000 })
-    }
+    // Wait for loading indicator to clear
+    await this.waitForLoadingToComplete()
   }
 
   async cancelForm() {
@@ -297,14 +294,19 @@ export class CategoriesPage extends BasePage {
   }
 
   async confirmStatusChange() {
+    // Set up response promise BEFORE clicking to capture the categories list reload
+    const categoriesReloadPromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/categories') && resp.request().method() === 'GET',
+      { timeout: 15000 }
+    )
     await this.confirmOkBtn().click()
     await this.expectConfirmDialogHidden()
 
-    // Wait for loading to complete (list reload)
-    await this.waitForLoadingToComplete()
+    // Wait for categories list reload response
+    await categoriesReloadPromise
 
-    // Ensure table is visible
-    await expect(this.table()).toBeVisible({ timeout: 2000 })
+    // Wait for loading indicator to clear
+    await this.waitForLoadingToComplete()
   }
 
   async cancelStatusChange() {
@@ -321,18 +323,19 @@ export class CategoriesPage extends BasePage {
   }
 
   async confirmDelete() {
+    // Set up response promise BEFORE clicking to capture the categories list reload
+    const categoriesReloadPromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/categories') && resp.request().method() === 'GET',
+      { timeout: 15000 }
+    )
     await this.confirmOkBtn().click()
     await this.expectConfirmDialogHidden()
 
-    // Wait for loading to complete (list reload)
-    await this.waitForLoadingToComplete()
+    // Wait for categories list reload response
+    await categoriesReloadPromise
 
-    // Ensure table or empty state is visible
-    try {
-      await expect(this.table()).toBeVisible({ timeout: 2000 })
-    } catch {
-      await expect(this.emptyState()).toBeVisible({ timeout: 2000 })
-    }
+    // Wait for loading indicator to clear
+    await this.waitForLoadingToComplete()
   }
 
   async cancelDelete() {
@@ -345,27 +348,18 @@ export class CategoriesPage extends BasePage {
    */
 
   async getErrorMessage(): Promise<string | null> {
-    try {
-      return await this.errorMessage().textContent()
-    } catch {
-      return null
-    }
+    if (await this.errorMessage().count() === 0) return null
+    return this.errorMessage().textContent()
   }
 
   async getFormErrorMessage(): Promise<string | null> {
-    try {
-      return await this.formError().textContent()
-    } catch {
-      return null
-    }
+    if (await this.formError().count() === 0) return null
+    return this.formError().textContent()
   }
 
   async getConfirmMessage(): Promise<string | null> {
-    try {
-      return await this.confirmMessage().textContent()
-    } catch {
-      return null
-    }
+    if (await this.confirmMessage().count() === 0) return null
+    return this.confirmMessage().textContent()
   }
 
   /**

@@ -190,8 +190,7 @@ export class SettingsPage {
    * Get error message text (returns null if not visible)
    */
   async getErrorMessage(): Promise<string | null> {
-    const isVisible = await this.errorMessage.isVisible().catch(() => false)
-    if (!isVisible) {
+    if (await this.errorMessage.count() === 0) {
       return null
     }
     return await this.errorMessage.textContent()
@@ -201,8 +200,7 @@ export class SettingsPage {
    * Get success message text (returns null if not visible)
    */
   async getSuccessMessage(): Promise<string | null> {
-    const isVisible = await this.successMessage.isVisible().catch(() => false)
-    if (!isVisible) {
+    if (await this.successMessage.count() === 0) {
       return null
     }
     return await this.successMessage.textContent()
@@ -277,10 +275,8 @@ export class SettingsPage {
    */
   async clickSepaTab() {
     await this.sepaTab.click()
-    // Wait for SEPA form to appear
+    // Wait for SEPA form to appear (SEPA config is loaded on page mount, not on tab switch)
     await this.sepaForm.waitFor({ state: 'visible' })
-    // Wait a moment for form data to load from API
-    await this.page.waitForTimeout(300)
   }
 
   // ==================== Admin Users Tab ====================
@@ -343,7 +339,7 @@ export class SettingsPage {
    * Check if create admin modal is visible
    */
   async isCreateAdminModalVisible(): Promise<boolean> {
-    return await this.page.getByTestId('settings-admin-create-modal').isVisible().catch(() => false)
+    return await this.page.getByTestId('settings-admin-create-modal').count() > 0
   }
 
   /**
@@ -358,8 +354,7 @@ export class SettingsPage {
    */
   async getGeneratedPassword(): Promise<string | null> {
     const modal = this.page.getByTestId('settings-admin-password-modal')
-    const isVisible = await modal.isVisible().catch(() => false)
-    if (!isVisible) {
+    if (await modal.count() === 0) {
       return null
     }
     const passwordText = await this.page.getByTestId('settings-admin-password-display').textContent()
@@ -507,7 +502,7 @@ export class SettingsPage {
    * Check if edit admin modal is visible
    */
   async isEditAdminModalVisible(): Promise<boolean> {
-    return await this.page.getByTestId('settings-admin-edit-modal').isVisible().catch(() => false)
+    return await this.page.getByTestId('settings-admin-edit-modal').count() > 0
   }
 
   /**
