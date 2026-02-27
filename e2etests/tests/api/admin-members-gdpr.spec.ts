@@ -5,12 +5,32 @@ import { test, expect } from '../../fixtures/auth.fixture';
  *
  * Tests POST /api/admin/members/{id}/export and /anonymize endpoints
  * for GDPR export and anonymization (right to be forgotten) operations.
+ *
+ * Pattern 001: Each test creates its own unique member to avoid shared/mutated state.
+ * Pattern 004: Tests are safe to run in parallel (4 workers).
  */
+
+/** Helper to create a unique test member and return its data. */
+async function createGdprTestMember(authenticatedRequest: any, testId: string) {
+  const response = await authenticatedRequest.post('/api/admin/members', {
+    data: {
+      first_name: `GdprTest${testId}`,
+      last_name: 'Member',
+      email: `gdpr-${testId}@test.example`,
+      preferred_language: 'en',
+    },
+  });
+  expect(response.status()).toBe(201);
+  return await response.json();
+}
 
 test.describe('Admin Members GDPR Endpoints', () => {
   // GDPR Export
   test('POST /api/admin/members/{id}/export returns member export data', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post('/api/admin/members/123e4567-e89b-12d3-a456-426614174000/export');
+    const testId = Date.now().toString();
+    const member = await createGdprTestMember(authenticatedRequest, testId);
+
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/export`);
 
     expect(response.ok()).toBeTruthy();
     expect(response.status()).toBe(200);
@@ -38,20 +58,22 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('POST /api/admin/members/{id}/export includes member details', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post('/api/admin/members/123e4567-e89b-12d3-a456-426614174000/export');
+    const testId = Date.now().toString();
+    const member = await createGdprTestMember(authenticatedRequest, testId);
+
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/export`);
 
     const body = await response.json();
-    const member = body.member;
+    const exported = body.member;
 
-    // Verify member data is included
-    expect(member.id).toBe('123e4567-e89b-12d3-a456-426614174000');
-    expect(member.first_name).toBeDefined();
-    expect(member.last_name).toBeDefined();
-    expect(member.email).toBeDefined();
-    expect(member.phone).toBeDefined();
-    expect(member.preferred_language).toBeDefined();
-    expect(member.created_at).toBeDefined();
-    expect(member.updated_at).toBeDefined();
+    // Verify member data is included and matches the created member
+    expect(exported.id).toBe(member.id);
+    expect(exported.first_name).toBe(`GdprTest${testId}`);
+    expect(exported.last_name).toBe('Member');
+    expect(exported.email).toBe(`gdpr-${testId}@test.example`);
+    expect(exported.preferred_language).toBeDefined();
+    expect(exported.created_at).toBeDefined();
+    expect(exported.updated_at).toBeDefined();
   });
 
   test('POST /api/admin/members/{id}/export returns 404 for non-existent member', async ({ authenticatedRequest }) => {
@@ -65,7 +87,10 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('POST /api/admin/members/{id}/export returns JSON content type', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post('/api/admin/members/123e4567-e89b-12d3-a456-426614174000/export');
+    const testId = Date.now().toString();
+    const member = await createGdprTestMember(authenticatedRequest, testId);
+
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/export`);
 
     const contentType = response.headers()['content-type'];
     expect(contentType).toContain('application/json');
@@ -73,7 +98,10 @@ test.describe('Admin Members GDPR Endpoints', () => {
 
   // GDPR Anonymization
   test('POST /api/admin/members/{id}/anonymize anonymizes member data', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post('/api/admin/members/223e4567-e89b-12d3-a456-426614174001/anonymize');
+    const testId = Date.now().toString();
+    const member = await createGdprTestMember(authenticatedRequest, testId);
+
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/anonymize`);
 
     expect(response.ok()).toBeTruthy();
     expect(response.status()).toBe(200);
@@ -81,7 +109,7 @@ test.describe('Admin Members GDPR Endpoints', () => {
     const body = await response.json();
 
     // Validate member is marked as deleted
-    expect(body.id).toBe('223e4567-e89b-12d3-a456-426614174001');
+    expect(body.id).toBe(member.id);
     expect(body.deleted_at).toBeDefined();
     expect(body.is_active).toBe(false);
 
@@ -99,20 +127,27 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('POST /api/admin/members/{id}/anonymize preserves original timestamps', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post('/api/admin/members/223e4567-e89b-12d3-a456-426614174001/anonymize');
+    const testId = Date.now().toString();
+    const member = await createGdprTestMember(authenticatedRequest, testId);
+    const originalCreatedAt = member.created_at;
+
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/anonymize`);
 
     const body = await response.json();
 
-    // created_at should remain unchanged
-    expect(body.created_at).toBe('2024-07-01T12:30:00Z');
+    // created_at should remain unchanged after anonymization
+    expect(body.created_at).toBe(originalCreatedAt);
 
-    // updated_at should be recent
+    // updated_at should be a valid ISO 8601 timestamp
     const iso8601Regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
     expect(body.updated_at).toMatch(iso8601Regex);
   });
 
   test('POST /api/admin/members/{id}/anonymize preserves language preference', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post('/api/admin/members/223e4567-e89b-12d3-a456-426614174001/anonymize');
+    const testId = Date.now().toString();
+    const member = await createGdprTestMember(authenticatedRequest, testId);
+
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/anonymize`);
 
     const body = await response.json();
 
@@ -132,7 +167,10 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('POST /api/admin/members/{id}/anonymize returns JSON content type', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.post('/api/admin/members/223e4567-e89b-12d3-a456-426614174001/anonymize');
+    const testId = Date.now().toString();
+    const member = await createGdprTestMember(authenticatedRequest, testId);
+
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/anonymize`);
 
     const contentType = response.headers()['content-type'];
     expect(contentType).toContain('application/json');
@@ -149,12 +187,13 @@ test.describe('Admin Members GDPR Endpoints', () => {
   });
 
   test('GDPR export and anonymize operations are atomic', async ({ authenticatedRequest }) => {
-    // Create a dedicated test member for this test to avoid interfering with other tests
+    // Pattern 001: Create unique test data per test
+    const testId = Date.now().toString();
     const createResponse = await authenticatedRequest.post('/api/admin/members', {
       data: {
-        first_name: 'AtomicTest',
+        first_name: `Atomic${testId}`,
         last_name: 'Member',
-        email: 'atomic@test.com',
+        email: `atomic-${testId}@test.example`,
         preferred_language: 'en',
       },
     });
@@ -170,8 +209,8 @@ test.describe('Admin Members GDPR Endpoints', () => {
     const exportData = await exportResponse.json();
 
     // Verify export includes member data before anonymization
-    expect(exportData.member.first_name).toBe('AtomicTest');
-    expect(exportData.member.email).toBe('atomic@test.com');
+    expect(exportData.member.first_name).toBe(`Atomic${testId}`);
+    expect(exportData.member.email).toBe(`atomic-${testId}@test.example`);
 
     // Then anonymize
     const anonResponse = await authenticatedRequest.post(`/api/admin/members/${memberId}/anonymize`);
