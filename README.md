@@ -42,7 +42,7 @@ flowchart TB
         A4[GDPR compliance]
     end
 
-    subgraph Backend["Backend API (Laravel)"]
+    subgraph Backend["Backend API (PHP)"]
         B1[REST API]
         B2[SEPA XML export]
         B3[Audit logging]
@@ -92,8 +92,6 @@ flowchart TB
 
 ## Project Status
 
-**Phase: Specification Complete**
-
 - [x] Architecture Decision Records (22 ADRs)
 - [x] Use Cases (50+ functional requirements)
 - [x] OpenAPI Specifications (Admin + Terminal APIs)
@@ -115,17 +113,14 @@ flowchart TB
 git clone https://github.com/your-org/ruderbar.git
 cd ruderbar
 
+# Install backend dependencies
+cd backend && composer install && cd ..
+
 # Start with Docker
-docker-compose up -d
+docker compose up -d
 
-# Run database migrations (first time only)
-docker-compose exec backend php artisan migrate
-
-# Access the applications
-# Admin Panel:  http://localhost:5173
-# Terminal:     http://localhost:5174
-# Backend API:  http://localhost:8080
-# Database:     localhost:3306 (user: ruderbar, pass: ruderbar)
+# Verify backend is running
+curl http://localhost:8080/api/health
 ```
 
 ### Services
@@ -133,7 +128,7 @@ docker-compose exec backend php artisan migrate
 | Service | URL | Description |
 |---------|-----|-------------|
 | `database` | `localhost:3306` | MariaDB 10.11 |
-| `backend` | `localhost:8080` | PHP 8.3 + Laravel |
+| `backend` | `localhost:8080` | PHP 8.3 |
 | `admin-frontend` | `localhost:5173` | React SPA (Apache) |
 | `terminal-frontend` | `localhost:5174` | React + Vite dev server |
 
@@ -145,7 +140,7 @@ docker-compose exec backend php artisan migrate
 |-----------|--------------|
 | **Terminal** | Electron, React, TypeScript, SQLite, Drizzle ORM |
 | **Admin Panel** | React, TypeScript, Vite, Zustand, TanStack Table |
-| **Backend** | PHP 8.3, Laravel 11, Eloquent, Sanctum |
+| **Backend** | PHP 8.3, MariaDB, PDO |
 | **Database** | SQLite (dev), MySQL/MariaDB (production) |
 | **Testing** | PHPUnit, Vitest, Playwright |
 
