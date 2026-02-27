@@ -88,22 +88,48 @@ export class AuditLogPage extends BasePage {
   }
 
   async filterByAction(action: string) {
-    const responsePromise = this.waitForAuditLogResponse()
+    // Match the specific action parameter to avoid being satisfied by the initial page-load
+    // response (which has no action param) arriving while our listener is set up.
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
+      try {
+        return new URL(resp.url()).searchParams.get('action') === action
+      } catch {
+        return false
+      }
+    })
     const select = this.page.getByTestId('audit-log-filter-action')
     await select.selectOption(action)
     await responsePromise
   }
 
   async filterByEntityType(entityType: string) {
-    const responsePromise = this.waitForAuditLogResponse()
+    // Match the specific entity_type parameter to avoid being satisfied by the initial
+    // page-load response (which has no entity_type param) arriving while our listener is set up.
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
+      try {
+        return new URL(resp.url()).searchParams.get('entity_type') === entityType
+      } catch {
+        return false
+      }
+    })
     const select = this.page.getByTestId('audit-log-filter-entity-type')
     await select.selectOption(entityType)
     await responsePromise
   }
 
   async search(text: string) {
-    // Search has a 500ms debounce, so we wait for the response after debounce fires
-    const responsePromise = this.waitForAuditLogResponse()
+    // Search has a 500ms debounce, so we wait for the response after debounce fires.
+    // Match the specific search parameter (handles both %20 and + encoding via URL API).
+    const responsePromise = this.page.waitForResponse((resp) => {
+      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
+      try {
+        return new URL(resp.url()).searchParams.get('search') === text
+      } catch {
+        return false
+      }
+    })
     const input = this.page.getByTestId('audit-log-search-input')
     await input.clear()
     await input.fill(text)
