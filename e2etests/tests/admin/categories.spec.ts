@@ -577,9 +577,14 @@ test.describe('Admin Frontend - Categories Page', () => {
       await authenticatedCategoriesPage.createCategory({ de: `MMM Sort Test ${timestamp}` })
 
       // Click sort header to sort ascending
+      // Use waitForResponse instead of waitForLoadingToComplete (which uses networkidle and fires
+      // before React's useEffect triggers the categories API call after sort state change)
       const sortHeader = page.getByTestId('categories-sort-name')
+      const sortedResponse = page.waitForResponse(
+        (resp) => resp.url().includes('/api/admin/categories') && resp.status() === 200,
+      )
       await sortHeader.click()
-      await authenticatedCategoriesPage.waitForLoadingToComplete()
+      await sortedResponse
 
       // Verify first category name starts with A (or comes first alphabetically)
       const firstCategoryId = await page

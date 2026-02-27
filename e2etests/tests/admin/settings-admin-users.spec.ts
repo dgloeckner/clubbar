@@ -84,6 +84,14 @@ test.describe('Admin Users Management', () => {
     // Fill form with test data
     await authenticatedSettingsPage.fillCreateAdminForm(testData)
 
+    // Set up interceptor for admin users list refresh (triggered after create)
+    const adminUsersLoaded = authenticatedSettingsPage.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+    )
+
     // Submit form
     await authenticatedSettingsPage.clickCreateAdminConfirm()
 
@@ -98,8 +106,8 @@ test.describe('Admin Users Management', () => {
     // Close password modal
     await authenticatedSettingsPage.closePasswordModal()
 
-    // Wait for modal to close
-    await authenticatedSettingsPage.page.waitForTimeout(300)
+    // Wait for admin users list to fully reload before asserting
+    await adminUsersLoaded
 
     // Assert: Count should have increased (if < per_page limit) or stay same (if already at limit)
     // The table loads up to 500 users — when DB has >500, count stays at 500 but email lookup still works
@@ -230,6 +238,14 @@ test.describe('Admin Users Management', () => {
 
     const testData = generateTestAdminUser()
 
+    // Set up interceptor for admin users list refresh (triggered after create)
+    const adminUsersLoaded = authenticatedSettingsPage.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+    )
+
     // Create admin
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm(testData)
@@ -240,9 +256,9 @@ test.describe('Admin Users Management', () => {
     const originalPassword = await authenticatedSettingsPage.getGeneratedPassword()
     expect(originalPassword).not.toBeNull()
 
-    // Close password modal
+    // Close password modal and wait for admin list to reload
     await authenticatedSettingsPage.closePasswordModal()
-    await authenticatedSettingsPage.page.waitForTimeout(300)
+    await adminUsersLoaded
 
     // Act: Reset password
     await authenticatedSettingsPage.clickResetPasswordButton(testData.email)
@@ -283,13 +299,22 @@ test.describe('Admin Users Management', () => {
 
     const testData = generateTestAdminUser()
 
+    // Set up interceptor for admin users list refresh (triggered after create)
+    const adminUsersLoaded = authenticatedSettingsPage.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+    )
+
     // Create admin
     await authenticatedSettingsPage.clickCreateAdminButton()
     await authenticatedSettingsPage.fillCreateAdminForm(testData)
     await authenticatedSettingsPage.clickCreateAdminConfirm()
     await authenticatedSettingsPage.waitForPasswordModal()
     await authenticatedSettingsPage.closePasswordModal()
-    await authenticatedSettingsPage.page.waitForTimeout(300)
+    // Wait for admin list to fully reload before asserting status
+    await adminUsersLoaded
 
     // Verify admin is active
     let status = await authenticatedSettingsPage.getAdminUserStatus(testData.email)
