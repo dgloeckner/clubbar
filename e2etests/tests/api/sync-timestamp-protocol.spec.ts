@@ -24,18 +24,23 @@ test.describe('Sync Timestamp Protocol', () => {
     expect(response1.ok()).toBeTruthy();
     const data1 = await response1.json();
 
+    // Cursor is returned as a string; convert to number for range checks
+    const cursor1 = Number(data1.cursor);
+
     // Verify cursor is in milliseconds (between 2023 and 2033)
-    expect(data1.cursor).toBeGreaterThan(1700000000000); // After 2023-11-14
-    expect(data1.cursor).toBeLessThan(2000000000000);   // Before 2033-05-18
+    expect(cursor1).toBeGreaterThan(1700000000000); // After 2023-11-14
+    expect(cursor1).toBeLessThan(2000000000000);   // Before 2033-05-18
 
     // Sync 2: Use cursor from Sync 1
     const response2 = await authenticatedTerminalRequest.get(`${API_BASE}/sync/members?since=${data1.cursor}`);
     expect(response2.ok()).toBeTruthy();
     const data2 = await response2.json();
 
+    const cursor2 = Number(data2.cursor);
+
     // Verify cursor still in milliseconds and monotonically increasing
-    expect(data2.cursor).toBeGreaterThanOrEqual(data1.cursor);
-    expect(data2.cursor).toBeLessThan(2000000000000);
+    expect(cursor2).toBeGreaterThanOrEqual(cursor1);
+    expect(cursor2).toBeLessThan(2000000000000);
   });
 
   test('categories sync returns consistent cursor format', async ({ authenticatedTerminalRequest }) => {
@@ -45,9 +50,12 @@ test.describe('Sync Timestamp Protocol', () => {
     expect(response.ok()).toBeTruthy();
     const data = await response.json();
 
+    // Cursor is returned as a string; convert to number for range checks
+    const cursor = Number(data.cursor);
+
     // Verify cursor is in milliseconds regardless of result count (Bug #1 fix)
-    expect(data.cursor).toBeGreaterThan(1700000000000);
-    expect(data.cursor).toBeLessThan(2000000000000);
+    expect(cursor).toBeGreaterThan(1700000000000);
+    expect(cursor).toBeLessThan(2000000000000);
   });
 
   test('products sync does not trigger year 57123 bug', async ({ authenticatedTerminalRequest }) => {
@@ -57,16 +65,18 @@ test.describe('Sync Timestamp Protocol', () => {
     const data1 = await response1.json();
 
     const validCursor = data1.cursor;
-    expect(validCursor).toBeGreaterThan(1700000000000);
+    expect(Number(validCursor)).toBeGreaterThan(1700000000000);
 
     // Sync 2: Use valid cursor (milliseconds) - should work without year 57123 bug
     const response2 = await authenticatedTerminalRequest.get(`${API_BASE}/sync/products?since=${validCursor}`);
     expect(response2.ok()).toBeTruthy();
     const data2 = await response2.json();
 
+    const cursor2 = Number(data2.cursor);
+
     // Verify response is valid (not 500 error from year 57123)
-    expect(data2.cursor).toBeGreaterThan(1700000000000);
-    expect(data2.cursor).toBeLessThan(2000000000000);
+    expect(cursor2).toBeGreaterThan(1700000000000);
+    expect(cursor2).toBeLessThan(2000000000000);
 
     // Verify products array exists (may be empty if no changes)
     expect(data2.products).toBeDefined();

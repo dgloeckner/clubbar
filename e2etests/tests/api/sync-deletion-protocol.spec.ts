@@ -66,7 +66,7 @@ test.describe('Deletion Protocol - Members', () => {
     expect(tombstone.deleted_at).toBeTruthy();
 
     // 7. Verify cursor advanced (tombstone was returned)
-    expect(bodyAfter.cursor).toBeGreaterThan(cursorBeforeDelete);
+    expect(Number(bodyAfter.cursor)).toBeGreaterThan(Number(cursorBeforeDelete));
   });
 
   test('deleted member does not reappear in subsequent syncs', async ({
@@ -205,7 +205,7 @@ test.describe('Deletion Protocol - Categories', () => {
     expect(tombstone.deleted_at).toBeTruthy();
 
     // 7. Verify cursor advanced
-    expect(bodyAfter.cursor).toBeGreaterThan(cursorBeforeDelete);
+    expect(Number(bodyAfter.cursor)).toBeGreaterThan(Number(cursorBeforeDelete));
   });
 
   test('deleted category does not reappear in subsequent syncs', async ({
@@ -291,7 +291,7 @@ test.describe('Deletion Protocol - Products', () => {
     expect(tombstone.deleted_at).toBeTruthy();
 
     // 7. Verify cursor advanced
-    expect(bodyAfter.cursor).toBeGreaterThan(cursorBeforeDelete);
+    expect(Number(bodyAfter.cursor)).toBeGreaterThan(Number(cursorBeforeDelete));
   });
 
   test('deleted product does not reappear in subsequent syncs', async ({
@@ -403,7 +403,8 @@ test.describe('Deletion Protocol - Cursor Behavior', () => {
 
     // Cursor should equal input `since` (prevents race condition)
     // See ADR-0012: "When no changes: return input cursor to avoid race condition"
-    expect(body.cursor).toBe(futureTimestamp);
+    // Cursor is returned as string; compare numerically
+    expect(Number(body.cursor)).toBe(futureTimestamp);
   });
 
   test('cursor advances when tombstone is returned', async ({
@@ -442,6 +443,6 @@ test.describe('Deletion Protocol - Cursor Behavior', () => {
     expect(tombstone).toBeDefined();
 
     // Cursor advanced (timestamp of last item in result set)
-    expect(body.cursor).toBeGreaterThan(beforeDelete);
+    expect(Number(body.cursor)).toBeGreaterThan(Number(beforeDelete));
   });
 });
