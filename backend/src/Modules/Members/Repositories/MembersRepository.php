@@ -84,7 +84,7 @@ class MembersRepository
 
     public function updateById(string $id, array $data): ?array
     {
-        $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'phone', 'preferred_language', 'is_active', 'iban', 'account_holder_name', 'mandate_reference', 'mandate_signed_at', 'deleted_at'];
+        $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'phone', 'preferred_language', 'is_active', 'iban', 'account_holder_name', 'mandate_reference', 'mandate_signed_at', 'deleted_at', 'deleted_by_admin_id'];
         [$set, $values] = SafeQuery::buildUpdate($data, $allowed);
         $values[] = date('Y-m-d H:i:s');
         $values[] = $id;
