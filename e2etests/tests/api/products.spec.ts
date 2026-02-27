@@ -639,7 +639,7 @@ test.describe('Products API - Icon Support', () => {
   test('POST /api/admin/products accepts icon_name', async ({ authenticatedRequest }) => {
     const category = await createCategory(authenticatedRequest);
     const productData = createValidProduct(category.id, {
-      icon_name: 'PilsIcon',
+      icon_name: 'beer-pils',
     });
 
     const response = await authenticatedRequest.post('/api/admin/products', {
@@ -648,7 +648,7 @@ test.describe('Products API - Icon Support', () => {
 
     expect(response.status()).toBe(201);
     const body = await response.json();
-    expect(body.icon_name).toBe('PilsIcon');
+    expect(body.icon_name).toBe('beer-pils');
   });
 
   test('POST /api/admin/products allows null icon_name', async ({ authenticatedRequest }) => {
@@ -669,7 +669,7 @@ test.describe('Products API - Icon Support', () => {
   test('POST /api/admin/products returns icon_name in response', async ({ authenticatedRequest }) => {
     const category = await createCategory(authenticatedRequest);
     const productData = createValidProduct(category.id, {
-      icon_name: 'WeizenIcon',
+      icon_name: 'beer-weizen',
     });
 
     const response = await authenticatedRequest.post('/api/admin/products', {
@@ -678,14 +678,14 @@ test.describe('Products API - Icon Support', () => {
 
     const body = await response.json();
     expect(body.icon_name).toBeDefined();
-    expect(body.icon_name).toBe('WeizenIcon');
+    expect(body.icon_name).toBe('beer-weizen');
   });
 
   test('PATCH /api/admin/products/{id} updates icon_name', async ({ authenticatedRequest }) => {
     const category = await createCategory(authenticatedRequest);
     const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id, {
-        icon_name: 'PilsIcon',
+        icon_name: 'beer-pils',
       }),
     });
 
@@ -694,19 +694,19 @@ test.describe('Products API - Icon Support', () => {
     const updateResponse = await authenticatedRequest.patch(
       `/api/admin/products/${product.id}`,
       {
-        data: { icon_name: 'WeizenIcon' },
+        data: { icon_name: 'beer-weizen' },
       }
     );
 
     const updatedProduct = await updateResponse.json();
-    expect(updatedProduct.icon_name).toBe('WeizenIcon');
+    expect(updatedProduct.icon_name).toBe('beer-weizen');
   });
 
   test('PATCH /api/admin/products/{id} allows clearing icon_name', async ({ authenticatedRequest }) => {
     const category = await createCategory(authenticatedRequest);
     const createResponse = await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id, {
-        icon_name: 'PilsIcon',
+        icon_name: 'beer-pils',
       }),
     });
 
@@ -727,7 +727,7 @@ test.describe('Products API - Icon Support', () => {
     const category = await createCategory(authenticatedRequest);
     await authenticatedRequest.post('/api/admin/products', {
       data: createValidProduct(category.id, {
-        icon_name: 'BeerAFIcon',
+        icon_name: 'beer-alcohol-free',
       }),
     });
 
