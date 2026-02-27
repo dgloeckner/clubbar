@@ -87,15 +87,12 @@ test.describe('Settlement E2E: Full Workflow', () => {
       const csvContent = await csvResponse.text()
       expect(csvContent).toBeTruthy()
 
-      // export-csv returns settlement-level summary (id, settlement_date, execution_date, total_amount_cents, member_count, created_at)
+      // export-csv returns per-member summary (Member Name;Email;IBAN;Amount EUR)
       const csvLines = csvContent.trim().split('\n')
-      expect(csvLines.length).toBe(2) // header + 1 data row
-      expect(csvLines[0]).toContain('id')
-      expect(csvLines[0]).toContain('settlement_date')
-      expect(csvLines[0]).toContain('total_amount_cents')
-
-      // Verify settlement ID in data row
-      expect(csvLines[1]).toContain(settlementId)
+      expect(csvLines.length).toBe(3) // header + 2 member rows (member1, member2)
+      expect(csvLines[0]).toBe('Member Name;Email;IBAN;Amount EUR')
+      // Each data row uses semicolons
+      expect(csvLines[1]).toContain(';')
     })
 
     // Export and verify detailed transaction CSV
@@ -234,19 +231,18 @@ test.describe('Settlement E2E: Full Workflow', () => {
       const csvContent = await csvResponse.text()
       const csvLines = csvContent.trim().split('\n')
 
-      // Settlement summary CSV has: id, settlement_date, execution_date, total_amount_cents, member_count, created_at
+      // Per-member summary CSV: Member Name;Email;IBAN;Amount EUR
       const csvHeader = csvLines[0]
-      expect(csvHeader).toContain('id')
-      expect(csvHeader).toContain('total_amount_cents')
-      expect(csvLines.length).toBe(2) // header + 1 data row
+      expect(csvHeader).toBe('Member Name;Email;IBAN;Amount EUR')
+      expect(csvLines.length).toBe(2) // header + 1 member row
 
       // Verify total amount in data row (6000 cents = €60.00)
-      expect(csvLines[1]).toContain('6000')
+      expect(csvLines[1]).toContain('60.00')
 
-      // Verify all rows have consistent field count
-      const headerFieldCount = csvHeader.split(',').length
+      // Verify all rows have consistent field count (semicolon separated)
+      const headerFieldCount = csvHeader.split(';').length
       for (let i = 1; i < csvLines.length; i++) {
-        const fieldCount = csvLines[i].split(',').length
+        const fieldCount = csvLines[i].split(';').length
         expect(fieldCount).toBe(headerFieldCount)
       }
     })

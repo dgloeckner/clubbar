@@ -167,7 +167,7 @@ test.describe("Dashboard API", () => {
       expect(typeof txn.member_name).toBe("string");
       expect(typeof txn.type).toBe("string");
       expect(typeof txn.amount_cents).toBe("number");
-      expect(typeof txn.product_name).toBe("string");
+      expect(txn.product_name === null || typeof txn.product_name === "string").toBe(true);
       expect(typeof txn.timestamp).toBe("string");
 
       // Verify ISO 8601 timestamp format

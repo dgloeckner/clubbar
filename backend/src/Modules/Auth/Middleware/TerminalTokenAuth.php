@@ -49,14 +49,9 @@ class TerminalTokenAuth implements MiddlewareInterface
 
     private function findTerminalByToken(string $token): ?array
     {
-        // Must check all active terminals since bcrypt requires individual verification
-        $terminals = $this->terminalsRepository->findActive();
-        foreach ($terminals as $terminal) {
-            if (!empty($terminal['api_token_hash']) && TokenService::verifyToken($token, $terminal['api_token_hash'])) {
-                return $terminal;
-            }
-        }
-        return null;
+        // Direct SHA256 lookup: O(1) DB lookup, no per-terminal iteration
+        $sha256 = TokenService::hashToken($token);
+        return $this->terminalsRepository->findByTokenHash($sha256);
     }
 
     private function unauthorized(string $code, string $message): ResponseInterface

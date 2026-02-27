@@ -113,7 +113,7 @@ class AdminController
             language: $language,
             iban: ($body['iban'] ?? null) ?: null,
             accountHolderName: ($body['account_holder_name'] ?? null) ?: null,
-            mandateReference: ($body['mandate_reference'] ?? null) ?: null,
+            mandateReference: $body['mandate_reference'] ?? null,
             mandateSignedAt: ($body['mandate_signed_at'] ?? null) ?: null,
             adminUserId: $adminId,
         );

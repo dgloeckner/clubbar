@@ -17,7 +17,7 @@ test.describe('Members API - Card UID Filter', () => {
 
   test('GET /admin/members?filters[has_card_uid]=true returns only members with card_uid', async ({ authenticatedRequest }) => {
     const testId = `CardFilter${Date.now()}`;
-    const uniqueCardUid = `CARD${Date.now().toString().slice(-8)}`;
+    const uniqueCardUid = `ABCD${Date.now().toString().slice(-8)}`;
 
     // Create member WITH card_uid
     const memberWith = await authenticatedRequest.post(`${API_BASE}/admin/members`, {

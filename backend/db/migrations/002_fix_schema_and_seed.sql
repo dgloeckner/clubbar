@@ -52,14 +52,14 @@ VALUES (
 -- 4. Seed test terminal (idempotent - only inserts if not exists)
 --    Device ID: test-device-001
 --    Token: test-terminal-token-do-not-use-in-production-0a1b2c3d4e5f6g7h
---    Hash generated with: password_hash(token, PASSWORD_BCRYPT, ['cost' => 12])
+--    Hash generated with: hash('sha256', token)
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO terminals (id, name, device_id, api_token_hash, is_active, created_at, updated_at)
 VALUES (
     '44e4567-e89b-12d3-a456-426614174000',
     'Test Terminal',
     'test-device-001',
-    '$2y$12$o.N/tfiOnSEskNn6J8tuc.4bEX6r6.LETlkEMWy73lrjtiXVZ3vuq',
+    'f88cf6afb8a2a7e19112a34a967c32d6e672dfbaec2809c82be6e970b550e1ae',
     1,
     NOW(),
     NOW()

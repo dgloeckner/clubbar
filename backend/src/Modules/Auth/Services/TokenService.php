@@ -16,11 +16,16 @@ class TokenService
 
     public static function hashToken(string $plainToken): string
     {
-        return password_hash($plainToken, PASSWORD_BCRYPT, ['cost' => self::BCRYPT_COST]);
+        return hash('sha256', $plainToken);
     }
 
     public static function verifyToken(string $plainToken, string $storedHash): bool
     {
+        // New format: SHA256 hex (64 chars)
+        if (strlen($storedHash) === 64 && !str_starts_with($storedHash, '$2y$')) {
+            return hash_equals(hash('sha256', $plainToken), $storedHash);
+        }
+        // Legacy bcrypt (pre-migration terminals)
         return password_verify($plainToken, $storedHash);
     }
 }

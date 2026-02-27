@@ -216,7 +216,8 @@ class AdminController
             return $this->json($response, ['error' => 'not_found', 'message' => 'Settlement not found'], 404);
         }
 
-        $csv = $this->buildSettlementCsv($settlement->toArray());
+        $csvData = $this->settlementsService->getCsvData($id);
+        $csv = $this->buildSettlementCsv($csvData);
 
         $response->getBody()->write($csv);
         return $response
@@ -263,22 +264,19 @@ class AdminController
         return $filters;
     }
 
-    private function buildSettlementCsv(array $settlement): string
+    private function buildSettlementCsv(array $memberRows): string
     {
-        $output = fopen('php://temp', 'r+');
-        fputcsv($output, ['id', 'settlement_date', 'execution_date', 'total_amount_cents', 'member_count', 'created_at']);
-        fputcsv($output, [
-            $settlement['id'] ?? '',
-            $settlement['settlement_date'] ?? '',
-            $settlement['execution_date'] ?? '',
-            $settlement['total_amount_cents'] ?? '',
-            $settlement['member_count'] ?? '',
-            $settlement['created_at'] ?? '',
-        ]);
-        rewind($output);
-        $csv = stream_get_contents($output);
-        fclose($output);
-        return $csv;
+        $lines = ["Member Name;Email;IBAN;Amount EUR"];
+        foreach ($memberRows as $row) {
+            $amountEur = number_format($row['amount_cents'] / 100, 2, '.', '');
+            $lines[] = implode(';', [
+                $row['name'],
+                $row['email'],
+                $row['iban'],
+                $amountEur,
+            ]);
+        }
+        return implode("\n", $lines) . "\n";
     }
 
     private function buildCsv(array $items): string

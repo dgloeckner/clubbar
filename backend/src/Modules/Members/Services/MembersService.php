@@ -103,7 +103,7 @@ class MembersService
         ?string $mandateSignedAt = null,
         ?string $adminUserId = null,
     ): MemberAdminDto {
-        $member = $this->membersRepository->create([
+        $memberData = [
             'first_name' => $firstName,
             'last_name' => $lastName,
             'email' => $email,
@@ -113,9 +113,14 @@ class MembersService
             'is_active' => true,
             'iban' => $iban,
             'account_holder_name' => $accountHolderName,
-            'mandate_reference' => $mandateReference,
             'mandate_signed_at' => $mandateSignedAt,
-        ]);
+        ];
+        // Only include mandate_reference key when explicitly provided (even if empty string).
+        // Absence of the key triggers auto-generation in the repository when IBAN is present.
+        if ($mandateReference !== null) {
+            $memberData['mandate_reference'] = $mandateReference;
+        }
+        $member = $this->membersRepository->create($memberData);
 
         $this->auditService->log(
             action: AuditAction::CREATE,

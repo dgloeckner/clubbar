@@ -66,7 +66,7 @@ class MembersRepository
         // but only when mandate_reference is not explicitly provided (key missing from data).
         // If key is present but null, respect the explicit null (no auto-generation).
         $mandateReference = array_key_exists('mandate_reference', $data)
-            ? $data['mandate_reference']
+            ? ($data['mandate_reference'] ?: null)
             : ($iban !== null ? str_replace('-', '', $id) : null);
 
         $stmt->execute([

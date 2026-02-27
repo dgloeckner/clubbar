@@ -65,7 +65,7 @@ class AdminController
                 'type' => $row['type'],
                 'amount_cents' => (int) $row['amount_cents'],
                 'product_name' => $productName,
-                'timestamp' => $row['timestamp'],
+                'timestamp' => $row['timestamp'] ? str_replace(' ', 'T', $row['timestamp']) : null,
             ];
         }
 
@@ -73,12 +73,22 @@ class AdminController
         $terminalRows = $this->terminalsRepository->findAll();
         $terminalStatusList = [];
         foreach ($terminalRows as $terminal) {
+            $isActive = (bool) $terminal['is_active'];
+            $lastSyncAt = $terminal['last_sync_at'] ?? null;
+            if (!$isActive) {
+                $status = 'disabled';
+            } elseif ($lastSyncAt !== null) {
+                $status = 'online';
+            } else {
+                $status = 'offline';
+            }
             $terminalStatusList[] = [
                 'id' => $terminal['id'],
                 'name' => $terminal['name'],
                 'device_id' => $terminal['device_id'],
-                'is_active' => (bool) $terminal['is_active'],
-                'last_sync_at' => $terminal['last_sync_at'] ?? null,
+                'is_active' => $isActive,
+                'last_sync_at' => $lastSyncAt,
+                'status' => $status,
             ];
         }
 

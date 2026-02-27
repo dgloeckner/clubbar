@@ -220,6 +220,26 @@ class SettlementsService
         return $result;
     }
 
+    public function getCsvData(string $settlementId): array
+    {
+        $items = $this->settlementsRepository->findItemsBySettlementId($settlementId);
+        $memberData = [];
+        foreach ($items as $item) {
+            $mid = $item['member_id'];
+            if (!isset($memberData[$mid])) {
+                $member = $this->membersRepository->findByIdIncludingDeleted($mid);
+                $memberData[$mid] = [
+                    'name' => trim(($item['first_name'] ?? '') . ' ' . ($item['last_name'] ?? '')),
+                    'email' => $member['email'] ?? '',
+                    'iban' => $member['iban'] ?? '',
+                    'amount_cents' => 0,
+                ];
+            }
+            $memberData[$mid]['amount_cents'] += (int) $item['amount_cents'];
+        }
+        return array_values($memberData);
+    }
+
     public function markExported(string $settlementId, string $adminUserId): bool
     {
         $result = $this->settlementsRepository->markExported($settlementId);

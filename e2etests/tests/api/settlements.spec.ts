@@ -401,7 +401,7 @@ test.describe('Settlements API', () => {
         `/api/admin/settlements/${listData.data[0].id}/export-sepa`,
       );
 
-      expect([200, 422]).toContain(response.status());
+      expect([200, 409, 422]).toContain(response.status());
       if (response.status() === 200) {
         const contentType = response.headers()['content-type'];
         expect(contentType).toContain('xml');

@@ -29,6 +29,13 @@ class TerminalsRepository
         return $stmt->fetch() ?: null;
     }
 
+    public function findByTokenHash(string $sha256): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM terminals WHERE api_token_hash = ? AND is_active = 1 LIMIT 1');
+        $stmt->execute([$sha256]);
+        return $stmt->fetch() ?: null;
+    }
+
     public function findActive(): array
     {
         return $this->db->query('SELECT * FROM terminals WHERE is_active = 1 ORDER BY created_at ASC')->fetchAll();
