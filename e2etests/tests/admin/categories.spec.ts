@@ -156,7 +156,7 @@ test.describe('Admin Frontend - Categories Page', () => {
     })
 
 
-    test('should show confirmation dialog on status toggle', async ({ authenticatedCategoriesPage }) => {
+    test('should deactivate category immediately without confirmation dialog', async ({ authenticatedCategoriesPage }) => {
       const categoryIdAttr = await authenticatedCategoriesPage.page
         .locator('[data-testid^="categories-status-toggle-"]')
         .first()
@@ -164,16 +164,17 @@ test.describe('Admin Frontend - Categories Page', () => {
       const categoryId = categoryIdAttr?.replace('categories-status-toggle-', '') || ''
 
       if (categoryId) {
+        // Deactivation should be immediate — no confirm dialog
         await authenticatedCategoriesPage.toggleCategoryStatus(categoryId)
-        await authenticatedCategoriesPage.expectConfirmDialogVisible()
+        await authenticatedCategoriesPage.expectConfirmDialogHidden()
 
-        // Verify dialog has message
-        const message = await authenticatedCategoriesPage.getConfirmMessage()
-        expect(message).toBeTruthy()
+        // Status should have changed to Inactive
+        const status = await authenticatedCategoriesPage.getCategoryStatus(categoryId)
+        expect(status).toBe('Inactive')
       }
     })
 
-    test('should cancel status change via confirmation dialog', async ({ authenticatedCategoriesPage }) => {
+    test('should show confirmation dialog when activating category and cancel keeps status unchanged', async ({ authenticatedCategoriesPage }) => {
       const categoryIdAttr = await authenticatedCategoriesPage.page
         .locator('[data-testid^="categories-status-toggle-"]')
         .first()
@@ -181,18 +182,28 @@ test.describe('Admin Frontend - Categories Page', () => {
       const categoryId = categoryIdAttr?.replace('categories-status-toggle-', '') || ''
 
       if (categoryId) {
-        const initialStatus = await authenticatedCategoriesPage.getCategoryStatus(categoryId)
+        // First deactivate (immediate, no dialog) — wait for API to complete
+        const deactivateResponse = authenticatedCategoriesPage.page.waitForResponse(
+          (r) => r.url().includes(`/admin/categories/${categoryId}/status`) && r.request().method() === 'PATCH'
+        )
+        await authenticatedCategoriesPage.toggleCategoryStatus(categoryId)
+        await deactivateResponse
+        await authenticatedCategoriesPage.expectConfirmDialogHidden()
 
+        // Now activate — should show confirmation dialog
         await authenticatedCategoriesPage.toggleCategoryStatus(categoryId)
         await authenticatedCategoriesPage.expectConfirmDialogVisible()
 
-        // Cancel change
+        // Verify dialog has a message
+        const message = await authenticatedCategoriesPage.getConfirmMessage()
+        expect(message).toBeTruthy()
+
+        // Cancel — status should remain Inactive
         await authenticatedCategoriesPage.cancelStatusChange()
         await authenticatedCategoriesPage.expectConfirmDialogHidden()
 
-        // Status should remain unchanged
         const statusAfterCancel = await authenticatedCategoriesPage.getCategoryStatus(categoryId)
-        expect(statusAfterCancel).toBe(initialStatus)
+        expect(statusAfterCancel).toBe('Inactive')
       }
     })
   })

@@ -655,25 +655,8 @@ export class ProductsPage extends BasePage {
     await this.statusToggle(productId).first().click()
   }
 
-  async toggleProductStatus(productId: string, confirm: boolean = true) {
+  async toggleProductStatus(productId: string) {
     await this.clickStatusToggle(productId)
-
-    // Check if confirmation dialog appears (for deactivation)
-    const dialogVisible = await this.confirmDialog()
-      .isVisible({ timeout: 1000 })
-      .catch(() => false)
-
-    if (dialogVisible) {
-      if (confirm) {
-        await this.confirmOkBtn().click()
-        await this.expectConfirmDialogHidden()
-      } else {
-        await this.confirmCancelBtn().click()
-        await this.expectConfirmDialogHidden()
-      }
-    }
-
-    // Wait for status update to complete
     await this.waitForLoadingToComplete()
   }
 

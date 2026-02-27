@@ -239,7 +239,7 @@ test.describe('Products Page - Complete User Workflows', () => {
   /**
    * UC-A43: Deactivate/Activate Product
    */
-  test('should deactivate product with confirmation and reactivate', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
+  test('should deactivate and reactivate product without confirmation dialogs', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
     const productName = `Status Test ${Date.now()}`
     const categoryName = `Status Test Category ${Date.now()}`
 
@@ -265,10 +265,9 @@ test.describe('Products Page - Complete User Workflows', () => {
       expect(rowData.category).toBeTruthy() // Category is set
     }
 
-    // Deactivate with confirmation
+    // Deactivate - should be immediate, no confirmation dialog
     await authenticatedProductsPage.clickStatusToggle(productId)
-    await authenticatedProductsPage.expectConfirmDialogVisible()
-    await authenticatedProductsPage.confirmDelete()
+    await authenticatedProductsPage.expectConfirmDialogHidden()
     await authenticatedProductsPage.waitForLoadingToComplete()
 
     // Verify deactivated
@@ -278,14 +277,9 @@ test.describe('Products Page - Complete User Workflows', () => {
       expect(rowData.isActive).toBe(false)
     }
 
-    // Reactivate (no confirmation dialog)
+    // Reactivate - also no confirmation dialog
     await authenticatedProductsPage.clickStatusToggle(productId)
-    const dialogVisible = await authenticatedProductsPage.page
-      .getByTestId('confirm-dialog')
-      .isVisible({ timeout: 1000 })
-      .catch(() => false)
-    expect(dialogVisible).toBe(false)
-
+    await authenticatedProductsPage.expectConfirmDialogHidden()
     await authenticatedProductsPage.waitForLoadingToComplete()
 
     // Verify reactivated
@@ -293,44 +287,6 @@ test.describe('Products Page - Complete User Workflows', () => {
     expect(rowData).not.toBeNull()
     if (rowData) {
       expect(rowData.isActive).toBe(true)
-    }
-  })
-
-  /**
-   * UC-A43: Cancel Deactivation
-   */
-  test('should cancel product deactivation and keep status unchanged', async ({ authenticatedProductsPage, authenticatedCategoriesPage }) => {
-    const productName = `Cancel Deactivate ${Date.now()}`
-    const categoryName = `Cancel Deactivate Category ${Date.now()}`
-
-    // Create a category first and get its ID
-    await authenticatedCategoriesPage.navigate()
-    await authenticatedCategoriesPage.createCategory({ de: categoryName })
-    const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
-    expect(categoryId).not.toBeNull()
-
-    // Create product with category
-    await authenticatedProductsPage.navigate()
-    if (categoryId) {
-      await authenticatedProductsPage.createProduct(productName, '8.00', categoryId)
-    }
-    await authenticatedProductsPage.expectFormModalHidden()
-
-    // Try to deactivate but cancel
-    const productId = await authenticatedProductsPage.getProductIdByName(productName)
-    expect(productId).not.toBeNull()
-    if (productId) {
-      await authenticatedProductsPage.clickStatusToggle(productId)
-      await authenticatedProductsPage.expectConfirmDialogVisible()
-      await authenticatedProductsPage.cancelDelete()
-
-      // Verify still active with category intact
-      const rowData = await authenticatedProductsPage.getRowDataByProductId(productId)
-      expect(rowData).not.toBeNull()
-      if (rowData) {
-        expect(rowData.isActive).toBe(true)
-        expect(rowData.category).toBeTruthy()
-      }
     }
   })
 

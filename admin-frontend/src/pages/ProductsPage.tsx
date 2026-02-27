@@ -77,7 +77,7 @@ export function ProductsPage() {
   const [formData, setFormData] = useState({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
-    type: 'delete' | 'status'
+    type: 'delete'
     productId: string
     message: string
   } | null>(null)
@@ -288,25 +288,13 @@ export function ProductsPage() {
   }
 
   async function handleStatusToggle(product: Product) {
-    if (product.is_active) {
-      // Deactivating requires confirmation
-      const productName = getLocalizedName(product.names, i18n.language)
-      setConfirmDialog({
-        type: 'status',
-        productId: product.id,
-        message: t('products.deactivateConfirm', { name: productName }),
+    try {
+      await patch(`/admin/products/${product.id}/status`, {
+        is_active: !product.is_active,
       })
-    } else {
-      // Activating is immediate (no confirmation)
-      try {
-        await patch(`/admin/products/${product.id}/status`, {
-          is_active: true,
-        })
-        // Reload product list to reflect activated product
-        await loadProducts()
-      } catch (err: any) {
-        setError(err.message || 'Failed to activate product')
-      }
+      await loadProducts()
+    } catch (err: any) {
+      setError(err.message || 'Failed to update product status')
     }
   }
 
@@ -314,21 +302,11 @@ export function ProductsPage() {
     if (!confirmDialog) return
 
     try {
-      if (confirmDialog.type === 'delete') {
-        // Delete product (soft delete via DELETE endpoint)
-        await del(`/admin/products/${confirmDialog.productId}`)
-      } else if (confirmDialog.type === 'status') {
-        // Deactivate product (toggle status via status endpoint)
-        await patch(`/admin/products/${confirmDialog.productId}/status`, {
-          is_active: false,
-        })
-      }
-
+      await del(`/admin/products/${confirmDialog.productId}`)
       setConfirmDialog(null)
-      // Reload product list to reflect deleted/deactivated product
       await loadProducts()
     } catch (err: any) {
-      setError(err.message || 'Failed to perform action')
+      setError(err.message || 'Failed to delete product')
       setConfirmDialog(null)
     }
   }
@@ -894,7 +872,7 @@ export function ProductsPage() {
       <ConfirmDialog
         isOpen={!!confirmDialog}
         message={confirmDialog?.message ?? ''}
-        confirmLabel={confirmDialog?.type === 'delete' ? t('common.delete') : t('common.deactivate')}
+        confirmLabel={t('common.delete')}
         variant="danger"
         onConfirm={confirmAction}
         onCancel={cancelConfirmation}

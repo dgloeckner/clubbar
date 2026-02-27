@@ -178,16 +178,23 @@ export function CategoriesPage() {
   }
 
   async function handleStatusToggle(category: Category) {
-    const categoryName = getLocalizedName(category.names, i18n.language)
-    const message = category.is_active
-      ? t('categories.deactivateConfirm', { name: categoryName, count: category.product_count })
-      : t('categories.activateConfirm', { name: categoryName, count: category.product_count })
-
-    setConfirmDialog({
-      type: 'status',
-      categoryId: category.id,
-      message,
-    })
+    if (category.is_active) {
+      // Deactivating is immediate (no confirmation)
+      try {
+        await patch(`/admin/categories/${category.id}/status`, { is_active: false })
+        await loadCategories()
+      } catch (err: any) {
+        setError(err.message || 'Failed to deactivate category')
+      }
+    } else {
+      // Activating requires confirmation
+      const categoryName = getLocalizedName(category.names, i18n.language)
+      setConfirmDialog({
+        type: 'status',
+        categoryId: category.id,
+        message: t('categories.activateConfirm', { name: categoryName, count: category.product_count }),
+      })
+    }
   }
 
   async function handleDelete(category: Category) {
