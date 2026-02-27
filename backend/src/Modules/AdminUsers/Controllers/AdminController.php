@@ -29,7 +29,8 @@ class AdminController
 
         $filters = [];
         if (isset($params['filters']['is_active'])) {
-            $filters['is_active'] = $params['filters']['is_active'];
+            $isActive = filter_var($params['filters']['is_active'], FILTER_VALIDATE_BOOLEAN);
+            $filters['status'] = $isActive ? 'active' : 'inactive';
         }
 
         $result = $this->adminUsersService->listAdminUsers($perPage, $offset, $filters);
