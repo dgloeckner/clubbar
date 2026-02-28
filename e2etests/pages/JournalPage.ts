@@ -26,12 +26,8 @@ export class JournalPage extends BasePage {
   private readonly searchInput = () => this.page.getByTestId('journal-search-input')
   private readonly periodPickerButton = (period: '1m' | '3m' | '6m' | '1y' | '2y' | 'all') =>
     this.page.getByTestId(`journal-period-picker-${period}`)
-  private readonly typeFilterButton = (type: 'all' | 'purchase' | 'correction') =>
-    this.page.getByTestId(`journal-type-filter-${type}`)
-
   // Table elements
   private readonly table = () => this.page.getByTestId('journal-table')
-  private readonly tableWrapper = () => this.page.getByTestId('journal-table-wrapper')
   private readonly tableRows = () => this.page.locator('[data-testid^="journal-table-row-"]')
   private readonly emptyState = () => this.page.getByTestId('journal-empty-state')
   private readonly loadingIndicator = () => this.page.getByTestId('journal-loading')
@@ -52,9 +48,7 @@ export class JournalPage extends BasePage {
     this.page.getByTestId(`journal-settlement-status-filter-${status}`)
   private readonly transactionCheckbox = (transactionId: string) =>
     this.page.locator(`[data-testid^="journal-table-row-"] input[data-testid="transaction-checkbox-${transactionId}"]`)
-  private readonly selectAllCheckbox = () => this.page.getByTestId('journal-select-all-checkbox')
   private readonly concludeSettlementBtn = () => this.page.getByTestId('journal-settlement-conclude-btn')
-  private readonly successMessage = () => this.page.getByTestId('journal-success-message')
 
   // Settlement confirm modal elements
   private readonly settlementConfirmModal = () => this.page.getByTestId('journal-settlement-confirm-modal')
@@ -100,20 +94,8 @@ export class JournalPage extends BasePage {
     await expect(this.table()).toBeVisible()
   }
 
-  async expectTableHidden() {
-    await expect(this.table()).not.toBeVisible()
-  }
-
   async expectEmptyState() {
     await expect(this.emptyState()).toBeVisible()
-  }
-
-  async expectLoadingVisible() {
-    await expect(this.loadingIndicator()).toBeVisible()
-  }
-
-  async expectErrorVisible() {
-    await expect(this.errorMessage()).toBeVisible()
   }
 
   async expectCorrectionModalVisible() {
@@ -264,14 +246,6 @@ export class JournalPage extends BasePage {
   }
 
   /**
-   * Row element access (Pattern 006: For edge cases needing cell-specific access)
-   */
-
-  getRowElement(rowIndex: number) {
-    return this.tableRows().nth(rowIndex)
-  }
-
-  /**
    * USER INTERACTIONS (actions that change state)
    */
 
@@ -295,14 +269,6 @@ export class JournalPage extends BasePage {
     await responsePromise
   }
 
-  async filterByType(type: 'all' | 'purchase' | 'correction') {
-    const responsePromise = this.page.waitForResponse(
-      (resp) => resp.url().includes('/api/admin/transactions') && resp.status() === 200
-    )
-    await this.typeFilterButton(type).click()
-    await responsePromise
-  }
-
   async sortBy(field: 'date' | 'type' | 'member' | 'amount') {
     const sortKeyMap = { date: 'created_at', type: 'type', member: 'member', amount: 'amount' }
     const headerMap = {
@@ -319,31 +285,9 @@ export class JournalPage extends BasePage {
     await responsePromise
   }
 
-  async goToPage(pageNumber: number) {
-    const responsePromise = this.page.waitForResponse(
-      (resp) => resp.url().includes('/api/admin/transactions') && resp.status() === 200
-    )
-    const pageButton = this.page.getByTestId(`journal-page-${pageNumber}`)
-    await pageButton.click()
-    await responsePromise
-  }
-
-  async goToNextPage() {
-    const responsePromise = this.page.waitForResponse(
-      (resp) => resp.url().includes('/api/admin/transactions') && resp.status() === 200
-    )
-    const nextBtn = this.page.getByTestId('journal-next')
-    await nextBtn.click()
-    await responsePromise
-  }
-
   /**
    * WAIT FOR CONDITIONS
    */
-
-  async waitForTable() {
-    await this.tableWrapper().waitFor({ timeout: 5000 })
-  }
 
   async waitForTableToLoad() {
     // Wait for loading indicator to disappear first (Pattern 008: expect for auto-waiting).
@@ -356,16 +300,6 @@ export class JournalPage extends BasePage {
       .locator('[data-testid="journal-table"], [data-testid="journal-empty-state"]')
       .first()
       .waitFor({ timeout: 5000 })
-  }
-
-  async waitForTransactionCount(expectedCount: number) {
-    await this.page.waitForFunction(
-      async () => {
-        const count = await this.getTransactionCount()
-        return count === expectedCount
-      },
-      { timeout: 5000 }
-    )
   }
 
   async waitForTransactionToAppear(memberName: string) {
@@ -421,13 +355,6 @@ export class JournalPage extends BasePage {
     await this.page.waitForTimeout(300)
   }
 
-  async selectAllTransactions() {
-    const checkbox = this.selectAllCheckbox()
-    await checkbox.check()
-    // Wait for selection to register
-    await this.page.waitForTimeout(300)
-  }
-
   async filterBySettlementStatus(status: 'all' | 'open' | 'settled') {
     const responsePromise = this.page.waitForResponse(
       (resp) => resp.url().includes('/api/admin/transactions') && resp.status() === 200
@@ -440,21 +367,6 @@ export class JournalPage extends BasePage {
     const checkbox = this.page.getByTestId(`journal-select-checkbox-${transactionId}`)
     await checkbox.check()
     await this.page.waitForTimeout(100)
-  }
-
-  async selectTransactionsByMemberName(memberName: string) {
-    const count = await this.getTransactionCount()
-    for (let i = 0; i < count; i++) {
-      const row = await this.getTransactionRow(i)
-      if (row.member && row.member.includes(memberName)) {
-        // Find and click the checkbox for this row
-        const rowElement = this.tableRows().nth(i)
-        const checkbox = rowElement.locator('input[type="checkbox"]')
-        await checkbox.check()
-        // Wait for selection to register
-        await this.page.waitForTimeout(300)
-      }
-    }
   }
 
   async getSelectedTransactionCount(): Promise<number> {
@@ -504,18 +416,6 @@ export class JournalPage extends BasePage {
   }
 
   /**
-   * Convenience: opens the "Abrechnung (alle)" modal and immediately confirms.
-   * Use openSettleAllModal() + getSettlementConfirmStats() + confirmOpenSettlement()
-   * when you need to inspect the modal first.
-   *
-   * @returns The created settlement ID
-   */
-  async settleAll(): Promise<string> {
-    await this.openSettleAllModal()
-    return this.confirmOpenSettlement()
-  }
-
-  /**
    * Read the transaction count and member count shown in the settlement confirm modal.
    * Call after opening the modal (via openSettleAllModal or concludeSettlementBtn),
    * before confirming.
@@ -529,45 +429,23 @@ export class JournalPage extends BasePage {
     }
   }
 
-  async getSuccessMessage(): Promise<string | null> {
-    try {
-      const text = await this.successMessage().textContent({ timeout: 5000 })
-      return text?.trim() || null
-    } catch {
-      return null
-    }
-  }
-
   /**
    * CORRECTION MODAL INTERACTIONS
    */
 
-  async openCorrectionModal() {
+  async createCorrection(memberId: string, amountEur: string, reason: string) {
     await this.createCorrectionBtn().click()
-  }
-
-  async fillCorrectionForm(memberId: string, amountEur: string, reason: string) {
+    await expect(this.correctionModal()).toBeVisible()
     // Wait for member dropdown to have options (members load async via getMembers())
-    // Use 'attached' state since native <select> options are not considered "visible" by Playwright
     await this.correctionMemberSelect().locator('option:not([value=""])').first().waitFor({ state: 'attached', timeout: 5000 })
     await this.correctionMemberSelect().selectOption({ value: memberId })
     await this.correctionAmountInput().fill(amountEur)
     await this.correctionReasonInput().fill(reason)
-  }
-
-  async submitCorrectionForm() {
     const responsePromise = this.page.waitForResponse(
       (resp) => resp.url().includes('/transactions/correction') && resp.ok()
     )
     await this.correctionSubmitBtn().click()
     await responsePromise
-  }
-
-  async createCorrection(memberId: string, amountEur: string, reason: string) {
-    await this.openCorrectionModal()
-    await this.expectCorrectionModalVisible()
-    await this.fillCorrectionForm(memberId, amountEur, reason)
-    await this.submitCorrectionForm()
   }
 
   async getCorrectionError(): Promise<string | null> {
