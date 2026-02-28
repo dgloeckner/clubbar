@@ -34,9 +34,6 @@ export class CategoriesPage extends BasePage {
 
   // Modal locators (PRIVATE)
   private readonly formModal = () => this.page.getByTestId('categories-form-modal')
-  private readonly formModalContent = () => this.page.getByTestId('categories-form-modal-content')
-  private readonly formTitle = () => this.page.getByTestId('categories-form-title')
-  private readonly formError = () => this.page.getByTestId('categories-form-error')
   private readonly iconSelectTrigger = () => this.page.getByTestId('categories-form-icon-select-trigger')
   private readonly iconSelectDropdown = () => this.page.getByTestId('categories-form-icon-select-dropdown')
   private readonly iconSelectOption = (iconName: string) =>
@@ -45,7 +42,6 @@ export class CategoriesPage extends BasePage {
   private readonly formCancelBtn = () => this.page.getByTestId('categories-form-cancel-button')
 
   // Language tabs
-  private readonly languageTabs = () => this.page.locator('[data-testid^="categories-form-name-tab-"]')
   private readonly languageTab = (lang: string) => this.page.getByTestId(`categories-form-name-tab-${lang}`)
 
   // Confirmation dialog
@@ -77,10 +73,6 @@ export class CategoriesPage extends BasePage {
     await expect(this.table()).toBeVisible()
   }
 
-  async expectTableHidden() {
-    await expect(this.table()).not.toBeVisible()
-  }
-
   async expectFormModalVisible() {
     await expect(this.formModal()).toBeVisible()
   }
@@ -94,20 +86,12 @@ export class CategoriesPage extends BasePage {
     await expect(this.emptyState()).toBeVisible()
   }
 
-  async expectErrorMessageVisible() {
-    await expect(this.errorMessage()).toBeVisible()
-  }
-
   async expectConfirmDialogVisible() {
     await expect(this.confirmDialog()).toBeVisible()
   }
 
   async expectConfirmDialogHidden() {
     await expect(this.confirmDialog()).not.toBeVisible()
-  }
-
-  async expectCategoryRowVisible(categoryId: string) {
-    await expect(this.page.getByTestId(`categories-table-row-${categoryId}`)).toBeVisible()
   }
 
   async waitForLoadingToComplete() {
@@ -135,13 +119,6 @@ export class CategoriesPage extends BasePage {
       .getByTestId(`categories-status-toggle-${categoryId}`)
       .getAttribute('data-checked')
     return isActive === 'true' ? 'Active' : 'Inactive'
-  }
-
-  async getCategoryProductCount(categoryId: string): Promise<number> {
-    const count = await this.page
-      .getByTestId(`categories-table-cell-product-count-${categoryId}`)
-      .textContent()
-    return parseInt(count || '0', 10)
   }
 
   async findCategoryByName(name: string): Promise<string | null> {
@@ -230,14 +207,6 @@ export class CategoriesPage extends BasePage {
     await this.page.getByTestId('categories-form-icon-select-option-clear').click()
   }
 
-  async expectIconDropdownVisible() {
-    await expect(this.iconSelectDropdown()).toBeVisible()
-  }
-
-  async expectIconDropdownHidden() {
-    await expect(this.iconSelectDropdown()).not.toBeVisible()
-  }
-
   async getSelectedIconName(): Promise<string | null> {
     const text = await this.iconSelectTrigger().textContent()
     if (!text || text.includes('Select icon')) {
@@ -268,45 +237,12 @@ export class CategoriesPage extends BasePage {
     // submitForm already waits for loading to complete
   }
 
-  async editCategory(categoryId: string, names: { [lang: string]: string }) {
-    await this.openEditModal(categoryId)
-    await this.expectFormModalVisible()
-
-    // Fill in names for each language
-    const languages = Object.keys(names)
-    for (let i = 0; i < languages.length; i++) {
-      if (i > 0) {
-        await this.selectLanguageTab(languages[i])
-      }
-      await this.fillCategoryName(languages[i], names[languages[i]])
-    }
-
-    await this.submitForm()
-    // submitForm already waits for loading to complete
-  }
-
   /**
    * STATUS TOGGLE INTERACTIONS
    */
 
   async toggleCategoryStatus(categoryId: string) {
     await this.page.getByTestId(`categories-status-toggle-${categoryId}`).click()
-  }
-
-  async confirmStatusChange() {
-    // Set up response promise BEFORE clicking to capture the categories list reload
-    const categoriesReloadPromise = this.page.waitForResponse(
-      (resp) => resp.url().includes('/api/admin/categories') && resp.request().method() === 'GET',
-      { timeout: 15000 }
-    )
-    await this.confirmOkBtn().click()
-    await this.expectConfirmDialogHidden()
-
-    // Wait for categories list reload response
-    await categoriesReloadPromise
-
-    // Wait for loading indicator to clear
-    await this.waitForLoadingToComplete()
   }
 
   async cancelStatusChange() {
@@ -352,21 +288,8 @@ export class CategoriesPage extends BasePage {
     return this.errorMessage().textContent()
   }
 
-  async getFormErrorMessage(): Promise<string | null> {
-    if (await this.formError().count() === 0) return null
-    return this.formError().textContent()
-  }
-
   async getConfirmMessage(): Promise<string | null> {
     if (await this.confirmMessage().count() === 0) return null
     return this.confirmMessage().textContent()
-  }
-
-  /**
-   * PAGE STATE VERIFICATION
-   */
-
-  async isOnCategoriesPage(): Promise<boolean> {
-    return this.getCurrentUrl().includes('/categories')
   }
 }
