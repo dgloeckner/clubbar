@@ -35,7 +35,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
   test('should reject correction for member without IBAN', async ({ authenticatedRequest }) => {
     // === ARRANGE ===
     const testData = createSepaInvalidMember('NoIban', 'Test', 'iban')
-    console.log('Creating member without IBAN:', testData.first_name)
 
     // Create member without IBAN
     const createResponse = await authenticatedRequest.post(`http://localhost:8080/api/admin/members`, {
@@ -45,14 +44,12 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     expect(createResponse.status()).toBe(201)
     const memberJson = await createResponse.json()
     const memberId = memberJson.id
-    console.log('Created member with ID:', memberId, '- SEPA valid:', memberJson.is_sepa_valid)
 
     // Verify member is SEPA invalid
     expect(memberJson.is_sepa_valid).toBeFalsy()
 
     // === ACT & ASSERT ===
     // Attempt to create correction
-    console.log('Attempting to create correction for SEPA-invalid member...')
     const correctionResponse = await authenticatedRequest.post(
       `http://localhost:8080/api/admin/members/${memberId}/transactions/correct`,
       {
@@ -68,7 +65,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     const error = await correctionResponse.json()
     expect(error.error).toBe('sepa_invalid')
     expect(error.message).toContain('SEPA mandate')
-    console.log('Correction correctly rejected:', error.message)
   })
 
   /**
@@ -79,7 +75,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
   test('should reject correction for member without mandate reference', async ({ authenticatedRequest }) => {
     // === ARRANGE ===
     const testData = createSepaInvalidMember('NoMandate', 'Test', 'mandate')
-    console.log('Creating member without mandate_reference:', testData.first_name)
 
     // Create member without mandate_reference
     const createResponse = await authenticatedRequest.post(`http://localhost:8080/api/admin/members`, {
@@ -89,14 +84,12 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     expect(createResponse.status()).toBe(201)
     const memberJson = await createResponse.json()
     const memberId = memberJson.id
-    console.log('Created member with ID:', memberId, '- SEPA valid:', memberJson.is_sepa_valid)
 
     // Verify member is SEPA invalid
     expect(memberJson.is_sepa_valid).toBeFalsy()
 
     // === ACT & ASSERT ===
     // Attempt to create correction
-    console.log('Attempting to create correction for SEPA-invalid member...')
     const correctionResponse = await authenticatedRequest.post(
       `http://localhost:8080/api/admin/members/${memberId}/transactions/correct`,
       {
@@ -112,7 +105,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     const error = await correctionResponse.json()
     expect(error.error).toBe('sepa_invalid')
     expect(error.message).toContain('SEPA mandate')
-    console.log('Correction correctly rejected:', error.message)
   })
 
   /**
@@ -123,7 +115,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
   test('should reject sync transaction for member without SEPA data', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     // === ARRANGE ===
     const testData = createSepaInvalidMember('NoSepa', 'Test', 'both')
-    console.log('Creating member without SEPA data:', testData.first_name)
 
     // Create member without SEPA data
     const createResponse = await authenticatedRequest.post(`http://localhost:8080/api/admin/members`, {
@@ -133,14 +124,12 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     expect(createResponse.status()).toBe(201)
     const memberJson = await createResponse.json()
     const memberId = memberJson.id
-    console.log('Created member with ID:', memberId, '- SEPA valid:', memberJson.is_sepa_valid)
 
     // Verify member is SEPA invalid
     expect(memberJson.is_sepa_valid).toBeFalsy()
 
     // === ACT ===
     // Create sync transaction for SEPA-invalid member
-    console.log('Attempting to sync transaction for SEPA-invalid member...')
     const txnId = generateUUID()
     const syncData = {
       transactions: [
@@ -176,7 +165,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     expect(error.error).toBe('sepa_invalid')
     expect(error.transaction_id).toBe(txnId)
     expect(error.message).toContain('SEPA mandate')
-    console.log('Transaction correctly rejected:', error.message)
   })
 
   /**
@@ -187,7 +175,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
   test('should allow correction for member with valid SEPA data', async ({ authenticatedRequest }) => {
     // === ARRANGE ===
     const testData = createTestMember('ValidSepa', 'Test', 'validsepa')
-    console.log('Creating member with valid SEPA:', testData.first_name)
 
     // Create member with valid SEPA
     const createResponse = await authenticatedRequest.post(`http://localhost:8080/api/admin/members`, {
@@ -197,14 +184,12 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     expect(createResponse.status()).toBe(201)
     const memberJson = await createResponse.json()
     const memberId = memberJson.id
-    console.log('Created member with ID:', memberId, '- SEPA valid:', memberJson.is_sepa_valid)
 
     // Verify member is SEPA valid
     expect(memberJson.is_sepa_valid).toBeTruthy()
 
     // === ACT ===
     // Create correction
-    console.log('Creating correction for SEPA-valid member...')
     const correctionResponse = await authenticatedRequest.post(
       `http://localhost:8080/api/admin/members/${memberId}/transactions/correct`,
       {
@@ -222,7 +207,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     expect(correction.id).toBeTruthy()
     expect(correction.member_id).toBe(memberId)
     expect(correction.amount_cents).toBe(2000)
-    console.log('Correction successfully created:', correction.id)
   })
 
   /**
@@ -233,7 +217,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
   test('should allow sync transaction for member with valid SEPA data', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     // === ARRANGE ===
     const testData = createTestMember('SyncSepaValid', 'Test', 'syncvalid')
-    console.log('Creating member with valid SEPA for sync:', testData.first_name)
 
     // Create member with valid SEPA
     const createResponse = await authenticatedRequest.post(`http://localhost:8080/api/admin/members`, {
@@ -243,14 +226,12 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     expect(createResponse.status()).toBe(201)
     const memberJson = await createResponse.json()
     const memberId = memberJson.id
-    console.log('Created member with ID:', memberId, '- SEPA valid:', memberJson.is_sepa_valid)
 
     // Verify member is SEPA valid
     expect(memberJson.is_sepa_valid).toBeTruthy()
 
     // === ACT ===
     // Sync transaction for SEPA-valid member
-    console.log('Syncing transaction for SEPA-valid member...')
     const txnId = generateUUID()
     const syncData = {
       transactions: [
@@ -281,7 +262,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     expect(result.accepted_ids).toContain(txnId)
     expect(result.rejected.count).toBe(0)
     expect(result.rejected.errors).toHaveLength(0)
-    console.log('Transaction successfully synced:', txnId)
   })
 
   /**
@@ -295,7 +275,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     const validData = createTestMember('MixedValid', 'Test', 'mixedvalid')
     const invalidData = createSepaInvalidMember('MixedInvalid', 'Test', 'both')
 
-    console.log('Creating valid and invalid members...')
     const validResponse = await authenticatedRequest.post(`http://localhost:8080/api/admin/members`, {
       data: validData,
     })
@@ -305,9 +284,6 @@ test.describe('Transaction Creation - SEPA Validation', () => {
       data: invalidData,
     })
     const invalidMember = await invalidResponse.json()
-
-    console.log('Valid member:', validMember.id, '- SEPA:', validMember.is_sepa_valid)
-    console.log('Invalid member:', invalidMember.id, '- SEPA:', invalidMember.is_sepa_valid)
 
     // === ACT ===
     // Sync two transactions: one for valid, one for invalid
@@ -358,6 +334,5 @@ test.describe('Transaction Creation - SEPA Validation', () => {
     const error = result.rejected.errors[0]
     expect(error.transaction_id).toBe(invalidTxnId)
     expect(error.error).toBe('sepa_invalid')
-    console.log('Batch processing correctly handled mixed members')
   })
 })

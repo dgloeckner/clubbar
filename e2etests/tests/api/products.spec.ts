@@ -771,21 +771,14 @@ test.describe('Products API - Price Sorting', () => {
       productIds.push(product.id);
     }
 
-    console.log('Created products with IDs:', productIds);
-
     // Query with price_asc sort filtered to this category
     const response = await authenticatedRequest.get(`/api/admin/products?sort_by=price_asc&category_id=${category.id}`);
     const body = await response.json();
-
-    console.log('Total items:', body.total);
-    console.log('Items returned:', body.items.length);
 
     expect(response.ok()).toBeTruthy();
 
     // Find our test products in the response
     const testProducts = body.items.filter((p: any) => productIds.includes(p.id));
-    console.log('Found test products:', testProducts.length);
-    console.log('Test product prices (asc):', testProducts.map((p: any) => p.price_cents));
 
     expect(testProducts.length).toBe(4);
 
@@ -825,8 +818,6 @@ test.describe('Products API - Price Sorting', () => {
 
     // Find our test products in the response
     const testProducts = body.items.filter((p: any) => productIds.includes(p.id));
-    console.log('Found test products (desc):', testProducts.length);
-    console.log('Test product prices (desc):', testProducts.map((p: any) => p.price_cents));
     expect(testProducts.length).toBe(4);
 
     // Verify they are sorted by price descending
@@ -870,9 +861,6 @@ test.describe('Products API - Price Sorting', () => {
     const descResponse = await authenticatedRequest.get(`/api/admin/products?sort_by=price_desc&category_id=${category.id}`);
     const descBody = await descResponse.json();
     const descProducts = descBody.items.filter((p: any) => [cheapProduct.id, expensiveProduct.id].includes(p.id));
-
-    console.log('Asc products:', ascProducts.map((p: any) => ({ id: p.id, price: p.price_cents })));
-    console.log('Desc products:', descProducts.map((p: any) => ({ id: p.id, price: p.price_cents })));
 
     // Verify asc: cheap first (150)
     expect(ascProducts.length).toBe(2);

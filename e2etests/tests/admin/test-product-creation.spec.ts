@@ -32,7 +32,6 @@ test('verify API returns newly created product', async ({ page }) => {
 
   // Create a product
   const productName = `API Test ${Date.now()}`
-  console.log(`Creating product: ${productName}`)
 
   await productsPage.openCreateModal()
   await productsPage.fillProductForm(productName, '19.99')
@@ -48,19 +47,4 @@ test('verify API returns newly created product', async ({ page }) => {
 
   // Wait a moment for API responses to be captured
   await page.waitForTimeout(2000)
-
-  // Log API responses
-  console.log('\n=== API RESPONSES ===')
-  apiResponses.forEach((resp, i) => {
-    console.log(`\nResponse ${i}:`)
-    console.log(`URL: ${resp.url}`)
-    console.log(`Status: ${resp.status}`)
-    if (resp.data?.items?.length) {
-      console.log(`Items in response: ${resp.data.items.length}`)
-      const productNames = resp.data.items.map((p: any) => p.names?.de || 'NO NAME')
-      console.log(`Product names: ${productNames.slice(0, 5).join(', ')}`)
-      const found = resp.data.items.find((p: any) => p.names?.de?.includes(productName))
-      console.log(`Found created product: ${found ? 'YES' : 'NO'}`)
-    }
-  })
 })
