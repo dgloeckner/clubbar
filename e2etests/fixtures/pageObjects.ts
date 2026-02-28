@@ -19,7 +19,7 @@
  */
 
 import { test as base, Page } from '@playwright/test'
-import { LoginPage, MembersPage, ProductsPage, SettlementsPage, StatisticsPage, CategoriesPage, JournalPage, SettingsPage, AuditLogPage } from '../pages'
+import { LoginPage, MembersPage, ProductsPage, SettlementsPage, CategoriesPage, JournalPage, SettingsPage, AuditLogPage } from '../pages'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
@@ -29,8 +29,6 @@ interface PageObjectFixtures {
   authenticatedProductsPage: ProductsPage
   settlementsPage: SettlementsPage
   authenticatedSettlementsPage: SettlementsPage
-  statisticsPage: StatisticsPage
-  authenticatedStatisticsPage: StatisticsPage
   categoriesPage: CategoriesPage
   authenticatedCategoriesPage: CategoriesPage
   journalPage: JournalPage
@@ -139,36 +137,6 @@ const authenticatedSettlementsPageFixture = async (
   // Create and provide SettlementsPage
   const settlementsPage = new SettlementsPage(page)
   await use(settlementsPage)
-}
-
-/**
- * Fixture: statisticsPage
- * Provides StatisticsPage instance (unauthenticated)
- */
-const statisticsPageFixture = async ({ page }: { page: Page }, use: (value: StatisticsPage) => Promise<void>) => {
-  const statisticsPage = new StatisticsPage(page)
-  await use(statisticsPage)
-}
-
-/**
- * Fixture: authenticatedStatisticsPage
- *
- * Provides StatisticsPage with test already authenticated (via storage state).
- * Simply navigates to the page and returns the page object.
- */
-const authenticatedStatisticsPageFixture = async (
-  { page }: { page: Page },
-  use: (value: StatisticsPage) => Promise<void>
-) => {
-  // Navigate to statistics page
-  await page.goto('/statistics', { waitUntil: 'domcontentloaded' })
-
-  // Wait for page to load - statistics-page test ID indicates page is ready
-  await page.waitForSelector('[data-testid="statistics-page"]', { timeout: 5000 })
-
-  // Create and provide StatisticsPage
-  const statisticsPage = new StatisticsPage(page)
-  await use(statisticsPage)
 }
 
 /**
@@ -306,8 +274,6 @@ export const test = base.extend<PageObjectFixtures>({
   authenticatedProductsPage: authenticatedProductsPageFixture,
   settlementsPage: settlementsPageFixture,
   authenticatedSettlementsPage: authenticatedSettlementsPageFixture,
-  statisticsPage: statisticsPageFixture,
-  authenticatedStatisticsPage: authenticatedStatisticsPageFixture,
   categoriesPage: categoriesPageFixture,
   authenticatedCategoriesPage: authenticatedCategoriesPageFixture,
   journalPage: journalPageFixture,
