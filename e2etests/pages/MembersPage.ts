@@ -56,12 +56,6 @@ export class MembersPage extends BasePage {
   private readonly formSubmitBtn = () => this.page.getByTestId('members-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('members-form-cancel-button')
 
-  // Delete confirmation modal
-  private readonly deleteConfirmModal = () => this.page.getByTestId('members-delete-confirm-modal')
-  private readonly deleteConfirmOkBtn = () => this.page.getByTestId('members-delete-confirm-ok')
-  private readonly deleteConfirmCancelBtn = () => this.page.getByTestId('members-delete-confirm-cancel')
-
-
   constructor(page: Page) {
     super(page)
   }
@@ -87,10 +81,6 @@ export class MembersPage extends BasePage {
     await expect(this.table()).toBeVisible()
   }
 
-  async expectTableHidden() {
-    await expect(this.table()).not.toBeVisible()
-  }
-
   async expectFormModalVisible() {
     await expect(this.formModal()).toBeVisible()
   }
@@ -99,33 +89,13 @@ export class MembersPage extends BasePage {
     await expect(this.formModal()).not.toBeVisible()
   }
 
-  async expectDeleteConfirmModalVisible() {
-    await expect(this.deleteConfirmModal()).toBeVisible()
-  }
-
-  async expectDeleteConfirmModalHidden() {
-    await expect(this.deleteConfirmModal()).not.toBeVisible()
-  }
-
   async expectEmptyStateVisible() {
     await expect(this.emptyState()).toBeVisible()
-  }
-
-  async expectErrorMessageVisible() {
-    await expect(this.errorMessage()).toBeVisible()
   }
 
   async waitForLoadingToComplete() {
     // Wait for loading indicator to disappear
     await expect(this.loadingIndicator()).not.toBeVisible({ timeout: 10000 })
-  }
-
-  async expectMemberRowVisible(memberId: string) {
-    await expect(this.page.getByTestId(`members-table-row-${memberId}`)).toBeVisible()
-  }
-
-  async expectMemberRowHidden(memberId: string) {
-    await expect(this.page.getByTestId(`members-table-row-${memberId}`)).not.toBeVisible()
   }
 
   /**
@@ -138,37 +108,10 @@ export class MembersPage extends BasePage {
     return await this.tableRows().count()
   }
 
-  async getMemberEmailInRow(memberId: string): Promise<string> {
-    const email = await this.page
-      .getByTestId(`members-table-cell-email-${memberId}`)
-      .textContent()
-    return email || ''
-  }
-
-  async getMemberNameInRow(memberId: string): Promise<string> {
-    const name = await this.page
-      .getByTestId(`members-table-cell-name-${memberId}`)
-      .textContent()
-    return name || ''
-  }
-
-  async getMemberBalanceInRow(memberId: string): Promise<string> {
-    const balance = await this.page
-      .getByTestId(`members-table-cell-balance-${memberId}`)
-      .textContent()
-    return balance || ''
-  }
-
   async getMemberNameAtRowIndex(rowIndex: number): Promise<string> {
     // Get member name at specific row index (for sorting verification)
     const nameCell = this.page.locator('[data-testid^="members-table-cell-name-"]').nth(rowIndex)
     return await nameCell.textContent() || ''
-  }
-
-  async getMemberBalanceAtRowIndex(rowIndex: number): Promise<string> {
-    // Get member balance at specific row index (for sorting verification)
-    const balanceCell = this.page.locator('[data-testid^="members-table-cell-balance-"]').nth(rowIndex)
-    return await balanceCell.textContent() || ''
   }
 
   async getMemberFirstNameInTable(firstName: string): Promise<string | null> {
@@ -192,36 +135,6 @@ export class MembersPage extends BasePage {
     await expect(
       this.page.locator('[data-testid^="members-table-cell-name-"]').filter({ hasText: firstName })
     ).toBeVisible({ timeout: 10000 })
-  }
-
-  async getMemberLastNameInTable(lastName: string): Promise<string | null> {
-    // Search for member by last name in the table
-    const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
-    const count = await nameLocators.count()
-
-    for (let i = 0; i < count; i++) {
-      const text = await nameLocators.nth(i).textContent()
-      if (text && text.includes(lastName)) {
-        return text
-      }
-    }
-
-    return null
-  }
-
-  async getMemberEmailInTable(email: string): Promise<string | null> {
-    // Search for member by email in the table
-    const emailLocators = this.page.locator('[data-testid^="members-table-cell-email-"]')
-    const count = await emailLocators.count()
-
-    for (let i = 0; i < count; i++) {
-      const text = await emailLocators.nth(i).textContent()
-      if (text && text.includes(email)) {
-        return text
-      }
-    }
-
-    return null
   }
 
   /**
@@ -356,36 +269,6 @@ export class MembersPage extends BasePage {
     throw new Error(`Member with first name "${firstName}" not found in table`)
   }
 
-  async editMember(memberId: string, firstName: string, lastName: string, iban: string, mandateDate: string, email?: string, language?: string) {
-    await this.openEditModalForMember(memberId)
-    await this.expectFormModalVisible()
-    await this.fillMemberForm(firstName, lastName, iban, mandateDate, email, language)
-    await this.submitForm()
-  }
-
-  /**
-   * DELETE INTERACTIONS (Pattern 006: Semantic actions)
-   */
-
-  async openDeleteConfirmForMember(memberId: string) {
-    const deleteBtn = this.page.getByTestId(`members-table-action-delete-${memberId}`)
-    await deleteBtn.click()
-  }
-
-  async confirmDelete() {
-    await this.deleteConfirmOkBtn().click()
-  }
-
-  async cancelDelete() {
-    await this.deleteConfirmCancelBtn().click()
-  }
-
-  async deleteMember(memberId: string) {
-    await this.openDeleteConfirmForMember(memberId)
-    await this.expectDeleteConfirmModalVisible()
-    await this.confirmDelete()
-  }
-
   /**
    * ERROR HANDLING
    */
@@ -486,25 +369,6 @@ export class MembersPage extends BasePage {
    * SORTING AND FILTERING CONTROLS
    */
 
-  async setSortBy(sortOption: string) {
-    const dropdown = this.page.getByTestId('members-sort-by')
-    await expect(dropdown).toBeVisible()
-
-    // Set the value directly using evaluate
-    await dropdown.evaluate((el: HTMLSelectElement, value: string) => {
-      el.value = value
-    }, sortOption)
-
-    // Dispatch change event to trigger React's onChange
-    await dropdown.evaluate((el: HTMLSelectElement) => {
-      el.dispatchEvent(new Event('change', { bubbles: true }))
-      el.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-
-    // Wait for React to process
-    await this.page.waitForTimeout(300)
-  }
-
   async setSepaFilter(filterOption: 'all' | 'valid' | 'missing') {
     const btn = this.page.getByTestId(`filter-sepa-${filterOption}`)
     await expect(btn).toBeVisible()
@@ -544,22 +408,6 @@ export class MembersPage extends BasePage {
     await this.page.waitForTimeout(300)
   }
 
-  async getSortByValue(): Promise<string> {
-    // Read the trigger button text to determine selected sort
-    const trigger = this.page.getByTestId('members-sort-trigger')
-    const text = await trigger.textContent() || ''
-
-    // Extract the sort option from button text (contains direction arrow + label)
-    if (text.includes('Newest first')) return 'created_at-desc'
-    if (text.includes('Oldest first')) return 'created_at-asc'
-    if (text.includes('First Name (A-Z)')) return 'first_name-asc'
-    if (text.includes('First Name (Z-A)')) return 'first_name-desc'
-    if (text.includes('Last Name (A-Z)')) return 'last_name-asc'
-    if (text.includes('Last Name (Z-A)')) return 'last_name-desc'
-
-    return 'created_at-desc'  // Default
-  }
-
   async getStatusFilterValue(): Promise<'all' | 'active' | 'inactive'> {
     // Check which button has aria-pressed="true"
     const activeBtn = this.page.getByTestId('members-filter-status-active')
@@ -572,60 +420,6 @@ export class MembersPage extends BasePage {
     if (inactivePressedAttr === 'true') return 'inactive'
 
     return 'all'
-  }
-
-  /**
-   * Get member row by first name (returns row content or null if not found)
-   * Pattern 003: Database-Agnostic Assertions - search by data, not position
-   */
-  async getMemberRowByName(firstName: string): Promise<string | null> {
-    // Search for member by first name in the table
-    const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
-    const count = await nameLocators.count()
-
-    for (let i = 0; i < count; i++) {
-      const text = await nameLocators.nth(i).textContent()
-      if (text && text.includes(firstName)) {
-        return text
-      }
-    }
-
-    return null
-  }
-
-  /**
-   * Toggle member status (active/inactive) by finding them by first name
-   * Searches table by name to find member ID, then clicks toggle button
-   */
-  async toggleMemberStatus(firstName: string) {
-    // Find the member row by searching through name cells
-    const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
-    const count = await nameLocators.count()
-
-    for (let i = 0; i < count; i++) {
-      const text = await nameLocators.nth(i).textContent()
-      if (text && text.includes(firstName)) {
-        // Extract member ID from the name cell's test ID
-        // Format: members-table-cell-name-{memberId}
-        const nameCell = nameLocators.nth(i)
-        const testId = await nameCell.getAttribute('data-testid')
-
-        if (testId) {
-          const memberId = testId.replace('members-table-cell-name-', '')
-
-          // Click the toggle button for this member
-          const toggleButton = this.page.getByTestId(`members-status-toggle-${memberId}`)
-          await expect(toggleButton).toBeVisible()
-          await toggleButton.click()
-
-          // Wait for API to process
-          await this.page.waitForTimeout(500)
-          return
-        }
-      }
-    }
-
-    throw new Error(`Member with first name "${firstName}" not found in table`)
   }
 
   /**
