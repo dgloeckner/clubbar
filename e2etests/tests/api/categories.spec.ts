@@ -30,50 +30,23 @@ function createValidCategory(overrides = {}) {
 
 // Test: List Categories
 test.describe('Categories API - List', () => {
-  test('GET /api/admin/categories returns category list', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.get('/api/admin/categories');
+  test('GET /api/admin/categories returns list including created category', async ({ authenticatedRequest }) => {
+    const created = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory(),
+    }).then(r => r.json());
 
-    expect(response.ok()).toBeTruthy();
+    const response = await authenticatedRequest.get('/api/admin/categories');
     expect(response.status()).toBe(200);
 
     const body = await response.json();
-    expect(body.categories).toBeDefined();
     expect(Array.isArray(body.categories)).toBeTruthy();
+
+    const found = body.categories.find((c: any) => c.id === created.id);
+    expect(found).toBeDefined();
+    expect(found.names).toEqual(created.names);
+    expect(typeof found.product_count).toBe('number');
+    expect(typeof found.is_active).toBe('boolean');
   });
-
-  test('GET /api/admin/categories includes product count', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.get('/api/admin/categories');
-    const body = await response.json();
-
-    if (body.categories.length > 0) {
-      const category = body.categories[0];
-      expect(category.product_count).toBeDefined();
-      expect(typeof category.product_count).toBe('number');
-    }
-  });
-
-  test('GET /api/admin/categories returns category with names', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.get('/api/admin/categories');
-    const body = await response.json();
-
-    if (body.categories.length > 0) {
-      const category = body.categories[0];
-      expect(category.names).toBeDefined();
-      expect(typeof category.names).toBe('object');
-    }
-  });
-
-  test('GET /api/admin/categories returns category with is_active flag', async ({ authenticatedRequest }) => {
-    const response = await authenticatedRequest.get('/api/admin/categories');
-    const body = await response.json();
-
-    if (body.categories.length > 0) {
-      const category = body.categories[0];
-      expect(category.is_active).toBeDefined();
-      expect(typeof category.is_active).toBe('boolean');
-    }
-  });
-
 });
 
 // Test: Create Category
@@ -288,17 +261,21 @@ test.describe('Categories API - Delete', () => {
 
 // Test: Terminal Sync
 test.describe('Categories API - Terminal Sync', () => {
-  test('GET /api/sync/categories returns category list', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.get('/api/sync/categories');
+  test('GET /api/sync/categories includes created category', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const created = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory(),
+    }).then(r => r.json());
 
+    const response = await authenticatedTerminalRequest.get('/api/sync/categories');
     expect(response.ok()).toBeTruthy();
 
     const body = await response.json();
-    expect(body.categories).toBeDefined();
-    expect(Array.isArray(body.categories)).toBeTruthy();
-    expect(body.cursor).toBeDefined();
-    expect(body.count).toBeDefined();
-    expect(body.has_more).toBeDefined();
+    expect(typeof body.cursor).toBe('number');
+    expect(typeof body.count).toBe('number');
+    expect(typeof body.has_more).toBe('boolean');
+
+    const found = body.categories.find((c: any) => c.id === created.id);
+    expect(found).toBeDefined();
   });
 
   test('GET /api/sync/categories returns all categories including inactive', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
@@ -322,21 +299,27 @@ test.describe('Categories API - Terminal Sync', () => {
     expect(inactiveInResponse.is_active).toBe(false);
   });
 
-  test('GET /api/sync/categories respects since parameter', async ({ authenticatedTerminalRequest }) => {
-    const oldTimestamp = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
+  test('GET /api/sync/categories since parameter filters correctly', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+  }) => {
+    // MySQL DATETIME has second precision — wait 1.1s for timestamp boundary
+    await new Promise((r) => setTimeout(r, 1100));
+    const sinceTs = Math.floor(Date.now() / 1000);
 
-    const response = await authenticatedTerminalRequest.get(`/api/sync/categories?since=${oldTimestamp}`);
+    const created = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory(),
+    }).then(r => r.json());
 
+    const response = await authenticatedTerminalRequest.get(`/api/sync/categories?since=${sinceTs}`);
     expect(response.ok()).toBeTruthy();
-    const body = await response.json();
-    expect(body.categories).toBeDefined();
+
+    const found = (await response.json()).categories.find((c: any) => c.id === created.id);
+    expect(found).toBeDefined();
   });
 
-  test('GET /api/sync/categories returns cursor for pagination', async ({ authenticatedTerminalRequest }) => {
-    const response = await authenticatedTerminalRequest.get('/api/sync/categories');
-    const body = await response.json();
-
-    expect(body.cursor).toBeDefined();
+  test('GET /api/sync/categories cursor is a number', async ({ authenticatedTerminalRequest }) => {
+    const body = await authenticatedTerminalRequest.get('/api/sync/categories').then(r => r.json());
     expect(typeof body.cursor).toBe('number');
   });
 });
@@ -425,20 +408,17 @@ test.describe('Categories API - Icon Support', () => {
     expect(updatedCategory.icon_name).toBeNull();
   });
 
-  test('GET /api/sync/categories includes icon_name', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
-    await authenticatedRequest.post('/api/admin/categories', {
-      data: createValidCategory({
-        icon_name: 'CategoryLayersIcon',
-      }),
+  test('GET /api/sync/categories includes icon_name for category with icon', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const created = await authenticatedRequest.post('/api/admin/categories', {
+      data: createValidCategory({ icon_name: 'CategoryLayersIcon' }),
+    }).then(r => r.json());
+
+    const response = await authenticatedTerminalRequest.get('/api/sync/categories', {
+      params: { since: '1970-01-01T00:00:00Z' },
     });
-
-    const response = await authenticatedTerminalRequest.get('/api/sync/categories');
-    const body = await response.json();
-
-    if (body.categories.length > 0) {
-      const category = body.categories[0];
-      expect(category.icon_name).toBeDefined();
-    }
+    const found = (await response.json()).categories.find((c: any) => c.id === created.id);
+    expect(found).toBeDefined();
+    expect(found.icon_name).toBe('CategoryLayersIcon');
   });
 
   test('POST /api/admin/categories rejects invalid icon_name length', async ({ authenticatedRequest }) => {
