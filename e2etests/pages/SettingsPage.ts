@@ -622,4 +622,270 @@ export class SettingsPage {
     const modal = this.page.getByTestId('settings-admin-password-modal')
     await expect(modal).toBeVisible({ timeout: 5000 })
   }
+
+  // ==================== Terminals Tab ====================
+
+  /**
+   * Click terminals tab to switch to that tab
+   */
+  async clickTerminalsTab() {
+    const terminalsTab = this.page.getByTestId('settings-tab-terminals')
+    await terminalsTab.click()
+    // Wait for terminals content to appear (table or "no terminals" message)
+    await Promise.race([
+      this.page.getByTestId('settings-terminals-table').waitFor({ state: 'visible', timeout: 10000 }),
+      this.page.getByText('No terminals configured').waitFor({ state: 'visible', timeout: 10000 }),
+    ])
+  }
+
+  /**
+   * Expect terminals tab to be visible
+   */
+  async expectTerminalsTabVisible() {
+    await expect(this.page.getByTestId('settings-tab-terminals')).toBeVisible()
+  }
+
+  /**
+   * Expect terminals table to be visible
+   */
+  async expectTerminalsTableVisible() {
+    await expect(this.page.getByTestId('settings-terminals-table')).toBeVisible()
+  }
+
+  /**
+   * Click create terminal button
+   */
+  async clickCreateTerminalButton() {
+    await this.page.getByTestId('settings-terminal-create-button').click()
+    await this.page.getByTestId('settings-terminal-create-modal').waitFor({ state: 'visible' })
+  }
+
+  /**
+   * Fill create terminal form
+   */
+  async fillCreateTerminalForm(data: { name: string; device_id: string }) {
+    if (data.name) {
+      await this.page.getByTestId('settings-terminal-create-name').fill(data.name)
+    }
+    if (data.device_id) {
+      await this.page.getByTestId('settings-terminal-create-device-id').fill(data.device_id)
+    }
+  }
+
+  /**
+   * Click create terminal confirm button
+   */
+  async clickCreateTerminalConfirm() {
+    await this.page.getByTestId('settings-terminal-create-confirm-button').click()
+  }
+
+  /**
+   * Check if create terminal modal is visible
+   */
+  async isCreateTerminalModalVisible(): Promise<boolean> {
+    return await this.page.getByTestId('settings-terminal-create-modal').count() > 0
+  }
+
+  /**
+   * Close create terminal modal
+   */
+  async closeCreateTerminalModal() {
+    await this.page.getByTestId('settings-terminal-create-cancel-button').click()
+  }
+
+  /**
+   * Get terminal count by counting rows
+   */
+  async getTerminalCount(): Promise<number> {
+    const rows = this.page.locator('[data-testid^="settings-terminal-row-"]')
+    return await rows.count()
+  }
+
+  /**
+   * Private: Find terminal row by name text content
+   */
+  private async findTerminalRowByName(name: string) {
+    await this.page
+      .locator('[data-testid^="settings-terminal-row-"]')
+      .first()
+      .waitFor({ state: 'attached', timeout: 5000 })
+      .catch(() => {})
+
+    const row = this.page
+      .locator('[data-testid^="settings-terminal-row-"]')
+      .filter({ has: this.page.locator(`[data-testid^="settings-terminal-name-"]:text-is("${name}")`) })
+    const count = await row.count()
+    if (count === 0) {
+      return null
+    }
+    return row.first()
+  }
+
+  /**
+   * Private: Get terminal ID by name
+   */
+  private async getTerminalIdByName(name: string): Promise<string | null> {
+    const row = await this.findTerminalRowByName(name)
+    if (!row) return null
+    const rowTestId = await row.getAttribute('data-testid')
+    if (!rowTestId) return null
+    return rowTestId.replace('settings-terminal-row-', '')
+  }
+
+  /**
+   * Get terminal by name
+   */
+  async getTerminalByName(name: string) {
+    const row = await this.findTerminalRowByName(name)
+    if (!row) return null
+
+    const nameText = await row.locator('[data-testid^="settings-terminal-name-"]').textContent()
+    const deviceIdText = await row.locator('[data-testid^="settings-terminal-device-id-"]').textContent()
+    const toggleBtn = row.locator('[data-testid^="settings-terminal-toggle-"]')
+    const isPressed = await toggleBtn.getAttribute('aria-pressed')
+    const status = isPressed === 'true' ? 'active' : 'inactive'
+
+    return {
+      name: nameText?.trim() || '',
+      device_id: deviceIdText?.trim() || '',
+      status,
+    }
+  }
+
+  /**
+   * Click edit button for terminal by name
+   */
+  async clickEditTerminalButton(name: string) {
+    const terminalId = await this.getTerminalIdByName(name)
+    if (!terminalId) throw new Error(`Terminal with name ${name} not found`)
+    await this.page.getByTestId(`settings-terminal-edit-button-${terminalId}`).click()
+    await this.page.getByTestId('settings-terminal-edit-modal').waitFor({ state: 'visible' })
+  }
+
+  /**
+   * Fill edit terminal form
+   */
+  async fillEditTerminalForm(data: { name: string }) {
+    await this.page.getByTestId('settings-terminal-edit-name').fill(data.name)
+  }
+
+  /**
+   * Click edit terminal confirm button and wait for list reload
+   */
+  async clickEditTerminalConfirm() {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/terminals') && resp.request().method() === 'GET',
+      { timeout: 10000 }
+    )
+    await this.page.getByTestId('settings-terminal-edit-confirm-button').click()
+    await responsePromise
+  }
+
+  /**
+   * Check if edit terminal modal is visible
+   */
+  async isEditTerminalModalVisible(): Promise<boolean> {
+    return await this.page.getByTestId('settings-terminal-edit-modal').count() > 0
+  }
+
+  /**
+   * Click rotate token button for terminal by name
+   */
+  async clickRotateTokenButton(name: string) {
+    const terminalId = await this.getTerminalIdByName(name)
+    if (!terminalId) throw new Error(`Terminal with name ${name} not found`)
+    await this.page.getByTestId(`settings-terminal-rotate-token-button-${terminalId}`).click()
+  }
+
+  /**
+   * Click revoke button for terminal by name
+   */
+  async clickRevokeButton(name: string) {
+    const terminalId = await this.getTerminalIdByName(name)
+    if (!terminalId) throw new Error(`Terminal with name ${name} not found`)
+    await this.page.getByTestId(`settings-terminal-revoke-button-${terminalId}`).click()
+  }
+
+  /**
+   * Click toggle to deactivate terminal by name and confirm via ConfirmDialog
+   */
+  async clickDeactivateTerminal(name: string) {
+    const terminalId = await this.getTerminalIdByName(name)
+    if (!terminalId) throw new Error(`Terminal with name ${name} not found`)
+
+    await this.page.getByTestId(`settings-terminal-toggle-${terminalId}`).click()
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 10000 })
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/terminals') && resp.request().method() === 'GET',
+      { timeout: 15000 }
+    )
+    await this.page.getByTestId('confirm-dialog-ok').click()
+    await responsePromise
+  }
+
+  /**
+   * Click toggle to reactivate terminal by name (no confirm dialog)
+   */
+  async clickReactivateTerminal(name: string) {
+    const terminalId = await this.getTerminalIdByName(name)
+    if (!terminalId) throw new Error(`Terminal with name ${name} not found`)
+
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/terminals') && resp.request().method() === 'GET',
+      { timeout: 15000 }
+    )
+    await this.page.getByTestId(`settings-terminal-toggle-${terminalId}`).click()
+    await responsePromise
+  }
+
+  /**
+   * Get terminal status by name
+   */
+  async getTerminalStatus(name: string): Promise<string | null> {
+    const row = await this.findTerminalRowByName(name)
+    if (!row) return null
+    const toggleBtn = row.locator('[data-testid^="settings-terminal-toggle-"]')
+    const isPressed = await toggleBtn.getAttribute('aria-pressed')
+    return isPressed === 'true' ? 'active' : 'inactive'
+  }
+
+  /**
+   * Wait for token display modal to appear
+   */
+  async waitForTokenModal() {
+    const modal = this.page.getByTestId('settings-terminal-token-modal')
+    await expect(modal).toBeVisible({ timeout: 5000 })
+  }
+
+  /**
+   * Get generated token from token display modal
+   */
+  async getGeneratedToken(): Promise<string | null> {
+    const modal = this.page.getByTestId('settings-terminal-token-modal')
+    if (await modal.count() === 0) return null
+    const tokenText = await this.page.getByTestId('settings-terminal-token-display').textContent()
+    return tokenText?.trim() || null
+  }
+
+  /**
+   * Copy token to clipboard
+   */
+  async copyTokenToClipboard() {
+    await this.page.getByTestId('settings-terminal-token-copy-button').click()
+  }
+
+  /**
+   * Close token display modal
+   */
+  async closeTokenModal() {
+    const closeButton = this.page.getByTestId('settings-terminal-token-close-button')
+    await closeButton.click()
+  }
+
+  /**
+   * Expect create terminal button to be visible
+   */
+  async expectCreateTerminalButtonVisible() {
+    await expect(this.page.getByTestId('settings-terminal-create-button')).toBeVisible()
+  }
 }
