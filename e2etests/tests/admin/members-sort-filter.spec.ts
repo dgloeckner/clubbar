@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/pageObjects'
+import { createMemberViaPage } from '../../utils/members'
 
 /**
  * Admin Frontend - Members Page Sort and Filter Tests
@@ -120,31 +121,10 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     const withoutCardName = `${testId}NoCard`
 
     // Create member WITH card (use unique card_uid based on timestamp)
-    await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: withCardName,
-        last_name: 'Test',
-        email: `${testId}hc@test.com`,
-        iban: 'DE89370400440532013000',
-        mandate_reference: `MAN${testId}HC`,
-        mandate_signed_at: '2024-01-15',
-        preferred_language: 'de',
-        card_uid: cardUid
-      }
-    })
+    await createMemberViaPage(page, { firstName: withCardName, lastName: 'Test', email: `${testId}hc@test.com`, cardUid })
 
     // Create member WITHOUT card
-    await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: withoutCardName,
-        last_name: 'Test',
-        email: `${testId}nc@test.com`,
-        iban: 'DE89370400440532013001',
-        mandate_reference: `MAN${testId}NC`,
-        mandate_signed_at: '2024-01-15',
-        preferred_language: 'de'
-      }
-    })
+    await createMemberViaPage(page, { firstName: withoutCardName, lastName: 'Test', email: `${testId}nc@test.com` })
 
     await authenticatedMembersPage.navigate()
     await authenticatedMembersPage.expectPageVisible()
@@ -188,20 +168,12 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     const cardUid = `${timestamp}`.slice(-16)      // Last 16 hex-compatible digits
 
     // Step 1: Create a member WITH a card UID via API (Pattern 001: isolated test data)
-    const createResp = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: testId,
-        last_name: 'ClearTest',
-        email: `${testId.slice(0, 30)}@t.com`,
-        iban: 'DE89370400440532013000',
-        mandate_reference: `MAN${testId.slice(-8)}`,
-        mandate_signed_at: '2024-01-15',
-        preferred_language: 'de',
-        card_uid: cardUid,
-      }
+    const createdMember = await createMemberViaPage(page, {
+      firstName: testId,
+      lastName: 'ClearTest',
+      email: `${testId.slice(0, 30)}@t.com`,
+      cardUid,
     })
-    expect(createResp.status()).toBe(201)
-    const createdMember = await createResp.json()
     const memberId = createdMember.id
 
     // Step 2: Navigate, verify member appears in "Mit Karte" filter

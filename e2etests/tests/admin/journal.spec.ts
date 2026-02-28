@@ -23,6 +23,7 @@
 
 import { test, expect } from '../../fixtures/pageObjects'
 import { TEST_CREDENTIALS } from '../../config/test-credentials'
+import { createMemberViaPage } from '../../utils/members'
 
 /**
  * Generate UUID v4
@@ -164,23 +165,14 @@ test.describe('Journal Page - Transaction Display', () => {
     // === ARRANGE ===
     // Generate unique test data
     const testDataPrefix = `journal-test-${Date.now()}`
-    const memberData = {
-      first_name: `TestFirst${testDataPrefix}`,
-      last_name: `TestLast${testDataPrefix}`,
-      email: `${testDataPrefix}@example.com`,
-      iban: 'DE89370400440532013000',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
 
     // Step 1: Create test member via API (POST /api/admin/members)
-    const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
+    const member = await createMemberViaPage(page, {
+      firstName: `TestFirst${testDataPrefix}`,
+      lastName: `TestLast${testDataPrefix}`,
+      email: `${testDataPrefix}@example.com`,
     })
-
-    expect(createMemberResponse.ok(), 'Member creation should succeed').toBeTruthy()
-    const memberJson = await createMemberResponse.json()
-    const memberId = memberJson.id
+    const memberId = member.id
 
     // Step 2: Create correction transaction (POST /api/admin/members/{id}/transactions/correction)
     const txId = await createCorrection(page, memberId, 5000, 'E2E test correction transaction')
@@ -195,7 +187,7 @@ test.describe('Journal Page - Transaction Display', () => {
 
     // === ASSERT ===
     // Search for our specific test data to isolate from other parallel tests
-    await authenticatedJournalPage.search(memberData.first_name)
+    await authenticatedJournalPage.search(member.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Verify we found exactly our transaction
@@ -205,7 +197,7 @@ test.describe('Journal Page - Transaction Display', () => {
     // Verify transaction details (should be in first row after search)
     const row = await authenticatedJournalPage.getTransactionRow(0)
 
-    expect(row.member, 'Member name should match').toContain(memberData.first_name)
+    expect(row.member, 'Member name should match').toContain(member.first_name)
     expect(row.type.toLowerCase(), 'Transaction type should be correction').toBe('correction')
     expect(row.amount, 'Amount should be displayed').toBeTruthy()
     // Accept both English (50.00) and German (50,00) decimal formats
@@ -225,21 +217,14 @@ test.describe('Journal Page - Transaction Display', () => {
   test('should display multiple transactions for the same member', async ({ page, authenticatedJournalPage }) => {
     // === ARRANGE ===
     const testId = `journal-multi-${Date.now()}`
-    const memberData = {
-      first_name: `MultiTx${testId}`,
-      last_name: 'Member',
-      email: `${testId}@example.com`,
-      iban: 'DE89370400440532013001',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
 
     // Create test member
-    const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
+    const member = await createMemberViaPage(page, {
+      firstName: `MultiTx${testId}`,
+      lastName: 'Member',
+      email: `${testId}@example.com`,
     })
-    expect(createMemberResponse.ok()).toBeTruthy()
-    const memberId = (await createMemberResponse.json()).id
+    const memberId = member.id
 
     // Create 3 transactions
     const amounts = [100, 250, 500]
@@ -265,7 +250,7 @@ test.describe('Journal Page - Transaction Display', () => {
     const count = await authenticatedJournalPage.getTransactionCount()
     for (let i = 0; i < count; i++) {
       const row = await authenticatedJournalPage.getTransactionRow(i)
-      if (row.member && row.member.includes(memberData.first_name)) {
+      if (row.member && row.member.includes(member.first_name)) {
         foundCount++
       }
     }
@@ -284,20 +269,14 @@ test.describe('Journal Page - Transaction Display', () => {
   test('should display transaction with correct columns', async ({ page, authenticatedJournalPage }) => {
     // === ARRANGE ===
     const testId = `journal-columns-${Date.now()}`
-    const memberData = {
-      first_name: `ColumnsTest${testId}`,
-      last_name: 'Verify',
-      email: `${testId}@example.com`,
-      iban: 'DE89370400440532013002',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
 
     // Create member
-    const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
+    const member = await createMemberViaPage(page, {
+      firstName: `ColumnsTest${testId}`,
+      lastName: 'Verify',
+      email: `${testId}@example.com`,
     })
-    const memberId = (await createMemberResponse.json()).id
+    const memberId = member.id
 
     // Create transaction with specific amount
     const txResponse = await page.request.post(
@@ -318,7 +297,7 @@ test.describe('Journal Page - Transaction Display', () => {
 
     // === ASSERT ===
     // Find transaction
-    const memberIndex = await authenticatedJournalPage.findTransactionByMemberName(memberData.first_name)
+    const memberIndex = await authenticatedJournalPage.findTransactionByMemberName(member.first_name)
     expect(memberIndex, 'Should find transaction').not.toBeNull()
 
     if (memberIndex !== null) {
@@ -330,14 +309,14 @@ test.describe('Journal Page - Transaction Display', () => {
       for (let i = 0; i < Math.min(totalCount, 50); i++) {
         const row = await authenticatedJournalPage.getTransactionRow(i)
         // Accept both English (123.45) and German (123,45) decimal formats
-        if (row.member && row.member.includes(memberData.first_name) && (row.amount.includes('123.45') || row.amount.includes('123,45'))) {
+        if (row.member && row.member.includes(member.first_name) && (row.amount.includes('123.45') || row.amount.includes('123,45'))) {
           // Found our transaction!
           foundCorrectTransaction = true
 
           // Verify all columns have data
           expect(row.date, 'Date column should have data').toBeTruthy()
           expect(row.type, 'Type column should have data').toBeTruthy()
-          expect(row.member, 'Member column should have member name').toContain(memberData.first_name)
+          expect(row.member, 'Member column should have member name').toContain(member.first_name)
           // Accept both English (123.45) and German (123,45) decimal formats
           expect(row.amount.includes('123.45') || row.amount.includes('123,45'), 'Amount column should show 123.45 or 123,45').toBeTruthy()
           expect(row.details, 'Details column should be present').toBeTruthy()
@@ -369,22 +348,14 @@ test.describe('Journal Page - Transaction Display', () => {
   test('should display product name in Details column for purchase transactions', async ({ page, authenticatedJournalPage }) => {
     // === ARRANGE ===
     const testId = `journal-product-${Date.now()}`
-    const memberData = {
-      first_name: `ProductTest${testId}`,
-      last_name: 'Member',
-      email: `${testId}@example.com`,
-      iban: 'DE89370400440532013004',
-      mandate_reference: testId.replace(/[^A-Z0-9]/gi, '').substring(0, 35).toUpperCase(),
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
 
     // Create member
-    const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
+    const member = await createMemberViaPage(page, {
+      firstName: `ProductTest${testId}`,
+      lastName: 'Member',
+      email: `${testId}@example.com`,
     })
-    expect(memberResponse.ok()).toBeTruthy()
-    const memberId = (await memberResponse.json()).id
+    const memberId = member.id
 
     // Create purchase transaction via terminal sync API with existing product
     // Use existing product: "Äppler 0,5L" / "Apple Cider 0.5L" (seeded with UUID 33333338-...)
@@ -398,7 +369,7 @@ test.describe('Journal Page - Transaction Display', () => {
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Search for our specific transaction
-    await authenticatedJournalPage.search(memberData.first_name)
+    await authenticatedJournalPage.search(member.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // === ASSERT ===
@@ -426,20 +397,14 @@ test.describe('Journal Page - Transaction Display', () => {
   test('should display transaction count summary', async ({ page, authenticatedJournalPage }) => {
     // === ARRANGE ===
     const testId = `journal-count-${Date.now()}`
-    const memberData = {
-      first_name: `CountTest${testId}`,
-      last_name: 'Summary',
-      email: `${testId}@example.com`,
-      iban: 'DE89370400440532013003',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
 
     // Create member and transaction
-    const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
+    const member = await createMemberViaPage(page, {
+      firstName: `CountTest${testId}`,
+      lastName: 'Summary',
+      email: `${testId}@example.com`,
     })
-    const memberId = (await createMemberResponse.json()).id
+    const memberId = member.id
 
     const txResponse = await page.request.post(
       `http://localhost:8080/api/admin/members/${memberId}/transactions/correction`,
@@ -625,17 +590,11 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     const testId = `journal-settle-date-${Date.now()}`
 
     // Create member
-    const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: `SettleDate${testId}`,
-        last_name: 'Test',
-        email: `sd-${testId}@example.com`,
-        iban: 'DE89370400440532013099',
-        mandate_signed_at: new Date().toISOString().split('T')[0],
-        preferred_language: 'de',
-      },
+    const { id: memberId } = await createMemberViaPage(page, {
+      firstName: `SettleDate${testId}`,
+      lastName: 'Test',
+      email: `sd-${testId}@example.com`,
     })
-    const memberId = (await memberResponse.json()).id
 
     // Create 2 transactions: one will be settled, one stays open
     const tx1Response = await page.request.post(
@@ -753,19 +712,11 @@ test.describe('Journal Page - Sorting', () => {
     const testId = `journal-sort-date-${Date.now()}`
 
     // Create member
-    const memberData = {
-      first_name: `SortDate${testId}`,
-      last_name: 'Test',
+    const { id: memberId } = await createMemberViaPage(page, {
+      firstName: `SortDate${testId}`,
+      lastName: 'Test',
       email: `${testId}@example.com`,
-      iban: 'DE89370400440532013010',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
-
-    const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
     })
-    const memberId = (await createMemberResponse.json()).id
 
     // Create 3 transactions with delays to ensure different timestamps
     const txAmounts = [100, 200, 300]
@@ -862,19 +813,12 @@ test.describe('Journal Page - Sorting', () => {
     const testId = `journal-sort-amount-${Date.now()}`
 
     // Create member
-    const memberData = {
-      first_name: `SortAmount${testId}`,
-      last_name: 'Test',
+    const member = await createMemberViaPage(page, {
+      firstName: `SortAmount${testId}`,
+      lastName: 'Test',
       email: `${testId}@example.com`,
-      iban: 'DE89370400440532013011',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
-
-    const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
     })
-    const memberId = (await createMemberResponse.json()).id
+    const memberId = member.id
 
     // Create transactions with distinct amounts (in random order)
     const amounts = [5000, 1000, 10000, 2500, 7500] // €50, €10, €100, €25, €75
@@ -889,7 +833,7 @@ test.describe('Journal Page - Sorting', () => {
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Search for our specific test data to isolate from other parallel tests
-    await authenticatedJournalPage.search(memberData.first_name)
+    await authenticatedJournalPage.search(member.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Click amount header to sort (default will be desc - highest first)
@@ -977,24 +921,16 @@ test.describe('Journal Page - Sorting', () => {
     const memberIds: string[] = []
 
     for (const name of memberNames) {
-      const memberData = {
-        first_name: name.first,
-        last_name: name.last,
+      const loopMember = await createMemberViaPage(page, {
+        firstName: name.first,
+        lastName: name.last,
         email: `${name.first.substring(0, 5).toLowerCase()}-${testId}@example.com`,
         iban: `DE8937040044053201${3012 + memberIds.length}`,
-        mandate_signed_at: new Date().toISOString().split('T')[0],
-        preferred_language: 'de',
-      }
-
-      const response = await page.request.post('http://localhost:8080/api/admin/members', {
-        data: memberData,
       })
-      expect(response.ok(), `Member creation for ${name.first} should succeed (${response.status()})`).toBeTruthy()
-      const memberId = (await response.json()).id
-      memberIds.push(memberId)
+      memberIds.push(loopMember.id)
 
       // Create a transaction for this member
-      await createCorrection(page, memberId, 1000, `Member sort test ${testId}`)
+      await createCorrection(page, loopMember.id, 1000, `Member sort test ${testId}`)
     }
 
 
@@ -1062,19 +998,12 @@ test.describe('Journal Page - Sorting', () => {
     const testId = `journal-sort-type-${Date.now()}`
 
     // Create member
-    const memberData = {
-      first_name: `SortType${testId}`,
-      last_name: 'Test',
+    const member = await createMemberViaPage(page, {
+      firstName: `SortType${testId}`,
+      lastName: 'Test',
       email: `${testId}@example.com`,
-      iban: 'DE89370400440532013015',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
-
-    const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
     })
-    const memberId = (await createMemberResponse.json()).id
+    const memberId = member.id
 
     // Create 2 correction transactions
     await createCorrection(page, memberId, 1000, 'Type sort test - correction 1')
@@ -1086,7 +1015,7 @@ test.describe('Journal Page - Sorting', () => {
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Search for our specific test data to isolate from other parallel tests
-    await authenticatedJournalPage.search(memberData.first_name)
+    await authenticatedJournalPage.search(member.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Verify we have exactly our 2 transactions
@@ -1138,37 +1067,20 @@ test.describe('Journal Page - Search and Filtering', () => {
     const testId = `journal-search-member-${Date.now()}`
 
     // Create 2 members with very distinct names
-    const member1Data = {
-      first_name: `SearchUnique${testId}`,
-      last_name: 'One',
+    const member1 = await createMemberViaPage(page, {
+      firstName: `SearchUnique${testId}`,
+      lastName: 'One',
       email: `search1-${testId}@example.com`,
-      iban: 'DE89370400440532013020',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
-
-    const member2Data = {
-      first_name: `Different${testId}`,
-      last_name: 'Two',
+    })
+    const member2 = await createMemberViaPage(page, {
+      firstName: `Different${testId}`,
+      lastName: 'Two',
       email: `search2-${testId}@example.com`,
-      iban: 'DE89370400440532013021',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
-
-    const member1Response = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: member1Data,
     })
-    const member1Id = (await member1Response.json()).id
-
-    const member2Response = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: member2Data,
-    })
-    const member2Id = (await member2Response.json()).id
 
     // Create transactions for both members
-    await createCorrection(page, member1Id, 1000, 'Search test - member 1')
-    await createCorrection(page, member2Id, 2000, 'Search test - member 2')
+    await createCorrection(page, member1.id, 1000, 'Search test - member 1')
+    await createCorrection(page, member2.id, 2000, 'Search test - member 2')
 
     // === ACT ===
     await authenticatedJournalPage.navigate()
@@ -1179,7 +1091,7 @@ test.describe('Journal Page - Search and Filtering', () => {
     const initialCount = await authenticatedJournalPage.getTransactionCount()
 
     // Search for first member's name
-    await authenticatedJournalPage.search(member1Data.first_name)
+    await authenticatedJournalPage.search(member1.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // === ASSERT ===
@@ -1187,14 +1099,14 @@ test.describe('Journal Page - Search and Filtering', () => {
     const searchCount = await authenticatedJournalPage.getTransactionCount()
 
     // Find member 1's transaction
-    const member1Index = await authenticatedJournalPage.findTransactionByMemberName(member1Data.first_name)
+    const member1Index = await authenticatedJournalPage.findTransactionByMemberName(member1.first_name)
     expect(member1Index, 'Should find member 1 transaction').not.toBeNull()
 
     // Verify member 2 is NOT in the results
     let foundMember2 = false
     for (let i = 0; i < searchCount; i++) {
       const row = await authenticatedJournalPage.getTransactionRow(i)
-      if (row.member && row.member.includes(member2Data.first_name)) {
+      if (row.member && row.member.includes(member2.first_name)) {
         foundMember2 = true
         break
       }
@@ -1212,8 +1124,8 @@ test.describe('Journal Page - Search and Filtering', () => {
     const clearedCount = await authenticatedJournalPage.getTransactionCount()
 
     // Both members should be findable now
-    const member1AfterClear = await authenticatedJournalPage.findTransactionByMemberName(member1Data.first_name)
-    const member2AfterClear = await authenticatedJournalPage.findTransactionByMemberName(member2Data.first_name)
+    const member1AfterClear = await authenticatedJournalPage.findTransactionByMemberName(member1.first_name)
+    const member2AfterClear = await authenticatedJournalPage.findTransactionByMemberName(member2.first_name)
 
     expect(member1AfterClear, 'Should find member 1 after clearing search').not.toBeNull()
     expect(member2AfterClear, 'Should find member 2 after clearing search').not.toBeNull()
@@ -1233,19 +1145,12 @@ test.describe('Journal Page - Search and Filtering', () => {
     const testId = `journal-search-details-${Date.now()}`
 
     // Create member
-    const memberData = {
-      first_name: `SearchDetails${testId}`,
-      last_name: 'Test',
+    const member = await createMemberViaPage(page, {
+      firstName: `SearchDetails${testId}`,
+      lastName: 'Test',
       email: `${testId}@example.com`,
-      iban: 'DE89370400440532013022',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
-
-    const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
     })
-    const memberId = (await memberResponse.json()).id
+    const memberId = member.id
 
     // Create transactions with unique keywords in reasons
     const uniqueKeyword = `KEYWORD${testId}`
@@ -1270,7 +1175,7 @@ test.describe('Journal Page - Search and Filtering', () => {
     const searchCount = await authenticatedJournalPage.getTransactionCount()
     for (let i = 0; i < searchCount; i++) {
       const row = await authenticatedJournalPage.getTransactionRow(i)
-      if (row.member && row.member.includes(memberData.first_name)) {
+      if (row.member && row.member.includes(member.first_name)) {
         if (row.details && row.details.includes(uniqueKeyword)) {
           foundWithKeyword = true
         } else if (row.details && row.details.includes('without the keyword')) {
@@ -1299,19 +1204,12 @@ test.describe('Journal Page - Search and Filtering', () => {
     const testId = `journal-settlement-filter-${Date.now()}`
 
     // Create member
-    const memberData = {
-      first_name: `SettlementFilter${testId}`,
-      last_name: 'Test',
+    const member = await createMemberViaPage(page, {
+      firstName: `SettlementFilter${testId}`,
+      lastName: 'Test',
       email: `${testId}@example.com`,
-      iban: 'DE89370400440532013023',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
-
-    const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
     })
-    const memberId = (await memberResponse.json()).id
+    const memberId = member.id
 
     // Create 3 transactions
     const txResponses = []
@@ -1356,7 +1254,7 @@ test.describe('Journal Page - Search and Filtering', () => {
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Test 1: Search and filter by "open" (unsettled)
-    await authenticatedJournalPage.search(memberData.first_name)
+    await authenticatedJournalPage.search(member.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
     await authenticatedJournalPage.filterBySettlementStatus('open')
     await authenticatedJournalPage.waitForTableToLoad()
@@ -1368,7 +1266,7 @@ test.describe('Journal Page - Search and Filtering', () => {
 
     for (let i = 0; i < Math.min(openCount, 20); i++) {
       const row = await authenticatedJournalPage.getTransactionRow(i)
-      if (row.member && row.member.includes(memberData.first_name)) {
+      if (row.member && row.member.includes(member.first_name)) {
         if (row.details && row.details.includes('Settlement filter test 3')) {
           foundOpen++
         } else if (row.details && (row.details.includes('test 1') || row.details.includes('test 2'))) {
@@ -1391,7 +1289,7 @@ test.describe('Journal Page - Search and Filtering', () => {
 
     for (let i = 0; i < Math.min(settledCount, 20); i++) {
       const row = await authenticatedJournalPage.getTransactionRow(i)
-      if (row.member && row.member.includes(memberData.first_name)) {
+      if (row.member && row.member.includes(member.first_name)) {
         if (row.details && (row.details.includes('test 1') || row.details.includes('test 2'))) {
           foundSettled++
         } else if (row.details && row.details.includes('test 3')) {
@@ -1413,7 +1311,7 @@ test.describe('Journal Page - Search and Filtering', () => {
 
     for (let i = 0; i < Math.min(allCount, 20); i++) {
       const row = await authenticatedJournalPage.getTransactionRow(i)
-      if (row.member && row.member.includes(memberData.first_name)) {
+      if (row.member && row.member.includes(member.first_name)) {
         totalFound++
       }
     }
@@ -1448,23 +1346,16 @@ test.describe('Journal Page - Create Correction via Modal', () => {
   }) => {
     // === ARRANGE ===
     const testId = `journal-modal-corr-${Date.now()}`
-    const memberData = {
-      // First name starts with "A" to ensure member appears in first 100 results
-      // (backend caps getMembers at 100 per page, sorted by first_name asc)
-      first_name: `ACorr${testId}`,
-      last_name: 'Test',
-      email: `mc-${testId}@example.com`,
-      iban: 'DE89370400440532013000',
-      mandate_signed_at: new Date().toISOString().split('T')[0],
-      preferred_language: 'de',
-    }
 
     // Create member via API
-    const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: memberData,
+    // First name starts with "A" to ensure member appears in first 100 results
+    // (backend caps getMembers at 100 per page, sorted by first_name asc)
+    const member = await createMemberViaPage(page, {
+      firstName: `ACorr${testId}`,
+      lastName: 'Test',
+      email: `mc-${testId}@example.com`,
     })
-    expect(memberResponse.ok(), 'Member creation should succeed').toBeTruthy()
-    const memberId = (await memberResponse.json()).id
+    const memberId = member.id
 
     const reason = `Modal correction test ${testId}`
     const amountEur = '42.50'
@@ -1495,7 +1386,7 @@ test.describe('Journal Page - Create Correction via Modal', () => {
     const row = await authenticatedJournalPage.getTransactionRow(0)
 
     expect(row.type.toLowerCase(), 'Type should be correction').toBe('correction')
-    expect(row.member, 'Member name should match').toContain(memberData.first_name)
+    expect(row.member, 'Member name should match').toContain(member.first_name)
     // Accept both English (42.50) and German (42,50) decimal formats
     expect(row.amount.includes('42.50') || row.amount.includes('42,50'), 'Amount should contain 42.50 or 42,50').toBeTruthy()
     expect(row.details, 'Details should contain reason').toContain(reason)
@@ -1533,19 +1424,11 @@ test.describe('Journal Page - Settle All (Filter-Based Settlement)', () => {
     const uniqueName = `SettleAll${testId}`
 
     // Create test member via API
-    const memberRes = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: uniqueName,
-        last_name: 'UITest',
-        email: `${testId}@test.example`,
-        iban: 'DE89370400440532013000',
-        mandate_signed_at: '2024-01-01',
-        preferred_language: 'de',
-      },
+    const { id: memberId } = await createMemberViaPage(page, {
+      firstName: uniqueName,
+      lastName: 'UITest',
+      email: `${testId}@test.example`,
     })
-    expect(memberRes.ok(), 'Member creation should succeed').toBeTruthy()
-    const member = await memberRes.json()
-    const memberId = member.id
 
     // Create a correction transaction for this member
     const txRes = await page.request.post(

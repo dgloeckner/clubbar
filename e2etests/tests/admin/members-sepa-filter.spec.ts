@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/pageObjects'
+import { createMemberViaPage } from '../../utils/members'
 
 /**
  * Admin Frontend - Members SEPA Filter Tests
@@ -31,29 +32,10 @@ test.describe('UC-A12: SEPA Status Filter', () => {
     const testId = `SF${timestamp}`.slice(0, 16)
 
     // Create member WITH valid SEPA
-    const resp1 = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: `${testId}Valid`,
-        last_name: 'Sepa',
-        email: `${testId}v@test.com`,
-        iban: 'DE89370400440532013000',
-        mandate_reference: `MAN${testId}V`,
-        mandate_signed_at: '2024-01-15',
-        preferred_language: 'de',
-      }
-    })
-    expect(resp1.status()).toBe(201)
+    await createMemberViaPage(page, { firstName: `${testId}Valid`, lastName: 'Sepa', email: `${testId}v@test.com` })
 
     // Create member WITHOUT IBAN (is_sepa_valid = false)
-    const resp2 = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: `${testId}Miss`,
-        last_name: 'Sepa',
-        email: `${testId}m@test.com`,
-        preferred_language: 'de',
-      }
-    })
-    expect(resp2.status()).toBe(201)
+    await createMemberViaPage(page, { firstName: `${testId}Miss`, lastName: 'Sepa', email: `${testId}m@test.com`, withSepa: false })
 
     await authenticatedMembersPage.navigate()
     await authenticatedMembersPage.expectPageVisible()
@@ -71,29 +53,10 @@ test.describe('UC-A12: SEPA Status Filter', () => {
     const testId = `SM${timestamp}`.slice(0, 16)
 
     // Create member WITH valid SEPA
-    const resp1 = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: `${testId}Valid`,
-        last_name: 'Sepa',
-        email: `${testId}v@test.com`,
-        iban: 'DE89370400440532013000',
-        mandate_reference: `MAN${testId}V`,
-        mandate_signed_at: '2024-01-15',
-        preferred_language: 'de',
-      }
-    })
-    expect(resp1.status()).toBe(201)
+    await createMemberViaPage(page, { firstName: `${testId}Valid`, lastName: 'Sepa', email: `${testId}v@test.com` })
 
     // Create member WITHOUT IBAN (is_sepa_valid = false)
-    const resp2 = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: `${testId}Miss`,
-        last_name: 'Sepa',
-        email: `${testId}m@test.com`,
-        preferred_language: 'de',
-      }
-    })
-    expect(resp2.status()).toBe(201)
+    await createMemberViaPage(page, { firstName: `${testId}Miss`, lastName: 'Sepa', email: `${testId}m@test.com`, withSepa: false })
 
     await authenticatedMembersPage.navigate()
     await authenticatedMembersPage.expectPageVisible()
@@ -111,27 +74,10 @@ test.describe('UC-A12: SEPA Status Filter', () => {
     const testId = `SC${timestamp}`.slice(0, 16)
 
     // Create one member WITH valid SEPA
-    await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: `${testId}Valid`,
-        last_name: 'Sepa',
-        email: `${testId}v@test.com`,
-        iban: 'DE89370400440532013000',
-        mandate_reference: `MAN${testId}V`,
-        mandate_signed_at: '2024-01-15',
-        preferred_language: 'de',
-      }
-    })
+    await createMemberViaPage(page, { firstName: `${testId}Valid`, lastName: 'Sepa', email: `${testId}v@test.com` })
 
     // Create one member WITHOUT IBAN
-    await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: `${testId}Miss`,
-        last_name: 'Sepa',
-        email: `${testId}m@test.com`,
-        preferred_language: 'de',
-      }
-    })
+    await createMemberViaPage(page, { firstName: `${testId}Miss`, lastName: 'Sepa', email: `${testId}m@test.com`, withSepa: false })
 
     await authenticatedMembersPage.navigate()
     await authenticatedMembersPage.expectPageVisible()

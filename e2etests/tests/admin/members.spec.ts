@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/pageObjects'
+import { createMemberViaPage } from '../../utils/members'
 
 /**
  * Admin Frontend - Members Page E2E Tests
@@ -337,19 +338,12 @@ test.describe('Admin Frontend - Members Page', () => {
       const uniqueFirstName = `Srch${timestamp}`
       const ibanSuffix = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0')
 
-      const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-        data: {
-          first_name: uniqueFirstName,
-          last_name: `Filter${timestamp}`,
-          email: `srch-${timestamp}@example.com`,
-          iban: `DE89370400440532${ibanSuffix}`,
-          mandate_reference: `REF${timestamp}`,
-          mandate_signed_at: '2025-01-15',
-          preferred_language: 'de',
-          is_active: true,
-        },
+      await createMemberViaPage(page, {
+        firstName: uniqueFirstName,
+        lastName: `Filter${timestamp}`,
+        email: `srch-${timestamp}@example.com`,
+        iban: `DE89370400440532${ibanSuffix}`,
       })
-      expect(memberResponse.status()).toBe(201)
 
       // Step 2: Navigate fresh to members page so the list includes our new member.
       await authenticatedMembersPage.navigate()
