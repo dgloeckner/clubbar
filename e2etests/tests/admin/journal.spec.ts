@@ -70,7 +70,6 @@ async function createTransaction(
   })
 
   if (!response.ok()) {
-    console.error('Transaction creation failed:', await response.text())
     throw new Error('Failed to create transaction')
   }
 
@@ -111,7 +110,6 @@ async function syncTransactionsWithDates(
   })
 
   if (!response.ok()) {
-    console.error('Sync failed:', await response.text())
     throw new Error('Failed to sync transactions')
   }
 
@@ -140,7 +138,6 @@ async function createCorrection(
   )
 
   if (!response.ok()) {
-    console.error('Correction creation failed:', await response.text())
     throw new Error('Failed to create correction')
   }
 
@@ -177,27 +174,19 @@ test.describe('Journal Page - Transaction Display', () => {
     }
 
     // Step 1: Create test member via API (POST /api/admin/members)
-    console.log('Creating test member...', memberData.first_name)
     const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
       data: memberData,
     })
 
-    if (!createMemberResponse.ok()) {
-      console.error('Failed to create member:', await createMemberResponse.text())
-    }
     expect(createMemberResponse.ok(), 'Member creation should succeed').toBeTruthy()
     const memberJson = await createMemberResponse.json()
     const memberId = memberJson.id
-    console.log('Created member with ID:', memberId)
 
     // Step 2: Create correction transaction (POST /api/admin/members/{id}/transactions/correction)
-    console.log('Creating correction transaction...')
     const txId = await createCorrection(page, memberId, 5000, 'E2E test correction transaction')
-    console.log('Created transaction with ID:', txId)
 
     // === ACT ===
     // Navigate to journal page (already authenticated by fixture)
-    console.log('Navigating to journal page...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
 
@@ -206,18 +195,15 @@ test.describe('Journal Page - Transaction Display', () => {
 
     // === ASSERT ===
     // Search for our specific test data to isolate from other parallel tests
-    console.log(`Searching for unique member: ${memberData.first_name}`)
     await authenticatedJournalPage.search(memberData.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Verify we found exactly our transaction
     const transactionCount = await authenticatedJournalPage.getTransactionCount()
-    console.log(`Found ${transactionCount} transactions after filtering`)
     expect(transactionCount, 'Should find exactly 1 transaction for unique member').toBe(1)
 
     // Verify transaction details (should be in first row after search)
     const row = await authenticatedJournalPage.getTransactionRow(0)
-    console.log('Transaction details:', row)
 
     expect(row.member, 'Member name should match').toContain(memberData.first_name)
     expect(row.type.toLowerCase(), 'Transaction type should be correction').toBe('correction')
@@ -249,7 +235,6 @@ test.describe('Journal Page - Transaction Display', () => {
     }
 
     // Create test member
-    console.log('Creating member for multi-transaction test...')
     const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
       data: memberData,
     })
@@ -261,15 +246,12 @@ test.describe('Journal Page - Transaction Display', () => {
     const txIds: string[] = []
 
     for (const amount of amounts) {
-      console.log(`Creating transaction with amount ${amount}...`)
       const txId = await createCorrection(page, memberId, amount, `Multi-transaction test #${txIds.length + 1}`)
       txIds.push(txId)
     }
 
-    console.log(`Created ${txIds.length} transactions`)
 
     // === ACT ===
-    console.log('Navigating to journal...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
@@ -279,7 +261,6 @@ test.describe('Journal Page - Transaction Display', () => {
     expect(transactionCount, 'Should have at least 3 transactions').toBeGreaterThanOrEqual(3)
 
     // Find all transactions for this member
-    console.log(`Searching for ${amounts.length} transactions...`)
     let foundCount = 0
     const count = await authenticatedJournalPage.getTransactionCount()
     for (let i = 0; i < count; i++) {
@@ -289,7 +270,6 @@ test.describe('Journal Page - Transaction Display', () => {
       }
     }
 
-    console.log(`Found ${foundCount} transactions for member`)
     expect(foundCount, 'Should find all 3 transactions for member').toBeGreaterThanOrEqual(3)
   })
 
@@ -400,7 +380,6 @@ test.describe('Journal Page - Transaction Display', () => {
     }
 
     // Create member
-    console.log('Creating member for product name test...')
     const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
       data: memberData,
     })
@@ -411,17 +390,14 @@ test.describe('Journal Page - Transaction Display', () => {
     // Use existing product: "Äppler 0,5L" / "Apple Cider 0.5L" (seeded with UUID 33333338-...)
     const productId = '33333338-3333-3333-3333-333333333338'
 
-    console.log('Creating purchase transaction with product...')
     const txId = await createTransaction(page, memberId, 350, undefined, productId)
 
     // === ACT ===
-    console.log('Navigating to journal...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Search for our specific transaction
-    console.log(`Searching for member: ${memberData.first_name}`)
     await authenticatedJournalPage.search(memberData.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -430,7 +406,6 @@ test.describe('Journal Page - Transaction Display', () => {
     expect(txCount, 'Should find exactly 1 transaction').toBe(1)
 
     const row = await authenticatedJournalPage.getTransactionRow(0)
-    console.log('Transaction row details:', row.details)
 
     // CRITICAL ASSERTIONS: Verify product name is displayed (not dash or empty)
     expect(row.type.toLowerCase(), 'Type should be purchase').toBe('purchase')
@@ -438,7 +413,6 @@ test.describe('Journal Page - Transaction Display', () => {
     expect(row.details, 'Details should NOT be dash').not.toBe('—')
     expect(row.details, 'Details should contain product name').toContain('Äppler')
 
-    console.log('✅ Product name displayed correctly in Details column')
   })
 
   /**
@@ -486,7 +460,6 @@ test.describe('Journal Page - Transaction Display', () => {
     // === ASSERT ===
     // Get count summary text
     const summaryText = await authenticatedJournalPage.getCountSummaryText()
-    console.log('Count summary:', summaryText)
 
     // Accept both English "Transactions" and German "Buchungen"
     expect(summaryText.includes('Transactions') || summaryText.includes('Buchungen'), 'Summary should contain "Transactions" or "Buchungen"').toBeTruthy()
@@ -524,13 +497,11 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
   test('should update transaction results when period changes', async ({ page, authenticatedJournalPage }) => {
     // === ARRANGE ===
     // Navigate to journal
-    console.log('Navigating to journal page...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
     const initialCount = await authenticatedJournalPage.getTransactionCount()
-    console.log(`Initial count (3M - default): ${initialCount} transactions`)
     expect(initialCount, 'Should have initial transactions').toBeGreaterThan(0)
 
     // === ACT & ASSERT ===
@@ -539,13 +510,11 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     const countsPerPeriod: Record<string, number> = {}
 
     for (const period of periodSequence) {
-      console.log(`\nSelecting period: ${period}`)
       await authenticatedJournalPage.selectPeriod(period)
       await authenticatedJournalPage.waitForTableToLoad()
 
       const count = await authenticatedJournalPage.getTransactionCount()
       countsPerPeriod[period] = count
-      console.log(`  Count on ${period}: ${count} transactions`)
 
       // Verify table is still functional
       expect(count, `Should have transactions or be empty on ${period}`).toBeGreaterThanOrEqual(0)
@@ -555,24 +524,19 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
         const firstRow = await authenticatedJournalPage.getTransactionRow(0)
         expect(firstRow.date, `Row should have date on ${period}`).toBeTruthy()
         expect(firstRow.member, `Row should have member on ${period}`).toBeTruthy()
-        console.log(`  ✓ First row readable: ${firstRow.member.substring(0, 30)}...`)
       }
     }
 
     // Verify we got consistent data across period changes
-    console.log('\nPeriod selection results:')
     Object.entries(countsPerPeriod).forEach(([period, count]) => {
-      console.log(`  ${period}: ${count} transactions`)
     })
 
     // All periods should be functional (have data or be empty, but not error)
     const totalResults = Object.values(countsPerPeriod).reduce((a, b) => a + b, 0)
-    console.log(`Total transactions across all periods: ${totalResults}`)
     expect(totalResults, 'Should have retrieved transaction data for all periods').toBeGreaterThan(0)
 
     // "All" period should typically show the most transactions (most permissive filter)
     const allCount = countsPerPeriod['all']
-    console.log(`\nVerifying "all" period is functional: ${allCount} total transactions`)
     expect(allCount, '"All" period should show all transactions').toBeGreaterThanOrEqual(initialCount)
   })
 
@@ -595,11 +559,9 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
 
     // === ACT & ASSERT ===
     // Default should be 3M
-    console.log('Verifying 3M is default active period...')
     await authenticatedJournalPage.expectPeriodButtonActive('3m')
 
     // Click 1M and verify it's active
-    console.log('Clicking 1M period button...')
     await authenticatedJournalPage.selectPeriod('1m')
     await authenticatedJournalPage.expectPeriodButtonActive('1m')
 
@@ -607,7 +569,6 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     await authenticatedJournalPage.expectPeriodButtonInactive('3m')
 
     // Click All and verify it's active
-    console.log('Clicking All period button...')
     await authenticatedJournalPage.selectPeriod('all')
     await authenticatedJournalPage.expectPeriodButtonActive('all')
   })
@@ -628,28 +589,23 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     await authenticatedJournalPage.waitForTableToLoad()
 
     const initialCount = await authenticatedJournalPage.getTransactionCount()
-    console.log(`Initial transaction count on 3M (default): ${initialCount}`)
 
     // === ACT & ASSERT ===
     // Change period - this should trigger API call and reload data
     const periods: Array<'1m' | '6m' | '1y'> = ['1m', '6m', '1y']
 
     for (const period of periods) {
-      console.log(`\nChanging period to ${period}...`)
       await authenticatedJournalPage.selectPeriod(period)
       await authenticatedJournalPage.waitForTableToLoad()
 
       const count = await authenticatedJournalPage.getTransactionCount()
-      console.log(`Transaction count on ${period}: ${count}`)
       expect(count, `Should have transactions or be empty on ${period}`).toBeGreaterThanOrEqual(0)
     }
 
     // Verify we can still interact after multiple period changes
-    console.log('\nVerifying page is still functional...')
     await authenticatedJournalPage.selectPeriod('all')
     await authenticatedJournalPage.waitForTableToLoad()
     const finalCount = await authenticatedJournalPage.getTransactionCount()
-    console.log(`Final transaction count on All: ${finalCount}`)
     expect(finalCount, 'Should have transactions available').toBeGreaterThanOrEqual(0)
   })
 
@@ -707,7 +663,6 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     })
 
     // === ACT ===
-    console.log('Navigating to journal page...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
@@ -718,13 +673,10 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
 
     // === ASSERT ===
     // 1. Verify settlement date column header exists
-    console.log('Verifying settlement date column header exists...')
     const headerText = await authenticatedJournalPage.getHeaderText('settlement-date')
     expect(headerText === 'Settlement Date' || headerText === 'Abrechnungsdatum', 'Header should be Settlement Date or Abrechnungsdatum').toBeTruthy()
-    console.log('✅ Settlement Date header found')
 
     // 2. Check "all" transactions - should have mix of settled and unsettled
-    console.log('\nChecking transactions in "All" filter...')
     const count = await authenticatedJournalPage.getTransactionCount()
     expect(count).toBe(2)
 
@@ -737,10 +689,8 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
 
       if (cellText === '—') {
         hasUnsettled = true
-        console.log(`  Unsettled: "${row.details}" → "—"`)
       } else if (cellText && cellText.trim() !== '') {
         hasSettled = true
-        console.log(`  Settled: "${row.details}" → "${cellText}"`)
         // Verify date/time format (DD.MM.YYYY or MM/DD/YYYY)
         expect(cellText, `Date format should be DD.MM.YYYY or MM/DD/YYYY`).toMatch(/\d{2}[.\/]\d{2}[.\/]\d{4}/)
         expect(cellText, `Time format should be HH:MM:SS`).toMatch(/\d{2}:\d{2}:\d{2}/)
@@ -751,7 +701,6 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     expect(hasUnsettled, 'Should have at least one unsettled transaction').toBeTruthy()
 
     // 3. Filter by "settled" - settled transaction should show date
-    console.log('\nFiltering by "settled"...')
     await authenticatedJournalPage.filterBySettlementStatus('settled')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -761,10 +710,8 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
     const settledDateText = await authenticatedJournalPage.getSettlementDateText(0)
     expect(settledDateText, 'Settlement date should not be dash').not.toBe('—')
     expect(settledDateText, 'Date format DD.MM.YYYY or MM/DD/YYYY').toMatch(/\d{2}[.\/]\d{2}[.\/]\d{4}/)
-    console.log(`  ✅ Settled transaction date: "${settledDateText}"`)
 
     // 4. Filter by "open" - open transaction should show dash
-    console.log('\nFiltering by "open"...')
     await authenticatedJournalPage.filterBySettlementStatus('open')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -773,9 +720,7 @@ test.describe('Journal Page - Period Filtering with Backdated Transactions', () 
 
     const openDateText = await authenticatedJournalPage.getSettlementDateText(0)
     expect(openDateText, 'Open transaction should show dash').toBe('—')
-    console.log(`  ✅ Open transaction shows "—"`)
 
-    console.log('\n✅ Settlement date column verification complete!')
   })
 })
 
@@ -817,14 +762,12 @@ test.describe('Journal Page - Sorting', () => {
       preferred_language: 'de',
     }
 
-    console.log('Creating member for sort test...')
     const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
       data: memberData,
     })
     const memberId = (await createMemberResponse.json()).id
 
     // Create 3 transactions with delays to ensure different timestamps
-    console.log('Creating 3 transactions with different timestamps...')
     const txAmounts = [100, 200, 300]
     for (let i = 0; i < txAmounts.length; i++) {
       await createCorrection(page, memberId, txAmounts[i], `Sort test transaction ${i + 1}`)
@@ -833,7 +776,6 @@ test.describe('Journal Page - Sorting', () => {
     }
 
     // === ACT ===
-    console.log('Navigating to journal...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
@@ -843,7 +785,6 @@ test.describe('Journal Page - Sorting', () => {
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Default should be date descending (newest first)
-    console.log('Verifying default sort (date desc)...')
     const headerText = await authenticatedJournalPage.getHeaderText('date')
     expect(headerText, 'Date header should show descending arrow').toContain('↓')
 
@@ -854,8 +795,6 @@ test.describe('Journal Page - Sorting', () => {
       const firstRow = await authenticatedJournalPage.getTransactionRow(0)
       const secondRow = await authenticatedJournalPage.getTransactionRow(1)
 
-      console.log('First row date:', firstRow.date)
-      console.log('Second row date:', secondRow.date)
 
       // Parse dates (format: "DD.MM.YYYY\nHH:MM:SS" — German locale)
       const parseDateTime = (dateStr: string) => {
@@ -870,12 +809,10 @@ test.describe('Journal Page - Sorting', () => {
       expect(firstDate, 'First transaction should be newer than second (desc order)').toBeGreaterThanOrEqual(
         secondDate
       )
-      console.log('✅ Transactions are in descending date order')
     }
 
     // === ACT ===
     // Click date header to toggle to ascending
-    console.log('Clicking date header to toggle to ascending...')
     await authenticatedJournalPage.sortBy('date')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -890,8 +827,6 @@ test.describe('Journal Page - Sorting', () => {
       const firstRowAsc = await authenticatedJournalPage.getTransactionRow(0)
       const secondRowAsc = await authenticatedJournalPage.getTransactionRow(1)
 
-      console.log('First row date (asc):', firstRowAsc.date)
-      console.log('Second row date (asc):', secondRowAsc.date)
 
       const parseDateTime = (dateStr: string) => {
         const [datePart, timePart] = dateStr.split('\n')
@@ -905,7 +840,6 @@ test.describe('Journal Page - Sorting', () => {
       expect(firstDateAsc, 'First transaction should be older than second (asc order)').toBeLessThanOrEqual(
         secondDateAsc
       )
-      console.log('✅ Transactions are now in ascending date order')
     }
   })
 
@@ -937,7 +871,6 @@ test.describe('Journal Page - Sorting', () => {
       preferred_language: 'de',
     }
 
-    console.log('Creating member for amount sort test...')
     const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
       data: memberData,
     })
@@ -945,25 +878,21 @@ test.describe('Journal Page - Sorting', () => {
 
     // Create transactions with distinct amounts (in random order)
     const amounts = [5000, 1000, 10000, 2500, 7500] // €50, €10, €100, €25, €75
-    console.log('Creating transactions with amounts:', amounts)
 
     for (const amount of amounts) {
       await createCorrection(page, memberId, amount, `Amount sort test - €${amount / 100}`)
     }
 
     // === ACT ===
-    console.log('Navigating to journal...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Search for our specific test data to isolate from other parallel tests
-    console.log(`Searching for unique member: ${memberData.first_name}`)
     await authenticatedJournalPage.search(memberData.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Click amount header to sort (default will be desc - highest first)
-    console.log('Sorting by amount...')
     await authenticatedJournalPage.sortBy('amount')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -972,14 +901,12 @@ test.describe('Journal Page - Sorting', () => {
     const headerText = await authenticatedJournalPage.getHeaderText('amount')
     // Accept both English "Amount" and German "Betrag"
     expect(headerText.match(/Amount\s+[↑↓]/) || headerText.match(/Betrag\s+[↑↓]/), 'Amount/Betrag header should show sort arrow').toBeTruthy()
-    console.log('Amount header text:', headerText)
 
     // Verify we have exactly our 5 transactions
     const totalCount = await authenticatedJournalPage.getTransactionCount()
     expect(totalCount, 'Should find exactly 5 transactions after search').toBe(5)
 
     // Get all transactions (should only be our 5 after search)
-    console.log('Verifying sorted transactions...')
     const memberTransactions: { amount: number; rowIndex: number }[] = []
 
     for (let i = 0; i < totalCount; i++) {
@@ -988,7 +915,6 @@ test.describe('Journal Page - Sorting', () => {
       const amountStr = row.amount.replace('€', '').trim()
       const amountCents = Math.round(parseFloat(amountStr) * 100)
       memberTransactions.push({ amount: amountCents, rowIndex: i })
-      console.log(`  Row ${i}: €${amountStr}`)
     }
 
     // Verify transactions are sorted by amount (desc or asc)
@@ -1010,14 +936,11 @@ test.describe('Journal Page - Sorting', () => {
     ).toBeTruthy()
 
     if (isSortedDesc) {
-      console.log('✅ Transactions are sorted by amount (descending)')
     } else {
-      console.log('✅ Transactions are sorted by amount (ascending)')
     }
 
     // === ACT ===
     // Click amount header again to toggle sort direction
-    console.log('Toggling sort direction...')
     await authenticatedJournalPage.sortBy('amount')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -1025,7 +948,6 @@ test.describe('Journal Page - Sorting', () => {
     // Verify sort direction changed
     const headerTextAfterToggle = await authenticatedJournalPage.getHeaderText('amount')
     expect(headerTextAfterToggle, 'Sort indicator should have changed').not.toBe(headerText)
-    console.log('Amount header text after toggle:', headerTextAfterToggle)
   })
 
   /**
@@ -1052,7 +974,6 @@ test.describe('Journal Page - Sorting', () => {
       { first: `SortTest${testId}`, last: `Bravo${testId}` },
     ]
 
-    console.log('Creating members for member sort test...')
     const memberIds: string[] = []
 
     for (const name of memberNames) {
@@ -1068,9 +989,6 @@ test.describe('Journal Page - Sorting', () => {
       const response = await page.request.post('http://localhost:8080/api/admin/members', {
         data: memberData,
       })
-      if (!response.ok()) {
-        console.error(`Member creation failed (${response.status()}):`, await response.text())
-      }
       expect(response.ok(), `Member creation for ${name.first} should succeed (${response.status()})`).toBeTruthy()
       const memberId = (await response.json()).id
       memberIds.push(memberId)
@@ -1079,16 +997,13 @@ test.describe('Journal Page - Sorting', () => {
       await createCorrection(page, memberId, 1000, `Member sort test ${testId}`)
     }
 
-    console.log('Created members:', memberNames.map((n) => n.first).join(', '))
 
     // === ACT ===
-    console.log('Navigating to journal...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Search for our specific test data to isolate from other parallel tests
-    console.log(`Searching for unique test ID: ${testId}`)
     await authenticatedJournalPage.search(testId)
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -1097,7 +1012,6 @@ test.describe('Journal Page - Sorting', () => {
     expect(totalCount, 'Should find exactly 3 transactions after search').toBe(3)
 
     // Click member header to sort
-    console.log('Sorting by member name...')
     await authenticatedJournalPage.sortBy('member')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -1106,16 +1020,13 @@ test.describe('Journal Page - Sorting', () => {
     const headerText = await authenticatedJournalPage.getHeaderText('member')
     // Accept both English "Member" and German "Mitglied"
     expect(headerText.match(/Member\s+[↑↓]/) || headerText.match(/Mitglied\s+[↑↓]/), 'Member/Mitglied header should show sort arrow').toBeTruthy()
-    console.log('Member header text:', headerText)
 
     // Get all member names (should only be our 3 after search)
-    console.log('Verifying sorted members...')
     const foundMembers: string[] = []
 
     for (let i = 0; i < totalCount; i++) {
       const row = await authenticatedJournalPage.getTransactionRow(i)
       foundMembers.push(row.member)
-      console.log(`  Row ${i}: "${row.member}"`)
     }
 
     // Check if members are sorted (either alphabetically asc or desc)
@@ -1133,9 +1044,7 @@ test.describe('Journal Page - Sorting', () => {
     ).toBeTruthy()
 
     if (isSortedAsc) {
-      console.log('✅ Transactions are sorted by member name (ascending)')
     } else {
-      console.log('✅ Transactions are sorted by member name (descending)')
     }
   })
 
@@ -1162,25 +1071,21 @@ test.describe('Journal Page - Sorting', () => {
       preferred_language: 'de',
     }
 
-    console.log('Creating member for type sort test...')
     const createMemberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
       data: memberData,
     })
     const memberId = (await createMemberResponse.json()).id
 
     // Create 2 correction transactions
-    console.log('Creating correction transactions...')
     await createCorrection(page, memberId, 1000, 'Type sort test - correction 1')
     await createCorrection(page, memberId, 2000, 'Type sort test - correction 2')
 
     // === ACT ===
-    console.log('Navigating to journal...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Search for our specific test data to isolate from other parallel tests
-    console.log(`Searching for unique member: ${memberData.first_name}`)
     await authenticatedJournalPage.search(memberData.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -1189,7 +1094,6 @@ test.describe('Journal Page - Sorting', () => {
     expect(totalCount, 'Should find exactly 2 transactions after search').toBe(2)
 
     // Click type header to sort
-    console.log('Sorting by type...')
     await authenticatedJournalPage.sortBy('type')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -1198,19 +1102,15 @@ test.describe('Journal Page - Sorting', () => {
     const headerText = await authenticatedJournalPage.getHeaderText('type')
     // Accept both English "Type" and German "Typ"
     expect(headerText.match(/Type\s+[↑↓]/) || headerText.match(/Typ\s+[↑↓]/), 'Type/Typ header should show sort arrow').toBeTruthy()
-    console.log('Type header text:', headerText)
 
     // Get all transaction types (should only be our 2 after search)
-    console.log('Verifying transactions...')
     const foundTypes: string[] = []
 
     for (let i = 0; i < totalCount; i++) {
       const row = await authenticatedJournalPage.getTransactionRow(i)
       foundTypes.push(row.type.toLowerCase())
-      console.log(`  Row ${i}: ${row.type}`)
     }
 
-    console.log('✅ Type sorting is functional')
   })
 })
 
@@ -1256,7 +1156,6 @@ test.describe('Journal Page - Search and Filtering', () => {
       preferred_language: 'de',
     }
 
-    console.log('Creating members for search test...')
     const member1Response = await page.request.post('http://localhost:8080/api/admin/members', {
       data: member1Data,
     })
@@ -1268,29 +1167,24 @@ test.describe('Journal Page - Search and Filtering', () => {
     const member2Id = (await member2Response.json()).id
 
     // Create transactions for both members
-    console.log('Creating transactions for both members...')
     await createCorrection(page, member1Id, 1000, 'Search test - member 1')
     await createCorrection(page, member2Id, 2000, 'Search test - member 2')
 
     // === ACT ===
-    console.log('Navigating to journal...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Record initial count
     const initialCount = await authenticatedJournalPage.getTransactionCount()
-    console.log(`Initial count: ${initialCount} transactions`)
 
     // Search for first member's name
-    console.log(`Searching for "${member1Data.first_name}"...`)
     await authenticatedJournalPage.search(member1Data.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // === ASSERT ===
     // Verify only member 1's transactions are visible
     const searchCount = await authenticatedJournalPage.getTransactionCount()
-    console.log(`Search results: ${searchCount} transactions`)
 
     // Find member 1's transaction
     const member1Index = await authenticatedJournalPage.findTransactionByMemberName(member1Data.first_name)
@@ -1307,18 +1201,15 @@ test.describe('Journal Page - Search and Filtering', () => {
     }
 
     expect(foundMember2, 'Should NOT find member 2 transaction in search results').toBeFalsy()
-    console.log('✅ Search correctly filtered to only matching member')
 
     // === ACT ===
     // Clear search
-    console.log('Clearing search...')
     await authenticatedJournalPage.search('')
     await authenticatedJournalPage.waitForTableToLoad()
 
     // === ASSERT ===
     // Verify both members are now visible again
     const clearedCount = await authenticatedJournalPage.getTransactionCount()
-    console.log(`After clearing search: ${clearedCount} transactions`)
 
     // Both members should be findable now
     const member1AfterClear = await authenticatedJournalPage.findTransactionByMemberName(member1Data.first_name)
@@ -1326,7 +1217,6 @@ test.describe('Journal Page - Search and Filtering', () => {
 
     expect(member1AfterClear, 'Should find member 1 after clearing search').not.toBeNull()
     expect(member2AfterClear, 'Should find member 2 after clearing search').not.toBeNull()
-    console.log('✅ Clearing search restored all transactions')
   })
 
   /**
@@ -1352,7 +1242,6 @@ test.describe('Journal Page - Search and Filtering', () => {
       preferred_language: 'de',
     }
 
-    console.log('Creating member for details search test...')
     const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
       data: memberData,
     })
@@ -1360,25 +1249,21 @@ test.describe('Journal Page - Search and Filtering', () => {
 
     // Create transactions with unique keywords in reasons
     const uniqueKeyword = `KEYWORD${testId}`
-    console.log(`Creating transactions with unique keyword: ${uniqueKeyword}`)
 
     await createCorrection(page, memberId, 1000, `Transaction with ${uniqueKeyword} for testing`)
     await createCorrection(page, memberId, 2000, 'Transaction without the keyword')
 
     // === ACT ===
-    console.log('Navigating to journal...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Search for unique keyword
-    console.log(`Searching for keyword: ${uniqueKeyword}`)
     await authenticatedJournalPage.search(uniqueKeyword)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // === ASSERT ===
     // Find the transaction with the keyword
-    console.log('Verifying search results...')
     let foundWithKeyword = false
     let foundWithoutKeyword = false
 
@@ -1388,17 +1273,14 @@ test.describe('Journal Page - Search and Filtering', () => {
       if (row.member && row.member.includes(memberData.first_name)) {
         if (row.details && row.details.includes(uniqueKeyword)) {
           foundWithKeyword = true
-          console.log(`  ✅ Found transaction with keyword: "${row.details}"`)
         } else if (row.details && row.details.includes('without the keyword')) {
           foundWithoutKeyword = true
-          console.log(`  ❌ Found transaction without keyword (should be filtered out): "${row.details}"`)
         }
       }
     }
 
     expect(foundWithKeyword, 'Should find transaction with keyword in details').toBeTruthy()
     expect(foundWithoutKeyword, 'Should NOT find transaction without keyword').toBeFalsy()
-    console.log('✅ Search correctly filtered by transaction details')
   })
 
   /**
@@ -1426,14 +1308,12 @@ test.describe('Journal Page - Search and Filtering', () => {
       preferred_language: 'de',
     }
 
-    console.log('Creating member for settlement filter test...')
     const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
       data: memberData,
     })
     const memberId = (await memberResponse.json()).id
 
     // Create 3 transactions
-    console.log('Creating transactions...')
     const txResponses = []
     for (let i = 0; i < 3; i++) {
       const txResponse = await page.request.post(
@@ -1450,8 +1330,6 @@ test.describe('Journal Page - Search and Filtering', () => {
     }
 
     // Create a settlement for the first 2 transactions
-    console.log('Creating settlement for first 2 transactions...')
-    console.log('Transaction IDs:', [txResponses[0].id, txResponses[1].id])
     const today = new Date().toISOString().split('T')[0]
     const executionDate = new Date()
     executionDate.setDate(executionDate.getDate() + 7)
@@ -1466,24 +1344,18 @@ test.describe('Journal Page - Search and Filtering', () => {
       },
     })
 
-    if (!settlementResponse.ok()) {
-      console.error('Settlement creation failed:', await settlementResponse.text())
-    }
     expect(settlementResponse.ok(), 'Settlement creation should succeed').toBeTruthy()
     const settlementData = await settlementResponse.json()
-    console.log('Settlement created:', settlementData)
 
     // Wait for settlement to be processed
     await page.waitForTimeout(500)
 
     // === ACT & ASSERT ===
-    console.log('Navigating to journal...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Test 1: Search and filter by "open" (unsettled)
-    console.log('Testing "open" filter with search...')
     await authenticatedJournalPage.search(memberData.first_name)
     await authenticatedJournalPage.waitForTableToLoad()
     await authenticatedJournalPage.filterBySettlementStatus('open')
@@ -1499,10 +1371,8 @@ test.describe('Journal Page - Search and Filtering', () => {
       if (row.member && row.member.includes(memberData.first_name)) {
         if (row.details && row.details.includes('Settlement filter test 3')) {
           foundOpen++
-          console.log(`  ✅ Found unsettled transaction: "${row.details}"`)
         } else if (row.details && (row.details.includes('test 1') || row.details.includes('test 2'))) {
           foundSettled++
-          console.log(`  ❌ Found settled transaction in "open" filter: "${row.details}"`)
         }
       }
     }
@@ -1511,7 +1381,6 @@ test.describe('Journal Page - Search and Filtering', () => {
     expect(foundSettled, 'Should NOT find settled transactions in "open" filter').toBe(0)
 
     // Test 2: Filter by "settled" (search is still active from above)
-    console.log('Testing "settled" filter with search...')
     await authenticatedJournalPage.filterBySettlementStatus('settled')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -1525,10 +1394,8 @@ test.describe('Journal Page - Search and Filtering', () => {
       if (row.member && row.member.includes(memberData.first_name)) {
         if (row.details && (row.details.includes('test 1') || row.details.includes('test 2'))) {
           foundSettled++
-          console.log(`  ✅ Found settled transaction: "${row.details}"`)
         } else if (row.details && row.details.includes('test 3')) {
           foundOpen++
-          console.log(`  ❌ Found unsettled transaction in "settled" filter: "${row.details}"`)
         }
       }
     }
@@ -1537,7 +1404,6 @@ test.describe('Journal Page - Search and Filtering', () => {
     expect(foundOpen, 'Should NOT find unsettled transaction in "settled" filter').toBe(0)
 
     // Test 3: Filter by "all" (search is still active from above)
-    console.log('Testing "all" filter with search...')
     await authenticatedJournalPage.filterBySettlementStatus('all')
     await authenticatedJournalPage.waitForTableToLoad()
 
@@ -1549,12 +1415,10 @@ test.describe('Journal Page - Search and Filtering', () => {
       const row = await authenticatedJournalPage.getTransactionRow(i)
       if (row.member && row.member.includes(memberData.first_name)) {
         totalFound++
-        console.log(`  Found transaction: "${row.details}"`)
       }
     }
 
     expect(totalFound, 'Should find all transactions in "all" filter').toBeGreaterThanOrEqual(3)
-    console.log('✅ Settlement status filtering works correctly')
   })
 })
 
@@ -1596,24 +1460,20 @@ test.describe('Journal Page - Create Correction via Modal', () => {
     }
 
     // Create member via API
-    console.log('Creating test member...')
     const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
       data: memberData,
     })
     expect(memberResponse.ok(), 'Member creation should succeed').toBeTruthy()
     const memberId = (await memberResponse.json()).id
-    console.log('Created member:', memberId)
 
     const reason = `Modal correction test ${testId}`
     const amountEur = '42.50'
 
     // === ACT ===
-    console.log('Navigating to journal page...')
     await authenticatedJournalPage.navigate()
     await authenticatedJournalPage.expectPageVisible()
     await authenticatedJournalPage.waitForTableToLoad()
 
-    console.log('Creating correction via modal...')
     await authenticatedJournalPage.createCorrection(memberId, amountEur, reason)
 
     // === ASSERT ===
@@ -1624,18 +1484,15 @@ test.describe('Journal Page - Create Correction via Modal', () => {
     expect(correctionError, 'Should have no correction error').toBeNull()
 
     // Search for the unique testId to find our correction
-    console.log(`Searching for: ${testId}`)
     await authenticatedJournalPage.search(testId)
     await authenticatedJournalPage.waitForTableToLoad()
 
     // Verify exactly 1 transaction
     const txCount = await authenticatedJournalPage.getTransactionCount()
-    console.log(`Found ${txCount} transactions`)
     expect(txCount, 'Should find exactly 1 transaction').toBe(1)
 
     // Verify row details
     const row = await authenticatedJournalPage.getTransactionRow(0)
-    console.log('Transaction row:', row)
 
     expect(row.type.toLowerCase(), 'Type should be correction').toBe('correction')
     expect(row.member, 'Member name should match').toContain(memberData.first_name)
@@ -1643,7 +1500,6 @@ test.describe('Journal Page - Create Correction via Modal', () => {
     expect(row.amount.includes('42.50') || row.amount.includes('42,50'), 'Amount should contain 42.50 or 42,50').toBeTruthy()
     expect(row.details, 'Details should contain reason').toContain(reason)
 
-    console.log('✅ Correction created via modal and verified in journal')
   })
 })
 

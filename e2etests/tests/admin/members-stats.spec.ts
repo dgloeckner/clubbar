@@ -184,11 +184,6 @@ test.describe('Members Page - Statistics', () => {
       data: { transactions },
     })
 
-    if (!syncResponse.ok()) {
-      const errorBody = await syncResponse.text()
-      console.log('Sync transactions failed:', syncResponse.status(), errorBody)
-    }
-
     expect(syncResponse.ok()).toBeTruthy()
 
     // Act: Reload page to see updated balance
@@ -289,11 +284,6 @@ test.describe('Members Page - Statistics', () => {
         description: `Test Settlement ${uniqueId}`,
       },
     })
-
-    if (!settlementResponse.ok()) {
-      const errorBody = await settlementResponse.text()
-      console.log('Settlement creation failed:', settlementResponse.status(), errorBody)
-    }
 
     expect(settlementResponse.ok()).toBeTruthy()
 

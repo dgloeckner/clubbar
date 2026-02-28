@@ -426,7 +426,6 @@ test.describe('Admin Frontend - Members Page', () => {
       // Step 1: Check if members exist
       const memberCount = await authenticatedMembersPage.getMemberRowCount()
       if (memberCount === 0) {
-        console.log('Skipping edit test - no members exist to edit')
         return
       }
 
@@ -643,7 +642,6 @@ test.describe('Admin Frontend - Members Page', () => {
 
       // Test only runs if members exist
       if (memberCount < 2) {
-        console.log('Skipping sort test - need at least 2 members to verify sorting')
         return
       }
 
@@ -676,7 +674,6 @@ test.describe('Admin Frontend - Members Page', () => {
         expect(createdDate).toMatch(/^\d{2}\.\d{2}\.\d{4}$/)
       } else {
         // No members to test - skip (could also create one)
-        console.log('No members to test date format')
       }
     })
   })

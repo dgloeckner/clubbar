@@ -46,8 +46,6 @@ setup('authenticate as admin', async ({ page, context }) => {
   // Perform login
   await loginPage.login('admin@example.com', 'password123', true)
 
-  console.log('✅ Admin authentication successful')
-  console.log(`   Saving auth state to: ${adminAuthFile}`)
 
   // Save storage state (localStorage + cookies)
   await context.storageState({ path: adminAuthFile })
