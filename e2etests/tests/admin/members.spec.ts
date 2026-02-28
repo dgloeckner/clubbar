@@ -146,12 +146,17 @@ test.describe('Admin Members Page', () => {
       email: `${prefix}b@t.com`,
       withSepa: false,
     })
-    await createMemberViaPage(page, {
+    const memberC = await createMemberViaPage(page, {
       firstName: `${prefix}C`,
       lastName: 'Inactive',
       email: `${prefix}c@t.com`,
-      isActive: false,
     })
+    // Backend ignores is_active on POST (hardcoded true) — must PATCH to deactivate
+    const patchResp = await page.request.patch(
+      `http://localhost:8080/api/admin/members/${memberC.id}`,
+      { data: { is_active: false } }
+    )
+    expect(patchResp.ok()).toBe(true)
 
     // ── Navigate and search for test prefix ─────────────────────────────
     await authenticatedMembersPage.navigate()
