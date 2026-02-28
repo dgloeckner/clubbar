@@ -20,6 +20,7 @@
 
 import { test as base, Page } from '@playwright/test'
 import { LoginPage, MembersPage, ProductsPage, SettlementsPage, CategoriesPage, JournalPage, SettingsPage, AuditLogPage } from '../pages'
+import { ProfilePage } from '../pages/ProfilePage'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
@@ -37,6 +38,7 @@ interface PageObjectFixtures {
   authenticatedSettingsPage: SettingsPage
   auditLogPage: AuditLogPage
   authenticatedAuditLogPage: AuditLogPage
+  authenticatedProfilePage: ProfilePage
 }
 
 /**
@@ -264,6 +266,22 @@ const authenticatedAuditLogPageFixture = async (
 }
 
 /**
+ * Fixture: authenticatedProfilePage
+ *
+ * Provides ProfilePage with test already authenticated (via storage state).
+ * Navigates to /profile and waits for the language trigger to be visible.
+ */
+const authenticatedProfilePageFixture = async (
+  { page }: { page: Page },
+  use: (value: ProfilePage) => Promise<void>
+) => {
+  await page.goto('/profile', { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('[data-testid="profile-locale-trigger"]', { timeout: 10000 })
+  const profilePage = new ProfilePage(page)
+  await use(profilePage)
+}
+
+/**
  * Extend base test with custom fixtures
  */
 export const test = base.extend<PageObjectFixtures>({
@@ -282,6 +300,7 @@ export const test = base.extend<PageObjectFixtures>({
   authenticatedSettingsPage: authenticatedSettingsPageFixture,
   auditLogPage: auditLogPageFixture,
   authenticatedAuditLogPage: authenticatedAuditLogPageFixture,
+  authenticatedProfilePage: authenticatedProfilePageFixture,
 })
 
 // Re-export expect for convenience
