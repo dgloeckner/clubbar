@@ -18,6 +18,7 @@ This directory contains established patterns for writing robust, reliable E2E te
 | [Pattern 006: Page Object Model](005-page-object-model.md) | Encapsulate page interactions in reusable classes | Scattered locators → Unmaintainable tests |
 | [Pattern 007: Page Object Fixtures](006-page-object-fixtures.md) | Inject ready-to-use page objects with Playwright fixtures | Manual page object initialization → Boilerplate |
 | [Pattern 008: Playwright Assertions & Auto-Waiting](008-playwright-assertions.md) | Use `expect()` instead of try-catch visibility checks | Silent failures → Clear error messages |
+| [Pattern 009: User-Flow-Based Tests](pattern-009-user-flow-based-tests.md) | Chain related operations into flow tests instead of one-assert-per-test | Bloated suites with redundant setup → Concise flows with shared setup |
 
 ---
 
@@ -187,6 +188,11 @@ Pattern 003 (Agnostic Assertions)
     ↓
 Pattern 004 (Parallel Safety)
 
+Pattern 009 (User-Flow-Based Tests)
+    ↑ uses all of the above
+    ↑ Pattern 006 (Page Object Model)
+    ↑ Pattern 008 (Playwright Assertions)
+
 Pattern 002 (Auth Isolation)
     ↓
 Pattern 001 (Data Isolation)
@@ -227,6 +233,14 @@ Pattern 001 (Data Isolation)
 - Reduces locator duplication across multiple tests
 - Use Pattern 007 to inject these page objects cleanly via fixtures
 - Use test IDs (Pattern 005) for reliable element selection
+
+### Pattern 009: User-Flow-Based Tests
+**Use when**: Consolidating or writing new tests for a page/domain with multiple related features
+- Multiple features on the same page (search, sort, filter, CRUD)
+- Cross-page workflows (Journal settle → Settlements page → export)
+- Tests with expensive shared setup (create members + transactions + navigate)
+- Reducing test suite bloat while maintaining coverage
+- Chain setup → action → verify → next action → verify into a single flow
 
 ### Pattern 001: Test Data Isolation
 **Use when**: Writing any API test that creates, reads, or modifies data
@@ -354,3 +368,5 @@ Refer to the specific pattern for detailed guidance:
 - "How do I authenticate?" → [Pattern 002](pattern-002-authentication-isolation.md)
 - "How do I assert on lists?" → [Pattern 003](pattern-003-database-agnostic-assertions.md)
 - "How do I make tests parallel-safe?" → [Pattern 004](pattern-004-parallel-execution-safety.md)
+- "How do I reduce test suite bloat?" → [Pattern 009](pattern-009-user-flow-based-tests.md)
+- "How do I structure a multi-step flow test?" → [Pattern 009](pattern-009-user-flow-based-tests.md)
