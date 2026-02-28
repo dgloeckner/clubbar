@@ -117,25 +117,22 @@ class MemberBar extends StatelessWidget {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: onLogoutPressed,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   child: Container(
-                    width: 58,
-                    height: 58,
+                    width: 46,
+                    height: 46,
                     decoration: BoxDecoration(
-                      color: const Color(0xffDC2626),
-                      borderRadius: BorderRadius.circular(12),
+                      color: const Color(0xff334155),
+                      borderRadius: BorderRadius.circular(11),
                       border: Border.all(
-                        color: const Color(0xffEF4444),
+                        color: const Color(0xff475569),
                         width: 1,
                       ),
                     ),
-                    child: const Opacity(
-                      opacity: 0.6,
-                      child: Icon(
-                        Icons.logout,
-                        color: Colors.white,
-                        size: 31,
-                      ),
+                    child: const Icon(
+                      Icons.exit_to_app,
+                      color: Color(0xff94a3b8),
+                      size: 22,
                     ),
                   ),
                 ),
@@ -152,32 +149,21 @@ class MemberBar extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onCartPressed,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
           width: 58,
           height: 58,
           decoration: BoxDecoration(
-            color: itemCount > 0
-                ? const Color(0x333b82f6)
-                : const Color(0x1a3b82f6),
-            border: Border.all(
-              color: itemCount > 0
-                  ? const Color(0x663b82f6)
-                  : const Color(0x333b82f6),
-              width: 1,
-            ),
-            borderRadius: BorderRadius.circular(12),
+            color: const Color(0xff3b82f6),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Stack(
             children: [
               const Center(
-                child: Opacity(
-                  opacity: 0.6,
-                  child: Icon(
-                    Icons.shopping_cart_outlined,
-                    color: Colors.white,
-                    size: 31,
-                  ),
+                child: Icon(
+                  Icons.shopping_cart_outlined,
+                  color: Colors.white,
+                  size: 28,
                 ),
               ),
               // Badge with item count

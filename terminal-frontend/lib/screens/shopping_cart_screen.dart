@@ -372,7 +372,7 @@ class ShoppingCartScreen extends StatelessWidget {
                             }
                           },
                     child: Container(
-                      height: 56,
+                      height: 67,
                       decoration: BoxDecoration(
                         color: const Color(0xff22c55e),
                         borderRadius: BorderRadius.circular(AppBorderRadius.lg),

@@ -79,52 +79,42 @@ class AppHeader extends AppBar {
             ],
           ),
         ),
-        // Cart button - slate blue rounded rectangle
+        // Cart button - solid blue rounded rectangle
         GestureDetector(
           onTap: onCartPressed,
           child: Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xff334155), // Slate blue
-              borderRadius: BorderRadius.circular(12),
+              color: const Color(0xff3b82f6),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.shopping_cart_outlined,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Logout button - dark slate rounded rectangle
+        GestureDetector(
+          onTap: onLogoutPressed,
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xff334155),
+              borderRadius: BorderRadius.circular(11),
               border: Border.all(
                 color: const Color(0xff475569),
                 width: 1,
               ),
             ),
-            child: const Opacity(
-              opacity: 0.6,
-              child: Icon(
-                Icons.shopping_cart_outlined,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        // Logout button - red rounded rectangle
-        GestureDetector(
-          onTap: onLogoutPressed,
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xffDC2626), // Red
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: const Color(0xffEF4444),
-                width: 1,
-              ),
-            ),
-            child: const Opacity(
-              opacity: 0.6,
-              child: Icon(
-                Icons.logout,
-                color: Colors.white,
-                size: 24,
-              ),
+            child: const Icon(
+              Icons.exit_to_app,
+              color: Color(0xff94a3b8),
+              size: 19,
             ),
           ),
         ),
