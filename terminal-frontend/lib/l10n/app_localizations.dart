@@ -107,13 +107,13 @@ abstract class AppLocalizations {
   /// Instruction to scan RFID card
   ///
   /// In de, this message translates to:
-  /// **'Halte deine Karte an den Scanner'**
+  /// **'Halte deinen Chip an den Scanner'**
   String get idleSubtitle;
 
   /// Demo button to simulate card scan
   ///
   /// In de, this message translates to:
-  /// **'Demo: Karte scannen'**
+  /// **'Demo: Chip scannen'**
   String get demoScanCard;
 
   /// Setup screen title
@@ -485,13 +485,13 @@ abstract class AppLocalizations {
   /// Button to scan card
   ///
   /// In de, this message translates to:
-  /// **'Karte scannen'**
+  /// **'Chip scannen'**
   String get scanCard;
 
   /// Error when scanned card is not in database
   ///
   /// In de, this message translates to:
-  /// **'Unbekannte Karte'**
+  /// **'Unbekannter Chip'**
   String get rfidErrorUnknownCard;
 
   /// Error when member account is inactive

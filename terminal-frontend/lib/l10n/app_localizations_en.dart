@@ -12,10 +12,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get idleTitle => 'Thirsty?';
 
   @override
-  String get idleSubtitle => 'Hold your card to the scanner';
+  String get idleSubtitle => 'Hold your token to the scanner';
 
   @override
-  String get demoScanCard => 'Demo: Scan Card';
+  String get demoScanCard => 'Demo: Scan Token';
 
   @override
   String get setupTitle => 'Terminal Setup';
@@ -238,10 +238,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get continueShopping => 'Continue Shopping';
 
   @override
-  String get scanCard => 'Scan Card';
+  String get scanCard => 'Scan Token';
 
   @override
-  String get rfidErrorUnknownCard => 'Unknown card';
+  String get rfidErrorUnknownCard => 'Unknown token';
 
   @override
   String get rfidErrorAccountInactive => 'Account inactive';

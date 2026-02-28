@@ -12,10 +12,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get idleTitle => 'Durstig?';
 
   @override
-  String get idleSubtitle => 'Halte deine Karte an den Scanner';
+  String get idleSubtitle => 'Halte deinen Chip an den Scanner';
 
   @override
-  String get demoScanCard => 'Demo: Karte scannen';
+  String get demoScanCard => 'Demo: Chip scannen';
 
   @override
   String get setupTitle => 'Terminal-Einrichtung';
@@ -239,10 +239,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get continueShopping => 'Weiter einkaufen';
 
   @override
-  String get scanCard => 'Karte scannen';
+  String get scanCard => 'Chip scannen';
 
   @override
-  String get rfidErrorUnknownCard => 'Unbekannte Karte';
+  String get rfidErrorUnknownCard => 'Unbekannter Chip';
 
   @override
   String get rfidErrorAccountInactive => 'Konto inaktiv';
