@@ -1,4 +1,4 @@
-# Pattern 005: Repository Interface for Data Access
+# Pattern 005: Repository for Data Access
 
 **Category**: Data Access & Persistence
 **Pattern Type**: Structural Pattern
@@ -11,236 +11,178 @@
 Without repositories, data access logic is scattered throughout the application:
 
 ```php
-// ❌ Problematic: Direct model access from services
-class SyncService
+// ❌ Problematic: Direct PDO queries in service
+class MembersService
 {
-    public function syncMembers(DateTimeImmutable $since): SyncResultDto
+    public function syncMembers(int $since): SyncResultDto
     {
-        // Direct Eloquent query in service
-        $members = Member::where('updated_at', '>=', $since)
-            ->limit(100)
-            ->get();
-
-        // Manual mapping
-        $dtos = array_map(fn($m) => new MemberDto(...), $members);
-        return new SyncResultDto($dtos, $cursor, $hasMore);
-    }
-}
-
-// Duplicate logic elsewhere
-class AdminService
-{
-    public function getActiveMembers()
-    {
-        // Same query pattern repeated
-        $members = Member::where('is_active', true)
-            ->get();
+        $stmt = $this->pdo->prepare('SELECT * FROM members WHERE updated_at > ?');
+        $stmt->execute([date('Y-m-d H:i:s', $since)]);
+        $rows = $stmt->fetchAll();
+        // Manual mapping...
     }
 }
 ```
 
 Issues:
 - Data access logic duplicated across services
-- Hard to change query strategy (add caching, change ORM, etc.)
-- Difficult to unit test (requires database mocking)
-- Services tightly coupled to Eloquent
+- Hard to change query strategy
+- Difficult to unit test (requires database)
+- Services tightly coupled to SQL details
 - No abstraction layer for persistence
 
 ---
 
 ## Solution
 
-Use **Repository Interfaces** to:
-- Abstract data access behind interfaces
-- Decouple services from persistence implementation (Eloquent, raw SQL, etc.)
-- Centralize query logic
-- Enable easy mocking in tests
-- Allow swapping implementations (e.g., cache layer, different DB)
+Use **Repository classes** to:
+- Centralize data access logic per entity
+- Encapsulate PDO queries and prepared statements
+- Provide clean API for services (find, create, update)
+- Return raw associative arrays (services convert to DTOs)
+- Enable consistent logging and error handling
 
 ---
 
 ## Implementation Pattern
 
-### Repository Interface
+### Repository Class
 
 ```php
-// app/Repositories/MemberRepository.php
-<?php
+// src/Modules/Members/Repositories/MembersRepository.php
+namespace App\Modules\Members\Repositories;
 
-namespace App\Repositories;
+use PDO;
+use App\Shared\Logging\Logger;
 
-use App\DTOs\MemberDto;
-use App\DTOs\SyncResultDto;
-use App\Enums\SupportedLanguage;
-use DateTimeImmutable;
-
-interface MemberRepository
-{
-    /**
-     * Get all members modified since a timestamp (sync operation)
-     */
-    public function getModifiedSince(DateTimeImmutable $since): SyncResultDto;
-
-    /**
-     * Update member's preferred language
-     */
-    public function updateLanguage(
-        string $memberId,
-        SupportedLanguage $language
-    ): MemberDto;
-
-    /**
-     * Find member by ID (or null if not found)
-     */
-    public function findById(string $id): ?MemberDto;
-
-    /**
-     * Get active members
-     */
-    public function getActive(): array; // Array of MemberDto
-}
-```
-
-### Eloquent Implementation
-
-```php
-// app/Repositories/Eloquent/EloquentMemberRepository.php
-<?php
-
-namespace App\Repositories\Eloquent;
-
-use App\DTOs\MemberDto;
-use App\DTOs\SyncResultDto;
-use App\Enums\SupportedLanguage;
-use App\Models\Member;
-use App\Repositories\MemberRepository;
-use DateTimeImmutable;
-
-final readonly class EloquentMemberRepository implements MemberRepository
+class MembersRepository
 {
     public function __construct(
-        private Member $model,
+        private PDO $db,
+        private Logger $logger,
     ) {}
 
-    public function getModifiedSince(DateTimeImmutable $since): SyncResultDto
+    public function findById(string $id): ?array
     {
-        // Encapsulate query logic here
-        const BATCH_SIZE = 100;
-
-        $query = $this->model
-            ->where('updated_at', '>=', $since->format('Y-m-d H:i:s'))
-            ->orderBy('updated_at', 'asc')
-            ->orderBy('id', 'asc');
-
-        // Fetch one extra to determine hasMore
-        $members = $query->limit(BATCH_SIZE + 1)->get();
-        $hasMore = count($members) > BATCH_SIZE;
-
-        if ($hasMore) {
-            $members = $members->slice(0, BATCH_SIZE);
-        }
-
-        // Generate cursor for next request
-        $lastMember = $members->last();
-        $cursor = $lastMember ? $lastMember->updated_at->format('Y-m-d\TH:i:s\Z') : 'end';
-
-        $dtos = $members->map(fn($m) => $this->modelToDto($m))->toArray();
-
-        return new SyncResultDto(
-            items: $dtos,
-            cursor: $cursor,
-            hasMore: $hasMore,
-        );
+        $stmt = $this->db->prepare('SELECT * FROM members WHERE id = ? AND deleted_at IS NULL');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
     }
 
-    public function updateLanguage(
-        string $memberId,
-        SupportedLanguage $language
-    ): MemberDto {
-        $member = $this->model->findOrFail($memberId);
+    public function findModifiedSince(int $sinceTimestamp): array
+    {
+        $sinceDate = date('Y-m-d H:i:s', (int) ($sinceTimestamp / 1000));
 
-        // Update database
-        $member->update([
-            'preferred_language' => $language->value,
+        $stmt = $this->db->prepare(
+            'SELECT * FROM members
+             WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
+             ORDER BY COALESCE(updated_at, deleted_at) ASC'
+        );
+        $stmt->execute([$sinceDate, $sinceDate]);
+        return $stmt->fetchAll();
+    }
+
+    public function create(array $data): array
+    {
+        $id = $data['id'] ?? $this->generateUuid();
+        $now = date('Y-m-d H:i:s');
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO members (id, card_uid, first_name, last_name, email, phone,
+             preferred_language, is_active, iban, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $id,
+            $data['card_uid'] ?? null,
+            $data['first_name'],
+            $data['last_name'],
+            $data['email'],
+            $data['phone'] ?? null,
+            $data['preferred_language'] ?? 'de',
+            $data['is_active'] ?? true ? 1 : 0,
+            $data['iban'] ?? null,
+            $now,
+            $now,
         ]);
 
-        // Refresh and return DTO
-        $member->refresh();
-        return $this->modelToDto($member);
+        $this->logger->info('Member created', ['id' => $id]);
+        return $this->findById($id);
     }
 
-    public function findById(string $id): ?MemberDto
+    public function updateById(string $id, array $data): ?array
     {
-        $member = $this->model->find($id);
-        return $member ? $this->modelToDto($member) : null;
+        $allowed = ['card_uid', 'first_name', 'last_name', 'email', 'phone',
+                     'preferred_language', 'is_active', 'iban', 'deleted_at'];
+        [$set, $values] = $this->buildUpdate($data, $allowed);
+        $values[] = date('Y-m-d H:i:s'); // updated_at
+        $values[] = $id;
+
+        $stmt = $this->db->prepare("UPDATE members SET {$set}, updated_at = ? WHERE id = ?");
+        $stmt->execute($values);
+
+        return $this->findById($id);
     }
 
-    public function getActive(): array
+    public function listPaginated(int $limit, int $offset, array $filters, string $sortKey, string $sortOrder, ?string $search): array
     {
-        return $this->model
-            ->where('is_active', true)
-            ->get()
-            ->map(fn($m) => $this->modelToDto($m))
-            ->toArray();
+        $where = ['deleted_at IS NULL'];
+        $params = [];
+
+        if (isset($filters['is_active'])) {
+            $where[] = 'is_active = ?';
+            $params[] = $filters['is_active'] ? 1 : 0;
+        }
+
+        if ($search) {
+            $where[] = '(first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)';
+            $params[] = "%{$search}%";
+            $params[] = "%{$search}%";
+            $params[] = "%{$search}%";
+        }
+
+        $whereClause = implode(' AND ', $where);
+        $sortMap = ['name' => 'last_name', 'created_at' => 'created_at', 'email' => 'email'];
+        $sortCol = $sortMap[$sortKey] ?? 'created_at';
+        $sortDir = strtolower($sortOrder) === 'asc' ? 'ASC' : 'DESC';
+
+        // Count total
+        $countStmt = $this->db->prepare("SELECT COUNT(*) FROM members WHERE {$whereClause}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        // Fetch page
+        $stmt = $this->db->prepare(
+            "SELECT * FROM members WHERE {$whereClause} ORDER BY {$sortCol} {$sortDir} LIMIT ? OFFSET ?"
+        );
+        $stmt->execute([...$params, $limit, $offset]);
+
+        return ['items' => $stmt->fetchAll(), 'total' => $total];
     }
 
-    private function modelToDto(Member $member): MemberDto
+    private function generateUuid(): string
     {
-        return new MemberDto(
-            id: $member->id,
-            cardUid: $member->card_uid,
-            firstName: $member->first_name,
-            lastName: $member->last_name,
-            preferredLanguage: $member->preferred_language,
-            isActive: $member->is_active,
-            isSepaValid: $member->is_sepa_valid,
-            deletedAt: $member->deleted_at ? new DateTimeImmutable($member->deleted_at) : null,
-            createdAt: new DateTimeImmutable($member->created_at),
-            updatedAt: new DateTimeImmutable($member->updated_at),
+        return sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+            random_int(0, 0xffff), random_int(0, 0xffff),
+            random_int(0, 0xffff),
+            random_int(0, 0x0fff) | 0x4000,
+            random_int(0, 0x3fff) | 0x8000,
+            random_int(0, 0xffff), random_int(0, 0xffff), random_int(0, 0xffff)
         );
     }
-}
-```
 
-### Other Repository Interfaces
-
-```php
-// app/Repositories/CategoryRepository.php
-<?php
-
-namespace App\Repositories;
-
-use App\DTOs\SyncResultDto;
-use DateTimeImmutable;
-
-interface CategoryRepository
-{
-    public function getModifiedSince(DateTimeImmutable $since): SyncResultDto;
-}
-
-// app/Repositories/ProductRepository.php
-<?php
-
-namespace App\Repositories;
-
-use App\DTOs\SyncResultDto;
-use DateTimeImmutable;
-
-interface ProductRepository
-{
-    public function getModifiedSince(DateTimeImmutable $since): SyncResultDto;
-}
-
-// app/Repositories/TransactionRepository.php
-<?php
-
-namespace App\Repositories;
-
-use App\DTOs\TransactionBatchResultDto;
-
-interface TransactionRepository
-{
-    public function insertBatch(array $transactions): TransactionBatchResultDto;
+    private function buildUpdate(array $data, array $allowed): array
+    {
+        $set = [];
+        $values = [];
+        foreach ($data as $key => $value) {
+            if (in_array($key, $allowed, true)) {
+                $set[] = "{$key} = ?";
+                $values[] = $value;
+            }
+        }
+        return [implode(', ', $set), $values];
+    }
 }
 ```
 
@@ -248,213 +190,83 @@ interface TransactionRepository
 
 ## Service Using Repository
 
-Services depend on interfaces, not implementations:
+Services call repository methods and convert results to DTOs:
 
 ```php
-// app/Services/SyncService.php
-<?php
-
-namespace App\Services;
-
-use App\Repositories\MemberRepository;
-use App\Repositories\CategoryRepository;
-use App\Repositories\ProductRepository;
-use App\DTOs\SyncResultDto;
-use DateTimeImmutable;
-
-final readonly class SyncService
+// src/Modules/Members/Services/MembersService.php
+class MembersService
 {
     public function __construct(
-        private MemberRepository $members,         // Interface, not concrete class
-        private CategoryRepository $categories,
-        private ProductRepository $products,
+        private MembersRepository $membersRepository,
+        private AuditService $auditService,
     ) {}
 
-    public function syncMembers(DateTimeImmutable $since): SyncResultDto
+    public function getMember(string $memberId): MemberAdminDto
     {
-        // Call repository; don't know/care about implementation
-        return $this->members->getModifiedSince($since);
+        $row = $this->membersRepository->findById($memberId);
+        if (!$row) {
+            throw NotFoundException::forResource('Member', $memberId);
+        }
+        return MemberAdminDto::fromRow($row);
     }
 
-    public function syncCategories(DateTimeImmutable $since): SyncResultDto
+    public function listMembers(int $limit, int $offset, ...): PaginatedResultDto
     {
-        return $this->categories->getModifiedSince($since);
-    }
-
-    public function syncProducts(DateTimeImmutable $since): SyncResultDto
-    {
-        return $this->products->getModifiedSince($since);
+        $result = $this->membersRepository->listPaginated($limit, $offset, ...);
+        $items = array_map(fn($row) => MemberAdminDto::fromRow($row)->toArray(), $result['items']);
+        return new PaginatedResultDto(items: $items, total: $result['total'], ...);
     }
 }
 ```
 
 ---
 
-## Dependency Injection / Service Provider
+## Repository Conventions
 
-Wire interfaces to implementations in service provider:
+### Return Types
 
-```php
-// app/Providers/RepositoryServiceProvider.php
-<?php
+| Method | Returns | Notes |
+|--------|---------|-------|
+| `findById(string $id)` | `?array` | Raw PDO row or null |
+| `findAll()` | `array` | Array of raw PDO rows |
+| `create(array $data)` | `array` | Created row (re-fetched) |
+| `updateById(string $id, array $data)` | `?array` | Updated row (re-fetched) |
+| `listPaginated(...)` | `['items' => array, 'total' => int]` | Paginated result |
 
-namespace App\Providers;
+### Constructor Dependencies
 
-use App\Repositories\CategoryRepository;
-use App\Repositories\Eloquent\EloquentCategoryRepository;
-use App\Repositories\Eloquent\EloquentMemberRepository;
-use App\Repositories\Eloquent\EloquentProductRepository;
-use App\Repositories\Eloquent\EloquentTransactionRepository;
-use App\Repositories\MemberRepository;
-use App\Repositories\ProductRepository;
-use App\Repositories\TransactionRepository;
-use Illuminate\Support\ServiceProvider;
-
-class RepositoryServiceProvider extends ServiceProvider
-{
-    public array $bindings = [
-        MemberRepository::class => EloquentMemberRepository::class,
-        CategoryRepository::class => EloquentCategoryRepository::class,
-        ProductRepository::class => EloquentProductRepository::class,
-        TransactionRepository::class => EloquentTransactionRepository::class,
-    ];
-}
-```
-
-### Usage in Controllers
+All repositories receive `PDO` and `Logger` via constructor:
 
 ```php
-// Automatic injection via Laravel container
 public function __construct(
-    private SyncService $syncService,  // Depends on MemberRepository
+    private PDO $db,
+    private Logger $logger,
 ) {}
-
-// Container resolves the dependency chain:
-// Controller → SyncService → MemberRepository → EloquentMemberRepository
 ```
 
----
+### Prepared Statements
 
-## Testing with Mocked Repository
-
-Repositories enable easy unit testing:
+All queries use prepared statements to prevent SQL injection:
 
 ```php
-// tests/Unit/Services/SyncServiceTest.php
-<?php
+// ✅ Always use prepared statements
+$stmt = $this->db->prepare('SELECT * FROM members WHERE id = ?');
+$stmt->execute([$id]);
 
-use App\DTOs\MemberDto;
-use App\DTOs\SyncResultDto;
-use App\Repositories\MemberRepository;
-use App\Services\SyncService;
-use PHPUnit\Framework\TestCase;
-
-class SyncServiceTest extends TestCase
-{
-    public function test_sync_members_returns_dto(): void
-    {
-        // Create mock repository
-        $memberRepo = $this->createMock(MemberRepository::class);
-
-        $memberDto = new MemberDto(
-            id: 'member123',
-            cardUid: null,
-            firstName: 'John',
-            lastName: 'Doe',
-            preferredLanguage: 'de',
-            isActive: true,
-            isSepaValid: false,
-            deletedAt: null,
-            createdAt: new DateTimeImmutable(),
-            updatedAt: new DateTimeImmutable(),
-        );
-
-        // Mock getModifiedSince to return test data
-        $memberRepo->expects($this->once())
-            ->method('getModifiedSince')
-            ->willReturn(new SyncResultDto(
-                items: [$memberDto],
-                cursor: 'end',
-                hasMore: false,
-            ));
-
-        $service = new SyncService($memberRepo);
-
-        $result = $service->syncMembers(new DateTimeImmutable('1970-01-01T00:00:00Z'));
-
-        $this->assertInstanceOf(SyncResultDto::class, $result);
-        $this->assertCount(1, $result->items);
-    }
-}
-```
-
----
-
-## Alternative Implementation (Cache Layer)
-
-Repositories enable swapping implementations:
-
-```php
-// app/Repositories/Cached/CachedMemberRepository.php
-<?php
-
-namespace App\Repositories\Cached;
-
-use App\DTOs\MemberDto;
-use App\DTOs\SyncResultDto;
-use App\Repositories\MemberRepository;
-use App\Repositories\Eloquent\EloquentMemberRepository;
-use Illuminate\Cache\Repository as Cache;
-
-final readonly class CachedMemberRepository implements MemberRepository
-{
-    public function __construct(
-        private MemberRepository $inner,  // Wrap Eloquent repo
-        private Cache $cache,
-    ) {}
-
-    public function getModifiedSince(DateTimeImmutable $since): SyncResultDto
-    {
-        // Cache key based on cursor
-        $cacheKey = "sync:members:{$since->format('Y-m-d')}";
-
-        return $this->cache->remember(
-            $cacheKey,
-            3600, // 1 hour
-            fn() => $this->inner->getModifiedSince($since)
-        );
-    }
-
-    // ... other methods delegate to inner repository
-}
-```
-
-Then swap in service provider:
-
-```php
-// In RepositoryServiceProvider
-$this->app->bind(
-    MemberRepository::class,
-    function ($app) {
-        return new CachedMemberRepository(
-            new EloquentMemberRepository($app->make(Member::class)),
-            $app->make(Cache::class),
-        );
-    }
-);
+// ❌ Never concatenate user input
+$this->db->query("SELECT * FROM members WHERE id = '{$id}'");
 ```
 
 ---
 
 ## Benefits
 
-✅ **Abstraction**: Services don't know data access details
-✅ **Testability**: Easy to mock repositories in tests
-✅ **Flexibility**: Swap implementations (Eloquent, raw SQL, cache, API calls)
-✅ **Centralization**: Query logic in one place
-✅ **Reusability**: Multiple services can use same repository
-✅ **Isolation**: Changes to queries don't affect services
-✅ **Consistency**: All data access returns same DTO types
+- **Abstraction**: Services don't know SQL details
+- **Testability**: Can mock repository in service tests
+- **Centralization**: Query logic in one place per entity
+- **Reusability**: Multiple services can use same repository
+- **Security**: Prepared statements prevent injection
+- **Consistency**: All data access returns same types
 
 ---
 
@@ -462,25 +274,22 @@ $this->app->bind(
 
 - All data access from services
 - Complex queries (pagination, filtering, sorting)
-- Logic that might change implementation (caching, external API)
 - Operations used by multiple services
 
 ---
 
 ## When NOT to Use
 
-- Simple one-off queries (can use Eloquent directly from controller)
-- CRUD operations that don't need abstraction (rare in practice)
+- Health checks or trivial queries can be done inline
 
 ---
 
 ## Consistency with Modularity (ADR-0018)
 
 Repositories are **module-scoped**:
-- Located in `app/Repositories/` or within module
-- Interfaces in main directory; implementations in `Eloquent/` subdirectory
+- Located in `src/Modules/{Module}/Repositories/`
 - Each module owns repositories for its entities
-- Shared repositories in common location
+- Shared helper trait in `src/Shared/Repository/SafeQuery.php`
 
 ---
 
@@ -488,21 +297,20 @@ Repositories are **module-scoped**:
 
 Repositories enforce immutability:
 - Transaction repository only allows INSERT (never UPDATE/DELETE)
-- Settlement repository manages settlement_items (immutable link)
+- Settlement items are immutable links
 - Query logic respects append-only constraint
 
 ---
 
 ## Related Patterns
 
-- **Pattern 003**: Data Transfer Objects (repositories return DTOs)
+- **Pattern 003**: Data Transfer Objects (services convert rows to DTOs)
 - **Pattern 004**: Service Layer (services use repositories)
-- **Pattern 007**: Exception Handler (repositories throw domain exceptions)
+- **Pattern 007**: Exception Handling (repositories may trigger exceptions)
 
 ---
 
 ## References
 
 - [Repository Pattern - Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/infrastructure-persistence-layer-design)
-- [The Repository Pattern - Eloquent](https://laravel.com/docs/eloquent#repositories)
 - [Dependency Inversion Principle](https://en.wikipedia.org/wiki/Dependency_inversion_principle)

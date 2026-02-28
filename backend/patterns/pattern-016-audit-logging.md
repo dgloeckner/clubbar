@@ -52,19 +52,30 @@ Implement **centralized audit logging** that:
 Audit logging is a **cross-cutting concern** (like logging or caching) that applies across multiple modules. Create a shared service that all modules depend on.
 
 ```php
-// app/Shared/Services/AuditService.php
+// src/Shared/Services/AuditService.php
 <?php
+
+declare(strict_types=1);
 
 namespace App\Shared\Services;
 
-use App\Models\AuditLog;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
-use App\Shared\Utils\IbanMasker;
-use Illuminate\Database\Eloquent\Model;
+use App\Modules\AuditLog\Repositories\AuditLogRepository;
 
-final readonly class AuditService
+/**
+ * Centralized audit logging service.
+ *
+ * Uses AuditLogRepository (PDO) to insert audit entries.
+ * Auto-captures IP address and user agent from $_SERVER superglobals.
+ * Masks sensitive fields (IBAN, passwords, API tokens).
+ */
+class AuditService
 {
+    public function __construct(
+        private AuditLogRepository $auditLogRepository,
+    ) {}
+
     /**
      * Log an audit entry for master data changes
      *
@@ -74,8 +85,8 @@ final readonly class AuditService
      * @param array|null $oldValues Field values before change (null for create)
      * @param array|null $newValues Field values after change (null for delete)
      * @param string|null $adminUserId UUID of admin who performed action (nullable for system/failed actions)
-     * @param string|null $ipAddress Client IP address (auto-captured from request if not provided)
-     * @param string|null $userAgent Browser/client identifier (auto-captured from request if not provided)
+     * @param string|null $ipAddress Client IP address (auto-captured from $_SERVER if not provided)
+     * @param string|null $userAgent Browser/client identifier (auto-captured from $_SERVER if not provided)
      * @return void
      */
     public function log(
@@ -88,24 +99,16 @@ final readonly class AuditService
         ?string $ipAddress = null,
         ?string $userAgent = null,
     ): void {
-        // Auto-capture request context if not provided
-        $ipAddress ??= request()->ip();
-        $userAgent ??= request()->userAgent();
-
-        // Apply IBAN masking to sensitive fields
-        $oldValues = $this->maskSensitiveFields($oldValues);
-        $newValues = $this->maskSensitiveFields($newValues);
-
-        // Create audit log entry
-        AuditLog::create([
+        // Insert via PDO repository
+        $this->auditLogRepository->insert([
             'admin_user_id' => $adminUserId,
             'action' => $action->value,
             'entity_type' => $entityType->value,
             'entity_id' => $entityId,
-            'old_values' => $oldValues,
-            'new_values' => $newValues,
-            'ip_address' => $ipAddress,
-            'user_agent' => $userAgent,
+            'old_values' => $this->maskSensitiveFields($oldValues),
+            'new_values' => $this->maskSensitiveFields($newValues),
+            'ip_address' => $ipAddress ?? ($_SERVER['REMOTE_ADDR'] ?? null),
+            'user_agent' => $userAgent ?? ($_SERVER['HTTP_USER_AGENT'] ?? null),
         ]);
     }
 
@@ -114,30 +117,26 @@ final readonly class AuditService
      *
      * Per ADR-0013:
      * - IBAN: Masked as "DE89****...****4567" (first 4 + last 4 visible)
-     * - Password: Replaced with "[CHANGED]" (never log hash or plaintext)
-     * - API Token: Never logged (omitted from payload)
+     * - Password: Replaced with "[MASKED]" (never log hash or plaintext)
+     * - API Token: Replaced with "[MASKED]" (never log)
      *
      * @param array|null $values Field values to mask
      * @return array|null Masked values
      */
     private function maskSensitiveFields(?array $values): ?array
     {
-        if ($values === null) {
-            return null;
+        if ($values === null) return null;
+
+        $sensitive = ['password', 'api_token', 'api_token_hash'];
+        foreach ($sensitive as $field) {
+            if (isset($values[$field])) {
+                $values[$field] = '[MASKED]';
+            }
         }
 
-        // Mask IBAN if present
-        if (isset($values['iban']) && is_string($values['iban'])) {
-            $values['iban'] = IbanMasker::mask($values['iban']);
+        if (isset($values['iban']) && $values['iban'] !== '[MASKED]') {
+            $values['iban'] = \App\Shared\Utils\IbanMasker::mask($values['iban']);
         }
-
-        // Mask password field
-        if (isset($values['password'])) {
-            $values['password'] = '[CHANGED]';
-        }
-
-        // Remove API tokens (never log)
-        unset($values['api_token']);
 
         return $values;
     }
@@ -149,7 +148,7 @@ final readonly class AuditService
 Define audit actions and entity types as enums to prevent string-based errors:
 
 ```php
-// app/Shared/Enums/AuditAction.php
+// src/Shared/Enums/AuditAction.php
 <?php
 
 namespace App\Shared\Enums;
@@ -169,7 +168,7 @@ enum AuditAction: string
     case SETTLEMENT_EXPORT = 'settlement_export';
 }
 
-// app/Shared/Enums/EntityType.php
+// src/Shared/Enums/EntityType.php
 <?php
 
 namespace App\Shared\Enums;
@@ -190,7 +189,7 @@ enum EntityType: string
 Provide reusable utility for IBAN masking:
 
 ```php
-// app/Shared/Utils/IbanMasker.php
+// src/Shared/Utils/IbanMasker.php
 <?php
 
 namespace App\Shared\Utils;
@@ -223,98 +222,78 @@ final class IbanMasker
 }
 ```
 
-### Audit Log Model
+### Audit Log Repository (PDO)
 
-Define the audit_log table model:
+The audit_log table is accessed via a PDO repository. No ORM model is needed -- the repository handles INSERT and SELECT with raw SQL and prepared statements.
 
 ```php
-// app/Models/AuditLog.php
+// src/Modules/AuditLog/Repositories/AuditLogRepository.php
 <?php
 
-namespace App\Models;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+namespace App\Modules\AuditLog\Repositories;
+
+use PDO;
 
 /**
- * AuditLog Model - Append-Only Audit Trail
+ * AuditLog Repository - Append-Only Audit Trail (PDO)
  *
  * Records all changes to master data for compliance and accountability.
  * Per ADR-0013: Audit entries are never updated or deleted.
+ *
+ * old_values and new_values are stored as JSON strings in the database.
  */
-class AuditLog extends Model
+class AuditLogRepository
 {
-    /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'audit_log';
+    public function __construct(private PDO $db) {}
 
     /**
-     * The primary key for the model.
+     * Insert an audit log entry.
      *
-     * @var string
+     * @param array $data Audit entry data (admin_user_id, action, entity_type, etc.)
      */
-    protected $primaryKey = 'id';
-
-    /**
-     * Indicates if the IDs are auto-incrementing.
-     *
-     * @var bool
-     */
-    public $incrementing = true;
-
-    /**
-     * The "type" of the primary key ID.
-     *
-     * @var string
-     */
-    protected $keyType = 'int';
-
-    /**
-     * Disable updated_at (append-only)
-     *
-     * @var bool
-     */
-    public $timestamps = false;
-
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
-    protected $fillable = [
-        'admin_user_id',
-        'action',
-        'entity_type',
-        'entity_id',
-        'old_values',
-        'new_values',
-        'ip_address',
-        'user_agent',
-        'created_at',
-    ];
-
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'old_values' => 'array',
-        'new_values' => 'array',
-        'created_at' => 'datetime',
-    ];
-
-    /**
-     * Relationship: Audit entry belongs to an admin user
-     *
-     * @return BelongsTo
-     */
-    public function adminUser(): BelongsTo
+    public function insert(array $data): void
     {
-        return $this->belongsTo(AdminUser::class, 'admin_user_id', 'id');
+        $stmt = $this->db->prepare(
+            'INSERT INTO audit_log (admin_user_id, action, entity_type, entity_id,
+             old_values, new_values, ip_address, user_agent, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())'
+        );
+        $stmt->execute([
+            $data['admin_user_id'],
+            $data['action'],
+            $data['entity_type'],
+            $data['entity_id'],
+            $data['old_values'] !== null ? json_encode($data['old_values']) : null,
+            $data['new_values'] !== null ? json_encode($data['new_values']) : null,
+            $data['ip_address'],
+            $data['user_agent'],
+        ]);
+    }
+
+    /**
+     * Find audit log entries with filtering and pagination.
+     *
+     * Joins admin_users table to include admin name in results.
+     *
+     * @param array $filters Optional filters (entity_type, action, admin_user_id, etc.)
+     * @param int $limit
+     * @param int $offset
+     * @return array List of audit log rows with admin user name
+     */
+    public function findAll(array $filters = [], int $limit = 50, int $offset = 0): array
+    {
+        $sql = 'SELECT al.*, au.name as admin_name
+                FROM audit_log al
+                LEFT JOIN admin_users au ON al.admin_user_id = au.id';
+
+        // Add WHERE clauses based on filters...
+        $sql .= ' ORDER BY al.created_at DESC LIMIT ? OFFSET ?';
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$limit, $offset]);
+        return $stmt->fetchAll();
     }
 }
 ```
@@ -324,66 +303,45 @@ class AuditLog extends Model
 Inject AuditService into services and log changes:
 
 ```php
-// app/Http/Modules/Members/Services/MembersService.php
+// src/Modules/Members/Services/MembersService.php
 <?php
 
-namespace App\Http\Modules\Members\Services;
+declare(strict_types=1);
 
+namespace App\Modules\Members\Services;
+
+use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Services\AuditService;
 
-final readonly class MembersService extends BaseService
+class MembersService
 {
     public function __construct(
         private MembersRepository $membersRepository,
         private AuditService $auditService,  // Inject audit service
-    ) {
-        parent::__construct($membersRepository);
-    }
+    ) {}
 
     /**
      * Create a new member with audit logging
      */
-    public function createMember(
-        string $firstName,
-        string $lastName,
-        string $email,
-        ?string $phone,
-        ?string $cardUid,
-        SupportedLanguage $language,
-    ): MemberAdminDto {
-        // Create member
-        $member = $this->membersRepository->create([
-            'first_name' => $firstName,
-            'last_name' => $lastName,
-            'email' => $email,
-            'phone' => $phone,
-            'card_uid' => $cardUid,
-            'preferred_language' => $language->value,
-            'is_active' => true,
-        ]);
+    public function createMember(array $data, ?string $adminUserId = null): array
+    {
+        // Create member via PDO repository
+        $memberId = $this->membersRepository->create($data);
+        $member = $this->membersRepository->findById($memberId);
 
         // Log creation (old_values=null for create)
         $this->auditService->log(
             action: AuditAction::CREATE,
             entityType: EntityType::MEMBER,
-            entityId: $member->id,
+            entityId: $memberId,
             oldValues: null,
-            newValues: [
-                'first_name' => $firstName,
-                'last_name' => $lastName,
-                'email' => $email,
-                'phone' => $phone,
-                'card_uid' => $cardUid,
-                'preferred_language' => $language->value,
-                'is_active' => true,
-            ],
-            adminUserId: $this->getCurrentAdminUserId(),
+            newValues: $data,
+            adminUserId: $adminUserId,
         );
 
-        // Transform and return
-        return $this->transformToAdminDto($member);
+        return $member;
     }
 
     /**
@@ -391,13 +349,14 @@ final readonly class MembersService extends BaseService
      *
      * Only logs changed fields (captured as before/after pairs)
      */
-    public function updateMember(string $memberId, array $updateData): MemberAdminDto
+    public function updateMember(string $memberId, array $updateData, ?string $adminUserId = null): array
     {
-        // Fetch current state (before update)
+        // Fetch current state (before update) via PDO
         $oldMember = $this->membersRepository->findById($memberId);
 
-        // Perform update
-        $newMember = $this->membersRepository->updateById($memberId, $updateData);
+        // Perform update via PDO repository
+        $this->membersRepository->updateById($memberId, $updateData);
+        $newMember = $this->membersRepository->findById($memberId);
 
         // Detect which fields changed
         $changedFields = $this->detectChanges($oldMember, $newMember);
@@ -407,36 +366,33 @@ final readonly class MembersService extends BaseService
             $this->auditService->log(
                 action: AuditAction::UPDATE,
                 entityType: EntityType::MEMBER,
-                entityId: $newMember->id,
+                entityId: $memberId,
                 oldValues: $changedFields['old'],
                 newValues: $changedFields['new'],
-                adminUserId: $this->getCurrentAdminUserId(),
+                adminUserId: $adminUserId,
             );
         }
 
-        return $this->transformToAdminDto($newMember);
+        return $newMember;
     }
 
     /**
-     * Helper: Detect which fields changed between old and new model
+     * Helper: Detect which fields changed between old and new row
      *
-     * @param Model $oldModel State before update
-     * @param Model $newModel State after update
+     * @param array $oldRow Associative array before update (from PDO)
+     * @param array $newRow Associative array after update (from PDO)
      * @return array ['old' => [...changed fields...], 'new' => [...changed fields...]]
      */
-    private function detectChanges(Model $oldModel, Model $newModel): array
+    private function detectChanges(array $oldRow, array $newRow): array
     {
-        $oldData = $oldModel->getAttributes();
-        $newData = $newModel->getAttributes();
-
         $oldValues = [];
         $newValues = [];
 
-        foreach ($newData as $key => $newValue) {
-            $oldValue = $oldData[$key] ?? null;
+        foreach ($newRow as $key => $newValue) {
+            $oldValue = $oldRow[$key] ?? null;
 
-            // Only include changed fields
-            if ($oldValue !== $newValue) {
+            // Only include changed fields (skip timestamps)
+            if ($oldValue !== $newValue && !in_array($key, ['updated_at'])) {
                 $oldValues[$key] = $oldValue;
                 $newValues[$key] = $newValue;
             }
@@ -447,81 +403,78 @@ final readonly class MembersService extends BaseService
             'new' => $newValues,
         ];
     }
-
-    /**
-     * Helper: Get current admin user from session
-     *
-     * Returns null for system actions or failed logins (per Pattern 013)
-     */
-    private function getCurrentAdminUserId(): ?string
-    {
-        return request()->user()?->id;
-    }
 }
 ```
 
-### Service Provider Registration (Pattern 008)
+### ServiceFactory Registration (Pattern 008)
 
-Register AuditService in the service container:
+Register AuditService in the custom ServiceFactory (PSR ContainerInterface):
 
 ```php
-// app/Providers/AppServiceProvider.php
+// src/ServiceFactory.php
 <?php
 
-namespace App\Providers;
+declare(strict_types=1);
+
+namespace App;
 
 use App\Shared\Services\AuditService;
-use Illuminate\Support\ServiceProvider;
+use App\Modules\AuditLog\Repositories\AuditLogRepository;
 
-class AppServiceProvider extends ServiceProvider
+class ServiceFactory implements \Psr\Container\ContainerInterface
 {
-    /**
-     * Register services in the container
-     */
-    public function register(): void
+    // ...
+
+    private function createAuditService(): AuditService
     {
-        // Register AuditService as singleton (one instance per request)
-        $this->app->singleton(
-            AuditService::class,
-            function ($app) {
-                return new AuditService();
-            }
+        return new AuditService(
+            $this->get(AuditLogRepository::class),
         );
     }
 
-    /**
-     * Bootstrap services (runs after registration)
-     */
-    public function boot(): void
+    private function createAuditLogRepository(): AuditLogRepository
     {
-        // Additional setup if needed
+        return new AuditLogRepository($this->getPdo());
     }
 }
 ```
+
+The ServiceFactory wires all dependencies manually (no auto-injection). Each service and repository is created via a factory method, with PDO injected from the shared database connection.
 
 ---
 
 ## Testing Audit Logging
 
-Unit testing is straightforward since AuditService has no external dependencies:
+Unit testing uses PDO with an in-memory SQLite database or a test MariaDB instance:
 
 ```php
 // tests/Unit/Services/AuditServiceTest.php
 <?php
 
-use App\Models\AuditLog;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Services\AuditService;
+use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use PHPUnit\Framework\TestCase;
 
 class AuditServiceTest extends TestCase
 {
     private AuditService $service;
+    private AuditLogRepository $repository;
+    private PDO $pdo;
 
     protected function setUp(): void
     {
-        $this->service = new AuditService();
+        // Use test PDO (in-memory or test database)
+        $this->pdo = new PDO('sqlite::memory:');
+        $this->pdo->exec('CREATE TABLE audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_user_id TEXT, action TEXT, entity_type TEXT, entity_id TEXT,
+            old_values TEXT, new_values TEXT, ip_address TEXT, user_agent TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )');
+        $this->repository = new AuditLogRepository($this->pdo);
+        $this->service = new AuditService($this->repository);
     }
 
     public function test_log_creates_audit_entry(): void
@@ -534,12 +487,15 @@ class AuditServiceTest extends TestCase
             newValues: ['first_name' => 'John', 'last_name' => 'Doe'],
         );
 
-        $entry = AuditLog::where('entity_id', 'member-123')->first();
+        $stmt = $this->pdo->prepare('SELECT * FROM audit_log WHERE entity_id = ?');
+        $stmt->execute(['member-123']);
+        $entry = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $this->assertNotNull($entry);
-        $this->assertEquals('create', $entry->action);
-        $this->assertEquals('member', $entry->entity_type);
-        $this->assertEquals(['first_name' => 'John', 'last_name' => 'Doe'], $entry->new_values);
+        $this->assertNotFalse($entry);
+        $this->assertEquals('create', $entry['action']);
+        $this->assertEquals('member', $entry['entity_type']);
+        $newValues = json_decode($entry['new_values'], true);
+        $this->assertEquals('John', $newValues['first_name']);
     }
 
     public function test_log_masks_iban(): void
@@ -552,11 +508,15 @@ class AuditServiceTest extends TestCase
             newValues: ['iban' => 'FR1420041010050500013M02606'],
         );
 
-        $entry = AuditLog::where('entity_id', 'member-456')->first();
+        $stmt = $this->pdo->prepare('SELECT * FROM audit_log WHERE entity_id = ?');
+        $stmt->execute(['member-456']);
+        $entry = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $oldValues = json_decode($entry['old_values'], true);
 
         // Verify IBAN is masked
-        $this->assertStringContainsString('****', $entry->old_values['iban']);
-        $this->assertStringNotContainsString('370400440532', $entry->old_values['iban']);
+        $this->assertStringContainsString('****', $oldValues['iban']);
+        $this->assertStringNotContainsString('370400440532', $oldValues['iban']);
     }
 }
 ```
@@ -569,26 +529,30 @@ Audit logging follows the same pattern across all modules:
 
 ```php
 // Any module (Products, Terminals, Settlements) follows same approach:
-final readonly class ProductsService extends BaseService
+// src/Modules/Products/Services/ProductsService.php
+
+class ProductsService
 {
     public function __construct(
         private ProductsRepository $repo,
         private AuditService $auditService,  // Always inject
     ) {}
 
-    public function createProduct(string $name): ProductDto
+    public function createProduct(array $data, ?string $adminUserId = null): array
     {
-        $product = $this->repo->create(['name' => $name]);
+        $productId = $this->repo->create($data);
+        $product = $this->repo->findById($productId);
 
-        // Always log changes
+        // Always log changes via PDO-backed AuditService
         $this->auditService->log(
             action: AuditAction::CREATE,
             entityType: EntityType::PRODUCT,
-            entityId: $product->id,
-            newValues: ['name' => $name],
+            entityId: $productId,
+            newValues: $data,
+            adminUserId: $adminUserId,
         );
 
-        return $product->toDto();
+        return $product;
     }
 }
 ```

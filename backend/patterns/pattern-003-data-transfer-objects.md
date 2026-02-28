@@ -12,31 +12,17 @@ Without DTOs, response construction is scattered and error-prone:
 
 ```php
 // ❌ Problematic: Inconsistent response formats
-public function member(string $id): JsonResponse
+public function show(Request $request, Response $response, array $args): Response
 {
-    $member = $this->db->find($id);
+    $row = $this->repo->findById($args['id']);
 
     // Manual array construction - easy to forget fields
-    return response()->json([
-        'id' => $member->id,
-        'first_name' => $member->firstName,
+    $response->getBody()->write(json_encode([
+        'id' => $row['id'],
+        'first_name' => $row['first_name'],
         // 'email' => ... forgot this field
-        'created_at' => $member->createdAt->format('Y-m-d\TH:i:s\Z'),
-    ]);
-}
-
-// Another endpoint constructs differently
-public function members(): JsonResponse
-{
-    $members = $this->db->all();
-
-    return response()->json(array_map(function ($m) {
-        return [
-            'id' => $m->id,
-            'name' => $m->firstName . ' ' . $m->lastName, // Different structure!
-            // created_at format might differ
-        ];
-    }, $members));
+    ]));
+    return $response;
 }
 ```
 
@@ -45,7 +31,6 @@ Issues:
 - Inconsistent response formats across endpoints
 - Difficult to refactor API response structure
 - No validation that all required fields are included
-- Response construction duplicated across multiple endpoints
 
 ---
 
@@ -54,9 +39,8 @@ Issues:
 Use **immutable DTOs** (Data Transfer Objects) to:
 - Encapsulate response data with type safety
 - Ensure consistent response structure across endpoints
-- Provide single `toArray()` method for JSON serialization
-- Make invalid data impossible (constructor validation)
-- Document API response schema in code
+- Provide `fromRow()` factory for database row conversion
+- Provide `toArray()` method for JSON serialization
 
 ---
 
@@ -65,12 +49,8 @@ Use **immutable DTOs** (Data Transfer Objects) to:
 ### Basic DTO Structure
 
 ```php
-// app/DTOs/MemberDto.php
-<?php
-
-namespace App\DTOs;
-
-use DateTimeImmutable;
+// src/Modules/Members/DTOs/MemberDto.php
+namespace App\Modules\Members\DTOs;
 
 final readonly class MemberDto
 {
@@ -82,10 +62,26 @@ final readonly class MemberDto
         public string $preferredLanguage,
         public bool $isActive,
         public bool $isSepaValid,
-        public ?DateTimeImmutable $deletedAt,
-        public DateTimeImmutable $createdAt,
-        public DateTimeImmutable $updatedAt,
+        public ?string $deletedAt,
+        public string $createdAt,
+        public string $updatedAt,
     ) {}
+
+    public static function fromRow(array $row): self
+    {
+        return new self(
+            id: $row['id'],
+            cardUid: $row['card_uid'] ?? null,
+            firstName: $row['first_name'],
+            lastName: $row['last_name'],
+            preferredLanguage: $row['preferred_language'],
+            isActive: (bool) $row['is_active'],
+            isSepaValid: !empty($row['iban']) && !empty($row['mandate_reference']),
+            deletedAt: $row['deleted_at'] ?? null,
+            createdAt: $row['created_at'],
+            updatedAt: $row['updated_at'],
+        );
+    }
 
     public function toArray(): array
     {
@@ -97,9 +93,9 @@ final readonly class MemberDto
             'preferred_language' => $this->preferredLanguage,
             'is_active' => $this->isActive,
             'is_sepa_valid' => $this->isSepaValid,
-            'deleted_at' => $this->deletedAt?->format('Y-m-d\TH:i:s\Z'),
-            'created_at' => $this->createdAt->format('Y-m-d\TH:i:s\Z'),
-            'updated_at' => $this->updatedAt->format('Y-m-d\TH:i:s\Z'),
+            'deleted_at' => $this->deletedAt,
+            'created_at' => $this->createdAt,
+            'updated_at' => $this->updatedAt,
         ];
     }
 }
@@ -108,31 +104,23 @@ final readonly class MemberDto
 ### DTO in Service Layer
 
 ```php
-// app/Services/SyncService.php
-use App\DTOs\MemberDto;
-
-final readonly class SyncService
+// src/Modules/Members/Services/MembersService.php
+class MembersService
 {
-    public function updateMemberLanguage(
-        string $memberId,
-        SupportedLanguage $language
-    ): MemberDto {  // Type-safe return
-        $member = $this->members->find($memberId);
-        $member->update(['preferred_language' => $language->value]);
+    public function getMember(string $memberId): MemberAdminDto
+    {
+        $member = $this->membersRepository->findById($memberId);
+        if (!$member) {
+            throw NotFoundException::forResource('Member', $memberId);
+        }
+        return MemberAdminDto::fromRow($member);
+    }
 
-        // Construct DTO from model
-        return new MemberDto(
-            id: $member->id,
-            cardUid: $member->card_uid,
-            firstName: $member->first_name,
-            lastName: $member->last_name,
-            preferredLanguage: $member->preferred_language,
-            isActive: $member->is_active,
-            isSepaValid: $member->is_sepa_valid,
-            deletedAt: $member->deleted_at ? new DateTimeImmutable($member->deleted_at) : null,
-            createdAt: new DateTimeImmutable($member->created_at),
-            updatedAt: new DateTimeImmutable($member->updated_at),
-        );
+    public function syncSince(int $since): SyncResultDto
+    {
+        $rows = $this->membersRepository->findModifiedSince($since);
+        $members = array_map(fn($row) => MemberDto::fromRow($row), $rows);
+        return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
     }
 }
 ```
@@ -140,21 +128,18 @@ final readonly class SyncService
 ### DTO in Controller
 
 ```php
-// app/Http/Controllers/SyncController.php
-public function updateLanguage(
-    UpdateLanguageRequest $request,
-    string $memberId
-): JsonResponse {
-    $member = $this->syncService->updateMemberLanguage(
-        $memberId,
-        $request->preferredLanguage()
-    );
+// src/Modules/Members/Controllers/AdminController.php
+public function show(Request $request, Response $response, array $args): Response
+{
+    $member = $this->membersService->getMember($args['memberId']);
+    return $this->json($response, $member->toArray());
+}
 
-    // Use DTO's toArray() for consistent response
-    return response()->json([
-        'member' => $member->toArray(),
-        'updated_at' => $member->updatedAt->format('Y-m-d\TH:i:s\Z'),
-    ]);
+public function store(Request $request, Response $response): Response
+{
+    // ...validation...
+    $member = $this->membersService->createMember(...);
+    return $this->json($response, $member->toArray(), 201);
 }
 ```
 
@@ -162,140 +147,118 @@ public function updateLanguage(
 
 ## Collection DTOs
 
-### Sync Result DTO (Paginated/Cursor-based)
+### Paginated Result DTO
 
 ```php
-// app/DTOs/SyncResultDto.php
-<?php
+// src/Shared/DTOs/PaginatedResultDto.php
+namespace App\Shared\DTOs;
 
-namespace App\DTOs;
+final readonly class PaginatedResultDto
+{
+    public function __construct(
+        public array $items,
+        public int $total,
+        public int $limit,
+        public int $offset,
+    ) {}
+
+    public function hasMore(): bool
+    {
+        return ($this->offset + $this->limit) < $this->total;
+    }
+
+    public function toArray(): array
+    {
+        $items = array_map(function ($item) {
+            return is_object($item) && method_exists($item, 'toArray')
+                ? $item->toArray()
+                : (is_array($item) ? $item : (array) $item);
+        }, $this->items);
+
+        return [
+            'items' => $items,
+            'total' => $this->total,
+            'limit' => $this->limit,
+            'offset' => $this->offset,
+            'has_more' => $this->hasMore(),
+        ];
+    }
+}
+```
+
+### Sync Result DTO
+
+```php
+// src/Shared/DTOs/SyncResultDto.php
+namespace App\Shared\DTOs;
 
 final readonly class SyncResultDto
 {
     public function __construct(
-        public array $items,      // Array of DTOs (MemberDto, ProductDto, etc.)
-        public string $cursor,    // Cursor for pagination
-        public bool $hasMore,     // Whether more results available
+        public array $items,
+        public int $cursor,
+        public bool $hasMore,
     ) {}
 
-    public function toResponse(string $itemsKey): array
+    public function toArray(string $itemsKey = 'items'): array
     {
+        $mappedItems = array_map(
+            fn($item) => is_object($item) && method_exists($item, 'toArray')
+                ? $item->toArray() : $item,
+            $this->items
+        );
         return [
-            $itemsKey => array_map(fn($item) => $item->toArray(), $this->items),
+            $itemsKey => $mappedItems,
             'cursor' => $this->cursor,
-            'count' => count($this->items),
+            'count' => count($mappedItems),
             'has_more' => $this->hasMore,
         ];
     }
 }
 ```
 
-### Usage in Controller
-
-```php
-public function members(SyncRequest $request): JsonResponse
-{
-    $result = $this->syncService->syncMembers($request->since());
-
-    // Response structure guaranteed by DTO
-    return response()->json($result->toResponse('members'));
-}
-```
-
 ---
 
-## Batch Operation DTO
+## Converting Database Rows to DTOs
+
+### The `fromRow()` Pattern
+
+All DTOs use a static `fromRow(array $row)` factory that converts a PDO fetch result to a typed DTO:
 
 ```php
-// app/DTOs/TransactionBatchResultDto.php
-<?php
+// Repository returns raw associative array from PDO
+$row = $stmt->fetch(PDO::FETCH_ASSOC);
+// ['id' => '...', 'first_name' => 'John', 'is_active' => 1, ...]
 
-namespace App\DTOs;
-
-final readonly class TransactionBatchResultDto
-{
-    public function __construct(
-        public array $acceptedIds,    // UUIDs of accepted transactions
-        public int $rejectedCount,    // Number of rejected transactions
-        public array $errors,         // Error details per rejected transaction
-    ) {}
-
-    public function toArray(): array
-    {
-        return [
-            'accepted_ids' => $this->acceptedIds,
-            'rejected' => [
-                'count' => $this->rejectedCount,
-                'errors' => $this->errors,
-            ],
-        ];
-    }
-}
+// DTO factory handles type conversion
+$dto = MemberDto::fromRow($row);
+// MemberDto(id: '...', firstName: 'John', isActive: true, ...)
 ```
 
----
+Key `fromRow()` responsibilities:
+- Map snake_case DB columns → camelCase DTO properties
+- Type coercion: `(bool) $row['is_active']` for integer columns
+- Computed fields: `isSepaValid` derived from `iban` + `mandate_reference`
+- Null handling: `$row['card_uid'] ?? null`
 
-## Converting Models to DTOs
-
-### From Eloquent Model
-
-```php
-// Method 1: Explicit constructor in repository
-return new MemberDto(
-    id: $model->id,
-    cardUid: $model->card_uid,
-    firstName: $model->first_name,
-    // ... all fields
-);
-
-// Method 2: Helper method in model
-// app/Models/Member.php
-public function toDto(): MemberDto
-{
-    return new MemberDto(
-        id: $this->id,
-        cardUid: $this->card_uid,
-        // ... mapping
-    );
-}
-
-// Usage
-return $model->toDto();
-```
-
-### Mapping Multiple Models
+### Mapping Multiple Rows
 
 ```php
-// In Service or Repository
-$members = $this->members->getAllActive();
-
-$dtos = array_map(
-    fn(Member $member) => new MemberDto(
-        id: $member->id,
-        // ... fields
-    ),
-    $members
-);
-
-return new SyncResultDto(
-    items: $dtos,
-    cursor: $nextCursor,
-    hasMore: $hasMoreResults,
-);
+// In service
+$rows = $this->repository->findAll();
+$dtos = array_map(fn($row) => MemberDto::fromRow($row), $rows);
 ```
 
 ---
 
 ## Benefits
 
-✅ **Type safety**: IDE knows response structure; type hints available
-✅ **Consistency**: All endpoints return same response format
-✅ **Immutability**: `readonly` properties prevent accidental mutation
-✅ **Single responsibility**: DTO only handles data transformation
-✅ **Testability**: Easy to construct test DTOs
-✅ **Documentation**: Response structure clear in code (no guessing)
-✅ **Refactor-safe**: Change response format in one place
-✅ **Date formatting**: Consistent ISO-8601 formatting
+- **Type safety**: IDE knows response structure; type hints available
+- **Consistency**: All endpoints return same response format
+- **Immutability**: `readonly` properties prevent accidental mutation
+- **Single responsibility**: DTO only handles data transformation
+- **Testability**: Easy to construct test DTOs
+- **Refactor-safe**: Change response format in one place
 
 ---
 
@@ -305,43 +268,32 @@ return new SyncResultDto(
 - Collection responses (with pagination/cursor)
 - Batch operation results
 - Nested response structures
-- Error details that need consistent format
 
 ---
 
 ## When NOT to Use
 
-- Simple scalar responses (e.g., `{ "success": true }`)
+- Simple scalar responses (e.g., `{ "message": "deleted" }`)
 - Pass-through responses (raw file downloads)
-- Third-party API responses (use external models)
 
 ---
 
 ## Consistency with Modularity (ADR-0018)
 
-DTOs are **module-specific**:
-- Located in `app/DTOs/` directory (or `Modules/MemberModule/DTOs/`)
+DTOs are organized by scope:
+- **Module-specific**: `src/Modules/Members/DTOs/MemberDto.php`
+- **Shared**: `src/Shared/DTOs/PaginatedResultDto.php`, `src/Shared/DTOs/SyncResultDto.php`
 - Named after entity (e.g., `MemberDto`, `ProductDto`)
 - Each module responsible for own DTOs
-- Shared DTOs in common location (e.g., `SyncResultDto`, `TransactionBatchResultDto`)
-
----
-
-## Related to Immutability (ADR-0004)
-
-DTOs reinforce immutability:
-- `readonly` class prevents modification after construction
-- Complete audit trail: DTO captures all fields at point of serialization
-- Linked to transaction corrections via DTOs (e.g., `TransactionDto` includes `relatedTransactionId`)
 
 ---
 
 ## Related Patterns
 
-- **Pattern 001**: Form Requests (validation of input)
+- **Pattern 001**: Input Validation (validation of input)
 - **Pattern 002**: Enum (type-safe fields in DTOs)
 - **Pattern 004**: Service Layer (DTOs returned from services)
-- **Pattern 005**: Repository Interfaces (DTOs returned from repositories)
+- **Pattern 005**: Repository (repositories return raw rows, services convert to DTOs)
 
 ---
 

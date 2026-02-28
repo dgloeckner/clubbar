@@ -1,19 +1,22 @@
 # Pattern 009: Module Structure & Organization (ADR-0018 Implementation)
 
 **Status**: Active
+**Category**: Modularity & Organization
+**Pattern Type**: Structural Pattern
+**Related ADR**: ADR-0018 (Modular Architecture)
 
-**Purpose**: Organize backend API code by functional domain (modules) rather than technical layers. Each module owns all operations for its domain across both Terminal and Admin APIs.
+**Tech stack**: Slim 4 (PSR-7/PSR-15), PDO (raw SQL), PHP 8.3, custom ServiceFactory (PSR-11 ContainerInterface).
 
 ---
 
 ## Context
 
 The backend implements two distinct APIs:
-- **Terminal API** (`/api/sync/*`, `/api/admin/*`): Low-bandwidth sync for offline POS terminals
+- **Terminal API** (`/api/sync/*`): Low-bandwidth delta sync for offline POS terminals
 - **Admin API** (`/api/admin/*`): Full-featured administrative operations (CRUD, exports, etc.)
 
 Without module organization:
-- Controllers and services scatter across `app/Http/Controllers/` and `app/Services/`
+- Controllers and services scatter across flat directories
 - Related Terminal and Admin operations for the same entity are distant
 - Unclear which code handles which domain
 - New features require searching multiple directories
@@ -29,51 +32,38 @@ Without module organization:
 Each module is a self-contained unit with the following structure:
 
 ```
-backend/app/Http/Modules/{module-name}/
+src/Modules/{ModuleName}/
 ├── Controllers/
-│   ├── {Entity}Controller.php           # Thin HTTP handlers
-│   └── {Entity}AdminController.php      # (optional) Admin-only endpoints
+│   ├── AdminController.php         # Admin API endpoints (Pattern 006)
+│   └── SyncController.php          # Terminal sync endpoints (Pattern 006)
 ├── Services/
-│   ├── {Entity}Service.php              # Business logic
-│   └── {Entity}Repository.php           # Data access (see Pattern 011)
-├── Requests/
-│   ├── Create{Entity}Request.php        # Form request validators
-│   ├── Update{Entity}Request.php
-│   └── {Operation}{Entity}Request.php
+│   └── {Entity}Service.php         # Business logic (Pattern 004)
+├── Repositories/
+│   └── {Entity}Repository.php      # PDO data access (Pattern 005)
 ├── DTOs/
-│   ├── {Entity}Dto.php                  # Response objects
+│   ├── {Entity}Dto.php             # Response objects (Pattern 003)
 │   └── {Entity}ListDto.php
-├── routes/
-│   ├── terminal.php                     # Terminal API routes (/api/sync/*)
-│   └── admin.php                        # Admin API routes (/api/admin/*)
-└── README.md                            # Module documentation
+└── Enums/
+    └── {DomainEnum}.php            # Type-safe domain values (Pattern 002)
 ```
 
 ### Example: Members Module
 
 ```
-backend/app/Http/Modules/Members/
+src/Modules/Members/
 ├── Controllers/
-│   ├── SyncController.php               # Terminal: GET /api/sync/members
-│   └── AdminController.php              # Admin: GET /api/admin/members, etc.
+│   ├── AdminController.php         # Admin: CRUD, export, anonymize
+│   └── SyncController.php          # Terminal: GET /api/sync/members
 ├── Services/
-│   ├── MembersService.php               # Shared business logic
-│   └── MembersRepository.php            # Data access abstraction
-├── Requests/
-│   ├── SyncRequest.php                  # Terminal sync query
-│   ├── CreateMemberRequest.php          # Admin create
-│   ├── UpdateMemberRequest.php          # Admin update
-│   ├── UpdateLanguageRequest.php        # Terminal language update
-│   ├── ExportGDPRRequest.php            # Admin GDPR export
-│   └── AnonymizeRequest.php             # Admin anonymization
+│   └── MembersService.php          # Shared business logic
+├── Repositories/
+│   └── MembersRepository.php       # PDO data access
 ├── DTOs/
-│   ├── MemberDto.php                    # Single member response
-│   ├── MembersListDto.php               # Paginated members list
-│   └── GDPRExportDto.php                # GDPR export response
-├── routes/
-│   ├── terminal.php                     # GET /api/sync/members, PATCH /api/sync/members/{id}/language
-│   └── admin.php                        # GET /api/admin/members, POST, PATCH, DELETE, /export, /anonymize
-└── README.md
+│   ├── MemberDto.php               # Single member response
+│   ├── MemberAdminDto.php          # Admin-specific member response
+│   └── MemberSyncDto.php           # Terminal sync response
+└── Enums/
+    └── SupportedLanguage.php       # de, en, fr (Pattern 002)
 ```
 
 ### Module Ownership
@@ -82,16 +72,16 @@ A **Members module owns**:
 
 **Terminal API** (sync operations):
 - `GET /api/sync/members?since=<timestamp>` — Delta member sync
-- `PATCH /api/sync/members/{id}/language` — Update member's language preference
+- `PATCH /api/sync/members/{memberId}/language` — Update member's language preference
 
 **Admin API** (full CRUD + administrative):
 - `GET /api/admin/members` — List members (paginated, filterable)
-- `GET /api/admin/members/{id}` — View member detail
+- `GET /api/admin/members/{memberId}` — View member detail
 - `POST /api/admin/members` — Create member
-- `PATCH /api/admin/members/{id}` — Update member
-- `DELETE /api/admin/members/{id}` — Delete member
-- `POST /api/admin/members/{id}/export` — GDPR export
-- `POST /api/admin/members/{id}/anonymize` — GDPR anonymization
+- `PATCH /api/admin/members/{memberId}` — Update member
+- `DELETE /api/admin/members/{memberId}` — Delete member
+- `POST /api/admin/members/{memberId}/export` — GDPR export
+- `POST /api/admin/members/{memberId}/anonymize` — GDPR anonymization
 
 ---
 
@@ -101,53 +91,58 @@ A **Members module owns**:
 
 ```
 backend/
-├── app/
-│   ├── Http/
-│   │   ├── Modules/                    # ← All feature modules
-│   │   │   ├── Members/
-│   │   │   │   ├── Controllers/
-│   │   │   │   ├── Services/
-│   │   │   │   ├── Requests/
-│   │   │   │   ├── DTOs/
-│   │   │   │   └── routes/
-│   │   │   │
-│   │   │   ├── Products/
-│   │   │   ├── Settlements/
-│   │   │   ├── Terminals/
-│   │   │   └── ... (other modules)
+├── src/
+│   ├── Modules/                         # ← All feature modules
+│   │   ├── Members/
+│   │   │   ├── Controllers/
+│   │   │   ├── Services/
+│   │   │   ├── Repositories/
+│   │   │   ├── DTOs/
+│   │   │   └── Enums/
 │   │   │
-│   │   ├── Middleware/                # Shared middleware (Auth, CORS, etc.)
-│   │   └── Kernel.php
+│   │   ├── Products/
+│   │   ├── Transactions/
+│   │   ├── Settlements/
+│   │   ├── Terminals/
+│   │   ├── Auth/
+│   │   │   ├── Controllers/
+│   │   │   ├── Services/
+│   │   │   └── Middleware/              # TerminalTokenAuth, AdminSessionAuth
+│   │   ├── AdminUsers/
+│   │   ├── AuditLog/
+│   │   └── Dashboard/
 │   │
-│   ├── Shared/                        # ← Extracted common logic
+│   ├── Shared/                          # ← Cross-cutting concerns
+│   │   ├── Controllers/
+│   │   │   └── HealthController.php
 │   │   ├── Services/
-│   │   │   ├── BaseService.php        # Abstract base for CRUD services
-│   │   │   └── BaseRepository.php     # Abstract base for repositories
+│   │   │   └── AuditService.php         # Shared audit logging
 │   │   ├── DTOs/
-│   │   │   ├── PaginatedResultDto.php # Shared pagination response
-│   │   │   └── ErrorResponseDto.php   # Shared error response
+│   │   │   ├── PaginatedResultDto.php   # Shared pagination response
+│   │   │   └── SyncResultDto.php        # Shared sync response
 │   │   ├── Exceptions/
-│   │   │   └── NotFoundException.php
-│   │   └── Traits/
-│   │       └── HasTimestamps.php      # Shared behaviors
+│   │   │   ├── AppException.php         # Base exception (Pattern 007)
+│   │   │   ├── NotFoundException.php
+│   │   │   └── ValidationException.php
+│   │   ├── Middleware/
+│   │   │   ├── ErrorHandler.php         # PSR-15 error handler (Pattern 007)
+│   │   │   ├── CorsMiddleware.php
+│   │   │   └── JsonBodyParser.php
+│   │   ├── Validation/
+│   │   │   └── Validator.php            # Custom rule-based validator (Pattern 001)
+│   │   ├── Enums/
+│   │   │   ├── AuditAction.php
+│   │   │   └── EntityType.php
+│   │   └── Utils/
+│   │       └── IbanMasker.php
 │   │
-│   ├── Providers/
-│   │   └── RouteServiceProvider.php   # ← Aggregates all module routes
-│   │
-│   └── Models/                        # ← Eloquent models (shared if needed)
-│       ├── Member.php
-│       ├── Product.php
-│       └── ...
+│   ├── ServiceFactory.php               # ← DI container (Pattern 008)
+│   └── routes.php                       # ← All route definitions
 │
-├── routes/
-│   ├── api.php                        # ← Entry point (delegates to modules)
-│   └── modules/
-│       ├── members.php                # Aggregates Members module routes
-│       ├── products.php
-│       └── ... (one file per module)
+├── public/
+│   └── index.php                        # ← Application entry point
 │
-└── config/
-    └── modules.php                    # Module configuration
+└── composer.json
 ```
 
 ---
@@ -157,36 +152,43 @@ backend/
 ### Terminal Sync Controller (Members Module)
 
 ```php
-// app/Http/Modules/Members/Controllers/SyncController.php
-namespace App\Http\Modules\Members\Controllers;
+// src/Modules/Members/Controllers/SyncController.php
+namespace App\Modules\Members\Controllers;
 
-use App\Http\Modules\Members\Requests\SyncRequest;
-use App\Http\Modules\Members\Requests\UpdateLanguageRequest;
-use App\Http\Modules\Members\Services\MembersService;
-use Illuminate\Http\JsonResponse;
+use App\Modules\Members\Services\MembersService;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
 
-final class SyncController extends Controller
+class SyncController
 {
-    public function __construct(private readonly MembersService $service) {}
+    public function __construct(
+        private MembersService $membersService,
+    ) {}
 
     /**
      * GET /api/sync/members - Delta sync members for terminal
-     * Implements: Pattern 001 (FormRequest), Pattern 003 (DTO), Pattern 004 (Service)
      */
-    public function index(SyncRequest $request): JsonResponse
+    public function index(Request $request, Response $response): Response
     {
-        $result = $this->service->syncSince($request->since());
-        return response()->json($result->toResponse('members'));
+        $params = $request->getQueryParams();
+        $since = (int) ($params['since'] ?? 0);
+
+        $result = $this->membersService->syncSince($since);
+
+        $response->getBody()->write(json_encode($result->toResponse('members')));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 
     /**
-     * PATCH /api/sync/members/{id}/language - Update member language
-     * Implements: Pattern 001 (FormRequest), Pattern 002 (Enum), Pattern 003 (DTO)
+     * PATCH /api/sync/members/{memberId}/language - Update member language
      */
-    public function updateLanguage(UpdateLanguageRequest $request, string $memberId): JsonResponse
+    public function updateLanguage(Request $request, Response $response, array $args): Response
     {
-        $member = $this->service->updateLanguage($memberId, $request->preferredLanguage());
-        return response()->json($member->toArray());
+        $body = $request->getParsedBody() ?? [];
+        $member = $this->membersService->updateLanguage($args['memberId'], $body['preferred_language']);
+
+        $response->getBody()->write(json_encode($member->toArray()));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 }
 ```
@@ -194,74 +196,81 @@ final class SyncController extends Controller
 ### Admin Controller (Members Module)
 
 ```php
-// app/Http/Modules/Members/Controllers/AdminController.php
-namespace App\Http\Modules\Members\Controllers;
+// src/Modules/Members/Controllers/AdminController.php
+namespace App\Modules\Members\Controllers;
 
-use App\Http\Modules\Members\Requests\CreateMemberRequest;
-use App\Http\Modules\Members\Requests\UpdateMemberRequest;
-use App\Http\Modules\Members\Services\MembersService;
-use Illuminate\Http\JsonResponse;
+use App\Modules\Members\Services\MembersService;
+use App\Shared\Validation\Validator;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
 
-final class AdminController extends Controller
+class AdminController
 {
-    public function __construct(private readonly MembersService $service) {}
+    public function __construct(
+        private MembersService $membersService,
+        private Validator $validator,
+    ) {}
 
     /**
      * GET /api/admin/members - List all members (paginated, filterable)
      */
-    public function index(AdminListRequest $request): JsonResponse
+    public function index(Request $request, Response $response): Response
     {
-        $result = $this->service->listMembers(
-            limit: $request->limit(),
-            offset: $request->offset(),
-            filters: $request->filters()
+        $params = $request->getQueryParams();
+        $result = $this->membersService->listMembers(
+            limit: (int) ($params['per_page'] ?? 50),
+            offset: (int) ($params['offset'] ?? 0),
+            sortKey: $params['sort'] ?? 'created_at',
+            sortOrder: $params['order'] ?? 'desc',
+            search: $params['search'] ?? null,
         );
-        return response()->json($result->toArray());
+        return $this->json($response, $result->toArray());
     }
 
     /**
      * POST /api/admin/members - Create member
      */
-    public function store(CreateMemberRequest $request): JsonResponse
+    public function store(Request $request, Response $response): Response
     {
-        $member = $this->service->create($request->validated());
-        return response()->json($member->toArray(), 201);
+        $body = $request->getParsedBody() ?? [];
+
+        if (!$this->validator->validate($body, [
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email'],
+            'preferred_language' => ['required', 'string', 'in:de,en,fr'],
+        ])) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'messages' => $this->validator->errors(),
+            ], 422);
+        }
+
+        $member = $this->membersService->createMember(
+            firstName: $body['first_name'],
+            lastName: $body['last_name'],
+            email: $body['email'],
+            language: $body['preferred_language'],
+            adminUserId: $request->getAttribute('admin_user_id'),
+        );
+        return $this->json($response, $member->toArray(), 201);
     }
 
     /**
-     * PATCH /api/admin/members/{id} - Update member
+     * DELETE /api/admin/members/{memberId} - Delete member
      */
-    public function update(UpdateMemberRequest $request, string $memberId): JsonResponse
+    public function destroy(Request $request, Response $response, array $args): Response
     {
-        $member = $this->service->update($memberId, $request->validated());
-        return response()->json($member->toArray());
+        $this->membersService->deleteMember(
+            $args['memberId'], $request->getAttribute('admin_user_id')
+        );
+        return $this->json($response, ['message' => 'Member deleted']);
     }
 
-    /**
-     * DELETE /api/admin/members/{id} - Delete member
-     */
-    public function destroy(string $memberId): JsonResponse
+    private function json(Response $response, mixed $data, int $status = 200): Response
     {
-        $this->service->delete($memberId);
-        return response()->noContent();
-    }
-
-    /**
-     * POST /api/admin/members/{id}/export - GDPR data export
-     */
-    public function export(ExportGDPRRequest $request, string $memberId): JsonResponse
-    {
-        $export = $this->service->exportGDPR($memberId);
-        return response()->download($export->path, $export->filename);
-    }
-
-    /**
-     * POST /api/admin/members/{id}/anonymize - GDPR anonymization
-     */
-    public function anonymize(AnonymizeRequest $request, string $memberId): JsonResponse
-    {
-        $this->service->anonymize($memberId);
-        return response()->json(['status' => 'anonymized']);
+        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }
 ```
@@ -269,16 +278,21 @@ final class AdminController extends Controller
 ### Service Layer (Shared Logic)
 
 ```php
-// app/Http/Modules/Members/Services/MembersService.php
-namespace App\Http\Modules\Members\Services;
+// src/Modules/Members/Services/MembersService.php
+namespace App\Modules\Members\Services;
 
-use App\Http\Modules\Members\DTOs\MemberDto;
-use App\Http\Modules\Members\DTOs\MembersListDto;
+use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Members\DTOs\MemberDto;
+use App\Shared\DTOs\PaginatedResultDto;
+use App\Shared\DTOs\SyncResultDto;
+use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Services\AuditService;
 
-final class MembersService
+class MembersService
 {
     public function __construct(
-        private readonly MembersRepository $repository,
+        private MembersRepository $membersRepository,
+        private AuditService $auditService,
     ) {}
 
     /**
@@ -286,168 +300,125 @@ final class MembersService
      */
     public function syncSince(int $since): SyncResultDto
     {
-        $members = $this->repository->findModifiedSince($since);
-        return new SyncResultDto('members', $members);
-    }
-
-    /**
-     * Terminal: Update member's language preference
-     */
-    public function updateLanguage(string $memberId, SupportedLanguage $language): MemberDto
-    {
-        $member = $this->repository->findOrFail($memberId);
-        $member->update(['preferred_language' => $language->value]);
-        return MemberDto::from($member);
+        $rows = $this->membersRepository->findModifiedSince($since);
+        $members = array_map(fn($row) => MemberDto::fromRow($row)->toArray(), $rows);
+        return new SyncResultDto($members, count($members));
     }
 
     /**
      * Admin: List members with pagination and filtering
      */
-    public function listMembers(int $limit, int $offset, array $filters = []): MembersListDto
+    public function listMembers(int $limit, int $offset, string $sortKey, string $sortOrder, ?string $search): PaginatedResultDto
     {
-        $query = $this->repository->query();
+        $result = $this->membersRepository->listPaginated($limit, $offset, [], $sortKey, $sortOrder, $search);
+        $items = array_map(fn($row) => MemberDto::fromRow($row)->toArray(), $result['items']);
+        return new PaginatedResultDto(items: $items, total: $result['total'], limit: $limit, offset: $offset);
+    }
 
-        if (isset($filters['is_active'])) {
-            $query = $query->where('is_active', $filters['is_active']);
+    /**
+     * Admin: Get single member by ID
+     */
+    public function getMember(string $memberId): MemberDto
+    {
+        $row = $this->membersRepository->findById($memberId);
+        if (!$row) {
+            throw NotFoundException::forResource('Member', $memberId);
         }
-
-        $total = $query->count();
-        $members = $query->limit($limit)->offset($offset)->get();
-
-        return new MembersListDto($members, $total, $limit, $offset);
-    }
-
-    /**
-     * Admin: Create new member
-     */
-    public function create(array $validated): MemberDto
-    {
-        $member = $this->repository->create($validated);
-        return MemberDto::from($member);
-    }
-
-    /**
-     * Admin: Update member
-     */
-    public function update(string $memberId, array $validated): MemberDto
-    {
-        $member = $this->repository->updateById($memberId, $validated);
-        return MemberDto::from($member);
-    }
-
-    /**
-     * Admin: Delete member
-     */
-    public function delete(string $memberId): void
-    {
-        $this->repository->deleteById($memberId);
-    }
-
-    /**
-     * Admin: GDPR export
-     */
-    public function exportGDPR(string $memberId): GDPRExportDto
-    {
-        $member = $this->repository->findOrFail($memberId);
-        $transactions = $this->repository->getTransactionHistory($memberId);
-
-        return new GDPRExportDto(
-            member: $member,
-            transactions: $transactions,
-            exportedAt: now()
-        );
-    }
-
-    /**
-     * Admin: GDPR anonymization
-     */
-    public function anonymize(string $memberId): void
-    {
-        $this->repository->anonymize($memberId);
+        return MemberDto::fromRow($row);
     }
 }
 ```
 
 ---
 
-## Route Aggregation
+## Route Configuration (Slim 4)
 
-### Module Routes (Members)
-
-```php
-// app/Http/Modules/Members/routes/terminal.php
-use App\Http\Modules\Members\Controllers\SyncController;
-use Illuminate\Support\Facades\Route;
-
-Route::prefix('sync')->group(function () {
-    Route::get('/members', [SyncController::class, 'index']);
-    Route::patch('/members/{memberId}/language', [SyncController::class, 'updateLanguage']);
-});
-```
+All routes are defined in a single `src/routes.php` file, organized by API group:
 
 ```php
-// app/Http/Modules/Members/routes/admin.php
-use App\Http\Modules\Members\Controllers\AdminController;
-use Illuminate\Support\Facades\Route;
+// src/routes.php
+use App\Modules\Members\Controllers\AdminController as MembersAdminController;
+use App\Modules\Members\Controllers\SyncController as MembersSyncController;
+use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
+use App\Modules\Auth\Middleware\AdminSessionAuth;
+use App\Modules\Auth\Middleware\TerminalTokenAuth;
+use Slim\App;
+use Slim\Routing\RouteCollectorProxy;
 
-Route::prefix('admin')->middleware(['auth', 'admin'])->group(function () {
-    Route::apiResource('members', AdminController::class);
-    Route::post('/members/{id}/export', [AdminController::class, 'export']);
-    Route::post('/members/{id}/anonymize', [AdminController::class, 'anonymize']);
-});
+return function (App $app): void {
+    // Public health check
+    $app->get('/api/health', [HealthController::class, 'check']);
+
+    // Terminal sync endpoints (token auth)
+    $app->group('/api/sync', function (RouteCollectorProxy $group) {
+        $group->get('/members', [MembersSyncController::class, 'index']);
+        $group->patch('/members/{memberId}/language', [MembersSyncController::class, 'updateLanguage']);
+        $group->get('/products', [ProductsSyncController::class, 'products']);
+        $group->post('/transactions', [TransactionsSyncController::class, 'processBatch']);
+    })->add(TerminalTokenAuth::class);
+
+    // Admin endpoints (session auth)
+    $app->group('/api/admin', function (RouteCollectorProxy $group) {
+        // Members
+        $group->get('/members', [MembersAdminController::class, 'index']);
+        $group->post('/members', [MembersAdminController::class, 'store']);
+        $group->get('/members/{memberId}', [MembersAdminController::class, 'show']);
+        $group->patch('/members/{memberId}', [MembersAdminController::class, 'update']);
+        $group->delete('/members/{memberId}', [MembersAdminController::class, 'destroy']);
+
+        // Products
+        $group->get('/products', [ProductsAdminController::class, 'listProducts']);
+        $group->post('/products', [ProductsAdminController::class, 'storeProduct']);
+        // ... more module routes
+    })->add(AdminSessionAuth::class);
+};
 ```
 
-### Global Route Entry Point
-
-```php
-// routes/api.php
-use Illuminate\Support\Facades\Route;
-
-// Terminal API routes (no auth required)
-require base_path('routes/modules/members.php');
-require base_path('routes/modules/products.php');
-// ... other modules
-
-// Each module file aggregates its routes:
-// routes/modules/members.php
-return [
-    ...require app_path('Http/Modules/Members/routes/terminal.php'),
-    ...require app_path('Http/Modules/Members/routes/admin.php'),
-];
-```
+**Key points:**
+- Routes are grouped by API type (`/api/sync/*` vs `/api/admin/*`)
+- Authentication middleware is applied per group via `->add()`
+- Controller class names are aliased with `as` to avoid collisions between modules
+- No separate route files per module — one centralized file for visibility
 
 ---
 
 ## Module-Level DTOs
 
 ```php
-// app/Http/Modules/Members/DTOs/MemberDto.php
-final class MemberDto
+// src/Modules/Members/DTOs/MemberDto.php
+namespace App\Modules\Members\DTOs;
+
+use App\Modules\Members\Enums\SupportedLanguage;
+
+class MemberDto
 {
     public function __construct(
         public readonly string $id,
         public readonly string $firstName,
         public readonly string $lastName,
-        public readonly string $cardUid,
-        public readonly SupportedLanguage $preferredLanguage,
+        public readonly ?string $cardUid,
+        public readonly string $preferredLanguage,
         public readonly bool $isActive,
         public readonly bool $isSepaValid,
-        public readonly DateTime $createdAt,
-        public readonly DateTime $updatedAt,
+        public readonly string $createdAt,
+        public readonly string $updatedAt,
     ) {}
 
-    public static function from(Member $model): self
+    /**
+     * Factory from PDO associative array (Pattern 003)
+     */
+    public static function fromRow(array $row): self
     {
         return new self(
-            id: $model->id,
-            firstName: $model->first_name,
-            lastName: $model->last_name,
-            cardUid: $model->card_uid,
-            preferredLanguage: SupportedLanguage::from($model->preferred_language),
-            isActive: $model->is_active,
-            isSepaValid: $model->is_sepa_valid,
-            createdAt: $model->created_at,
-            updatedAt: $model->updated_at,
+            id: $row['id'],
+            firstName: $row['first_name'],
+            lastName: $row['last_name'],
+            cardUid: $row['card_uid'] ?? null,
+            preferredLanguage: $row['preferred_language'] ?? 'de',
+            isActive: (bool) ($row['is_active'] ?? true),
+            isSepaValid: !empty($row['iban']) && !empty($row['mandate_signed_at']),
+            createdAt: $row['created_at'],
+            updatedAt: $row['updated_at'],
         );
     }
 
@@ -458,12 +429,57 @@ final class MemberDto
             'first_name' => $this->firstName,
             'last_name' => $this->lastName,
             'card_uid' => $this->cardUid,
-            'preferred_language' => $this->preferredLanguage->value,
+            'preferred_language' => $this->preferredLanguage,
             'is_active' => $this->isActive,
             'is_sepa_valid' => $this->isSepaValid,
-            'created_at' => $this->createdAt->format('Y-m-d\TH:i:s\Z'),
-            'updated_at' => $this->updatedAt->format('Y-m-d\TH:i:s\Z'),
+            'created_at' => $this->createdAt,
+            'updated_at' => $this->updatedAt,
         ];
+    }
+}
+```
+
+---
+
+## ServiceFactory Wiring (Pattern 008)
+
+Each module's dependencies are wired in the centralized `ServiceFactory`:
+
+```php
+// src/ServiceFactory.php
+class ServiceFactory implements ContainerInterface
+{
+    private const FQCN_MAP = [
+        MembersAdminController::class => 'getMembersAdminController',
+        MembersSyncController::class => 'getMembersSyncController',
+        ProductsAdminController::class => 'getProductsAdminController',
+        // ... all controllers and middleware
+    ];
+
+    // Repository → Service → Controller chain
+    public function getMembersRepository(): MembersRepository
+    {
+        return $this->resolve(MembersRepository::class,
+            fn() => new MembersRepository($this->pdo, $this->logger));
+    }
+
+    public function getMembersService(): MembersService
+    {
+        return $this->resolve(MembersService::class,
+            fn() => new MembersService(
+                $this->getMembersRepository(),
+                $this->getTransactionsRepository(),
+                $this->getAuditService(),
+            ));
+    }
+
+    public function getMembersAdminController(): MembersAdminController
+    {
+        return $this->resolve(MembersAdminController::class,
+            fn() => new MembersAdminController(
+                $this->getMembersService(),
+                $this->getValidator(),
+            ));
     }
 }
 ```
@@ -484,51 +500,46 @@ Handles all member-related operations for both Terminal (sync) and Admin APIs.
 
 ### GET /api/sync/members
 Delta sync members modified since timestamp.
-- Query params: `since` (required, Unix timestamp)
+- Query params: `since` (required, Unix timestamp in ms)
 - Response: Array of MemberDto
 
-### PATCH /api/sync/members/{id}/language
+### PATCH /api/sync/members/{memberId}/language
 Update member's preferred language.
-- Body: `{ "preferred_language": "de" | "en" | "fr" | "it" }`
+- Body: `{ "preferred_language": "de" | "en" | "fr" }`
 - Response: MemberDto
 
 ## Admin API Endpoints
 
 ### GET /api/admin/members
 List all members with pagination and filtering.
-- Query params: `limit`, `offset`, `filters[is_active]`
+- Query params: `per_page`, `offset`, `sort`, `order`, `search`
 - Response: PaginatedResultDto<MemberDto>
 
 ### POST /api/admin/members
 Create new member.
 
-### PATCH /api/admin/members/{id}
+### PATCH /api/admin/members/{memberId}
 Update member.
 
-### DELETE /api/admin/members/{id}
-Delete member.
-
-### POST /api/admin/members/{id}/export
-Export member data (GDPR).
-
-### POST /api/admin/members/{id}/anonymize
-Anonymize member data (GDPR).
+### DELETE /api/admin/members/{memberId}
+Delete member (soft delete).
 
 ## Code Organization
 
-- **Controllers**: HTTP request handlers (thin, <50 lines each)
-- **Services**: Business logic
-- **Repositories**: Data access abstraction (Pattern 011)
-- **Requests**: Validation (Pattern 001)
-- **DTOs**: Response objects (Pattern 003)
+- **Controllers**: PSR-7 HTTP handlers (thin, Pattern 006)
+- **Services**: Business logic (Pattern 004)
+- **Repositories**: PDO data access (Pattern 005)
+- **DTOs**: Response objects with fromRow() factory (Pattern 003)
+- **Enums**: Type-safe domain values (Pattern 002)
 
 ## Patterns Used
 
-- Pattern 001: Form Requests for validation
-- Pattern 003: DTOs for responses
+- Pattern 001: Custom Validator for input validation
+- Pattern 003: DTOs with fromRow() for PDO row conversion
 - Pattern 004: Service Layer for business logic
-- Pattern 006: Thin Controllers
-- Pattern 011: Repository Interface for data access
+- Pattern 005: Repository for PDO data access
+- Pattern 006: Thin Controllers (PSR-7)
+- Pattern 008: ServiceFactory for dependency wiring
 ```
 
 ---
@@ -537,14 +548,14 @@ Anonymize member data (GDPR).
 
 If migrating existing flat code to modules:
 
-1. Create module directory structure
+1. Create module directory structure under `src/Modules/{ModuleName}/`
 2. Move controllers to `Modules/{Entity}/Controllers/`
 3. Move services to `Modules/{Entity}/Services/`
-4. Move form requests to `Modules/{Entity}/Requests/`
+4. Move repositories to `Modules/{Entity}/Repositories/`
 5. Move DTOs to `Modules/{Entity}/DTOs/`
-6. Create route files in `Modules/{Entity}/routes/`
-7. Update route aggregation in `routes/api.php`
-8. Update autoloading if necessary (PSR-4 namespacing should handle it)
+6. Add routes to `src/routes.php`
+7. Wire dependencies in `src/ServiceFactory.php` (Pattern 008)
+8. Update PSR-4 autoloading namespace in `composer.json` if necessary
 
 ---
 
@@ -567,17 +578,18 @@ If migrating existing flat code to modules:
 
 ### Mitigations
 
-1. **Create module scaffolding script** to auto-generate directory structure
-2. **Extract common CRUD to BaseService** (Pattern 010)
-3. **Use IDE shortcuts** (Go to Definition, cmd+p) to navigate deep hierarchies
-4. **Document module checklist** for consistency across new modules
+1. **Extract common CRUD to BaseService** (Pattern 010)
+2. **Use IDE shortcuts** (Go to Definition, cmd+p) to navigate deep hierarchies
+3. **Document module checklist** for consistency across new modules
 
 ---
 
 ## See Also
 
 - **ADR-0018**: Modular Admin Interface Architecture (architectural decision)
-- **Pattern 010**: Shared Base Service Layer (extracting common logic)
-- **Pattern 011**: Repository Interface Pattern (data access abstraction)
 - **Pattern 004**: Service Layer (business logic organization)
-- **Pattern 006**: Thin Controllers (HTTP request handlers)
+- **Pattern 005**: Repository (PDO data access)
+- **Pattern 006**: Thin Controllers (PSR-7 HTTP request handlers)
+- **Pattern 008**: ServiceFactory (dependency injection)
+- **Pattern 010**: Shared Base Service Layer (extracting common logic)
+- **Pattern 011**: Shared Base Repository (common data access patterns)

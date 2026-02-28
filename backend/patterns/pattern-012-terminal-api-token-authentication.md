@@ -36,54 +36,55 @@ The Ruderbar system includes offline-capable Terminal devices (Electron POS) tha
 ### Token Generation Service
 
 ```php
-// app/Shared/Services/TokenService.php
-namespace App\Shared\Services;
-
-use Exception;
+// src/Modules/Auth/Services/TokenService.php
+namespace App\Modules\Auth\Services;
 
 /**
  * Service for generating and validating terminal API tokens.
  *
  * Implements ADR-0015: Device-level Terminal Authentication
  * - Generates cryptographically secure tokens (64-char hex, 256 bits)
- * - Stores tokens as bcrypt hashes (irreversible)
+ * - Stores tokens as SHA-256 hashes (irreversible, O(1) lookup)
  * - Used exclusively for device authentication (not user auth)
  */
-final class TokenService
+class TokenService
 {
+    private const BCRYPT_COST = 12;
+    private const TOKEN_ENTROPY_BYTES = 32;
+
     /**
      * Generate a new terminal API token.
      *
      * **IMPORTANT**: Token is displayed to admin ONCE during pairing.
-     * Server stores only bcrypt hash. Lost tokens cannot be recovered;
+     * Server stores only SHA-256 hash. Lost tokens cannot be recovered;
      * admin must generate new token.
      *
      * @return string 64-character hex string (256 bits)
-     * @throws Exception
      */
     public static function generateTerminalToken(): string
     {
-        return bin2hex(random_bytes(32));  // 32 bytes = 256 bits = 64 hex chars
+        return bin2hex(random_bytes(self::TOKEN_ENTROPY_BYTES));
     }
 
     /**
      * Hash token for storage in database.
      *
-     * Uses bcrypt with cost factor 12 (higher cost than passwords
-     * since tokens are long and random, brute force infeasible).
+     * Uses SHA-256 for O(1) database lookup (indexed hash column).
+     * Token entropy (256 bits) makes brute force infeasible.
      *
      * @param string $plainToken 64-char hex token
-     * @return string bcrypt hash
+     * @return string SHA-256 hex hash (64 chars)
      */
     public static function hashToken(string $plainToken): string
     {
-        return password_hash($plainToken, PASSWORD_BCRYPT, ['cost' => 12]);
+        return hash('sha256', $plainToken);
     }
 
     /**
      * Validate plaintext token against stored hash.
      *
-     * Uses password_verify (constant-time comparison).
+     * Uses hash_equals (constant-time comparison) for SHA-256.
+     * Falls back to password_verify for legacy bcrypt hashes.
      *
      * @param string $plainToken Token from Authorization header
      * @param string $storedHash Hash from database
@@ -91,6 +92,11 @@ final class TokenService
      */
     public static function verifyToken(string $plainToken, string $storedHash): bool
     {
+        // New format: SHA256 hex (64 chars)
+        if (strlen($storedHash) === 64 && !str_starts_with($storedHash, '$2y$')) {
+            return hash_equals(hash('sha256', $plainToken), $storedHash);
+        }
+        // Legacy bcrypt (pre-migration terminals)
         return password_verify($plainToken, $storedHash);
     }
 }
@@ -99,154 +105,125 @@ final class TokenService
 ### Middleware: Terminal Token Validation
 
 ```php
-// app/Http/Middleware/AuthenticateTerminalToken.php
-namespace App\Http\Middleware;
+// src/Modules/Auth/Middleware/TerminalTokenAuth.php
+namespace App\Modules\Auth\Middleware;
 
-use App\Http\Exceptions\UnauthorizedException;
-use App\Models\Terminal;
-use App\Shared\Services\TokenService;
-use Closure;
-use Illuminate\Http\Request;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use App\Modules\Terminals\Repositories\TerminalsRepository;
+use App\Modules\Auth\Services\TokenService;
+use Slim\Psr7\Response;
 
 /**
- * Middleware for authenticating Terminal API requests via Bearer token.
+ * PSR-15 Middleware for authenticating Terminal API requests via Bearer token.
  *
  * Validates:
  * - Authorization header present
  * - Format: "Bearer <token>"
- * - Token matches stored terminal hash
+ * - Token matches stored terminal hash (SHA-256, O(1) DB lookup)
  * - Terminal is not revoked
  *
  * Implements ADR-0015 Device-level Terminal Authentication
  */
-final class AuthenticateTerminalToken
+class TerminalTokenAuth implements MiddlewareInterface
 {
+    public function __construct(private TerminalsRepository $terminalsRepository) {}
+
     /**
-     * Authenticate terminal request.
+     * Authenticate terminal request (PSR-15).
      *
-     * On success: Attaches terminal to request for use in controllers
-     * On failure: Throws UnauthorizedException (401)
-     *
-     * @param Request $request
-     * @param Closure $next
-     * @return mixed
-     * @throws UnauthorizedException
+     * On success: Attaches terminal data to request attributes
+     * On failure: Returns 401 JSON response
      */
-    public function handle(Request $request, Closure $next)
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         // 1. Extract Bearer token from Authorization header
-        $token = $this->extractToken($request);
-
-        if (!$token) {
-            throw new UnauthorizedException(
-                'Missing Authorization header',
-                'authorization_header_missing'
-            );
+        $authHeader = $request->getHeaderLine('Authorization');
+        if (empty($authHeader)) {
+            return $this->unauthorized('authorization_header_missing', 'Authorization header required');
         }
 
-        // 2. Find terminal by token hash
+        if (!str_starts_with($authHeader, 'Bearer ')) {
+            return $this->unauthorized('invalid_authorization_format', 'Expected Bearer token');
+        }
+
+        $token = substr($authHeader, 7);
+
+        // 2. Find terminal by token hash (O(1) SHA-256 lookup)
         $terminal = $this->findTerminalByToken($token);
 
         if (!$terminal) {
-            throw new UnauthorizedException(
-                'Invalid or revoked terminal token',
-                'invalid_terminal_token'
-            );
+            return $this->unauthorized('invalid_terminal_token', 'Invalid terminal token');
         }
 
         // 3. Check terminal is active
-        if (!$terminal->is_active) {
-            throw new UnauthorizedException(
-                'Terminal is inactive',
-                'terminal_inactive'
-            );
+        if (!(bool) $terminal['is_active']) {
+            return $this->unauthorized('terminal_inactive', 'Terminal is inactive');
         }
 
-        // 4. Attach terminal to request for controller use
-        $request->setTerminal($terminal);
+        // 4. Update last sync timestamp
+        $this->terminalsRepository->updateLastSync($terminal['id']);
 
-        return $next($request);
+        // 5. Attach terminal data to request attributes
+        $request = $request->withAttribute('terminal_id', $terminal['id']);
+        $request = $request->withAttribute('terminal', $terminal);
+
+        return $handler->handle($request);
     }
 
     /**
-     * Extract Bearer token from Authorization header.
+     * Find terminal by SHA-256 hash of token.
      *
-     * Format: "Authorization: Bearer <token>"
-     *
-     * @param Request $request
-     * @return string|null Token (no "Bearer " prefix) or null
-     */
-    private function extractToken(Request $request): ?string
-    {
-        $header = $request->header('Authorization');
-
-        if (!$header || !str_starts_with($header, 'Bearer ')) {
-            return null;
-        }
-
-        return substr($header, 7);  // Remove "Bearer " prefix
-    }
-
-    /**
-     * Find terminal by matching token against all terminal hashes.
-     *
-     * Linear search is safe because:
-     * - Small number of terminals per deployment
-     * - password_verify uses constant-time comparison
-     * - No timing leak about token validity
+     * Uses direct DB lookup (O(1)) instead of iterating all terminals.
+     * SHA-256 hash is indexed in the database for fast lookups.
      *
      * @param string $plainToken 64-char hex token from request
-     * @return Terminal|null
+     * @return array|null Terminal row as associative array
      */
-    private function findTerminalByToken(string $plainToken): ?Terminal
+    private function findTerminalByToken(string $plainToken): ?array
     {
-        $terminals = Terminal::all();  // Small set in practice
+        $sha256 = TokenService::hashToken($plainToken);
+        return $this->terminalsRepository->findByTokenHash($sha256);
+    }
 
-        foreach ($terminals as $terminal) {
-            if (TokenService::verifyToken($plainToken, $terminal->api_token_hash)) {
-                return $terminal;
-            }
-        }
-
-        return null;
+    /**
+     * Return 401 JSON error response.
+     */
+    private function unauthorized(string $code, string $message): ResponseInterface
+    {
+        $response = new Response(401);
+        $response->getBody()->write(json_encode(['error' => $code, 'message' => $message]));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 }
 ```
 
-### Request Macro for Terminal Access
+### Accessing Terminal Data in Controllers
+
+PSR-7 `ServerRequestInterface` uses `withAttribute()` / `getAttribute()` to pass data between middleware and controllers. No macros or service providers are needed.
 
 ```php
-// In service provider (e.g., AppServiceProvider.php)
-namespace App\Providers;
+// Middleware attaches terminal data:
+$request = $request->withAttribute('terminal_id', $terminal['id']);
+$request = $request->withAttribute('terminal', $terminal);
 
-use Illuminate\Support\ServiceProvider;
-
-class AppServiceProvider extends ServiceProvider
-{
-    public function boot(): void
-    {
-        // Allow controllers to access authenticated terminal
-        \Illuminate\Http\Request::macro('terminal', function () {
-            return $this->attributes['terminal'] ?? null;
-        });
-
-        \Illuminate\Http\Request::macro('setTerminal', function ($terminal) {
-            $this->attributes['terminal'] = $terminal;
-            return $this;
-        });
-    }
-}
+// Controller reads terminal data:
+$terminalId = $request->getAttribute('terminal_id');
+$terminal = $request->getAttribute('terminal');
 ```
 
 ### Usage in Controller
 
 ```php
-// app/Http/Modules/Members/Controllers/SyncController.php
-namespace App\Http\Modules\Members\Controllers;
+// src/Modules/Members/Controllers/SyncController.php
+namespace App\Modules\Members\Controllers;
 
-use App\Http\Modules\Members\Requests\SyncRequest;
-use App\Http\Modules\Members\Services\MembersService;
-use Illuminate\Http\JsonResponse;
+use App\Modules\Members\Services\MembersService;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Slim\Psr7\Response;
 
 /**
  * Terminal Sync API endpoints.
@@ -254,7 +231,7 @@ use Illuminate\Http\JsonResponse;
  * All endpoints require terminal device authentication (Bearer token).
  * Pattern 012: Terminal API Token Authentication
  */
-final class SyncController extends Controller
+final class SyncController
 {
     public function __construct(private readonly MembersService $service) {}
 
@@ -262,68 +239,72 @@ final class SyncController extends Controller
      * GET /api/sync/members - Delta sync members for terminal
      *
      * Protected by:
-     * - Pattern 012: AuthenticateTerminalToken middleware
+     * - Pattern 012: TerminalTokenAuth middleware
      * - Terminal must present valid Bearer token
-     *
-     * @param SyncRequest $request
-     * @return JsonResponse
      */
-    public function index(SyncRequest $request): JsonResponse
+    public function index(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        // Access authenticated terminal from request
-        $terminal = $request->terminal();
+        // Access authenticated terminal from request attributes
+        $terminalId = $request->getAttribute('terminal_id');
 
-        // Log sync operation (optional, for audit trail)
-        // AuditLogger::log('TERMINAL_SYNC', $terminal->id, 'GET /api/sync/members');
+        $params = $request->getQueryParams();
+        $since = isset($params['since']) ? (int) $params['since'] : 0;
 
-        $result = $this->service->syncSince($request->since());
-        return response()->json($result->toResponse('members'));
+        $result = $this->service->syncSince($since);
+
+        $response->getBody()->write(json_encode($result));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 }
 ```
 
-### Route Configuration with Middleware
+### Route Configuration with Middleware (Slim 4)
 
 ```php
-// app/Http/Modules/Members/routes/terminal.php
-use App\Http\Middleware\AuthenticateTerminalToken;
-use App\Http\Modules\Members\Controllers\SyncController;
-use Illuminate\Support\Facades\Route;
+// src/routes.php
+use App\Modules\Auth\Middleware\TerminalTokenAuth;
+use App\Modules\Members\Controllers\SyncController as MembersSyncController;
+use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncController;
+use Slim\App;
+use Slim\Routing\RouteCollectorProxy;
 
 /**
  * Terminal Sync API routes.
  *
  * Protected by:
- * - Pattern 012: Terminal Bearer token authentication
- * - Terminal::api_token_hash validation
+ * - Pattern 012: TerminalTokenAuth middleware (PSR-15)
+ * - SHA-256 token hash validation
  * - Active terminal status check
  */
-Route::prefix('sync')
-    ->middleware([AuthenticateTerminalToken::class])
-    ->group(function () {
-        Route::get('/members', [SyncController::class, 'index']);
-        Route::patch('/members/{memberId}/language', [SyncController::class, 'updateLanguage']);
-        Route::post('/transactions', [SyncController::class, 'transactions']);
-    });
+$app->group('/api/sync', function (RouteCollectorProxy $group) {
+    $group->get('/members', [MembersSyncController::class, 'index']);
+    $group->patch('/members/{memberId}/language', [MembersSyncController::class, 'updateLanguage']);
+    $group->post('/transactions', [TransactionsSyncController::class, 'processBatch']);
+})->add(TerminalTokenAuth::class);
 ```
 
 ### Terminal Pairing Workflow (Admin Panel)
 
 ```php
-// app/Http/Modules/Terminals/Controllers/AdminController.php
-namespace App\Http\Modules\Terminals\Controllers;
+// src/Modules/Terminals/Controllers/AdminController.php
+namespace App\Modules\Terminals\Controllers;
 
-use App\Models\Terminal;
-use App\Shared\Services\TokenService;
-use Illuminate\Http\JsonResponse;
+use App\Modules\Terminals\Services\TerminalsService;
+use App\Modules\Auth\Services\TokenService;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Terminal management for admin panel.
  *
  * Includes token generation during terminal pairing.
  */
-final class TerminalsAdminController extends Controller
+final class AdminController
 {
+    public function __construct(
+        private readonly TerminalsService $terminalsService,
+    ) {}
+
     /**
      * POST /api/admin/terminals - Create new terminal and generate API token
      *
@@ -334,96 +315,92 @@ final class TerminalsAdminController extends Controller
      *
      * IMPORTANT: Token is NOT stored again. Admin must save it.
      * Lost tokens require token rotation.
-     *
-     * @return JsonResponse
      */
-    public function create(CreateTerminalRequest $request): JsonResponse
+    public function store(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
+        $body = $request->getParsedBody();
+
         // 1. Generate cryptographically secure token
         $plainToken = TokenService::generateTerminalToken();
 
-        // 2. Store hash in database (token itself never stored)
-        $terminal = Terminal::create([
-            'name' => $request->name(),
-            'device_id' => $request->deviceId(),
+        // 2. Create terminal with hashed token via repository (PDO)
+        $terminal = $this->terminalsService->create([
+            'name' => $body['name'],
+            'device_id' => $body['device_id'],
             'api_token_hash' => TokenService::hashToken($plainToken),
             'is_active' => true,
         ]);
 
         // 3. Return plaintext token (admin must save it)
         // This is the ONLY time the plaintext token is shown
-        return response()->json([
+        $response->getBody()->write(json_encode([
             'terminal' => [
-                'id' => $terminal->id,
-                'name' => $terminal->name,
-                'device_id' => $terminal->device_id,
-                'created_at' => $terminal->created_at->toIso8601String(),
+                'id' => $terminal['id'],
+                'name' => $terminal['name'],
+                'device_id' => $terminal['device_id'],
+                'created_at' => $terminal['created_at'],
             ],
-            'api_token' => $plainToken,  // ← PLAINTEXT, shown once
+            'api_token' => $plainToken,  // PLAINTEXT, shown once
             'message' => 'Save this token! It cannot be recovered. Paste it in terminal configuration.',
-        ], 201);
+        ]));
+        return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
     }
 
     /**
-     * POST /api/admin/terminals/{id}/rotate-token - Rotate terminal token
+     * POST /api/admin/terminals/{terminalId}/rotate-token - Rotate terminal token
      *
      * Invalidates old token and generates new one.
-     * Useful for:
-     * - Lost tokens
-     * - Token rotation policy
-     * - Compromised token
-     *
-     * @param string $terminalId
-     * @return JsonResponse
+     * Useful for: lost tokens, rotation policy, compromised token.
      */
-    public function rotateToken(string $terminalId): JsonResponse
+    public function rotateToken(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        $terminal = Terminal::findOrFail($terminalId);
+        $terminalId = $args['terminalId'];
 
         // 1. Generate new token
         $plainToken = TokenService::generateTerminalToken();
 
-        // 2. Update hash (old token becomes invalid)
-        $terminal->update([
+        // 2. Update hash via repository (old token becomes invalid)
+        $this->terminalsService->updateById($terminalId, [
             'api_token_hash' => TokenService::hashToken($plainToken),
         ]);
 
+        $terminal = $this->terminalsService->findById($terminalId);
+
         // 3. Return new plaintext token
-        return response()->json([
+        $response->getBody()->write(json_encode([
             'api_token' => $plainToken,
             'message' => 'Token rotated. Old token is now invalid.',
             'terminal' => [
-                'id' => $terminal->id,
-                'name' => $terminal->name,
+                'id' => $terminal['id'],
+                'name' => $terminal['name'],
             ],
-        ]);
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 
     /**
-     * POST /api/admin/terminals/{id}/revoke - Revoke terminal access
+     * POST /api/admin/terminals/{terminalId}/revoke - Revoke terminal access
      *
      * Invalidates token without generating replacement.
      * Used when decommissioning a terminal.
      *
      * Terminal will get 401 on next sync attempt.
-     *
-     * @param string $terminalId
-     * @return JsonResponse
      */
-    public function revoke(string $terminalId): JsonResponse
+    public function revoke(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        $terminal = Terminal::findOrFail($terminalId);
+        $terminalId = $args['terminalId'];
 
-        // Invalidate token (set to impossible value)
-        $terminal->update([
+        // Invalidate token (set to null, deactivate)
+        $this->terminalsService->updateById($terminalId, [
             'api_token_hash' => null,
             'is_active' => false,
         ]);
 
-        return response()->json([
+        $response->getBody()->write(json_encode([
             'status' => 'revoked',
-            'terminal_id' => $terminal->id,
-        ]);
+            'terminal_id' => $terminalId,
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 }
 ```

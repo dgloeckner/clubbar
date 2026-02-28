@@ -112,22 +112,25 @@ The card UID is stored as plaintext in the database because:
 // No authentication happens; card UID is just an identifier
 ```
 
-### Backend: Member Lookup by Card UID
+### Backend: Member Lookup by Card UID (PDO Repository)
 
 ```php
-// app/Http/Modules/Members/Repositories/MembersRepository.php
-namespace App\Http\Modules\Members\Repositories;
+// src/Modules/Members/Repositories/MembersRepository.php
+namespace App\Modules\Members\Repositories;
 
-use App\Models\Member;
-use Illuminate\Database\Eloquent\Collection;
+use PDO;
 
 /**
- * Members repository with card UID lookup.
+ * Members repository with card UID lookup (PDO, raw SQL).
+ *
+ * Returns associative arrays, not model objects.
  *
  * Implements Pattern 014: RFID Member Identification
  */
-final class MembersRepository extends BaseRepository
+class MembersRepository
 {
+    public function __construct(private PDO $db) {}
+
     /**
      * Find member by RFID card UID.
      *
@@ -140,40 +143,39 @@ final class MembersRepository extends BaseRepository
      * identification only, not authentication.
      *
      * @param string $cardUid RFID card UID (visible on card)
-     * @return Member|null
+     * @return array|null Member row as associative array
      */
-    public function findByCardUid(string $cardUid): ?Member
+    public function findByCardUid(string $cardUid): ?array
     {
-        return $this->query()
-            ->where('card_uid', $cardUid)
-            ->where('is_active', true)  // Can't use inactive member's card
-            ->first();
+        $stmt = $this->db->prepare(
+            'SELECT * FROM members WHERE card_uid = ? AND is_active = 1 AND deleted_at IS NULL'
+        );
+        $stmt->execute([$cardUid]);
+        return $stmt->fetch() ?: null;
     }
 
     /**
      * Find members by multiple card UIDs.
      *
-     * Used for:
-     * - Batch transaction processing
-     * - Reconciliation reports
+     * Used for batch transaction processing and reconciliation reports.
      *
      * @param array $cardUids
-     * @return Collection
+     * @return array List of member rows
      */
-    public function findByCardUids(array $cardUids): Collection
+    public function findByCardUids(array $cardUids): array
     {
-        return $this->query()
-            ->whereIn('card_uid', $cardUids)
-            ->where('is_active', true)
-            ->get();
+        $placeholders = implode(',', array_fill(0, count($cardUids), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT * FROM members WHERE card_uid IN ({$placeholders}) AND is_active = 1 AND deleted_at IS NULL"
+        );
+        $stmt->execute($cardUids);
+        return $stmt->fetchAll();
     }
 
     /**
      * Check if card UID is already used by another member.
      *
-     * Used for validation:
-     * - Prevent duplicate card UIDs
-     * - Detect card reassignment
+     * Used for validation: prevent duplicate card UIDs, detect card reassignment.
      *
      * @param string $cardUid
      * @param string|null $excludeMemberId Member to exclude (for updates)
@@ -181,13 +183,18 @@ final class MembersRepository extends BaseRepository
      */
     public function cardUidExists(string $cardUid, ?string $excludeMemberId = null): bool
     {
-        $query = $this->query()->where('card_uid', $cardUid);
-
         if ($excludeMemberId) {
-            $query = $query->where('id', '!=', $excludeMemberId);
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) FROM members WHERE card_uid = ? AND id != ? AND deleted_at IS NULL'
+            );
+            $stmt->execute([$cardUid, $excludeMemberId]);
+        } else {
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) FROM members WHERE card_uid = ? AND deleted_at IS NULL'
+            );
+            $stmt->execute([$cardUid]);
         }
-
-        return $query->exists();
+        return (int) $stmt->fetchColumn() > 0;
     }
 }
 ```
@@ -197,15 +204,17 @@ final class MembersRepository extends BaseRepository
 ## Transaction Processing with Card UID
 
 ```php
-// app/Http/Modules/Members/Services/MembersService.php
-namespace App\Http\Modules\Members\Services;
+// src/Modules/Members/Services/MembersService.php
+namespace App\Modules\Members\Services;
+
+use App\Modules\Members\Repositories\MembersRepository;
 
 /**
  * Members service including card identification for transactions.
  *
  * Implements Pattern 014: RFID Member Identification
  */
-final class MembersService extends BaseService
+final class MembersService
 {
     /**
      * Identify member by card UID for transaction processing.
@@ -221,10 +230,10 @@ final class MembersService extends BaseService
      * 4. If not found: Transaction is invalid
      *
      * @param string $cardUid RFID card UID from terminal
-     * @return Member Identified member
+     * @return array Identified member row as associative array
      * @throws MemberNotFoundException Card not recognized or member inactive
      */
-    public function identifyMemberByCard(string $cardUid): Member
+    public function identifyMemberByCard(string $cardUid): array
     {
         $member = $this->repository->findByCardUid($cardUid);
 
@@ -273,8 +282,8 @@ final class MembersService extends BaseService
 ## Transaction Upload with Card Identification
 
 ```php
-// app/Http/Modules/Transactions/Services/TransactionService.php
-namespace App\Http\Modules\Transactions\Services;
+// src/Modules/Transactions/Services/TransactionsService.php
+namespace App\Modules\Transactions\Services;
 
 /**
  * Process uploaded transactions from terminals.
@@ -283,7 +292,7 @@ namespace App\Http\Modules\Transactions\Services;
  *
  * Implements Pattern 014: RFID Member Identification
  */
-final class TransactionService
+final class TransactionsService
 {
     public function __construct(
         private readonly MembersService $membersService,
@@ -333,7 +342,7 @@ final class TransactionService
                     'card_uid' => $cardUid,          // ← Identifies member (not secret)
                     'amount' => $amount,
                     'status' => 'completed',
-                    'processed_at' => now(),
+                    'processed_at' => date('Y-m-d H:i:s'),
                 ]);
 
                 $results[] = [
@@ -370,48 +379,31 @@ final class TransactionService
 
 ---
 
-## FormRequest Validation for Card UID
+## Input Validation for Card UID (Custom Validator)
 
 ```php
-// app/Http/Modules/Members/Requests/CreateMemberRequest.php
-namespace App\Http\Modules\Members\Requests;
+// Validation is done in the controller using the custom Validator class.
+// No FormRequest; the project uses App\Shared\Validation\Validator (PDO-backed).
 
-use Illuminate\Foundation\Http\FormRequest;
+// In MembersAdminController::store():
+$body = $request->getParsedBody();
+$validator = new Validator($this->pdo);
+$valid = $validator->validate($body, [
+    'first_name' => ['required', 'string', 'max:100'],
+    'last_name'  => ['required', 'string', 'max:100'],
+    'email'      => ['required', 'email', 'max:255'],
+    'phone'      => ['nullable', 'string', 'max:20'],
+    'card_uid'   => ['required', 'string', 'regex:/^[A-F0-9]{8,12}$/i', 'unique:members,card_uid'],
+    'preferred_language' => ['nullable', 'in:de,en,fr,it'],
+]);
 
-/**
- * Create member form request (Pattern 001).
- *
- * Validates card_uid field for RFID identification.
- *
- * Implements Pattern 014: RFID Member Identification
- */
-class CreateMemberRequest extends FormRequest
-{
-    public function rules(): array
-    {
-        return [
-            'first_name' => 'required|string|max:100',
-            'last_name' => 'required|string|max:100',
-            'email' => 'required|email|max:255',
-            'phone' => 'nullable|string|max:20',
-            'card_uid' => 'required|string|regex:/^[A-F0-9]{8,12}$/i|unique:members',
-            'preferred_language' => 'nullable|in:de,en,fr,it',
-        ];
-    }
-
-    public function messages(): array
-    {
-        return [
-            'card_uid.regex' => 'Card UID must be 8-12 hexadecimal characters',
-            'card_uid.unique' => 'This card UID is already assigned to another member',
-        ];
-    }
-
-    public function cardUid(): string
-    {
-        return strtoupper($this->validated('card_uid'));  // Normalize to uppercase
-    }
+if (!$valid) {
+    $response->getBody()->write(json_encode(['errors' => $validator->errors()]));
+    return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
 }
+
+// Normalize card_uid to uppercase
+$cardUid = strtoupper($body['card_uid']);
 ```
 
 ---
@@ -419,11 +411,13 @@ class CreateMemberRequest extends FormRequest
 ## Reconciliation: Card UID Audit Trail
 
 ```php
-// app/Http/Modules/Transactions/Services/ReconciliationService.php
-namespace App\Http\Modules\Transactions\Services;
+// src/Modules/Transactions/Repositories/TransactionsRepository.php
+namespace App\Modules\Transactions\Repositories;
+
+use PDO;
 
 /**
- * Reconciliation service for auditing transactions.
+ * Transactions repository for auditing and reconciliation (PDO).
  *
  * Uses card_uid to trace member spending for:
  * - Settlement billing
@@ -432,38 +426,32 @@ namespace App\Http\Modules\Transactions\Services;
  *
  * Implements Pattern 014: RFID Member Identification
  */
-final class ReconciliationService
+class TransactionsRepository
 {
+    public function __construct(private PDO $db) {}
+
     /**
      * Get member spending for settlement period.
      *
-     * Aggregates all transactions linked by card_uid → member_id.
+     * Aggregates all transactions linked by member_id.
      *
      * @param string $memberId
-     * @param DateTime $startDate
-     * @param DateTime $endDate
-     * @return MemberSettlementDto
+     * @param string $startDate Y-m-d format
+     * @param string $endDate Y-m-d format
+     * @return array List of transaction rows
      */
-    public function getMemberSettlement(
+    public function findByMemberAndDateRange(
         string $memberId,
-        DateTime $startDate,
-        DateTime $endDate,
-    ): MemberSettlementDto {
-        $transactions = Transaction::where('member_id', $memberId)
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->orderBy('created_at')
-            ->get();
-
-        $totalAmount = $transactions->sum('amount');
-
-        return new MemberSettlementDto(
-            member_id: $memberId,
-            period_start: $startDate,
-            period_end: $endDate,
-            transaction_count: $transactions->count(),
-            total_amount: $totalAmount,
-            transactions: $transactions,
+        string $startDate,
+        string $endDate,
+    ): array {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM transactions
+             WHERE member_id = ? AND created_at BETWEEN ? AND ?
+             ORDER BY created_at'
         );
+        $stmt->execute([$memberId, $startDate, $endDate]);
+        return $stmt->fetchAll();
     }
 
     /**
@@ -476,14 +464,19 @@ final class ReconciliationService
      * - GDPR access requests
      *
      * @param string $cardUid
-     * @return Collection Transactions in chronological order
+     * @return array Transactions in reverse chronological order
      */
-    public function getCardTransactionHistory(string $cardUid): Collection
+    public function findByCardUid(string $cardUid): array
     {
-        return Transaction::where('card_uid', $cardUid)
-            ->orderBy('created_at', 'desc')
-            ->with('member')  // Include member details
-            ->get();
+        $stmt = $this->db->prepare(
+            'SELECT t.*, m.first_name, m.last_name
+             FROM transactions t
+             LEFT JOIN members m ON t.member_id = m.id
+             WHERE t.card_uid = ?
+             ORDER BY t.created_at DESC'
+        );
+        $stmt->execute([$cardUid]);
+        return $stmt->fetchAll();
     }
 }
 ```
@@ -589,14 +582,15 @@ Complements:
 // tests/Unit/Services/MembersServiceTest.php
 public function test_identifyMemberByCard_returns_member_for_valid_card()
 {
-    $member = Member::factory()->create(['card_uid' => '12345678']);
+    // Insert test member via PDO
+    $this->insertTestMember('member-1', '12345678');
     $identified = $this->membersService->identifyMemberByCard('12345678');
-    $this->assertEquals($member->id, $identified->id);
+    $this->assertEquals('member-1', $identified['id']);
 }
 
 public function test_identifyMemberByCard_throws_for_inactive_member()
 {
-    Member::factory()->create(['card_uid' => '12345678', 'is_active' => false]);
+    $this->insertTestMember('member-1', '12345678', isActive: false);
     $this->expectException(MemberNotFoundException::class);
     $this->membersService->identifyMemberByCard('12345678');
 }
@@ -620,7 +614,7 @@ public function test_validateCardUid_fails_for_invalid_format()
 
 public function test_validateCardUid_fails_for_duplicate()
 {
-    Member::factory()->create(['card_uid' => '12345678']);
+    $this->insertTestMember('member-1', '12345678');
     $this->expectException(ValidationException::class);
     $this->membersService->validateCardUid('12345678');
 }

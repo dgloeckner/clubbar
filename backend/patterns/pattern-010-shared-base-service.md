@@ -36,80 +36,65 @@ This leads to:
 ### Base Service for CRUD Operations
 
 ```php
-// app/Shared/Services/BaseService.php
+// src/Shared/Services/BaseService.php
 namespace App\Shared\Services;
 
 use App\Shared\DTOs\PaginatedResultDto;
-use App\Shared\Repositories\BaseRepository;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
+use App\Shared\Exceptions\NotFoundException;
 
 /**
  * Abstract base service for standard CRUD operations.
  *
  * Modules extend this for entity-specific services (MembersService, ProductsService, etc.).
  * Provides common patterns:
- * - Pagination with filtering
+ * - Pagination with filtering (delegated to repository)
  * - Error handling (NotFoundException)
  * - DTO transformation
  *
  * Implements Pattern 004: Service Layer
+ *
+ * Note: Repositories use PDO with raw SQL (prepared statements).
+ * Entities are plain associative arrays, not ORM model objects.
  */
 abstract class BaseService
 {
     /**
-     * Constructor receives repository (injected by service provider).
-     * Repository implements Pattern 011: Repository Interface.
+     * Constructor receives repository (injected by ServiceFactory).
+     * Repository implements Pattern 011: Base Repository.
      */
     public function __construct(
-        protected readonly BaseRepository $repository,
+        protected readonly object $repository,
     ) {}
 
     /**
      * List entities with pagination and filtering.
      *
-     * Common use cases:
-     * - Terminal: Sync entities modified since timestamp
-     * - Admin: List paginated with filters
+     * Delegates to repository's listPaginated() method which builds
+     * the SQL query with WHERE clauses, ORDER BY, LIMIT/OFFSET.
      *
      * @param int $limit Records per page (default 50)
      * @param int $offset Pagination offset (default 0)
-     * @param array $filters Optional key-value pairs: ['is_active' => true, 'category' => 'bar']
-     * @param ?int $since Optional Unix timestamp for delta sync (modified_at >= since)
+     * @param array $filters Optional key-value pairs: ['is_active' => true, 'category_id' => '...']
+     * @param string $sortKey Column to sort by (default 'created_at')
+     * @param string $sortOrder Sort direction: 'asc' or 'desc'
      * @return PaginatedResultDto
      */
     public function listWithPagination(
         int $limit = 50,
         int $offset = 0,
         array $filters = [],
-        ?int $since = null,
+        string $sortKey = 'created_at',
+        string $sortOrder = 'desc',
     ): PaginatedResultDto {
-        // Build query
-        $query = $this->repository->query();
+        // Repository handles SQL building, filtering, pagination via PDO
+        $result = $this->repository->listPaginated($limit, $offset, $filters, $sortKey, $sortOrder);
 
-        // Apply timestamp filter for delta sync
-        if ($since !== null) {
-            $query = $query->where('updated_at', '>=', $this->timestampToDateTime($since));
-        }
-
-        // Apply custom filters (delegated to module-specific service)
-        $query = $this->applyFilters($query, $filters);
-
-        // Count total before pagination
-        $total = $query->count();
-
-        // Apply pagination
-        $entities = $query
-            ->limit($limit)
-            ->offset($offset)
-            ->get();
-
-        // Transform to DTOs (delegated to module-specific service)
-        $dtos = $this->transformCollection($entities);
+        // Transform rows (associative arrays) to DTOs
+        $items = array_map(fn(array $row) => $this->transform($row)->toArray(), $result['items']);
 
         return new PaginatedResultDto(
-            items: $dtos,
-            total: $total,
+            items: $items,
+            total: $result['total'],
             limit: $limit,
             offset: $offset,
         );
@@ -125,25 +110,25 @@ abstract class BaseService
      */
     public function findById(string $id): object
     {
-        $entity = $this->repository->findById($id);
+        $row = $this->repository->findById($id);
 
-        if (!$entity) {
-            throw new NotFoundException("Entity not found: {$id}");
+        if (!$row) {
+            throw NotFoundException::forResource($this->getEntityName(), $id);
         }
 
-        return $this->transform($entity);
+        return $this->transform($row);
     }
 
     /**
      * Create new entity.
      *
-     * @param array $validated Validated input (from FormRequest)
+     * @param array $validated Validated input (from Validator)
      * @return object DTO
      */
     public function create(array $validated): object
     {
-        $entity = $this->repository->create($validated);
-        return $this->transform($entity);
+        $row = $this->repository->create($validated);
+        return $this->transform($row);
     }
 
     /**
@@ -156,13 +141,13 @@ abstract class BaseService
      */
     public function update(string $id, array $validated): object
     {
-        $entity = $this->repository->updateById($id, $validated);
+        $row = $this->repository->updateById($id, $validated);
 
-        if (!$entity) {
-            throw new NotFoundException("Entity not found: {$id}");
+        if (!$row) {
+            throw NotFoundException::forResource($this->getEntityName(), $id);
         }
 
-        return $this->transform($entity);
+        return $this->transform($row);
     }
 
     /**
@@ -176,71 +161,58 @@ abstract class BaseService
         $deleted = $this->repository->deleteById($id);
 
         if (!$deleted) {
-            throw new NotFoundException("Entity not found: {$id}");
+            throw NotFoundException::forResource($this->getEntityName(), $id);
         }
     }
 
     /**
-     * Common timestamp conversion: Unix seconds → Carbon DateTime
+     * Common timestamp conversion: Unix milliseconds → MySQL DATETIME string.
      * Used for delta sync queries.
-     */
-    protected function timestampToDateTime(int $unixTimestamp): \DateTime
-    {
-        return \DateTime::createFromFormat('U', (string)$unixTimestamp);
-    }
-
-    /**
-     * Hook for subclasses to apply domain-specific filters.
-     * Override in module-specific service.
      *
-     * Example implementation in MembersService:
-     *   public function applyFilters($query, array $filters) {
-     *       if (isset($filters['is_active'])) {
-     *           $query = $query->where('is_active', $filters['is_active']);
-     *       }
-     *       return $query;
-     *   }
+     * Note: Sync timestamps arrive as milliseconds from the terminal.
      */
-    protected function applyFilters($query, array $filters)
+    protected function timestampToDateTime(int $unixMilliseconds): string
     {
-        // Base implementation: no filters
-        // Subclasses override to implement domain-specific filtering
-        return $query;
+        $seconds = (int) ($unixMilliseconds / 1000);
+        return date('Y-m-d H:i:s', $seconds);
     }
 
     /**
-     * Hook for subclasses to transform single entity to DTO.
+     * Hook for subclasses to transform a single database row to DTO.
      * Must be implemented in module-specific service.
      *
-     * Example in MembersService:
-     *   protected function transform($entity) {
-     *       return MemberDto::from($entity);
-     *   }
+     * @param array $row Associative array from PDO fetch
+     * @return object DTO instance
      */
-    abstract protected function transform(Model $entity): object;
+    abstract protected function transform(array $row): object;
 
     /**
-     * Hook for subclasses to transform collection to DTOs.
-     * Default: map transform() over each entity.
-     * Override in subclass if custom transformation needed.
+     * Hook for subclasses to return the entity name for error messages.
+     * Override in module-specific service.
+     *
+     * @return string e.g., 'Member', 'Product'
      */
-    protected function transformCollection(Collection $entities): array
-    {
-        return $entities->map(fn($entity) => $this->transform($entity))->toArray();
-    }
+    abstract protected function getEntityName(): string;
 }
 ```
 
 ### Module-Specific Service (Members Example)
 
 ```php
-// app/Http/Modules/Members/Services/MembersService.php
-namespace App\Http\Modules\Members\Services;
+// src/Modules/Members/Services/MembersService.php
+namespace App\Modules\Members\Services;
 
-use App\Http\Modules\Members\DTOs\MemberDto;
-use App\Http\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Members\DTOs\MemberDto;
+use App\Modules\Members\DTOs\MemberAdminDto;
+use App\Modules\Members\Enums\SupportedLanguage;
+use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Transactions\Repositories\TransactionsRepository;
+use App\Shared\DTOs\SyncResultDto;
+use App\Shared\Enums\AuditAction;
+use App\Shared\Enums\EntityType;
+use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Services\AuditService;
 use App\Shared\Services\BaseService;
-use Illuminate\Database\Eloquent\Model;
 
 /**
  * Members service: extends BaseService with Members-specific logic.
@@ -253,122 +225,117 @@ use Illuminate\Database\Eloquent\Model;
  * - delete()
  *
  * Implements Members-specific operations:
- * - updateLanguage()
- * - exportGDPR()
- * - anonymize()
+ * - syncSince()         — terminal delta sync
+ * - updateLanguage()    — terminal language preference
+ * - exportMember()      — GDPR data export
+ * - anonymizeMember()   — GDPR Art. 17 anonymization
  */
 final class MembersService extends BaseService
 {
     public function __construct(
         private readonly MembersRepository $membersRepository,
+        private readonly TransactionsRepository $transactionsRepository,
+        private readonly AuditService $auditService,
     ) {
         parent::__construct($membersRepository);
     }
 
     /**
+     * Terminal: Sync members modified since timestamp (delta sync).
+     */
+    public function syncSince(int $since): SyncResultDto
+    {
+        $rows = $this->membersRepository->findModifiedSince($since);
+        $members = array_map(fn($row) => MemberDto::fromRow($row), $rows);
+
+        $cursor = !empty($rows)
+            ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
+            : $since;
+
+        return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
+    }
+
+    /**
      * Terminal: Update member's language preference.
-     *
-     * Members-specific logic: Validate language enum, log audit event.
      */
     public function updateLanguage(string $memberId, SupportedLanguage $language): MemberDto
     {
-        $member = $this->repository->updateById($memberId, [
+        $member = $this->membersRepository->updateById($memberId, [
             'preferred_language' => $language->value,
         ]);
 
         if (!$member) {
-            throw new NotFoundException("Member not found: {$memberId}");
+            throw NotFoundException::forResource('Member', $memberId);
         }
 
-        return MemberDto::from($member);
+        return MemberDto::fromRow($member);
     }
 
     /**
      * Admin: Export member data for GDPR compliance.
      *
-     * Gathers:
-     * - Member profile
-     * - Transaction history
-     * - Booking records
-     *
-     * Returns ZIP file with JSON exports.
+     * Gathers member profile and transaction history.
+     * Returns array suitable for JSON response.
      */
-    public function exportGDPR(string $memberId): GDPRExportDto
+    public function exportMember(string $memberId): array
     {
-        $member = $this->repository->findById($memberId);
-
-        if (!$member) {
-            throw new NotFoundException("Member not found: {$memberId}");
+        $row = $this->membersRepository->findByIdIncludingDeleted($memberId);
+        if (!$row) {
+            throw NotFoundException::forResource('Member', $memberId);
         }
+        $member = MemberAdminDto::fromRow($row);
+        $transactions = $this->transactionsRepository->findByMemberId($memberId, limit: 1000);
 
-        $transactions = $this->repository->getTransactionHistory($memberId);
-        $bookings = $this->repository->getBookingHistory($memberId);
-
-        return new GDPRExportDto(
-            member: MemberDto::from($member),
-            transactions: $transactions,
-            bookings: $bookings,
-            exportedAt: now(),
-        );
+        return [
+            'member' => $member->toArray(),
+            'transactions' => $transactions,
+            'bookings' => [],
+            'export_timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+        ];
     }
 
     /**
      * Admin: Anonymize member data (GDPR Art. 17).
      *
-     * Removes personal data:
-     * - First/last name → "Deleted User"
-     * - Email/phone → NULL
-     * - IBAN → NULL
-     * - Mandate ref → NULL
-     *
-     * Retains for accounting:
-     * - Transaction history (anonymized reference)
-     * - Balance history
+     * Removes personal data (name, email, IBAN, etc.)
+     * Retains transaction history for accounting.
      */
-    public function anonymize(string $memberId): void
+    public function anonymizeMember(string $memberId, ?string $adminUserId = null): MemberAdminDto
     {
-        $member = $this->repository->findById($memberId);
-
-        if (!$member) {
-            throw new NotFoundException("Member not found: {$memberId}");
+        $oldMember = $this->membersRepository->findById($memberId);
+        if (!$oldMember) {
+            throw NotFoundException::forResource('Member', $memberId);
         }
 
-        $this->repository->anonymize($memberId);
+        $this->membersRepository->anonymize($memberId);
+        $member = $this->membersRepository->findByIdIncludingDeleted($memberId);
 
-        // Log audit event: Someone anonymized a member
-        // (See Pattern 013: Audit Logging)
+        $this->auditService->log(
+            action: AuditAction::ANONYMIZE,
+            entityType: EntityType::MEMBER,
+            entityId: $memberId,
+            oldValues: ['first_name' => $oldMember['first_name'], 'last_name' => $oldMember['last_name']],
+            newValues: ['first_name' => 'DELETED', 'last_name' => 'DELETED'],
+            adminUserId: $adminUserId,
+        );
+
+        return MemberAdminDto::fromRow($member);
     }
 
     /**
-     * Apply Members-specific filters to query.
+     * Transform database row to MemberAdminDto.
      * Override of BaseService hook.
      *
-     * Supports: is_active, has_sepa, language
+     * @param array $row Associative array from PDO fetch
      */
-    protected function applyFilters($query, array $filters)
+    protected function transform(array $row): MemberAdminDto
     {
-        if (isset($filters['is_active'])) {
-            $query = $query->where('is_active', $filters['is_active']);
-        }
-
-        if (isset($filters['has_sepa'])) {
-            $query = $query->where('is_sepa_valid', $filters['has_sepa']);
-        }
-
-        if (isset($filters['language'])) {
-            $query = $query->where('preferred_language', $filters['language']);
-        }
-
-        return $query;
+        return MemberAdminDto::fromRow($row);
     }
 
-    /**
-     * Transform Member model to MemberDto.
-     * Override of BaseService hook.
-     */
-    protected function transform(Model $entity): MemberDto
+    protected function getEntityName(): string
     {
-        return MemberDto::from($entity);
+        return 'Member';
     }
 }
 ```
@@ -376,25 +343,33 @@ final class MembersService extends BaseService
 ### Another Module-Specific Service (Products Example)
 
 ```php
-// app/Http/Modules/Products/Services/ProductsService.php
-namespace App\Http\Modules\Products\Services;
+// src/Modules/Products/Services/ProductsService.php
+namespace App\Modules\Products\Services;
 
-use App\Http\Modules\Products\DTOs\ProductDto;
-use App\Http\Modules\Products\Repositories\ProductsRepository;
+use App\Modules\Products\DTOs\ProductDto;
+use App\Modules\Products\Repositories\ProductsRepository;
+use App\Modules\Products\Repositories\CategoriesRepository;
+use App\Shared\DTOs\SyncResultDto;
+use App\Shared\Enums\AuditAction;
+use App\Shared\Enums\EntityType;
+use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Services\AuditService;
 use App\Shared\Services\BaseService;
-use Illuminate\Database\Eloquent\Model;
 
 /**
  * Products service: extends BaseService.
  *
  * Products-specific operations:
- * - toggleActive()
- * - updatePricing()
+ * - syncSince()      — terminal delta sync
+ * - toggleStatus()   — activate/deactivate product
+ * - createProduct()  — with category validation
  */
 final class ProductsService extends BaseService
 {
     public function __construct(
         private readonly ProductsRepository $productsRepository,
+        private readonly CategoriesRepository $categoriesRepository,
+        private readonly AuditService $auditService,
     ) {
         parent::__construct($productsRepository);
     }
@@ -402,86 +377,117 @@ final class ProductsService extends BaseService
     /**
      * Admin: Toggle product active status.
      */
-    public function toggleActive(string $productId, bool $isActive): ProductDto
+    public function toggleStatus(string $productId, bool $isActive, ?string $adminUserId = null): ProductDto
     {
-        $product = $this->repository->updateById($productId, [
-            'is_active' => $isActive,
-        ]);
+        $row = $this->productsRepository->updateById($productId, ['is_active' => $isActive]);
 
-        if (!$product) {
-            throw new NotFoundException("Product not found: {$productId}");
+        if (!$row) {
+            throw NotFoundException::forResource('Product', $productId);
         }
 
-        return ProductDto::from($product);
+        $this->auditService->log(
+            action: $isActive ? AuditAction::ACTIVATE : AuditAction::DEACTIVATE,
+            entityType: EntityType::PRODUCT,
+            entityId: $productId,
+            newValues: ['is_active' => $isActive],
+            adminUserId: $adminUserId,
+        );
+
+        return ProductDto::fromRow($row);
     }
 
     /**
-     * Products-specific filters: category, is_active
+     * Transform database row to ProductDto.
+     * Override of BaseService hook.
+     *
+     * @param array $row Associative array from PDO fetch
      */
-    protected function applyFilters($query, array $filters)
+    protected function transform(array $row): ProductDto
     {
-        if (isset($filters['category_id'])) {
-            $query = $query->where('category_id', $filters['category_id']);
-        }
-
-        if (isset($filters['is_active'])) {
-            $query = $query->where('is_active', $filters['is_active']);
-        }
-
-        return $query;
+        return ProductDto::fromRow($row);
     }
 
-    protected function transform(Model $entity): ProductDto
+    protected function getEntityName(): string
     {
-        return ProductDto::from($entity);
+        return 'Product';
     }
 }
 ```
 
 ---
 
-## Service Provider Configuration
+## ServiceFactory Configuration
 
-Register services in AppServiceProvider (Pattern 008: Service Provider Bindings):
+Register services in ServiceFactory (Pattern 008: Service Provider Bindings).
+The ServiceFactory implements `Psr\Container\ContainerInterface` and uses lazy singleton resolution:
 
 ```php
-// app/Providers/AppServiceProvider.php
-namespace App\Providers;
+// src/ServiceFactory.php
+namespace App;
 
-use App\Http\Modules\Members\Repositories\MembersRepository;
-use App\Http\Modules\Members\Services\MembersService;
-use App\Http\Modules\Products\Repositories\ProductsRepository;
-use App\Http\Modules\Products\Services\ProductsService;
-use Illuminate\Support\ServiceProvider;
+use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Members\Services\MembersService;
+use App\Modules\Products\Repositories\ProductsRepository;
+use App\Modules\Products\Repositories\CategoriesRepository;
+use App\Modules\Products\Services\ProductsService;
+use App\Modules\Transactions\Repositories\TransactionsRepository;
+use App\Shared\Services\AuditService;
+use PDO;
+use Psr\Container\ContainerInterface;
 
-class AppServiceProvider extends ServiceProvider
+class ServiceFactory implements ContainerInterface
 {
-    public function register(): void
+    private array $instances = [];
+
+    public function __construct(
+        private PDO $pdo,
+        private AppConfig $config,
+        private Logger $logger,
+    ) {}
+
+    // --- Repositories (PDO + Logger injected) ---
+
+    public function getMembersRepository(): MembersRepository
     {
-        // Members Module
-        $this->app->bind(MembersRepository::class, function ($app) {
-            return new MembersRepository(new Member());
-        });
-
-        $this->app->singleton(MembersService::class, function ($app) {
-            return new MembersService(
-                $app->make(MembersRepository::class),
-            );
-        });
-
-        // Products Module (same pattern)
-        $this->app->bind(ProductsRepository::class, function ($app) {
-            return new ProductsRepository(new Product());
-        });
-
-        $this->app->singleton(ProductsService::class, function ($app) {
-            return new ProductsService(
-                $app->make(ProductsRepository::class),
-            );
-        });
-
-        // ... repeat for other modules
+        return $this->resolve(MembersRepository::class, fn() =>
+            new MembersRepository($this->pdo, $this->logger));
     }
+
+    public function getProductsRepository(): ProductsRepository
+    {
+        return $this->resolve(ProductsRepository::class, fn() =>
+            new ProductsRepository($this->pdo, $this->logger));
+    }
+
+    // --- Services (repositories + audit service injected) ---
+
+    public function getMembersService(): MembersService
+    {
+        return $this->resolve(MembersService::class, fn() =>
+            new MembersService(
+                $this->getMembersRepository(),
+                $this->getTransactionsRepository(),
+                $this->getAuditService(),
+            ));
+    }
+
+    public function getProductsService(): ProductsService
+    {
+        return $this->resolve(ProductsService::class, fn() =>
+            new ProductsService(
+                $this->getProductsRepository(),
+                $this->getCategoriesRepository(),
+                $this->getAuditService(),
+            ));
+    }
+
+    // Lazy singleton resolution
+    private function resolve(string $key, callable $factory): mixed
+    {
+        return $this->instances[$key] ??= $factory();
+    }
+
+    // ... ContainerInterface methods for Slim route resolution
 }
 ```
 
@@ -492,21 +498,25 @@ class AppServiceProvider extends ServiceProvider
 ### Terminal Sync Controller
 
 ```php
-// app/Http/Modules/Members/Controllers/SyncController.php
-final class SyncController extends Controller
+// src/Modules/Members/Controllers/SyncController.php
+use App\Modules\Members\Services\MembersService;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+final class SyncController
 {
     public function __construct(private readonly MembersService $service) {}
 
-    public function index(SyncRequest $request): JsonResponse
+    public function index(Request $request, Response $response): Response
     {
-        // Use inherited BaseService::listWithPagination()
-        $result = $this->service->listWithPagination(
-            limit: 500,
-            offset: 0,
-            since: $request->since(),  // Delta sync
-        );
+        $params = $request->getQueryParams();
+        $since = isset($params['since']) ? (int) $params['since'] : 0;
 
-        return response()->json($result->toResponse('members'));
+        // Use Members-specific syncSince() for delta sync
+        $result = $this->service->syncSince($since);
+
+        $response->getBody()->write(json_encode($result->toArray('members')));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 }
 ```
@@ -514,57 +524,87 @@ final class SyncController extends Controller
 ### Admin CRUD Controller
 
 ```php
-// app/Http/Modules/Members/Controllers/AdminController.php
-final class AdminController extends Controller
+// src/Modules/Members/Controllers/AdminController.php
+use App\Modules\Members\Services\MembersService;
+use App\Modules\Members\Enums\SupportedLanguage;
+use App\Shared\Validation\Validator;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+final class AdminController
 {
-    public function __construct(private readonly MembersService $service) {}
+    public function __construct(
+        private MembersService $membersService,
+        private Validator $validator,
+    ) {}
 
-    public function index(AdminListRequest $request): JsonResponse
+    public function index(Request $request, Response $response): Response
     {
-        // Use inherited BaseService::listWithPagination()
-        $result = $this->service->listWithPagination(
-            limit: $request->limit(),
-            offset: $request->offset(),
-            filters: $request->filters(),  // Custom filters applied via hook
-        );
+        $params = $request->getQueryParams();
+        $limit = (int) ($params['per_page'] ?? $params['limit'] ?? 50);
+        $page = (int) ($params['page'] ?? 1);
+        $offset = isset($params['offset']) ? (int) $params['offset'] : ($page - 1) * $limit;
+        $sortKey = $params['sort'] ?? 'created_at';
+        $sortOrder = $params['order'] ?? 'desc';
+        $search = $params['search'] ?? null;
 
-        return response()->json($result->toArray());
+        $filters = [];
+        if (isset($params['filters']['is_active'])) {
+            $filters['is_active'] = filter_var($params['filters']['is_active'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        $result = $this->membersService->listMembers($limit, $offset, $filters, $sortKey, $sortOrder, $search);
+        return $this->json($response, $result->toArray());
     }
 
-    public function show(string $id): JsonResponse
+    public function show(Request $request, Response $response, array $args): Response
     {
-        $member = $this->service->findById($id);  // Inherited from BaseService
-        return response()->json($member->toArray());
+        $member = $this->membersService->getMember($args['memberId']);
+        return $this->json($response, $member->toArray());
     }
 
-    public function store(CreateMemberRequest $request): JsonResponse
+    public function store(Request $request, Response $response): Response
     {
-        $member = $this->service->create($request->validated());  // Inherited
-        return response()->json($member->toArray(), 201);
+        $body = $request->getParsedBody() ?? [];
+        $adminId = $request->getAttribute('admin_user_id');
+
+        if (!$this->validator->validate($body, [
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email'],
+            'preferred_language' => ['required', 'string', 'in:de,en,fr'],
+        ])) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        $member = $this->membersService->createMember(/* ... validated params ... */);
+        return $this->json($response, $member->toArray(), 201);
     }
 
-    public function update(UpdateMemberRequest $request, string $id): JsonResponse
+    public function destroy(Request $request, Response $response, array $args): Response
     {
-        $member = $this->service->update($id, $request->validated());  // Inherited
-        return response()->json($member->toArray());
+        $adminId = $request->getAttribute('admin_user_id');
+        $this->membersService->deleteMember($args['memberId'], $adminId);
+        return $this->json($response, ['message' => 'Member deleted']);
     }
 
-    public function destroy(string $id): JsonResponse
+    public function export(Request $request, Response $response, array $args): Response
     {
-        $this->service->delete($id);  // Inherited
-        return response()->noContent();
+        $exportData = $this->membersService->exportMember($args['memberId']);  // Members-specific
+        return $this->json($response, $exportData);
     }
 
-    public function export(string $id): JsonResponse
+    public function anonymize(Request $request, Response $response, array $args): Response
     {
-        $export = $this->service->exportGDPR($id);  // Members-specific
-        return response()->download($export->path, $export->filename);
+        $adminId = $request->getAttribute('admin_user_id');
+        $member = $this->membersService->anonymizeMember($args['memberId'], $adminId);  // Members-specific
+        return $this->json($response, $member->toArray());
     }
 
-    public function anonymize(string $id): JsonResponse
+    private function json(Response $response, mixed $data, int $status = 200): Response
     {
-        $this->service->anonymize($id);  // Members-specific
-        return response()->json(['status' => 'anonymized']);
+        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }
 ```
@@ -576,8 +616,8 @@ final class AdminController extends Controller
 | Pattern | Location | Purpose |
 |---------|----------|---------|
 | Pagination | `listWithPagination()` | Shared across all modules |
-| Filtering | `applyFilters()` hook | Common query building, module-specific filters |
-| DTO transformation | `transform()` / `transformCollection()` hooks | Consistent conversion to response objects |
+| DTO transformation | `transform()` hook | Consistent conversion: database row (array) to DTO |
+| Entity name | `getEntityName()` hook | Standardized error messages per module |
 | Error handling | `NotFoundException` | Standardized "not found" response |
 | Timestamp conversion | `timestampToDateTime()` | Delta sync queries |
 
@@ -596,7 +636,7 @@ final class AdminController extends Controller
 1. **Pagination with filtering** → Common across all CRUD modules
 2. **Standard CRUD operations** → Almost identical across modules
 3. **Error handling** → Same "not found" logic everywhere
-4. **DTO transformation** → Same pattern: model → DTO
+4. **DTO transformation** → Same pattern: database row (array) to DTO
 
 ---
 

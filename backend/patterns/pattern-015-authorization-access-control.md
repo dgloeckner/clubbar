@@ -33,292 +33,186 @@ Once a client is **authenticated** (Patterns 012-013), the backend must ensure t
 
 #### 1. Terminal Token Access (Sync Endpoints)
 
-```php
-// app/Http/Middleware/AuthorizeTerminalSync.php
-namespace App\Http\Middleware;
+Authorization for terminal access is enforced by Slim 4 route group middleware. The `TerminalTokenAuth` middleware (PSR-15) is applied only to `/api/sync/*` routes, so terminals structurally cannot access `/api/admin/*` endpoints.
 
-use Closure;
-use Illuminate\Http\Request;
+```php
+// src/Modules/Auth/Middleware/TerminalTokenAuth.php
+// (See Pattern 012 for full implementation)
+
+// Authorization is enforced via Slim 4 route groups:
+// - /api/sync/* routes use TerminalTokenAuth middleware
+// - /api/admin/* routes use AdminSessionAuth middleware
+// - A terminal Bearer token will never pass AdminSessionAuth
+// - An admin session will never pass TerminalTokenAuth
+```
+
+If additional terminal-level authorization is needed (e.g., restricting specific terminals to specific endpoints), it can be added as a separate PSR-15 middleware:
+
+```php
+// src/Shared/Middleware/AuthorizeTerminalSync.php (optional)
+namespace App\Shared\Middleware;
+
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Slim\Psr7\Response;
 
 /**
- * Authorization middleware for Terminal sync endpoints.
- *
- * Verifies:
- * - Request authenticated by Terminal token (Pattern 012)
- * - Endpoint is a sync endpoint (not admin)
- * - Terminal is authorized to sync
- *
- * Implements Pattern 015: Authorization & Access Control
+ * Optional PSR-15 middleware for additional terminal authorization checks.
  */
-final class AuthorizeTerminalSync
+class AuthorizeTerminalSync implements MiddlewareInterface
 {
-    /**
-     * Authorize terminal to access sync endpoints.
-     *
-     * Called after AuthenticateTerminalToken middleware.
-     * Ensures terminal is only accessing sync endpoints, not admin.
-     *
-     * @param Request $request
-     * @param Closure $next
-     * @return mixed
-     * @throws ForbiddenException
-     */
-    public function handle(Request $request, Closure $next)
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $terminal = $request->terminal();
+        $terminal = $request->getAttribute('terminal');
 
-        // Should never happen (authenticated middleware would fail first)
         if (!$terminal) {
-            throw new ForbiddenException('Terminal not authenticated');
+            return $this->forbidden('Terminal not authenticated');
         }
 
-        // Verify this is a sync endpoint, not admin
-        if ($request->is('api/admin/*')) {
-            throw new ForbiddenException(
-                'Terminal cannot access admin endpoints',
-                'terminal_cannot_access_admin'
-            );
-        }
+        // Additional authorization logic here (if needed)
 
-        // Log access (optional)
-        // AuditLogger::log('TERMINAL_ACCESS', $terminal->id, $request->path());
+        return $handler->handle($request);
+    }
 
-        return $next($request);
+    private function forbidden(string $message): ResponseInterface
+    {
+        $response = new Response(403);
+        $response->getBody()->write(json_encode(['error' => 'forbidden', 'message' => $message]));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 }
 ```
 
 #### 2. Admin Session Access (Admin Endpoints)
 
-```php
-// app/Http/Middleware/AuthorizeAdminSession.php
-namespace App\Http\Middleware;
-
-use Closure;
-use Illuminate\Http\Request;
-
-/**
- * Authorization middleware for Admin endpoints.
- *
- * Verifies:
- * - Request authenticated by session (Pattern 013)
- * - Endpoint is admin endpoint (not sync)
- * - User is active
- *
- * Implements Pattern 015: Authorization & Access Control
- */
-final class AuthorizeAdminSession
-{
-    /**
-     * Authorize admin user to access admin endpoints.
-     *
-     * Called after AuthenticateSession middleware.
-     * Ensures admin is only accessing admin endpoints with session auth.
-     *
-     * @param Request $request
-     * @param Closure $next
-     * @return mixed
-     * @throws ForbiddenException
-     */
-    public function handle(Request $request, Closure $next)
-    {
-        $user = $request->user();
-
-        // Should never happen (authenticated middleware would fail first)
-        if (!$user) {
-            throw new ForbiddenException('User not authenticated');
-        }
-
-        // Verify user is still active
-        if (!$user->isActive()) {
-            throw new ForbiddenException(
-                'User account is inactive',
-                'user_inactive'
-            );
-        }
-
-        // Log access (optional)
-        // AuditLogger::log('ADMIN_ACCESS', $user->id, $request->path());
-
-        return $next($request);
-    }
-}
-```
-
-#### 3. Prevent Auth Mixup
+Admin authorization is enforced by the `AdminSessionAuth` middleware (PSR-15), which already verifies the admin is active. It is applied to all `/api/admin/*` and `/api/auth/*` (protected) routes via Slim 4 route groups.
 
 ```php
-// app/Http/Middleware/PreventAuthMixup.php
-namespace App\Http\Middleware;
+// src/Modules/Auth/Middleware/AdminSessionAuth.php
+// (See Pattern 013 for full implementation)
 
-use Closure;
-use Illuminate\Http\Request;
-
-/**
- * Middleware to prevent authentication method confusion.
- *
- * Ensures:
- * - Terminal endpoints use Bearer tokens, not sessions
- * - Admin endpoints use sessions, not Bearer tokens
- * - Clear separation of auth mechanisms
- *
- * Implements Pattern 015: Authorization & Access Control
- */
-final class PreventAuthMixup
-{
-    /**
-     * Verify auth mechanism matches endpoint type.
-     *
-     * @param Request $request
-     * @param Closure $next
-     * @param string $authType 'terminal' or 'admin'
-     * @return mixed
-     * @throws BadRequestException
-     */
-    public function handle(Request $request, Closure $next, string $authType)
-    {
-        $hasSessionAuth = $request->session()->has('user_id');
-        $hasBearerAuth = $request->bearerToken() !== null;
-
-        if ($authType === 'terminal') {
-            // Terminal endpoints require Bearer token, reject session auth
-            if ($hasSessionAuth && !$hasBearerAuth) {
-                throw new BadRequestException(
-                    'Sync endpoints require Bearer token authentication',
-                    'wrong_auth_method'
-                );
-            }
-        } elseif ($authType === 'admin') {
-            // Admin endpoints require session auth, reject Bearer token
-            if ($hasBearerAuth && !$hasSessionAuth) {
-                throw new BadRequestException(
-                    'Admin endpoints require session authentication',
-                    'wrong_auth_method'
-                );
-            }
-        }
-
-        return $next($request);
-    }
-}
+// The middleware already checks:
+// 1. Session is active
+// 2. admin_user_id exists in $_SESSION
+// 3. Admin user exists in database (PDO lookup)
+// 4. Admin user is_active = true
+// On failure: Returns 401 JSON response
 ```
+
+#### 3. Preventing Auth Mixup
+
+Auth mixup is prevented structurally by Slim 4's route group middleware design:
+
+```php
+// src/routes.php — Each route group has exactly one auth middleware
+
+// Terminal endpoints: ONLY accept Bearer token
+$app->group('/api/sync', function (RouteCollectorProxy $group) {
+    // ... sync routes
+})->add(TerminalTokenAuth::class);  // Rejects requests without Bearer token
+
+// Admin endpoints: ONLY accept session cookie
+$app->group('/api/admin', function (RouteCollectorProxy $group) {
+    // ... admin routes
+})->add(AdminSessionAuth::class);   // Rejects requests without valid session
+
+// The middleware implementations are mutually exclusive:
+// - TerminalTokenAuth checks Authorization header for Bearer token
+// - AdminSessionAuth checks $_SESSION for admin_user_id
+// - A Bearer token will never satisfy AdminSessionAuth
+// - A session cookie will never satisfy TerminalTokenAuth
+```
+
+No explicit "prevent mixup" middleware is needed because the route structure enforces separation.
 
 ---
 
-### Route Protection
+### Route Protection (Slim 4)
 
 ```php
-// routes/api.php
-use App\Http\Middleware\AuthenticateTerminalToken;
-use App\Http\Middleware\AuthorizeTerminalSync;
-use App\Http\Middleware\AuthenticateSession;
-use App\Http\Middleware\AuthorizeAdminSession;
-use App\Http\Middleware\PreventAuthMixup;
+// src/routes.php
+use App\Modules\Auth\Middleware\TerminalTokenAuth;
+use App\Modules\Auth\Middleware\AdminSessionAuth;
+use Slim\App;
+use Slim\Routing\RouteCollectorProxy;
 
-/**
- * Terminal Sync API Routes
- *
- * Authentication: Bearer token (Pattern 012)
- * Authorization: Terminal device access (Pattern 015)
- */
-Route::prefix('sync')
-    ->middleware([
-        AuthenticateTerminalToken::class,  // Verify Bearer token
-        'throttle:60,1',                    // Rate limiting (60 req/min)
-        AuthorizeTerminalSync::class,       // Verify terminal access
-    ])
-    ->group(function () {
-        Route::get('/members', [SyncController::class, 'index']);
-        Route::get('/categories', [SyncController::class, 'categories']);
-        Route::get('/products', [SyncController::class, 'products']);
-        Route::patch('/members/{id}/language', [SyncController::class, 'updateLanguage']);
-        Route::post('/transactions', [SyncController::class, 'transactions']);
-    });
+return function (App $app): void {
 
-/**
- * Admin API Routes
- *
- * Authentication: Session cookie (Pattern 013)
- * Authorization: Admin user access (Pattern 015)
- */
-Route::prefix('admin')
-    ->middleware([
-        AuthenticateSession::class,         // Verify session
-        'throttle:120,1',                   // Rate limiting (120 req/min)
-        AuthorizeAdminSession::class,       // Verify admin access
-    ])
-    ->group(function () {
-        // Include all admin modules
-        Route::apiResource('members', MembersAdminController::class);
-        Route::post('/members/{id}/export', [MembersAdminController::class, 'export']);
-        Route::post('/members/{id}/anonymize', [MembersAdminController::class, 'anonymize']);
+    /**
+     * Public Routes (No Auth Required)
+     */
+    $app->get('/api/health', [HealthController::class, 'check']);
+    $app->post('/api/auth/login', [AuthController::class, 'login']);
 
-        Route::apiResource('products', ProductsAdminController::class);
-        Route::apiResource('settlements', SettlementsAdminController::class);
-        Route::apiResource('audit-log', AuditLogAdminController::class)->only(['index', 'show']);
-    });
+    /**
+     * Terminal Sync API Routes
+     *
+     * Authentication: Bearer token (Pattern 012)
+     * Authorization: Terminal device access (Pattern 015)
+     */
+    $app->group('/api/sync', function (RouteCollectorProxy $group) {
+        $group->get('/members', [MembersSyncController::class, 'index']);
+        $group->get('/categories', [ProductsSyncController::class, 'categories']);
+        $group->get('/products', [ProductsSyncController::class, 'products']);
+        $group->patch('/members/{memberId}/language', [MembersSyncController::class, 'updateLanguage']);
+        $group->post('/transactions', [TransactionsSyncController::class, 'processBatch']);
+    })->add(TerminalTokenAuth::class);
 
-/**
- * Public Routes (No Auth Required)
- */
-Route::post('/auth/login', [AuthController::class, 'login']);
-Route::get('/health', [HealthController::class, 'health']);
+    /**
+     * Admin API Routes
+     *
+     * Authentication: Session cookie (Pattern 013)
+     * Authorization: Admin user access (Pattern 015)
+     */
+    $app->group('/api/admin', function (RouteCollectorProxy $group) {
+        $group->get('/members', [MembersAdminController::class, 'index']);
+        $group->post('/members', [MembersAdminController::class, 'store']);
+        $group->get('/members/{memberId}', [MembersAdminController::class, 'show']);
+        $group->patch('/members/{memberId}', [MembersAdminController::class, 'update']);
+        // ...etc
+    })->add(AdminSessionAuth::class);
+};
 ```
 
 ---
 
 ### Resource Ownership Authorization
 
-```php
-// app/Http/Middleware/AuthorizeResourceOwner.php
-namespace App\Http\Middleware;
+In the Ruderbar system, all admin users have equal access to all resources (no role-based differentiation). Resource ownership checks are not needed for admin endpoints since all admins can manage all members, products, and settlements.
 
-use Closure;
-use Illuminate\Http\Request;
+If resource-level authorization is needed in the future, it can be implemented as a PSR-15 middleware:
+
+```php
+// src/Shared/Middleware/AuthorizeResourceOwner.php (future, if needed)
+namespace App\Shared\Middleware;
+
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Slim\Psr7\Response;
+use Slim\Routing\RouteContext;
 
 /**
- * Middleware for resource ownership checks.
+ * PSR-15 Middleware for resource ownership checks (optional).
  *
- * Ensures authenticated user can only access their own resources.
- * Used when:
- * - User viewing their own profile
- * - Admin exporting their own data
- * - User changing their own password
- *
- * Note: Admins have full access to all resources (no ownership restriction).
- *
- * Implements Pattern 015: Authorization & Access Control
+ * Would be used if the system introduces role-based access control (RBAC).
  */
-final class AuthorizeResourceOwner
+class AuthorizeResourceOwner implements MiddlewareInterface
 {
-    /**
-     * Verify user owns requested resource.
-     *
-     * @param Request $request
-     * @param Closure $next
-     * @param string $paramName Route parameter name (e.g., 'id', 'member_id')
-     * @return mixed
-     * @throws ForbiddenException
-     */
-    public function handle(Request $request, Closure $next, string $paramName = 'id')
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $resourceId = $request->route($paramName);
-        $authenticatedId = $request->userId();  // For admins
+        $routeContext = RouteContext::fromRequest($request);
+        $route = $routeContext->getRoute();
+        $resourceId = $route->getArgument('id');
+        $adminUserId = $request->getAttribute('admin_user_id');
 
-        // Only enforce for non-admin contexts
-        // Admins can access any resource
-        if ($authenticatedId && $resourceId && $authenticatedId != $resourceId) {
-            // Optional: Check user type (admin vs member)
-            $user = $request->user();
-            if ($user && !$user->isAdmin()) {
-                throw new ForbiddenException(
-                    'Cannot access another user\'s resource',
-                    'forbidden'
-                );
-            }
-        }
+        // Currently all admins have equal access — no ownership restriction
+        // Future: Add role checks here if needed
 
-        return $next($request);
+        return $handler->handle($request);
     }
 }
 ```
@@ -327,29 +221,18 @@ final class AuthorizeResourceOwner
 
 ### Rate Limiting by Auth Type
 
+Rate limiting can be implemented as a custom PSR-15 middleware or via a reverse proxy (e.g., nginx):
+
 ```php
-// config/auth.php
-return [
-    'rate_limits' => [
-        // Terminal API: Lower rate limit (sync once per minute typical)
-        'terminal_sync' => [
-            'limit' => 60,
-            'window' => 60,  // 60 requests per 60 seconds
-        ],
+// Rate limit configuration (conceptual)
+// Terminal API: 60 requests per 60 seconds (sync once per minute typical)
+// Admin API: 120 requests per 60 seconds (interactive usage)
+// Login attempts: 5 attempts per 60 seconds (prevent brute force)
 
-        // Admin API: Higher rate limit (interactive usage)
-        'admin' => [
-            'limit' => 120,
-            'window' => 60,  // 120 requests per 60 seconds
-        ],
-
-        // Login attempts: Strict rate limiting (prevent brute force)
-        'login' => [
-            'limit' => 5,
-            'window' => 60,  // 5 attempts per 60 seconds
-        ],
-    ],
-];
+// Implementation options:
+// 1. Custom PSR-15 middleware using APCu/Redis for counters
+// 2. nginx rate limiting (recommended for production)
+// 3. Slim 4 third-party middleware package
 ```
 
 ---
@@ -424,44 +307,43 @@ HTTP 403 Forbidden
 For fine-grained control within controllers:
 
 ```php
-// app/Http/Modules/Members/Controllers/MembersAdminController.php
-namespace App\Http\Modules\Members\Controllers;
+// src/Modules/Members/Controllers/AdminController.php
+namespace App\Modules\Members\Controllers;
 
-use Illuminate\Http\Request;
+use App\Modules\Members\Services\MembersService;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Admin controller for member management.
  *
  * All endpoints require:
- * - Session authentication (AuthenticateSession middleware)
- * - Admin role authorization (AuthorizeAdminSession middleware)
- * - Specific resource permissions (can be checked here if needed)
+ * - Session authentication (AdminSessionAuth middleware)
+ * - Admin data available via request attributes
  *
  * Implements Pattern 015: Authorization & Access Control
  */
-final class MembersAdminController extends Controller
+final class AdminController
 {
+    public function __construct(private readonly MembersService $service) {}
+
     /**
-     * DELETE /api/admin/members/{id}
+     * DELETE /api/admin/members/{memberId}
      *
-     * Additional authorization check (example):
-     * - Admin with higher role might be able to delete
-     * - Lower role can only deactivate
-     *
-     * This is optional; middleware provides basic auth.
+     * Admin user data is available from request attributes,
+     * set by AdminSessionAuth middleware.
      */
-    public function destroy(string $id): JsonResponse
+    public function destroy(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        $user = request()->user();
+        $memberId = $args['memberId'];
+        $adminUser = $request->getAttribute('admin_user');
 
-        // Example: Only certain admins can delete
-        if (!$user->canDeleteMembers()) {
-            throw new ForbiddenException('Insufficient permissions to delete members');
-        }
+        // Example: Additional authorization check (if needed)
+        // Currently all admins have equal access
 
-        // Proceed with deletion
-        $this->service->delete($id);
-        return response()->noContent();
+        $this->service->delete($memberId);
+
+        return $response->withStatus(204);
     }
 }
 ```
@@ -471,86 +353,63 @@ final class MembersAdminController extends Controller
 ## Audit Logging with Authorization
 
 ```php
-// app/Shared/Services/AuditLogger.php
+// src/Shared/Services/AuditService.php
 namespace App\Shared\Services;
 
+use App\Shared\Enums\AuditAction;
+use App\Shared\Enums\EntityType;
+use App\Modules\AuditLog\Repositories\AuditLogRepository;
+
 /**
- * Log authorization decisions and access.
+ * Log authorization decisions and access (Pattern 016).
  *
- * Helps track:
- * - Who accessed what
- * - Authorization successes/failures
- * - Potential security issues
+ * Uses the centralized AuditService which writes to the audit_log table
+ * via AuditLogRepository (PDO).
  *
  * Implements Pattern 015: Authorization & Access Control
  * Related to ADR-0013: Audit Logging
  */
-final class AuditLogger
+class AuditService
 {
-    /**
-     * Log successful authorization.
-     *
-     * @param string $actor 'terminal:ID' or 'admin:ID'
-     * @param string $action 'GET', 'POST', 'PATCH', etc.
-     * @param string $resource '/api/members', etc.
-     * @return void
-     */
-    public static function logAuthorizedAccess(
-        string $actor,
-        string $action,
-        string $resource,
-    ): void {
-        \Log::info('AUTHORIZED_ACCESS', [
-            'actor' => $actor,
-            'action' => $action,
-            'resource' => $resource,
-            'timestamp' => now(),
-            'ip' => request()->ip(),
-        ]);
-    }
+    public function __construct(private AuditLogRepository $auditLogRepository) {}
 
     /**
-     * Log failed authorization (suspicious).
+     * Log an audit entry for master data changes or access events.
      *
-     * @param string $actor 'terminal:ID' or 'admin:ID'
-     * @param string $reason 'wrong_auth_method', 'forbidden', etc.
-     * @param string $resource '/api/admin/members', etc.
-     * @return void
-     */
-    public static function logUnauthorizedAccess(
-        string $actor,
-        string $reason,
-        string $resource,
-    ): void {
-        \Log::warning('UNAUTHORIZED_ACCESS_ATTEMPT', [
-            'actor' => $actor,
-            'reason' => $reason,
-            'resource' => $resource,
-            'timestamp' => now(),
-            'ip' => request()->ip(),
-        ]);
-    }
-
-    /**
-     * Log authentication failure.
+     * Auto-captures IP address and user agent from $_SERVER superglobals.
      *
-     * @param string $attemptedEmail Email that failed login
-     * @param string $reason 'wrong_password', 'user_not_found', etc.
-     * @return void
+     * @param AuditAction $action Type of action (login, logout, create, update, etc.)
+     * @param EntityType $entityType Type of entity affected
+     * @param string $entityId Primary key of affected record
+     * @param array|null $oldValues Field values before change
+     * @param array|null $newValues Field values after change
+     * @param string|null $adminUserId UUID of admin who performed action
      */
-    public static function logAuthenticationFailure(
-        string $attemptedEmail,
-        string $reason,
+    public function log(
+        AuditAction $action,
+        EntityType $entityType,
+        string $entityId,
+        ?array $oldValues = null,
+        ?array $newValues = null,
+        ?string $adminUserId = null,
+        ?string $ipAddress = null,
+        ?string $userAgent = null,
     ): void {
-        \Log::warning('AUTHENTICATION_FAILURE', [
-            'email' => $attemptedEmail,
-            'reason' => $reason,
-            'timestamp' => now(),
-            'ip' => request()->ip(),
+        $this->auditLogRepository->insert([
+            'admin_user_id' => $adminUserId,
+            'action' => $action->value,
+            'entity_type' => $entityType->value,
+            'entity_id' => $entityId,
+            'old_values' => $this->maskSensitiveFields($oldValues),
+            'new_values' => $this->maskSensitiveFields($newValues),
+            'ip_address' => $ipAddress ?? ($_SERVER['REMOTE_ADDR'] ?? null),
+            'user_agent' => $userAgent ?? ($_SERVER['HTTP_USER_AGENT'] ?? null),
         ]);
     }
 }
 ```
+
+The `Logger` class (see `App\Shared\Logging\Logger`) is also used for application-level logging (info, warning, error) in JSON format to daily log files.
 
 ---
 
@@ -609,28 +468,26 @@ Complements:
 ### Unit Tests
 
 ```php
-// tests/Unit/Middleware/AuthorizeTerminalSyncTest.php
-public function test_authorizeTerminalSync_allows_sync_endpoints()
+// tests/Unit/Middleware/TerminalTokenAuthTest.php
+public function test_terminal_auth_allows_sync_endpoints_with_valid_token()
 {
-    $request = $this->createRequest('GET', '/api/sync/members');
-    $request->setAttribute('terminal', Terminal::factory()->create());
+    $request = $this->createServerRequest('GET', '/api/sync/members')
+        ->withHeader('Authorization', 'Bearer ' . $this->validToken);
 
-    $response = $this->middleware->handle($request, function($req) {
-        return response()->json(['ok' => true]);
-    });
+    $handler = $this->createMockHandler();
+    $response = $this->middleware->process($request, $handler);
 
-    $this->assertEquals(200, $response->status());
+    $this->assertEquals(200, $response->getStatusCode());
 }
 
-public function test_authorizeTerminalSync_denies_admin_endpoints()
+public function test_terminal_auth_rejects_missing_token()
 {
-    $request = $this->createRequest('GET', '/api/admin/members');
-    $request->setAttribute('terminal', Terminal::factory()->create());
+    $request = $this->createServerRequest('GET', '/api/sync/members');
 
-    $this->expectException(ForbiddenException::class);
-    $this->middleware->handle($request, function($req) {
-        return response()->json(['ok' => true]);
-    });
+    $handler = $this->createMockHandler();
+    $response = $this->middleware->process($request, $handler);
+
+    $this->assertEquals(401, $response->getStatusCode());
 }
 ```
 
@@ -691,4 +548,4 @@ test('Health endpoint accessible without auth', async () => {
 - **Pattern 012**: Terminal API Token Authentication
 - **Pattern 013**: Admin Session Authentication
 - **Pattern 014**: RFID Member Identification
-- **Pattern 001**: Form Requests for Input Validation
+- **Pattern 001**: Input Validation (Custom Validator)

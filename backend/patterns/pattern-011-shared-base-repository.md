@@ -2,7 +2,7 @@
 
 **Status**: Active
 
-**Purpose**: Extract common data access patterns into base repository class to minimize duplication across modules while maintaining abstraction from Eloquent ORM.
+**Purpose**: Extract common data access patterns into base repository class to minimize duplication across modules while encapsulating PDO-based SQL queries.
 
 ---
 
@@ -48,85 +48,60 @@ This violates DRY principle and creates maintenance burden.
 ### Base Repository Interface
 
 ```php
-// app/Shared/Repositories/RepositoryInterface.php
+// src/Shared/Repositories/RepositoryInterface.php
 namespace App\Shared\Repositories;
-
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
 
 /**
  * Contract for data access repositories.
  *
  * All module repositories must implement this interface.
- * Enables dependency injection and future abstraction (e.g., swap to different ORM).
+ * Uses PDO with raw SQL (prepared statements) for data access.
+ * Entities are plain associative arrays (from PDO::FETCH_ASSOC), not ORM models.
  */
 interface RepositoryInterface
 {
     /**
-     * Build query builder for this repository's model.
-     *
-     * @return \Illuminate\Database\Query\Builder
-     */
-    public function query();
-
-    /**
      * Find entity by primary key (ID).
      *
      * @param string $id UUID
-     * @return Model|null
+     * @return array|null Associative array or null if not found
      */
-    public function findById(string $id): ?Model;
+    public function findById(string $id): ?array;
 
     /**
-     * Find multiple entities by IDs.
+     * Find all entities (no pagination).
      *
-     * @param array $ids
-     * @return Collection
+     * @return array[] Array of associative arrays
      */
-    public function findByIds(array $ids): Collection;
-
-    /**
-     * Find all entities (no limit).
-     *
-     * @return Collection
-     */
-    public function findAll(): Collection;
+    public function findAll(): array;
 
     /**
      * Create new entity.
      *
-     * @param array $attributes
-     * @return Model
+     * @param array $data Validated data (from Validator)
+     * @return array The created row (re-fetched from database)
      */
-    public function create(array $attributes): Model;
+    public function create(array $data): array;
 
     /**
      * Update entity by ID.
      *
-     * @param string $id
-     * @param array $attributes
-     * @return Model|null
+     * @param string $id UUID
+     * @param array $data Validated data
+     * @return array|null Updated row or null if not found
      */
-    public function updateById(string $id, array $attributes): ?Model;
+    public function updateById(string $id, array $data): ?array;
 
     /**
      * Delete entity by ID.
      *
-     * @param string $id
+     * @param string $id UUID
      * @return bool True if entity existed and was deleted
      */
     public function deleteById(string $id): bool;
 
     /**
-     * Delete multiple entities by IDs.
-     *
-     * @param array $ids
-     * @return int Number deleted
-     */
-    public function deleteByIds(array $ids): int;
-
-    /**
-     * Count total entities matching criteria.
+     * Count total entities.
      *
      * @return int
      */
@@ -135,161 +110,126 @@ interface RepositoryInterface
     /**
      * Check if entity exists by ID.
      *
-     * @param string $id
+     * @param string $id UUID
      * @return bool
      */
     public function exists(string $id): bool;
+
+    /**
+     * List entities with pagination, filtering, and sorting.
+     *
+     * @param int $limit Records per page
+     * @param int $offset Pagination offset
+     * @param array $filters Key-value filter criteria
+     * @param string $sortKey Column to sort by
+     * @param string $sortOrder 'asc' or 'desc'
+     * @return array{items: array[], total: int}
+     */
+    public function listPaginated(
+        int $limit,
+        int $offset,
+        array $filters = [],
+        string $sortKey = 'created_at',
+        string $sortOrder = 'desc',
+    ): array;
 }
 ```
 
 ### Base Repository Implementation
 
 ```php
-// app/Shared/Repositories/BaseRepository.php
+// src/Shared/Repositories/BaseRepository.php
 namespace App\Shared\Repositories;
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
+use PDO;
+use App\Shared\Logging\Logger;
+use App\Shared\Repository\SafeQuery;
 
 /**
- * Abstract base repository implementing standard CRUD operations.
+ * Abstract base repository implementing standard CRUD operations via PDO.
  *
  * Modules extend this and add domain-specific queries.
+ * All queries use prepared statements to prevent SQL injection.
  *
  * Implements Pattern 005: Repository Interface for Data Access
  */
 abstract class BaseRepository implements RepositoryInterface
 {
-    /**
-     * The Eloquent model class for this repository.
-     * Must be set by subclass.
-     *
-     * @var class-string
-     */
-    protected string $modelClass;
-
-    /**
-     * Create new repository for given model.
-     *
-     * @param Model $model Instance used for query builder
-     */
     public function __construct(
-        protected readonly Model $model,
+        protected PDO $db,
+        protected Logger $logger,
     ) {}
 
     /**
-     * Get query builder for this repository.
-     *
-     * Subclasses can override to add default scopes, eager loading, etc.
-     *
-     * @return Builder
+     * The database table name. Must be set by subclass.
      */
-    public function query(): Builder
-    {
-        return $this->model->query();
-    }
+    abstract protected function getTableName(): string;
+
+    /**
+     * Columns allowed for update operations.
+     * Must be set by subclass to prevent mass-assignment.
+     *
+     * @return string[]
+     */
+    abstract protected function getAllowedUpdateColumns(): array;
 
     /**
      * Find entity by primary key.
      *
      * @param string $id UUID
-     * @return Model|null
+     * @return array|null Associative array or null
      */
-    public function findById(string $id): ?Model
+    public function findById(string $id): ?array
     {
-        return $this->query()
-            ->where($this->getKeyName(), $id)
-            ->first();
-    }
-
-    /**
-     * Find multiple entities by IDs.
-     *
-     * @param array $ids
-     * @return Collection
-     */
-    public function findByIds(array $ids): Collection
-    {
-        return $this->query()
-            ->whereIn($this->getKeyName(), $ids)
-            ->get();
+        $table = $this->getTableName();
+        $stmt = $this->db->prepare("SELECT * FROM {$table} WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
     }
 
     /**
      * Find all entities (no pagination).
      *
-     * ⚠️ WARNING: Use carefully for large tables. Prefer pagination.
+     * WARNING: Use carefully for large tables. Prefer listPaginated().
      *
-     * @return Collection
+     * @return array[]
      */
-    public function findAll(): Collection
+    public function findAll(): array
     {
-        return $this->query()->get();
+        $table = $this->getTableName();
+        return $this->db->query("SELECT * FROM {$table} ORDER BY created_at DESC")->fetchAll();
     }
 
     /**
      * Create new entity.
+     * Subclasses typically override this to handle specific column mappings,
+     * JSON fields, UUID generation, etc.
      *
-     * @param array $attributes Validated data (from FormRequest)
-     * @return Model
+     * @param array $data Validated data (from Validator)
+     * @return array The created row (re-fetched)
      */
-    public function create(array $attributes): Model
-    {
-        return $this->model->create($attributes);
-    }
+    abstract public function create(array $data): array;
 
     /**
-     * Create multiple entities in batch.
-     *
-     * @param array $items Each item is validated attributes array
-     * @return Collection Created models
-     */
-    public function createMany(array $items): Collection
-    {
-        $created = collect();
-
-        foreach ($items as $attributes) {
-            $created->push($this->create($attributes));
-        }
-
-        return $created;
-    }
-
-    /**
-     * Update entity by ID.
+     * Update entity by ID using SafeQuery to build SET clause.
      *
      * @param string $id UUID
-     * @param array $attributes Validated data
-     * @return Model|null Null if entity not found
+     * @param array $data Validated data
+     * @return array|null Updated row or null if not found
      */
-    public function updateById(string $id, array $attributes): ?Model
+    public function updateById(string $id, array $data): ?array
     {
-        $entity = $this->findById($id);
+        $allowed = $this->getAllowedUpdateColumns();
+        [$set, $values] = SafeQuery::buildUpdate($data, $allowed);
+        $values[] = date('Y-m-d H:i:s');  // updated_at
+        $values[] = $id;
 
-        if (!$entity) {
-            return null;
-        }
+        $table = $this->getTableName();
+        $stmt = $this->db->prepare("UPDATE {$table} SET {$set}, updated_at = ? WHERE id = ?");
+        $stmt->execute($values);
 
-        $entity->update($attributes);
-        return $entity->fresh();  // Reload from database to get computed fields
-    }
-
-    /**
-     * Update multiple entities.
-     *
-     * @param array $items Key-value pairs: ['id' => attributes]
-     * @return Collection Updated models
-     */
-    public function updateMany(array $items): Collection
-    {
-        $updated = collect();
-
-        foreach ($items as $id => $attributes) {
-            $updated->push($this->updateById($id, $attributes));
-        }
-
-        return $updated->filter();  // Remove nulls
+        $this->logger->info("{$table} updated", ['id' => $id]);
+        return $this->findById($id);
     }
 
     /**
@@ -300,39 +240,22 @@ abstract class BaseRepository implements RepositoryInterface
      */
     public function deleteById(string $id): bool
     {
-        $entity = $this->findById($id);
-
-        if (!$entity) {
-            return false;
-        }
-
-        $entity->delete();
-        return true;
-    }
-
-    /**
-     * Delete multiple entities by IDs.
-     *
-     * @param array $ids
-     * @return int Number of entities deleted
-     */
-    public function deleteByIds(array $ids): int
-    {
-        return $this->query()
-            ->whereIn($this->getKeyName(), $ids)
-            ->delete();
+        $table = $this->getTableName();
+        $stmt = $this->db->prepare("DELETE FROM {$table} WHERE id = ?");
+        $result = $stmt->execute([$id]);
+        $this->logger->info("{$table} deleted", ['id' => $id]);
+        return $result && $stmt->rowCount() > 0;
     }
 
     /**
      * Count total entities.
      *
-     * Subclasses can override to add default filtering.
-     *
      * @return int
      */
     public function count(): int
     {
-        return $this->query()->count();
+        $table = $this->getTableName();
+        return (int) $this->db->query("SELECT COUNT(*) FROM {$table}")->fetchColumn();
     }
 
     /**
@@ -343,36 +266,35 @@ abstract class BaseRepository implements RepositoryInterface
      */
     public function exists(string $id): bool
     {
-        return $this->query()
-            ->where($this->getKeyName(), $id)
-            ->exists();
+        $table = $this->getTableName();
+        $stmt = $this->db->prepare("SELECT 1 FROM {$table} WHERE id = ? LIMIT 1");
+        $stmt->execute([$id]);
+        return (bool) $stmt->fetch();
     }
 
     /**
-     * Get the primary key name for this model.
-     * Override if using non-standard key name.
+     * List entities with pagination, filtering, and sorting.
+     * Subclasses override to implement domain-specific filters and sort maps.
      *
-     * @return string
+     * @return array{items: array[], total: int}
      */
-    protected function getKeyName(): string
-    {
-        return $this->model->getKeyName();
-    }
+    abstract public function listPaginated(
+        int $limit,
+        int $offset,
+        array $filters = [],
+        string $sortKey = 'created_at',
+        string $sortOrder = 'desc',
+    ): array;
 
     /**
-     * Eager load relationships on query.
-     * Override in subclass to add common relationships.
-     *
-     * Example in MembersRepository:
-     *   protected function with(): array {
-     *       return ['transactions', 'bookings'];
-     *   }
-     *
-     * @return array
+     * Generate a UUID v4.
      */
-    protected function with(): array
+    protected function generateUuid(): string
     {
-        return [];
+        $data = random_bytes(16);
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }
 ```
@@ -380,14 +302,13 @@ abstract class BaseRepository implements RepositoryInterface
 ### Module-Specific Repository (Members Example)
 
 ```php
-// app/Http/Modules/Members/Repositories/MembersRepository.php
-namespace App\Http\Modules\Members\Repositories;
+// src/Modules/Members/Repositories/MembersRepository.php
+namespace App\Modules\Members\Repositories;
 
-use App\Http\Modules\Members\Enums\MemberStatus;
-use App\Models\Member;
-use App\Models\Transaction;
+use PDO;
+use App\Shared\Logging\Logger;
+use App\Shared\Repository\SafeQuery;
 use App\Shared\Repositories\BaseRepository;
-use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Members repository: extends BaseRepository with Members-specific queries.
@@ -395,111 +316,165 @@ use Illuminate\Database\Eloquent\Collection;
  * Inherits standard CRUD from BaseRepository:
  * - findById()
  * - findAll()
- * - create()
  * - updateById()
  * - deleteById()
+ * - count(), exists()
  *
  * Implements Members-specific data access:
- * - findModifiedSince()
- * - findActiveSince()
- * - getTransactionHistory()
- * - getBookingHistory()
- * - anonymize()
+ * - findModifiedSince()     — terminal delta sync
+ * - findByIdIncludingDeleted() — admin view of soft-deleted
+ * - anonymize()             — GDPR Art. 17
+ * - listPaginated()         — admin list with filters
  */
 final class MembersRepository extends BaseRepository
 {
-    public function __construct()
+    public function __construct(PDO $db, Logger $logger)
     {
-        parent::__construct(new Member());
+        parent::__construct($db, $logger);
+    }
+
+    protected function getTableName(): string
+    {
+        return 'members';
+    }
+
+    protected function getAllowedUpdateColumns(): array
+    {
+        return ['card_uid', 'first_name', 'last_name', 'email', 'phone',
+                'preferred_language', 'is_active', 'iban', 'account_holder_name',
+                'mandate_reference', 'mandate_signed_at', 'deleted_at', 'deleted_by_admin_id'];
+    }
+
+    /**
+     * Override findById to exclude soft-deleted members.
+     */
+    public function findById(string $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM members WHERE id = ? AND deleted_at IS NULL');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Admin: Find member including soft-deleted (for anonymized member views).
+     */
+    public function findByIdIncludingDeleted(string $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM members WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
     }
 
     /**
      * Terminal: Find members modified since timestamp (delta sync).
+     * Includes tombstones (deleted_at) so terminals can remove deleted items.
      *
-     * @param int $sinceTimestamp Unix timestamp
-     * @return Collection
+     * @param int $sinceTimestamp Unix timestamp in milliseconds
+     * @return array[]
      */
-    public function findModifiedSince(int $sinceTimestamp): Collection
+    public function findModifiedSince(int $sinceTimestamp): array
     {
-        $since = \DateTime::createFromFormat('U', (string)$sinceTimestamp);
+        $sinceSeconds = (int) ($sinceTimestamp / 1000);
+        $sinceDate = date('Y-m-d H:i:s', $sinceSeconds);
 
-        return $this->query()
-            ->where('updated_at', '>=', $since)
-            ->orderBy('updated_at', 'asc')
-            ->get();
+        $stmt = $this->db->prepare(
+            'SELECT * FROM members
+             WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
+             ORDER BY COALESCE(updated_at, deleted_at) ASC'
+        );
+        $stmt->execute([$sinceDate, $sinceDate]);
+        return $stmt->fetchAll();
     }
 
     /**
-     * Admin: Find members active since date.
-     *
-     * @param int $sinceTimestamp Unix timestamp
-     * @return Collection
+     * Create new member with UUID generation and auto-generated mandate reference.
      */
-    public function findActiveSince(int $sinceTimestamp): Collection
+    public function create(array $data): array
     {
-        $since = \DateTime::createFromFormat('U', (string)$sinceTimestamp);
+        $id = $data['id'] ?? $this->generateUuid();
+        $now = date('Y-m-d H:i:s');
 
-        return $this->query()
-            ->where('is_active', true)
-            ->where('created_at', '>=', $since)
-            ->get();
-    }
+        $iban = $data['iban'] ?? null;
+        $mandateReference = array_key_exists('mandate_reference', $data)
+            ? ($data['mandate_reference'] ?: null)
+            : ($iban !== null ? str_replace('-', '', $id) : null);
 
-    /**
-     * Admin: Get transaction history for member.
-     *
-     * @param string $memberId
-     * @return Collection
-     */
-    public function getTransactionHistory(string $memberId): Collection
-    {
-        return Transaction::query()
-            ->where('member_id', $memberId)
-            ->orderBy('created_at', 'desc')
-            ->get();
-    }
+        $stmt = $this->db->prepare(
+            'INSERT INTO members (id, card_uid, first_name, last_name, email, phone,
+             preferred_language, is_active, iban, account_holder_name,
+             mandate_reference, mandate_signed_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $id, $data['card_uid'] ?? null, $data['first_name'], $data['last_name'],
+            $data['email'], $data['phone'] ?? null, $data['preferred_language'] ?? 'de',
+            $data['is_active'] ?? true ? 1 : 0, $iban, $data['account_holder_name'] ?? null,
+            $mandateReference, $data['mandate_signed_at'] ?? null, $now, $now,
+        ]);
 
-    /**
-     * Admin: Get booking history for member.
-     *
-     * @param string $memberId
-     * @return Collection
-     */
-    public function getBookingHistory(string $memberId): Collection
-    {
-        // Assuming booking table exists
-        return \DB::table('bookings')
-            ->where('member_id', $memberId)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $this->logger->info('Member created', ['id' => $id]);
+        return $this->findById($id);
     }
 
     /**
      * Admin: Anonymize member data (GDPR Art. 17).
-     *
-     * @param string $memberId
-     * @return void
+     * Removes personal data but retains record for accounting.
      */
-    public function anonymize(string $memberId): void
+    public function anonymize(string $id): bool
     {
-        $this->updateById($memberId, [
-            'first_name' => 'Deleted',
-            'last_name' => 'User',
-            'email' => null,
-            'phone' => null,
-            'iban' => null,
-            'mandate_reference' => null,
-            'is_active' => false,
-        ]);
+        $now = date('Y-m-d H:i:s');
+        $stmt = $this->db->prepare(
+            'UPDATE members SET first_name = ?, last_name = ?, email = ?,
+             phone = NULL, iban = NULL, account_holder_name = NULL,
+             mandate_reference = NULL, card_uid = NULL, is_active = 0,
+             deleted_at = ?, updated_at = ? WHERE id = ?'
+        );
+        return $stmt->execute(['DELETED', 'DELETED', 'deleted@example.com', $now, $now, $id]);
     }
 
     /**
-     * Override to add eager loading of related data.
-     * Automatically loads transactions with each query.
+     * Admin: List members with pagination, filtering, sorting, and search.
+     * Builds SQL WHERE clause dynamically based on filters.
      */
-    protected function with(): array
-    {
-        return [];  // Add 'transactions' if needed for all queries
+    public function listPaginated(
+        int $limit, int $offset, array $filters = [],
+        string $sortKey = 'created_at', string $sortOrder = 'desc',
+        ?string $search = null,
+    ): array {
+        $where = ['deleted_at IS NULL'];
+        $params = [];
+
+        if (isset($filters['is_active'])) {
+            $where[] = 'is_active = ?';
+            $params[] = $filters['is_active'] ? 1 : 0;
+        }
+        if (isset($filters['language'])) {
+            $where[] = 'preferred_language = ?';
+            $params[] = $filters['language'];
+        }
+        if ($search) {
+            $escaped = SafeQuery::escapeLike($search);
+            $where[] = "(CONCAT(first_name, ' ', last_name) LIKE ? OR email LIKE ?)";
+            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%"]);
+        }
+
+        $whereClause = 'WHERE ' . implode(' AND ', $where);
+
+        $columnMap = ['first_name' => 'first_name', 'last_name' => 'last_name', 'created_at' => 'created_at'];
+        $col = SafeQuery::column($sortKey, array_keys($columnMap));
+        $dir = SafeQuery::direction($sortOrder);
+
+        $countStmt = $this->db->prepare("SELECT COUNT(*) FROM members {$whereClause}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $dataParams = array_merge($params, [$limit, $offset]);
+        $stmt = $this->db->prepare(
+            "SELECT * FROM members {$whereClause} ORDER BY {$columnMap[$col]} {$dir} LIMIT ? OFFSET ?"
+        );
+        $stmt->execute($dataParams);
+
+        return ['items' => $stmt->fetchAll(), 'total' => $total];
     }
 }
 ```
@@ -507,12 +482,13 @@ final class MembersRepository extends BaseRepository
 ### Another Repository Example (Products)
 
 ```php
-// app/Http/Modules/Products/Repositories/ProductsRepository.php
-namespace App\Http\Modules\Products\Repositories;
+// src/Modules/Products/Repositories/ProductsRepository.php
+namespace App\Modules\Products\Repositories;
 
-use App\Models\Product;
+use PDO;
+use App\Shared\Logging\Logger;
+use App\Shared\Repository\SafeQuery;
 use App\Shared\Repositories\BaseRepository;
-use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Products repository: extends BaseRepository.
@@ -520,43 +496,134 @@ use Illuminate\Database\Eloquent\Collection;
  * Products-specific queries:
  * - findByCategory()
  * - findActive()
+ * - findModifiedSince()
  */
 final class ProductsRepository extends BaseRepository
 {
-    public function __construct()
+    public function __construct(PDO $db, Logger $logger)
     {
-        parent::__construct(new Product());
+        parent::__construct($db, $logger);
+    }
+
+    protected function getTableName(): string
+    {
+        return 'products';
+    }
+
+    protected function getAllowedUpdateColumns(): array
+    {
+        return ['category_id', 'names', 'descriptions', 'price_cents',
+                'is_active', 'icon_name', 'requires_dispenser',
+                'deleted_at', 'deleted_by_admin_id'];
     }
 
     /**
      * Find all active products in category.
-     *
-     * @param string $categoryId
-     * @return Collection
      */
-    public function findByCategory(string $categoryId): Collection
+    public function findByCategory(string $categoryId): array
     {
-        return $this->query()
-            ->where('category_id', $categoryId)
-            ->where('is_active', true)
-            ->orderBy('display_name', 'asc')
-            ->get();
+        $stmt = $this->db->prepare(
+            'SELECT * FROM products WHERE category_id = ? ORDER BY created_at ASC'
+        );
+        $stmt->execute([$categoryId]);
+        return $stmt->fetchAll();
     }
 
     /**
-     * Terminal: Find active products modified since timestamp.
+     * Terminal: Find products modified since timestamp (delta sync).
+     * Includes tombstones for terminal cache invalidation.
      *
-     * @param int $sinceTimestamp
-     * @return Collection
+     * @param int $sinceTimestamp Unix timestamp in milliseconds
      */
-    public function findActiveModifiedSince(int $sinceTimestamp): Collection
+    public function findModifiedSince(int $sinceTimestamp): array
     {
-        $since = \DateTime::createFromFormat('U', (string)$sinceTimestamp);
+        $sinceSeconds = (int) ($sinceTimestamp / 1000);
+        $sinceDate = date('Y-m-d H:i:s', $sinceSeconds);
 
-        return $this->query()
-            ->where('is_active', true)
-            ->where('updated_at', '>=', $since)
-            ->get();
+        $stmt = $this->db->prepare(
+            'SELECT * FROM products
+             WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
+             ORDER BY COALESCE(updated_at, deleted_at) ASC'
+        );
+        $stmt->execute([$sinceDate, $sinceDate]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Create new product with UUID generation and JSON encoding for multilingual fields.
+     */
+    public function create(array $data): array
+    {
+        $id = $data['id'] ?? $this->generateUuid();
+        $now = date('Y-m-d H:i:s');
+        $names = is_array($data['names']) ? json_encode($data['names']) : $data['names'];
+        $descriptions = is_array($data['descriptions'] ?? [])
+            ? json_encode($data['descriptions'] ?? [])
+            : ($data['descriptions'] ?? '{}');
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO products (id, category_id, names, descriptions, price_cents,
+             is_active, icon_name, requires_dispenser, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $id, $data['category_id'], $names, $descriptions,
+            (int) $data['price_cents'], ($data['is_active'] ?? true) ? 1 : 0,
+            $data['icon_name'] ?? null, ($data['requires_dispenser'] ?? false) ? 1 : 0,
+            $now, $now,
+        ]);
+
+        $this->logger->info('Product created', ['id' => $id]);
+        return $this->findById($id);
+    }
+
+    /**
+     * Admin: List products with pagination, filtering, sorting, and search.
+     * Joins categories table for category name sorting.
+     */
+    public function listPaginated(
+        int $limit, int $offset, array $filters = [],
+        string $sortBy = 'created_at', string $sortOrder = 'desc',
+    ): array {
+        $where = ['p.deleted_at IS NULL'];
+        $params = [];
+
+        if (isset($filters['status'])) {
+            if ($filters['status'] === 'active') { $where[] = 'p.is_active = 1'; }
+            elseif ($filters['status'] === 'inactive') { $where[] = 'p.is_active = 0'; }
+        }
+        if (isset($filters['category_id'])) {
+            $where[] = 'p.category_id = ?';
+            $params[] = $filters['category_id'];
+        }
+        if (isset($filters['search'])) {
+            $where[] = "JSON_SEARCH(p.names, 'one', ?) IS NOT NULL";
+            $params[] = '%' . $filters['search'] . '%';
+        }
+
+        $whereClause = 'WHERE ' . implode(' AND ', $where);
+
+        $sortMap = [
+            'name' => "JSON_UNQUOTE(JSON_EXTRACT(p.names, '$.de'))",
+            'price' => 'p.price_cents',
+            'created_at' => 'p.created_at',
+        ];
+        $sortCol = $sortMap[$sortBy] ?? 'p.created_at';
+        $dir = SafeQuery::direction($sortOrder);
+
+        $countStmt = $this->db->prepare("SELECT COUNT(*) FROM products p {$whereClause}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $dataParams = array_merge($params, [$limit, $offset]);
+        $stmt = $this->db->prepare(
+            "SELECT p.*, c.names as category_names
+             FROM products p LEFT JOIN categories c ON p.category_id = c.id
+             {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
+        );
+        $stmt->execute($dataParams);
+
+        return ['items' => $stmt->fetchAll(), 'total' => $total];
     }
 }
 ```
@@ -565,84 +632,119 @@ final class ProductsRepository extends BaseRepository
 
 ## Usage in Services
 
-Services use repositories for data access, then transform to DTOs:
+Services use repositories for data access, then transform rows (associative arrays) to DTOs:
 
 ```php
-// app/Http/Modules/Members/Services/MembersService.php
+// src/Modules/Members/Services/MembersService.php
 final class MembersService extends BaseService  // Extends Pattern 010: BaseService
 {
     public function __construct(
-        private readonly MembersRepository $repository,
+        private readonly MembersRepository $membersRepository,
+        private readonly TransactionsRepository $transactionsRepository,
+        private readonly AuditService $auditService,
     ) {
-        parent::__construct($repository);
+        parent::__construct($membersRepository);
     }
 
     /**
      * Terminal: Sync members modified since timestamp.
      */
-    public function syncSince(int $sinceTimestamp): SyncResultDto
+    public function syncSince(int $since): SyncResultDto
     {
-        // Use repository-specific method
-        $members = $this->repository->findModifiedSince($sinceTimestamp);
+        // Use repository-specific method (returns array of associative arrays)
+        $rows = $this->membersRepository->findModifiedSince($since);
 
-        // Transform to DTOs
-        $dtos = $members->map(fn($m) => MemberDto::from($m))->toArray();
+        // Transform rows to DTOs
+        $members = array_map(fn($row) => MemberDto::fromRow($row), $rows);
 
-        return new SyncResultDto('members', $dtos);
+        $cursor = !empty($rows)
+            ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
+            : $since;
+
+        return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
     }
 
     /**
      * Admin: Export member data (GDPR).
      */
-    public function exportGDPR(string $memberId): GDPRExportDto
+    public function exportMember(string $memberId): array
     {
         // Use multiple repository methods
-        $member = $this->repository->findById($memberId);
-        $transactions = $this->repository->getTransactionHistory($memberId);
-        $bookings = $this->repository->getBookingHistory($memberId);
+        $row = $this->membersRepository->findByIdIncludingDeleted($memberId);
+        if (!$row) {
+            throw NotFoundException::forResource('Member', $memberId);
+        }
+        $member = MemberAdminDto::fromRow($row);
+        $transactions = $this->transactionsRepository->findByMemberId($memberId, limit: 1000);
 
-        return new GDPRExportDto(
-            member: MemberDto::from($member),
-            transactions: $transactions,
-            bookings: $bookings,
-        );
+        return [
+            'member' => $member->toArray(),
+            'transactions' => $transactions,
+            'bookings' => [],
+            'export_timestamp' => gmdate('Y-m-d\TH:i:s\Z'),
+        ];
     }
 
     // Hook implementations for BaseService
-    protected function transform(Model $entity): MemberDto
+    protected function transform(array $row): MemberAdminDto
     {
-        return MemberDto::from($entity);
+        return MemberAdminDto::fromRow($row);
+    }
+
+    protected function getEntityName(): string
+    {
+        return 'Member';
     }
 }
 ```
 
 ---
 
-## Service Provider Bindings
+## ServiceFactory Bindings
 
-Register repositories in AppServiceProvider:
+Register repositories in ServiceFactory (Pattern 008: Service Provider Bindings).
+Repositories receive PDO and Logger via constructor injection:
 
 ```php
-// app/Providers/AppServiceProvider.php
-class AppServiceProvider extends ServiceProvider
+// src/ServiceFactory.php
+class ServiceFactory implements ContainerInterface
 {
-    public function register(): void
-    {
-        // Members Module
-        $this->app->singleton(MembersRepository::class);
-        $this->app->singleton(MembersService::class, function ($app) {
-            return new MembersService(
-                $app->make(MembersRepository::class),
-            );
-        });
+    private array $instances = [];
 
-        // Products Module
-        $this->app->singleton(ProductsRepository::class);
-        $this->app->singleton(ProductsService::class, function ($app) {
-            return new ProductsService(
-                $app->make(ProductsRepository::class),
-            );
-        });
+    public function __construct(
+        private PDO $pdo,
+        private AppConfig $config,
+        private Logger $logger,
+    ) {}
+
+    // Repositories: PDO + Logger injected
+    public function getMembersRepository(): MembersRepository
+    {
+        return $this->resolve(MembersRepository::class, fn() =>
+            new MembersRepository($this->pdo, $this->logger));
+    }
+
+    public function getProductsRepository(): ProductsRepository
+    {
+        return $this->resolve(ProductsRepository::class, fn() =>
+            new ProductsRepository($this->pdo, $this->logger));
+    }
+
+    // Services: Repositories + AuditService injected
+    public function getMembersService(): MembersService
+    {
+        return $this->resolve(MembersService::class, fn() =>
+            new MembersService(
+                $this->getMembersRepository(),
+                $this->getTransactionsRepository(),
+                $this->getAuditService(),
+            ));
+    }
+
+    // Lazy singleton resolution
+    private function resolve(string $key, callable $factory): mixed
+    {
+        return $this->instances[$key] ??= $factory();
     }
 }
 ```
@@ -651,40 +753,43 @@ class AppServiceProvider extends ServiceProvider
 
 ## Key Design Decisions
 
-### 1. **Eloquent as Implementation Detail**
+### 1. **PDO as Implementation Detail**
 
-Base repository hides Eloquent from services. Services call `repository->findById()`, not `Model::find()`.
+Base repository encapsulates PDO queries. Services call `repository->findById()`, never write SQL directly.
 
-**Benefit**: Can swap ORM without changing service code.
+**Benefit**: SQL is centralized in repositories, can be optimized without changing service code.
 
 ```php
-// ✅ Good: Service depends on repository interface
+// ✅ Good: Service depends on repository
 class MembersService {
     public function __construct(private MembersRepository $repo) {}
+    public function getMember(string $id): MemberAdminDto {
+        $row = $this->repo->findById($id);  // Repository handles SQL
+        return MemberAdminDto::fromRow($row);
+    }
 }
 
-// ❌ Bad: Service depends on Eloquent
+// ❌ Bad: Service uses PDO directly
 class MembersService {
-    public function syncMembers() {
-        return Member::where(...)  // Tightly coupled
+    public function getMember(string $id) {
+        $stmt = $this->db->prepare('SELECT * FROM members WHERE id = ?');  // SQL leaking into service
+        $stmt->execute([$id]);
+        return $stmt->fetch();
     }
 }
 ```
 
-### 2. **Query Builder Access**
+### 2. **Domain-Specific Query Methods**
 
-Base repository exposes `query()` method for complex queries:
+Instead of exposing a generic query builder, repositories provide domain-specific methods with raw SQL:
 
 ```php
-// Simple queries use specific methods
-$members = $repository->findById($id);
+// Simple queries use standard methods
+$member = $repository->findById($id);
 
-// Complex queries use query() builder
-$active = $repository->query()
-    ->where('is_active', true)
-    ->whereDate('created_at', '>=', $since)
-    ->orderBy('last_name')
-    ->get();
+// Complex queries are encapsulated in named methods
+$active = $repository->findModifiedSince($sinceTimestamp);
+$paginated = $repository->listPaginated($limit, $offset, $filters, $sortKey, $sortOrder);
 ```
 
 ### 3. **Null Handling for "Not Found"**
@@ -709,11 +814,11 @@ This separates concerns: repository handles data access, service handles busines
 
 | Pattern | BaseRepository Method | Purpose |
 |---------|----------------------|---------|
-| CRUD Operations | create, findById, updateById, deleteById | Standard persistence |
-| Bulk Operations | createMany, updateMany, deleteByIds | Batch processing |
-| Query Building | query() | Complex queries |
+| CRUD Operations | create, findById, updateById, deleteById | Standard persistence via PDO |
+| Pagination | listPaginated() | Filtered, sorted, paginated queries |
 | Existence Check | exists() | Conditional logic |
 | Count | count() | Pagination calculations |
+| UUID Generation | generateUuid() | Client-generated UUIDs for idempotent APIs |
 
 ---
 
@@ -726,16 +831,18 @@ Add repository methods when:
 3. **Query is complex** → Hide complexity in repository
 
 ```php
-// ✅ Repository method (used by multiple services)
-public function findModifiedSince(int $since): Collection {
-    return $this->query()
-        ->where('updated_at', '>=', $this->since($since))
-        ->orderBy('updated_at')
-        ->get();
+// ✅ Repository method (used by multiple services, encapsulates SQL)
+public function findModifiedSince(int $sinceTimestamp): array {
+    $sinceDate = date('Y-m-d H:i:s', (int) ($sinceTimestamp / 1000));
+    $stmt = $this->db->prepare(
+        'SELECT * FROM members WHERE updated_at > ? ORDER BY updated_at ASC'
+    );
+    $stmt->execute([$sinceDate]);
+    return $stmt->fetchAll();
 }
 
-// ❌ Not in repository (simple, one-off query)
-// Just use query() builder directly in service
+// ❌ Not in repository (one-off query that belongs in service)
+// Don't create a repository method for every unique query
 ```
 
 ---
@@ -754,12 +861,12 @@ public function findModifiedSince(int $since): Collection {
 
 - **Abstraction overhead**: Learning repository interface adds complexity
 - **Over-generalization risk**: Trying to fit all queries into base class
-- **Extra layer**: More files/code than direct Eloquent queries
+- **Extra layer**: More files/code than direct PDO queries in services
 
 ### Mitigations
 
 1. **Keep BaseRepository focused** on CRUD only
-2. **Allow query() access** for complex queries
+2. **Add domain-specific methods** in module repositories for complex queries
 3. **Document module-specific methods** clearly
 4. **Provide working examples** in each module
 

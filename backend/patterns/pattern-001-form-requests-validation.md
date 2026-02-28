@@ -1,4 +1,4 @@
-# Pattern 001: Form Requests for Input Validation
+# Pattern 001: Input Validation
 
 **Category**: Validation & Input Handling
 **Related ADR**: ADR-0017 (Input Validation, Injection Prevention)
@@ -12,167 +12,214 @@ Validation logic scattered throughout controller methods leads to:
 - Mixed HTTP concerns with business logic
 - Duplicated validation rules across multiple endpoints
 - Difficult to test validation independently
-- No typed structures for request data
 - Inconsistent error response formats
 
 ---
 
 ## Solution
 
-Use Laravel **FormRequest** classes to:
-- Declare validation rules declaratively
-- Automatically validate incoming data
-- Provide typed accessor methods (e.g., `preferredLanguage(): SupportedLanguage`)
-- Separate validation concerns from controller logic
-- Enable reusable validation across endpoints
+Use the shared **`Validator`** class (`App\Shared\Validation\Validator`) to:
+- Declare validation rules as associative arrays
+- Validate incoming data before passing to services
+- Return structured error messages on failure
+- Support database-backed rules (e.g., `unique`) via PDO
 
 ---
 
 ## Implementation Pattern
 
-### Basic Structure
+### Validator Class
+
+The `Validator` is a shared service injected via `ServiceFactory`:
 
 ```php
-// app/Http/Requests/UpdateLanguageRequest.php
-<?php
+// src/Shared/Validation/Validator.php
+namespace App\Shared\Validation;
 
-namespace App\Http\Requests;
-
-use App\Enums\SupportedLanguage;
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
-
-final class UpdateLanguageRequest extends FormRequest
+class Validator
 {
-    public function rules(): array
+    public function __construct(private \PDO $pdo) {}
+
+    public function validate(array $data, array $rules): bool
     {
-        return [
-            'preferred_language' => [
-                'required',
-                'string',
-                Rule::enum(SupportedLanguage::class),
-            ],
-        ];
+        // Returns true if all rules pass, false otherwise
     }
 
-    // Typed accessor methods for validated data
-    public function preferredLanguage(): SupportedLanguage
+    public function errors(): array
     {
-        return SupportedLanguage::from($this->validated('preferred_language'));
+        // Returns ['field_name' => ['error message', ...], ...]
     }
 }
 ```
 
-### Array Validation
+### Available Rules
+
+| Rule | Description | Example |
+|------|-------------|---------|
+| `required` | Field must be present and non-empty | `'required'` |
+| `string` | Must be a string | `'string'` |
+| `integer` | Must be numeric | `'integer'` |
+| `numeric` | Must be numeric | `'numeric'` |
+| `email` | Must be valid email | `'email'` |
+| `boolean` | Must be boolean-like | `'boolean'` |
+| `uuid` | Must be valid UUID | `'uuid'` |
+| `date` | Must be parseable date | `'date'` |
+| `array` | Must be an array | `'array'` |
+| `json` | Must be valid JSON | `'json'` |
+| `nullable` | Value may be null | `'nullable'` |
+| `min:N` | Min length (string) or min value (number) | `'min:3'` |
+| `max:N` | Max length (string) or max value (number) | `'max:100'` |
+| `gt:N` | Greater than N | `'gt:0'` |
+| `gte:N` | Greater than or equal to N | `'gte:1'` |
+| `in:a,b,c` | Must be one of listed values | `'in:de,en,fr'` |
+| `regex:/pattern/` | Must match regex | `'regex:/^[0-9A-F]+$/'` |
+| `same:field` | Must match another field | `'same:password'` |
+| `unique:table,col` | Must be unique in database | `'unique:members,card_uid'` |
+| `unique:table,col,id` | Unique excluding a specific ID | `'unique:members,card_uid,abc-123'` |
+
+### Basic Usage in Controller
 
 ```php
-// app/Http/Requests/UploadTransactionsRequest.php
-<?php
+// src/Modules/Members/Controllers/AdminController.php
+namespace App\Modules\Members\Controllers;
 
-namespace App\Http\Requests;
+use App\Shared\Validation\Validator;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
 
-use Illuminate\Foundation\Http\FormRequest;
-
-final class UploadTransactionsRequest extends FormRequest
+class AdminController
 {
-    public function rules(): array
+    public function __construct(
+        private MembersService $membersService,
+        private Validator $validator,
+    ) {}
+
+    public function store(Request $request, Response $response): Response
     {
-        return [
-            'transactions' => ['required', 'array', 'min:1', 'max:100'],
-            'transactions.*.id' => ['required', 'uuid'],
-            'transactions.*.member_id' => ['required', 'uuid'],
-            'transactions.*.product_id' => ['required', 'uuid'],
-            'transactions.*.amount_cents' => ['required', 'integer', 'min:1'],
-            'transactions.*.created_at' => ['required', 'date_format:Y-m-d\TH:i:s\Z'],
-        ];
+        $body = $request->getParsedBody() ?? [];
+
+        if (!$this->validator->validate($body, [
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email'],
+            'preferred_language' => ['required', 'string', 'in:de,en,fr'],
+            'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/', 'unique:members,card_uid'],
+        ])) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'messages' => $this->validator->errors(),
+            ], 422);
+        }
+
+        $member = $this->membersService->createMember(...);
+        return $this->json($response, $member->toArray(), 201);
     }
+}
+```
+
+### Validation with Unique Constraint (Excluding Current Record)
+
+```php
+public function update(Request $request, Response $response, array $args): Response
+{
+    $memberId = $args['memberId'];
+    $body = $request->getParsedBody() ?? [];
+
+    if (isset($body['card_uid'])) {
+        if (!$this->validator->validate($body, [
+            'card_uid' => ['nullable', 'string', 'min:8', 'max:20',
+                           'regex:/^[0-9A-F]+$/',
+                           "unique:members,card_uid,{$memberId}"],
+        ])) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'messages' => $this->validator->errors(),
+            ], 422);
+        }
+    }
+
+    $member = $this->membersService->updateMember($memberId, $body);
+    return $this->json($response, $member->toArray());
 }
 ```
 
 ### Query Parameter Validation
 
 ```php
-// app/Http/Requests/SyncRequest.php
-<?php
-
-namespace App\Http\Requests;
-
-use DateTimeImmutable;
-use Illuminate\Foundation\Http\FormRequest;
-
-final class SyncRequest extends FormRequest
+public function index(Request $request, Response $response): Response
 {
-    public function rules(): array
-    {
-        return [
-            'since' => ['sometimes', 'date_format:Y-m-d\TH:i:s\Z'],
-        ];
+    $params = $request->getQueryParams();
+
+    // Validate limit: reject non-numeric or values exceeding 100
+    $rawLimit = $params['per_page'] ?? $params['limit'] ?? null;
+    if ($rawLimit !== null) {
+        if (!is_numeric($rawLimit) || (int) $rawLimit != $rawLimit) {
+            return $this->json($response, [
+                'error' => 'invalid_request',
+                'messages' => ['limit' => ['limit must be a positive integer']],
+            ], 400);
+        }
     }
 
-    // Type-safe accessor for query parameter
-    public function since(): DateTimeImmutable
-    {
-        $since = $this->query('since', '1970-01-01T00:00:00Z');
-        return new DateTimeImmutable($since);
-    }
+    // ...proceed with service call
 }
 ```
 
 ---
 
-## Controller Usage
+## Enum Validation
 
-Controllers inject FormRequest and use its typed accessors:
+Combine `in:` rule with PHP enums for type-safe input:
 
 ```php
-public function updateLanguage(UpdateLanguageRequest $request, string $memberId): JsonResponse
-{
-    // Validation already passed; $request->validated() contains safe data
-    $language = $request->preferredLanguage(); // Type-safe enum
-
-    $member = $this->syncService->updateMemberLanguage($memberId, $language);
-
-    return response()->json(['preferred_language' => $member->preferredLanguage]);
+// Validate input string
+if (!$this->validator->validate($body, [
+    'preferred_language' => ['required', 'string', 'in:de,en,fr'],
+])) {
+    return $this->json($response, [...], 422);
 }
+
+// Convert to type-safe enum after validation
+$language = SupportedLanguage::from($body['preferred_language']);
 ```
 
 ---
 
 ## Key Benefits
 
-✅ **Automatic validation**: Laravel validates before controller method executes
-✅ **Type safety**: Typed accessor methods prevent type errors
-✅ **DRY**: Reusable validation rules across endpoints
-✅ **Testable**: Validation logic isolated and mockable
-✅ **Consistent errors**: FormRequest validation failures produce standard error responses
-✅ **Security**: Prepared statements; prevents injection attacks (via framework)
+- **Declarative rules**: Validation expressed as simple arrays
+- **Reusable**: Same `Validator` instance across all controllers
+- **Database-aware**: `unique` rule queries the database via PDO
+- **Consistent errors**: Structured error format `{field: [messages]}`
+- **Testable**: Validator can be unit-tested independently
+- **No framework dependency**: Pure PHP with PDO for unique checks
 
 ---
 
 ## When to Use
 
 - All public API endpoints accepting user input
-- Query parameters requiring specific formats (UUIDs, dates, enums)
-- Nested arrays/objects (batch operations, complex payloads)
-- Validation rules reused across multiple endpoints
+- POST/PATCH/PUT request bodies
+- Query parameters requiring specific formats
+- Any input that needs database uniqueness checks
 
 ---
 
 ## When NOT to Use
 
-- Simple pass-through endpoints (raw file uploads, proxies)
-- Internal endpoints without external input
-- Schema validation handled at protocol level
+- Simple pass-through endpoints (health checks)
+- Internal methods where input is already trusted
+- Query parameters that can safely fall back to defaults
 
 ---
 
 ## Consistency with Modularity (ADR-0018)
 
-FormRequests are **module-specific**:
-- Located in `app/Http/Requests/` directory
-- Named by module (e.g., `MembersRequest`, `ProductsRequest`)
-- Each module defines its own validation rules
-- Enables independent testing of validation per module
+The `Validator` is **shared infrastructure**:
+- Located in `src/Shared/Validation/Validator.php`
+- Injected into controllers via `ServiceFactory`
+- All modules use the same validation engine
+- Rules are defined per-controller/per-action (not centralized)
 
 ---
 
@@ -180,11 +227,11 @@ FormRequests are **module-specific**:
 
 - **Pattern 002**: Enum for Type-Safe Domain Values
 - **Pattern 003**: Data Transfer Objects (DTOs) for Responses
-- **Pattern 005**: Exception Handler for Centralized Error Responses
+- **Pattern 007**: Centralized Exception Handling
 
 ---
 
 ## References
 
-- [Laravel Form Requests Documentation](https://laravel.com/docs/requests#form-request-validation)
 - [ADR-0017: Input Validation and Injection Prevention](../adr/0017-input-validation-injection-prevention.md)
+- [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html)

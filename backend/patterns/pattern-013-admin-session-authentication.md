@@ -24,201 +24,160 @@ The admin panel (React SPA) allows administrators to manage members, products, s
 
 ## Pattern Definition
 
-### User Model & Password Hashing
+### Admin Users Repository (PDO)
+
+Admin users are stored in `admin_users` table and accessed via PDO repository (no ORM/Eloquent). Password hashing uses PHP's native `password_hash()` with bcrypt.
 
 ```php
-// app/Models/AdminUser.php
-namespace App\Models;
+// src/Modules/AdminUsers/Repositories/AdminUsersRepository.php
+namespace App\Modules\AdminUsers\Repositories;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Hash;
+use PDO;
 
 /**
- * Admin User Model.
+ * Admin users repository with PDO.
  *
- * Represents administrators who can access /api/admin/* endpoints.
- * Users authenticate with email + password (session-based).
+ * Returns associative arrays, not model objects.
+ * Password hashing handled by service layer.
  *
  * Implements Pattern 013: Admin Session Authentication
  */
-class AdminUser extends Authenticatable
+class AdminUsersRepository
 {
-    protected $table = 'admin_users';
-    protected $guarded = [];
-    protected $hidden = ['password'];
+    public function __construct(private PDO $db) {}
 
-    /**
-     * Hash password before storing (mutator).
-     *
-     * Uses bcrypt with cost factor 12+.
-     * Set during create/update via:
-     *   AdminUser::create(['email' => ..., 'password' => plaintext])
-     *
-     * @param string $value Plaintext password
-     * @return void
-     */
-    public function setPasswordAttribute(string $value): void
+    public function findById(string $id): ?array
     {
-        $this->attributes['password'] = Hash::make(
-            $value,
-            ['cost' => 12]  // Bcrypt cost (higher = slower, more secure)
-        );
+        $stmt = $this->db->prepare('SELECT * FROM admin_users WHERE id = ?');
+        $stmt->execute([$id]);
+        return $stmt->fetch() ?: null;
     }
 
-    /**
-     * Check if user can access admin panel.
-     *
-     * @return bool
-     */
-    public function isActive(): bool
+    public function findByEmail(string $email): ?array
     {
-        return $this->is_active ?? false;
+        $stmt = $this->db->prepare('SELECT * FROM admin_users WHERE email = ?');
+        $stmt->execute([$email]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function updateById(string $id, array $data): void
+    {
+        $sets = [];
+        $values = [];
+        foreach ($data as $col => $val) {
+            $sets[] = "{$col} = ?";
+            $values[] = $val;
+        }
+        $values[] = $id;
+        $sql = 'UPDATE admin_users SET ' . implode(', ', $sets) . ' WHERE id = ?';
+        $this->db->prepare($sql)->execute($values);
     }
 }
 ```
 
-### Login Request Validation
+### Login Input Validation (Custom Validator)
 
 ```php
-// app/Http/Modules/Auth/Requests/LoginRequest.php
-namespace App\Http\Modules\Auth\Requests;
+// Validation is done inline in the controller using the custom Validator class.
+// No FormRequest; the project uses App\Shared\Validation\Validator (PDO-backed).
 
-use Illuminate\Foundation\Http\FormRequest;
+// In AuthController::login():
+$body = $request->getParsedBody();
+$validator = new Validator($this->pdo);
+$valid = $validator->validate($body, [
+    'email'    => ['required', 'email', 'max:255'],
+    'password' => ['required', 'string', 'min:8', 'max:255'],
+]);
 
-/**
- * Login form request validation (Pattern 001).
- *
- * Validates email + password for admin login.
- * Does NOT authenticate; only validates format.
- *
- * Implements Pattern 013: Admin Session Authentication
- */
-class LoginRequest extends FormRequest
-{
-    public function authorize(): bool
-    {
-        // Public endpoint; no authorization needed
-        return true;
-    }
-
-    public function rules(): array
-    {
-        return [
-            'email' => 'required|email|max:255',
-            'password' => 'required|string|min:8|max:255',
-        ];
-    }
-
-    public function email(): string
-    {
-        return $this->validated('email');
-    }
-
-    public function password(): string
-    {
-        return $this->validated('password');
-    }
+if (!$valid) {
+    // Return 422 with validation errors
+    $response->getBody()->write(json_encode(['errors' => $validator->errors()]));
+    return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
 }
 ```
 
 ### Authentication Service
 
 ```php
-// app/Http/Modules/Auth/Services/AuthService.php
-namespace App\Http\Modules\Auth\Services;
+// src/Modules/Auth/Services/AuthService.php
+namespace App\Modules\Auth\Services;
 
-use App\Http\Modules\Auth\DTOs\AuthResponseDto;
-use App\Models\AdminUser;
-use Illuminate\Support\Facades\Hash;
+use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Shared\Logging\Logger;
 
 /**
  * Authentication service for admin login/logout.
  *
  * Handles:
- * - Credential validation (email + password)
- * - Session management (creation, regeneration)
- * - Password verification
+ * - Credential validation (email + password via password_verify)
+ * - Session verification
+ * - Password changes
+ *
+ * Returns associative arrays from PDO repository (not Eloquent models).
  *
  * Implements Pattern 013: Admin Session Authentication
  */
-final class AuthService
+class AuthService
 {
+    public function __construct(
+        private AdminUsersRepository $adminUsersRepository,
+        private Logger $logger,
+    ) {}
+
     /**
      * Authenticate admin user with email + password.
      *
-     * Validates password (bcrypt comparison).
+     * Validates password (bcrypt comparison via password_verify).
      * Does NOT create session; controller calls session_regenerate_id().
      *
      * @param string $email Admin email
      * @param string $password Plaintext password
-     * @return AdminUser Authenticated user
-     * @throws AuthenticationException Invalid credentials or inactive user
+     * @return array|null Admin user row as associative array, or null on failure
      */
-    public function authenticate(string $email, string $password): AdminUser
+    public function authenticate(string $email, string $password): ?array
     {
-        $user = AdminUser::where('email', $email)->first();
+        $admin = $this->adminUsersRepository->findByEmail($email);
 
-        // Check if user exists and password is correct
-        if (!$user || !Hash::check($password, $user->password)) {
-            // Intentionally vague: don't reveal if email exists
-            throw new AuthenticationException('Invalid email or password');
+        if (!$admin) {
+            $this->logger->info('Login failed: unknown email', ['email' => $email]);
+            return null;
         }
 
-        // Check if user is active
-        if (!$user->isActive()) {
-            throw new AuthenticationException('Account is inactive');
+        if (!password_verify($password, $admin['password_hash'])) {
+            $this->logger->info('Login failed: invalid password', ['email' => $email]);
+            return null;
         }
 
-        // Log successful authentication (optional)
-        // AuditLogger::log('LOGIN', $user->id, 'Successful admin login');
+        if (!(bool) $admin['is_active']) {
+            $this->logger->info('Login failed: inactive account', ['email' => $email]);
+            return null;
+        }
 
-        return $user;
+        // Update last login timestamp
+        $this->adminUsersRepository->updateById($admin['id'], [
+            'last_login_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $this->logger->info('Login successful', ['admin_id' => $admin['id']]);
+        return $admin;
     }
 
     /**
      * Verify if user session is still valid.
      *
-     * Checks:
-     * - User exists in database
-     * - User is still active
+     * Checks user exists in database and is still active.
+     * Called by AdminSessionAuth middleware on each request.
      *
-     * Called during request to ensure session user hasn't been disabled.
-     *
-     * @param int $userId User ID from session
-     * @return AdminUser|null
+     * @param string $adminId Admin user ID from session
+     * @return array|null Admin user row or null
      */
-    public function getAuthenticatedUser(int $userId): ?AdminUser
+    public function getActiveAdmin(string $adminId): ?array
     {
-        return AdminUser::where('id', $userId)
-            ->where('is_active', true)
-            ->first();
-    }
-
-    /**
-     * Change password for authenticated user.
-     *
-     * Validates old password before allowing change.
-     *
-     * @param AdminUser $user
-     * @param string $oldPassword Current plaintext password
-     * @param string $newPassword New plaintext password
-     * @return void
-     * @throws AuthenticationException Old password incorrect
-     */
-    public function changePassword(
-        AdminUser $user,
-        string $oldPassword,
-        string $newPassword,
-    ): void {
-        if (!Hash::check($oldPassword, $user->password)) {
-            throw new AuthenticationException('Current password is incorrect');
+        $admin = $this->adminUsersRepository->findById($adminId);
+        if (!$admin || !(bool) $admin['is_active']) {
+            return null;
         }
-
-        $user->update(['password' => $newPassword]);
-
-        // Log password change
-        // AuditLogger::log('PASSWORD_CHANGE', $user->id, 'Password changed');
+        return $admin;
     }
 }
 ```
@@ -226,26 +185,26 @@ final class AuthService
 ### Login/Logout Controller
 
 ```php
-// app/Http/Modules/Auth/Controllers/AuthController.php
-namespace App\Http\Modules\Auth\Controllers;
+// src/Modules/Auth/Controllers/AuthController.php
+namespace App\Modules\Auth\Controllers;
 
-use App\Http\Modules\Auth\Requests\LoginRequest;
-use App\Http\Modules\Auth\Services\AuthService;
-use Exception;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+use App\Modules\Auth\Services\AuthService;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * Admin authentication controller.
+ * Admin authentication controller (Slim 4).
  *
  * Handles:
  * - POST /api/auth/login - Create session
  * - POST /api/auth/logout - Destroy session
  * - GET /api/auth/profile - Current user info
  *
+ * Uses PSR-7 request/response, native PHP sessions ($_SESSION).
+ *
  * Implements Pattern 013: Admin Session Authentication
  */
-final class AuthController extends Controller
+final class AuthController
 {
     public function __construct(
         private readonly AuthService $authService,
@@ -255,297 +214,232 @@ final class AuthController extends Controller
      * POST /api/auth/login - Login with email + password.
      *
      * Flow:
-     * 1. Validate email + password (FormRequest)
+     * 1. Parse and validate input from PSR-7 request body
      * 2. Find user and verify password (Service)
      * 3. Regenerate session ID (prevent fixation)
-     * 4. Store user_id + role in $_SESSION
+     * 4. Store admin_user_id in $_SESSION
      * 5. Return user data + set secure cookie
-     *
-     * @param LoginRequest $request Email + password
-     * @return JsonResponse User data (no password)
      */
-    public function login(LoginRequest $request): JsonResponse
+    public function login(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        try {
-            // 1. Authenticate user (service validates password)
-            $user = $this->authService->authenticate(
-                $request->email(),
-                $request->password()
-            );
+        $body = $request->getParsedBody();
+        $email = $body['email'] ?? '';
+        $password = $body['password'] ?? '';
 
-            // 2. Regenerate session ID (prevent session fixation)
-            session_regenerate_id(true);
+        // 1. Authenticate user (service validates password via password_verify)
+        $admin = $this->authService->authenticate($email, $password);
 
-            // 3. Store user info in session
-            session(['user_id' => $user->id]);
-
-            // 4. Return user data
-            // Browser automatically receives Set-Cookie with session ID
-            return response()->json([
-                'user' => [
-                    'id' => $user->id,
-                    'email' => $user->email,
-                    'name' => $user->name,
-                ],
-                'message' => 'Logged in successfully',
-            ]);
-
-        } catch (Exception $e) {
-            return response()->json([
+        if (!$admin) {
+            $response->getBody()->write(json_encode([
                 'error' => 'authentication_failed',
                 'message' => 'Invalid email or password',
-            ], 401);
+            ]));
+            return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
         }
+
+        // 2. Start/regenerate session (prevent session fixation)
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_name('_session');
+            session_start();
+        }
+        session_regenerate_id(true);
+
+        // 3. Store user info in $_SESSION
+        $_SESSION['admin_user_id'] = $admin['id'];
+
+        // 4. Return user data
+        $response->getBody()->write(json_encode([
+            'user' => [
+                'id' => $admin['id'],
+                'email' => $admin['email'],
+                'name' => $admin['name'],
+            ],
+            'message' => 'Logged in successfully',
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 
     /**
      * POST /api/auth/logout - Destroy session.
      *
      * Flow:
-     * 1. Check if user is authenticated
-     * 2. Destroy session data
-     * 3. Delete session cookie
-     *
-     * @param Request $request
-     * @return JsonResponse
+     * 1. Destroy session data ($_SESSION)
+     * 2. Delete session cookie
      */
-    public function logout(Request $request): JsonResponse
+    public function logout(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $userId = session('user_id');
+        $_SESSION = [];
+        session_destroy();
 
-        if ($userId) {
-            // Log logout
-            // AuditLogger::log('LOGOUT', $userId, 'Logout');
-        }
-
-        // Destroy session
-        session()->flush();
-
-        return response()->json(['message' => 'Logged out successfully']);
+        $response->getBody()->write(json_encode(['message' => 'Logged out successfully']));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 
     /**
      * GET /api/auth/profile - Get current authenticated user.
      *
-     * Protected by: SessionAuthenticationMiddleware
-     * (middleware ensures user_id exists in session)
-     *
-     * @param Request $request
-     * @return JsonResponse User data
+     * Protected by: AdminSessionAuth middleware (PSR-15)
+     * (middleware ensures admin_user_id exists in session and attaches admin data)
      */
-    public function profile(Request $request): JsonResponse
+    public function profile(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $userId = session('user_id');
+        // Admin data attached by AdminSessionAuth middleware
+        $admin = $request->getAttribute('admin_user');
 
-        // Re-verify user still exists and is active
-        $user = $this->authService->getAuthenticatedUser($userId);
-
-        if (!$user) {
-            // User was deactivated; session is invalid
-            session()->flush();
-            return response()->json([
-                'error' => 'unauthorized',
-                'message' => 'User no longer exists or is inactive',
-            ], 401);
-        }
-
-        return response()->json([
+        $response->getBody()->write(json_encode([
             'user' => [
-                'id' => $user->id,
-                'email' => $user->email,
-                'name' => $user->name,
+                'id' => $admin['id'],
+                'email' => $admin['email'],
+                'name' => $admin['name'],
             ],
-        ]);
-    }
-
-    /**
-     * POST /api/auth/password - Change password.
-     *
-     * Protected by: SessionAuthenticationMiddleware
-     *
-     * @param ChangePasswordRequest $request
-     * @return JsonResponse
-     */
-    public function changePassword(ChangePasswordRequest $request): JsonResponse
-    {
-        $userId = session('user_id');
-        $user = AdminUser::findOrFail($userId);
-
-        try {
-            $this->authService->changePassword(
-                $user,
-                $request->currentPassword(),
-                $request->newPassword()
-            );
-
-            return response()->json(['message' => 'Password changed successfully']);
-
-        } catch (Exception $e) {
-            return response()->json([
-                'error' => 'password_change_failed',
-                'message' => $e->getMessage(),
-            ], 400);
-        }
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 }
 ```
 
-### Session Authentication Middleware
+### Session Authentication Middleware (PSR-15)
 
 ```php
-// app/Http/Middleware/AuthenticateSession.php
-namespace App\Http\Middleware;
+// src/Modules/Auth/Middleware/AdminSessionAuth.php
+namespace App\Modules\Auth\Middleware;
 
-use App\Http\Exceptions\UnauthorizedException;
-use App\Http\Modules\Auth\Services\AuthService;
-use Closure;
-use Illuminate\Http\Request;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use Slim\Psr7\Response;
 
 /**
- * Middleware for validating admin session authentication.
+ * PSR-15 Middleware for validating admin session authentication.
  *
  * Ensures:
- * - Session ID exists (from cookie)
- * - user_id stored in session
+ * - PHP session is active
+ * - admin_user_id stored in $_SESSION
  * - User still exists in database
  * - User is still active
  *
  * Implements Pattern 013: Admin Session Authentication
  */
-final class AuthenticateSession
+class AdminSessionAuth implements MiddlewareInterface
 {
-    public function __construct(
-        private readonly AuthService $authService,
-    ) {}
+    public function __construct(private AdminUsersRepository $adminUsersRepository) {}
 
     /**
-     * Validate session before allowing request to proceed.
+     * Validate session before allowing request to proceed (PSR-15).
      *
-     * @param Request $request
-     * @param Closure $next
-     * @return mixed
-     * @throws UnauthorizedException
+     * On success: Attaches admin user data to request attributes
+     * On failure: Returns 401 JSON response
      */
-    public function handle(Request $request, Closure $next)
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        // 1. Check if user_id exists in session
-        $userId = session('user_id');
-
-        if (!$userId) {
-            throw new UnauthorizedException(
-                'Not authenticated',
-                'unauthenticated'
-            );
+        // 1. Start session if not active
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_name('_session');
+            session_start();
         }
 
-        // 2. Verify user still exists and is active
-        $user = $this->authService->getAuthenticatedUser($userId);
-
-        if (!$user) {
-            session()->flush();
-            throw new UnauthorizedException(
-                'User no longer exists or is inactive',
-                'user_disabled'
-            );
+        // 2. Check if admin_user_id exists in $_SESSION
+        $adminId = $_SESSION['admin_user_id'] ?? null;
+        if (!$adminId) {
+            return $this->unauthorized();
         }
 
-        // 3. Attach user to request
-        $request->setUser($user);
+        // 3. Verify user still exists and is active (PDO lookup)
+        $admin = $this->adminUsersRepository->findById($adminId);
+        if (!$admin || !(bool) $admin['is_active']) {
+            return $this->unauthorized();
+        }
 
-        return $next($request);
+        // 4. Attach admin data to request attributes
+        $request = $request->withAttribute('admin_user_id', $adminId);
+        $request = $request->withAttribute('admin_user', $admin);
+
+        return $handler->handle($request);
+    }
+
+    private function unauthorized(): ResponseInterface
+    {
+        $response = new Response(401);
+        $response->getBody()->write(json_encode(['error' => 'admin_not_authenticated']));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 }
 ```
 
-### Request Macro for User Access
+### Accessing Admin Data in Controllers
+
+PSR-7 `ServerRequestInterface` uses `withAttribute()` / `getAttribute()` to pass data between middleware and controllers. No macros or service providers are needed.
 
 ```php
-// In service provider (AppServiceProvider.php)
-\Illuminate\Http\Request::macro('user', function () {
-    return $this->attributes['user'] ?? null;
-});
+// Middleware attaches admin data:
+$request = $request->withAttribute('admin_user_id', $adminId);
+$request = $request->withAttribute('admin_user', $admin);
 
-\Illuminate\Http\Request::macro('setUser', function ($user) {
-    $this->attributes['user'] = $user;
-    return $this;
-});
-
-\Illuminate\Http\Request::macro('userId', function () {
-    return session('user_id');
-});
+// Controller reads admin data:
+$adminUserId = $request->getAttribute('admin_user_id');
+$adminUser = $request->getAttribute('admin_user');
 ```
 
-### Route Configuration with Middleware
+### Route Configuration with Middleware (Slim 4)
 
 ```php
-// app/Http/Modules/Auth/routes/admin.php
-use App\Http\Middleware\AuthenticateSession;
-use App\Http\Modules\Auth\Controllers\AuthController;
-use Illuminate\Support\Facades\Route;
+// src/routes.php
+use App\Modules\Auth\Middleware\AdminSessionAuth;
+use App\Modules\Auth\Controllers\AuthController;
+use Slim\App;
+use Slim\Routing\RouteCollectorProxy;
 
 /**
- * Admin authentication routes.
+ * Admin authentication routes (Slim 4).
  *
- * POST /api/auth/login - No auth required
+ * POST /api/auth/login - No auth required (public)
  * POST /api/auth/logout - Session required
  * GET /api/auth/profile - Session required
  */
 
-// Login/Logout (no auth required)
-Route::post('/login', [AuthController::class, 'login']);
+// Login is public (no middleware)
+$app->post('/api/auth/login', [AuthController::class, 'login']);
 
-// Protected routes (session required)
-Route::middleware([AuthenticateSession::class])->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/profile', [AuthController::class, 'profile']);
-    Route::post('/password', [AuthController::class, 'changePassword']);
-});
+// Protected auth routes (session required via PSR-15 middleware)
+$app->group('/api/auth', function (RouteCollectorProxy $group) {
+    $group->post('/logout', [AuthController::class, 'logout']);
+    $group->get('/profile', [AuthController::class, 'profile']);
+    $group->patch('/change-password', [AuthController::class, 'changePassword']);
+})->add(AdminSessionAuth::class);
 
-// All other admin endpoints use this middleware
-Route::middleware([AuthenticateSession::class])->group(function () {
-    // Include all admin modules
-    require 'modules/members.php';
-    require 'modules/products.php';
+// All admin endpoints use the same session middleware
+$app->group('/api/admin', function (RouteCollectorProxy $group) {
+    // Members, Products, Settlements, etc.
+    $group->get('/members', [MembersAdminController::class, 'index']);
+    $group->post('/members', [MembersAdminController::class, 'store']);
     // ...etc
-});
+})->add(AdminSessionAuth::class);
 ```
 
 ---
 
 ## Session Configuration
 
-```php
-// config/session.php
-return [
-    'driver' => env('SESSION_DRIVER', 'database'),  // Database storage
-    'lifetime' => 120,  // 2 hours idle timeout (in minutes)
-    'expire_on_close' => false,  // Don't expire on browser close
-    'encrypt' => false,  // Session data stored plaintext (other values encrypted)
-    'path' => '/',
-    'domain' => env('SESSION_DOMAIN'),
-    'secure' => env('APP_ENV') === 'production',  // HTTPS only in production
-    'http_only' => true,  // JavaScript cannot access (prevents XSS theft)
-    'same_site' => 'Lax',  // Prevents CSRF in most cases
-
-    // Database storage
-    'table' => 'sessions',
-    'connection' => null,
-];
-```
-
-### Sessions Table Migration
+The project uses native PHP sessions (`$_SESSION`) with file-based storage. Session parameters are configured via `php.ini` or at runtime before `session_start()`.
 
 ```php
-// database/migrations/create_sessions_table.php
-Schema::create('sessions', function (Blueprint $table) {
-    $table->string('id')->primary();
-    $table->unsignedBigInteger('user_id')->nullable();
-    $table->string('ip_address', 45)->nullable();
-    $table->text('user_agent')->nullable();
-    $table->longText('payload');
-    $table->integer('last_activity')->index();
-});
+// Session is started in the AdminSessionAuth middleware:
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_name('_session');
+    session_start();
+}
+
+// php.ini or runtime configuration:
+// session.gc_maxlifetime = 7200   (2 hours idle timeout)
+// session.cookie_httponly = 1     (JavaScript cannot access - prevents XSS theft)
+// session.cookie_secure = 1       (HTTPS only in production)
+// session.cookie_samesite = Lax   (Prevents CSRF in most cases)
+// session.save_handler = files    (File-based session storage)
 ```
+
+No database-backed session table is needed -- the project uses PHP's native file-based session handler.
 
 ---
 
@@ -582,27 +476,27 @@ Prevents attacker from creating session before user logs in.
 
 ### 2. HttpOnly Cookies (Prevent XSS Token Theft)
 
-```php
-// config/session.php
-'http_only' => true,
+```ini
+; php.ini
+session.cookie_httponly = 1
 ```
 
 JavaScript cannot access session cookie (even if XSS vulnerability exists).
 
 ### 3. Secure Cookies (HTTPS Only)
 
-```php
-// config/session.php
-'secure' => env('APP_ENV') === 'production',
+```ini
+; php.ini (production)
+session.cookie_secure = 1
 ```
 
 Cookie only sent over HTTPS (not HTTP). Prevents MITM attacks.
 
 ### 4. SameSite Attribute (Prevent CSRF)
 
-```php
-// config/session.php
-'same_site' => 'Lax',
+```ini
+; php.ini
+session.cookie_samesite = Lax
 ```
 
 Cookie not sent in cross-site requests. Prevents CSRF attacks.
@@ -610,16 +504,16 @@ Cookie not sent in cross-site requests. Prevents CSRF attacks.
 ### 5. Password Hashing (Prevent Database Breach Exposure)
 
 ```php
-Hash::make($password, ['cost' => 12]);  // Bcrypt, cost 12+
+password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);  // Bcrypt, cost 12+
 ```
 
 Even if database stolen, passwords cannot be reversed.
 
 ### 6. Session Timeout (Limit Exposure)
 
-```php
-// config/session.php
-'lifetime' => 120,  // 2 hours idle timeout
+```ini
+; php.ini
+session.gc_maxlifetime = 7200  ; 2 hours idle timeout (in seconds)
 ```
 
 Session expires if inactive for 2 hours. Admin must re-login.
@@ -669,14 +563,14 @@ Admin Browser              Backend API
 ```php
 // When admin clicks "Logout"
 POST /api/auth/logout
-Cookie: session_id=...
+Cookie: _session=...
 
 // Backend:
-1. Get user_id from session
+1. Get admin_user_id from $_SESSION
 2. Log the logout event
-3. session()->flush()  // Delete session data
-4. Return 200 OK
-5. Browser deletes cookie (automatically after response)
+3. $_SESSION = [];        // Clear session data
+4. session_destroy();     // Destroy session file
+5. Return 200 OK
 
 // Frontend:
 - Remove any cached auth token
@@ -737,29 +631,30 @@ Complements:
 
 ```php
 // tests/Unit/Services/AuthServiceTest.php
-public function test_authenticate_returns_user_with_valid_credentials()
+public function test_authenticate_returns_admin_with_valid_credentials()
 {
-    $user = AdminUser::factory()->create(['password' => 'test123456']);
-    $authenticated = $this->authService->authenticate($user->email, 'test123456');
-    $this->assertEquals($user->id, $authenticated->id);
+    // Insert test admin via PDO
+    $this->insertTestAdmin('test@test.com', 'test123456');
+
+    $authenticated = $this->authService->authenticate('test@test.com', 'test123456');
+    $this->assertNotNull($authenticated);
+    $this->assertEquals('test@test.com', $authenticated['email']);
 }
 
-public function test_authenticate_throws_with_invalid_password()
+public function test_authenticate_returns_null_with_invalid_password()
 {
-    AdminUser::factory()->create(['email' => 'test@test.com', 'password' => 'test123456']);
-    $this->expectException(AuthenticationException::class);
-    $this->authService->authenticate('test@test.com', 'wrongpassword');
+    $this->insertTestAdmin('test@test.com', 'test123456');
+
+    $result = $this->authService->authenticate('test@test.com', 'wrongpassword');
+    $this->assertNull($result);
 }
 
-public function test_authenticate_throws_with_inactive_user()
+public function test_authenticate_returns_null_with_inactive_user()
 {
-    AdminUser::factory()->create([
-        'email' => 'test@test.com',
-        'password' => 'test123456',
-        'is_active' => false,
-    ]);
-    $this->expectException(AuthenticationException::class);
-    $this->authService->authenticate('test@test.com', 'test123456');
+    $this->insertTestAdmin('test@test.com', 'test123456', isActive: false);
+
+    $result = $this->authService->authenticate('test@test.com', 'test123456');
+    $this->assertNull($result);
 }
 ```
 
@@ -826,7 +721,7 @@ test('GET /api/auth/profile with valid session returns 200', async () => {
 - **ADR-0015**: Authentication and Authorization Strategy
 - **ADR-0016**: Transport Security (HTTPS/TLS)
 - **ADR-0017**: Input Validation and Injection Prevention
-- **Pattern 001**: Form Requests for Input Validation
+- **Pattern 001**: Input Validation (Custom Validator)
 - **Pattern 012**: Terminal API Token Authentication
 - **Pattern 014**: RFID Member Identification
 - **Pattern 015**: Authorization & Access Control

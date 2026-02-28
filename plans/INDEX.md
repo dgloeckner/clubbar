@@ -79,7 +79,42 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 ## Current Plan
 
-### Bugfix Batch (📍 ACTIVE)
+### Members Test Consolidation (✅ EXECUTED)
+
+**Plan**: [2026-02-28-members-test-consolidation.md](./2026-02-28-members-test-consolidation.md)
+
+**Goal**: Replace 4 bloated member test files (~45 tests, ~1500 lines) with 4 focused flow-based tests (~400 lines).
+
+**Status**: Executed — 3 flow tests in members.spec.ts + 1 stats test.
+
+### Journal & Settlements Test Consolidation (✅ EXECUTED)
+
+**Plan**: [2026-02-28-journal-settlements-consolidation.md](./2026-02-28-journal-settlements-consolidation.md)
+
+**Goal**: Replace 3 test files (~27 tests, ~2370 lines) with 4 flow-based tests (~350 lines) in a single `journal-and-settlements.spec.ts`.
+
+**Status**: Complete — 4 flow tests pass with 4 workers, 2372 lines deleted.
+
+### E2E Test Quality Improvement (📍 BACKLOG)
+
+**Plan**: [2026-02-28-e2e-test-quality.md](./2026-02-28-e2e-test-quality.md)
+
+**Goal**: Eliminate POM violations, weak assertions relying on seeded data, and console.log noise from the E2E test suite.
+
+**Status**: Plan written, 7 milestones, ready for execution.
+
+**Milestones**:
+1. ProfilePage POM completion + profile.spec.ts rewrite
+2. Fix settlements-e2e.spec.ts POM violations
+3. Rewrite ui-features.spec.ts — remove icon tests, fix behavioral tests
+4. Fix sync-categories.spec.ts — create own test data
+5. Fix categories.spec.ts Terminal Sync section
+6. Remove console.log from 4 test files
+7. Fix members-stats.spec.ts — replace raw API calls + waitForTimeout
+
+---
+
+### Bugfix Batch (📍 BACKLOG)
 
 **Plan**: [2026-02-25-bugfix-batch.md](./2026-02-25-bugfix-batch.md)
 

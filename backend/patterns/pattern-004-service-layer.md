@@ -12,32 +12,20 @@ Without a service layer, business logic is scattered across controllers:
 
 ```php
 // ❌ Problematic: Mixed concerns
-public function updateLanguage(UpdateLanguageRequest $request, string $memberId): JsonResponse
+public function store(Request $request, Response $response): Response
 {
-    // HTTP parsing
-    $language = SupportedLanguage::from($request->input('preferred_language'));
+    $body = $request->getParsedBody();
 
-    // Business logic (should be here??)
-    $member = Member::findOrFail($memberId);
-    $member->update(['preferred_language' => $language->value]);
+    // Business logic (shouldn't be here!)
+    $row = $this->repo->findById($body['member_id']);
+    if (!$row) { /* error handling */ }
 
     // Audit logging (mixed in)
-    Log::info('Member language updated', ['member_id' => $memberId]);
+    $this->auditRepo->insert([...]);
 
     // Response serialization
-    return response()->json(['preferred_language' => $member->preferred_language]);
-}
-
-// Repeated in another controller
-public function batchUpdateLanguages(array $updates): JsonResponse
-{
-    foreach ($updates as $memberId => $language) {
-        // Same business logic duplicated!
-        $member = Member::findOrFail($memberId);
-        $member->update(['preferred_language' => $language->value]);
-        Log::info('Member language updated', ['member_id' => $memberId]);
-    }
-    // ...
+    $response->getBody()->write(json_encode($row));
+    return $response;
 }
 ```
 
@@ -46,7 +34,6 @@ Issues:
 - Difficult to test logic (requires HTTP context)
 - Duplicated logic across endpoints
 - Hard to reuse logic from other services
-- Controller becomes fat and hard to understand
 
 ---
 
@@ -63,147 +50,95 @@ Use **Service Layer** to:
 
 ## Implementation Pattern
 
-### Service Interface
+### Service Class
 
 ```php
-// app/Services/SyncService.php
-<?php
+// src/Modules/Members/Services/MembersService.php
+namespace App\Modules\Members\Services;
 
-namespace App\Services;
+use App\Modules\Members\DTOs\MemberDto;
+use App\Modules\Members\DTOs\MemberAdminDto;
+use App\Shared\DTOs\PaginatedResultDto;
+use App\Shared\Enums\AuditAction;
+use App\Shared\Enums\EntityType;
+use App\Shared\Exceptions\NotFoundException;
+use App\Modules\Members\Enums\SupportedLanguage;
+use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Transactions\Repositories\TransactionsRepository;
+use App\Shared\Services\AuditService;
 
-use App\DTOs\MemberDto;
-use App\DTOs\SyncResultDto;
-use App\Enums\SupportedLanguage;
-use DateTimeImmutable;
-
-interface SyncService
-{
-    public function syncMembers(DateTimeImmutable $since): SyncResultDto;
-
-    public function syncCategories(DateTimeImmutable $since): SyncResultDto;
-
-    public function syncProducts(DateTimeImmutable $since): SyncResultDto;
-
-    public function updateMemberLanguage(
-        string $memberId,
-        SupportedLanguage $language
-    ): MemberDto;
-}
-```
-
-### Service Implementation
-
-```php
-// app/Services/DefaultSyncService.php
-<?php
-
-namespace App\Services;
-
-use App\DTOs\MemberDto;
-use App\DTOs\SyncResultDto;
-use App\Enums\SupportedLanguage;
-use App\Repositories\MemberRepository;
-use App\Repositories\CategoryRepository;
-use App\Repositories\ProductRepository;
-use DateTimeImmutable;
-
-final readonly class DefaultSyncService implements SyncService
+class MembersService
 {
     public function __construct(
-        private MemberRepository $members,
-        private CategoryRepository $categories,
-        private ProductRepository $products,
+        private MembersRepository $membersRepository,
+        private TransactionsRepository $transactionsRepository,
+        private AuditService $auditService,
     ) {}
 
-    public function syncMembers(DateTimeImmutable $since): SyncResultDto
+    public function getMember(string $memberId): MemberAdminDto
     {
-        // Delegate to repository; service orchestrates
-        return $this->members->getModifiedSince($since);
+        $member = $this->membersRepository->findById($memberId);
+        if (!$member) {
+            throw NotFoundException::forResource('Member', $memberId);
+        }
+        return MemberAdminDto::fromRow($member);
     }
 
-    public function syncCategories(DateTimeImmutable $since): SyncResultDto
-    {
-        return $this->categories->getModifiedSince($since);
+    public function createMember(
+        string $firstName,
+        string $lastName,
+        string $email,
+        ?string $phone,
+        ?string $cardUid,
+        SupportedLanguage $language,
+        ?string $iban = null,
+        ?string $adminUserId = null,
+    ): MemberAdminDto {
+        $member = $this->membersRepository->create([
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'email' => $email,
+            'phone' => $phone,
+            'card_uid' => $cardUid,
+            'preferred_language' => $language->value,
+            'is_active' => true,
+            'iban' => $iban,
+        ]);
+
+        $this->auditService->log(
+            action: AuditAction::CREATE,
+            entityType: EntityType::MEMBER,
+            entityId: $member['id'],
+            newValues: ['first_name' => $firstName, 'last_name' => $lastName],
+            adminUserId: $adminUserId,
+        );
+
+        return MemberAdminDto::fromRow($member);
     }
 
-    public function syncProducts(DateTimeImmutable $since): SyncResultDto
+    public function updateMember(string $memberId, array $updateData, ?string $adminUserId = null): MemberAdminDto
     {
-        return $this->products->getModifiedSince($since);
-    }
-
-    public function updateMemberLanguage(
-        string $memberId,
-        SupportedLanguage $language
-    ): MemberDto {
-        // Business logic: update and return DTO
-        return $this->members->updateLanguage($memberId, $language);
-    }
-}
-```
-
-### Complex Service Logic
-
-```php
-// app/Services/TransactionService.php
-<?php
-
-namespace App\Services;
-
-use App\DTOs\TransactionBatchResultDto;
-use App\Repositories\TransactionRepository;
-use App\Repositories\MemberRepository;
-
-final readonly class TransactionService
-{
-    public function __construct(
-        private TransactionRepository $transactions,
-        private MemberRepository $members,
-    ) {}
-
-    public function processBatch(array $transactions): TransactionBatchResultDto
-    {
-        $accepted = [];
-        $errors = [];
-
-        foreach ($transactions as $idx => $txn) {
-            try {
-                // Business rule: validate member exists
-                $member = $this->members->findById($txn['member_id']);
-                if (!$member) {
-                    $errors[] = [
-                        'index' => $idx,
-                        'error' => 'member_not_found',
-                    ];
-                    continue;
-                }
-
-                // Business rule: validate amount positive
-                if ($txn['amount_cents'] <= 0) {
-                    $errors[] = [
-                        'index' => $idx,
-                        'error' => 'invalid_amount',
-                    ];
-                    continue;
-                }
-
-                // Attempt insert
-                $this->transactions->insert($txn);
-                $accepted[] = $txn['id'];
-
-            } catch (\Exception $e) {
-                $errors[] = [
-                    'index' => $idx,
-                    'error' => 'insert_failed',
-                    'message' => $e->getMessage(),
-                ];
-            }
+        $oldMember = $this->membersRepository->findById($memberId);
+        if (!$oldMember) {
+            throw NotFoundException::forResource('Member', $memberId);
         }
 
-        return new TransactionBatchResultDto(
-            acceptedIds: $accepted,
-            rejectedCount: count($errors),
-            errors: $errors,
-        );
+        $member = $this->membersRepository->updateById($memberId, $updateData);
+
+        // Detect and audit changes
+        $changes = $this->detectChanges($oldMember, $member);
+        if (!empty($changes['old'])) {
+            $this->auditService->log(
+                action: AuditAction::UPDATE,
+                entityType: EntityType::MEMBER,
+                entityId: $memberId,
+                oldValues: $changes['old'],
+                newValues: $changes['new'],
+                adminUserId: $adminUserId,
+            );
+        }
+
+        return MemberAdminDto::fromRow($member);
     }
 }
 ```
@@ -212,25 +147,27 @@ final readonly class TransactionService
 
 ## Service Dependencies
 
-Services should depend on **Repositories** and **other Services**, never on Eloquent Models or Controllers:
+Services depend on **Repositories** and **other Services**, never on controllers or HTTP objects:
 
 ```php
 // ✅ Correct dependencies
-final readonly class SettlementService
+class SettlementsService
 {
     public function __construct(
-        private TransactionRepository $transactions,    // Repository
-        private SettlementRepository $settlements,      // Repository
-        private AuditLogger $logger,                    // Cross-cutting concern
+        private SettlementsRepository $settlementsRepository,   // Repository
+        private MembersRepository $membersRepository,          // Repository
+        private TransactionsRepository $transactionsRepository, // Repository
+        private AuditService $auditService,                    // Cross-cutting service
+        private \PDO $pdo,                                     // For transactions
     ) {}
 }
 
 // ❌ Avoid
-final class SettlementService
+class SettlementsService
 {
     public function __construct(
-        private Transaction $model,        // Don't depend on Eloquent directly
-        private SettlementController $ctrl, // Don't depend on controllers
+        private Request $request,              // Don't depend on HTTP
+        private SettlementsController $ctrl,    // Don't depend on controllers
     ) {}
 }
 ```
@@ -242,116 +179,35 @@ final class SettlementService
 Controllers become thin **HTTP routers**:
 
 ```php
-// app/Http/Controllers/SyncController.php
-<?php
+// src/Modules/Members/Controllers/AdminController.php
+namespace App\Modules\Members\Controllers;
 
-namespace App\Http\Controllers;
+use App\Modules\Members\Services\MembersService;
+use App\Shared\Validation\Validator;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
 
-use App\Http\Requests\UpdateLanguageRequest;
-use App\Http\Requests\SyncRequest;
-use App\Http\Requests\UploadTransactionsRequest;
-use App\Services\SyncService;
-use App\Services\TransactionService;
-use Illuminate\Http\JsonResponse;
-
-final class SyncController extends Controller
+class AdminController
 {
     public function __construct(
-        private readonly SyncService $syncService,
-        private readonly TransactionService $transactionService,
+        private MembersService $membersService,
+        private Validator $validator,
     ) {}
 
-    public function members(SyncRequest $request): JsonResponse
+    public function show(Request $request, Response $response, array $args): Response
     {
-        // Validate (FormRequest) → Call Service → Serialize (DTO) → Return
-        $result = $this->syncService->syncMembers($request->since());
-
-        return response()->json($result->toResponse('members'));
+        $member = $this->membersService->getMember($args['memberId']);
+        return $this->json($response, $member->toArray());
     }
 
-    public function updateLanguage(
-        UpdateLanguageRequest $request,
-        string $memberId
-    ): JsonResponse {
-        // Single responsibility: HTTP parsing → Service call → HTTP response
-        $member = $this->syncService->updateMemberLanguage(
-            $memberId,
-            $request->preferredLanguage()
-        );
-
-        return response()->json([
-            'member' => $member->toArray(),
-            'updated_at' => $member->updatedAt->format('Y-m-d\TH:i:s\Z'),
-        ]);
-    }
-
-    public function transactions(UploadTransactionsRequest $request): JsonResponse
+    public function store(Request $request, Response $response): Response
     {
-        $result = $this->transactionService->processBatch(
-            $request->validated('transactions')
-        );
-
-        return response()->json($result->toArray());
-    }
-}
-```
-
----
-
-## Testing Services
-
-Services are easy to unit test (no HTTP context):
-
-```php
-// tests/Unit/Services/TransactionServiceTest.php
-<?php
-
-use App\DTOs\TransactionBatchResultDto;
-use App\Services\TransactionService;
-use PHPUnit\Framework\TestCase;
-
-class TransactionServiceTest extends TestCase
-{
-    private TransactionService $service;
-
-    protected function setUp(): void
-    {
-        // Mock repositories
-        $transactionRepo = $this->createMock(TransactionRepository::class);
-        $memberRepo = $this->createMock(MemberRepository::class);
-
-        $this->service = new TransactionService($transactionRepo, $memberRepo);
-    }
-
-    public function test_process_batch_accepts_valid_transactions(): void
-    {
-        $txns = [
-            [
-                'id' => 'uuid1',
-                'member_id' => 'member123',
-                'product_id' => 'product456',
-                'amount_cents' => 350,
-                'created_at' => '2026-01-24T12:00:00Z',
-            ],
-        ];
-
-        $result = $this->service->processBatch($txns);
-
-        $this->assertInstanceOf(TransactionBatchResultDto::class, $result);
-        $this->assertContains('uuid1', $result->acceptedIds);
-    }
-
-    public function test_process_batch_rejects_invalid_amounts(): void
-    {
-        $txns = [
-            [
-                'amount_cents' => -100, // Negative: invalid for purchase
-            ],
-        ];
-
-        $result = $this->service->processBatch($txns);
-
-        $this->assertGreaterThan(0, $result->rejectedCount);
+        $body = $request->getParsedBody() ?? [];
+        // 1. Validate (Pattern 001)
+        // 2. Call service with typed input
+        $member = $this->membersService->createMember(...);
+        // 3. Serialize DTO to JSON
+        return $this->json($response, $member->toArray(), 201);
     }
 }
 ```
@@ -363,32 +219,32 @@ class TransactionServiceTest extends TestCase
 Services can use other services:
 
 ```php
-// app/Services/SettlementService.php
-final readonly class SettlementService
+// src/Modules/Settlements/Services/SettlementsService.php
+class SettlementsService
 {
     public function __construct(
-        private SettlementRepository $settlements,
-        private TransactionService $transactions,    // Service dependency
-        private SyncService $sync,                   // Service dependency
-        private AuditLogger $logger,
+        private SettlementsRepository $settlementsRepository,
+        private MembersRepository $membersRepository,
+        private TransactionsRepository $transactionsRepository,
+        private AuditService $auditService,
+        private \PDO $pdo,
     ) {}
 
-    public function createSettlement(
-        DateTimeImmutable $executionDate,
-        ?string $notes = null
-    ): SettlementDto {
-        // Call other services to compose logic
-        $unsettled = $this->sync->getUnsettledTransactions();
+    public function createSettlement(array $data, ?string $adminUserId = null): array
+    {
+        // Use PDO transaction for atomicity
+        $this->pdo->beginTransaction();
+        try {
+            $settlement = $this->settlementsRepository->create($data);
+            // ...link transactions, compute totals...
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
 
-        $settlement = $this->settlements->create([
-            'execution_date' => $executionDate,
-            'notes' => $notes,
-        ]);
-
-        // Log via cross-cutting concern
-        $this->logger->logSettlementCreated($settlement);
-
-        return $settlement->toDto();
+        $this->auditService->log(...);
+        return $settlement;
     }
 }
 ```
@@ -397,13 +253,12 @@ final readonly class SettlementService
 
 ## Benefits
 
-✅ **Separation of concerns**: Business logic isolated from HTTP
-✅ **Reusability**: Logic reused across multiple endpoints/consumers
-✅ **Testability**: Easy unit tests without HTTP context
-✅ **Maintainability**: Changes to logic in one place
-✅ **Composability**: Services can use other services
-✅ **Clear API**: Service interface documents available operations
-✅ **Dependency injection**: Easy to mock/test dependencies
+- **Separation of concerns**: Business logic isolated from HTTP
+- **Reusability**: Logic reused across multiple endpoints/consumers
+- **Testability**: Easy unit tests without HTTP context
+- **Maintainability**: Changes to logic in one place
+- **Composability**: Services can use other services
+- **Dependency injection**: Easy to mock/test dependencies
 
 ---
 
@@ -412,33 +267,32 @@ final readonly class SettlementService
 - All business logic beyond simple CRUD
 - Logic that could be reused across multiple endpoints
 - Complex validation or transformation
-- Multi-step operations (saga-like workflows)
+- Multi-step operations (settlements, batch processing)
 - Orchestration across multiple repositories
 
 ---
 
 ## When NOT to Use
 
-- Simple pass-through operations (rare; most needs composition)
+- Simple pass-through operations (health check)
 - One-off HTTP-specific logic (belongs in controller/middleware)
-- Trivial data retrieval (can call repository directly from controller)
 
 ---
 
 ## Consistency with Modularity (ADR-0018)
 
 Services are **module-owned**:
-- Located in `app/Services/` or within module (e.g., `Modules/TransactionModule/Services/`)
-- Named per domain (e.g., `SyncService`, `TransactionService`)
+- Located in `src/Modules/{Module}/Services/`
+- Named per domain (e.g., `MembersService`, `ProductsService`)
 - Each module has own service layer
-- Shared services in common location
+- Shared services in `src/Shared/Services/`
 
 ---
 
 ## Related Patterns
 
 - **Pattern 003**: Data Transfer Objects (services return DTOs)
-- **Pattern 005**: Repository Interfaces (services depend on repositories)
+- **Pattern 005**: Repository (services depend on repositories)
 - **Pattern 006**: Thin Controllers (controllers delegate to services)
 
 ---

@@ -12,34 +12,15 @@ Without centralized exception handling, error responses are inconsistent:
 
 ```php
 // ❌ Problematic: Scattered error handling
-public function updateLanguage(Request $request, string $memberId): JsonResponse
+public function show(Request $request, Response $response, array $args): Response
 {
     try {
-        // ...
-        return response()->json([
-            'message' => 'Member updated',
-            'data' => ['member' => $member],
-        ], 200);
-    } catch (ModelNotFoundException $e) {
-        return response()->json(['error' => 'not_found'], 404);
-    } catch (ValidationException $e) {
-        return response()->json([
-            'error' => 'validation_failed',
-            'errors' => $e->errors(),
-        ], 422);
-    }
-}
-
-// Another controller formats errors differently
-public function products(): JsonResponse
-{
-    try {
-        // ...
-    } catch (ValidationException $e) {
-        return response()->json([
-            'validation_errors' => $e->errors(),  // Different key!
-            'status' => 'error',
-        ], 400);  // Different status!
+        $member = $this->service->getMember($args['id']);
+        return $this->json($response, $member->toArray());
+    } catch (NotFoundException $e) {
+        return $this->json($response, ['error' => 'not_found'], 404);
+    } catch (\Exception $e) {
+        return $this->json($response, ['error' => 'server_error'], 500);
     }
 }
 ```
@@ -47,15 +28,14 @@ public function products(): JsonResponse
 Issues:
 - Inconsistent error response formats across endpoints
 - Duplicated error handling logic
-- Difficult to maintain error responses
-- No centralized error logging/auditing
+- No centralized error logging
 - Client confusion about response structure
 
 ---
 
 ## Solution
 
-Use **Exception Handler** to:
+Use a PSR-15 **ErrorHandler middleware** to:
 - Centralize error response formatting
 - Ensure consistent error responses across all endpoints
 - Log errors consistently
@@ -66,111 +46,91 @@ Use **Exception Handler** to:
 
 ## Implementation Pattern
 
-### Exception Handler
+### ErrorHandler Middleware
 
 ```php
-// app/Exceptions/Handler.php
-<?php
+// src/Shared/Middleware/ErrorHandler.php
+namespace App\Shared\Middleware;
 
-namespace App\Exceptions;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use App\Shared\Logging\Logger;
+use App\Shared\Exceptions\AppException;
+use App\Shared\Exceptions\ValidationException;
+use Slim\Psr7\Response;
 
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Validation\ValidationException;
-use Throwable;
-
-class Handler extends ExceptionHandler
+class ErrorHandler implements MiddlewareInterface
 {
-    /**
-     * Render exception as response
-     */
-    public function render($request, Throwable $exception): JsonResponse
-    {
-        // Only handle JSON API requests
-        if ($request->expectsJson()) {
-            return $this->renderApiException($exception);
-        }
+    public function __construct(
+        private Logger $logger,
+        private bool $debug = false,
+    ) {}
 
-        return parent::render($request, $exception);
-    }
+    public function process(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler
+    ): ResponseInterface {
+        try {
+            return $handler->handle($request);
+        } catch (\Throwable $e) {
+            $this->logger->error($e->getMessage(), [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $this->debug ? $e->getTraceAsString() : null,
+            ]);
 
-    private function renderApiException(Throwable $exception): JsonResponse
-    {
-        // Handle validation errors
-        if ($exception instanceof ValidationException) {
-            return response()->json([
-                'error' => 'validation_failed',
-                'message' => 'Input validation failed',
-                'timestamp' => now()->toIso8601ZuluString(),
-                'details' => $this->formatValidationErrors($exception),
-            ], 422);
-        }
+            // AppException subclasses define their own HTTP status and error code
+            if ($e instanceof AppException) {
+                $status = $e->getHttpStatusCode();
+                $body = [
+                    'error' => $e->getErrorCode(),
+                    'message' => $e->getMessage(),
+                ];
 
-        // Handle not found (model not found)
-        if ($exception instanceof ModelNotFoundException) {
-            return response()->json([
-                'error' => 'not_found',
-                'message' => 'Resource not found',
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 404);
-        }
+                // Add validation errors if available
+                if ($e instanceof ValidationException) {
+                    $body['errors'] = $e->getErrors();
+                }
+            } else {
+                // Fallback for non-AppException types
+                $status = match (true) {
+                    $e instanceof \Slim\Exception\HttpNotFoundException => 404,
+                    $e instanceof \Slim\Exception\HttpMethodNotAllowedException => 405,
+                    $e instanceof \InvalidArgumentException => 422,
+                    default => 500,
+                };
 
-        // Handle custom domain exceptions
-        if ($exception instanceof DomainException) {
-            return response()->json([
-                'error' => 'business_rule_violation',
-                'message' => $exception->getMessage(),
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 400);
-        }
-
-        // Handle authorization errors (Illuminate)
-        if ($exception instanceof \Illuminate\Auth\AuthorizationException) {
-            return response()->json([
-                'error' => 'forbidden',
-                'message' => 'Insufficient permissions',
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 403);
-        }
-
-        // Handle authentication errors
-        if ($exception instanceof \Illuminate\Auth\AuthenticationException) {
-            return response()->json([
-                'error' => 'unauthenticated',
-                'message' => 'Authentication required',
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 401);
-        }
-
-        // Log unexpected errors
-        report($exception);
-
-        // Return generic server error (don't expose internals)
-        return response()->json([
-            'error' => 'server_error',
-            'message' => 'An unexpected error occurred',
-            'timestamp' => now()->toIso8601ZuluString(),
-        ], 500);
-    }
-
-    /**
-     * Format validation errors consistently
-     */
-    private function formatValidationErrors(ValidationException $exception): array
-    {
-        $details = [];
-
-        foreach ($exception->errors() as $field => $messages) {
-            foreach ($messages as $message) {
-                $details[] = [
-                    'field' => $field,
-                    'message' => $message,
+                $body = [
+                    'error' => $this->errorCode($status),
+                    'message' => $e->getMessage(),
                 ];
             }
-        }
 
-        return $details;
+            // Include stack trace in debug mode (not for auth errors)
+            if ($this->debug && !in_array($status, [401, 403, 404])) {
+                $body['trace'] = $e->getTraceAsString();
+            }
+
+            $response = new Response($status);
+            $response->getBody()->write(json_encode($body));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+    }
+
+    private function errorCode(int $status): string
+    {
+        return match ($status) {
+            400 => 'invalid_request',
+            401 => 'unauthorized',
+            404 => 'not_found',
+            405 => 'method_not_allowed',
+            422 => 'validation_failed',
+            409 => 'business_rule_violation',
+            default => 'internal_error',
+        };
     }
 }
 ```
@@ -179,193 +139,65 @@ class Handler extends ExceptionHandler
 
 ## Domain-Specific Exceptions
 
-Create exceptions for business logic errors:
+### Base Exception
 
 ```php
-// app/Exceptions/DomainException.php
-<?php
+// src/Shared/Exceptions/AppException.php
+namespace App\Shared\Exceptions;
 
-namespace App\Exceptions;
-
-use Exception;
-
-class DomainException extends Exception {}
-
-// app/Exceptions/MemberNotFoundException.php
-<?php
-
-namespace App\Exceptions;
-
-class MemberNotFoundException extends DomainException
+abstract class AppException extends \Exception
 {
-    public function __construct(string $memberId)
-    {
-        parent::__construct("Member '{$memberId}' not found");
-    }
-}
-
-// app/Exceptions/InvalidTransactionException.php
-<?php
-
-namespace App\Exceptions;
-
-class InvalidTransactionException extends DomainException
-{
-    public function __construct(string $reason)
-    {
-        parent::__construct("Transaction validation failed: {$reason}");
-    }
-}
-
-// app/Exceptions/SettlementLockedException.php
-<?php
-
-namespace App\Exceptions;
-
-class SettlementLockedException extends DomainException
-{
-    public function __construct()
-    {
-        parent::__construct('Settlement is locked and cannot be modified');
-    }
+    abstract public function getHttpStatusCode(): int;
+    abstract public function getErrorCode(): string;
 }
 ```
 
----
-
-## Enhanced Exception Handler
+### Concrete Exceptions
 
 ```php
-// app/Exceptions/Handler.php (Enhanced)
-<?php
-
-namespace App\Exceptions;
-
-use App\Exceptions\{
-    DomainException,
-    MemberNotFoundException,
-    InvalidTransactionException,
-    SettlementLockedException,
-};
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Validation\ValidationException;
-use Throwable;
-
-class Handler extends ExceptionHandler
+// src/Shared/Exceptions/NotFoundException.php
+class NotFoundException extends AppException
 {
-    public function render($request, Throwable $exception): JsonResponse
+    public function getHttpStatusCode(): int { return 404; }
+    public function getErrorCode(): string { return 'not_found'; }
+
+    public static function forResource(string $type, string $id): self
     {
-        if ($request->expectsJson()) {
-            return $this->renderApiException($exception);
-        }
-
-        return parent::render($request, $exception);
+        return new self("{$type} not found: {$id}");
     }
+}
 
-    private function renderApiException(Throwable $exception): JsonResponse
+// src/Shared/Exceptions/ValidationException.php
+class ValidationException extends AppException
+{
+    public function __construct(string $message, private array $errors = [])
     {
-        // Handle validation first (from FormRequest)
-        if ($exception instanceof ValidationException) {
-            return $this->renderValidationException($exception);
-        }
-
-        // Handle model not found
-        if ($exception instanceof ModelNotFoundException) {
-            return response()->json([
-                'error' => 'not_found',
-                'message' => 'Resource not found',
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 404);
-        }
-
-        // Handle domain-specific exceptions
-        if ($exception instanceof MemberNotFoundException) {
-            return response()->json([
-                'error' => 'member_not_found',
-                'message' => $exception->getMessage(),
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 404);
-        }
-
-        if ($exception instanceof InvalidTransactionException) {
-            return response()->json([
-                'error' => 'invalid_transaction',
-                'message' => $exception->getMessage(),
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 422);
-        }
-
-        if ($exception instanceof SettlementLockedException) {
-            return response()->json([
-                'error' => 'settlement_locked',
-                'message' => $exception->getMessage(),
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 409); // Conflict
-        }
-
-        // Handle generic domain exceptions
-        if ($exception instanceof DomainException) {
-            return response()->json([
-                'error' => 'business_rule_violation',
-                'message' => $exception->getMessage(),
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 400);
-        }
-
-        // Handle auth/authorization
-        if ($exception instanceof \Illuminate\Auth\AuthorizationException) {
-            return response()->json([
-                'error' => 'forbidden',
-                'message' => 'Insufficient permissions',
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 403);
-        }
-
-        if ($exception instanceof \Illuminate\Auth\AuthenticationException) {
-            return response()->json([
-                'error' => 'unauthenticated',
-                'message' => 'Authentication required',
-                'timestamp' => now()->toIso8601ZuluString(),
-            ], 401);
-        }
-
-        // Log and return generic error
-        report($exception);
-
-        return response()->json([
-            'error' => 'server_error',
-            'message' => 'An unexpected error occurred',
-            'timestamp' => now()->toIso8601ZuluString(),
-        ], 500);
+        parent::__construct($message);
     }
+    public function getHttpStatusCode(): int { return 422; }
+    public function getErrorCode(): string { return 'validation_failed'; }
+    public function getErrors(): array { return $this->errors; }
+}
 
-    private function renderValidationException(ValidationException $exception): JsonResponse
-    {
-        return response()->json([
-            'error' => 'validation_failed',
-            'message' => 'Input validation failed',
-            'timestamp' => now()->toIso8601ZuluString(),
-            'details' => $this->formatValidationErrors($exception),
-        ], 422);
-    }
+// src/Shared/Exceptions/BusinessRuleException.php
+class BusinessRuleException extends AppException
+{
+    public function getHttpStatusCode(): int { return 409; }
+    public function getErrorCode(): string { return 'business_rule_violation'; }
+}
 
-    private function formatValidationErrors(ValidationException $exception): array
-    {
-        $details = [];
+// src/Shared/Exceptions/DuplicateResourceException.php
+class DuplicateResourceException extends AppException
+{
+    public function getHttpStatusCode(): int { return 409; }
+    public function getErrorCode(): string { return 'duplicate_resource'; }
+}
 
-        foreach ($exception->errors() as $field => $messages) {
-            foreach ($messages as $message) {
-                $details[] = [
-                    'field' => $field,
-                    'message' => $message,
-                ];
-            }
-        }
-
-        return $details;
-    }
+// src/Shared/Exceptions/InvalidCredentialsException.php
+class InvalidCredentialsException extends AppException
+{
+    public function getHttpStatusCode(): int { return 401; }
+    public function getErrorCode(): string { return 'invalid_credentials'; }
 }
 ```
 
@@ -373,69 +205,43 @@ class Handler extends ExceptionHandler
 
 ## Service Layer Error Handling
 
-Services throw exceptions; controllers/handler deal with them:
+Services throw domain exceptions; the ErrorHandler middleware catches and formats them:
 
 ```php
-// app/Services/TransactionService.php
-final readonly class TransactionService
+// src/Modules/Members/Services/MembersService.php
+class MembersService
 {
-    public function processBatch(array $transactions): TransactionBatchResultDto
+    public function getMember(string $memberId): MemberAdminDto
     {
-        $accepted = [];
-        $errors = [];
-
-        foreach ($transactions as $idx => $txn) {
-            try {
-                // Validate member exists
-                $member = $this->members->findById($txn['member_id']);
-                if (!$member) {
-                    throw new MemberNotFoundException($txn['member_id']);
-                }
-
-                // Validate amount
-                if ($txn['amount_cents'] <= 0) {
-                    throw new InvalidTransactionException('Amount must be positive');
-                }
-
-                // Insert transaction
-                $this->transactions->insert($txn);
-                $accepted[] = $txn['id'];
-
-            } catch (InvalidTransactionException $e) {
-                // Expected error; record and continue
-                $errors[] = [
-                    'index' => $idx,
-                    'error' => 'invalid_transaction',
-                    'message' => $e->getMessage(),
-                ];
-            } catch (MemberNotFoundException $e) {
-                // Expected error; record and continue
-                $errors[] = [
-                    'index' => $idx,
-                    'error' => 'member_not_found',
-                    'message' => $e->getMessage(),
-                ];
-            } catch (\Exception $e) {
-                // Unexpected; log and fail batch
-                report($e);
-                throw new DomainException('Batch processing failed');
-            }
+        $member = $this->membersRepository->findById($memberId);
+        if (!$member) {
+            throw NotFoundException::forResource('Member', $memberId);
         }
+        return MemberAdminDto::fromRow($member);
+    }
 
-        return new TransactionBatchResultDto($accepted, count($errors), $errors);
+    public function deleteMember(string $memberId, ?string $adminUserId = null): bool
+    {
+        $member = $this->membersRepository->findById($memberId);
+        if (!$member) {
+            throw NotFoundException::forResource('Member', $memberId);
+        }
+        // ...soft delete logic...
+        return true;
     }
 }
+```
 
-// app/Http/Controllers/SyncController.php
-public function transactions(UploadTransactionsRequest $request): JsonResponse
+### Controller Stays Clean
+
+```php
+// src/Modules/Members/Controllers/AdminController.php
+public function show(Request $request, Response $response, array $args): Response
 {
-    // Service handles validation; throws for unexpected errors
-    // Handler catches and formats response
-    $result = $this->transactionService->processBatch(
-        $request->validated('transactions')
-    );
-
-    return response()->json($result->toArray());
+    // Service throws NotFoundException if not found
+    // ErrorHandler middleware catches it and returns 404 JSON
+    $member = $this->membersService->getMember($args['memberId']);
+    return $this->json($response, $member->toArray());
 }
 ```
 
@@ -447,45 +253,64 @@ Consistent structure across all errors:
 
 ```json
 {
-  "error": "error_code",
-  "message": "Human-readable description",
-  "timestamp": "2026-01-24T12:30:45Z",
-  "details": [
-    {
-      "field": "email",
-      "message": "The email must be a valid email address"
-    }
-  ]
+  "error": "not_found",
+  "message": "Member not found: abc-123"
+}
+```
+
+With validation errors:
+
+```json
+{
+  "error": "validation_failed",
+  "message": "Validation failed",
+  "errors": {
+    "email": ["email must be a valid email"],
+    "first_name": ["first_name is required"]
+  }
 }
 ```
 
 ---
 
+## Middleware Registration
+
+The ErrorHandler is registered as the outermost middleware in the Slim app:
+
+```php
+// public/index.php
+$app->add($container->get(ErrorHandler::class));
+$app->add($container->get(JsonBodyParser::class));
+$app->add($container->get(CorsMiddleware::class));
+```
+
+This ensures all exceptions from any layer (routing, auth, controllers, services) are caught.
+
+---
+
 ## Benefits
 
-✅ **Consistency**: All endpoints return same error format
-✅ **Centralization**: Error handling in one place
-✅ **Reusability**: No duplicate error handling code
-✅ **Maintainability**: Change error format globally
-✅ **Security**: Doesn't expose internal errors to client
-✅ **Logging**: Centralized error logging and auditing
-✅ **Type safety**: Specific exception types for specific errors
+- **Consistency**: All endpoints return same error format
+- **Centralization**: Error handling in one place
+- **Reusability**: No duplicate error handling code
+- **Security**: Doesn't expose internal errors to client (debug mode configurable)
+- **Logging**: All errors logged with context
+- **Type safety**: Specific exception types for specific errors
 
 ---
 
 ## When to Use
 
-- All API endpoints (via FormRequest validation and service exceptions)
-- Any Laravel HTTP request handling
-- Exception mapping to HTTP status codes
+- All API endpoints (automatically via middleware)
+- Any exception that needs HTTP response mapping
 
 ---
 
 ## Consistency with Modularity (ADR-0018)
 
 Exception handling is **shared infrastructure**:
-- Centralized in `app/Exceptions/Handler.php`
-- Domain exceptions in `app/Exceptions/` directory
+- `ErrorHandler` in `src/Shared/Middleware/ErrorHandler.php`
+- Domain exceptions in `src/Shared/Exceptions/`
 - All modules use same exception handler
 - Consistent error responses across all modules
 
@@ -493,7 +318,7 @@ Exception handling is **shared infrastructure**:
 
 ## Related Patterns
 
-- **Pattern 001**: Form Requests (validation exceptions)
+- **Pattern 001**: Input Validation (validation errors)
 - **Pattern 004**: Service Layer (throws domain exceptions)
 - **Pattern 006**: Thin Controllers (don't handle exceptions)
 
@@ -501,6 +326,5 @@ Exception handling is **shared infrastructure**:
 
 ## References
 
-- [Laravel Exception Handling](https://laravel.com/docs/errors#rendering-exceptions)
+- [PSR-15: HTTP Server Request Handlers](https://www.php-fig.org/psr/psr-15/)
 - [HTTP Status Codes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status)
-- [RESTful API Error Handling Best Practices](https://www.rfc-editor.org/rfc/rfc7231#section-6)

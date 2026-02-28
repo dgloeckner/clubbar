@@ -5,16 +5,16 @@
 | Layer | Technology | Responsibility |
 |-------|------------|----------------|
 | **Runtime** | PHP 8.3 | Server environment |
-| **Framework** | Laravel 11 | Routing, Middleware, DI, Validation |
-| **ORM** | Eloquent | DB mapping, Migrations, Relationships |
-| **API Spec** | OpenAPI 3.0 | API documentation, Code generation |
-| **Code Gen** | openapi-generator | Controller stubs, Request validation |
+| **Framework** | Slim 4 | PSR-15 routing, middleware, PSR-7 request/response |
+| **Database** | PDO + MariaDB/MySQL | Raw SQL queries, prepared statements |
+| **API Spec** | OpenAPI 3.0 | API documentation |
 | **Code Patterns** | DTOs, Enums, Services, Repositories | Type-safe data transfer, business logic isolation (see `backend/patterns/`) |
-| **Auth** | Laravel Sanctum | Token-based authentication |
-| **Logging** | Monolog | Structured logging, Audit trail |
+| **Auth** | Custom middleware | Session-based admin auth, Bearer token terminal auth |
+| **Validation** | Custom Validator | Rule-based input validation with PDO-backed unique checks |
+| **Logging** | Custom Logger (JSON) | Structured logging, daily log files |
 | **SEPA Export** | digitick/sepa-xml | pain.008 XML generation |
-| **Testing** | PHPUnit + Pest | Unit + Feature tests |
-| **DB** | SQLite / MySQL | Persistence |
+| **Testing** | PHPUnit + Playwright | Unit tests + E2E API tests |
+| **DI Container** | ServiceFactory | Manual DI implementing PSR ContainerInterface |
 
 ---
 
@@ -23,16 +23,16 @@
 | Layer | Responsibility |
 |-------|----------------|
 | **OpenAPI Spec** | API contract (Single Source of Truth) |
-| **Routes** | URL → Controller mapping |
+| **Routes** | Slim routing: URL → Controller mapping |
+| **Middleware** | Auth, CORS, JSON parsing, error handling (PSR-15) |
 | **Controllers** | Request/Response routing (thin, no business logic) |
-| **FormRequests** | Input validation with typed accessors (Pattern 001) |
+| **Validator** | Input validation in controllers (Pattern 001) |
 | **Services** | Business logic, orchestration (Pattern 004) |
-| **Repositories** | Data access abstraction (Pattern 005) |
-| **Models** | Eloquent entities (immutable-safe) |
-| **DTOs** | Type-safe response data (Pattern 003) |
+| **Repositories** | Data access via PDO prepared statements (Pattern 005) |
+| **DTOs** | Type-safe response data with `fromRow()` / `toArray()` (Pattern 003) |
 | **Enums** | Type-safe domain values (Pattern 002) |
-| **Exceptions** | Centralized error handling (Pattern 007) |
-| **Service Providers** | DI configuration and bindings (Pattern 008) |
+| **Exceptions** | Centralized error handling via middleware (Pattern 007) |
+| **ServiceFactory** | DI container and dependency wiring (Pattern 008) |
 | **Exports** | SEPA XML/CSV generation |
 
 ---
@@ -45,80 +45,77 @@ flowchart TB
         YAML[api.yaml]
     end
 
-    subgraph Laravel["Laravel Application"]
+    subgraph SlimApp["Slim 4 Application"]
         Routes[Routes]
+        Middleware[Middleware Stack]
         Controllers[Controllers]
-        Requests[FormRequests]
+        Validator[Validator]
         Services[Services]
-        Models[Models]
-        DB[(Database)]
+        Repositories[Repositories]
+        DB[(MariaDB / PDO)]
 
-        Routes --> Controllers
-        Controllers --> Requests
-        Requests --> Services
-        Services --> Models
-        Models --> DB
+        Routes --> Middleware
+        Middleware --> Controllers
+        Controllers --> Validator
+        Controllers --> Services
+        Services --> Repositories
+        Repositories --> DB
     end
 
     subgraph CrossCutting["Cross-Cutting Concerns"]
-        Auth[Auth - Sanctum]
-        Logging[Logging - Monolog]
+        Auth[Auth Middleware]
+        Logging[JSON Logger]
         SEPA[SEPA Export]
+        ErrorHandler[ErrorHandler Middleware]
     end
 
-    YAML -->|"Code-Gen (Stubs)"| Routes
-    CrossCutting -.-> Laravel
+    YAML -->|"API Contract"| Routes
+    CrossCutting -.-> SlimApp
 ```
 
 ---
 
 ## Components in Detail
 
-### 1. OpenAPI → Code Generation
+### 1. Slim 4 Routing (PSR-15)
 
-| Artifact | Generated | Manual |
-|----------|-----------|--------|
-| **Controller Stubs** | ✓ Interface/Signature | Implementation |
-| **FormRequests** | ✓ Validation rules | - |
-| **Routes** | ✓ | - |
-| **DTOs/Resources** | ✓ | - |
+Routes defined in `src/routes.php` using Slim's `RouteCollectorProxy`:
 
-```bash
-# Generation
-openapi-generator-cli generate \
-  -i openapi/api.yaml \
-  -g php-laravel \
-  -o app/Generated/
+```php
+return function (App $app): void {
+    $app->get('/api/health', [HealthController::class, 'check']);
+    $app->group('/api/sync', function (RouteCollectorProxy $group) {
+        $group->get('/members', [MembersSyncController::class, 'index']);
+    })->add(TerminalTokenAuth::class);
+};
 ```
 
-### 2. Eloquent ORM (DB Mapping)
+### 2. Database Access (PDO / Raw SQL)
 
-| Model | Table | Relationships |
-|-------|-------|---------------|
-| `User` | `users` | hasMany(Transaction) |
-| `Product` | `products` | hasMany(Transaction) |
-| `Transaction` | `transactions` | belongsTo(User, Product) |
-| `Settlement` | `settlements` | hasMany(SettlementItem) |
-| `SettlementItem` | `settlement_items` | belongsTo(Settlement, User) |
-| `Admin` | `admins` | - |
+| Entity | Table | Access Pattern |
+|--------|-------|----------------|
+| Members | `members` | PDO prepared statements |
+| Products | `products` | PDO prepared statements |
+| Transactions | `transactions` | Append-only (ADR-0004) |
+| Settlements | `settlements` | PDO prepared statements |
+| Admin Users | `admin_users` | PDO prepared statements |
 
-### 3. Authentication (Sanctum)
+### 3. Authentication (Custom Middleware)
 
 | Aspect | Implementation |
 |--------|----------------|
-| **Method** | Token-based (Bearer) |
-| **Token Creation** | On login |
-| **Token Storage** | `personal_access_tokens` table |
-| **Validity** | Configurable (e.g., 24h) |
-| **Middleware** | `auth:sanctum` |
+| **Admin Auth** | Session-based (`AdminSessionAuth` middleware) |
+| **Terminal Auth** | Bearer token (`TerminalTokenAuth` middleware) |
+| **Session Storage** | Server-side PHP sessions |
+| **Token Storage** | `terminals` table, bcrypt-hashed |
+| **RFID** | Member identification (not authentication) |
 
-### 4. Logging (Monolog)
+### 4. Logging (JSON, Daily Files)
 
 | Log Type | Channel | Content |
 |----------|---------|---------|
-| **Application** | `daily` | Errors, Warnings |
-| **Audit** | `audit` | Admin actions, Changes |
-| **SEPA** | `sepa` | Export operations |
+| **Application** | Daily JSON files | Errors, warnings, info |
+| **Audit** | `audit_log` table | Admin actions, data changes |
 
 ### 5. SEPA Export (digitick/sepa-xml)
 
@@ -133,11 +130,10 @@ openapi-generator-cli generate \
 
 | Environment | Setup |
 |-------------|-------|
-| **Development** | `php artisan serve`, SQLite |
-| **Production** | nginx + PHP-FPM, MySQL/SQLite |
-| **Docker** | Optional, single container sufficient |
+| **Development** | Docker Compose (nginx + PHP-FPM + MariaDB) |
+| **Production** | nginx + PHP-FPM, MariaDB |
 
-Minimum server requirements: PHP 8.3, Composer, SQLite or MySQL.
+Minimum server requirements: PHP 8.3, Composer, MariaDB/MySQL.
 
 ---
 
@@ -147,26 +143,28 @@ Backend architecture uses proven patterns to maintain code quality, consistency,
 
 | Pattern | Purpose | ADR Link |
 |---------|---------|----------|
-| **Form Requests** | Declarative input validation with type-safe accessors | ADR-0017 (Input Validation) |
+| **Validator** | Rule-based input validation with typed rules | ADR-0017 (Input Validation) |
 | **Enums** | Type-safe domain values (languages, transaction types, statuses) | ADR-0018 (Modularity) |
-| **DTOs** | Type-safe response data transfer with consistent formatting | ADR-0018 (Type-Safe Responses) |
+| **DTOs** | Type-safe response data with `fromRow()` / `toArray()` | ADR-0018 (Type-Safe Responses) |
 | **Service Layer** | Business logic isolated from HTTP; reusable across consumers | ADR-0018 (Clean Separation) |
-| **Repository Interface** | Abstract data access to enable testing and implementation swapping | ADR-0018 (Independence) |
-| **Thin Controllers** | Controllers route HTTP → Service → Response (no business logic) | ADR-0018 (Clean Separation) |
-| **Exception Handler** | Centralized error responses and logging | ADR-0018 (Shared Infrastructure) |
-| **Service Provider** | Dependency injection and lifecycle management | ADR-0018 (Dependency Inversion) |
+| **Repository** | Data access via PDO prepared statements | ADR-0018 (Independence) |
+| **Thin Controllers** | Controllers route PSR-7 requests → Service → Response | ADR-0018 (Clean Separation) |
+| **ErrorHandler** | Centralized error responses via PSR-15 middleware | ADR-0018 (Shared Infrastructure) |
+| **ServiceFactory** | Manual DI container implementing PSR ContainerInterface | ADR-0018 (Dependency Inversion) |
 
 **Key architectural flow:**
 ```
 HTTP Request
   ↓
-FormRequest (validation)
+Middleware (CORS, JSON parsing, Auth)
   ↓
 Controller (thin, routing only)
   ↓
+Validator (input validation)
+  ↓
 Service (business logic)
   ↓
-Repository (data access)
+Repository (PDO data access)
   ↓
 DTO (type-safe response)
   ↓
