@@ -206,11 +206,6 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 ? () => cartProvider.decreaseItem(product.id)
                 : null,
               onTap: () {
-                // Debug: Log product details when adding to cart
-                print('Adding product to cart: $name');
-                print('  product.requiresDispenser = ${product.requiresDispenser}');
-                print('  requiresDispenser bool = ${product.requiresDispenser == 1}');
-
                 cartProvider.addItem(
                   product.id,
                   name,

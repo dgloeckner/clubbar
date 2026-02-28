@@ -153,51 +153,6 @@ class ConfigService {
     }
   }
 
-  /// Save configuration to file.
-  Future<void> save({
-    required String terminalId,
-    required String apiUrl,
-    required String apiToken,
-    bool? dispenserEnabled,
-    String? dispenserBaseUrl,
-    String? dispenserApiKey,
-  }) async {
-    _terminalId = terminalId;
-    _apiUrl = apiUrl;
-    _apiToken = apiToken;
-
-    // Update dispenser config if provided
-    if (dispenserEnabled != null) _dispenserEnabled = dispenserEnabled;
-    if (dispenserBaseUrl != null) _dispenserBaseUrl = dispenserBaseUrl;
-    if (dispenserApiKey != null) _dispenserApiKey = dispenserApiKey;
-
-    final configFile = await _getConfigFile();
-    final dir = configFile.parent;
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
-    }
-
-    final json = jsonEncode({
-      'terminalId': terminalId,
-      'apiUrl': apiUrl,
-      'apiToken': apiToken,
-      'dispenser': {
-        'enabled': _dispenserEnabled,
-        'baseUrl': _dispenserBaseUrl ?? '',
-        'apiKey': _dispenserApiKey ?? '',
-        'timeoutMs': _dispenserTimeoutMs,
-        'pollIntervalMs': _dispenserPollIntervalMs,
-      }
-    });
-
-    configFile.writeAsStringSync(json);
-
-    // Set file permissions to 600 (owner read/write only) on Unix
-    if (!Platform.isWindows) {
-      await Process.run('chmod', ['600', configFile.path]);
-    }
-  }
-
   /// Returns the path to the logs directory, creating it if needed.
   Future<String> getLogsDir() async {
     final baseDir = await _getConfigDir();

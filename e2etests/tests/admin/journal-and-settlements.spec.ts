@@ -1,17 +1,19 @@
 import { test, expect } from '../../fixtures/auth.fixture'
 import { JournalPage } from '../../pages/JournalPage'
 import { SettlementsPage } from '../../pages/SettlementsPage'
+import { generateUUID, createTestMember, createSepaInvalidMember } from '../../utils/transactions'
 
 /**
  * Journal & Settlements E2E Tests (Consolidated)
  *
- * Four flow-based tests replacing journal.spec.ts, settlements.spec.ts,
- * and settlements-e2e.spec.ts (~27 tests → 4 tests):
+ * Five flow-based tests replacing journal.spec.ts, settlements.spec.ts,
+ * settlements-e2e.spec.ts, and transactions-sepa-validation.spec.ts (~33 tests → 5 tests):
  *
  * 1. Journal fundamentals: display, search, sort, period, filter, correction
  * 2. Settlement lifecycle: Journal UI settle → Settlements page → CSV + SEPA export
  * 3. Settlement integrity: duplicate transaction rejection, atomicity
  * 4. Settle-all + undo: batch settlement, cancel, verify restoration
+ * 5. SEPA validation: corrections and sync reject SEPA-invalid members, accept valid members
  *
  * Patterns: 001 (test data isolation), 003 (database-agnostic assertions),
  *           004 (parallel safety), 005 (test IDs), 006 (page object), 008 (expect)
@@ -363,5 +365,157 @@ test.describe('Journal & Settlements', () => {
     await journalPage.waitForTableToLoad()
     await journalPage.expectTransactionRowVisible(txn1Id)
     await journalPage.expectTransactionRowVisible(txn2Id)
+  })
+
+
+  test('SEPA validation: corrections and sync reject SEPA-invalid members, accept valid members', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+  }) => {
+    const ts = Date.now()
+    const prefix = `Sepa${ts}`
+
+    // ── Setup: create SEPA-invalid and valid members ────────────────
+    const noIbanData = createSepaInvalidMember(`${prefix}NoIban`, 'Test', 'iban')
+    const noMandateData = createSepaInvalidMember(`${prefix}NoMndt`, 'Test', 'mandate')
+    const noSepaData = createSepaInvalidMember(`${prefix}NoSepa`, 'Test', 'both')
+    const validData = createTestMember(`${prefix}Valid`, 'Test', `sepavalid${ts}`)
+
+    const noIbanResp = await authenticatedRequest.post('http://localhost:8080/api/admin/members', { data: noIbanData })
+    expect(noIbanResp.status()).toBe(201)
+    const noIbanMember = await noIbanResp.json()
+    expect(noIbanMember.is_sepa_valid).toBeFalsy()
+
+    const noMandateResp = await authenticatedRequest.post('http://localhost:8080/api/admin/members', { data: noMandateData })
+    expect(noMandateResp.status()).toBe(201)
+    const noMandateMember = await noMandateResp.json()
+    expect(noMandateMember.is_sepa_valid).toBeFalsy()
+
+    const noSepaResp = await authenticatedRequest.post('http://localhost:8080/api/admin/members', { data: noSepaData })
+    expect(noSepaResp.status()).toBe(201)
+    const noSepaMember = await noSepaResp.json()
+    expect(noSepaMember.is_sepa_valid).toBeFalsy()
+
+    const validResp = await authenticatedRequest.post('http://localhost:8080/api/admin/members', { data: validData })
+    expect(validResp.status()).toBe(201)
+    const validMember = await validResp.json()
+    expect(validMember.is_sepa_valid).toBeTruthy()
+
+    // ── Correction rejected: member without IBAN ────────────────────
+    const corrNoIban = await authenticatedRequest.post(
+      `http://localhost:8080/api/admin/members/${noIbanMember.id}/transactions/correct`,
+      { data: { amount_cents: 1000, reason: 'Test correction' } }
+    )
+    expect(corrNoIban.status()).toBe(422)
+    const errNoIban = await corrNoIban.json()
+    expect(errNoIban.error).toBe('sepa_invalid')
+    expect(errNoIban.message).toContain('SEPA mandate')
+
+    // ── Correction rejected: member without mandate reference ───────
+    const corrNoMandate = await authenticatedRequest.post(
+      `http://localhost:8080/api/admin/members/${noMandateMember.id}/transactions/correct`,
+      { data: { amount_cents: 1500, reason: 'Test correction without mandate' } }
+    )
+    expect(corrNoMandate.status()).toBe(422)
+    const errNoMandate = await corrNoMandate.json()
+    expect(errNoMandate.error).toBe('sepa_invalid')
+    expect(errNoMandate.message).toContain('SEPA mandate')
+
+    // ── Correction accepted: valid SEPA member ──────────────────────
+    const corrValid = await authenticatedRequest.post(
+      `http://localhost:8080/api/admin/members/${validMember.id}/transactions/correct`,
+      { data: { amount_cents: 2000, reason: 'Test correction for valid member' } }
+    )
+    expect(corrValid.status()).toBe(201)
+    const corrResult = await corrValid.json()
+    expect(corrResult.id).toBeTruthy()
+    expect(corrResult.member_id).toBe(validMember.id)
+    expect(corrResult.amount_cents).toBe(2000)
+
+    // ── Sync rejected: member without any SEPA data ─────────────────
+    const rejectedTxnId = generateUUID()
+    const syncReject = await authenticatedTerminalRequest.post('http://localhost:8080/api/sync/transactions', {
+      data: {
+        transactions: [{
+          id: rejectedTxnId,
+          member_id: noSepaMember.id,
+          type: 'product',
+          product_id: generateUUID(),
+          quantity: 1,
+          unit_price_cents: 2500,
+          amount_cents: 2500,
+          notes: 'Test transaction',
+          created_at: new Date().toISOString(),
+        }],
+      },
+    })
+    expect(syncReject.status()).toBe(201)
+    const rejectResult = await syncReject.json()
+    expect(rejectResult.rejected.count).toBe(1)
+    expect(rejectResult.accepted_ids).toHaveLength(0)
+    expect(rejectResult.rejected.errors[0].error).toBe('sepa_invalid')
+    expect(rejectResult.rejected.errors[0].transaction_id).toBe(rejectedTxnId)
+    expect(rejectResult.rejected.errors[0].message).toContain('SEPA mandate')
+
+    // ── Sync accepted: valid SEPA member ────────────────────────────
+    const acceptedTxnId = generateUUID()
+    const syncAccept = await authenticatedTerminalRequest.post('http://localhost:8080/api/sync/transactions', {
+      data: {
+        transactions: [{
+          id: acceptedTxnId,
+          member_id: validMember.id,
+          type: 'product',
+          product_id: generateUUID(),
+          quantity: 1,
+          unit_price_cents: 3500,
+          amount_cents: 3500,
+          notes: 'Test sync transaction',
+          created_at: new Date().toISOString(),
+        }],
+      },
+    })
+    expect(syncAccept.status()).toBe(201)
+    const acceptResult = await syncAccept.json()
+    expect(acceptResult.accepted_ids).toContain(acceptedTxnId)
+    expect(acceptResult.rejected.count).toBe(0)
+
+    // ── Batch: mixed valid and invalid SEPA members ─────────────────
+    const batchValidTxnId = generateUUID()
+    const batchInvalidTxnId = generateUUID()
+    const batchResp = await authenticatedTerminalRequest.post('http://localhost:8080/api/sync/transactions', {
+      data: {
+        transactions: [
+          {
+            id: batchValidTxnId,
+            member_id: validMember.id,
+            type: 'product',
+            product_id: generateUUID(),
+            quantity: 1,
+            unit_price_cents: 1500,
+            amount_cents: 1500,
+            notes: 'Valid transaction',
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: batchInvalidTxnId,
+            member_id: noSepaMember.id,
+            type: 'product',
+            product_id: generateUUID(),
+            quantity: 1,
+            unit_price_cents: 2500,
+            amount_cents: 2500,
+            notes: 'Invalid transaction',
+            created_at: new Date().toISOString(),
+          },
+        ],
+      },
+    })
+    expect(batchResp.status()).toBe(201)
+    const batchResult = await batchResp.json()
+    expect(batchResult.accepted_ids).toContain(batchValidTxnId)
+    expect(batchResult.accepted_ids).not.toContain(batchInvalidTxnId)
+    expect(batchResult.rejected.count).toBe(1)
+    expect(batchResult.rejected.errors[0].transaction_id).toBe(batchInvalidTxnId)
+    expect(batchResult.rejected.errors[0].error).toBe('sepa_invalid')
   })
 })

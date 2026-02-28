@@ -132,13 +132,6 @@ class CartProvider extends ChangeNotifier {
       final regularProducts =
           _items.where((item) => !item.requiresDispenser).toList();
 
-      // Debug: Log cart items and their dispenser requirements
-      print('Checkout: Cart has ${_items.length} items');
-      for (var item in _items) {
-        print('  - ${item.productName}: requiresDispenser=${item.requiresDispenser}');
-      }
-      print('Token products: ${tokenProducts.length}, Regular products: ${regularProducts.length}');
-
       // If tokens in cart, dispense first (dispense-first, pay-after)
       if (tokenProducts.isNotEmpty) {
         final dispenserEnabled = _config.dispenserEnabled;
