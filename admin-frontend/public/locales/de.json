@@ -294,7 +294,20 @@
     "paymentReferencePrefix": "Verwendungszweck-Präfix",
     "adminUsers": "Admin-Benutzer",
     "loadingSettings": "Lade Einstellungen...",
-    "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?"
+    "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?",
+    "terminals": "Terminals",
+    "createTerminal": "Terminal erstellen",
+    "editTerminal": "Terminal bearbeiten",
+    "terminalName": "Terminal-Name",
+    "deviceId": "Geräte-ID",
+    "lastSync": "Letzte Synchronisation",
+    "noTerminals": "Keine Terminals konfiguriert",
+    "deactivateTerminalConfirm": "Möchten Sie dieses Terminal wirklich deaktivieren? Es kann dann nicht mehr synchronisieren.",
+    "revokeTerminalConfirm": "Zugriff für dieses Terminal widerrufen? Das API-Token wird sofort ungültig.",
+    "rotateTokenConfirm": "API-Token rotieren? Das alte Token wird sofort ungültig.",
+    "tokenGenerated": "API-Token generiert",
+    "tokenWarning": "Kopieren Sie dieses Token jetzt. Es wird nicht erneut angezeigt.",
+    "tokenRotated": "Neues API-Token generiert. Das alte Token ist nicht mehr gültig."
   },
   "auditLog": {
     "title": "Audit-Log",

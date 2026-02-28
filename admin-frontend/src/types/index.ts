@@ -270,3 +270,48 @@ export interface ResetPasswordResponse {
   password: string
   message: string
 }
+
+/**
+ * Terminal Types
+ */
+export interface Terminal {
+  id: string
+  name: string
+  device_id: string
+  is_active: boolean
+  last_sync_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateTerminalRequest {
+  name: string
+  device_id: string
+}
+
+export interface UpdateTerminalRequest {
+  name?: string
+  is_active?: boolean
+}
+
+export interface TerminalsListResponse {
+  data: Terminal[]
+  pagination: {
+    total: number
+    per_page: number
+    current_page: number
+    last_page: number
+  }
+}
+
+export interface CreateTerminalResponse {
+  terminal: Terminal
+  api_token: string
+  message: string
+}
+
+export interface RotateTokenResponse {
+  terminal: Terminal
+  api_token: string
+  message: string
+}

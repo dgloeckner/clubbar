@@ -294,7 +294,20 @@
     "paymentReferencePrefix": "Payment Reference Prefix",
     "adminUsers": "Admin Users",
     "loadingSettings": "Loading settings...",
-    "deactivateAdminConfirm": "Are you sure you want to deactivate this admin user?"
+    "deactivateAdminConfirm": "Are you sure you want to deactivate this admin user?",
+    "terminals": "Terminals",
+    "createTerminal": "Create Terminal",
+    "editTerminal": "Edit Terminal",
+    "terminalName": "Terminal Name",
+    "deviceId": "Device ID",
+    "lastSync": "Last Sync",
+    "noTerminals": "No terminals configured",
+    "deactivateTerminalConfirm": "Are you sure you want to deactivate this terminal? It will no longer be able to sync.",
+    "revokeTerminalConfirm": "Revoke access for this terminal? The API token will be invalidated immediately.",
+    "rotateTokenConfirm": "Rotate the API token? The old token will stop working immediately.",
+    "tokenGenerated": "API Token Generated",
+    "tokenWarning": "Copy this token now. It will not be shown again.",
+    "tokenRotated": "New API token generated. The old token is no longer valid."
   },
   "auditLog": {
     "title": "Audit Log",
