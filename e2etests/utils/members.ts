@@ -47,6 +47,8 @@ export interface CreateMemberOptions {
   mandateSignedAt?: string
   /** Optional RFID card UID. Default: not included. */
   cardUid?: string
+  /** Whether member is active. Default: true. */
+  isActive?: boolean
 }
 
 export interface CreatedMember {
@@ -87,6 +89,10 @@ export async function createMemberViaPage(
 
   if (options.cardUid !== undefined) {
     data.card_uid = options.cardUid
+  }
+
+  if (options.isActive !== undefined) {
+    data.is_active = options.isActive
   }
 
   const response = await page.request.post(`${API_BASE}/admin/members`, { data })
