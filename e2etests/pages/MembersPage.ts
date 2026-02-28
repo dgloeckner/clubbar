@@ -365,6 +365,14 @@ export class MembersPage extends BasePage {
     return text || ''
   }
 
+  /** Pattern 008: auto-retry until the member count stat card contains a digit.
+   * Call this after waitForResponse resolves — the HTTP response arrives before
+   * React re-renders the stat cards, so textContent() would return the "—" placeholder.
+   */
+  async waitForStatsToLoad() {
+    await expect(this.statCardMitglieder()).toContainText(/\d+/, { timeout: 10000 })
+  }
+
   /**
    * SORTING AND FILTERING CONTROLS
    */

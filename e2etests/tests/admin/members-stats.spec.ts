@@ -19,15 +19,18 @@ import { test, expect } from '../../fixtures/auth.fixture'
 import { MembersPage } from '../../pages/MembersPage'
 
 test.describe('Members Page - Statistics', () => {
-  test('should display correct active members count', async ({ page }) => {
+  test('should display correct active members count', async ({ page, authenticatedRequest }) => {
     const membersPage = new MembersPage(page)
 
-    // Arrange: Get baseline count
+    // Arrange: Get baseline count (register watcher BEFORE navigate)
+    const dashboardRespBefore = page.waitForResponse(
+      (r) => r.url().includes('/api/admin/dashboard') && r.status() === 200,
+      { timeout: 10000 }
+    )
     await membersPage.navigate()
     await membersPage.expectPageVisible()
-
-    // Wait for stats to load
-    await page.waitForTimeout(2000)
+    await dashboardRespBefore
+    await membersPage.waitForStatsToLoad()
 
     const initialCount = parseInt(await membersPage.getMemberCount(), 10)
 
@@ -40,7 +43,7 @@ test.describe('Members Page - Statistics', () => {
       const ibanSuffix = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0')
       const mandateDate = new Date().toISOString().slice(0, 10)
 
-      const response = await page.request.post('http://localhost:8080/api/admin/members', {
+      const response = await authenticatedRequest.post('/api/admin/members', {
         data: {
           first_name: `Active${i}`,
           last_name: `Member${uniqueId}`,
@@ -61,7 +64,7 @@ test.describe('Members Page - Statistics', () => {
       const ibanSuffix = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0')
       const mandateDate = new Date().toISOString().slice(0, 10)
 
-      const response = await page.request.post('http://localhost:8080/api/admin/members', {
+      const response = await authenticatedRequest.post('/api/admin/members', {
         data: {
           first_name: `Inactive${i}`,
           last_name: `Member${uniqueId}`,
@@ -76,12 +79,15 @@ test.describe('Members Page - Statistics', () => {
       expect(response.ok()).toBeTruthy()
     }
 
-    // Act: Reload page to see updated count
+    // Act: Reload page — register watcher BEFORE navigate
+    const dashboardRespAfter = page.waitForResponse(
+      (r) => r.url().includes('/api/admin/dashboard') && r.status() === 200,
+      { timeout: 10000 }
+    )
     await membersPage.navigate()
     await membersPage.expectPageVisible()
-
-    // Wait for stats to load
-    await page.waitForTimeout(2000)
+    await dashboardRespAfter
+    await membersPage.waitForStatsToLoad()
 
     // Assert: Verify active members count increased by at least 3
     // (may be more if other tests run in parallel)
@@ -89,15 +95,18 @@ test.describe('Members Page - Statistics', () => {
     expect(finalCount).toBeGreaterThanOrEqual(initialCount + 3)
   })
 
-  test('should display correct outstanding balance', async ({ page }) => {
+  test('should display correct outstanding balance', async ({ page, testTransactions }) => {
     const membersPage = new MembersPage(page)
 
     // Arrange: Get baseline balance
+    const dashboardRespBefore = page.waitForResponse(
+      (r) => r.url().includes('/api/admin/dashboard') && r.status() === 200,
+      { timeout: 10000 }
+    )
     await membersPage.navigate()
     await membersPage.expectPageVisible()
-
-    // Wait for stats to load
-    await page.waitForTimeout(2000)
+    await dashboardRespBefore
+    await membersPage.waitForStatsToLoad()
 
     const initialBalanceText = await membersPage.getOpenBalance()
     const initialBalanceMatch = initialBalanceText.match(/[\d.,]+/)
@@ -107,91 +116,23 @@ test.describe('Members Page - Statistics', () => {
       : '0'
     const initialBalanceCents = Math.round(parseFloat(initialBalanceStr) * 100)
 
-    // Create member with transactions
-    const timestamp = Date.now()
-    const uniqueId = `${timestamp}-balance`
-    const ibanSuffix = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0')
-    const mandateDate = new Date().toISOString().slice(0, 10)
+    // Create member, product, and 3 transactions: 3.50 EUR each = 10.50 EUR total (1050 cents)
+    const member = await testTransactions.createMember('Balance', 'Test')
+    const product = await testTransactions.createProduct('TestProd', 350, 'Test Product')
 
-    const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: 'Balance',
-        last_name: `Test${uniqueId}`,
-        email: `balance${uniqueId}@example.com`,
-        iban: `DE89370400440532${ibanSuffix}`,
-        mandate_reference: `MAND-${uniqueId}`,
-        mandate_signed_at: mandateDate,
-        preferred_language: 'de',
-        is_active: true,
-      },
-    })
-    expect(memberResponse.ok()).toBeTruthy()
-    const member = await memberResponse.json()
+    for (let i = 0; i < 3; i++) {
+      await testTransactions.createSyncTransaction(member.id, 350, 'balance-test', product.id)
+    }
 
-    // Create category first
-    const categoryResponse = await page.request.post('http://localhost:8080/api/admin/categories', {
-      data: {
-        names: { de: `Category${uniqueId}`, en: `Category${uniqueId}` },
-        sort_order: 1,
-        is_active: true,
-      },
-    })
-    expect(categoryResponse.ok()).toBeTruthy()
-    const category = await categoryResponse.json()
-
-    // Create product
-    const productResponse = await page.request.post('http://localhost:8080/api/admin/products', {
-      data: {
-        names: { de: `Product${uniqueId}`, en: `Product${uniqueId}` },
-        price_cents: 350, // 3.50 EUR
-        category_id: category.id,
-        is_active: true,
-      },
-    })
-    expect(productResponse.ok()).toBeTruthy()
-    const product = await productResponse.json()
-
-    // Create 3 transactions: 3.50 EUR each = 10.50 EUR total (1050 cents)
-    const transactions = [
-      {
-        id: crypto.randomUUID(),
-        member_id: member.id,
-        product_id: product.id,
-        amount_cents: 350,
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: crypto.randomUUID(),
-        member_id: member.id,
-        product_id: product.id,
-        amount_cents: 350,
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: crypto.randomUUID(),
-        member_id: member.id,
-        product_id: product.id,
-        amount_cents: 350,
-        created_at: new Date().toISOString(),
-      },
-    ]
-
-    // Sync transactions require terminal API authentication (Bearer token)
-    const syncResponse = await page.request.post('http://localhost:8080/api/sync/transactions', {
-      headers: {
-        'Authorization': 'Bearer test-terminal-token-do-not-use-in-production-0a1b2c3d4e5f6g7h',
-      },
-      data: { transactions },
-    })
-
-    expect(syncResponse.ok()).toBeTruthy()
-
-    // Act: Reload page to see updated balance
+    // Act: Reload page — register watcher BEFORE navigate
+    const dashboardRespAfter = page.waitForResponse(
+      (r) => r.url().includes('/api/admin/dashboard') && r.status() === 200,
+      { timeout: 10000 }
+    )
     await membersPage.navigate()
     await membersPage.expectPageVisible()
-
-    // Wait for stats to update
-    await page.waitForTimeout(2000)
+    await dashboardRespAfter
+    await membersPage.waitForStatsToLoad()
 
     // Assert: Verify balance increased by at least 1050 cents (10.50 EUR)
     // (may be more if other tests run in parallel)
@@ -206,93 +147,24 @@ test.describe('Members Page - Statistics', () => {
     expect(finalBalanceCents).toBeGreaterThanOrEqual(initialBalanceCents + 1050)
   })
 
-  test('should display last settlement date', async ({ page }) => {
+  test('should display last settlement date', async ({ page, testTransactions }) => {
     const membersPage = new MembersPage(page)
 
-    // Arrange: Create settlement with member and transaction
-    const timestamp = Date.now()
-    const uniqueId = `${timestamp}-settlement`
-    const ibanSuffix = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0')
-    const mandateDate = new Date().toISOString().slice(0, 10)
+    // Arrange: Create member, product, transaction, and settlement
+    const member = await testTransactions.createMember('Settlement', 'Test')
+    const product = await testTransactions.createProduct('SettleProd', 500, 'Settle Product')
+    const txnId = await testTransactions.createSyncTransaction(member.id, 500, 'settle-test', product.id)
+    await testTransactions.createSettlement([txnId])
 
-    // Create member
-    const memberResponse = await page.request.post('http://localhost:8080/api/admin/members', {
-      data: {
-        first_name: 'Settlement',
-        last_name: `Test${uniqueId}`,
-        email: `settlement${uniqueId}@example.com`,
-        iban: `DE89370400440532${ibanSuffix}`,
-        mandate_reference: `MAND-${uniqueId}`,
-        mandate_signed_at: mandateDate,
-        preferred_language: 'de',
-        is_active: true,
-      },
-    })
-    expect(memberResponse.ok()).toBeTruthy()
-    const member = await memberResponse.json()
-
-    // Create category first
-    const categoryResponse = await page.request.post('http://localhost:8080/api/admin/categories', {
-      data: {
-        names: { de: `Category${uniqueId}`, en: `Category${uniqueId}` },
-        sort_order: 1,
-        is_active: true,
-      },
-    })
-    expect(categoryResponse.ok()).toBeTruthy()
-    const category = await categoryResponse.json()
-
-    // Create product
-    const productResponse = await page.request.post('http://localhost:8080/api/admin/products', {
-      data: {
-        names: { de: `Product${uniqueId}`, en: `Product${uniqueId}` },
-        price_cents: 500,
-        category_id: category.id,
-        is_active: true,
-      },
-    })
-    expect(productResponse.ok()).toBeTruthy()
-    const product = await productResponse.json()
-
-    // Create transaction
-    const transaction = {
-      id: crypto.randomUUID(),
-      member_id: member.id,
-      product_id: product.id,
-      amount_cents: 500,
-      created_at: new Date().toISOString(),
-    }
-    // Sync transactions require terminal API authentication (Bearer token)
-    const syncResponse = await page.request.post('http://localhost:8080/api/sync/transactions', {
-      headers: {
-        'Authorization': 'Bearer test-terminal-token-do-not-use-in-production-0a1b2c3d4e5f6g7h',
-      },
-      data: { transactions: [transaction] },
-    })
-    expect(syncResponse.ok()).toBeTruthy()
-
-    // Create settlement with the transaction
-    const settlementDate = new Date().toISOString().slice(0, 10)
-    const executionDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-
-    const settlementResponse = await page.request.post('http://localhost:8080/api/admin/settlements', {
-      data: {
-        transaction_ids: [transaction.id],
-        settlement_date: settlementDate,
-        execution_date: executionDate,
-        settlement_type: 'sepa',
-        description: `Test Settlement ${uniqueId}`,
-      },
-    })
-
-    expect(settlementResponse.ok()).toBeTruthy()
-
-    // Act: Navigate to members page
+    // Act: Navigate to members page — register watcher BEFORE navigate
+    const dashboardResp = page.waitForResponse(
+      (r) => r.url().includes('/api/admin/dashboard') && r.status() === 200,
+      { timeout: 10000 }
+    )
     await membersPage.navigate()
     await membersPage.expectPageVisible()
-
-    // Wait for stats to load
-    await page.waitForTimeout(2000)
+    await dashboardResp
+    await membersPage.waitForStatsToLoad()
 
     // Assert: Verify last settlement date is displayed
     const settlementDateText = await membersPage.getLastSettlementDate()
@@ -321,6 +193,7 @@ test.describe('Members Page - Statistics', () => {
 
     // Wait for dashboard API to load stat card data (async, fires after page mount)
     await dashboardResponsePromise
+    await membersPage.waitForStatsToLoad()
 
     // Assert: All three stat values should be retrievable (cards are visible)
     const memberCount = await membersPage.getMemberCount()
