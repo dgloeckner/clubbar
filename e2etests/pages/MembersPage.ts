@@ -56,6 +56,14 @@ export class MembersPage extends BasePage {
   private readonly formSubmitBtn = () => this.page.getByTestId('members-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('members-form-cancel-button')
 
+  // Card UID field
+  private readonly cardUidInput = () => this.page.getByTestId('member-form-card-uid')
+  private readonly cardUidFormatError = () => this.page.getByTestId('member-form-card-uid-format-error')
+  private readonly cardUidDuplicateError = () => this.page.getByTestId('member-form-card-uid-error')
+
+  // Filter controls
+  private readonly clearFiltersBtn = () => this.page.getByTestId('members-clear-filters')
+
   constructor(page: Page) {
     super(page)
   }
@@ -460,5 +468,79 @@ export class MembersPage extends BasePage {
     // Get created date at specific row index
     const dateCell = this.page.locator('[data-testid^="members-table-cell-created-"]').nth(rowIndex)
     return await dateCell.textContent() || ''
+  }
+
+  /**
+   * CARD UID INTERACTIONS
+   */
+
+  async fillCardUid(uid: string) {
+    await this.cardUidInput().fill(uid)
+  }
+
+  async getFormCardUidValue(): Promise<string> {
+    return await this.cardUidInput().inputValue() || ''
+  }
+
+  async clearCardUid() {
+    await this.cardUidInput().clear()
+  }
+
+  async blurCardUid() {
+    await this.cardUidInput().blur()
+  }
+
+  async expectCardUidFormatErrorVisible() {
+    await expect(this.cardUidFormatError()).toBeVisible()
+  }
+
+  async expectCardUidFormatErrorHidden() {
+    await expect(this.cardUidFormatError()).not.toBeVisible()
+  }
+
+  async expectCardUidDuplicateErrorVisible() {
+    await expect(this.cardUidDuplicateError()).toBeVisible()
+  }
+
+  async expectCardUidDuplicateErrorHidden() {
+    await expect(this.cardUidDuplicateError()).not.toBeVisible()
+  }
+
+  async getCardUidDuplicateErrorText(): Promise<string> {
+    return await this.cardUidDuplicateError().textContent() || ''
+  }
+
+  /**
+   * CARD FILTER
+   */
+
+  async setCardFilter(option: 'all' | 'with' | 'without') {
+    const btn = this.page.getByTestId(`filter-card-${option}`)
+    await expect(btn).toBeVisible()
+    await btn.click()
+    await this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/members') && resp.status() === 200
+    )
+  }
+
+  /**
+   * CLEAR ALL FILTERS
+   */
+
+  async clearAllFilters() {
+    await this.clearFiltersBtn().click()
+    await this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/admin/members') && resp.status() === 200
+    )
+  }
+
+  /**
+   * NEGATIVE VISIBILITY ASSERTION
+   */
+
+  async expectMemberNotVisibleInTable(firstName: string) {
+    await expect(
+      this.page.locator('[data-testid^="members-table-cell-name-"]').filter({ hasText: firstName })
+    ).not.toBeVisible()
   }
 }
