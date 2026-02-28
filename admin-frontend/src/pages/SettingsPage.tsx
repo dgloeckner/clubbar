@@ -9,7 +9,8 @@ import { theme } from '../styles/design-system'
 import { useLoading } from '../context/LoadingContext'
 import { getSepaConfig, updateSepaConfig } from '../services/sepa-config'
 import { getAdminUsers, createAdminUser, updateAdminUser, deactivateAdminUser, reactivateAdminUser, resetAdminPassword } from '../services/admin-users'
-import { SepaConfig, UpdateSepaConfigRequest, AdminUser } from '../types'
+import { getTerminals, createTerminal, updateTerminal, rotateTerminalToken, revokeTerminalAccess } from '../services/terminals'
+import { SepaConfig, UpdateSepaConfigRequest, AdminUser, Terminal } from '../types'
 import { AxiosError } from 'axios'
 import { SepaConfigTab } from '../components/settings/SepaConfigTab'
 import { AdminUsersTab } from '../components/settings/AdminUsersTab'
@@ -17,13 +18,17 @@ import { CreateAdminModal } from '../components/modals/CreateAdminModal'
 import { EditAdminModal } from '../components/modals/EditAdminModal'
 import { PasswordDisplayModal } from '../components/modals/PasswordDisplayModal'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
+import { TerminalsTab } from '../components/settings/TerminalsTab'
+import { CreateTerminalModal } from '../components/modals/CreateTerminalModal'
+import { EditTerminalModal } from '../components/modals/EditTerminalModal'
+import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
 
 export function SettingsPage() {
   const { t } = useTranslation()
   const { setIsLoading } = useLoading()
 
   // State management
-  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users'>('admin-users')
+  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals'>('admin-users')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -77,6 +82,21 @@ export function SettingsPage() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null)
 
+  // Terminal State
+  const [terminals, setTerminals] = useState<Terminal[]>([])
+  const [terminalsLoading, setTerminalsLoading] = useState(false)
+  const [showCreateTerminalModal, setShowCreateTerminalModal] = useState(false)
+  const [showEditTerminalModal, setShowEditTerminalModal] = useState(false)
+  const [editingTerminal, setEditingTerminal] = useState<Terminal | null>(null)
+  const [createTerminalFormData, setCreateTerminalFormData] = useState<{ name: string; device_id: string }>({
+    name: '',
+    device_id: '',
+  })
+  const [editTerminalFormData, setEditTerminalFormData] = useState<{ name: string }>({ name: '' })
+  const [generatedToken, setGeneratedToken] = useState<string | null>(null)
+  const [showTokenModal, setShowTokenModal] = useState(false)
+  const [terminalConfirmAction, setTerminalConfirmAction] = useState<{ type: 'deactivate' | 'rotate' | 'revoke'; id: string } | null>(null)
+
   // Load SEPA config on mount
   useEffect(() => {
     const loadConfig = async () => {
@@ -121,6 +141,13 @@ export function SettingsPage() {
     }
   }, [activeTab])
 
+  // Load terminals when terminals tab is active
+  useEffect(() => {
+    if (activeTab === 'terminals') {
+      loadTerminals()
+    }
+  }, [activeTab])
+
   const loadAdminUsers = async () => {
     try {
       setAdminUsersLoading(true)
@@ -130,6 +157,18 @@ export function SettingsPage() {
       console.error('Failed to load admin users:', err)
     } finally {
       setAdminUsersLoading(false)
+    }
+  }
+
+  const loadTerminals = async () => {
+    try {
+      setTerminalsLoading(true)
+      const response = await getTerminals(1, 500)
+      setTerminals(response.data || [])
+    } catch (err) {
+      console.error('Failed to load terminals:', err)
+    } finally {
+      setTerminalsLoading(false)
     }
   }
 
@@ -204,6 +243,77 @@ export function SettingsPage() {
     } catch (err) {
       console.error('Failed to reset password:', err)
       setError('Failed to reset password')
+    }
+  }
+
+  const handleCreateTerminal = async () => {
+    try {
+      const result = await createTerminal(createTerminalFormData)
+      setGeneratedToken(result.api_token)
+      setShowTokenModal(true)
+      setShowCreateTerminalModal(false)
+      setCreateTerminalFormData({ name: '', device_id: '' })
+      await loadTerminals()
+    } catch (err) {
+      console.error('Failed to create terminal:', err)
+      setError('Failed to create terminal')
+    }
+  }
+
+  const handleUpdateTerminal = async () => {
+    if (!editingTerminal) return
+    try {
+      await updateTerminal(editingTerminal.id, { name: editTerminalFormData.name })
+      setShowEditTerminalModal(false)
+      setEditingTerminal(null)
+      setEditTerminalFormData({ name: '' })
+      await loadTerminals()
+    } catch (err) {
+      console.error('Failed to update terminal:', err)
+      setError('Failed to update terminal')
+    }
+  }
+
+  const handleDeactivateTerminal = (id: string) => {
+    setTerminalConfirmAction({ type: 'deactivate', id })
+  }
+
+  const handleReactivateTerminal = async (id: string) => {
+    try {
+      await updateTerminal(id, { is_active: true })
+      await loadTerminals()
+    } catch (err) {
+      console.error('Failed to reactivate terminal:', err)
+      setError('Failed to reactivate terminal')
+    }
+  }
+
+  const handleRotateToken = (id: string) => {
+    setTerminalConfirmAction({ type: 'rotate', id })
+  }
+
+  const handleRevokeAccess = (id: string) => {
+    setTerminalConfirmAction({ type: 'revoke', id })
+  }
+
+  const handleTerminalConfirmAction = async () => {
+    if (!terminalConfirmAction) return
+    const { type, id } = terminalConfirmAction
+    setTerminalConfirmAction(null)
+    try {
+      if (type === 'deactivate') {
+        await updateTerminal(id, { is_active: false })
+      } else if (type === 'rotate') {
+        const result = await rotateTerminalToken(id)
+        setGeneratedToken(result.api_token)
+        setShowTokenModal(true)
+      } else if (type === 'revoke') {
+        await revokeTerminalAccess(id)
+      }
+      await loadTerminals()
+    } catch (err) {
+      console.error(`Failed to ${type} terminal:`, err)
+      setError(`Failed to ${type} terminal`)
     }
   }
 
@@ -416,6 +526,18 @@ export function SettingsPage() {
             </svg>
             {t('settings.sepaConfig')}
           </button>
+          <button
+            data-testid="settings-tab-terminals"
+            onClick={() => setActiveTab('terminals')}
+            style={tabStyle(activeTab === 'terminals') as any}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+            {t('settings.terminals')}
+          </button>
         </div>
       </div>
 
@@ -454,6 +576,24 @@ export function SettingsPage() {
           onResetPassword={handleResetPassword}
           onDeactivateUser={handleDeactivateAdmin}
           onReactivateUser={handleReactivateAdmin}
+        />
+      )}
+
+      {/* Terminals Tab */}
+      {activeTab === 'terminals' && (
+        <TerminalsTab
+          terminals={terminals}
+          loading={terminalsLoading}
+          onCreateTerminal={() => setShowCreateTerminalModal(true)}
+          onEditTerminal={(terminal) => {
+            setEditingTerminal(terminal)
+            setEditTerminalFormData({ name: terminal.name })
+            setShowEditTerminalModal(true)
+          }}
+          onRotateToken={handleRotateToken}
+          onRevokeAccess={handleRevokeAccess}
+          onDeactivateTerminal={handleDeactivateTerminal}
+          onReactivateTerminal={handleReactivateTerminal}
         />
       )}
 
@@ -514,6 +654,56 @@ export function SettingsPage() {
         variant="danger"
         onConfirm={handleDeactivateAdminConfirmed}
         onCancel={() => setDeactivateConfirm(null)}
+      />
+
+      <CreateTerminalModal
+        isOpen={showCreateTerminalModal}
+        formData={createTerminalFormData}
+        onFormChange={(field, value) => {
+          setCreateTerminalFormData((prev) => ({ ...prev, [field]: value }))
+        }}
+        onSubmit={handleCreateTerminal}
+        onClose={() => setShowCreateTerminalModal(false)}
+      />
+
+      <EditTerminalModal
+        isOpen={showEditTerminalModal}
+        formData={editTerminalFormData}
+        onFormChange={(field, value) => {
+          setEditTerminalFormData((prev) => ({ ...prev, [field]: value }))
+        }}
+        onSubmit={handleUpdateTerminal}
+        onClose={() => setShowEditTerminalModal(false)}
+      />
+
+      <TokenDisplayModal
+        isOpen={showTokenModal}
+        token={generatedToken}
+        onClose={() => {
+          setShowTokenModal(false)
+          setGeneratedToken(null)
+        }}
+      />
+
+      <ConfirmDialog
+        isOpen={!!terminalConfirmAction}
+        message={
+          terminalConfirmAction?.type === 'deactivate'
+            ? t('settings.deactivateTerminalConfirm')
+            : terminalConfirmAction?.type === 'rotate'
+              ? t('settings.rotateTokenConfirm')
+              : t('settings.revokeTerminalConfirm')
+        }
+        confirmLabel={
+          terminalConfirmAction?.type === 'deactivate'
+            ? t('common.deactivate')
+            : terminalConfirmAction?.type === 'rotate'
+              ? t('common.confirm')
+              : t('common.confirm')
+        }
+        variant="danger"
+        onConfirm={handleTerminalConfirmAction}
+        onCancel={() => setTerminalConfirmAction(null)}
       />
     </div>
   )
