@@ -369,6 +369,14 @@ export class AuditLogPage extends BasePage {
   }
 
   /**
+   * Get the entry ID from a row at a given index (0-based)
+   */
+  async getEntryIdAtIndex(index: number): Promise<number> {
+    const row = this.page.locator('[data-testid^="audit-log-table-row-"]').nth(index)
+    return this.getEntryIdFromRow(row)
+  }
+
+  /**
    * ERROR HANDLING
    */
 

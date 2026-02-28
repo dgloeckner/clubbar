@@ -62,7 +62,7 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     await authenticatedMembersPage.expectPageVisible()
 
     // Verify we're on the correct page
-    expect(authenticatedMembersPage.page.url()).toContain('/members')
+    expect(authenticatedMembersPage.getCurrentUrl()).toContain('/members')
   })
 
   test('E2E: filtering by status correctly filters members', async ({ authenticatedMembersPage }) => {
@@ -110,11 +110,10 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     expect(filterValue).toBe('all')
   })
 
-  test('should filter members by card assignment (With Card / Without Card)', async ({ authenticatedMembersPage }) => {
+  test('should filter members by card assignment (With Card / Without Card)', async ({ authenticatedMembersPage, page }) => {
     const timestamp = Date.now()
     const testId = `CF${timestamp}` // Short prefix to stay under 20 chars
     const cardUid = `${timestamp}`.slice(-16) // Use last 16 digits (fits in VARCHAR(20))
-    const page = authenticatedMembersPage.page
 
     // Use distinct names that are not substrings of each other
     const withCardName = `${testId}HasCard`
@@ -175,7 +174,7 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     await expect(page.getByText(withoutCardName, { exact: false })).toBeVisible()
   })
 
-  test('E2E: clearing card_uid via edit form moves member to ohne-karte filter', async ({ authenticatedMembersPage }) => {
+  test('E2E: clearing card_uid via edit form moves member to ohne-karte filter', async ({ authenticatedMembersPage, page }) => {
     /**
      * Regression test for bug: clearing card_uid in the edit form did not send
      * null to the backend (it omitted the field entirely), so the DB value was
@@ -187,7 +186,6 @@ test.describe('UC-A12: Sort and Filter Members', () => {
     const timestamp = Date.now()
     const testId = `CUC${timestamp}`.slice(0, 18) // Short prefix, stays under 20 chars
     const cardUid = `${timestamp}`.slice(-16)      // Last 16 hex-compatible digits
-    const page = authenticatedMembersPage.page
 
     // Step 1: Create a member WITH a card UID via API (Pattern 001: isolated test data)
     const createResp = await page.request.post('http://localhost:8080/api/admin/members', {

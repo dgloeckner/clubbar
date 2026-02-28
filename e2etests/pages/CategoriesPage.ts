@@ -98,12 +98,39 @@ export class CategoriesPage extends BasePage {
     await expect(this.loadingIndicator()).not.toBeVisible({ timeout: 10000 })
   }
 
+  async expectCreateButtonEnabled() {
+    const btn = this.createBtn()
+    await expect(btn).toBeVisible()
+    await expect(btn).toBeEnabled()
+  }
+
   /**
    * TABLE INTERACTIONS
    */
 
   async getCategoryCount(): Promise<number> {
     return await this.tableRows().count()
+  }
+
+  /**
+   * Returns the category ID of the first status toggle in the table,
+   * extracted from the toggle's data-testid attribute.
+   */
+  async getFirstStatusToggleCategoryId(): Promise<string | null> {
+    const toggle = this.page.locator('[data-testid^="categories-status-toggle-"]').first()
+    const testId = await toggle.getAttribute('data-testid')
+    return testId?.replace('categories-status-toggle-', '') ?? null
+  }
+
+  /**
+   * Returns the category ID of the first enabled (not-disabled) delete button.
+   */
+  async getFirstDeletableCategoryId(): Promise<string | null> {
+    const deleteBtn = this.page.locator('[data-testid^="categories-delete-button-"]:not([disabled])').first()
+    const count = await deleteBtn.count()
+    if (count === 0) return null
+    const testId = await deleteBtn.getAttribute('data-testid')
+    return testId?.replace('categories-delete-button-', '') ?? null
   }
 
   async getCategoryName(categoryId: string): Promise<string> {
@@ -215,6 +242,19 @@ export class CategoriesPage extends BasePage {
     return text.trim()
   }
 
+  async openIconDropdown() {
+    await this.iconSelectTrigger().click()
+    await expect(this.iconSelectDropdown()).toBeVisible()
+  }
+
+  async expectIconDropdownVisible() {
+    await expect(this.iconSelectDropdown()).toBeVisible()
+  }
+
+  async getIconOptionCount(): Promise<number> {
+    return await this.page.locator('[data-testid^="categories-form-icon-select-option-"]').count()
+  }
+
   async createCategory(names: { [lang: string]: string }, iconName?: string) {
     await this.openCreateModal()
     await this.expectFormModalVisible()
@@ -242,6 +282,19 @@ export class CategoriesPage extends BasePage {
    */
 
   async toggleCategoryStatus(categoryId: string) {
+    const responsePromise = this.page.waitForResponse(
+      (r) => r.url().includes(`/admin/categories/${categoryId}/status`) && r.request().method() === 'PATCH',
+      { timeout: 10000 }
+    )
+    await this.page.getByTestId(`categories-status-toggle-${categoryId}`).click()
+    await responsePromise
+  }
+
+  /**
+   * Click the status toggle when a confirmation dialog is expected to appear.
+   * Unlike toggleCategoryStatus(), does NOT wait for PATCH (which only fires after confirm).
+   */
+  async clickStatusToggleExpectingDialog(categoryId: string) {
     await this.page.getByTestId(`categories-status-toggle-${categoryId}`).click()
   }
 

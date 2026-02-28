@@ -10,9 +10,7 @@ import { test, expect } from '../../fixtures/pageObjects'
  */
 
 test.describe('UC-A12: SEPA Status Filter', () => {
-  test('should render SEPA filter buttons in filter toolbar', async ({ authenticatedMembersPage }) => {
-    const page = authenticatedMembersPage.page
-
+  test('should render SEPA filter buttons in filter toolbar', async ({ authenticatedMembersPage, page }) => {
     await authenticatedMembersPage.navigate()
     await authenticatedMembersPage.expectPageVisible()
 
@@ -21,7 +19,7 @@ test.describe('UC-A12: SEPA Status Filter', () => {
     await expect(page.getByTestId('filter-sepa-missing')).toBeVisible()
   })
 
-  test('E2E: filtering by Gültig shows only members with valid SEPA', async ({ authenticatedMembersPage }) => {
+  test('E2E: filtering by Gültig shows only members with valid SEPA', async ({ authenticatedMembersPage, page }) => {
     /**
      * Creates two members via API:
      * - one WITH iban + mandate_reference (is_sepa_valid = true)
@@ -31,7 +29,6 @@ test.describe('UC-A12: SEPA Status Filter', () => {
      */
     const timestamp = Date.now()
     const testId = `SF${timestamp}`.slice(0, 16)
-    const page = authenticatedMembersPage.page
 
     // Create member WITH valid SEPA
     const resp1 = await page.request.post('http://localhost:8080/api/admin/members', {
@@ -69,10 +66,9 @@ test.describe('UC-A12: SEPA Status Filter', () => {
     await expect(page.locator(`text=${testId}Miss`)).not.toBeVisible()
   })
 
-  test('E2E: filtering by Fehlend shows only members with missing SEPA', async ({ authenticatedMembersPage }) => {
+  test('E2E: filtering by Fehlend shows only members with missing SEPA', async ({ authenticatedMembersPage, page }) => {
     const timestamp = Date.now()
     const testId = `SM${timestamp}`.slice(0, 16)
-    const page = authenticatedMembersPage.page
 
     // Create member WITH valid SEPA
     const resp1 = await page.request.post('http://localhost:8080/api/admin/members', {
@@ -110,10 +106,9 @@ test.describe('UC-A12: SEPA Status Filter', () => {
     await expect(page.locator(`text=${testId}Valid`)).not.toBeVisible()
   })
 
-  test('E2E: clearing filters resets SEPA filter', async ({ authenticatedMembersPage }) => {
+  test('E2E: clearing filters resets SEPA filter', async ({ authenticatedMembersPage, page }) => {
     const timestamp = Date.now()
     const testId = `SC${timestamp}`.slice(0, 16)
-    const page = authenticatedMembersPage.page
 
     // Create one member WITH valid SEPA
     await page.request.post('http://localhost:8080/api/admin/members', {

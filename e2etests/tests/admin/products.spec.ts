@@ -140,10 +140,7 @@ test.describe('Products Page - Complete User Workflows', () => {
     try {
       await authenticatedProductsPage.submitForm()
       // If we get here, check if form is still visible (validation may prevent close)
-      const isModalVisible = await authenticatedProductsPage.page
-        .getByTestId('products-form-modal')
-        .isVisible({ timeout: 2000 })
-        .catch(() => false)
+      const isModalVisible = await authenticatedProductsPage.isFormModalVisible()
 
       // Modal should still be visible OR show validation error
       expect(isModalVisible).toBe(true)
@@ -410,12 +407,9 @@ test.describe('Products Page - Complete User Workflows', () => {
     await authenticatedProductsPage.openCreateModal()
     await authenticatedProductsPage.expectFormModalVisible()
 
-    // Verify icon select trigger exists
-    const trigger = authenticatedProductsPage.page.getByTestId('products-form-icon-select-trigger')
-    await expect(trigger).toBeVisible()
-
-    // Verify trigger shows default text
-    const text = await trigger.textContent()
+    // Verify icon select trigger exists and shows default text
+    await authenticatedProductsPage.expectIconSelectTriggerVisible()
+    const text = await authenticatedProductsPage.getIconSelectTriggerText()
     expect(text).toContain('Select icon')
   })
 
@@ -424,17 +418,11 @@ test.describe('Products Page - Complete User Workflows', () => {
     await authenticatedProductsPage.openCreateModal()
     await authenticatedProductsPage.expectFormModalVisible()
 
-    // Click trigger to open dropdown
-    const trigger = authenticatedProductsPage.page.getByTestId('products-form-icon-select-trigger')
-    await trigger.click()
+    // Open dropdown and verify it is visible with options
+    await authenticatedProductsPage.openIconDropdown()
+    await authenticatedProductsPage.expectIconDropdownVisible()
 
-    // Dropdown should be visible
-    const dropdown = authenticatedProductsPage.page.getByTestId('products-form-icon-select-dropdown')
-    await expect(dropdown).toBeVisible()
-
-    // Should have multiple icon options
-    const options = authenticatedProductsPage.page.locator('[data-testid^="products-form-icon-select-option-"]')
-    const count = await options.count()
+    const count = await authenticatedProductsPage.getIconOptionCount()
     expect(count).toBeGreaterThan(0)
   })
 

@@ -56,9 +56,7 @@ test.describe('Admin Frontend - Categories Page', () => {
 
     test('should display create button', async ({ authenticatedCategoriesPage }) => {
       // Pattern 006: Create button should be clickable
-      const button = authenticatedCategoriesPage.page.getByTestId('categories-create-button')
-      expect(await button.isVisible()).toBeTruthy()
-      expect(await button.isEnabled()).toBeTruthy()
+      await authenticatedCategoriesPage.expectCreateButtonEnabled()
     })
   })
 
@@ -157,11 +155,7 @@ test.describe('Admin Frontend - Categories Page', () => {
 
 
     test('should deactivate category immediately without confirmation dialog', async ({ authenticatedCategoriesPage }) => {
-      const categoryIdAttr = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-status-toggle-"]')
-        .first()
-        .getAttribute('data-testid')
-      const categoryId = categoryIdAttr?.replace('categories-status-toggle-', '') || ''
+      const categoryId = await authenticatedCategoriesPage.getFirstStatusToggleCategoryId() || ''
 
       if (categoryId) {
         // Deactivation should be immediate — no confirm dialog
@@ -175,23 +169,15 @@ test.describe('Admin Frontend - Categories Page', () => {
     })
 
     test('should show confirmation dialog when activating category and cancel keeps status unchanged', async ({ authenticatedCategoriesPage }) => {
-      const categoryIdAttr = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-status-toggle-"]')
-        .first()
-        .getAttribute('data-testid')
-      const categoryId = categoryIdAttr?.replace('categories-status-toggle-', '') || ''
+      const categoryId = await authenticatedCategoriesPage.getFirstStatusToggleCategoryId() || ''
 
       if (categoryId) {
-        // First deactivate (immediate, no dialog) — wait for API to complete
-        const deactivateResponse = authenticatedCategoriesPage.page.waitForResponse(
-          (r) => r.url().includes(`/admin/categories/${categoryId}/status`) && r.request().method() === 'PATCH'
-        )
+        // First deactivate (immediate, no dialog) — toggleCategoryStatus waits for API internally
         await authenticatedCategoriesPage.toggleCategoryStatus(categoryId)
-        await deactivateResponse
         await authenticatedCategoriesPage.expectConfirmDialogHidden()
 
-        // Now activate — should show confirmation dialog
-        await authenticatedCategoriesPage.toggleCategoryStatus(categoryId)
+        // Now activate — shows confirmation dialog before API call
+        await authenticatedCategoriesPage.clickStatusToggleExpectingDialog(categoryId)
         await authenticatedCategoriesPage.expectConfirmDialogVisible()
 
         // Verify dialog has a message
@@ -221,26 +207,18 @@ test.describe('Admin Frontend - Categories Page', () => {
       })
 
       // Find an empty (enabled) delete button
-      const deleteButtons = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-delete-button-"]:not([disabled])')
+      const categoryId = await authenticatedCategoriesPage.getFirstDeletableCategoryId()
 
-      const buttonCount = await deleteButtons.count()
+      if (categoryId) {
+        await authenticatedCategoriesPage.deleteCategory(categoryId)
+        await authenticatedCategoriesPage.expectConfirmDialogVisible()
 
-      if (buttonCount > 0) {
-        const categoryIdAttr = await deleteButtons.first().getAttribute('data-testid')
-        const categoryId = categoryIdAttr?.replace('categories-delete-button-', '') || ''
+        const message = await authenticatedCategoriesPage.getConfirmMessage()
+        expect(message).toBeTruthy()
 
-        if (categoryId) {
-          await authenticatedCategoriesPage.deleteCategory(categoryId)
-          await authenticatedCategoriesPage.expectConfirmDialogVisible()
-
-          const message = await authenticatedCategoriesPage.getConfirmMessage()
-          expect(message).toBeTruthy()
-
-          // Cancel delete
-          await authenticatedCategoriesPage.cancelDelete()
-          await authenticatedCategoriesPage.expectConfirmDialogHidden()
-        }
+        // Cancel delete
+        await authenticatedCategoriesPage.cancelDelete()
+        await authenticatedCategoriesPage.expectConfirmDialogHidden()
       }
     })
 
@@ -253,27 +231,19 @@ test.describe('Admin Frontend - Categories Page', () => {
 
       const countBefore = await authenticatedCategoriesPage.getCategoryCount()
 
-      // Find an empty (enabled) delete button
-      const deleteButtons = await authenticatedCategoriesPage.page
-        .locator('[data-testid^="categories-delete-button-"]:not([disabled])')
+      // Find an enabled delete button
+      const categoryId = await authenticatedCategoriesPage.getFirstDeletableCategoryId()
 
-      const buttonCount = await deleteButtons.count()
+      if (categoryId) {
+        await authenticatedCategoriesPage.deleteCategory(categoryId)
+        await authenticatedCategoriesPage.expectConfirmDialogVisible()
 
-      if (buttonCount > 0) {
-        const categoryIdAttr = await deleteButtons.first().getAttribute('data-testid')
-        const categoryId = categoryIdAttr?.replace('categories-delete-button-', '') || ''
+        await authenticatedCategoriesPage.cancelDelete()
+        await authenticatedCategoriesPage.expectConfirmDialogHidden()
 
-        if (categoryId) {
-          await authenticatedCategoriesPage.deleteCategory(categoryId)
-          await authenticatedCategoriesPage.expectConfirmDialogVisible()
-
-          await authenticatedCategoriesPage.cancelDelete()
-          await authenticatedCategoriesPage.expectConfirmDialogHidden()
-
-          // Count should remain same
-          const countAfter = await authenticatedCategoriesPage.getCategoryCount()
-          expect(countAfter).toBe(countBefore)
-        }
+        // Count should remain same
+        const countAfter = await authenticatedCategoriesPage.getCategoryCount()
+        expect(countAfter).toBe(countBefore)
       }
     })
   })
@@ -342,9 +312,7 @@ test.describe('Admin Frontend - Categories Page', () => {
 
     test('should display create button as enabled', async ({ authenticatedCategoriesPage }) => {
       // Pattern 006: Create button should be clickable and enabled
-      const button = authenticatedCategoriesPage.page.getByTestId('categories-create-button')
-      expect(await button.isVisible()).toBeTruthy()
-      expect(await button.isEnabled()).toBeTruthy()
+      await authenticatedCategoriesPage.expectCreateButtonEnabled()
     })
 
     test('should maintain form state when switching language tabs', async ({ authenticatedCategoriesPage }) => {
@@ -380,17 +348,11 @@ test.describe('Admin Frontend - Categories Page', () => {
       await authenticatedCategoriesPage.openCreateModal()
       await authenticatedCategoriesPage.expectFormModalVisible()
 
-      // Click trigger to open dropdown
-      const trigger = authenticatedCategoriesPage.page.getByTestId('categories-form-icon-select-trigger')
-      await trigger.click()
+      // Open dropdown and verify it is visible with options
+      await authenticatedCategoriesPage.openIconDropdown()
+      await authenticatedCategoriesPage.expectIconDropdownVisible()
 
-      // Dropdown should be visible
-      const dropdown = authenticatedCategoriesPage.page.getByTestId('categories-form-icon-select-dropdown')
-      await expect(dropdown).toBeVisible()
-
-      // Should have multiple icon options
-      const options = authenticatedCategoriesPage.page.locator('[data-testid^="categories-form-icon-select-option-"]')
-      const count = await options.count()
+      const count = await authenticatedCategoriesPage.getIconOptionCount()
       expect(count).toBeGreaterThan(0)
     })
 

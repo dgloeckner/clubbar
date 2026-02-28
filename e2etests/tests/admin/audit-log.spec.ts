@@ -172,32 +172,22 @@ test.describe('UC-A81: Audit Log', () => {
       const rowCount = await authenticatedAuditLogPage.getTableRowCount()
 
       if (rowCount > 0) {
-        // Get the first row's ID from test ID (extract from row data-testid)
-        const firstRowElement = (authenticatedAuditLogPage as any).page.locator('[data-testid^="audit-log-table-row-"]').first()
-        const rowTestId = await firstRowElement.getAttribute('data-testid')
+        const entryId = await authenticatedAuditLogPage.getFirstEntryId()
 
-        if (rowTestId) {
-          const entryId = parseInt(rowTestId.replace('audit-log-table-row-', ''))
+        // Initially details should be hidden
+        await authenticatedAuditLogPage.expectDetailsHidden(entryId)
 
-          // Initially details should be hidden
-          const detailsHidden = await (authenticatedAuditLogPage as any).page
-            .getByTestId(`audit-log-details-row-${entryId}`)
-            .isVisible()
-            .catch(() => false)
-          expect(detailsHidden).toBe(false)
+        // Expand details
+        await authenticatedAuditLogPage.expandDetails(entryId)
 
-          // Expand details
-          await authenticatedAuditLogPage.expandDetails(entryId)
+        // Now details should be visible
+        await authenticatedAuditLogPage.expectDetailsVisible(entryId)
 
-          // Now details should be visible
-          await authenticatedAuditLogPage.expectDetailsVisible(entryId)
+        // Collapse details
+        await authenticatedAuditLogPage.collapseDetails(entryId)
 
-          // Collapse details
-          await authenticatedAuditLogPage.collapseDetails(entryId)
-
-          // Details should be hidden again
-          await authenticatedAuditLogPage.expectDetailsHidden(entryId)
-        }
+        // Details should be hidden again
+        await authenticatedAuditLogPage.expectDetailsHidden(entryId)
       }
     })
 
@@ -211,22 +201,17 @@ test.describe('UC-A81: Audit Log', () => {
 
           if (action.includes('update')) {
             // This row should have before/after values
-            const rowElement = (authenticatedAuditLogPage as any).page.locator('[data-testid^="audit-log-table-row-"]').nth(i)
-            const rowTestId = await rowElement.getAttribute('data-testid')
+            const entryId = await authenticatedAuditLogPage.getEntryIdAtIndex(i)
 
-            if (rowTestId) {
-              const entryId = parseInt(rowTestId.replace('audit-log-table-row-', ''))
+            await authenticatedAuditLogPage.expandDetails(entryId)
 
-              await authenticatedAuditLogPage.expandDetails(entryId)
+            const oldValues = await authenticatedAuditLogPage.getOldValues(entryId)
+            const newValues = await authenticatedAuditLogPage.getNewValues(entryId)
 
-              const oldValues = await authenticatedAuditLogPage.getOldValues(entryId)
-              const newValues = await authenticatedAuditLogPage.getNewValues(entryId)
+            expect(oldValues).toBeTruthy()
+            expect(newValues).toBeTruthy()
 
-              expect(oldValues).toBeTruthy()
-              expect(newValues).toBeTruthy()
-
-              break
-            }
+            break
           }
         }
       }

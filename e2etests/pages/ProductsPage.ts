@@ -323,6 +323,31 @@ export class ProductsPage extends BasePage {
     await this.formCancelBtn().click()
   }
 
+  async isFormModalVisible(): Promise<boolean> {
+    return this.formModal().isVisible({ timeout: 2000 }).catch(() => false)
+  }
+
+  async expectIconSelectTriggerVisible() {
+    await expect(this.iconSelectTrigger()).toBeVisible()
+  }
+
+  async getIconSelectTriggerText(): Promise<string> {
+    return (await this.iconSelectTrigger().textContent()) || ''
+  }
+
+  async openIconDropdown() {
+    await this.iconSelectTrigger().click()
+    await expect(this.iconSelectDropdown()).toBeVisible()
+  }
+
+  async expectIconDropdownVisible() {
+    await expect(this.iconSelectDropdown()).toBeVisible()
+  }
+
+  async getIconOptionCount(): Promise<number> {
+    return await this.page.locator('[data-testid^="products-form-icon-select-option-"]').count()
+  }
+
   async selectIcon(iconName: string) {
     // Click trigger to open dropdown
     await this.iconSelectTrigger().click()
