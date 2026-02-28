@@ -95,10 +95,6 @@ export class ProductsPage extends BasePage {
     await expect(this.table()).toBeVisible()
   }
 
-  async expectTableHidden() {
-    await expect(this.table()).not.toBeVisible()
-  }
-
   async expectFormModalVisible() {
     await expect(this.formModal()).toBeVisible()
   }
@@ -109,30 +105,6 @@ export class ProductsPage extends BasePage {
 
   async expectEmptyStateVisible() {
     await expect(this.emptyState()).toBeVisible()
-  }
-
-  async expectErrorMessageVisible() {
-    await expect(this.errorMessage()).toBeVisible()
-  }
-
-  async expectProductRowVisible(productId: string) {
-    await expect(this.page.getByTestId(`products-table-row-${productId}`)).toBeVisible()
-  }
-
-  /**
-   * TABLE INTERACTIONS (Pattern 006: Semantic actions)
-   */
-
-  async getProductCount(): Promise<number> {
-    return await this.tableRows().count()
-  }
-
-  async getFirstProductId(): Promise<string> {
-    const firstRow = await this.tableRows().first()
-    const rowId = await firstRow.getAttribute('data-testid')
-    const productId = rowId?.replace('products-table-row-', '') || ''
-    if (!productId) throw new Error('No products found in table')
-    return productId
   }
 
   /**
@@ -162,37 +134,6 @@ export class ProductsPage extends BasePage {
     return null
   }
 
-  async getProductNameInRow(productId: string): Promise<string> {
-    const name = await this.page
-      .getByTestId(`products-table-cell-name-${productId}`)
-      .first()
-      .textContent()
-    return name || ''
-  }
-
-  async getProductPriceInRow(productId: string): Promise<string> {
-    const price = await this.page
-      .getByTestId(`products-table-cell-price-${productId}`)
-      .first()
-      .textContent()
-    return price || ''
-  }
-
-  async getProductCategoryInRow(productId: string): Promise<string> {
-    const category = await this.page
-      .getByTestId(`products-table-cell-category-${productId}`)
-      .first()
-      .textContent()
-    return category || ''
-  }
-
-  async getProductIdInRow(productId: string): Promise<string> {
-    const id = await this.page
-      .getByTestId(`products-table-cell-id-${productId}`)
-      .textContent()
-    return id || ''
-  }
-
   /**
    * Get complete row data as JSON object (for nice test assertions)
    * Pattern 006: Return structured data for better test readability
@@ -209,51 +150,6 @@ export class ProductsPage extends BasePage {
       return null
     }
 
-    const row = this.page.locator(`[data-testid="${productId}"]`)
-    const rowCount = await row.count()
-
-    if (rowCount === 0) {
-      return null
-    }
-
-    const name = await this.page
-      .getByTestId(`products-table-cell-name-${productId}`)
-      .first()
-      .textContent()
-
-    const price = await this.page
-      .getByTestId(`products-table-cell-price-${productId}`)
-      .first()
-      .textContent()
-
-    const category = await this.page
-      .getByTestId(`products-table-cell-category-${productId}`)
-      .first()
-      .textContent()
-
-    const toggle = this.page.getByTestId(`products-status-toggle-${productId}`)
-    const isActive = await toggle.first().getAttribute('aria-checked') === 'true'
-
-    return {
-      id: productId,
-      name: name?.trim() || '',
-      price: price?.trim() || '',
-      category: category?.trim() || '',
-      isActive,
-    }
-  }
-
-  /**
-   * Get row data or null if not found (for defensive checks)
-   * Pattern 006: Nullable results to avoid try/catch in tests
-   */
-  async getRowDataByProductIdOrNull(productId: string): Promise<{
-    id: string
-    name: string
-    price: string
-    category: string
-    isActive: boolean
-  } | null> {
     const row = this.page.locator(`[data-testid="${productId}"]`)
     const rowCount = await row.count()
 
@@ -377,13 +273,6 @@ export class ProductsPage extends BasePage {
     await expect(dropdown).not.toBeVisible({ timeout: 5000 })
   }
 
-  async getSelectedCategory(): Promise<string> {
-    // CategorySelect displays the selected category name in the trigger button
-    const trigger = this.page.getByTestId('products-form-category-select-trigger')
-    const text = await trigger.textContent()
-    return text?.trim() || ''
-  }
-
   async getFirstActiveCategoryId(): Promise<string> {
     // Get all category options from the dropdown
     // First, open the dropdown by clicking the trigger
@@ -430,13 +319,6 @@ export class ProductsPage extends BasePage {
     await this.waitForLoadingToComplete()
   }
 
-  async submitFormWithoutWaitingForClose() {
-    // Click submit and wait for loading indicator to disappear
-    await this.formSubmitBtn().click()
-    // Wait for the global loading indicator to disappear (this is the actual UI feedback)
-    await this.waitForLoadingToComplete()
-  }
-
   async cancelForm() {
     await this.formCancelBtn().click()
   }
@@ -457,14 +339,6 @@ export class ProductsPage extends BasePage {
 
     // Click clear option
     await this.page.getByTestId('products-form-icon-select-option-clear').click()
-  }
-
-  async expectIconDropdownVisible() {
-    await expect(this.iconSelectDropdown()).toBeVisible()
-  }
-
-  async expectIconDropdownHidden() {
-    await expect(this.iconSelectDropdown()).not.toBeVisible()
   }
 
   async getSelectedIconName(): Promise<string | null> {
@@ -640,16 +514,6 @@ export class ProductsPage extends BasePage {
 
   async clickStatusToggle(productId: string) {
     await this.statusToggle(productId).first().click()
-  }
-
-  async toggleProductStatus(productId: string) {
-    await this.clickStatusToggle(productId)
-    await this.waitForLoadingToComplete()
-  }
-
-  async getProductStatus(productId: string): Promise<'active' | 'inactive'> {
-    const statusText = await this.statusToggle(productId).first().textContent()
-    return statusText?.includes('Active') ? 'active' : 'inactive'
   }
 
   /**
