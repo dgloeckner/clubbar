@@ -42,6 +42,9 @@ export class MainLayoutPage extends BasePage {
   private readonly navStatistics = () => this.page.locator('[data-testid="nav-statistics"]')
   private readonly navSettings = () => this.page.locator('[data-testid="nav-settings"]')
   private readonly navAuditLog = () => this.page.locator('[data-testid="nav-audit-log"]')
+  private readonly headerUserBadge = () => this.page.locator('[data-testid="header-user-badge"]')
+  private readonly headerLogoutButton = () =>
+    this.page.locator('[data-testid="header-logout-button"], [data-testid="header-logout-button-mobile"]').first()
 
   constructor(page: Page) {
     super(page)
@@ -52,6 +55,23 @@ export class MainLayoutPage extends BasePage {
    */
   async waitForNavigation() {
     await this.navMembers().waitFor({ state: 'visible', timeout: 10000 })
+  }
+
+  async clickProducts() {
+    await this.navProducts().click()
+    await this.page.waitForURL('**/products', { timeout: 5000 })
+  }
+
+  async expectHeaderVisible() {
+    await expect(this.navMembers()).toBeVisible()
+  }
+
+  async expectUserBadgeContainsText(text: string) {
+    await expect(this.headerUserBadge()).toContainText(text)
+  }
+
+  async clickLogout() {
+    await this.headerLogoutButton().click()
   }
 
   /**
