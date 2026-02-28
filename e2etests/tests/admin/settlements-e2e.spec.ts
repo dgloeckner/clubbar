@@ -126,11 +126,11 @@ test.describe('Settlement E2E: Full Workflow', () => {
 
       // Navigate to settlements page
       await settlementsPage.navigate()
-      await expect(page.getByTestId('settlements-loading')).toBeHidden({ timeout: 10000 })
+      await settlementsPage.waitForPageLoad()
 
       // Refresh settlements page
       await page.reload()
-      await expect(page.getByTestId('settlements-loading')).toBeHidden({ timeout: 10000 })
+      await settlementsPage.waitForPageLoad()
 
       // Verify settlement still appears - query API to be sure
       const response = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}`)
@@ -143,11 +143,11 @@ test.describe('Settlement E2E: Full Workflow', () => {
     await test.step('Verify transactions marked as settled in journal', async () => {
       const journalPage = new JournalPage(page)
       await journalPage.navigate()
-      await expect(page.getByTestId('journal-loading')).toBeHidden({ timeout: 10000 })
+      await journalPage.waitForTableToLoad()
 
       // Filter to "Settled" transactions
       await journalPage.filterBySettlementStatus('settled')
-      await expect(page.getByTestId('journal-loading')).toBeHidden()
+      await journalPage.waitForTableToLoad()
 
       // Verify our specific test members' transactions are now settled
       await journalPage.waitForTransactionToAppear(member1FirstName)
@@ -334,11 +334,11 @@ test.describe('Settlement E2E: Full Workflow', () => {
     await test.step('Verify txn3 remains unsettled (no partial settlement)', async () => {
       const journalPage = new JournalPage(page)
       await journalPage.navigate()
-      await expect(page.getByTestId('journal-loading')).toBeHidden({ timeout: 10000 })
+      await journalPage.waitForTableToLoad()
 
       // Filter to "Open" transactions
       await journalPage.filterBySettlementStatus('open')
-      await expect(page.getByTestId('journal-loading')).toBeHidden()
+      await journalPage.waitForTableToLoad()
 
       // Verify member's name appears in open transactions (txn3 is still unsettled)
       await journalPage.waitForTransactionToAppear(memberFirstName)
@@ -607,8 +607,8 @@ test.describe('Settlement E2E: Full Workflow', () => {
 
     // Step 7: Verify undo button is still enabled for exported settlement
     await test.step('Verify undo button is enabled for exported settlement', async () => {
-      const undoBtn = page.getByTestId(`settlements-undo-btn-${settlementId}`)
-      await expect(undoBtn).toBeEnabled()
+      const settlementsPage = new SettlementsPage(page)
+      await settlementsPage.expectUndoButtonEnabled(settlementId)
     })
   })
 
@@ -741,8 +741,8 @@ test.describe('Settlement E2E: Full Workflow', () => {
       await journalPage.filterBySettlementStatus('settled')
 
       // Both our transactions should appear in the settled view
-      await expect(page.getByTestId(`journal-table-row-${txn1Id}`)).toBeVisible()
-      await expect(page.getByTestId(`journal-table-row-${txn2Id}`)).toBeVisible()
+      await journalPage.expectTransactionRowVisible(txn1Id)
+      await journalPage.expectTransactionRowVisible(txn2Id)
     })
   })
 
@@ -792,8 +792,7 @@ test.describe('Settlement E2E: Full Workflow', () => {
       expect(status?.trim()).toBe('Storniert')
 
       // Undo button should be disabled after cancellation
-      const undoBtn = page.getByTestId(`settlements-undo-btn-${settlementId}`)
-      await expect(undoBtn).toBeDisabled()
+      await settlementsPage.expectUndoButtonDisabled(settlementId)
     })
 
     await test.step('Verify transactions are open again in Journal', async () => {
@@ -804,8 +803,8 @@ test.describe('Settlement E2E: Full Workflow', () => {
       await journalPage.filterBySettlementStatus('open')
 
       // Both transactions should now appear as unsettled
-      await expect(page.getByTestId(`journal-table-row-${txn1Id}`)).toBeVisible()
-      await expect(page.getByTestId(`journal-table-row-${txn2Id}`)).toBeVisible()
+      await journalPage.expectTransactionRowVisible(txn1Id)
+      await journalPage.expectTransactionRowVisible(txn2Id)
     })
   })
 })

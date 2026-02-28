@@ -102,6 +102,14 @@ export class SettlementsPage extends BasePage {
     await expect(this.settlementRow(settlementId)).toBeVisible()
   }
 
+  async expectUndoButtonEnabled(settlementId: string) {
+    await expect(this.page.getByTestId(`settlements-undo-btn-${settlementId}`)).toBeEnabled()
+  }
+
+  async expectUndoButtonDisabled(settlementId: string) {
+    await expect(this.page.getByTestId(`settlements-undo-btn-${settlementId}`)).toBeDisabled()
+  }
+
   /**
    * Click the undo button for a settlement, confirm via the custom ConfirmDialog modal,
    * and wait for the settlement list to reload.

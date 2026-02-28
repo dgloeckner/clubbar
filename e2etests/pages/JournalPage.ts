@@ -456,4 +456,8 @@ export class JournalPage extends BasePage {
       return null
     }
   }
+
+  async expectTransactionRowVisible(transactionId: string) {
+    await expect(this.page.getByTestId(`journal-table-row-${transactionId}`)).toBeVisible()
+  }
 }
