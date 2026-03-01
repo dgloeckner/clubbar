@@ -50,6 +50,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            admin-frontend/package-lock.json
+            e2etests/package-lock.json
 
       - name: Install backend dependencies
         run: composer install --no-interaction --prefer-dist
@@ -94,6 +98,12 @@ jobs:
       - name: Install E2E dependencies
         run: npm ci
         working-directory: e2etests
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('e2etests/package-lock.json') }}
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
