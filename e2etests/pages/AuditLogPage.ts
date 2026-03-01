@@ -152,7 +152,11 @@ export class AuditLogPage extends BasePage {
   }
 
   async clearSearch() {
-    // An empty search parameter means the key is absent or empty string
+    const input = this.page.getByTestId('audit-log-search-input')
+    const currentValue = await input.inputValue()
+    // If search is already empty, clearing it won't change React state and no API call will fire
+    if (!currentValue) return
+
     const responsePromise = this.page.waitForResponse((resp) => {
       if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
       try {
@@ -162,9 +166,7 @@ export class AuditLogPage extends BasePage {
         return false
       }
     })
-    const input = this.page.getByTestId('audit-log-search-input')
     await input.clear()
-    await input.fill('')
     await responsePromise
   }
 
@@ -205,7 +207,7 @@ export class AuditLogPage extends BasePage {
         return false
       }
     })
-    const select = this.page.getByTestId('pagination-page-size-select')
+    const select = this.page.getByTestId('audit-log-pagination-page-size-select')
     await select.selectOption(size.toString())
     await responsePromise
   }
@@ -215,10 +217,11 @@ export class AuditLogPage extends BasePage {
    */
 
   async sortByTimestamp() {
+    // Clicking the timestamp header toggles sort_direction. Default is 'desc', so first click → 'asc'.
     const responsePromise = this.page.waitForResponse((resp) => {
       if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
       try {
-        return new URL(resp.url()).searchParams.get('sort_by') === 'timestamp'
+        return new URL(resp.url()).searchParams.get('sort_direction') === 'asc'
       } catch {
         return false
       }

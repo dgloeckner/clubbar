@@ -52,6 +52,10 @@ class AdminController
         if ($entityId !== null) {
             $filters['entity_id'] = $entityId;
         }
+        $sortDirection = $params['sort_direction'] ?? null;
+        if ($sortDirection !== null) {
+            $filters['sort_direction'] = $sortDirection;
+        }
 
         $result = $this->auditLogRepository->listWithFilters($limit, $offset, $filters);
 

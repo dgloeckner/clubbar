@@ -35,6 +35,7 @@ export interface AuditLogFilters {
   action?: string
   entity_type?: string
   search?: string
+  sort_direction?: 'asc' | 'desc'
 }
 
 /**
@@ -53,6 +54,7 @@ export async function getAuditLogs(filters: AuditLogFilters = {}): Promise<Audit
   if (filters.action) params.append('action', filters.action)
   if (filters.entity_type) params.append('entity_type', filters.entity_type)
   if (filters.search) params.append('search', filters.search)
+  if (filters.sort_direction) params.append('sort_direction', filters.sort_direction)
 
   const queryString = params.toString()
   const url = queryString ? `/admin/audit-log?${queryString}` : '/admin/audit-log'

@@ -59,6 +59,7 @@ export function AuditLogPage() {
           action: selectedAction || undefined,
           entity_type: selectedEntityType || undefined,
           search: searchText || undefined,
+          sort_direction: sortDirection,
         })
 
         setEntries(response.items)
@@ -75,7 +76,7 @@ export function AuditLogPage() {
 
     const timer = setTimeout(loadAuditLogs, searchText ? 500 : 0) // Debounce search
     return () => clearTimeout(timer)
-  }, [page, perPage, dateFrom, dateTo, selectedAdmin, selectedAction, selectedEntityType, searchText, setIsLoading])
+  }, [page, perPage, dateFrom, dateTo, selectedAdmin, selectedAction, selectedEntityType, searchText, sortDirection, setIsLoading])
 
   // Load admin users for filter dropdown
   useEffect(() => {
