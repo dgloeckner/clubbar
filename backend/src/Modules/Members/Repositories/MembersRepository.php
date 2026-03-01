@@ -175,7 +175,7 @@ class MembersRepository
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $columnMap = ['first_name' => 'first_name', 'last_name' => 'last_name', 'balance' => 'balance_cents', 'created_at' => 'created_at'];
+        $columnMap = ['id' => 'id', 'first_name' => 'first_name', 'last_name' => 'last_name', 'balance' => 'balance_cents', 'created_at' => 'created_at'];
         $col = SafeQuery::column($sortKey, array_keys($columnMap));
         $sortColumn = $columnMap[$col];
         $dir = SafeQuery::direction($sortOrder);
