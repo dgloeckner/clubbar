@@ -5,8 +5,6 @@ RewriteBase /
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 
-# API routes → front controller
-RewriteRule ^api/ index.php [L,QSA]
-
-# Everything else → SPA index.html
-RewriteRule ^ assets/index.html [L]
+# Everything else → front controller (handles API routing, SPA fallback,
+# and redirect to install.php when not yet configured)
+RewriteRule ^ index.php [L,QSA]
