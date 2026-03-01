@@ -12,6 +12,7 @@
  * - Pattern 001: Test Data Isolation (unique test data per test)
  * - Pattern 003: Database-Agnostic Assertions (search by values, not position)
  * - Pattern 005: Test IDs for element selection
+ * - Pattern 008: Playwright Assertions & Auto-Waiting
  */
 
 import { test, expect } from '../../fixtures/pageObjects'
@@ -22,6 +23,11 @@ test.describe('Statistics Page', () => {
     // Wait for page to load
     await page.getByTestId('statistics-page').waitFor({ state: 'visible', timeout: 10000 })
   })
+
+  /** Wait for statistics data to finish loading (summary boxes appear) */
+  async function waitForDataLoaded(page: import('@playwright/test').Page) {
+    await expect(page.getByTestId('summary-boxes')).toBeVisible({ timeout: 10000 })
+  }
 
   test.describe('Page Structure', () => {
     test('should display statistics page', async ({ page }) => {
@@ -82,13 +88,12 @@ test.describe('Statistics Page', () => {
 
   test.describe('Summary Boxes', () => {
     test('should display summary boxes section', async ({ page }) => {
-      // Wait for loading to complete
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       await expect(page.getByTestId('summary-boxes')).toBeVisible()
     })
 
     test('should display total revenue box', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       await expect(page.getByTestId('box-total-revenue')).toBeVisible()
       await expect(page.getByTestId('value-total-revenue')).toBeVisible()
 
@@ -98,25 +103,25 @@ test.describe('Statistics Page', () => {
     })
 
     test('should display sold items box', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       await expect(page.getByTestId('box-sold-items')).toBeVisible()
       await expect(page.getByTestId('value-sold-items')).toBeVisible()
     })
 
     test('should display top product box', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       await expect(page.getByTestId('box-top-product')).toBeVisible()
     })
   })
 
   test.describe('Revenue Chart', () => {
     test('should display revenue chart section', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       await expect(page.getByTestId('revenue-chart')).toBeVisible()
     })
 
     test('should have chart title', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       const chartSection = page.getByTestId('revenue-chart')
       await expect(chartSection.locator('h3')).toContainText('Umsatz pro Tag')
     })
@@ -124,18 +129,18 @@ test.describe('Statistics Page', () => {
 
   test.describe('Top Products', () => {
     test('should display top products section', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       await expect(page.getByTestId('top-products')).toBeVisible()
     })
 
     test('should have top products title', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       const section = page.getByTestId('top-products')
       await expect(section.locator('h3')).toContainText('Top')
     })
 
     test('should display products table or empty state', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       const section = page.getByTestId('top-products')
 
       // Either table with rows or empty state message
@@ -148,18 +153,18 @@ test.describe('Statistics Page', () => {
 
   test.describe('Top Members', () => {
     test('should display top members section', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       await expect(page.getByTestId('top-members')).toBeVisible()
     })
 
     test('should have top members title', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       const section = page.getByTestId('top-members')
       await expect(section.locator('h3')).toContainText('Top')
     })
 
     test('should display members table or empty state', async ({ page }) => {
-      await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await waitForDataLoaded(page)
       const section = page.getByTestId('top-members')
 
       // Either table with rows or empty state message
@@ -188,16 +193,21 @@ test.describe('Statistics Page', () => {
 
   test.describe('Data Integration', () => {
     test('should load data for current month by default', async ({ page }) => {
-      // Verify API is called with current month
+      // Set up response listener BEFORE navigation to avoid race condition
       const now = new Date()
       const expectedMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-      const response = await page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      const responsePromise = page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
+      await page.goto('/statistics')
+      const response = await responsePromise
+
       expect(response.url()).toContain(`month=${expectedMonth}`)
     })
 
     test('should load data for selected month when navigating', async ({ page }) => {
-      // Navigate to previous month
+      // Wait for initial load, then navigate to previous month
+      await waitForDataLoaded(page)
+
       const responsePromise = page.waitForResponse((resp) => resp.url().includes('/statistics/monthly'))
       await page.getByTestId('month-prev').click()
       const response = await responsePromise

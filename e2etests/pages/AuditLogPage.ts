@@ -152,7 +152,13 @@ export class AuditLogPage extends BasePage {
   }
 
   async clearSearch() {
-    // An empty search parameter means the key is absent or empty string
+    const input = this.page.getByTestId('audit-log-search-input')
+    const currentValue = await input.inputValue()
+
+    // If already empty, nothing to clear — no API call will fire
+    if (!currentValue) return
+
+    // Clearing a non-empty search triggers an API call without the search param
     const responsePromise = this.page.waitForResponse((resp) => {
       if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
       try {
@@ -162,9 +168,7 @@ export class AuditLogPage extends BasePage {
         return false
       }
     })
-    const input = this.page.getByTestId('audit-log-search-input')
     await input.clear()
-    await input.fill('')
     await responsePromise
   }
 
@@ -192,7 +196,7 @@ export class AuditLogPage extends BasePage {
         return false
       }
     })
-    await this.page.getByTestId(`pagination-page-${pageNumber}`).click()
+    await this.page.getByTestId(`audit-log-pagination-page-${pageNumber}`).click()
     await responsePromise
   }
 
@@ -205,7 +209,7 @@ export class AuditLogPage extends BasePage {
         return false
       }
     })
-    const select = this.page.getByTestId('pagination-page-size-select')
+    const select = this.page.getByTestId('audit-log-pagination-page-size-select')
     await select.selectOption(size.toString())
     await responsePromise
   }
@@ -215,17 +219,10 @@ export class AuditLogPage extends BasePage {
    */
 
   async sortByTimestamp() {
-    const responsePromise = this.page.waitForResponse((resp) => {
-      if (!resp.url().includes('/api/admin/audit-log') || resp.status() !== 200) return false
-      try {
-        return new URL(resp.url()).searchParams.get('sort_by') === 'timestamp'
-      } catch {
-        return false
-      }
-    })
+    // Sorting is client-side only — the frontend toggles local sortDirection state
+    // but does not send a sort parameter to the API. Just click the header.
     const header = this.page.locator('[data-testid="audit-log-table"] th').first()
     await header.click()
-    await responsePromise
   }
 
   /**

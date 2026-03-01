@@ -145,52 +145,49 @@ test.describe('Admin Frontend - Categories Page', () => {
    * UC-A44: Activate/Deactivate Category
    */
   test.describe('UC-A44: Activate/Deactivate Category', () => {
-    test.beforeEach(async ({ authenticatedCategoriesPage }) => {
-      // Create a test category for status toggle tests
-      const categoryName = `Toggle Test ${Date.now()}`
-      await authenticatedCategoriesPage.createCategory({
-        de: categoryName,
-      })
-    })
-
-
     test('should deactivate category immediately without confirmation dialog', async ({ authenticatedCategoriesPage }) => {
-      const categoryId = await authenticatedCategoriesPage.getFirstStatusToggleCategoryId() || ''
+      // Create a unique test category (Pattern 001: Test Data Isolation)
+      const categoryName = `Deact ${Date.now()}`
+      await authenticatedCategoriesPage.createCategory({ de: categoryName })
 
-      if (categoryId) {
-        // Deactivation should be immediate — no confirm dialog
-        await authenticatedCategoriesPage.toggleCategoryStatus(categoryId)
-        await authenticatedCategoriesPage.expectConfirmDialogHidden()
+      const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+      expect(categoryId).toBeTruthy()
 
-        // Status should have changed to Inactive
-        const status = await authenticatedCategoriesPage.getCategoryStatus(categoryId)
-        expect(status).toBe('Inactive')
-      }
+      // Deactivation should be immediate — no confirm dialog
+      await authenticatedCategoriesPage.toggleCategoryStatus(categoryId!)
+      await authenticatedCategoriesPage.expectConfirmDialogHidden()
+
+      // Status should have changed to Inactive
+      const status = await authenticatedCategoriesPage.getCategoryStatus(categoryId!)
+      expect(status).toBe('Inactive')
     })
 
     test('should show confirmation dialog when activating category and cancel keeps status unchanged', async ({ authenticatedCategoriesPage }) => {
-      const categoryId = await authenticatedCategoriesPage.getFirstStatusToggleCategoryId() || ''
+      // Create a unique test category (Pattern 001: Test Data Isolation)
+      const categoryName = `ActCancel ${Date.now()}`
+      await authenticatedCategoriesPage.createCategory({ de: categoryName })
 
-      if (categoryId) {
-        // First deactivate (immediate, no dialog) — toggleCategoryStatus waits for API internally
-        await authenticatedCategoriesPage.toggleCategoryStatus(categoryId)
-        await authenticatedCategoriesPage.expectConfirmDialogHidden()
+      const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+      expect(categoryId).toBeTruthy()
 
-        // Now activate — shows confirmation dialog before API call
-        await authenticatedCategoriesPage.clickStatusToggleExpectingDialog(categoryId)
-        await authenticatedCategoriesPage.expectConfirmDialogVisible()
+      // First deactivate (immediate, no dialog) — toggleCategoryStatus waits for API internally
+      await authenticatedCategoriesPage.toggleCategoryStatus(categoryId!)
+      await authenticatedCategoriesPage.expectConfirmDialogHidden()
 
-        // Verify dialog has a message
-        const message = await authenticatedCategoriesPage.getConfirmMessage()
-        expect(message).toBeTruthy()
+      // Now activate — shows confirmation dialog before API call
+      await authenticatedCategoriesPage.clickStatusToggleExpectingDialog(categoryId!)
+      await authenticatedCategoriesPage.expectConfirmDialogVisible()
 
-        // Cancel — status should remain Inactive
-        await authenticatedCategoriesPage.cancelStatusChange()
-        await authenticatedCategoriesPage.expectConfirmDialogHidden()
+      // Verify dialog has a message
+      const message = await authenticatedCategoriesPage.getConfirmMessage()
+      expect(message).toBeTruthy()
 
-        const statusAfterCancel = await authenticatedCategoriesPage.getCategoryStatus(categoryId)
-        expect(statusAfterCancel).toBe('Inactive')
-      }
+      // Cancel — status should remain Inactive
+      await authenticatedCategoriesPage.cancelStatusChange()
+      await authenticatedCategoriesPage.expectConfirmDialogHidden()
+
+      const statusAfterCancel = await authenticatedCategoriesPage.getCategoryStatus(categoryId!)
+      expect(statusAfterCancel).toBe('Inactive')
     })
   })
 
