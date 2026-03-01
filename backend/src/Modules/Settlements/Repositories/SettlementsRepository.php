@@ -164,7 +164,11 @@ class SettlementsRepository
 
         $dataParams = array_merge($params, [$limit, $offset]);
         $stmt = $this->db->prepare(
-            "SELECT s.*, a.display_name as admin_display_name FROM settlements s LEFT JOIN admin_users a ON s.created_by_admin_id = a.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
+            "SELECT s.*, a.display_name as admin_display_name,
+                (SELECT COUNT(*) FROM settlement_items si WHERE si.settlement_id = s.id) as transaction_count,
+                (SELECT MIN(t.created_at) FROM settlement_items si JOIN transactions t ON si.transaction_id = t.id WHERE si.settlement_id = s.id) as transaction_date_min,
+                (SELECT MAX(t.created_at) FROM settlement_items si JOIN transactions t ON si.transaction_id = t.id WHERE si.settlement_id = s.id) as transaction_date_max
+             FROM settlements s LEFT JOIN admin_users a ON s.created_by_admin_id = a.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
 

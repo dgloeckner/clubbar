@@ -24,6 +24,9 @@ final readonly class SettlementDto
         public string $createdAt,
         public ?string $createdByAdminId,
         public ?string $createdByAdminName,
+        public int $transactionCount = 0,
+        public ?string $transactionDateMin = null,
+        public ?string $transactionDateMax = null,
     ) {}
 
     public static function fromRow(array $row, array $items = []): self
@@ -46,6 +49,9 @@ final readonly class SettlementDto
             createdAt: $row['created_at'],
             createdByAdminId: $row['created_by_admin_id'] ?? null,
             createdByAdminName: $row['admin_display_name'] ?? null,
+            transactionCount: (int) ($row['transaction_count'] ?? 0),
+            transactionDateMin: $row['transaction_date_min'] ?? null,
+            transactionDateMax: $row['transaction_date_max'] ?? null,
         );
     }
 
@@ -70,6 +76,9 @@ final readonly class SettlementDto
             'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
             'created_by_admin_id' => $this->createdByAdminId,
             'created_by_admin_name' => $this->createdByAdminName,
+            'transaction_count' => $this->transactionCount,
+            'transaction_date_min' => \App\Shared\Utils\DateFormatter::toUtcIso($this->transactionDateMin),
+            'transaction_date_max' => \App\Shared\Utils\DateFormatter::toUtcIso($this->transactionDateMax),
         ];
     }
 }

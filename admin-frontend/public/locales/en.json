@@ -255,6 +255,7 @@
     "exportTransactions": "Transactions",
     "noSettlements": "No settlements found",
     "createdBy": "Created By",
+    "summary": "Summary",
     "undoConfirm": "Undo this settlement? All transactions will return to Open state."
   },
   "statistics": {

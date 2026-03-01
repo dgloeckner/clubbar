@@ -17,6 +17,9 @@ export interface Settlement {
   created_at: string
   created_by_admin_id: string | null
   created_by_admin_name: string | null
+  transaction_count: number
+  transaction_date_min: string | null
+  transaction_date_max: string | null
 }
 
 export interface SettlementsResponse {

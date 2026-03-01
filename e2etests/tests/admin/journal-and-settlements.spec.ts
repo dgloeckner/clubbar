@@ -195,7 +195,7 @@ test.describe('Journal & Settlements', () => {
     await settlementsPage.waitForPageLoad()
     await settlementsPage.expectSettlementRowVisible(settlementId)
 
-    expect((await settlementsPage.getSettlementMemberCount(settlementId))?.trim()).toBe('2')
+    expect((await settlementsPage.getSettlementMemberCount(settlementId))?.trim()).toMatch(/^2\s/)
     expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/55[,.]00/)
     expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Aktiv')
 
@@ -348,7 +348,7 @@ test.describe('Journal & Settlements', () => {
     await settlementsPage.waitForPageLoad()
     await settlementsPage.expectSettlementRowVisible(settlementId)
     expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Aktiv')
-    expect((await settlementsPage.getSettlementMemberCount(settlementId))?.trim()).toBe('2')
+    expect((await settlementsPage.getSettlementMemberCount(settlementId))?.trim()).toMatch(/^2\s/)
     expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/20[,.]00/)
 
     // ── Undo settlement ───────────────────────────────────────────────

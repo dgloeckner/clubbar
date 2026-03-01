@@ -255,6 +255,7 @@
     "exportTransactions": "Buchungen",
     "noSettlements": "Keine Abrechnungen gefunden",
     "createdBy": "Erstellt von",
+    "summary": "Übersicht",
     "undoConfirm": "Diese Abrechnung rückgängig machen? Alle Buchungen werden wieder auf offen gesetzt."
   },
   "statistics": {

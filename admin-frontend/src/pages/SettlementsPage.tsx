@@ -44,6 +44,31 @@ import {
 } from '../services/settlements'
 
 
+/**
+ * Format a transaction date range for display.
+ * Abbreviates the first date's year when both dates share the same year.
+ * Examples: "15.01. – 28.02.2026" (same year), "15.12.2025 – 03.01.2026" (different year)
+ */
+function formatDateRange(minStr: string | null, maxStr: string | null): string | null {
+  if (!minStr || !maxStr) return null
+  const min = new Date(minStr)
+  const max = new Date(maxStr)
+  if (isNaN(min.getTime()) || isNaN(max.getTime())) return null
+
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const dMin = pad(min.getDate())
+  const mMin = pad(min.getMonth() + 1)
+  const yMin = min.getFullYear()
+  const dMax = pad(max.getDate())
+  const mMax = pad(max.getMonth() + 1)
+  const yMax = max.getFullYear()
+
+  if (yMin === yMax) {
+    return `${dMin}.${mMin}. – ${dMax}.${mMax}.${yMax}`
+  }
+  return `${dMin}.${mMin}.${yMin} – ${dMax}.${mMax}.${yMax}`
+}
+
 const defaultPageSize = 20
 
 export function SettlementsPage() {
@@ -301,7 +326,7 @@ export function SettlementsPage() {
                       >
                         {t('settlements.createdBy')} {sortKey === 'created_by' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </th>
-                      <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('settlements.memberCount')}</th>
+                      <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('settlements.summary')}</th>
                       <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('common.amount')}</th>
                       <th style={headerCellBaseStyle}>{t('settlements.status')}</th>
                       <th style={{ ...headerCellBaseStyle, textAlign: 'center' }}>{t('common.actions')}</th>
@@ -332,7 +357,12 @@ export function SettlementsPage() {
                             color: tableColors.cellText,
                           }}
                         >
-                          {formatters.formatDate(settlement.created_at)}
+                          <div>{formatters.formatDate(settlement.created_at)}</div>
+                          {formatDateRange(settlement.transaction_date_min, settlement.transaction_date_max) && (
+                            <div style={{ fontSize: 12, color: tableColors.cellSecondaryText }}>
+                              {formatDateRange(settlement.transaction_date_min, settlement.transaction_date_max)}
+                            </div>
+                          )}
                         </td>
 
                         {/* Created By */}
@@ -346,7 +376,7 @@ export function SettlementsPage() {
                           {settlement.created_by_admin_name || '—'}
                         </td>
 
-                        {/* Members */}
+                        {/* Summary */}
                         <td
                           data-testid={`settlements-table-cell-members-${settlement.id}`}
                           style={{
@@ -355,7 +385,12 @@ export function SettlementsPage() {
                             textAlign: 'right',
                           }}
                         >
-                          {settlement.member_count}
+                          <div data-testid={`settlements-member-count-${settlement.id}`}>
+                            {settlement.member_count} {t('settlements.memberCount')}
+                          </div>
+                          <div data-testid={`settlements-transaction-count-${settlement.id}`} style={{ fontSize: 12, color: tableColors.cellSecondaryText }}>
+                            {settlement.transaction_count} {t('settlements.transactionCount')}
+                          </div>
                         </td>
 
                         {/* Amount */}
@@ -536,9 +571,9 @@ export function SettlementsPage() {
                                   e.currentTarget.style.backgroundColor = '#ef4444'
                                 }
                               }}
-                              title="Undo Settlement"
+                              title={t('common.undo')}
                             >
-                              Undo
+                              {t('common.undo')}
                             </button>
                           </div>
                         </td>
