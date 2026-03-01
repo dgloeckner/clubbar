@@ -72,6 +72,15 @@ export default defineConfig({
         hasTouch: true,
       },
     },
+
+    // Package smoke tests - only run when PACKAGE_TEST=1
+    {
+      name: 'package-tests',
+      testDir: './tests/package',
+      use: {
+        baseURL: process.env.PACKAGE_URL || 'http://localhost:8080',
+      },
+    },
   ],
 
   // Web server configuration for local development

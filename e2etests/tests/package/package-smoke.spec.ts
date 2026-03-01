@@ -1,0 +1,103 @@
+import { test, expect } from '@playwright/test';
+
+/**
+ * Package smoke tests -- verify the shared hosting package works end-to-end.
+ *
+ * These tests run against the assembled package served via docker-compose.package.yml.
+ * The install wizard must be completed before API/SPA tests run.
+ *
+ * Run: PACKAGE_TEST=1 npm test -- tests/package/package-smoke.spec.ts --workers=1
+ */
+
+const PACKAGE_URL = process.env.PACKAGE_URL || 'http://localhost:8080';
+
+test.describe('Package: Install Wizard', () => {
+  test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
+
+  test('install.php shows prerequisites page', async ({ request }) => {
+    const response = await request.get(`${PACKAGE_URL}/install.php?step=1`);
+    expect(response.ok()).toBeTruthy();
+    const html = await response.text();
+    expect(html).toContain('Prerequisites');
+    expect(html).toContain('PHP');
+  });
+
+  test('install wizard completes via POST steps', async ({ request }) => {
+    // Step 2: DB credentials
+    const step2 = await request.post(`${PACKAGE_URL}/install.php?step=2`, {
+      form: {
+        step: '2',
+        db_host: 'database',
+        db_port: '3306',
+        db_name: 'ruderbar',
+        db_user: 'ruderbar',
+        db_pass: 'ruderbar',
+      },
+      maxRedirects: 0,
+    });
+    expect(step2.status()).toBe(302);
+    expect(step2.headers()['location']).toContain('step=3');
+
+    // Step 3: Migrations
+    const step3 = await request.post(`${PACKAGE_URL}/install.php?step=3`, {
+      form: { step: '3' },
+      maxRedirects: 0,
+    });
+    expect(step3.status()).toBe(302);
+    expect(step3.headers()['location']).toContain('step=4');
+
+    // Step 4: Admin user
+    const step4 = await request.post(`${PACKAGE_URL}/install.php?step=4`, {
+      form: {
+        step: '4',
+        admin_email: 'admin@example.com',
+        admin_password: 'password123',
+        admin_password_confirm: 'password123',
+      },
+      maxRedirects: 0,
+    });
+    expect(step4.status()).toBe(302);
+    expect(step4.headers()['location']).toContain('step=5');
+  });
+});
+
+test.describe('Package: API through front controller', () => {
+  test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
+
+  test('GET /api/health returns ok', async ({ request }) => {
+    const response = await request.get(`${PACKAGE_URL}/api/health`);
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body.status).toBe('ok');
+  });
+
+  test('POST /api/auth/login works through front controller', async ({ request }) => {
+    const response = await request.post(`${PACKAGE_URL}/api/auth/login`, {
+      data: {
+        email: 'admin@example.com',
+        password: 'password123',
+      },
+    });
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body.success).toBe(true);
+  });
+});
+
+test.describe('Package: SPA serving', () => {
+  test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
+
+  test('root URL serves SPA index.html', async ({ request }) => {
+    const response = await request.get(`${PACKAGE_URL}/`);
+    expect(response.ok()).toBeTruthy();
+    const html = await response.text();
+    expect(html).toContain('<div id="root">');
+  });
+
+  test('unknown route serves SPA (client-side routing)', async ({ request }) => {
+    const response = await request.get(`${PACKAGE_URL}/members`);
+    expect(response.ok()).toBeTruthy();
+    const html = await response.text();
+    expect(html).toContain('<div id="root">');
+  });
+});
