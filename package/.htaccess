@@ -1,0 +1,12 @@
+RewriteEngine On
+RewriteBase /
+
+# If the file exists on disk, serve it directly (SPA assets, install.php)
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# API routes → front controller
+RewriteRule ^api/ index.php [L,QSA]
+
+# Everything else → SPA index.html
+RewriteRule ^ assets/index.html [L]

@@ -103,6 +103,25 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 **Status**: Plan complete, 9 tasks. Backend API already done — frontend-only work.
 
+### Shared Hosting Package (📍 IN PROGRESS)
+
+**Plan**: [2026-03-01-shared-hosting-package.md](./2026-03-01-shared-hosting-package.md)
+**Design**: [../docs/plans/2026-03-01-shared-hosting-package-design.md](../docs/plans/2026-03-01-shared-hosting-package-design.md)
+
+**Goal**: Ship backend + admin frontend as a single ZIP installable on shared hosting (cPanel/Plesk) via FTP upload.
+
+**Status**: Implementation complete — 8 tasks done.
+
+**Tasks**:
+1. [x] Extract Slim bootstrap into reusable file
+2. [x] Package front controller, .htaccess, config template
+3. [x] Install wizard (5-step web installer)
+4. [x] Build script (scripts/build-package.sh)
+5. [x] Docker compose package override for testing
+6. [x] Package smoke tests (Playwright)
+7. [x] CI pipeline test-package job
+8. [x] Update INDEX.md
+
 ---
 
 ### E2E Test Quality Improvement (📍 BACKLOG)

@@ -135,6 +135,111 @@ jobs:
           path: e2etests/test-results/
           retention-days: 14
 
+  test-package:
+    name: Build & Test Package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          extensions: pdo_mysql, mbstring
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            admin-frontend/package-lock.json
+            e2etests/package-lock.json
+
+      - name: Install backend dependencies (production)
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+        working-directory: backend
+
+      - name: Build admin frontend
+        run: npm ci && npm run build
+        working-directory: admin-frontend
+
+      - name: Assemble package
+        run: |
+          mkdir -p dist/package/api
+          cp -r backend/src backend/db backend/vendor backend/bootstrap.php backend/composer.json dist/package/api/
+          mkdir -p dist/package/api/storage dist/package/api/logs
+          chmod -R 777 dist/package/api/storage dist/package/api/logs
+          cp -r admin-frontend/dist dist/package/assets
+          cp package/index.php package/install.php package/.htaccess package/config.sample.php package/README.txt dist/package/
+
+      - name: Start services
+        uses: hoverkraft-tech/compose-action@v2.0.2
+        with:
+          compose-file: |
+            ./docker-compose.yml
+            ./docker-compose.ci.yml
+            ./docker-compose.package.yml
+          services: |
+            database
+            backend
+
+      - name: Wait for backend
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/install.php?step=1 > /dev/null 2>&1 && break
+            if [ $i -eq 30 ]; then echo "Backend not ready after 60s" && exit 1; fi
+            sleep 2
+          done
+
+      - name: Install E2E dependencies
+        run: npm ci
+        working-directory: e2etests
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('e2etests/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: e2etests
+
+      - name: Run package smoke tests
+        run: npx playwright test --project=package-tests --workers=1
+        working-directory: e2etests
+        env:
+          CI: true
+          PACKAGE_TEST: '1'
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-test-results
+          path: e2etests/test-results/
+          retention-days: 14
+
+      - name: Create package ZIP
+        run: cd dist && zip -r ruderbar-package.zip package/ -q
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruderbar-package
+          path: dist/ruderbar-package.zip
+          retention-days: 30
+
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/ruderbar-package.zip
+
   build-terminal:
     runs-on: ubuntu-24.04-arm
 

@@ -1,0 +1,10 @@
+# Override for testing the assembled shared hosting package.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.package.yml up -d
+#
+# Requires: run scripts/build-package.sh first to create dist/package/
+services:
+  backend:
+    volumes:
+      - ./dist/package:/app
+    environment:
+      WEB_DOCUMENT_ROOT: /app
