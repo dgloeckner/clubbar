@@ -13,6 +13,86 @@ permissions:
   contents: write
 
 jobs:
+  test-backend:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+        working-directory: backend
+
+      - name: Run unit tests
+        run: php vendor/bin/phpunit -c phpunit.xml --testsuite Unit
+        working-directory: backend
+
+  test-e2e:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+
+      - name: Install backend dependencies
+        run: composer install --no-interaction --prefer-dist
+        working-directory: backend
+
+      - name: Start services
+        uses: hoverkraft-tech/compose-action@v2.0.2
+        with:
+          compose-file: |
+            ./docker-compose.yml
+            ./docker-compose.ci.yml
+          services: |
+            database
+            backend
+
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/api/health && break
+            sleep 2
+          done
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install E2E dependencies
+        run: npm ci
+        working-directory: e2etests
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: e2etests
+
+      - name: Run E2E tests
+        run: npx playwright test --project=api-tests
+        working-directory: e2etests
+        env:
+          CI: true
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2etests/playwright-report/
+          retention-days: 14
+
   build-terminal:
     runs-on: ubuntu-24.04-arm
 

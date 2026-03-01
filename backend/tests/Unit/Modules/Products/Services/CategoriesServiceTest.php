@@ -6,14 +6,12 @@ namespace Tests\Unit\Modules\Products\Services;
 
 use App\Modules\Products\Services\CategoriesService;
 use App\Modules\Products\Repositories\CategoriesRepository;
-use App\Modules\Products\Repositories\ProductsRepository;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
 class CategoriesServiceTest extends TestCase
 {
     private CategoriesRepository $categoriesRepository;
-    private ProductsRepository $productsRepository;
     private AuditService $auditService;
     private CategoriesService $categoriesService;
 
@@ -23,13 +21,11 @@ class CategoriesServiceTest extends TestCase
 
         // Create mocks
         $this->categoriesRepository = $this->createMock(CategoriesRepository::class);
-        $this->productsRepository = $this->createMock(ProductsRepository::class);
         $this->auditService = $this->createMock(AuditService::class);
 
         // Create service instance
         $this->categoriesService = new CategoriesService(
             $this->categoriesRepository,
-            $this->productsRepository,
             $this->auditService
         );
     }
@@ -45,8 +41,8 @@ class CategoriesServiceTest extends TestCase
 
         $result = $this->categoriesService->syncSince(9999999999999);
 
-        // Cursor should be in milliseconds (13 digits, > 1700000000000)
-        $this->assertGreaterThan(1700000000000, $result->cursor);
-        $this->assertLessThan(2000000000000, $result->cursor);
+        // When no rows found, cursor echoes back $since to avoid race conditions
+        // (items created during query execution won't be lost on next sync)
+        $this->assertSame(9999999999999, $result->cursor);
     }
 }

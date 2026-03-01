@@ -45,8 +45,8 @@ class MembersServiceTest extends TestCase
 
         $result = $this->membersService->syncSince(9999999999999);
 
-        // Cursor should be in milliseconds (13 digits, > 1700000000000)
-        $this->assertGreaterThan(1700000000000, $result->cursor);
-        $this->assertLessThan(2000000000000, $result->cursor);
+        // When no rows found, cursor echoes back $since to avoid race conditions
+        // (items created during query execution won't be lost on next sync)
+        $this->assertSame(9999999999999, $result->cursor);
     }
 }
