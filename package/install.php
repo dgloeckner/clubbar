@@ -177,25 +177,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
 
-            // Check if admin users already exist (e.g. from seed data in migrations)
-            if (file_exists($configFile)) {
-                $cfgCheck = require $configFile;
-                try {
-                    $pdoCheck = new PDO(
-                        sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $cfgCheck['db']['host'], $cfgCheck['db']['port'], $cfgCheck['db']['name']),
-                        $cfgCheck['db']['user'], $cfgCheck['db']['pass'],
-                        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-                    );
-                    $adminCount = (int) $pdoCheck->query('SELECT COUNT(*) FROM admin_users WHERE is_active = 1')->fetchColumn();
-                    if ($adminCount > 0) {
-                        header('Location: ?step=5');
-                        exit;
-                    }
-                } catch (\Throwable $e) {
-                    // Proceed with form if check fails
-                }
-            }
-
             $email = trim($_POST['admin_email'] ?? '');
             $password = $_POST['admin_password'] ?? '';
             $passwordConfirm = $_POST['admin_password_confirm'] ?? '';
@@ -545,29 +526,6 @@ function renderStep4(bool $isUpdate): void
         return;
     }
 
-    // Check if admin users already exist (seeded by migrations)
-    $configFile = __DIR__ . '/config.php';
-    if (file_exists($configFile)) {
-        $cfg = require $configFile;
-        try {
-            $pdo = new PDO(
-                sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $cfg['db']['host'], $cfg['db']['port'], $cfg['db']['name']),
-                $cfg['db']['user'], $cfg['db']['pass'],
-                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-            );
-            $count = (int) $pdo->query('SELECT COUNT(*) FROM admin_users WHERE is_active = 1')->fetchColumn();
-            if ($count > 0) {
-                ?>
-                <h2>Admin Account</h2>
-                <p>An admin account already exists (created during database setup). You can log in with those credentials.</p>
-                <a href="?step=5" class="btn">Continue</a>
-                <?php
-                return;
-            }
-        } catch (\Throwable $e) {
-            // Fall through to form
-        }
-    }
     ?>
     <h2>Step 4: Admin Account</h2>
     <p>Create the first administrator account.</p>

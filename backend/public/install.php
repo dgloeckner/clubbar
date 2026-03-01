@@ -55,9 +55,26 @@ switch ($action) {
         echo json_encode($result, JSON_PRETTY_PRINT);
         break;
 
+    case 'seed':
+        $seedFile = __DIR__ . '/../db/seed.sql';
+        if (!file_exists($seedFile)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'seed.sql not found']);
+            break;
+        }
+        $sql = file_get_contents($seedFile);
+        try {
+            $pdo->exec($sql);
+            echo json_encode(['status' => 'ok', 'message' => 'Seed data applied']);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        break;
+
     default:
         http_response_code(400);
-        echo json_encode(['error' => 'Use? ?action=status or ?action=migrate']);
+        echo json_encode(['error' => 'Use ?action=status, ?action=migrate, or ?action=seed']);
 }
 
 @unlink($lockFile);

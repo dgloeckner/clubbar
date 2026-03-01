@@ -83,8 +83,10 @@ jobs:
             sleep 2
           done
 
-      - name: Run database migrations
-        run: curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
+      - name: Run database migrations and seed
+        run: |
+          curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
+          curl -sf "http://localhost:8080/install.php?action=seed&key=dev-install-key"
 
       - name: Serve admin frontend
         run: npx vite preview --port 5173 --host &
