@@ -21,13 +21,13 @@ class SepaExportService
 
     public function generateSepaXml(string $settlementId): string
     {
+        $settlement = $this->settlementsRepository->findById($settlementId);
+        if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
+
         $config = $this->sepaConfigRepository->getConfig();
         if (!$config || empty($config['creditor_id']) || empty($config['creditor_name']) || empty($config['creditor_iban'])) {
             throw new BusinessRuleException('SEPA configuration incomplete');
         }
-
-        $settlement = $this->settlementsRepository->findById($settlementId);
-        if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
 
         $items = $this->settlementsRepository->findItemsBySettlementId($settlementId);
         if (empty($items)) throw new BusinessRuleException('Settlement has no items');

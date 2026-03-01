@@ -29,6 +29,10 @@ class SepaConfigService
         $old = $this->sepaConfigRepository->getConfig();
         $config = $this->sepaConfigRepository->updateConfig($attributes);
 
+        if (!$config) {
+            return null;
+        }
+
         $this->auditService->log(
             action: AuditAction::UPDATE,
             entityType: EntityType::SEPA_CONFIG,

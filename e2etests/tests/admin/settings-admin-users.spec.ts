@@ -354,7 +354,13 @@ test.describe('Admin Users Management', () => {
     await authenticatedSettingsPage.waitForLoad()
     await authenticatedSettingsPage.clickAdminUsersTab()
 
-    const initialCount = await authenticatedSettingsPage.getAdminUserCount()
+    // Monitor network to ensure no POST request is fired (parallel-safe, Pattern 004)
+    let createRequestFired = false
+    authenticatedSettingsPage.page.on('response', (resp) => {
+      if (resp.url().includes('/api/admin/admin-users') && resp.request().method() === 'POST') {
+        createRequestFired = true
+      }
+    })
 
     // Act: Open and close create modal without submitting
     await authenticatedSettingsPage.clickCreateAdminButton()
@@ -370,9 +376,8 @@ test.describe('Admin Users Management', () => {
     const stillVisible = await authenticatedSettingsPage.isCreateAdminModalVisible()
     expect(stillVisible).toBe(false)
 
-    // Assert: No new admin added
-    const newCount = await authenticatedSettingsPage.getAdminUserCount()
-    expect(newCount).toBe(initialCount)
+    // Assert: No POST request was made to create an admin (parallel-safe)
+    expect(createRequestFired).toBe(false)
   })
 
   /**

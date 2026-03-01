@@ -42,6 +42,9 @@ DELETE FROM admin_users;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- Re-insert sepa_config singleton row (deleted above, required by application)
+INSERT INTO sepa_config (id) VALUES (1);
+
 -- ---------------------------------------------------------------------------
 -- 2. Create Admin User
 -- ---------------------------------------------------------------------------

@@ -170,12 +170,30 @@ class AdminUsersService
 
     private function generateRandomPassword(int $length = 16): string
     {
-        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-        $password = '';
-        $max = strlen($chars) - 1;
-        for ($i = 0; $i < $length; $i++) {
-            $password .= $chars[random_int(0, $max)];
+        $lower = 'abcdefghijklmnopqrstuvwxyz';
+        $upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $digits = '0123456789';
+        $specials = '!@#$%^&*';
+        $all = $lower . $upper . $digits . $specials;
+
+        // Guarantee at least one from each category
+        $password = $lower[random_int(0, strlen($lower) - 1)]
+            . $upper[random_int(0, strlen($upper) - 1)]
+            . $digits[random_int(0, strlen($digits) - 1)]
+            . $specials[random_int(0, strlen($specials) - 1)];
+
+        $max = strlen($all) - 1;
+        for ($i = 4; $i < $length; $i++) {
+            $password .= $all[random_int(0, $max)];
         }
-        return $password;
+
+        // Shuffle to avoid predictable positions
+        $chars = str_split($password);
+        for ($i = count($chars) - 1; $i > 0; $i--) {
+            $j = random_int(0, $i);
+            [$chars[$i], $chars[$j]] = [$chars[$j], $chars[$i]];
+        }
+
+        return implode('', $chars);
     }
 }
