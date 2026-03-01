@@ -16,28 +16,52 @@
 -- recreates it from in-memory cache.
 --
 -- Creates:
+--   - 1 admin user: admin@example.com / password123
 --   - 2 categories: Getränke, Sauna
 --   - 13 products with nice icons (including Sauna-Token with dispenser)
 --   - 8 members with nice names and valid SEPA data (2 with real card UIDs)
+--   - 3 terminals with known test tokens (Bar + Sauna active, Terrace inactive)
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- 1. Clear existing test data (preserves admin_users and terminals)
+-- 1. Clear all data
 -- ---------------------------------------------------------------------------
 SET FOREIGN_KEY_CHECKS = 0;
 
--- Delete in order of dependencies
 DELETE FROM settlement_items;
 DELETE FROM settlements;
 DELETE FROM transactions;
 DELETE FROM products;
 DELETE FROM categories;
 DELETE FROM members;
+DELETE FROM terminals;
+DELETE FROM audit_log;
+DELETE FROM sessions;
+DELETE FROM sepa_config;
+DELETE FROM admin_users;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ---------------------------------------------------------------------------
--- 2. Create Categories
+-- 2. Create Admin User
+-- ---------------------------------------------------------------------------
+-- Email: admin@example.com
+-- Password: password123
+-- Hash generated with: password_hash('password123', PASSWORD_BCRYPT, ['cost' => 12])
+INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, created_at, updated_at)
+VALUES (
+    '33e4567-e89b-12d3-a456-426614174000',
+    'admin@example.com',
+    '$2y$12$Pp5DqCBrNhBDThRmWYwPlegkBrYSDKxoGguH1K2XnUlVzQxoUPygG',
+    'Admin User',
+    'de',
+    1,
+    NOW(),
+    NOW()
+);
+
+-- ---------------------------------------------------------------------------
+-- 3. Create Categories
 -- ---------------------------------------------------------------------------
 -- Category: Getränke (Beverages)
 INSERT INTO categories (id, names, icon_name, is_active, created_at, updated_at)
@@ -62,7 +86,7 @@ VALUES (
 );
 
 -- ---------------------------------------------------------------------------
--- 3. Create Products - Getränke
+-- 4. Create Products - Getränke
 -- ---------------------------------------------------------------------------
 -- Pils 0.5L
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
@@ -177,7 +201,7 @@ VALUES (
 );
 
 -- ---------------------------------------------------------------------------
--- 4. Create Products - Sauna
+-- 5. Create Products - Sauna
 -- ---------------------------------------------------------------------------
 -- Sauna Tageskarte
 INSERT INTO products (id, category_id, names, descriptions, price_cents, icon_name, is_active, created_at, updated_at)
@@ -251,7 +275,7 @@ VALUES (
 );
 
 -- ---------------------------------------------------------------------------
--- 5. Create Members with nice German names and valid SEPA data
+-- 6. Create Members with nice German names and valid SEPA data
 -- ---------------------------------------------------------------------------
 -- Valid German IBANs for testing (fictional but checksum-valid):
 -- DE89370400440532013000 - Standard test IBAN
@@ -410,9 +434,71 @@ VALUES (
 );
 
 -- ---------------------------------------------------------------------------
+-- 7. Create Terminals
+-- ---------------------------------------------------------------------------
+-- E2E Test Terminal (used by Playwright E2E tests — DO NOT REMOVE)
+-- Token: test-terminal-token-do-not-use-in-production-0a1b2c3d4e5f6g7h
+-- Hash: echo -n "test-terminal-token..." | sha256sum
+-- Must match e2etests/config/test-credentials.ts
+INSERT INTO terminals (id, name, device_id, api_token_hash, is_active, created_at, updated_at)
+VALUES (
+    '44e4567-e89b-12d3-a456-426614174000',
+    'Test Terminal',
+    'test-device-001',
+    'f88cf6afb8a2a7e19112a34a967c32d6e672dfbaec2809c82be6e970b550e1ae',
+    1,
+    NOW(),
+    NOW()
+);
+
+-- Terminal 1: Bar Terminal (main POS at the bar counter)
+-- Token: test-token-bar-terminal-0001 → SHA-256 hash below
+INSERT INTO terminals (id, name, device_id, api_token_hash, is_active, last_sync_at, created_at, updated_at)
+VALUES (
+    '66666661-6666-6666-6666-666666666661',
+    'Bar Terminal',
+    'BAR-MAIN-001',
+    SHA2('test-token-bar-terminal-0001', 256),
+    1,
+    DATE_SUB(NOW(), INTERVAL 5 MINUTE),
+    NOW(),
+    NOW()
+);
+
+-- Terminal 2: Sauna Terminal (POS at the sauna entrance)
+-- Token: test-token-sauna-terminal-002 → SHA-256 hash below
+INSERT INTO terminals (id, name, device_id, api_token_hash, is_active, last_sync_at, created_at, updated_at)
+VALUES (
+    '66666662-6666-6666-6666-666666666662',
+    'Sauna Terminal',
+    'SAUNA-ENT-002',
+    SHA2('test-token-sauna-terminal-002', 256),
+    1,
+    DATE_SUB(NOW(), INTERVAL 2 HOUR),
+    NOW(),
+    NOW()
+);
+
+-- Terminal 3: Terrace Terminal (seasonal outdoor POS, currently inactive)
+-- Token: test-token-terrace-term-0003 → SHA-256 hash below
+INSERT INTO terminals (id, name, device_id, api_token_hash, is_active, last_sync_at, created_at, updated_at)
+VALUES (
+    '66666663-6666-6666-6666-666666666663',
+    'Terrace Terminal',
+    'TERRACE-OUT-003',
+    SHA2('test-token-terrace-term-0003', 256),
+    0,
+    NULL,
+    NOW(),
+    NOW()
+);
+
+-- ---------------------------------------------------------------------------
 -- Summary
 -- ---------------------------------------------------------------------------
 SELECT 'Test data reset complete!' AS status;
+SELECT COUNT(*) AS admin_users FROM admin_users;
 SELECT COUNT(*) AS categories FROM categories;
 SELECT COUNT(*) AS products FROM products;
 SELECT COUNT(*) AS members FROM members;
+SELECT COUNT(*) AS terminals FROM terminals;

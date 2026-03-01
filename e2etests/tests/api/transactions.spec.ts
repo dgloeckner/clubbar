@@ -883,6 +883,54 @@ test.describe('Transaction Export Endpoint', () => {
     expect(disposition).toContain('transactions-2026-01-15-to-2026-01-25.csv');
   });
 
+  test('POST /api/sync/transactions sets created_by_terminal_id from authenticated terminal', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id);
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.ok()).toBeTruthy();
+    expect(response.status()).toBe(201);
+
+    // Verify created_by_terminal_id was set by checking the transaction in the journal
+    const journalResponse = await authenticatedRequest.get('/api/admin/transactions', {
+      params: { search: member.first_name, per_page: '10' },
+    });
+    expect(journalResponse.ok()).toBeTruthy();
+
+    const journal = await journalResponse.json();
+    const storedTx = journal.items.find(tx => tx.id === transaction.id);
+    expect(storedTx).toBeDefined();
+    expect(storedTx.created_by_terminal_id).not.toBeNull();
+  });
+
+  test('POST /api/sync/transactions updates terminal last_transaction_at in admin list', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id);
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.ok()).toBeTruthy();
+
+    // Fetch terminal list and verify last_transaction_at is set
+    const terminalsResponse = await authenticatedRequest.get('/api/admin/terminals');
+    expect(terminalsResponse.ok()).toBeTruthy();
+
+    const terminalsData = await terminalsResponse.json();
+    // The test terminal (test-device-001) should have last_transaction_at set
+    const testTerminal = terminalsData.data.find(t => t.device_id === 'test-device-001');
+    expect(testTerminal).toBeDefined();
+    expect(testTerminal.last_transaction_at).not.toBeNull();
+    // Verify it's a valid ISO 8601 timestamp
+    expect(new Date(testTerminal.last_transaction_at).getTime()).not.toBeNaN();
+  });
+
   test('POST /api/sync/transactions stores dispenser metadata fields', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
     const product = await createProduct(authenticatedRequest);
