@@ -60,6 +60,15 @@ class SyncController
             return $this->json($response, ['error' => 'validation_failed', 'details' => $validationErrors], 422);
         }
 
+        // Inject authenticated terminal ID into each transaction
+        $terminalId = $request->getAttribute('terminal_id');
+        if ($terminalId) {
+            foreach ($transactions as &$tx) {
+                $tx['created_by_terminal_id'] = $terminalId;
+            }
+            unset($tx);
+        }
+
         $result = $this->transactionsService->processBatch($transactions);
 
         return $this->json($response, $result->toArray(), 201);
