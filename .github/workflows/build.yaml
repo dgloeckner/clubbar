@@ -67,6 +67,10 @@ jobs:
             sleep 2
           done
 
+      - name: Run database migrations
+        run: |
+          curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
