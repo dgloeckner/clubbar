@@ -67,7 +67,6 @@ cp    "$PROJECT_ROOT/backend/db/MigrationRunner.php" "$PKG_DIR/api/db/"
 cp -R "$PROJECT_ROOT/backend/db/migrations"  "$PKG_DIR/api/db/migrations"
 cp -R "$PROJECT_ROOT/backend/vendor"         "$PKG_DIR/api/vendor"
 cp    "$PROJECT_ROOT/backend/bootstrap.php"  "$PKG_DIR/api/bootstrap.php"
-cp    "$PROJECT_ROOT/backend/composer.json"   "$PKG_DIR/api/composer.json"
 
 # ------------------------------------------------------------------
 # 4. Create writable directories

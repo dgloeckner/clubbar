@@ -173,7 +173,7 @@ jobs:
         run: |
           mkdir -p dist/package/api/db
           cp -r backend/src backend/vendor dist/package/api/
-          cp backend/bootstrap.php backend/composer.json dist/package/api/
+          cp backend/bootstrap.php dist/package/api/
           cp backend/db/MigrationRunner.php dist/package/api/db/
           cp -r backend/db/migrations dist/package/api/db/migrations
           mkdir -p dist/package/api/storage dist/package/api/logs
