@@ -144,6 +144,10 @@ export function MembersPage() {
         if (!formData.card_uid) {
           delete payload.card_uid
         }
+        // When creating: omit mandate_reference if empty so backend auto-generates it
+        if (!formData.mandate_reference) {
+          delete payload.mandate_reference
+        }
       }
 
       if (editingMember) {
@@ -1090,7 +1094,7 @@ export function MembersPage() {
                   type="text"
                   value={formData.account_holder_name}
                   onChange={(e) => setFormData({ ...formData, account_holder_name: e.target.value })}
-                  placeholder="Only if different from member"
+                  placeholder={t('members.accountHolderPlaceholder')}
                   maxLength={70}
                   style={{
                     width: '100%',
@@ -1109,16 +1113,14 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.mandateReference')} <span style={{ color: theme.colors.semantic.danger }}>*</span> <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')})</span>
+                  {t('members.mandateReference')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
                 </label>
                 <input
                   data-testid="members-form-mandate-reference-input"
                   type="text"
-                  required
                   value={formData.mandate_reference}
                   onChange={(e) => setFormData({ ...formData, mandate_reference: e.target.value.toUpperCase() })}
-                  placeholder="Unique mandate identifier"
-                  minLength={1}
+                  placeholder={t('members.mandateReferencePlaceholder')}
                   maxLength={35}
                   style={{
                     width: '100%',
@@ -1131,6 +1133,9 @@ export function MembersPage() {
                     fontFamily: 'monospace',
                   }}
                 />
+                <span style={{ fontSize: '12px', color: theme.colors.text.secondary, marginTop: '4px', display: 'block' }}>
+                  {t('members.mandateReferenceHint')}
+                </span>
               </div>
 
               <div>
