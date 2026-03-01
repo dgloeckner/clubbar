@@ -143,11 +143,10 @@ class ProductsRepository
             $params[] = $filters['category_id'];
         }
         if (isset($filters['search'])) {
-            // For JSON_SEARCH, use unescaped LIKE pattern since JSON_SEARCH
-            // handles wildcards internally. Don't use escapeLike() here as it
-            // escapes _ which is valid in user input we want to match literally.
-            $where[] = "JSON_SEARCH(p.names, 'one', ?) IS NOT NULL";
-            $params[] = '%' . $filters['search'] . '%';
+            // Use LOWER() for case-insensitive search because the names column
+            // uses utf8mb4_bin collation (required for JSON storage).
+            $where[] = "JSON_SEARCH(LOWER(p.names), 'one', ?) IS NOT NULL";
+            $params[] = '%' . mb_strtolower($filters['search']) . '%';
         }
 
         $whereClause = 'WHERE ' . implode(' AND ', $where);

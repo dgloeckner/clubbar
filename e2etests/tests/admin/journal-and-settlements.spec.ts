@@ -80,6 +80,17 @@ test.describe('Journal & Settlements', () => {
       expect(r.member).not.toContain(`${prefix}B`)
     }
 
+    // ── Search: case-insensitive (member names + product names) ───────
+    // Member name search is case-insensitive (utf8mb4_unicode_ci)
+    await journalPage.search(`${prefix}a`)
+    await journalPage.waitForTableToLoad()
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(3)
+
+    // Uppercase variant also works
+    await journalPage.search(`${prefix}A`.toUpperCase())
+    await journalPage.waitForTableToLoad()
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(3)
+
     // ── Sort by date: toggle asc/desc ─────────────────────────────────
     expect(await journalPage.getHeaderText('date')).toContain('↓')
     await journalPage.sortBy('date')

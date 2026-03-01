@@ -115,8 +115,10 @@ class TransactionsRepository
         }
         if (isset($filters['search'])) {
             $escaped = SafeQuery::escapeLike($filters['search']);
-            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR p.names LIKE ?)";
-            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$escaped}%"]);
+            $lowerEscaped = mb_strtolower($escaped);
+            // p.names uses utf8mb4_bin collation, so use LOWER() for case-insensitive search
+            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR LOWER(p.names) LIKE ?)";
+            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$lowerEscaped}%"]);
         }
         if (isset($filters['settlement_status'])) {
             if ($filters['settlement_status'] === 'unsettled') {
@@ -225,8 +227,9 @@ class TransactionsRepository
         }
         if (isset($filters['search'])) {
             $escaped = SafeQuery::escapeLike($filters['search']);
-            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR p.names LIKE ?)";
-            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$escaped}%"]);
+            $lowerEscaped = mb_strtolower($escaped);
+            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR LOWER(p.names) LIKE ?)";
+            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$lowerEscaped}%"]);
         }
         if (isset($filters['member_id'])) {
             $where[] = 't.member_id = ?';
@@ -280,8 +283,9 @@ class TransactionsRepository
         }
         if (isset($filters['search'])) {
             $escaped = SafeQuery::escapeLike($filters['search']);
-            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR p.names LIKE ?)";
-            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$escaped}%"]);
+            $lowerEscaped = mb_strtolower($escaped);
+            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR LOWER(p.names) LIKE ?)";
+            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$lowerEscaped}%"]);
         }
         if (isset($filters['member_id'])) {
             $where[] = 't.member_id = ?';

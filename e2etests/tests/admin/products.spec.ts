@@ -173,6 +173,17 @@ test.describe('Admin Products Page', () => {
     const afterClear = await authenticatedProductsPage.getAllProductNamesInOrder()
     expect(afterClear.length).toBeGreaterThanOrEqual(3)
 
+    // ── Search: case-insensitive (names column uses utf8mb4_bin) ─
+    await authenticatedProductsPage.search(prefix.toLowerCase())
+    const ciLower = await authenticatedProductsPage.getAllProductNamesInOrder()
+    expect(ciLower.filter(n => n.includes(prefix)).length).toBeGreaterThanOrEqual(3)
+
+    await authenticatedProductsPage.search(prefix.toUpperCase())
+    const ciUpper = await authenticatedProductsPage.getAllProductNamesInOrder()
+    expect(ciUpper.filter(n => n.includes(prefix)).length).toBeGreaterThanOrEqual(3)
+
+    await authenticatedProductsPage.clearSearch()
+
     // ── Search: no results → empty state ────────────────────────
     await authenticatedProductsPage.search(`${prefix}NoExist999`)
     const emptyNames = await authenticatedProductsPage.getAllProductNamesInOrder()
