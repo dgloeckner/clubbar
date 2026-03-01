@@ -120,9 +120,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
 
         case '3': // Run migrations
-            $autoloadPath = __DIR__ . '/api/vendor/autoload.php';
+            $autoloadPath = __DIR__ . '/backend/vendor/autoload.php';
             if (!file_exists($autoloadPath)) {
-                $error = 'Vendor autoload not found at api/vendor/autoload.php. Ensure the package was extracted correctly.';
+                $error = 'Vendor autoload not found at backend/vendor/autoload.php. Ensure the package was extracted correctly.';
                 break;
             }
 
@@ -152,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
 
                 $runner = new \App\Db\MigrationRunner($pdo);
-                $result = $runner->migrate(__DIR__ . '/api/db/migrations', 'installer');
+                $result = $runner->migrate(__DIR__ . '/backend/db/migrations', 'installer');
 
                 $failed = array_filter($result, fn($r) => ($r['status'] ?? '') === 'FAIL');
                 if ($failed) {
@@ -266,12 +266,12 @@ function checkPrerequisites(): array
     }
 
     // Writable directories
-    $apiDir = __DIR__ . '/api';
+    $apiDir = __DIR__ . '/backend';
     foreach (['storage', 'logs'] as $dir) {
         $path = "{$apiDir}/{$dir}";
         $writable = is_dir($path) && is_writable($path);
         $checks[] = [
-            'name' => "Writable: api/{$dir}/",
+            'name' => "Writable: backend/{$dir}/",
             'ok' => $writable,
             'value' => $writable ? 'writable' : (is_dir($path) ? 'not writable' : 'directory missing'),
         ];

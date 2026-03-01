@@ -27,15 +27,15 @@ $_ENV['API_TOKEN_TTL_DAYS'] = (string) ($config['api_token']['ttl_days'] ?? 90);
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 if (str_starts_with($path, '/api/')) {
-    $app = require __DIR__ . '/api/bootstrap.php';
+    $app = require __DIR__ . '/backend/bootstrap.php';
     $app->run();
 } else {
-    // Fallback — .htaccess normally handles SPA routing
-    $spaIndex = __DIR__ . '/assets/index.html';
+    // Fallback — serve SPA for client-side routing
+    $spaIndex = __DIR__ . '/spa.html';
     if (file_exists($spaIndex)) {
         readfile($spaIndex);
     } else {
         http_response_code(404);
-        echo 'Admin panel not found. Check that assets/ directory exists.';
+        echo 'Admin panel not found. Check that spa.html exists.';
     }
 }
