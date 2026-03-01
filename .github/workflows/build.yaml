@@ -46,9 +46,18 @@ jobs:
           php-version: '8.3'
           tools: composer
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install backend dependencies
         run: composer install --no-interaction --prefer-dist
         working-directory: backend
+
+      - name: Build admin frontend
+        run: npm ci && npm run build
+        working-directory: admin-frontend
 
       - name: Start services
         uses: hoverkraft-tech/compose-action@v2.0.2
@@ -59,7 +68,6 @@ jobs:
           services: |
             database
             backend
-            admin-frontend
 
       - name: Wait for backend health
         run: |
@@ -69,21 +77,19 @@ jobs:
           done
 
       - name: Run database migrations
-        run: |
-          curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
+        run: curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
+
+      - name: Serve admin frontend
+        run: npx vite preview --port 5173 --host &
+        working-directory: admin-frontend
 
       - name: Wait for admin frontend
         run: |
-          for i in $(seq 1 90); do
+          for i in $(seq 1 30); do
             curl -sf http://localhost:5173 && break
-            if [ $i -eq 90 ]; then echo "Admin frontend not ready after 180s" && exit 1; fi
+            if [ $i -eq 30 ]; then echo "Admin frontend not ready after 60s" && exit 1; fi
             sleep 2
           done
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
 
       - name: Install E2E dependencies
         run: npm ci
