@@ -35,43 +35,42 @@ class MigrationRunner
         $files = glob($dir . '/*.sql');
         sort($files);
 
-        $this->db->beginTransaction();
+        // Note: MySQL/MariaDB implicitly commits on DDL statements (CREATE TABLE,
+        // ALTER TABLE, etc.), so wrapping migrations in a transaction is not possible.
+        // Each migration is applied individually instead.
+        foreach ($files as $file) {
+            $name     = basename($file);
+            $sql      = file_get_contents($file);
+            $checksum = hash('sha256', $sql);
 
-        try {
-            foreach ($files as $file) {
-                $name     = basename($file);
-                $sql      = file_get_contents($file);
-                $checksum = hash('sha256', $sql);
-
-                if (isset($applied[$name])) {
-                    if ($applied[$name] !== $checksum) {
-                        throw new \RuntimeException(
-                            "INTEGRITY VIOLATION: {$name} has been modified after application. " .
-                            "Expected checksum {$applied[$name]}, got {$checksum}."
-                        );
-                    }
-                    $this->log[] = ['status' => 'SKIP', 'file' => $name, 'reason' => 'already applied'];
-                    continue;
+            if (isset($applied[$name])) {
+                if ($applied[$name] !== $checksum) {
+                    $this->log[] = [
+                        'status' => 'FAIL',
+                        'file' => $name,
+                        'message' => "INTEGRITY VIOLATION: {$name} has been modified after application. " .
+                            "Expected checksum {$applied[$name]}, got {$checksum}.",
+                    ];
+                    return $this->log;
                 }
+                $this->log[] = ['status' => 'SKIP', 'file' => $name, 'reason' => 'already applied'];
+                continue;
+            }
 
+            try {
                 $this->db->exec($sql);
 
                 $stmt = $this->db->prepare('INSERT INTO _migrations (file, checksum, applied_by) VALUES (?, ?, ?)');
                 $stmt->execute([$name, $checksum, $appliedBy]);
 
                 $this->log[] = ['status' => 'OK', 'file' => $name];
+            } catch (\Throwable $e) {
+                $this->log[] = ['status' => 'FAIL', 'file' => $name, 'message' => $e->getMessage()];
+                return $this->log;
             }
-
-            $this->db->commit();
-            $this->log[] = ['status' => 'DONE', 'message' => 'All migrations applied'];
-        } catch (\Throwable $e) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-                $this->log[] = ['status' => 'ROLLBACK', 'message' => 'Transaction rolled back'];
-            }
-            $this->log[] = ['status' => 'FAIL', 'message' => $e->getMessage()];
         }
 
+        $this->log[] = ['status' => 'DONE', 'message' => 'All migrations applied'];
         return $this->log;
     }
 

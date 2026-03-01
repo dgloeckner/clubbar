@@ -1,10 +1,11 @@
 # Override for testing the assembled shared hosting package.
-# Usage: docker compose -f docker-compose.yml -f docker-compose.package.yml up -d
+# Usage: docker compose -f docker-compose.yml -f docker-compose.package.yml up -d database backend
 #
 # Requires: run scripts/build-package.sh first to create dist/package/
 services:
   backend:
     volumes:
       - ./dist/package:/app
+      - ./docker/apache-package.conf:/opt/docker/etc/httpd/vhost.common.d/01-slim.conf:ro
     environment:
       WEB_DOCUMENT_ROOT: /app

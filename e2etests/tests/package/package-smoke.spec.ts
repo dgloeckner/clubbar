@@ -80,7 +80,7 @@ test.describe('Package: API through front controller', () => {
     });
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
-    expect(body.success).toBe(true);
+    expect(body.message).toBe('Login successful');
   });
 });
 

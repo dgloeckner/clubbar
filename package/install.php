@@ -22,7 +22,10 @@ $isInstalled = file_exists($configFile);
 $isUpdate = isset($_GET['update']);
 
 // --- Already installed? ---
-if ($isInstalled && !$isUpdate) {
+// Only show "already installed" if config exists AND no step/update param is set
+// (steps 3-5 need config.php to exist — it's written in step 2)
+$step = $_GET['step'] ?? ($_POST['step'] ?? null);
+if ($isInstalled && !$isUpdate && $step === null) {
     showAlreadyInstalled();
     exit;
 }
@@ -172,6 +175,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($isUpdate) {
                 // Update mode skips admin creation
                 break;
+            }
+
+            // Check if admin users already exist (e.g. from seed data in migrations)
+            if (file_exists($configFile)) {
+                $cfgCheck = require $configFile;
+                try {
+                    $pdoCheck = new PDO(
+                        sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $cfgCheck['db']['host'], $cfgCheck['db']['port'], $cfgCheck['db']['name']),
+                        $cfgCheck['db']['user'], $cfgCheck['db']['pass'],
+                        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                    );
+                    $adminCount = (int) $pdoCheck->query('SELECT COUNT(*) FROM admin_users WHERE is_active = 1')->fetchColumn();
+                    if ($adminCount > 0) {
+                        header('Location: ?step=5');
+                        exit;
+                    }
+                } catch (\Throwable $e) {
+                    // Proceed with form if check fails
+                }
             }
 
             $email = trim($_POST['admin_email'] ?? '');
@@ -521,6 +543,30 @@ function renderStep4(bool $isUpdate): void
         <a href="/" class="btn">Go to Admin Panel</a>
         <?php
         return;
+    }
+
+    // Check if admin users already exist (seeded by migrations)
+    $configFile = __DIR__ . '/config.php';
+    if (file_exists($configFile)) {
+        $cfg = require $configFile;
+        try {
+            $pdo = new PDO(
+                sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $cfg['db']['host'], $cfg['db']['port'], $cfg['db']['name']),
+                $cfg['db']['user'], $cfg['db']['pass'],
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
+            $count = (int) $pdo->query('SELECT COUNT(*) FROM admin_users WHERE is_active = 1')->fetchColumn();
+            if ($count > 0) {
+                ?>
+                <h2>Admin Account</h2>
+                <p>An admin account already exists (created during database setup). You can log in with those credentials.</p>
+                <a href="?step=5" class="btn">Continue</a>
+                <?php
+                return;
+            }
+        } catch (\Throwable $e) {
+            // Fall through to form
+        }
     }
     ?>
     <h2>Step 4: Admin Account</h2>
