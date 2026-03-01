@@ -35,7 +35,7 @@ jobs:
 
   test-e2e:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -59,6 +59,7 @@ jobs:
           services: |
             database
             backend
+            admin-frontend
 
       - name: Wait for backend health
         run: |
@@ -70,6 +71,13 @@ jobs:
       - name: Run database migrations
         run: |
           curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
+
+      - name: Wait for admin frontend
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:5173 && break
+            sleep 2
+          done
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -85,10 +93,11 @@ jobs:
         working-directory: e2etests
 
       - name: Run E2E tests
-        run: npx playwright test --project=api-tests
+        run: npx playwright test
         working-directory: e2etests
         env:
           CI: true
+          ADMIN_URL: http://localhost:5173
 
       - name: Upload test report
         if: always()

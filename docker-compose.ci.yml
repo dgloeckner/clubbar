@@ -1,8 +1,11 @@
 # CI overrides for docker-compose.yml
-# Removes ARM-specific platform constraints so images resolve to the runner's native arch
+# - Removes ARM-specific platform constraints so images resolve to the runner's native arch
+# - Removes profiles from frontend services so they start without --profile flags
 
 services:
   database:
     platform: linux/amd64
   backend:
     platform: linux/amd64
+  admin-frontend:
+    profiles: []
