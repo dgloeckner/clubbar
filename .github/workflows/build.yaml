@@ -74,8 +74,9 @@ jobs:
 
       - name: Wait for admin frontend
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 90); do
             curl -sf http://localhost:5173 && break
+            if [ $i -eq 90 ]; then echo "Admin frontend not ready after 180s" && exit 1; fi
             sleep 2
           done
 
@@ -89,7 +90,7 @@ jobs:
         working-directory: e2etests
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chrome
+        run: npx playwright install --with-deps chromium
         working-directory: e2etests
 
       - name: Run E2E tests
