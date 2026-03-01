@@ -58,9 +58,15 @@ test.describe('Admin Members List Endpoint', () => {
   });
 
   test('GET /api/admin/members respects offset parameter', async ({ authenticatedRequest }) => {
+    // Use stable sort by id to ensure consistent ordering across paginated requests.
+    // Without an explicit sort, records with identical created_at timestamps (MySQL second
+    // precision) return in non-deterministic order, causing offset pagination to return
+    // the same record at different offsets.
+    const params = { limit: 1, sort: 'id', order: 'asc' };
+
     // Get first member
     const response1 = await authenticatedRequest.get('/api/admin/members', {
-      params: { limit: 1, offset: 0 },
+      params: { ...params, offset: 0 },
     });
 
     const body1 = await response1.json();
@@ -68,7 +74,7 @@ test.describe('Admin Members List Endpoint', () => {
 
     // Get second member
     const response2 = await authenticatedRequest.get('/api/admin/members', {
-      params: { limit: 1, offset: 1 },
+      params: { ...params, offset: 1 },
     });
 
     const body2 = await response2.json();
