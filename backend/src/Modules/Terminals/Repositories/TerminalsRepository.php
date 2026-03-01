@@ -111,7 +111,10 @@ class TerminalsRepository
         $total = (int) $countStmt->fetchColumn();
 
         $dataParams = array_merge($params, [$limit, $offset]);
-        $stmt = $this->db->prepare("SELECT * FROM terminals {$whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        $stmt = $this->db->prepare(
+            "SELECT t.*, (SELECT MAX(tx.created_at) FROM transactions tx WHERE tx.created_by_terminal_id = t.id) AS last_transaction_at
+             FROM terminals t {$whereClause} ORDER BY t.created_at DESC LIMIT ? OFFSET ?"
+        );
         $stmt->execute($dataParams);
 
         return ['items' => $stmt->fetchAll(), 'total' => $total];

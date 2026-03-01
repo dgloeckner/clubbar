@@ -4,7 +4,7 @@
  */
 
 import { useTranslation } from 'react-i18next'
-import { theme, formatRelativeDate } from '../../styles/design-system'
+import { theme, formatDateTime } from '../../styles/design-system'
 import { Toggle } from '../common/Toggle'
 import { Badge } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
@@ -135,6 +135,16 @@ export function TerminalsTab({
                 <th
                   style={{
                     padding: theme.spacing.md,
+                    textAlign: 'left',
+                    borderBottom: `1px solid ${theme.colors.border.light}`,
+                    fontWeight: theme.typography.fontWeight.semibold,
+                  }}
+                >
+                  {t('settings.lastTransaction')}
+                </th>
+                <th
+                  style={{
+                    padding: theme.spacing.md,
                     textAlign: 'center',
                     borderBottom: `1px solid ${theme.colors.border.light}`,
                     fontWeight: theme.typography.fontWeight.semibold,
@@ -192,7 +202,7 @@ export function TerminalsTab({
                     </code>
                   </td>
 
-                  {/* Last Sync (Relative Date) */}
+                  {/* Last Sync */}
                   <td
                     style={{
                       padding: theme.spacing.md,
@@ -201,7 +211,19 @@ export function TerminalsTab({
                     }}
                     data-testid={`settings-terminal-last-sync-${terminal.id}`}
                   >
-                    {terminal.last_sync_at ? formatRelativeDate(terminal.last_sync_at) : t('dates.never')}
+                    {terminal.last_sync_at ? formatDateTime(terminal.last_sync_at) : t('dates.never')}
+                  </td>
+
+                  {/* Last Transaction */}
+                  <td
+                    style={{
+                      padding: theme.spacing.md,
+                      color: theme.colors.text.secondary,
+                      fontSize: theme.typography.fontSize.xs,
+                    }}
+                    data-testid={`settings-terminal-last-transaction-${terminal.id}`}
+                  >
+                    {terminal.last_transaction_at ? formatDateTime(terminal.last_transaction_at) : t('dates.never')}
                   </td>
 
                   {/* Actions */}
@@ -242,7 +264,7 @@ export function TerminalsTab({
                       </Tooltip>
 
                       {/* Rotate Token Button */}
-                      <Tooltip content="Rotate Token" position="top">
+                      <Tooltip content={t('settings.rotateToken')} position="top">
                         <button
                           data-testid={`settings-terminal-rotate-token-button-${terminal.id}`}
                           onClick={() => onRotateToken(terminal.id)}
@@ -275,7 +297,7 @@ export function TerminalsTab({
                       </Tooltip>
 
                       {/* Revoke Access Button */}
-                      <Tooltip content="Revoke Access" position="top">
+                      <Tooltip content={t('settings.revokeAccess')} position="top">
                         <button
                           data-testid={`settings-terminal-revoke-button-${terminal.id}`}
                           onClick={() => onRevokeAccess(terminal.id)}

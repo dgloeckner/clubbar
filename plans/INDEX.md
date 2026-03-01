@@ -95,6 +95,16 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 **Status**: Complete — 4 flow tests pass with 4 workers, 2372 lines deleted.
 
+### Terminals Settings Tab (📍 READY)
+
+**Plan**: [2026-02-28-terminals-settings-tab.md](./2026-02-28-terminals-settings-tab.md)
+
+**Goal**: Add "Terminals" tab to Settings page with full CRUD for terminal devices, token generation/rotation, and E2E tests.
+
+**Status**: Plan complete, 9 tasks. Backend API already done — frontend-only work.
+
+---
+
 ### E2E Test Quality Improvement (📍 BACKLOG)
 
 **Plan**: [2026-02-28-e2e-test-quality.md](./2026-02-28-e2e-test-quality.md)

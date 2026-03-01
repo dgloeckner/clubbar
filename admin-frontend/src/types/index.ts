@@ -280,6 +280,7 @@ export interface Terminal {
   device_id: string
   is_active: boolean
   last_sync_at: string | null
+  last_transaction_at: string | null
   created_at: string
   updated_at: string
 }
