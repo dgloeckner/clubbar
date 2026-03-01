@@ -65,7 +65,7 @@ class TransactionListItem {
 
     return TransactionListItem(
       id: transaction.id,
-      timestamp: DateTime.parse(transaction.createdAt),
+      timestamp: DateTime.parse(transaction.createdAt).toLocal(),
       details: details,
       amountCents: transaction.amountCents,
       syncStatus: TransactionSyncStatus.unsynced,
@@ -132,7 +132,7 @@ class TransactionListItem {
 
     return TransactionListItem(
       id: json['id'],
-      timestamp: DateTime.parse(json['created_at']),
+      timestamp: DateTime.parse(json['created_at']).toLocal(),
       details: details,
       amountCents: json['amount_cents'],
       syncStatus: syncStatus,
