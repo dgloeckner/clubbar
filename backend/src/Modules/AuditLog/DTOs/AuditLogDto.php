@@ -50,7 +50,7 @@ final readonly class AuditLogDto
             'new_values' => $this->newValues,
             'ip_address' => $this->ipAddress,
             'user_agent' => $this->userAgent,
-            'created_at' => $this->createdAt,
+            'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
         ];
     }
 }

@@ -38,9 +38,9 @@ final readonly class CategoryDto
             'names' => $this->names ?: new \stdClass(),
             'is_active' => $this->isActive,
             'icon_name' => $this->iconName,
-            'created_at' => $this->createdAt,
-            'updated_at' => $this->updatedAt,
-            'deleted_at' => $this->deletedAt,
+            'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
+            'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),
+            'deleted_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->deletedAt),
         ];
         if ($this->productCount !== null) {
             $data['product_count'] = $this->productCount;

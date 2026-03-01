@@ -11,6 +11,7 @@ use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\SepaValidationException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\Logging\Logger;
+use App\Shared\Utils\DateFormatter;
 
 class TransactionsService
 {
@@ -98,7 +99,7 @@ class TransactionsService
         $balance = $this->transactionsRepository->getMemberBalance($memberId);
 
         return [
-            'transaction' => $result,
+            'transaction' => is_array($result) ? $this->formatTransactionTimestamps($result) : $result,
             'new_balance_cents' => $balance,
         ];
     }
@@ -107,8 +108,10 @@ class TransactionsService
     {
         $result = $this->transactionsRepository->listPaginated($limit, $offset, $filters, $sortKey, $sortOrder);
 
+        $items = array_map(fn(array $row) => $this->formatTransactionTimestamps($row), $result['items']);
+
         return new PaginatedResultDto(
-            items: $result['items'],
+            items: $items,
             total: $result['total'],
             limit: $limit,
             offset: $offset,
@@ -119,6 +122,7 @@ class TransactionsService
     {
         $balance = $this->transactionsRepository->getMemberBalance($memberId);
         $transactions = $this->transactionsRepository->findByMemberId($memberId, 1000, 0, $type);
+        $transactions = array_map(fn(array $row) => $this->formatTransactionTimestamps($row), $transactions);
 
         return [
             'member_id' => $memberId,
@@ -149,6 +153,9 @@ class TransactionsService
         $rows = $this->transactionsRepository->findByMemberId($memberId, $limit, $offset, null, $since);
 
         foreach ($rows as &$row) {
+            // Format timestamps to ISO 8601 UTC
+            $row = $this->formatTransactionTimestamps($row);
+
             // Normalize type field
             $row['type'] = $row['transaction_type'] ?? null;
 
@@ -165,6 +172,22 @@ class TransactionsService
         unset($row);
 
         return $rows;
+    }
+
+    /**
+     * Format DATETIME fields on a raw transaction row to ISO 8601 UTC.
+     * Leaves DATE-only fields (settlement_date) unchanged.
+     */
+    private function formatTransactionTimestamps(array $row): array
+    {
+        if (isset($row['created_at'])) {
+            $row['created_at'] = DateFormatter::toUtcIso($row['created_at']);
+        }
+        if (isset($row['updated_at'])) {
+            $row['updated_at'] = DateFormatter::toUtcIso($row['updated_at']);
+        }
+        // settlement_date is DATE-only — no timezone conversion needed
+        return $row;
     }
 
     private function generateUuid(): string

@@ -38,9 +38,9 @@ final readonly class TerminalWithTokenDto
             'name' => $this->name,
             'device_id' => $this->deviceId,
             'is_active' => $this->isActive,
-            'last_sync_at' => $this->lastSyncAt,
-            'created_at' => $this->createdAt,
-            'updated_at' => $this->updatedAt,
+            'last_sync_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->lastSyncAt),
+            'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
+            'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),
             'api_token' => $this->apiToken,
         ];
     }

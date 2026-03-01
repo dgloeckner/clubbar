@@ -39,9 +39,9 @@ final readonly class AdminUserDto
             'display_name' => $this->displayName,
             'locale' => $this->locale,
             'is_active' => $this->isActive,
-            'last_login_at' => $this->lastLoginAt,
-            'created_at' => $this->createdAt,
-            'updated_at' => $this->updatedAt,
+            'last_login_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->lastLoginAt),
+            'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
+            'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),
         ];
     }
 }

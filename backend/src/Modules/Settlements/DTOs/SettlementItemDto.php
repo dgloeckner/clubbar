@@ -54,7 +54,7 @@ final readonly class SettlementItemDto
             'transaction_type' => $this->transactionType,
             'product_name' => $this->productName,
             'notes' => $this->notes,
-            'transaction_date' => $this->transactionCreatedAt,
+            'transaction_date' => \App\Shared\Utils\DateFormatter::toUtcIso($this->transactionCreatedAt),
         ];
     }
 }
