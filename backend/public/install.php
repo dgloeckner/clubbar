@@ -7,7 +7,10 @@ require __DIR__ . '/../vendor/autoload.php';
 use App\Shared\Config\Env;
 use App\Db\MigrationRunner;
 
-Env::load(__DIR__ . '/../.env');
+$envFile = __DIR__ . '/../.env';
+if (file_exists($envFile)) {
+    Env::load($envFile);
+}
 
 // --- Access control ---
 $installKey  = Env::get('INSTALL_KEY', '');
