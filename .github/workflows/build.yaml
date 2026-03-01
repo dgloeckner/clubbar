@@ -124,6 +124,14 @@ jobs:
           path: e2etests/playwright-report/
           retention-days: 14
 
+      - name: Upload traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: e2etests/test-results/
+          retention-days: 14
+
   build-terminal:
     runs-on: ubuntu-24.04-arm
 
