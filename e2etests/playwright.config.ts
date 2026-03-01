@@ -24,6 +24,8 @@ export default defineConfig({
   use: {
     baseURL: process.env.API_URL || 'http://localhost:8080',
     trace: 'on-first-retry',
+    actionTimeout: 10000,
+    navigationTimeout: 10000,
   },
 
   projects: [
