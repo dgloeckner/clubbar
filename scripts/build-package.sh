@@ -11,6 +11,18 @@
 # Output:
 #   dist/ruderbar-VERSION.zip
 #
+# Local testing:
+#   ./scripts/build-package.sh test
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml -f docker-compose.package.yml up -d database backend
+#   # Reset DB for fresh install:
+#   docker compose exec database mariadb -uroot -proot -e "DROP DATABASE IF EXISTS ruderbar; CREATE DATABASE ruderbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON ruderbar.* TO 'ruderbar'@'%';"
+#   # Run smoke tests:
+#   cd e2etests && PACKAGE_TEST=1 npx playwright test --project=package-tests --workers=1
+#   # Or open in browser:
+#   open http://localhost:8080/install.php
+#   # Clean up:
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml -f docker-compose.package.yml down
+#
 
 set -euo pipefail
 

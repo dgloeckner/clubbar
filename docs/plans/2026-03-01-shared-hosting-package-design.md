@@ -290,10 +290,36 @@ Not a full re-run of all tests — just enough to confirm frontend can reach bac
 Contributors can verify the package locally:
 
 ```bash
-./scripts/build-package.sh
-docker compose -f docker-compose.yml -f docker-compose.package.yml up -d
+# 1. Build the package (installs prod deps, builds frontend, creates ZIP)
+./scripts/build-package.sh test
+
+# 2. Start services with package override
+docker compose -f docker-compose.yml -f docker-compose.ci.yml -f docker-compose.package.yml up -d database backend
+
+# 3. Wait for backend
+sleep 5 && curl -s http://localhost:8080/install.php?step=1 | head -5
+
+# 4. Reset database for a fresh install test
+docker compose exec database mariadb -uroot -proot -e \
+  "DROP DATABASE IF EXISTS ruderbar; CREATE DATABASE ruderbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON ruderbar.* TO 'ruderbar'@'%';"
+
+# 5. Run automated smoke tests (install wizard + API routing + SPA serving)
+cd e2etests && PACKAGE_TEST=1 npx playwright test --project=package-tests --workers=1
+
+# 6. Or test manually in the browser
 open http://localhost:8080/install.php
+
+# 7. Clean up — restore normal dev environment
+docker compose -f docker-compose.yml -f docker-compose.ci.yml -f docker-compose.package.yml down
 ```
+
+**What the smoke tests verify:**
+- Install wizard prerequisites page renders
+- Install wizard POST flow completes (DB setup → migrations → admin user)
+- `GET /api/health` works through the front controller
+- `POST /api/auth/login` works through the front controller
+- Root URL serves the SPA (React app)
+- Unknown routes serve the SPA (client-side routing)
 
 ---
 
