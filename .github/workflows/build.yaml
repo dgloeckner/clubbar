@@ -171,8 +171,11 @@ jobs:
 
       - name: Assemble package
         run: |
-          mkdir -p dist/package/api
-          cp -r backend/src backend/db backend/vendor backend/bootstrap.php backend/composer.json dist/package/api/
+          mkdir -p dist/package/api/db
+          cp -r backend/src backend/vendor dist/package/api/
+          cp backend/bootstrap.php backend/composer.json dist/package/api/
+          cp backend/db/MigrationRunner.php dist/package/api/db/
+          cp -r backend/db/migrations dist/package/api/db/migrations
           mkdir -p dist/package/api/storage dist/package/api/logs
           chmod -R 777 dist/package/api/storage dist/package/api/logs
           cp -r admin-frontend/dist dist/package/assets
