@@ -59,6 +59,9 @@ jobs:
         run: composer install --no-interaction --prefer-dist
         working-directory: backend
 
+      - name: Prepare writable directories
+        run: chmod -R 777 backend/logs backend/storage
+
       - name: Build admin frontend
         run: npm ci && npm run build
         working-directory: admin-frontend
