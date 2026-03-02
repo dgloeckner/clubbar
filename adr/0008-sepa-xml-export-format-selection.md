@@ -10,7 +10,7 @@
 
 ## Context
 
-The Ruderbar system needs to export settlement data in SEPA Direct Debit format for bank processing. Two primary export formats exist:
+The Club Bar system needs to export settlement data in SEPA Direct Debit format for bank processing. Two primary export formats exist:
 
 1. **CSV**: Human-readable, manual control, import into bank tools
 2. **SEPA XML**: Direct upload to online banking, automated processing
@@ -73,11 +73,11 @@ Additionally, SEPA Direct Debit has two schemes:
       <NbOfTxs>2</NbOfTxs>                                   <!-- Total transaction count -->
       <CtrlSum>37.50</CtrlSum>                                <!-- Total amount in EUR -->
       <InitgPty>                                              <!-- Initiating Party (Organization) -->
-        <Nm>Ruderbar Frankfurter Rudergesellschaft</Nm>
+        <Nm>Sportverein Beispiel e.V.</Nm>
       </InitgPty>
     </GrpHdr>
 
-    <!-- Payment Information (can have multiple, but Ruderbar uses single PmtInf) -->
+    <!-- Payment Information (can have multiple, but Club Bar uses single PmtInf) -->
     <PmtInf>
       <PmtInfId>SET-2025-001</PmtInfId>                      <!-- Payment Info ID = Settlement ID -->
       <PmtMtd>DD</PmtMtd>                                    <!-- Payment Method = Direct Debit -->
@@ -98,7 +98,7 @@ Additionally, SEPA Direct Debit has two schemes:
 
       <!-- Creditor (Organization) -->
       <Cdtr>
-        <Nm>Ruderbar Frankfurter Rudergesellschaft</Nm>
+        <Nm>Sportverein Beispiel e.V.</Nm>
         <PstlAdr>
           <Ctry>DE</Ctry>
           <AdrLine>Mainufer 34, 60311 Frankfurt am Main</AdrLine>
@@ -161,7 +161,7 @@ Additionally, SEPA Direct Debit has two schemes:
 
         <!-- Remittance Information (Purpose) -->
         <RmtInf>
-          <Ustrd>Ruderbar Bar Deckel Jan 2025</Ustrd>             <!-- Unstructured purpose text -->
+          <Ustrd>Club Bar Abrechnung Jan 2025</Ustrd>             <!-- Unstructured purpose text -->
         </RmtInf>
       </DrctDbtTxInf>
 
@@ -190,7 +190,7 @@ Additionally, SEPA Direct Debit has two schemes:
         </DbtrAcct>
 
         <RmtInf>
-          <Ustrd>Ruderbar Bar Deckel Jan 2025</Ustrd>
+          <Ustrd>Club Bar Abrechnung Jan 2025</Ustrd>
         </RmtInf>
       </DrctDbtTxInf>
     </PmtInf>
@@ -326,7 +326,7 @@ Newer version with updated format.
 - Limited bank support (especially German banks)
 - Requires schema update
 - Migration path unclear
-- No functional advantage for Ruderbar
+- No functional advantage for Club Bar
 
 **Rejected**: pain.008.001.02 has broader support.
 

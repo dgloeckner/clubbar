@@ -10,7 +10,7 @@
 
 ## Context
 
-The Ruderbar system manages financial transactions for member accounts, product purchases, and settlements. Monetary values must be stored, transmitted, and calculated reliably across multiple components (terminal, backend, database, API).
+The Club Bar system manages financial transactions for member accounts, product purchases, and settlements. Monetary values must be stored, transmitted, and calculated reliably across multiple components (terminal, backend, database, API).
 
 Key concerns:
 - **Precision**: Currency calculations require exact decimal representation (e.g., €3.50, not 3.5000000001)

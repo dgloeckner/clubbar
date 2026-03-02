@@ -10,7 +10,7 @@
 
 ## Context
 
-The Ruderbar system records financial transactions (purchases, corrections) across multiple terminals and a backend database. Transactions form the foundation of:
+The Club Bar system records financial transactions (purchases, corrections) across multiple terminals and a backend database. Transactions form the foundation of:
 
 - **Member accounting**: Calculate outstanding balance (open amount owed)
 - **Audit trails**: Full history for compliance and dispute resolution

@@ -10,7 +10,7 @@
 
 ## Context
 
-The Ruderbar system collects payments via SEPA Direct Debit. Members consume products at the terminal, and their outstanding balance is periodically settled via SEPA collection. For SEPA collections to succeed, each member must have:
+The Club Bar system collects payments via SEPA Direct Debit. Members consume products at the terminal, and their outstanding balance is periodically settled via SEPA collection. For SEPA collections to succeed, each member must have:
 
 1. **Valid IBAN**: Bank account for debiting
 2. **Mandate Reference**: SEPA mandate identifier

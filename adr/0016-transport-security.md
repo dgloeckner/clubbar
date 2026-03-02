@@ -5,7 +5,7 @@
 
 ## Context
 
-The Ruderbar system transmits sensitive data between components:
+The Club Bar system transmits sensitive data between components:
 
 - **Terminal ↔ Backend**: Member identifiers, transaction data, API tokens
 - **Admin Browser ↔ Backend**: Member personal data, IBAN/banking info, session cookies
