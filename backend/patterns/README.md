@@ -1,6 +1,6 @@
 # Backend Code Patterns
 
-This directory contains architectural patterns for the Ruderbar backend. These patterns ensure **consistency**, **maintainability**, and **testability** across all modules and are directly aligned with ADR-0018 (Modular Admin Interface Architecture).
+This directory contains architectural patterns for the Club Bar backend. These patterns ensure **consistency**, **maintainability**, and **testability** across all modules and are directly aligned with ADR-0018 (Modular Admin Interface Architecture).
 
 All backend code must follow these patterns. Reference them when implementing features.
 

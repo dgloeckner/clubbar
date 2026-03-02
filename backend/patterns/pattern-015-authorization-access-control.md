@@ -180,7 +180,7 @@ return function (App $app): void {
 
 ### Resource Ownership Authorization
 
-In the Ruderbar system, all admin users have equal access to all resources (no role-based differentiation). Resource ownership checks are not needed for admin endpoints since all admins can manage all members, products, and settlements.
+In the Club Bar system, all admin users have equal access to all resources (no role-based differentiation). Resource ownership checks are not needed for admin endpoints since all admins can manage all members, products, and settlements.
 
 If resource-level authorization is needed in the future, it can be implemented as a PSR-15 middleware:
 
