@@ -1,6 +1,6 @@
 # E2E Playwright Assertions & Flow-Based Tests
 
-**Context**: Playwright API and E2E tests for the Ruderbar backend (Slim 4, PDO, PHP 8.3).
+**Context**: Playwright API and E2E tests for the Club Bar backend (Slim 4, PDO, PHP 8.3).
 
 Use this when writing assertions, handling waits, or designing test structure for Playwright E2E tests.
 

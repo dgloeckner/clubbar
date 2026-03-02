@@ -1,6 +1,6 @@
 # E2E Page Objects, Test IDs & Fixtures
 
-**Context**: Playwright API and E2E tests for the Ruderbar backend (Slim 4, PDO, PHP 8.3).
+**Context**: Playwright API and E2E tests for the Club Bar backend (Slim 4, PDO, PHP 8.3).
 
 Use this when creating page objects, writing UI tests with `data-testid` selectors, or setting up Playwright fixtures for E2E tests.
 

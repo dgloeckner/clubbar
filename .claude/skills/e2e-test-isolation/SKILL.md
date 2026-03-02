@@ -1,6 +1,6 @@
 # E2E Test Data Isolation & Parallel Safety
 
-**Context**: Playwright API and E2E tests for the Ruderbar backend (Slim 4, PDO, PHP 8.3).
+**Context**: Playwright API and E2E tests for the Club Bar backend (Slim 4, PDO, PHP 8.3).
 
 Use this when writing any Playwright test — data isolation and parallel safety are mandatory for every test.
 
