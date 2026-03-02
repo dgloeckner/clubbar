@@ -217,20 +217,20 @@ jobs:
         working-directory: e2etests
 
       - name: Create package ZIP
-        run: cd dist && zip -r ruderbar-package.zip package/ -q
+        run: cd dist && zip -r clubbar-package.zip package/ -q
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ruderbar-package
-          path: dist/ruderbar-package.zip
+          name: clubbar-package
+          path: dist/clubbar-package.zip
           retention-days: 30
 
       - name: Upload to release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/ruderbar-package.zip
+          files: dist/clubbar-package.zip
 
       - name: Run package smoke tests
         run: npx playwright test --project=package-tests --workers=1
