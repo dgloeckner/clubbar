@@ -9,3 +9,24 @@ RewriteRule ^ - [L]
 # Everything else → front controller (handles API routing, SPA fallback,
 # and redirect to install.php when not yet configured)
 RewriteRule ^ index.php [L,QSA]
+
+# Ensure correct MIME types for static assets
+<IfModule mod_mime.c>
+    AddType image/svg+xml .svg .svgz
+</IfModule>
+
+# Enable gzip compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+# Cache static assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
