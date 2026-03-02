@@ -13,6 +13,11 @@
     RewriteRule ^ index.html [L]
 </IfModule>
 
+# Ensure correct MIME types for static assets
+<IfModule mod_mime.c>
+    AddType image/svg+xml .svg .svgz
+</IfModule>
+
 # Enable gzip compression
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json
