@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Ruderbar - Terminal API
+  title: Club Bar - Terminal API
   description: |
     REST API for offline-capable POS terminal synchronization.
 
@@ -58,11 +58,11 @@ info:
 
   version: 1.0.0
   contact:
-    name: Ruderbar Project
-    url: https://github.com/ruderbar/ruderbar
+    name: Club Bar Project
+    url: https://github.com/clubbar/clubbar
   license:
     name: TBD
-    url: https://github.com/ruderbar/ruderbar/blob/main/LICENSE
+    url: https://github.com/clubbar/clubbar/blob/main/LICENSE
 
 servers:
   - url: https://api.example.com

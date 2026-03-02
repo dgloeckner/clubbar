@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: Ruderbar - Admin API
+  title: Club Bar - Admin API
   description: |
-    REST API for the Admin Panel of Ruderbar.
+    REST API for the Admin Panel of Club Bar.
 
     ## Authentication
 
@@ -45,8 +45,8 @@ info:
 
   version: 1.0.0
   contact:
-    name: Ruderbar
-    url: https://github.com/ruderbar/ruderbar
+    name: Club Bar
+    url: https://github.com/clubbar/clubbar
 
 servers:
   - url: /api
