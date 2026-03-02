@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/common/StatCard'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
 import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon } from '../components/icons'
@@ -19,6 +20,7 @@ import { AxiosError } from 'axios'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
+import { Toggle } from '../components/forms/Toggle'
 import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import {
@@ -64,6 +66,67 @@ export function MembersPage() {
     card_uid: '',
   })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+
+  const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  const mobileFilterCount = [
+    filterIsActive !== 'all' ? 1 : 0,
+    filterCardUid !== 'all' ? 1 : 0,
+    filterSepaStatus !== 'all' ? 1 : 0,
+  ].reduce((a, b) => a + b, 0)
+
+  const mobileSortOptions = [
+    { value: 'last_name_asc', label: t('members.sortName', 'Name A–Z'), direction: 'asc' as const },
+    { value: 'last_name_desc', label: t('members.sortNameDesc', 'Name Z–A'), direction: 'desc' as const },
+    { value: 'card_uid_asc', label: t('members.sortCard', 'Card-UID ↑'), direction: 'asc' as const },
+    { value: 'created_at_desc', label: t('members.sortNewest', 'Newest first'), direction: 'desc' as const },
+    { value: 'created_at_asc', label: t('members.sortOldest', 'Oldest first'), direction: 'asc' as const },
+  ]
+
+  const mobileSortValue = `${sortKey}_${sortDirection}`
+
+  const handleMobileSortChange = (value: string) => {
+    const lastUnderscore = value.lastIndexOf('_')
+    const key = value.substring(0, lastUnderscore) as typeof sortKey
+    const dir = value.substring(lastUnderscore + 1) as 'asc' | 'desc'
+    setSortKey(key)
+    setSortDirection(dir)
+    setPage(1)
+  }
+
+  const MobileFilterRow = ({ label, options, value, onChange, testId }: {
+    label: string
+    options: { value: string; label: string }[]
+    value: string
+    onChange: (v: string) => void
+    testId: string
+  }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', minWidth: '50px' }}>
+        {label}
+      </span>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          data-testid={`${testId}-${opt.value}`}
+          onClick={() => { onChange(opt.value); setPage(1) }}
+          style={{
+            padding: '4px 10px',
+            borderRadius: '6px',
+            border: 'none',
+            background: value === opt.value ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+            color: value === opt.value ? '#3b82f6' : 'rgba(255,255,255,0.5)',
+            fontSize: '12px',
+            fontWeight: value === opt.value ? 600 : 400,
+            cursor: 'pointer',
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
 
   // Load members
   useEffect(() => {
@@ -377,6 +440,161 @@ export function MembersPage() {
         </button>
       </div>
 
+      {isMobile ? (
+        <>
+          <MobileToolbar
+            testId="members-mobile-toolbar"
+            search={{
+              value: search,
+              onChange: (v) => { setSearch(v); setPage(1) },
+              testId: 'members-search-input',
+            }}
+            sort={{
+              options: mobileSortOptions,
+              value: mobileSortValue,
+              onChange: handleMobileSortChange,
+            }}
+            filterCount={mobileFilterCount}
+            onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
+            showFilters={showMobileFilters}
+            filterContent={
+              <>
+                <MobileFilterRow
+                  label={t('members.filterStatus', 'Status')}
+                  options={[
+                    { value: 'all', label: t('common.all') },
+                    { value: 'active', label: t('common.active') },
+                    { value: 'inactive', label: t('common.inactive') },
+                  ]}
+                  value={filterIsActive}
+                  onChange={(v) => setFilterIsActive(v as typeof filterIsActive)}
+                  testId="members-mobile-filter-status"
+                />
+                <MobileFilterRow
+                  label={t('members.filterCard', 'Card')}
+                  options={[
+                    { value: 'all', label: t('common.all') },
+                    { value: 'with', label: t('members.filterWithCard', 'With') },
+                    { value: 'without', label: t('members.filterWithoutCard', 'Without') },
+                  ]}
+                  value={filterCardUid}
+                  onChange={(v) => setFilterCardUid(v as typeof filterCardUid)}
+                  testId="members-mobile-filter-card"
+                />
+                <MobileFilterRow
+                  label="SEPA"
+                  options={[
+                    { value: 'all', label: t('common.all') },
+                    { value: 'valid', label: t('members.filterSepaValid', 'Valid') },
+                    { value: 'missing', label: t('members.filterSepaMissing', 'Missing') },
+                  ]}
+                  value={filterSepaStatus}
+                  onChange={(v) => setFilterSepaStatus(v as typeof filterSepaStatus)}
+                  testId="members-mobile-filter-sepa"
+                />
+              </>
+            }
+          />
+
+          {/* Mobile card list */}
+          {loading ? (
+            <div style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+              {t('common.loading')}
+            </div>
+          ) : members.length === 0 ? (
+            <div data-testid="members-empty-state" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+              {t('members.noMembers')}
+            </div>
+          ) : (
+            <div data-testid="members-mobile-cards" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {members.map((member) => (
+                <div
+                  key={member.id}
+                  data-testid={`member-card-${member.id}`}
+                  style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: '10px',
+                    padding: '14px 16px',
+                  }}
+                >
+                  {/* Row 1: toggle + name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                    <Toggle
+                      enabled={member.is_active}
+                      onChange={() => handleStatusToggle(member)}
+                      size="small"
+                      testId={`members-status-toggle-${member.id}`}
+                    />
+                    <span style={{ flex: 1, fontWeight: 600, color: theme.colors.text.primary, fontSize: '14px' }}>
+                      {member.first_name} {member.last_name}
+                    </span>
+                  </div>
+                  {/* Row 2: SEPA + Card info */}
+                  <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '6px' }}>
+                    <span>
+                      SEPA: {member.iban ? (
+                        <span style={{ color: theme.colors.semantic.success }}>{t('members.sepaValid', 'Valid')}</span>
+                      ) : (
+                        <span style={{ color: theme.colors.text.muted }}>{t('members.sepaMissing', 'Missing')}</span>
+                      )}
+                    </span>
+                    {member.card_uid && <span>Card: {member.card_uid}</span>}
+                  </div>
+                  {/* Row 3: member since */}
+                  <div style={{ fontSize: '12px', color: theme.colors.text.muted, marginBottom: '10px' }}>
+                    {t('members.memberSince', 'Since')}: {formatters.formatDate(member.created_at.split('T')[0])}
+                  </div>
+                  {/* Row 4: actions */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                    <button
+                      data-testid={`member-edit-${member.id}`}
+                      onClick={() => handleEdit(member)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '4px',
+                        padding: '6px 12px', borderRadius: '6px', border: 'none',
+                        background: 'rgba(59,130,246,0.1)', color: theme.colors.semantic.primary,
+                        fontSize: '12px', cursor: 'pointer',
+                      }}
+                    >
+                      <EditIcon size={14} /> {t('common.edit')}
+                    </button>
+                    <button
+                      data-testid={`member-delete-${member.id}`}
+                      onClick={() => setDeleteConfirm(member.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '4px',
+                        padding: '6px 12px', borderRadius: '6px', border: 'none',
+                        background: 'rgba(239,68,68,0.1)', color: theme.colors.semantic.danger,
+                        fontSize: '12px', cursor: 'pointer',
+                      }}
+                    >
+                      <TrashIcon size={14} /> {t('common.delete')}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pagination (mobile) */}
+          {!loading && members.length > 0 && (
+            <PaginationToolbar
+              currentPage={page}
+              totalPages={Math.ceil(totalMembers / 20)}
+              totalItems={totalMembers}
+              pageSize={20}
+              onPageChange={setPage}
+              onPageSizeChange={() => {}}
+              variant="default"
+              showPageSize={false}
+              showInfo={true}
+              testId="members-pagination"
+            />
+          )}
+        </>
+      ) : (
+        <>
       {/* Unified filter toolbar */}
       <div
         style={{
@@ -874,6 +1092,8 @@ export function MembersPage() {
             testId="members-pagination"
           />
         )}
+        </>
+      )}
 
       {/* Create/Edit Modal */}
       {showModal && (
@@ -944,7 +1164,7 @@ export function MembersPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
+            <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.firstName')} *
