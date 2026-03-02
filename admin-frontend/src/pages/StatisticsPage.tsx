@@ -51,7 +51,7 @@ export function StatisticsPage() {
   const { t, i18n } = useTranslation()
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
-  const isMobile = breakpoint === 'mobile'
+  const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
