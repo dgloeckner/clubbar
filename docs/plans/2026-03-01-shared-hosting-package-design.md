@@ -19,12 +19,12 @@
 
 ## Release Artifact
 
-Single ZIP file attached to each GitHub Release: `ruderbar-v1.0.0.zip`
+Single ZIP file attached to each GitHub Release: `clubbar-v1.0.0.zip`
 
 ### Directory Structure
 
 ```
-ruderbar-v1.0.0/
+clubbar-v1.0.0/
 ├── api/                      # Slim 4 backend
 │   ├── src/                  # Application code
 │   ├── db/                   # Migrations + MigrationRunner
@@ -129,7 +129,7 @@ return [
     'db' => [
         'host' => 'localhost',
         'port' => 3306,
-        'name' => 'ruderbar',
+        'name' => 'clubbar',
         'user' => '',
         'pass' => '',
     ],
@@ -205,7 +205,7 @@ cp package/config.sample.php "$DIST/"
 cp package/README.txt "$DIST/"
 
 # ZIP
-cd dist && zip -r "ruderbar-${VERSION}.zip" package/
+cd dist && zip -r "clubbar-${VERSION}.zip" package/
 ```
 
 ### New Repo Directory
@@ -301,7 +301,7 @@ sleep 5 && curl -s http://localhost:8080/install.php?step=1 | head -5
 
 # 4. Reset database for a fresh install test
 docker compose exec database mariadb -uroot -proot -e \
-  "DROP DATABASE IF EXISTS ruderbar; CREATE DATABASE ruderbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON ruderbar.* TO 'ruderbar'@'%';"
+  "DROP DATABASE IF EXISTS clubbar; CREATE DATABASE clubbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON clubbar.* TO 'clubbar'@'%';"
 
 # 5. Run automated smoke tests (install wizard + API routing + SPA serving)
 cd e2etests && PACKAGE_TEST=1 npx playwright test --project=package-tests --workers=1

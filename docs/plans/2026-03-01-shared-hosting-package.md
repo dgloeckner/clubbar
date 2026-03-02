@@ -213,7 +213,7 @@ if (str_starts_with($path, '/api/')) {
 <?php
 
 /**
- * Ruderbar Configuration
+ * Club Bar Configuration
  *
  * Copy this file to config.php and fill in your database credentials.
  * Or use the web installer: visit /install.php in your browser.
@@ -222,7 +222,7 @@ return [
     'db' => [
         'host' => 'localhost',
         'port' => 3306,
-        'name' => 'ruderbar',
+        'name' => 'clubbar',
         'user' => '',
         'pass' => '',
     ],
@@ -244,7 +244,7 @@ return [
 **Step 4: Create `package/README.txt`**
 
 ```
-Ruderbar - Member-Managed Bar/Club POS System
+Club Bar - Member-Managed Bar/Club POS System
 ==============================================
 
 Installation:
@@ -264,7 +264,7 @@ Updating:
 2. Upload and overwrite all files (config.php is preserved)
 3. Visit /install.php — enter your admin password to run pending migrations
 
-More info: https://github.com/[org]/ruderbar
+More info: https://github.com/[org]/clubbar
 ```
 
 **Step 5: Commit**
@@ -299,7 +299,7 @@ This is a longer file. Key sections:
 declare(strict_types=1);
 
 /**
- * Ruderbar Installation Wizard
+ * Club Bar Installation Wizard
  *
  * Steps:
  * 1. Prerequisites check (PHP version, extensions, writable dirs)
@@ -507,15 +507,15 @@ function showAlreadyInstalled(): void
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Ruderbar - Already Installed</title>
+        <title>Club Bar - Already Installed</title>
         <style><?php echo getStyles(); ?></style>
     </head>
     <body>
         <div class="container">
-            <h1>Ruderbar</h1>
+            <h1>Club Bar</h1>
             <div class="card">
                 <h2>Already Installed</h2>
-                <p>Ruderbar is already installed. <a href="/">Go to admin panel</a></p>
+                <p>Club Bar is already installed. <a href="/">Go to admin panel</a></p>
                 <hr>
                 <p><small>Need to run database migrations after an update? <a href="?update=1">Run updater</a></small></p>
             </div>
@@ -527,7 +527,7 @@ function showAlreadyInstalled(): void
 
 function renderPage(string $step, ?string $error, bool $isUpdate): void
 {
-    $title = $isUpdate ? 'Ruderbar Update' : 'Ruderbar Installation';
+    $title = $isUpdate ? 'Club Bar Update' : 'Club Bar Installation';
     ?>
     <!DOCTYPE html>
     <html lang="en">
@@ -685,7 +685,7 @@ function renderStep5(): void
 {
     ?>
     <h2>Installation Complete!</h2>
-    <p>Ruderbar has been installed successfully.</p>
+    <p>Club Bar has been installed successfully.</p>
     <a href="/" class="btn">Go to Admin Panel</a>
     <?php
 }
@@ -755,7 +755,7 @@ DIST="dist/package"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-echo "=== Building Ruderbar package v${VERSION} ==="
+echo "=== Building Club Bar package v${VERSION} ==="
 
 # Clean
 rm -rf "$PROJECT_ROOT/dist"
@@ -796,12 +796,12 @@ cp "$PROJECT_ROOT/package/README.txt" "$PROJECT_ROOT/$DIST/"
 # --- ZIP ---
 echo "Creating ZIP archive..."
 cd "$PROJECT_ROOT/dist"
-zip -r "ruderbar-${VERSION}.zip" package/ -q
+zip -r "clubbar-${VERSION}.zip" package/ -q
 
 echo ""
 echo "=== Build complete ==="
-echo "Archive: dist/ruderbar-${VERSION}.zip"
-echo "Size: $(du -h "ruderbar-${VERSION}.zip" | cut -f1)"
+echo "Archive: dist/clubbar-${VERSION}.zip"
+echo "Size: $(du -h "clubbar-${VERSION}.zip" | cut -f1)"
 ```
 
 **Step 2: Make executable and add dist/ to .gitignore**
@@ -821,7 +821,7 @@ echo "dist/" >> .gitignore
 ./scripts/build-package.sh test
 ```
 
-Expected: Script completes, `dist/ruderbar-test.zip` created.
+Expected: Script completes, `dist/clubbar-test.zip` created.
 
 **Step 4: Commit**
 
@@ -876,7 +876,7 @@ Expected: HTML response with the prerequisites check page.
 ```bash
 # Step 2: Set DB credentials (POST)
 curl -X POST 'http://localhost:8080/install.php?step=2' \
-  -d 'step=2&db_host=database&db_port=3306&db_name=ruderbar&db_user=ruderbar&db_pass=ruderbar' \
+  -d 'step=2&db_host=database&db_port=3306&db_name=clubbar&db_user=clubbar&db_pass=clubbar' \
   -v 2>&1 | grep "Location"
 # Expected: Location: ?step=3
 
@@ -960,9 +960,9 @@ test.describe('Package: Install Wizard', () => {
         step: '2',
         db_host: 'database',
         db_port: '3306',
-        db_name: 'ruderbar',
-        db_user: 'ruderbar',
-        db_pass: 'ruderbar',
+        db_name: 'clubbar',
+        db_user: 'clubbar',
+        db_pass: 'clubbar',
       },
       maxRedirects: 0,
     });
@@ -1051,7 +1051,7 @@ docker compose -f docker-compose.yml -f docker-compose.package.yml up -d
 sleep 3
 
 # Drop DB to test fresh install
-docker compose exec database mysql -uroot -proot -e "DROP DATABASE IF EXISTS ruderbar; CREATE DATABASE ruderbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON ruderbar.* TO 'ruderbar'@'%';"
+docker compose exec database mysql -uroot -proot -e "DROP DATABASE IF EXISTS clubbar; CREATE DATABASE clubbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON clubbar.* TO 'clubbar'@'%';"
 
 # Run package smoke tests
 cd e2etests && PACKAGE_TEST=1 npm test -- tests/package/package-smoke.spec.ts --workers=1
@@ -1150,7 +1150,7 @@ Add this job to the `jobs:` section in `build.yaml`, after the existing jobs:
         run: |
           # Step 2: DB credentials
           curl -X POST 'http://localhost:8080/install.php?step=2' \
-            -d 'step=2&db_host=database&db_port=3306&db_name=ruderbar&db_user=ruderbar&db_pass=ruderbar' \
+            -d 'step=2&db_host=database&db_port=3306&db_name=clubbar&db_user=clubbar&db_pass=clubbar' \
             -sf -o /dev/null -w '%{http_code}' | grep -q 302
 
           # Step 3: Migrations
@@ -1192,20 +1192,20 @@ Add this job to the `jobs:` section in `build.yaml`, after the existing jobs:
           retention-days: 14
 
       - name: Create package ZIP
-        run: cd dist && zip -r ruderbar-package.zip package/ -q
+        run: cd dist && zip -r clubbar-package.zip package/ -q
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ruderbar-package
-          path: dist/ruderbar-package.zip
+          name: clubbar-package
+          path: dist/clubbar-package.zip
           retention-days: 30
 
       - name: Upload to GitHub Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/ruderbar-package.zip
+          files: dist/clubbar-package.zip
 ```
 
 **Step 2: Verify YAML is valid**

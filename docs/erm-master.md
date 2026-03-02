@@ -1,6 +1,6 @@
 # Master Database Entity-Relationship Model (MariaDB)
 
-This document defines the complete data model for the Ruderbar backend database.
+This document defines the complete data model for the Club Bar backend database.
 
 ---
 

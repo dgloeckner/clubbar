@@ -66,7 +66,7 @@ Expected output: "Migration completed successfully"
 **Step 3: Verify migration**
 
 ```bash
-docker compose exec database mysql -u root -proot ruderbar -e "DESCRIBE products;"
+docker compose exec database mysql -u root -proot clubbar -e "DESCRIBE products;"
 ```
 
 Expected: Column `requires_dispenser` present (TINYINT(1), default 0)
@@ -398,7 +398,7 @@ The DTO already includes `requires_dispenser` from Task 1.2, so no code changes 
 
 ```bash
 # Seed a product with requires_dispenser = 1
-docker compose exec database mysql -u root -proot ruderbar -e \
+docker compose exec database mysql -u root -proot clubbar -e \
   "INSERT INTO products (id, category_id, names, price_cents, is_active, requires_dispenser)
    VALUES ('test-token', 'cat-uuid', '{\"de\": \"Token\"}', 300, 1, 1);"
 
@@ -470,7 +470,7 @@ Expected: "Migration completed successfully"
 **Step 3: Verify**
 
 ```bash
-docker compose exec database mysql -u root -proot ruderbar -e "DESCRIBE transactions;"
+docker compose exec database mysql -u root -proot clubbar -e "DESCRIBE transactions;"
 ```
 
 Expected: Columns `dispenser_tx_id`, `dispenser_requested`, `dispenser_actual` present
@@ -949,7 +949,7 @@ _database = await openDatabase(
 ```bash
 cd terminal-frontend
 # Delete old database
-rm -rf build/macos/Build/Products/Debug/ruderbar_terminal.app/Contents/Frameworks/App.framework/Resources/flutter_assets/database.db
+rm -rf build/macos/Build/Products/Debug/clubbar_terminal.app/Contents/Frameworks/App.framework/Resources/flutter_assets/database.db
 flutter run
 ```
 
