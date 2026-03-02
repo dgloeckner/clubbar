@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
 
 class MemberDetailsScreen extends StatelessWidget {
   const MemberDetailsScreen({super.key});

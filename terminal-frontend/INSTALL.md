@@ -1,6 +1,6 @@
-# Ruderbar Terminal — Installation Guide
+# Club Bar Terminal — Installation Guide
 
-This guide covers deploying the Ruderbar terminal app on a Raspberry Pi running
+This guide covers deploying the Club Bar terminal app on a Raspberry Pi running
 Raspberry Pi OS (Bookworm). The terminal is a Flutter desktop app targeting
 embedded Linux, typically running fullscreen on a touchscreen display.
 
@@ -12,7 +12,7 @@ embedded Linux, typically running fullscreen on a touchscreen display.
 - Raspberry Pi OS Bookworm (64-bit, desktop)
 - Official Raspberry Pi touchscreen, or any HDMI touchscreen
 - RFID/NFC USB reader (keyboard-emulation mode)
-- Network access to the Ruderbar backend
+- Network access to the Club Bar backend
 
 ---
 
@@ -31,7 +31,7 @@ flutter build linux --release
 
 ### Downloading from Github
 
-You can download arm64 builds from https://github.com/dgloeckner/ruderbar.
+You can download arm64 builds from https://github.com/dgloeckner/clubbar.
 Development builds can be found in each CI build run.
 
 ## 1. Build and install the Flutter app
@@ -39,19 +39,19 @@ Development builds can be found in each CI build run.
 Copy the app to the Pi:
 
 ```bash
-rsync -av build/linux/x64/release/bundle/ pi@<PI_IP>:/opt/ruderbar-terminal/
+rsync -av build/linux/x64/release/bundle/ pi@<PI_IP>:/opt/clubbar-terminal/
 ```
 
 On the Pi, make the binary executable:
 
 ```bash
-chmod +x /opt/ruderbar-terminal/ruderbar_terminal
+chmod +x /opt/clubbar-terminal/clubbar_terminal
 ```
 
 To launch manually and verify it works:
 
 ```bash
-DISPLAY=:0 /opt/ruderbar-terminal/ruderbar_terminal
+DISPLAY=:0 /opt/clubbar-terminal/clubbar_terminal
 ```
 
 ---
@@ -59,7 +59,7 @@ DISPLAY=:0 /opt/ruderbar-terminal/ruderbar_terminal
 ## 2. Disable the on-screen keyboard
 
 Raspberry Pi OS Bookworm ships with **squeekboard**, a Wayland on-screen
-keyboard that pops up automatically when a text field is focused. The Ruderbar
+keyboard that pops up automatically when a text field is focused. The Club Bar
 terminal is a point-and-click kiosk — the setup screen is filled in once during
 commissioning using a physical keyboard, so the on-screen keyboard is never
 needed and just gets in the way.
@@ -117,7 +117,7 @@ groups | grep input
 ### Test it manually
 
 ```bash
-python3 /opt/ruderbar-terminal/scripts/screen-idle.py
+python3 /opt/clubbar-terminal/scripts/screen-idle.py
 ```
 
 Leave the screen untouched for 5 minutes — the black overlay should appear.
@@ -137,13 +137,13 @@ Create the autostart directory if it doesn't exist:
 mkdir -p ~/.config/autostart
 ```
 
-Create `~/.config/autostart/ruderbar-screen-idle.desktop`:
+Create `~/.config/autostart/clubbar-screen-idle.desktop`:
 
 ```ini
 [Desktop Entry]
 Type=Application
-Name=Ruderbar Screen Idle Monitor
-Exec=python3 /opt/ruderbar-terminal/scripts/screen-idle.py
+Name=Club Bar Screen Idle Monitor
+Exec=python3 /opt/clubbar-terminal/scripts/screen-idle.py
 Hidden=false
 X-GNOME-Autostart-enabled=true
 ```
@@ -162,13 +162,13 @@ You should see `screen-idle.py` in the output.
 
 ## 4. Autostart the terminal app
 
-Create `~/.config/autostart/ruderbar-terminal.desktop`:
+Create `~/.config/autostart/clubbar-terminal.desktop`:
 
 ```ini
 [Desktop Entry]
 Type=Application
-Name=Ruderbar Terminal
-Exec=env GST_AUDIO_SINK=alsasink /opt/ruderbar-terminal/ruderbar_terminal
+Name=Club Bar Terminal
+Exec=env GST_AUDIO_SINK=alsasink /opt/clubbar-terminal/clubbar_terminal
 Hidden=false
 X-GNOME-Autostart-enabled=true
 ```
@@ -183,7 +183,7 @@ To run the app fullscreen (recommended for production kiosk deployments), add
 
 ```json
 {
-  "terminalId": "Ruderbar-Kühlschrank",
+  "terminalId": "Club Bar-Kühlschrank",
   "apiUrl": "https://club.example.com/api",
   "apiToken": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
   "fullscreen": true
@@ -196,8 +196,8 @@ Alternatively, set the environment variable `TERMINAL_FULLSCREEN=true` in the
 ```ini
 [Desktop Entry]
 Type=Application
-Name=Ruderbar Terminal
-Exec=env TERMINAL_FULLSCREEN=true /opt/ruderbar-terminal/ruderbar_terminal
+Name=Club Bar Terminal
+Exec=env TERMINAL_FULLSCREEN=true /opt/clubbar-terminal/clubbar_terminal
 Hidden=false
 X-GNOME-Autostart-enabled=true
 ```
@@ -214,16 +214,16 @@ platform-specific and resolved automatically by the app:
 
 | Platform | Path |
 |----------|------|
-| Linux | `~/.local/share/ruderbar_terminal/config.json` |
-| macOS | `~/Library/Containers/com.example.ruderbar_terminal/Data/Library/Application Support/com.example.ruderbar_terminal/config.json` |
-| Windows | `%APPDATA%\com.example.ruderbar_terminal\config.json` |
+| Linux | `~/.local/share/clubbar_terminal/config.json` |
+| macOS | `~/Library/Containers/com.example.clubbar_terminal/Data/Library/Application Support/com.example.clubbar_terminal/config.json` |
+| Windows | `%APPDATA%\com.example.clubbar_terminal\config.json` |
 
 Every key is optional except `terminalId`, `apiUrl`, and `apiToken` (required
 for the app to connect). Omitted keys fall back to the defaults shown below.
 
 ```json
 {
-  "terminalId": "Ruderbar-Kühlschrank",
+  "terminalId": "Club Bar-Kühlschrank",
   "apiUrl": "https://club.example.com/api",
   "apiToken": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
 
@@ -256,7 +256,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `terminalId` | string | — | Human-readable terminal name (shown in admin panel). Alphanumeric, hyphens, underscores, spaces; 1–50 chars. |
-| `apiUrl` | string | — | Base URL of the Ruderbar backend API, e.g. `https://club.example.com/api`. No trailing slash. |
+| `apiUrl` | string | — | Base URL of the Club Bar backend API, e.g. `https://club.example.com/api`. No trailing slash. |
 | `apiToken` | string | — | 64-character hex device token generated in the Admin Panel under *Terminals*. Stored with `chmod 600`. |
 | `fullscreen` | bool | `false` | Run the app fullscreen / kiosk mode on startup. Recommended for production deployments. |
 | `soundsEnabled` | bool | `false` | Enable audio feedback sounds. Natural/warm UI sounds at key interactions. |
@@ -308,7 +308,7 @@ three required fields:
 
 ```json
 {
-  "terminalId": "Ruderbar-Kühlschrank",
+  "terminalId": "Club Bar-Kühlschrank",
   "apiUrl":     "https://club.example.com/api",
   "apiToken":   "<64-char hex token from admin panel>"
 }

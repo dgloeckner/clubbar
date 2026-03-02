@@ -1,27 +1,27 @@
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
 
-class RuderbarHeader extends StatefulWidget implements PreferredSizeWidget {
+class ClubBarHeader extends StatefulWidget implements PreferredSizeWidget {
   final ConnectionStatus connectionStatus;
   final VoidCallback? onStatusTap;
 
-  const RuderbarHeader({
+  const ClubBarHeader({
     required this.connectionStatus,
     this.onStatusTap,
     super.key,
   });
 
   @override
-  State<RuderbarHeader> createState() => _RuderbarHeaderState();
+  State<ClubBarHeader> createState() => _ClubBarHeaderState();
 
   @override
   Size get preferredSize => const Size.fromHeight(56);
 }
 
-class _RuderbarHeaderState extends State<RuderbarHeader> {
+class _ClubBarHeaderState extends State<ClubBarHeader> {
   late DateTime _currentTime;
   Timer? _timer;
 
@@ -93,9 +93,9 @@ class _RuderbarHeaderState extends State<RuderbarHeader> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Left: Ruderbar title
+          // Left: Club Bar title
           Text(
-            'Ruderbar',
+            'Club Bar',
             style: TextStyle(
               color: Color(0xfff1f5f9),
               fontSize: AppFontSizes.xxl,

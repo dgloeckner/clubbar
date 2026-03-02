@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/services/dispenser_health_service.dart';
-import 'package:ruderbar_terminal/services/dispenser_client.dart';
-import 'package:ruderbar_terminal/services/config_service.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/services/dispenser_health_service.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 void showStatusInfoModal(BuildContext context) {
   try {
@@ -32,9 +32,9 @@ void showStatusInfoModal(BuildContext context) {
     }
 
     // Get local database for pending dispenser operations
-    RuderbarDatabase? database;
+    ClubBarDatabase? database;
     try {
-      database = context.read<RuderbarDatabase>();
+      database = context.read<ClubBarDatabase>();
     } catch (_) {
       // Database not available
     }
@@ -82,7 +82,7 @@ class _StatusInfoDialog extends StatefulWidget {
   final DispenserHealth? dispenserHealth;
   final String? backendUrl;
   final String? dispenserUrl;
-  final RuderbarDatabase? database;
+  final ClubBarDatabase? database;
 
   const _StatusInfoDialog({
     required this.connectionStatus,

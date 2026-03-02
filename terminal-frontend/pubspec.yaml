@@ -1,5 +1,5 @@
-name: ruderbar_terminal
-description: "Native Flutter POS terminal for Ruderbar club bar system."
+name: clubbar_terminal
+description: "Native Flutter POS terminal for Club Bar system."
 publish_to: 'none'
 
 version: 1.0.0+1

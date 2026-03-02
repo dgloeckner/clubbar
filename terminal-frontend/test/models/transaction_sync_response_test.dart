@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/models/transaction_sync_response.dart';
+import 'package:clubbar_terminal/models/transaction_sync_response.dart';
 
 void main() {
   group('TransactionSyncResponse', () {

@@ -11,13 +11,13 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}🔄 Resetting Ruderbar Terminal database...${NC}\n"
+echo -e "${YELLOW}🔄 Resetting Club Bar Terminal database...${NC}\n"
 
 # macOS - App container path
-MACOS_DB_PATH="$HOME/Library/Containers/com.example.ruderbarTerminal/Data/Library/Application Support/com.example.ruderbarTerminal/ruderbar_terminal.db"
+MACOS_DB_PATH="$HOME/Library/Containers/com.example.clubbarTerminal/Data/Library/Application Support/com.example.clubbarTerminal/clubbar_terminal.db"
 
 # Linux - typical Flutter app cache location
-LINUX_DB_PATH="$HOME/.local/share/ruderbar_terminal/ruderbar_terminal.db"
+LINUX_DB_PATH="$HOME/.local/share/clubbar_terminal/clubbar_terminal.db"
 
 # Detect OS and remove database
 if [[ "$OSTYPE" == "darwin"* ]]; then

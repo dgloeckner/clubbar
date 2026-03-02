@@ -6,39 +6,39 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/config/app_config.dart';
-import 'package:ruderbar_terminal/config/app_router.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/providers/auth_provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/providers/rfid_provider.dart';
-import 'package:ruderbar_terminal/providers/locale_provider.dart';
-import 'package:ruderbar_terminal/repository/members_repository.dart';
-import 'package:ruderbar_terminal/repository/products_repository.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
-import 'package:ruderbar_terminal/repository/sync_repository.dart';
-import 'package:ruderbar_terminal/services/network_service.dart';
-import 'package:ruderbar_terminal/services/members_service.dart';
-import 'package:ruderbar_terminal/services/products_service.dart';
-import 'package:ruderbar_terminal/services/cart_service.dart';
-import 'package:ruderbar_terminal/services/sync_service.dart';
-import 'package:ruderbar_terminal/services/config_service.dart';
-import 'package:ruderbar_terminal/services/sound_service.dart';
-import 'package:ruderbar_terminal/services/dispenser_client.dart';
-import 'package:ruderbar_terminal/services/dispenser_recovery_service.dart';
-import 'package:ruderbar_terminal/services/dispenser_health_service.dart';
-import 'package:ruderbar_terminal/services/error_file_output.dart';
-import 'package:ruderbar_terminal/models/category_dto.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/config/app_config.dart';
+import 'package:clubbar_terminal/config/app_router.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/providers/auth_provider.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/providers/locale_provider.dart';
+import 'package:clubbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/repository/products_repository.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/repository/sync_repository.dart';
+import 'package:clubbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/services/members_service.dart';
+import 'package:clubbar_terminal/services/products_service.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/services/sync_service.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/services/dispenser_recovery_service.dart';
+import 'package:clubbar_terminal/services/dispenser_health_service.dart';
+import 'package:clubbar_terminal/services/error_file_output.dart';
+import 'package:clubbar_terminal/models/category_dto.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 /// Seed database with mock categories and products for development
-Future<void> _seedMockData(RuderbarDatabase database) async {
+Future<void> _seedMockData(ClubBarDatabase database) async {
   try {
     // Create repositories
     final productsRepo = ProductsRepository(database);
@@ -198,7 +198,7 @@ void main() async {
   try {
     await configService.load();
   } on ConfigParseException catch (e) {
-    stderr.writeln('ruderbar-terminal: configuration invalid');
+    stderr.writeln('clubbar-terminal: configuration invalid');
     stderr.writeln('');
     stderr.writeln(e.message);
     stderr.writeln('');
@@ -213,14 +213,14 @@ void main() async {
 
   if (!configService.isConfigured) {
     final path = await configService.getConfigFilePath();
-    stderr.writeln('ruderbar-terminal: configuration missing');
+    stderr.writeln('clubbar-terminal: configuration missing');
     stderr.writeln('');
     stderr.writeln('Create a config.json file at:');
     stderr.writeln('  $path');
     stderr.writeln('');
     stderr.writeln('Minimal example:');
     stderr.writeln('  {');
-    stderr.writeln('    "terminalId": "Ruderbar-Kühlschrank",');
+    stderr.writeln('    "terminalId": "Club-Bar-Kühlschrank",');
     stderr.writeln('    "apiUrl":     "https://club.example.com/api",');
     stderr.writeln('    "apiToken":   "<64-char hex token from admin panel>"');
     stderr.writeln('  }');
@@ -255,7 +255,7 @@ void main() async {
   );
 
   // Initialize database
-  final database = RuderbarDatabase();
+  final database = ClubBarDatabase();
 
   // Seed database with mock data (only when explicitly enabled)
   if (configService.seedTestData) {
@@ -343,7 +343,7 @@ void main() async {
     networkService: networkService,
   );
 
-  runApp(RuderbarTerminalApp(
+  runApp(ClubBarTerminalApp(
     database: database,
     localeProvider: localeProvider,
     membersProvider: membersProvider,
@@ -376,8 +376,8 @@ class _KioskScrollBehavior extends MaterialScrollBehavior {
       const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
 }
 
-class RuderbarTerminalApp extends StatelessWidget {
-  final RuderbarDatabase database;
+class ClubBarTerminalApp extends StatelessWidget {
+  final ClubBarDatabase database;
   final LocaleProvider localeProvider;
   final MembersProvider membersProvider;
   final ProductsProvider productsProvider;
@@ -391,7 +391,7 @@ class RuderbarTerminalApp extends StatelessWidget {
   final DispenserHealthService? dispenserHealthService;
   final DispenserRecoveryService? dispenserRecoveryService;
 
-  const RuderbarTerminalApp({
+  const ClubBarTerminalApp({
     super.key,
     required this.database,
     required this.localeProvider,
@@ -412,7 +412,7 @@ class RuderbarTerminalApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<RuderbarDatabase>.value(value: database),
+        Provider<ClubBarDatabase>.value(value: database),
         Provider<NetworkService>.value(value: networkService),
         Provider<ConfigService>.value(value: configService),
         Provider<SoundService>.value(value: soundService),

@@ -3,16 +3,16 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/config/app_config.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/models/sync_response.dart';
-import 'package:ruderbar_terminal/models/transaction_sync_response.dart';
-import 'package:ruderbar_terminal/repository/members_repository.dart';
-import 'package:ruderbar_terminal/repository/products_repository.dart';
-import 'package:ruderbar_terminal/repository/sync_repository.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
-import 'package:ruderbar_terminal/services/network_service.dart';
-import 'package:ruderbar_terminal/services/sync_service.dart';
+import 'package:clubbar_terminal/config/app_config.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/sync_response.dart';
+import 'package:clubbar_terminal/models/transaction_sync_response.dart';
+import 'package:clubbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/repository/products_repository.dart';
+import 'package:clubbar_terminal/repository/sync_repository.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/services/sync_service.dart';
 
 // Mock classes
 class MockNetworkService extends Mock implements NetworkService {}

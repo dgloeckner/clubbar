@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/services/products_service.dart';
-import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/services/products_service.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 
 class ProductsProvider extends ChangeNotifier {
   final ProductsService _service;

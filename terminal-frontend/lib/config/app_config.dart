@@ -1,5 +1,5 @@
 class AppConfig {
-  static const String appName = 'Ruderbar Terminal';
+  static const String appName = 'Club Bar Terminal';
   static const String version = '0.1.0';
 
   // Display

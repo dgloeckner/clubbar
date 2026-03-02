@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/screens/idle_waiting_screen.dart';
-import 'package:ruderbar_terminal/screens/product_selection_screen.dart';
-import 'package:ruderbar_terminal/screens/member_details_screen.dart';
-import 'package:ruderbar_terminal/screens/shopping_cart_screen.dart';
-import 'package:ruderbar_terminal/screens/checkout_confirmation_screen.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/widgets/main_layout.dart';
+import 'package:clubbar_terminal/screens/idle_waiting_screen.dart';
+import 'package:clubbar_terminal/screens/product_selection_screen.dart';
+import 'package:clubbar_terminal/screens/member_details_screen.dart';
+import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
+import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/widgets/main_layout.dart';
 
 // Create router with dynamic redirect based on member selection state
 GoRouter createAppRouter(BuildContext context, {configService}) {

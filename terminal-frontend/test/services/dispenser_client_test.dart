@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:ruderbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
 
 class MockHttpClient extends Mock implements http.Client {}
 

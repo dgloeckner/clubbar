@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/services/members_service.dart';
-import 'package:ruderbar_terminal/providers/locale_provider.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/services/members_service.dart';
+import 'package:clubbar_terminal/providers/locale_provider.dart';
 
 class MembersProvider extends ChangeNotifier {
   final MembersService _service;

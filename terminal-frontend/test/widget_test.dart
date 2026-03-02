@@ -8,20 +8,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/providers/locale_provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/repository/members_repository.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
-import 'package:ruderbar_terminal/services/cart_service.dart';
-import 'package:ruderbar_terminal/services/config_service.dart';
-import 'package:ruderbar_terminal/services/network_service.dart';
-import 'package:ruderbar_terminal/services/sound_service.dart';
-import 'package:ruderbar_terminal/main.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/providers/locale_provider.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/main.dart';
 
-class MockRuderbarDatabase extends Mock implements RuderbarDatabase {}
+class MockClubBarDatabase extends Mock implements ClubBarDatabase {}
 class MockLocaleProvider extends Mock implements LocaleProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
 class MockProductsProvider extends Mock implements ProductsProvider {}
@@ -35,7 +35,7 @@ class MockSoundService extends Mock implements SoundService {}
 
 void main() {
   testWidgets('App initializes with Material 3 theme', (WidgetTester tester) async {
-    final mockDatabase = MockRuderbarDatabase();
+    final mockDatabase = MockClubBarDatabase();
     final mockLocaleProvider = MockLocaleProvider();
     final mockMembersProvider = MockMembersProvider();
     final mockProductsProvider = MockProductsProvider();
@@ -54,7 +54,7 @@ void main() {
 
     // Build our app and trigger a frame.
     await tester.pumpWidget(
-      RuderbarTerminalApp(
+      ClubBarTerminalApp(
         database: mockDatabase,
         localeProvider: mockLocaleProvider,
         membersProvider: mockMembersProvider,
@@ -70,6 +70,6 @@ void main() {
     );
 
     // Verify the app instance exists (Material 3 theme is configured in main.dart)
-    expect(find.byType(RuderbarTerminalApp), findsOneWidget);
+    expect(find.byType(ClubBarTerminalApp), findsOneWidget);
   });
 }

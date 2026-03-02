@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 import '../database/database.dart';
 
 class SyncRepository {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
 
   SyncRepository(this._db);
 

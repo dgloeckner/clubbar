@@ -21,7 +21,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setupTitle => 'Terminal Setup';
 
   @override
-  String get setupSubtitle => 'Connect this terminal to the Ruderbar backend.';
+  String get setupSubtitle => 'Connect this terminal to the Club Bar backend.';
 
   @override
   String get terminalIdLabel => 'Terminal ID';

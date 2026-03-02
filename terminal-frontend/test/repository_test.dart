@@ -1,18 +1,18 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/models/category_dto.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/repository/members_repository.dart';
-import 'package:ruderbar_terminal/repository/products_repository.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
-import 'package:ruderbar_terminal/repository/sync_repository.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/category_dto.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/repository/products_repository.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/repository/sync_repository.dart';
 
 // Helper to create in-memory test database
-RuderbarDatabase createTestDatabase() {
-  return RuderbarDatabase.forTesting(
+ClubBarDatabase createTestDatabase() {
+  return ClubBarDatabase.forTesting(
     NativeDatabase.memory(setup: (db) {
       db.execute('PRAGMA foreign_keys = ON');
     }),
@@ -21,7 +21,7 @@ RuderbarDatabase createTestDatabase() {
 
 void main() {
   group('MembersRepository', () {
-    late RuderbarDatabase db;
+    late ClubBarDatabase db;
     late MembersRepository repo;
 
     setUp(() async {
@@ -234,7 +234,7 @@ void main() {
   });
 
   group('ProductsRepository', () {
-    late RuderbarDatabase db;
+    late ClubBarDatabase db;
     late ProductsRepository repo;
 
     setUp(() async {
@@ -478,7 +478,7 @@ void main() {
   });
 
   group('TransactionsRepository', () {
-    late RuderbarDatabase db;
+    late ClubBarDatabase db;
     late TransactionsRepository repo;
 
     Future<void> createTestMember(String memberId) async {
@@ -895,7 +895,7 @@ void main() {
   });
 
   group('SyncRepository', () {
-    late RuderbarDatabase db;
+    late ClubBarDatabase db;
     late SyncRepository repo;
 
     setUp(() async {

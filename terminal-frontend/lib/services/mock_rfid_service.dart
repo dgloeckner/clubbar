@@ -1,4 +1,4 @@
-import 'package:ruderbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
 
 class MockRfidService {
   // Single test member with full SEPA data

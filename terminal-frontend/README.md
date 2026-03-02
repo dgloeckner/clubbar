@@ -1,6 +1,6 @@
-# Ruderbar Terminal
+# Club Bar Terminal
 
-Flutter-based POS terminal for the Ruderbar club bar system. Supports offline-capable transaction processing with RFID/NFC member identification.
+Flutter-based POS terminal for the Club Bar club bar system. Supports offline-capable transaction processing with RFID/NFC member identification.
 
 ## Terminal Onboarding
 
@@ -14,7 +14,7 @@ Flutter-based POS terminal for the Ruderbar club bar system. Supports offline-ca
 
 1. Log in to the admin panel
 2. Navigate to **Terminals** > **Add Terminal**
-3. Enter a descriptive Terminal ID (e.g. `Ruderbar-Kühlschrank`)
+3. Enter a descriptive Terminal ID (e.g. `Club Bar-Kühlschrank`)
 4. The admin panel generates a 64-character hex API token (shown once)
 5. Copy the Terminal ID and API Token
 
@@ -22,7 +22,7 @@ Flutter-based POS terminal for the Ruderbar club bar system. Supports offline-ca
 
 On first launch, the terminal app shows a **Setup Screen**:
 
-1. **Terminal ID** - Enter the ID from step 1 (e.g. `Ruderbar-Kühlschrank`)
+1. **Terminal ID** - Enter the ID from step 1 (e.g. `Club Bar-Kühlschrank`)
 2. **API URL** - Enter the backend API URL (e.g. `https://club.example.com/api`)
 3. **API Token** - Paste the 64-character hex token
 4. Click **Save & Connect**
@@ -34,7 +34,7 @@ The app tests the connection via api endpoint. On success, config is saved and t
 For automated deployment or CI, set environment variables instead of using the setup screen:
 
 ```bash
-export TERMINAL_ID="Ruderbar-Kühlschrank"
+export TERMINAL_ID="Club Bar-Kühlschrank"
 export TERMINAL_API_URL="https://club.example.com/api"
 export TERMINAL_API_TOKEN="<64-char-hex-token>"
 ```
@@ -47,13 +47,13 @@ Create `config.json` at the platform-specific path:
 
 | Platform | Path |
 |----------|------|
-| macOS | `~/Library/Containers/com.example.ruderbarTerminal/Data/Library/Application Support/com.example.ruderbarTerminal/config.json` |
-| Linux | `~/.config/com.example.ruderbarTerminal/config.json` |
-| Windows | `%APPDATA%\com.example.ruderbarTerminal\config.json` |
+| macOS | `~/Library/Containers/com.example.clubbarTerminal/Data/Library/Application Support/com.example.clubbarTerminal/config.json` |
+| Linux | `~/.config/com.example.clubbarTerminal/config.json` |
+| Windows | `%APPDATA%\com.example.clubbarTerminal\config.json` |
 
 ```json
 {
-  "terminalId": "Ruderbar-Kühlschrank",
+  "terminalId": "Club Bar-Kühlschrank",
   "apiUrl": "https://club.example.com/api",
   "apiToken": "<64-char-hex-token>"
 }

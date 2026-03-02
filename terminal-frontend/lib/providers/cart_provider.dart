@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/services/cart_service.dart';
-import 'package:ruderbar_terminal/services/config_service.dart';
-import 'package:ruderbar_terminal/services/sound_service.dart';
-import 'package:ruderbar_terminal/services/dispenser_client.dart';
-import 'package:ruderbar_terminal/widgets/dispensing_progress_dialog.dart';
-import 'package:ruderbar_terminal/widgets/dispenser_error_dialog.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/widgets/dispensing_progress_dialog.dart';
+import 'package:clubbar_terminal/widgets/dispenser_error_dialog.dart';
 
 class CartProvider extends ChangeNotifier {
   final CartService _service;

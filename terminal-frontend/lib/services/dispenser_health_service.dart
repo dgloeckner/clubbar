@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:ruderbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
 
 /// Service for monitoring dispenser health status
 ///

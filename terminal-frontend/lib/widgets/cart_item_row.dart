@@ -1,6 +1,6 @@
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
 
 class CartItemRow extends StatelessWidget {
   final CartItem item;

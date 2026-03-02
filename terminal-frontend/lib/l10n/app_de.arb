@@ -20,7 +20,7 @@
   "@setupTitle": {
     "description": "Setup screen title"
   },
-  "setupSubtitle": "Verbinde dieses Terminal mit dem Ruderbar-Backend.",
+  "setupSubtitle": "Verbinde dieses Terminal mit dem Club Bar-Backend.",
   "@setupSubtitle": {
     "description": "Setup screen subtitle"
   },

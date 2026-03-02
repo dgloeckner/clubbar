@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 /// Error type for dispenser error dialog
 enum DispenserErrorType {

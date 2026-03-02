@@ -125,7 +125,7 @@ abstract class AppLocalizations {
   /// Setup screen subtitle
   ///
   /// In de, this message translates to:
-  /// **'Verbinde dieses Terminal mit dem Ruderbar-Backend.'**
+  /// **'Verbinde dieses Terminal mit dem Club Bar-Backend.'**
   String get setupSubtitle;
 
   /// Label for terminal ID field

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/services/mock_rfid_service.dart';
+import 'package:clubbar_terminal/services/mock_rfid_service.dart';
 
 void main() {
   group('MockRfidService', () {

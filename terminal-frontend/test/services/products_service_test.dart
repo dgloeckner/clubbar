@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'dart:convert';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/repository/products_repository.dart';
-import 'package:ruderbar_terminal/services/products_service.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/repository/products_repository.dart';
+import 'package:clubbar_terminal/services/products_service.dart';
 
 class MockProductsRepository extends Mock implements ProductsRepository {}
 

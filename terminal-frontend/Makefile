@@ -1,7 +1,7 @@
 .PHONY: help reset-db run test analyze clean
 
 help:
-	@echo "Ruderbar Terminal - Development Commands"
+	@echo "Club Bar Terminal - Development Commands"
 	@echo ""
 	@echo "Usage: make [command]"
 	@echo ""

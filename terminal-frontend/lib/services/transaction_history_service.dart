@@ -10,7 +10,7 @@ import '../database/database.dart';
 class TransactionHistoryService {
   final String baseUrl;
   final String authToken;
-  final RuderbarDatabase database;
+  final ClubBarDatabase database;
   final Logger _logger;
 
   TransactionHistoryService({

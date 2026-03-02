@@ -14,9 +14,9 @@ class ConfigParseException implements Exception {
 /// Manages terminal configuration (ADR-0019).
 ///
 /// Loads config from a JSON file at platform-specific path:
-/// - macOS: ~/Library/Containers/com.example.ruderbar_terminal/Data/Library/Application Support/com.example.ruderbar_terminal/config.json
-/// - Linux: ~/.local/share/com.example.ruderbar_terminal/config.json
-/// - Windows: %APPDATA%\com.example.ruderbar_terminal\config.json
+/// - macOS: ~/Library/Containers/com.example.clubbar_terminal/Data/Library/Application Support/com.example.clubbar_terminal/config.json
+/// - Linux: ~/.local/share/com.example.clubbar_terminal/config.json
+/// - Windows: %APPDATA%\com.example.clubbar_terminal\config.json
 ///
 /// Environment variables override file values:
 /// - TERMINAL_ID

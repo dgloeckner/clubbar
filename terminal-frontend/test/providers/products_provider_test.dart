@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'dart:convert';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/services/products_service.dart';
-import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/services/products_service.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 
 class MockProductsService extends Mock implements ProductsService {}
 class MockConfigService extends Mock implements ConfigService {}

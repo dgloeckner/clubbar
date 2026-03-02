@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 
 void main() {
   group('ConfigService', () {

@@ -6,7 +6,7 @@
   "demoScanCard": "Demo: Scan Token",
 
   "setupTitle": "Terminal Setup",
-  "setupSubtitle": "Connect this terminal to the Ruderbar backend.",
+  "setupSubtitle": "Connect this terminal to the Club Bar backend.",
   "terminalIdLabel": "Terminal ID",
   "terminalIdRequired": "Terminal ID is required",
   "apiUrlLabel": "API URL",

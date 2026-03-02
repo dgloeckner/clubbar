@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/icon_registry.dart';
 
 class CategoryChip extends StatelessWidget {
   final CategoriesCacheData category;
