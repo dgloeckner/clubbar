@@ -180,6 +180,12 @@ jobs:
           chmod -R 777 dist/package/backend/storage dist/package/backend/logs
           cp -r admin-frontend/dist/assets dist/package/assets
           cp admin-frontend/dist/index.html dist/package/spa.html
+          for f in admin-frontend/dist/*; do
+            fname="$(basename "$f")"
+            [ "$fname" = "assets" ] && continue
+            [ "$fname" = "index.html" ] && continue
+            cp -r "$f" "dist/package/$fname"
+          done
           cp package/index.php package/install.php package/.htaccess package/config.sample.php package/README.txt dist/package/
           chmod 777 dist/package/
 
