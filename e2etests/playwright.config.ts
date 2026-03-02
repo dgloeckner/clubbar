@@ -62,6 +62,18 @@ export default defineConfig({
       },
     },
 
+    // Admin Panel - Mobile (iPhone 14)
+    {
+      name: 'admin-mobile',
+      testDir: './tests/admin-mobile',
+      dependencies: ['setup auth'],
+      use: {
+        ...devices['iPhone 14'],
+        baseURL: process.env.ADMIN_URL || 'http://localhost:5173',
+        storageState: 'playwright/.auth/admin.json',
+      },
+    },
+
     // Terminal - Touch device simulation
     {
       name: 'terminal-touch',

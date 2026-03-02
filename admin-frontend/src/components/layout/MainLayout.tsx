@@ -172,6 +172,7 @@ export function MainLayout({ children }: MainLayoutProps) {
 
         {/* Nav Tabs */}
         <nav
+          data-testid="desktop-nav"
           style={{
             display: isMobile ? 'none' : 'flex',
             gap: theme.spacing.sm,
@@ -315,6 +316,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       {/* Footer */}
       {!isMobile && (
         <footer
+          data-testid="app-footer"
           style={{
             background: theme.colors.bg.secondary,
             borderTop: `1px solid ${theme.colors.border.light}`,
