@@ -9,7 +9,8 @@
     "settings": "Settings",
     "auditLog": "Audit Log",
     "profile": "Profile",
-    "logout": "Logout"
+    "logout": "Logout",
+    "more": "More"
   },
   "common": {
     "save": "Save",
@@ -160,7 +161,18 @@
     },
     "errors": {
       "cardUidInUse": "This card UID is already assigned to another member"
-    }
+    },
+    "sortName": "Name A–Z",
+    "sortNameDesc": "Name Z–A",
+    "sortCard": "Card-UID ↑",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "filterStatus": "Status",
+    "filterCard": "Card",
+    "filterWithCard": "With",
+    "filterWithoutCard": "Without",
+    "filterSepaValid": "Valid",
+    "filterSepaMissing": "Missing"
   },
   "products": {
     "title": "Products",
@@ -179,7 +191,13 @@
     "allCategories": "All Categories",
     "requiresDispenser": "Requires Physical Dispenser",
     "requiresDispenserHelp": "Check this if the product requires a physical token dispenser. Terminals without a configured dispenser will not show this product.",
-    "dispenserBadge": "Dispenser"
+    "dispenserBadge": "Dispenser",
+    "sortName": "Name A–Z",
+    "sortNameDesc": "Name Z–A",
+    "sortPriceLow": "Price ↑",
+    "sortPriceHigh": "Price ↓",
+    "sortCategory": "Category",
+    "sortNewest": "Newest first"
   },
   "categories": {
     "title": "Categories",
@@ -192,7 +210,10 @@
     "cannotDeleteWithProducts": "Cannot delete category with {{count}} products. Deactivate instead.",
     "categoryName": "Category Name",
     "productCount": "Products",
-    "noCategories": "No categories found"
+    "noCategories": "No categories found",
+    "sortName": "Name A–Z",
+    "sortNameDesc": "Name Z–A",
+    "sortNewest": "Newest first"
   },
   "journal": {
     "title": "Journal",
@@ -241,7 +262,15 @@
       "manual_adjustment": "Manual Adjustment",
       "settlement": "Settlement",
       "reversal": "Reversal"
-    }
+    },
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "sortMember": "Member A–Z",
+    "sortMemberDesc": "Member Z–A",
+    "sortAmountHigh": "Amount high–low",
+    "sortAmountLow": "Amount low–high",
+    "period": "Period",
+    "settlementStatus": "Settlement"
   },
   "settlements": {
     "title": "Settlements",
@@ -262,7 +291,9 @@
     "noSettlements": "No settlements found",
     "createdBy": "Created By",
     "summary": "Summary",
-    "undoConfirm": "Undo this settlement? All transactions will return to Open state."
+    "undoConfirm": "Undo this settlement? All transactions will return to Open state.",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first"
   },
   "statistics": {
     "title": "Statistics",

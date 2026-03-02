@@ -9,7 +9,8 @@
     "settings": "Einstellungen",
     "auditLog": "Audit-Log",
     "profile": "Profil",
-    "logout": "Abmelden"
+    "logout": "Abmelden",
+    "more": "Mehr"
   },
   "common": {
     "save": "Speichern",
@@ -160,7 +161,18 @@
     },
     "errors": {
       "cardUidInUse": "Diese Karten-UID ist bereits einem anderen Mitglied zugewiesen"
-    }
+    },
+    "sortName": "Name A–Z",
+    "sortNameDesc": "Name Z–A",
+    "sortCard": "Karten-UID ↑",
+    "sortNewest": "Neueste zuerst",
+    "sortOldest": "Älteste zuerst",
+    "filterStatus": "Status",
+    "filterCard": "Karte",
+    "filterWithCard": "Mit",
+    "filterWithoutCard": "Ohne",
+    "filterSepaValid": "Gültig",
+    "filterSepaMissing": "Fehlend"
   },
   "products": {
     "title": "Produkte",
@@ -179,7 +191,13 @@
     "allCategories": "Alle Kategorien",
     "requiresDispenser": "Benötigt physischen Ausgabeautomaten",
     "requiresDispenserHelp": "Aktivieren Sie diese Option, wenn das Produkt einen physischen Token-Ausgabeautomaten benötigt. Terminals ohne konfigurierten Ausgabeautomaten zeigen dieses Produkt nicht an.",
-    "dispenserBadge": "Ausgabeautomat"
+    "dispenserBadge": "Ausgabeautomat",
+    "sortName": "Name A–Z",
+    "sortNameDesc": "Name Z–A",
+    "sortPriceLow": "Preis ↑",
+    "sortPriceHigh": "Preis ↓",
+    "sortCategory": "Kategorie",
+    "sortNewest": "Neueste zuerst"
   },
   "categories": {
     "title": "Kategorien",
@@ -192,7 +210,10 @@
     "cannotDeleteWithProducts": "Kategorie mit {{count}} Produkten kann nicht gelöscht werden. Bitte stattdessen deaktivieren.",
     "categoryName": "Kategoriename",
     "productCount": "Produkte",
-    "noCategories": "Keine Kategorien gefunden"
+    "noCategories": "Keine Kategorien gefunden",
+    "sortName": "Name A–Z",
+    "sortNameDesc": "Name Z–A",
+    "sortNewest": "Neueste zuerst"
   },
   "journal": {
     "title": "Buchungsjournal",
@@ -241,7 +262,15 @@
       "manual_adjustment": "Manuelle Korrektur",
       "settlement": "Abrechnung",
       "reversal": "Storno"
-    }
+    },
+    "sortNewest": "Neueste zuerst",
+    "sortOldest": "Älteste zuerst",
+    "sortMember": "Mitglied A–Z",
+    "sortMemberDesc": "Mitglied Z–A",
+    "sortAmountHigh": "Betrag hoch–niedrig",
+    "sortAmountLow": "Betrag niedrig–hoch",
+    "period": "Zeitraum",
+    "settlementStatus": "Abrechnung"
   },
   "settlements": {
     "title": "Abrechnungen",
@@ -262,7 +291,9 @@
     "noSettlements": "Keine Abrechnungen gefunden",
     "createdBy": "Erstellt von",
     "summary": "Übersicht",
-    "undoConfirm": "Diese Abrechnung rückgängig machen? Alle Buchungen werden wieder auf offen gesetzt."
+    "undoConfirm": "Diese Abrechnung rückgängig machen? Alle Buchungen werden wieder auf offen gesetzt.",
+    "sortNewest": "Neueste zuerst",
+    "sortOldest": "Älteste zuerst"
   },
   "statistics": {
     "title": "Statistik",
