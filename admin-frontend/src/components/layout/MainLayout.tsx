@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useLoading } from '../../context/LoadingContext'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { LoadingIndicator } from '../common/LoadingIndicator'
+import { BottomTabBar } from './BottomTabBar'
 import {
   AuditLogIcon,
   UsersIcon,
@@ -172,7 +173,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         {/* Nav Tabs */}
         <nav
           style={{
-            display: 'flex',
+            display: isMobile ? 'none' : 'flex',
             gap: theme.spacing.sm,
             width: isMobile ? '100%' : 'auto',
             overflowX: isMobile ? 'auto' : 'visible',
@@ -302,6 +303,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         style={{
           flex: 1,
           padding: isMobile ? theme.spacing.lg : theme.spacing.xl,
+          paddingBottom: isMobile ? '72px' : undefined,
           maxWidth: '1400px',
           margin: '0 auto',
           width: '100%',
@@ -311,18 +313,22 @@ export function MainLayout({ children }: MainLayoutProps) {
       </main>
 
       {/* Footer */}
-      <footer
-        style={{
-          background: theme.colors.bg.secondary,
-          borderTop: `1px solid ${theme.colors.border.light}`,
-          padding: theme.spacing.lg,
-          textAlign: 'center',
-          fontSize: theme.typography.fontSize.xs,
-          color: theme.colors.text.secondary,
-        }}
-      >
-        Ruderbar Admin &copy; 2026 — Open Source POS System
-      </footer>
+      {!isMobile && (
+        <footer
+          style={{
+            background: theme.colors.bg.secondary,
+            borderTop: `1px solid ${theme.colors.border.light}`,
+            padding: theme.spacing.lg,
+            textAlign: 'center',
+            fontSize: theme.typography.fontSize.xs,
+            color: theme.colors.text.secondary,
+          }}
+        >
+          Ruderbar Admin &copy; 2026 — Open Source POS System
+        </footer>
+      )}
+
+      {isMobile && <BottomTabBar />}
     </div>
   )
 }
