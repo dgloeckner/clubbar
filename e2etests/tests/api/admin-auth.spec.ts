@@ -216,7 +216,7 @@ test.describe("Admin Authentication", () => {
     }) => {
       const response = await request.get(`${API_BASE}/auth/profile`, {
         headers: {
-          cookie: "ruderbar_session=invalid_session_id",
+          cookie: "clubbar_session=invalid_session_id",
         },
       });
 

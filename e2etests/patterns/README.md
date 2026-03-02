@@ -2,7 +2,7 @@
 
 This directory contains established patterns for writing robust, reliable E2E tests that scale with the test suite.
 
-**All patterns are derived from real issues encountered in the Ruderbar test suite and verified across 123+ passing tests.**
+**All patterns are derived from real issues encountered in the Club Bar test suite and verified across 123+ passing tests.**
 
 ---
 

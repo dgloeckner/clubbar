@@ -29,9 +29,9 @@ test.describe('Package: Install Wizard', () => {
         step: '2',
         db_host: 'database',
         db_port: '3306',
-        db_name: 'ruderbar',
-        db_user: 'ruderbar',
-        db_pass: 'ruderbar',
+        db_name: 'clubbar',
+        db_user: 'clubbar',
+        db_pass: 'clubbar',
       },
       maxRedirects: 0,
     });
