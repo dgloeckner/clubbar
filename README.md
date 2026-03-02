@@ -2,17 +2,17 @@
   <img src="artwork/clubbar-logo.svg" alt="Club Bar Logo" width="128" height="128">
 </p>
 
-<h1 align="center">Ruderbar</h1>
+<h1 align="center">Club Bar</h1>
 
 <p align="center">
   <strong>Open-source POS system for member-managed bars and clubs</strong>
 </p>
 
-Ruderbar is a complete point-of-sale solution designed for sports clubs, community centers, and member organizations that operate their own bar or canteen. Built with privacy, offline capability, and SEPA settlement in mind.
+Club Bar is a complete point-of-sale solution designed for sports clubs, community centers, and member organizations that operate their own bar or canteen. Built with privacy, offline capability, and SEPA settlement in mind.
 
 ---
 
-## Why Ruderbar?
+## Why Club Bar?
 
 | Challenge | Solution |
 |-----------|----------|
@@ -110,8 +110,8 @@ flowchart TB
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/ruderbar.git
-cd ruderbar
+git clone https://github.com/your-org/clubbar.git
+cd clubbar
 
 # Install backend dependencies
 cd backend && composer install && cd ..
@@ -170,6 +170,6 @@ License to be determined. See [LICENSE](./LICENSE) for details.
 
 ## Acknowledgments
 
-Built for rowing clubs and sports organizations that need a simple, privacy-respecting way to manage their bar.
+Built for sports clubs and member organizations that need a simple, privacy-respecting way to manage their bar.
 
-*"Ruderbar"* — Where rowing meets refreshments.
+*"Club Bar"* — Your members. Your bar. Your system.

@@ -1,12 +1,12 @@
 # AGENTS.md
 
-Agent-specific workflows and debugging patterns for the Ruderbar project.
+Agent-specific workflows and debugging patterns for the Club Bar project.
 
 ## Overview
 
 This document defines **project-specific agent workflows** that complement the superpowers skills. General workflows like TDD, brainstorming, planning, and systematic debugging are handled by superpowers skills - see the skill list in system reminders.
 
-**Purpose**: Document agent coordination patterns, test result analysis, and project-specific debugging workflows unique to Ruderbar.
+**Purpose**: Document agent coordination patterns, test result analysis, and project-specific debugging workflows unique to Club Bar.
 
 ---
 
@@ -313,7 +313,7 @@ docker compose exec backend tail -100 /app/storage/logs/laravel.log
 
 **Agent 3 (Database)**: Verify schema/data state
 ```bash
-docker compose exec database mysql -u ruderbar -p ruderbar -e "SHOW TABLES; SELECT COUNT(*) FROM members;"
+docker compose exec database mysql -u clubbar -p clubbar -e "SHOW TABLES; SELECT COUNT(*) FROM members;"
 ```
 
 **Coordinator**: Synthesize findings and apply `systematic-debugging` skill for fix
@@ -486,7 +486,7 @@ docker compose exec database mysql -u ruderbar -p ruderbar -e "SHOW TABLES; SELE
    npm test -- --grep "feature name" --reporter=json > results.json
    ```
 
-### Common Library Queries for Ruderbar Project
+### Common Library Queries for Club Bar Project
 
 **Playwright (E2E Testing)**:
 - Library ID: `/microsoft/playwright`

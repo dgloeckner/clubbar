@@ -81,11 +81,11 @@ If you need to change test credentials (e.g., for security), update both files:
 
 ### Admin login fails
 - Check AdminUsersSeeder ran successfully
-- Verify `admin@example.com` exists in database: `docker compose exec -T database mysql -u ruderbar -pruderbar ruderbar -e "SELECT email FROM admin_users;"`
+- Verify `admin@example.com` exists in database: `docker compose exec -T database mysql -u clubbar -pclubbar clubbar -e "SELECT email FROM admin_users;"`
 
 ### Terminal API authentication fails
 - Check TerminalSeeder ran successfully
-- Verify test terminal exists: `docker compose exec -T database mysql -u ruderbar -pruderbar ruderbar -e "SELECT device_id, is_active FROM terminals;"`
+- Verify test terminal exists: `docker compose exec -T database mysql -u clubbar -pclubbar clubbar -e "SELECT device_id, is_active FROM terminals;"`
 
 ### Database issues
 - Full reset: `docker compose exec -T backend sh -c "cd /app && php artisan migrate:fresh --seed"`
