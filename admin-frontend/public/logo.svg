@@ -1,52 +1,80 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Ruderbar app icon">
-    <defs>
-        <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#0B1220"/>
-            <stop offset="1" stop-color="#121B2F"/>
-        </linearGradient>
-        <linearGradient id="accentGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#22D3EE"/>
-            <stop offset="1" stop-color="#60A5FA"/>
-        </linearGradient>
-        <linearGradient id="beerGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#FBBF24"/>
-            <stop offset="1" stop-color="#F59E0B"/>
-        </linearGradient>
-    </defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Club Bar app icon">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0C1425"/>
+      <stop offset="1" stop-color="#162036"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="beerGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FCD34D"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="foamGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F1F5F9"/>
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34D399" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#06B6D4" stop-opacity="0.05"/>
+    </linearGradient>
+    <clipPath id="beerClip">
+      <rect x="192" y="168" width="128" height="170" rx="18"/>
+    </clipPath>
+  </defs>
 
-    <rect x="48" y="48" width="416" height="416" rx="96" fill="url(#bgGrad)"/>
-    <rect x="70" y="70" width="372" height="372" rx="84" fill="none" stroke="url(#accentGrad)" stroke-width="6" opacity="0.9"/>
+  <!-- Background rounded square -->
+  <rect x="40" y="40" width="432" height="432" rx="92" fill="url(#bgGrad)"/>
 
-    <!-- Oar (based on provided shape) -->
-    <g transform="translate(80,50) scale(0.55)">
-        <g transform="rotate(-18 256 256)" opacity="0.95">
-            <path d="M263.876,0H120.06v135.939c0,36.988,28.075,67.531,64.033,71.467v272.705h15.751V207.407c35.958-3.937,64.033-34.479,64.033-71.467V0z M248.125,135.939c0,30.965-25.192,56.156-56.157,56.156c-30.965,0-56.157-25.192-56.157-56.156V15.751h112.314V135.939z"
-                  fill="#E5E7EB"/>
-            <path d="M191.968,199.972L191.968,199.972c-35.364,0-64.033-28.668-64.033-64.031V7.875h128.065v128.064C256.001,171.304,227.332,199.972,191.968,199.972z"
-                  fill="url(#accentGrad)"/>
-            <polygon points="256.001,159.952 207.976,199.972 207.976,7.875 256.001,7.875"
-                     fill="#7DD3FC" opacity="0.35"/>
-            <rect x="167.955" y="152.077" width="48.024" height="15.751" fill="#0B1220" opacity="0.35"/>
-            <polygon points="199.843,488.117 184.093,488.117 184.093,496.249 167.957,496.249 167.957,512 215.98,512 215.98,496.249 199.843,496.249"
-                     fill="#94A3B8"/>
-        </g>
-    </g>
+  <!-- Subtle border -->
+  <rect x="56" y="56" width="400" height="400" rx="82" fill="none" stroke="url(#accentGrad)" stroke-width="3" opacity="0.35"/>
 
-    <!-- Mug -->
-    <g transform="translate(170,142)">
-        <path d="M26 56c0-16 13-29 29-29 6 0 12 2 18 6 5-8 14-13 24-13 15 0 27 9 30 22 3-1 6-2 10-2 14 0 26 12 26 26 0 17-14 31-31 31H55c-16 0-29-13-29-29z"
-              fill="#F8FAFC"/>
-        <rect x="26" y="78" width="140" height="192" rx="26" fill="#0F172A" opacity="0.35"/>
-        <rect x="34" y="86" width="124" height="176" rx="22" fill="url(#beerGrad)"/>
-        <path d="M52 96c18-14 28-10 32 10v140c-4 18-14 26-32 22z" fill="#FDE68A" opacity="0.45"/>
-        <path d="M166 120h18c28 0 50 22 50 50s-22 50-50 50h-18v-30h18c10 0 18-8 18-20s-8-20-18-20h-18z"
-              fill="#E5E7EB" opacity="0.95"/>
-        <path d="M166 134h14c20 0 36 16 36 36s-16 36-36 36h-14"
-              fill="none" stroke="#0B1220" stroke-width="8" opacity="0.25" stroke-linecap="round"/>
-        <rect x="48" y="270" width="96" height="14" rx="7" fill="#E5E7EB" opacity="0.9"/>
-    </g>
+  <!-- Shield shape behind the mug — sports club motif -->
+  <path d="M256 90 L350 130 C358 134 364 142 364 152 L364 260 C364 310 316 358 256 388 C196 358 148 310 148 260 L148 152 C148 142 154 134 162 130 Z"
+        fill="url(#shieldGrad)" stroke="url(#accentGrad)" stroke-width="2.5" opacity="0.6"/>
 
-    <!-- Wave (front) -->
-    <path d="M104 362c44 0 44-28 88-28s44 28 88 28 44-28 88-28 44 28 88 28"
-          fill="none" stroke="#22D3EE" stroke-width="18" stroke-linecap="round" opacity="0.85"/>
+  <!-- Beer mug body -->
+  <rect x="192" y="168" width="128" height="170" rx="18" fill="#0F172A" opacity="0.4"/>
+  <rect x="198" y="174" width="116" height="158" rx="14" fill="url(#beerGrad)"/>
+
+  <!-- Beer highlight / reflection -->
+  <g clip-path="url(#beerClip)">
+    <path d="M210 174c12-8 20-4 24 14v130c-4 14-12 20-24 16z" fill="#FDE68A" opacity="0.5"/>
+  </g>
+
+  <!-- Foam top -->
+  <ellipse cx="256" cy="172" rx="64" ry="14" fill="url(#foamGrad)" opacity="0.95"/>
+  <!-- Foam bubbles -->
+  <circle cx="236" cy="168" r="10" fill="white" opacity="0.7"/>
+  <circle cx="258" cy="164" r="12" fill="white" opacity="0.6"/>
+  <circle cx="278" cy="167" r="9" fill="white" opacity="0.65"/>
+  <circle cx="248" cy="160" r="7" fill="white" opacity="0.5"/>
+  <circle cx="268" cy="158" r="6" fill="white" opacity="0.45"/>
+
+  <!-- Mug handle -->
+  <path d="M320 210 h14 c24 0 44 20 44 44 s-20 44-44 44 h-14"
+        fill="none" stroke="#CBD5E1" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+  <path d="M320 218 h10 c20 0 36 16 36 36 s-16 36-36 36 h-10"
+        fill="none" stroke="#0C1425" stroke-width="6" opacity="0.3" stroke-linecap="round"/>
+
+  <!-- Mug band / label area -->
+  <rect x="206" y="275" width="100" height="12" rx="6" fill="#E2E8F0" opacity="0.7"/>
+
+  <!-- Stars — sports club feel -->
+  <g fill="url(#accentGrad)" opacity="0.8">
+    <!-- Left star -->
+    <polygon points="176,130 180,140 191,140 182,147 186,157 176,150 166,157 170,147 161,140 172,140" transform="scale(0.8) translate(40,18)"/>
+    <!-- Right star -->
+    <polygon points="336,130 340,140 351,140 342,147 346,157 336,150 326,157 330,147 321,140 332,140" transform="scale(0.8) translate(-18,18)"/>
+    <!-- Top small star -->
+    <circle cx="256" cy="110" r="4"/>
+  </g>
+
+  <!-- "club" text -->
+  <text x="256" y="408" text-anchor="middle" font-family="'SF Pro Display', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif" font-weight="800" font-size="54" letter-spacing="8" fill="#E2E8F0" opacity="0.95">CLUB</text>
+
+  <!-- "bar" text with accent -->
+  <text x="256" y="452" text-anchor="middle" font-family="'SF Pro Display', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif" font-weight="300" font-size="38" letter-spacing="14" fill="url(#accentGrad)" opacity="0.9">BAR</text>
 </svg>

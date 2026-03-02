@@ -70,7 +70,7 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
           >
             <img
               src="/logo.svg"
-              alt="Ruderbar Logo"
+              alt="Club Bar Logo"
               style={{
                 width: '120px',
                 height: '120px',

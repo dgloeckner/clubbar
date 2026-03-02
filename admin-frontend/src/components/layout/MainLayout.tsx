@@ -113,7 +113,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           >
             <img
               src="/logo.svg"
-              alt="Ruderbar Logo"
+              alt="Club Bar Logo"
               data-testid="header-logo"
               style={{
                 width: '60px',

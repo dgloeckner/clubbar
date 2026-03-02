@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="artwork/logo1.svg" alt="Ruderbar Logo" width="128" height="128">
+  <img src="artwork/clubbar-logo.svg" alt="Club Bar Logo" width="128" height="128">
 </p>
 
 <h1 align="center">Ruderbar</h1>
