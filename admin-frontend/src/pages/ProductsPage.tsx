@@ -24,10 +24,14 @@ import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { CategoryFilter } from '../components/tables/CategoryFilter'
 import { StatusFilterPills } from '../components/forms/StatusFilterPills'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
+import { Toggle } from '../components/forms/Toggle'
 import { PriceCell } from '../components/tables/PriceCell'
 import { BadgeCell } from '../components/tables/BadgeCell'
 import { ActionButtons } from '../components/tables/ActionButtons'
 import { Badge } from '../components/common/Badge'
+import { EditIcon, TrashIcon } from '../components/icons'
+import { MobileToolbar } from '../components/layout/MobileToolbar'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import {
   tableColors,
   tableWrapperStyles,
@@ -62,8 +66,8 @@ interface Category {
 
 export function ProductsPage() {
   const { t, i18n } = useTranslation()
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { formatPrice: _formatPrice } = useFormatters()
+  const { formatPrice } = useFormatters()
+  const breakpoint = useBreakpoint()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,6 +96,67 @@ export function ProductsPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
   const [search, setSearch] = useState('')
   const [totalItems, setTotalItems] = useState(0) // From API
+
+  const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  const mobileFilterCount = [
+    filterStatus !== 'all' ? 1 : 0,
+    filterCategory ? 1 : 0,
+  ].reduce((a, b) => a + b, 0)
+
+  const mobileSortOptions = [
+    { value: 'name_asc', label: t('products.sortName', 'Name A\u2013Z'), direction: 'asc' as const },
+    { value: 'name_desc', label: t('products.sortNameDesc', 'Name Z\u2013A'), direction: 'desc' as const },
+    { value: 'price_asc', label: t('products.sortPriceLow', 'Price \u2191'), direction: 'asc' as const },
+    { value: 'price_desc', label: t('products.sortPriceHigh', 'Price \u2193'), direction: 'desc' as const },
+    { value: 'category_asc', label: t('products.sortCategory', 'Category'), direction: 'asc' as const },
+    { value: 'created_at_desc', label: t('products.sortNewest', 'Newest first'), direction: 'desc' as const },
+  ]
+
+  const mobileSortValue = `${sortKey}_${sortDirection}`
+
+  const handleMobileSortChange = (value: string) => {
+    const lastUnderscore = value.lastIndexOf('_')
+    const key = value.substring(0, lastUnderscore) as typeof sortKey
+    const dir = value.substring(lastUnderscore + 1) as 'asc' | 'desc'
+    setSortKey(key)
+    setSortDirection(dir)
+    setCurrentPage(1)
+  }
+
+  const MobileFilterRow = ({ label, options, value, onChange, testId }: {
+    label: string
+    options: { value: string; label: string }[]
+    value: string
+    onChange: (v: string) => void
+    testId: string
+  }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', minWidth: '50px' }}>
+        {label}
+      </span>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          data-testid={`${testId}-${opt.value}`}
+          onClick={() => { onChange(opt.value); setCurrentPage(1) }}
+          style={{
+            padding: '4px 10px',
+            borderRadius: '6px',
+            border: 'none',
+            background: value === opt.value ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+            color: value === opt.value ? '#3b82f6' : 'rgba(255,255,255,0.5)',
+            fontSize: '12px',
+            fontWeight: value === opt.value ? 600 : 400,
+            cursor: 'pointer',
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
 
   // Subscribe to global loading state on mount
   useEffect(() => {
@@ -420,6 +485,151 @@ export function ProductsPage() {
         </div>
       )}
 
+      {isMobile ? (
+        <>
+          <MobileToolbar
+            testId="products-mobile-toolbar"
+            search={{
+              value: search,
+              onChange: (v) => { setSearch(v); setCurrentPage(1) },
+              testId: 'products-search-input',
+            }}
+            sort={{
+              options: mobileSortOptions,
+              value: mobileSortValue,
+              onChange: handleMobileSortChange,
+            }}
+            filterCount={mobileFilterCount}
+            onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
+            showFilters={showMobileFilters}
+            filterContent={
+              <>
+                <MobileFilterRow
+                  label={t('common.status', 'Status')}
+                  options={[
+                    { value: 'all', label: t('common.all') },
+                    { value: 'active', label: t('common.active') },
+                    { value: 'inactive', label: t('common.inactive') },
+                  ]}
+                  value={filterStatus}
+                  onChange={(v) => setFilterStatus(v as typeof filterStatus)}
+                  testId="products-mobile-filter-status"
+                />
+                <MobileFilterRow
+                  label={t('common.category', 'Category')}
+                  options={[
+                    { value: '', label: t('common.all') },
+                    ...categories.map((c) => ({
+                      value: c.id,
+                      label: getLocalizedName(c.names, i18n.language),
+                    })),
+                  ]}
+                  value={filterCategory || ''}
+                  onChange={(v) => handleCategoryFilterChange(v || null)}
+                  testId="products-mobile-filter-category"
+                />
+              </>
+            }
+          />
+
+          {/* Mobile card list */}
+          {loading ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+              {t('common.loading')}
+            </div>
+          ) : products.length === 0 ? (
+            <div data-testid="products-empty-state" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+              {t('products.noProducts')}
+            </div>
+          ) : (
+            <div data-testid="products-mobile-cards" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {products.map((product) => {
+                const category = categories.find((c) => c.id === product.category_id)
+                const categoryName = category ? getLocalizedName(category.names, i18n.language) : ''
+                return (
+                  <div
+                    key={product.id}
+                    data-testid={`product-card-${product.id}`}
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: '10px',
+                      padding: '14px 16px',
+                    }}
+                  >
+                    {/* Row 1: toggle + name + price */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                      <Toggle
+                        enabled={product.is_active}
+                        onChange={() => handleStatusToggle(product)}
+                        size="small"
+                        testId={`products-status-toggle-${product.id}`}
+                      />
+                      <span style={{ flex: 1, fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>
+                        {getLocalizedName(product.names, i18n.language)}
+                      </span>
+                      <span style={{ fontWeight: 600, color: '#e2e8f0', fontSize: '14px', whiteSpace: 'nowrap' }}>
+                        {formatPrice(product.price_cents)}
+                      </span>
+                    </div>
+                    {/* Row 2: category */}
+                    {categoryName && (
+                      <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px', paddingLeft: '46px' }}>
+                        {categoryName}
+                      </div>
+                    )}
+                    {/* Row 3: actions */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                      <button
+                        data-testid={`products-edit-button-${product.id}`}
+                        onClick={() => openEditModal(product)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '4px',
+                          padding: '6px 12px', borderRadius: '6px', border: 'none',
+                          background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+                          fontSize: '12px', cursor: 'pointer',
+                        }}
+                      >
+                        <EditIcon size={14} /> {t('common.edit')}
+                      </button>
+                      <button
+                        data-testid={`products-delete-button-${product.id}`}
+                        onClick={() => handleDelete(product)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '4px',
+                          padding: '6px 12px', borderRadius: '6px', border: 'none',
+                          background: 'rgba(239,68,68,0.1)', color: '#ef4444',
+                          fontSize: '12px', cursor: 'pointer',
+                        }}
+                      >
+                        <TrashIcon size={14} /> {t('common.delete')}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Pagination (mobile) */}
+          {!loading && products.length > 0 && (
+            <PaginationToolbar
+              currentPage={currentPage}
+              totalPages={getTotalPages()}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 25, 50, 100]}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              variant="default"
+              showPageSize={false}
+              showInfo={true}
+              testId="products-pagination-bottom"
+            />
+          )}
+        </>
+      ) : (
+        <>
       {/* Search and Sort Toolbar - top with Create button */}
       <div
         style={{
@@ -660,6 +870,8 @@ export function ProductsPage() {
         >
           {t('products.noProducts')}
         </div>
+      )}
+        </>
       )}
 
       {showModal && (
