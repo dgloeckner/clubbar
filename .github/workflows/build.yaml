@@ -216,21 +216,6 @@ jobs:
         run: npx playwright install --with-deps chromium
         working-directory: e2etests
 
-      - name: Run package smoke tests
-        run: npx playwright test --project=package-tests --workers=1
-        working-directory: e2etests
-        env:
-          CI: true
-          PACKAGE_TEST: '1'
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: package-test-results
-          path: e2etests/test-results/
-          retention-days: 14
-
       - name: Create package ZIP
         run: cd dist && zip -r ruderbar-package.zip package/ -q
 
@@ -246,6 +231,21 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/ruderbar-package.zip
+
+      - name: Run package smoke tests
+        run: npx playwright test --project=package-tests --workers=1
+        working-directory: e2etests
+        env:
+          CI: true
+          PACKAGE_TEST: '1'
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-test-results
+          path: e2etests/test-results/
+          retention-days: 14
 
   build-terminal:
     runs-on: ubuntu-24.04-arm
