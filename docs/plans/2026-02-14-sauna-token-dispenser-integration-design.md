@@ -8,7 +8,7 @@
 
 ## Overview
 
-Integration of a physical token dispenser (ESP8266 + Azkoyen Hopper) into the Ruderbar terminal for purchasing sauna tokens. Users can add tokens to their shopping cart alongside regular products. During checkout, tokens are physically dispensed before payment is recorded, ensuring customers are never charged for tokens they don't receive.
+Integration of a physical token dispenser (ESP8266 + Azkoyen Hopper) into the Club Bar terminal for purchasing sauna tokens. Users can add tokens to their shopping cart alongside regular products. During checkout, tokens are physically dispensed before payment is recorded, ensuring customers are never charged for tokens they don't receive.
 
 ---
 
@@ -167,9 +167,9 @@ CREATE TABLE IF NOT EXISTS products_cache (
 **Extend `config.json` file** (same file as backend credentials):
 
 **Location:**
-- macOS: `~/Library/Containers/com.example.ruderbarTerminal/Data/Library/Application Support/com.example.ruderbarTerminal/config.json`
-- Linux: `~/.config/com.example.ruderbarTerminal/config.json`
-- Windows: `%APPDATA%\com.example.ruderbarTerminal\config.json`
+- macOS: `~/Library/Containers/com.example.clubbarTerminal/Data/Library/Application Support/com.example.clubbarTerminal/config.json`
+- Linux: `~/.config/com.example.clubbarTerminal/config.json`
+- Windows: `%APPDATA%\com.example.clubbarTerminal\config.json`
 
 **Extended structure:**
 ```json

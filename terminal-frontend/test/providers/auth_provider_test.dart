@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/providers/auth_provider.dart';
+import 'package:clubbar_terminal/providers/auth_provider.dart';
 
 void main() {
   group('AuthProvider', () {

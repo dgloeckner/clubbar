@@ -3,7 +3,7 @@ import '../database/database.dart';
 import '../models/member_dto.dart';
 
 class MembersRepository {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
 
   MembersRepository(this._db);
 

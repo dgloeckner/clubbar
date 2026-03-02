@@ -14,7 +14,7 @@ export class LoginPage extends BasePage {
   private readonly passwordInput = () => this.page.locator('[data-testid="login-password-input"]')
   private readonly loginBtn = () => this.page.locator('[data-testid="login-submit-button"]')
   private readonly errorMessage = () => this.page.locator('[class*="error"], [style*="error"]')
-  private readonly heading = () => this.page.locator('h1:has-text("Ruderbar")')
+  private readonly heading = () => this.page.locator('h1:has-text("Club Bar")')
 
   constructor(page: Page) {
     super(page)

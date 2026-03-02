@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Screen idle monitor for the Ruderbar terminal.
+"""Screen idle monitor for the Club Bar terminal.
 
 Watches all input devices in /dev/input/ for activity. After TIMEOUT seconds
 of inactivity it launches blackscreen.py, which covers the display with a

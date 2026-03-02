@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/widgets/ruderbar_header.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/widgets/clubbar_header.dart';
 import '../test_helpers.dart';
 
 void main() {
-  group('RuderbarHeader', () {
+  group('ClubBarHeader', () {
     Widget buildTestApp({
       required ConnectionStatus connectionStatus,
       VoidCallback? onStatusTap,
     }) {
       return createTestApp(
         child: Scaffold(
-          appBar: RuderbarHeader(
+          appBar: ClubBarHeader(
             connectionStatus: connectionStatus,
             onStatusTap: onStatusTap,
           ),
@@ -28,7 +28,7 @@ void main() {
       expect(find.text('Online'), findsOneWidget);
       expect(find.text('Offline'), findsNothing);
       expect(find.text('Error'), findsNothing);
-      expect(find.text('Ruderbar'), findsOneWidget);
+      expect(find.text('Club Bar'), findsOneWidget);
     });
 
     testWidgets('shows Offline badge', (tester) async {

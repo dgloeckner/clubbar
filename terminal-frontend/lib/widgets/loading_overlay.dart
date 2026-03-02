@@ -1,4 +1,4 @@
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
 
 class LoadingOverlay extends StatelessWidget {

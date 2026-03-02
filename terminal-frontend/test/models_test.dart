@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/models/category_dto.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/category_dto.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
 
 void main() {
   group('DTOs', () {

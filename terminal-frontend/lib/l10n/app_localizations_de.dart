@@ -22,7 +22,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get setupSubtitle =>
-      'Verbinde dieses Terminal mit dem Ruderbar-Backend.';
+      'Verbinde dieses Terminal mit dem Club Bar-Backend.';
 
   @override
   String get terminalIdLabel => 'Terminal-ID';

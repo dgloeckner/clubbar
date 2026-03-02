@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Ruderbar** is an open-source, member-managed bar/club POS system designed for rowing clubs and sports organizations that need:
+**Club Bar** is an open-source, member-managed bar/club POS system designed for sports clubs, community centers, and member organizations that need:
 - Offline-capable transaction processing
 - Granular membership accounting and settlement
 - Privacy-first data handling (GDPR-compliant anonymization workflows)

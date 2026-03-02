@@ -3,15 +3,15 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
 import 'dart:convert';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/services/sound_service.dart';
-import 'package:ruderbar_terminal/widgets/member_bar.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/product_card.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/widgets/member_bar.dart';
+import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
+import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
 
 class ProductSelectionScreen extends StatefulWidget {
   const ProductSelectionScreen({super.key});

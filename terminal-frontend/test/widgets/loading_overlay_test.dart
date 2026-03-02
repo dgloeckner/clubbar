@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/widgets/loading_overlay.dart';
+import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 
 void main() {
   group('LoadingOverlay', () {

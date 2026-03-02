@@ -4,7 +4,7 @@
 
 **Goal:** Build a native macOS Flutter app (cross-platform ready for Linux/Raspberry Pi) that implements the complete terminal POS workflow: RFID scanning, product browsing, shopping cart management, transaction booking, and offline sync.
 
-**Architecture:** Following Ruderbar's offline-first design (ADR-0012), the terminal is a local-first app with periodic sync to backend. Flutter provides native macOS performance. Local SQLite database caches members/products and queues transactions. Material 3 design system with playful animations (confetti on purchase, animated buttons).
+**Architecture:** Following Club Bar's offline-first design (ADR-0012), the terminal is a local-first app with periodic sync to backend. Flutter provides native macOS performance. Local SQLite database caches members/products and queues transactions. Material 3 design system with playful animations (confetti on purchase, animated buttons).
 
 **Key Design Decisions:**
 - **Inactivity Timeout (30s)**: Logout clears session but preserves cart. User can rescan to resume (preserved 1 hour max).
@@ -60,7 +60,7 @@
 flutter create \
   --platforms macos,linux \
   --template app \
-  --project-name ruderbar_terminal \
+  --project-name clubbar_terminal \
   /Users/dg/dev/frgs-vereinsbar/terminal-frontend
 
 cd /Users/dg/dev/frgs-vereinsbar/terminal-frontend
@@ -144,7 +144,7 @@ Create `terminal-frontend/lib/config/app_config.dart`:
 
 ```dart
 class AppConfig {
-  static const String appName = 'Ruderbar Terminal';
+  static const String appName = 'Club Bar Terminal';
   static const String version = '0.1.0';
 
   // Display
@@ -180,14 +180,14 @@ Create `terminal-frontend/lib/main.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/config/app_config.dart';
+import 'package:clubbar_terminal/config/app_config.dart';
 
 void main() {
-  runApp(const RuderbarTerminalApp());
+  runApp(const ClubBarTerminalApp());
 }
 
-class RuderbarTerminalApp extends StatelessWidget {
-  const RuderbarTerminalApp({Key? key}) : super(key: key);
+class ClubBarTerminalApp extends StatelessWidget {
+  const ClubBarTerminalApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -202,7 +202,7 @@ class RuderbarTerminalApp extends StatelessWidget {
       ),
       home: const Scaffold(
         body: Center(
-          child: Text('Ruderbar Terminal - Flutter'),
+          child: Text('Club Bar Terminal - Flutter'),
         ),
       ),
     );
@@ -368,8 +368,8 @@ part 'database.g.dart';
   TransactionsLocal,
   SyncState,
 ])
-class RuderbarDatabase extends _$RuderbarDatabase {
-  RuderbarDatabase() : super(_openConnection());
+class ClubBarDatabase extends _$ClubBarDatabase {
+  ClubBarDatabase() : super(_openConnection());
 
   @override
   int get schemaVersion => 1;
@@ -392,7 +392,7 @@ class RuderbarDatabase extends _$RuderbarDatabase {
 
     // Production: Use sqflite async
     return databaseFactoryFfi.openDatabase(
-      'ruderbar_terminal.db',
+      'clubbar_terminal.db',
       options: OpenDatabaseOptions(
         version: 1,
         onOpen: (db) async {
@@ -419,14 +419,14 @@ Create `terminal-frontend/test/database_test.dart`:
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/database/database.dart';
 
 void main() {
-  late RuderbarDatabase db;
+  late ClubBarDatabase db;
 
   setUp(() async {
     sqfliteFfiTestPrefix = ':memory:';
-    db = RuderbarDatabase();
+    db = ClubBarDatabase();
   });
 
   tearDown(() async {
@@ -672,8 +672,8 @@ Create `terminal-frontend/test/models_test.dart`:
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/models/category_dto.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/category_dto.dart';
 
 void main() {
   test('MemberDTO parses JSON correctly', () {
@@ -842,8 +842,8 @@ Create `terminal-frontend/test/cart_test.dart`:
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/models/shopping_cart.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/shopping_cart.dart';
 
 void main() {
   group('ShoppingCart', () {
@@ -970,7 +970,7 @@ import '../database/database.dart';
 import '../models/member_dto.dart';
 
 class MembersRepository {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
 
   MembersRepository(this._db);
 
@@ -1043,7 +1043,7 @@ import '../models/product_dto.dart';
 import '../models/category_dto.dart';
 
 class ProductsRepository {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
 
   ProductsRepository(this._db);
 
@@ -1136,7 +1136,7 @@ import 'package:uuid/uuid.dart'; // v4.5.2 for transaction ID generation
 import '../database/database.dart';
 
 class TransactionsRepository {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
   static const _uuid = Uuid();
 
   TransactionsRepository(this._db);
@@ -1203,7 +1203,7 @@ import 'package:drift/drift.dart' hide Column;
 import '../database/database.dart';
 
 class SyncRepository {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
 
   SyncRepository(this._db);
 
@@ -1244,20 +1244,20 @@ Create `terminal-frontend/test/repository_test.dart`:
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/repository/members_repository.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
 
 void main() {
   group('Repositories', () {
-    late RuderbarDatabase db;
+    late ClubBarDatabase db;
     late MembersRepository membersRepo;
     late TransactionsRepository transactionsRepo;
 
     setUp(() async {
       sqfliteFfiTestPrefix = ':memory:';
-      db = RuderbarDatabase();
+      db = ClubBarDatabase();
       membersRepo = MembersRepository(db);
       transactionsRepo = TransactionsRepository(db);
     });
@@ -1428,7 +1428,7 @@ import 'network_service.dart';
 import '../config/app_config.dart';
 
 class SyncService {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
   final NetworkService _network;
   final Logger _logger = Logger();
 
@@ -1570,25 +1570,25 @@ Create `terminal-frontend/test/sync_service_test.dart`:
 ```dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/services/sync_service.dart';
-import 'package:ruderbar_terminal/services/network_service.dart';
-import 'package:ruderbar_terminal/models/sync_response.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/models/category_dto.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/services/sync_service.dart';
+import 'package:clubbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/models/sync_response.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/category_dto.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
 
 class MockNetworkService extends Mock implements NetworkService {}
 
 void main() {
   group('SyncService', () {
-    late RuderbarDatabase db;
+    late ClubBarDatabase db;
     late MockNetworkService mockNetwork;
     late SyncService syncService;
 
     setUp(() async {
       sqfliteFfiTestPrefix = ':memory:';
-      db = RuderbarDatabase();
+      db = ClubBarDatabase();
       mockNetwork = MockNetworkService();
       syncService = SyncService(db, mockNetwork);
     });
@@ -1837,7 +1837,7 @@ import '../services/network_service.dart';
 import '../config/app_config.dart';
 
 class SyncProvider extends ChangeNotifier {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
   final NetworkService _network;
 
   late SyncService _syncService;
@@ -2017,7 +2017,7 @@ Create `terminal-frontend/test/mock_rfid_test.dart`:
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/services/mock_rfid_service.dart';
+import 'package:clubbar_terminal/services/mock_rfid_service.dart';
 
 void main() {
   group('MockRfidService', () {
@@ -2159,8 +2159,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/providers/rfid_provider.dart';
-import 'package:ruderbar_terminal/widgets/rfid_detector_button.dart';
+import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/widgets/rfid_detector_button.dart';
 
 class MockRfidProvider extends Mock implements RfidProvider {}
 

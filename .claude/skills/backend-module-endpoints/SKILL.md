@@ -1,6 +1,6 @@
 # Backend Modules & Endpoints
 
-**Context**: Playwright API and E2E tests for the Ruderbar backend (Slim 4, PDO, PHP 8.3).
+**Context**: Playwright API and E2E tests for the Club Bar backend (Slim 4, PDO, PHP 8.3).
 
 Use this when planning which endpoints to test, understanding the backend module structure, or verifying audit trail entries.
 

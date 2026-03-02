@@ -24,9 +24,9 @@ abstract class DatabaseTestCase extends TestCase
 
         // Connect to test database (Docker container)
         $host = getenv('DB_HOST') ?: 'database';
-        $dbname = getenv('DB_NAME') ?: 'ruderbar';
-        $user = getenv('DB_USER') ?: 'ruderbar';
-        $password = getenv('DB_PASS') ?: 'ruderbar';
+        $dbname = getenv('DB_NAME') ?: 'clubbar';
+        $user = getenv('DB_USER') ?: 'clubbar';
+        $password = getenv('DB_PASS') ?: 'clubbar';
 
         $dsn = "mysql:host={$host};dbname={$dbname};charset=utf8mb4";
         $this->db = new PDO($dsn, $user, $password, [

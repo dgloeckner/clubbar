@@ -3,8 +3,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/providers/rfid_provider.dart';
-import 'package:ruderbar_terminal/widgets/rfid_detector_button.dart';
+import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/widgets/rfid_detector_button.dart';
 
 class MockRfidProvider extends Mock implements RfidProvider {}
 class FakeBuildContext extends Fake implements BuildContext {}

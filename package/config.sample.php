@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Ruderbar Configuration
+ * Club Bar Configuration
  *
  * Copy this file to config.php and fill in your database credentials.
  * Or use the web installer: visit /install.php in your browser.
@@ -10,7 +10,7 @@ return [
     'db' => [
         'host' => 'localhost',
         'port' => 3306,
-        'name' => 'ruderbar',
+        'name' => 'clubbar',
         'user' => '',
         'pass' => '',
     ],

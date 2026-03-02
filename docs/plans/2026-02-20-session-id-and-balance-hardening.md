@@ -265,7 +265,7 @@ In `test/repository_test.dart`, add tests for the two new methods. Find the exis
 ```dart
 group('session queries', () {
   test('getSessionTotal returns sum of abs(amountCents) for session', () async {
-    final db = RuderbarDatabase.forTesting(NativeDatabase.memory());
+    final db = Club BarDatabase.forTesting(NativeDatabase.memory());
     final repo = TransactionsRepository(db);
     // Insert member first (FK constraint)
     await db.into(db.membersCache).insert(MembersCacheCompanion(
@@ -302,7 +302,7 @@ group('session queries', () {
   });
 
   test('getSessionDispenserInfo returns dispenser row for session', () async {
-    final db = RuderbarDatabase.forTesting(NativeDatabase.memory());
+    final db = Club BarDatabase.forTesting(NativeDatabase.memory());
     final repo = TransactionsRepository(db);
     await db.into(db.membersCache).insert(MembersCacheCompanion(
       id: const Value('m1'), cardUid: const Value('c1'),
@@ -331,7 +331,7 @@ group('session queries', () {
   });
 
   test('getSessionDispenserInfo returns null when no dispenser row', () async {
-    final db = RuderbarDatabase.forTesting(NativeDatabase.memory());
+    final db = Club BarDatabase.forTesting(NativeDatabase.memory());
     final repo = TransactionsRepository(db);
 
     final info = await repo.getSessionDispenserInfo('no-such-session');
@@ -565,7 +565,7 @@ Remove these lines from `cart_provider.dart`:
 - All assignments to `_lastPartialDispenseInfo` in `checkout()`
 - The `if (_lastPartialDispenseInfo != null ...)` block that computed `_lastCheckoutTotalCents`
 - The partial dispense info tracking section in checkout
-- The import: `import 'package:ruderbar_terminal/models/partial_dispense_info.dart';`
+- The import: `import 'package:clubbar_terminal/models/partial_dispense_info.dart';`
 
 Remove these lines:
 - `int? _lastCheckoutTotalCents;` (field)
@@ -697,13 +697,13 @@ Replace `final String transactionId` with `final String sessionId` in the widget
 
 Remove imports:
 ```dart
-import 'package:ruderbar_terminal/models/partial_dispense_info.dart';
+import 'package:clubbar_terminal/models/partial_dispense_info.dart';
 ```
 (Leave `CartProvider` import for `clearCart()` in `_performNavigation()`.)
 
 Add import:
 ```dart
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
 ```
 
 **Session data model** — add a private class at the top of the file:
@@ -951,8 +951,8 @@ class MembersService {
 
 Add import at top:
 ```dart
-import 'package:ruderbar_terminal/services/network_service.dart';
-import 'package:ruderbar_terminal/models/transaction_sync_response.dart';
+import 'package:clubbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/models/transaction_sync_response.dart';
 ```
 
 ### Step 4: Add `_refreshBalance` helper

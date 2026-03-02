@@ -1,6 +1,6 @@
 # Implementation Plans Index
 
-This index tracks the status of all implementation plans for Ruderbar. When continuing work, check this file first to understand current progress and which plan is active.
+This index tracks the status of all implementation plans for Club Bar. When continuing work, check this file first to understand current progress and which plan is active.
 
 ---
 

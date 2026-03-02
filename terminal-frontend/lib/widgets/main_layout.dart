@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/services/dispenser_health_service.dart';
-import 'package:ruderbar_terminal/services/dispenser_client.dart';
-import 'package:ruderbar_terminal/widgets/ruderbar_header.dart';
-import 'package:ruderbar_terminal/widgets/status_info_modal.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/services/dispenser_health_service.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/widgets/clubbar_header.dart';
+import 'package:clubbar_terminal/widgets/status_info_modal.dart';
 
 /// Main layout with persistent header across all screens.
 /// Only the body content animates during navigation.
@@ -62,7 +62,7 @@ class MainLayout extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xff0a1628),
-      appBar: RuderbarHeader(
+      appBar: ClubBarHeader(
         connectionStatus: effectiveStatus,
         onStatusTap: () => showStatusInfoModal(context),
       ),

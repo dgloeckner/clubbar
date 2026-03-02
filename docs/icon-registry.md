@@ -4,7 +4,7 @@
 
 ## Purpose
 
-This document defines the canonical set of icon identifiers used throughout the Ruderbar application. All three systems (backend database, admin frontend React app, Flutter terminal) MUST reference these exact icon names.
+This document defines the canonical set of icon identifiers used throughout the Club Bar application. All three systems (backend database, admin frontend React app, Flutter terminal) MUST reference these exact icon names.
 
 ## Format
 

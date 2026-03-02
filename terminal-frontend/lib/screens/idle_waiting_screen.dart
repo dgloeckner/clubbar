@@ -2,12 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/providers/rfid_provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/services/config_service.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/widgets/rfid_detector_button.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/widgets/rfid_detector_button.dart';
 
 class IdleWaitingScreen extends StatefulWidget {
   const IdleWaitingScreen({super.key});

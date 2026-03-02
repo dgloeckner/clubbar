@@ -1,7 +1,7 @@
 -- =============================================================================
--- 001_initial_schema.sql — Ruderbar v1.0
+-- 001_initial_schema.sql — Club Bar v1.0
 -- =============================================================================
--- Complete database schema for Ruderbar (Vereinsbar) POS system.
+-- Complete database schema for Club Bar POS system.
 -- Creates all tables with no seed data — use db/seed.sql for development.
 --
 -- Table creation order respects foreign key dependencies:

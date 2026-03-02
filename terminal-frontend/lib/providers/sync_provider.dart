@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/services/network_service.dart';
-import 'package:ruderbar_terminal/services/sync_service.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/services/sync_service.dart';
 
 /// Three-state connectivity status for the terminal.
 enum ConnectionStatus { online, offline, error }

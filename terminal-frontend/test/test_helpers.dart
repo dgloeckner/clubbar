@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
 
 /// Creates a MaterialApp with localization support for testing widgets
 /// that require AppLocalizations

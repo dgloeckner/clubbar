@@ -10,7 +10,7 @@
 
 ## Context
 
-The Ruderbar system uses RFID cards to identify which member is making a purchase at the POS terminal. This is fundamentally different from authentication:
+The Club Bar system uses RFID cards to identify which member is making a purchase at the POS terminal. This is fundamentally different from authentication:
 
 | Aspect | RFID Identification | Authentication |
 |--------|---------------------|----------------|
@@ -21,7 +21,7 @@ The Ruderbar system uses RFID cards to identify which member is making a purchas
 | **Fraud Risk** | Stolen/borrowed card | Compromised password |
 | **Authorization** | No; all members can purchase | Yes; only authorized users |
 
-**Ruderbar is a trusted environment** (member organization) where convenience and accountability matter more than security against malicious actors. Similar to a tab at a member bar.
+**Club Bar is a trusted environment** (member organization) where convenience and accountability matter more than security against malicious actors. Similar to a tab at a member bar.
 
 ---
 

@@ -25,9 +25,9 @@ Create `test/services/members_service_test.dart`:
 ```dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/repository/members_repository.dart';
-import 'package:ruderbar_terminal/services/members_service.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/services/members_service.dart';
 
 class MockMembersRepository extends Mock implements MembersRepository {}
 
@@ -161,8 +161,8 @@ Expected: FAIL - `MembersService` not defined
 Create `lib/services/members_service.dart`:
 
 ```dart
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/repository/members_repository.dart';
 
 class MembersService {
   final MembersRepository _repository;
@@ -249,9 +249,9 @@ Create `test/services/products_service_test.dart`:
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'dart:convert';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/repository/products_repository.dart';
-import 'package:ruderbar_terminal/services/products_service.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/repository/products_repository.dart';
+import 'package:clubbar_terminal/services/products_service.dart';
 
 class MockProductsRepository extends Mock implements ProductsRepository {}
 
@@ -379,8 +379,8 @@ Create `lib/services/products_service.dart`:
 
 ```dart
 import 'dart:convert';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/repository/products_repository.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/repository/products_repository.dart';
 
 class ProductsService {
   final ProductsRepository _repository;
@@ -469,11 +469,11 @@ Create `test/services/cart_service_test.dart`:
 ```dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/models/transaction_dto.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
-import 'package:ruderbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/models/transaction_dto.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
 
 class CartItem {
   final String productId;
@@ -642,10 +642,10 @@ class CartItem {
 Then create `lib/services/cart_service.dart`:
 
 ```dart
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/models/transaction_dto.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/transaction_dto.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
 
 class CartService {
   final TransactionsRepository _repository;
@@ -740,7 +740,7 @@ Create `test/providers/auth_provider_test.dart`:
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/providers/auth_provider.dart';
+import 'package:clubbar_terminal/providers/auth_provider.dart';
 
 void main() {
   group('AuthProvider', () {
@@ -880,9 +880,9 @@ Create `test/providers/members_provider_test.dart`:
 ```dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/services/members_service.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/services/members_service.dart';
 
 class MockMembersService extends Mock implements MembersService {}
 
@@ -1031,8 +1031,8 @@ Create `lib/providers/members_provider.dart`:
 
 ```dart
 import 'package:flutter/foundation.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/services/members_service.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/services/members_service.dart';
 
 class MembersProvider extends ChangeNotifier {
   final MembersService _service;
@@ -1155,9 +1155,9 @@ Create `test/providers/products_provider_test.dart`:
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'dart:convert';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/services/products_service.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/services/products_service.dart';
 
 class MockProductsService extends Mock implements ProductsService {}
 
@@ -1289,8 +1289,8 @@ Create `lib/providers/products_provider.dart`:
 
 ```dart
 import 'package:flutter/foundation.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/services/products_service.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/services/products_service.dart';
 
 class ProductsProvider extends ChangeNotifier {
   final ProductsService _service;
@@ -1385,11 +1385,11 @@ Create `test/providers/cart_provider_test.dart`:
 ```dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
 import 'dart:convert';
 
 class MockCartService extends Mock implements CartService {}
@@ -1581,10 +1581,10 @@ Create `lib/providers/cart_provider.dart`:
 
 ```dart
 import 'package:flutter/foundation.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
 
 class CartProvider extends ChangeNotifier {
   final CartService _service;
@@ -1739,13 +1739,13 @@ Create `test/providers/sync_provider_test.dart`:
 ```dart
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/models/sync_response.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/services/sync_service.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/models/sync_response.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/services/sync_service.dart';
 
 class MockSyncService extends Mock implements SyncService {}
 
@@ -1905,9 +1905,9 @@ Create `lib/providers/sync_provider.dart`:
 ```dart
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/services/sync_service.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/services/sync_service.dart';
 
 class SyncProvider extends ChangeNotifier {
   final SyncService _syncService;

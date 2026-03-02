@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/models/transaction_sync_response.dart';
-import 'package:ruderbar_terminal/repository/members_repository.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
-import 'package:ruderbar_terminal/services/members_service.dart';
-import 'package:ruderbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/transaction_sync_response.dart';
+import 'package:clubbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/services/members_service.dart';
+import 'package:clubbar_terminal/services/network_service.dart';
 
 class MockMembersRepository extends Mock implements MembersRepository {}
 

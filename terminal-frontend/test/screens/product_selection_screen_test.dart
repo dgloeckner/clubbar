@@ -3,15 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/auth_provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/screens/product_selection_screen.dart';
-import 'package:ruderbar_terminal/services/sound_service.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/auth_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/screens/product_selection_screen.dart';
+import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
 import '../test_helpers.dart';
 
 class MockProductsProvider extends Mock implements ProductsProvider {}

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/services/sound_service.dart';
 
 void main() {
   group('SoundEvent', () {

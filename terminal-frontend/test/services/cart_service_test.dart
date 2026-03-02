@@ -1,15 +1,15 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
-import 'package:ruderbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
 
 class MockTransactionsRepository extends Mock
     implements TransactionsRepository {}
 
-class MockRuderbarDatabase extends Mock implements RuderbarDatabase {}
+class MockClubBarDatabase extends Mock implements ClubBarDatabase {}
 
 void main() {
   setUpAll(() {
@@ -37,12 +37,12 @@ void main() {
 
   group('CartService', () {
     late MockTransactionsRepository mockRepo;
-    late MockRuderbarDatabase mockDb;
+    late MockClubBarDatabase mockDb;
     late CartService service;
 
     setUp(() {
       mockRepo = MockTransactionsRepository();
-      mockDb = MockRuderbarDatabase();
+      mockDb = MockClubBarDatabase();
       service = CartService(
         database: mockDb,
         repository: mockRepo,

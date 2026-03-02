@@ -239,7 +239,7 @@ To modify the test admin account used:
 Session timeout is set to 120 minutes, so this shouldn't happen. If it does:
 
 1. Check server logs for session issues
-2. Verify session table exists: `docker compose exec database mysql ruderbar -e "SHOW TABLES LIKE 'sessions'"`
+2. Verify session table exists: `docker compose exec database mysql clubbar -e "SHOW TABLES LIKE 'sessions'"`
 3. Check Laravel session config: `config/session.php`
 
 ## Performance Notes

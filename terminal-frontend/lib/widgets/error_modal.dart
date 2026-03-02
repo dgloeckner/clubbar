@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
 
 void showErrorModal(
   BuildContext context,

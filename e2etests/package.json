@@ -1,7 +1,7 @@
 {
-  "name": "ruderbar-e2etests",
+  "name": "clubbar-e2etests",
   "version": "1.0.0",
-  "description": "E2E and API tests for Ruderbar POS system",
+  "description": "E2E and API tests for Club Bar POS system",
   "scripts": {
     "test": "playwright test --workers 4",
     "test:api": "playwright test --project=api-tests",

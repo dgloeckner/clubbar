@@ -32,7 +32,7 @@ Admin exports settlement as CSV file for manual processing or bank tool import.
 | Name | First + Last name | Max Mustermann |
 | IBAN | Member IBAN | DE89370400440532013000 |
 | Betrag | Amount in EUR | 42.50 |
-| Verwendungszweck | Purpose text | Vereinsbar Abrechnung Jan 2025 |
+| Verwendungszweck | Purpose text | Club Bar Abrechnung Jan 2025 |
 | Mandatsreferenz | Mandate reference | 550e8400e29b41d4a716446655440000 |
 | Mandatsdatum | Mandate signature date | (empty - not tracked) |
 | Sequenztyp | FRST/RCUR/OOFF/FNAL | RCUR |
@@ -40,7 +40,7 @@ Admin exports settlement as CSV file for manual processing or bank tool import.
 ## Purpose Text Format
 
 `{Organization Name} Abrechnung {Period}`
-Example: `Vereinsbar Abrechnung Jan 2025`
+Example: `Club Bar Abrechnung Jan 2025`
 
 ## Main Flow
 

@@ -10,7 +10,7 @@
 
 ## Context
 
-The Ruderbar system synchronizes member data, product catalogs, and transaction records between Electron terminals and the backend. Network bandwidth is a critical concern:
+The Club Bar system synchronizes member data, product catalogs, and transaction records between Electron terminals and the backend. Network bandwidth is a critical concern:
 
 - **Offline-first design**: Terminal caches all data locally; periodic syncs transmit potentially large datasets
 - **Product translations**: JSON fields contain multiple language translations (e.g., names/descriptions in 5+ languages)

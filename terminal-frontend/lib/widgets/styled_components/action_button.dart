@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 enum ActionButtonStyle { primary, secondary }
 

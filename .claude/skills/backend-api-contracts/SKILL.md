@@ -1,6 +1,6 @@
 # Backend API Contracts
 
-**Context**: Playwright API and E2E tests for the Ruderbar backend (Slim 4, PDO, PHP 8.3).
+**Context**: Playwright API and E2E tests for the Club Bar backend (Slim 4, PDO, PHP 8.3).
 
 Use this when writing test assertions against backend API responses — expected shapes, status codes, error formats, field naming.
 

@@ -1,6 +1,6 @@
 # Backend Auth for Testing
 
-**Context**: Playwright API and E2E tests for the Ruderbar backend (Slim 4, PDO, PHP 8.3).
+**Context**: Playwright API and E2E tests for the Club Bar backend (Slim 4, PDO, PHP 8.3).
 
 Use this when setting up authentication in Playwright tests — admin sessions, terminal Bearer tokens, RFID member identification, and access control boundaries.
 

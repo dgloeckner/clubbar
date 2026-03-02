@@ -1,4 +1,4 @@
-# Ruderbar - Development Environment
+# Club Bar - Development Environment
 # Usage: docker-compose up -d
 
 services:
@@ -7,14 +7,14 @@ services:
   # =============================================================================
   database:
     image: mariadb:10.11
-    container_name: ruderbar-db
+    container_name: clubbar-db
     restart: unless-stopped
     platform: linux/arm64
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: ruderbar
-      MYSQL_USER: ruderbar
-      MYSQL_PASSWORD: ruderbar
+      MYSQL_DATABASE: clubbar
+      MYSQL_USER: clubbar
+      MYSQL_PASSWORD: clubbar
     ports:
       - "3306:3306"
     volumes:
@@ -34,7 +34,7 @@ services:
   backend:
     image: webdevops/php-apache:8.3
     platform: linux/amd64
-    container_name: ruderbar-backend
+    container_name: clubbar-backend
     restart: unless-stopped
     environment:
       PUID: ${UID:-1000}
@@ -58,9 +58,9 @@ services:
       # Database Configuration
       DB_HOST: database
       DB_PORT: 3306
-      DB_NAME: ruderbar
-      DB_USER: ruderbar
-      DB_PASS: ruderbar
+      DB_NAME: clubbar
+      DB_USER: clubbar
+      DB_PASS: clubbar
 
       # Session & Auth
       SESSION_MAX_AGE: 7200
@@ -88,7 +88,7 @@ services:
     build:
       context: .
       dockerfile: docker/admin-frontend.Dockerfile
-    container_name: ruderbar-admin
+    container_name: clubbar-admin
     restart: unless-stopped
     profiles:
       - frontend
@@ -102,7 +102,7 @@ services:
   # =============================================================================
   terminal-frontend:
     image: node:20-alpine
-    container_name: ruderbar-terminal
+    container_name: clubbar-terminal
     working_dir: /app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
     profiles:
@@ -120,7 +120,7 @@ services:
   # =============================================================================
   e2etests:
     image: mcr.microsoft.com/playwright:v1.49.0-noble
-    container_name: ruderbar-e2etests
+    container_name: clubbar-e2etests
     working_dir: /app
     profiles:
       - test

@@ -3,9 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/providers/rfid_provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/screens/idle_waiting_screen.dart';
+import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/screens/idle_waiting_screen.dart';
 import '../test_helpers.dart';
 
 class MockRfidProvider extends Mock implements RfidProvider {}

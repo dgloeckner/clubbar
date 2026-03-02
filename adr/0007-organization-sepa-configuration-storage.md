@@ -216,7 +216,7 @@ CREATE TABLE settings (
 
 INSERT INTO settings VALUES
   ('sepa_creditor_id', '"DE98ZZZ..."', NOW()),
-  ('sepa_creditor_name', '"Ruderbar..."', NOW()),
+  ('sepa_creditor_name', '"Club Bar..."', NOW()),
   ...
 ```
 
@@ -234,7 +234,7 @@ INSERT INTO settings VALUES
 ```bash
 # .env file
 SEPA_CREDITOR_ID=DE98ZZZ09999999999
-SEPA_CREDITOR_NAME="Ruderbar Frankfurter Rudergesellschaft"
+SEPA_CREDITOR_NAME="Sportverein Beispiel e.V."
 SEPA_CREDITOR_IBAN=DE89370400440532013000
 ```
 
@@ -278,7 +278,7 @@ CREATE TABLE sepa_config (
 
 INSERT INTO sepa_config VALUES (1, JSON_OBJECT(
   'creditor_id', 'DE98ZZZ...',
-  'creditor_name', 'Ruderbar...',
+  'creditor_name', 'Club Bar...',
   ...
 ));
 ```

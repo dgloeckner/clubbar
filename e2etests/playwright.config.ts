@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Ruderbar E2E Test Configuration
+ * Club Bar E2E Test Configuration
  *
  * Test projects per ADR-0022:
  * - api-tests: Backend API testing (no browser)

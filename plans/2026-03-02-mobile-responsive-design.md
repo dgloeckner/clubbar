@@ -252,7 +252,7 @@ paddingBottom: isMobile ? '72px' : undefined,
 
 **Step 4: Hide footer on mobile**
 
-The footer is unnecessary on mobile (it just says "Ruderbar Admin © 2026"). Wrap it:
+The footer is unnecessary on mobile (it just says "Club Bar Admin © 2026"). Wrap it:
 
 Change the `<footer>` (line 314) to only render on non-mobile:
 ```tsx

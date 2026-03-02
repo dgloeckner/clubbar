@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/services/cart_service.dart';
-import 'package:ruderbar_terminal/services/config_service.dart';
-import 'package:ruderbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
 
 /// States for the dispensing state machine
 enum DispensingState {

@@ -38,11 +38,11 @@ Future<void> _addColumnIfNotExists(
   DispenserConfig,
   DispenserOperations,
 ])
-class RuderbarDatabase extends _$RuderbarDatabase {
-  RuderbarDatabase() : super(_openConnection());
+class ClubBarDatabase extends _$ClubBarDatabase {
+  ClubBarDatabase() : super(_openConnection());
 
   /// Test constructor - uses in-memory database
-  RuderbarDatabase.forTesting(super.executor);
+  ClubBarDatabase.forTesting(super.executor);
 
   @override
   int get schemaVersion => 7;
@@ -141,7 +141,7 @@ class RuderbarDatabase extends _$RuderbarDatabase {
     return LazyDatabase(() async {
       // Get the app support directory for persistent storage
       final appDir = await getApplicationSupportDirectory();
-      final dbPath = p.join(appDir.path, 'ruderbar_terminal.db');
+      final dbPath = p.join(appDir.path, 'clubbar_terminal.db');
       final file = File(dbPath);
 
       // Log database location for debugging

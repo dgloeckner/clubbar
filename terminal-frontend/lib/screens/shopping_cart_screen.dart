@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/utils/formatters.dart';
-import 'package:ruderbar_terminal/utils/icon_registry.dart';
-import 'package:ruderbar_terminal/widgets/member_bar.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/formatters.dart';
+import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/widgets/member_bar.dart';
 
 class ShoppingCartScreen extends StatelessWidget {
   const ShoppingCartScreen({super.key});

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# build-package.sh — Assemble the Ruderbar shared hosting package
+# build-package.sh — Assemble the Club Bar shared hosting package
 #
 # Usage:
 #   ./scripts/build-package.sh [VERSION]
@@ -9,13 +9,13 @@
 #   VERSION   Optional version string (default: "dev")
 #
 # Output:
-#   dist/ruderbar-VERSION.zip
+#   dist/clubbar-VERSION.zip
 #
 # Local testing:
 #   ./scripts/build-package.sh test
 #   docker compose -f docker-compose.yml -f docker-compose.ci.yml -f docker-compose.package.yml up -d database backend
 #   # Reset DB for fresh install:
-#   docker compose exec database mariadb -uroot -proot -e "DROP DATABASE IF EXISTS ruderbar; CREATE DATABASE ruderbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON ruderbar.* TO 'ruderbar'@'%';"
+#   docker compose exec database mariadb -uroot -proot -e "DROP DATABASE IF EXISTS clubbar; CREATE DATABASE clubbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON clubbar.* TO 'clubbar'@'%';"
 #   # Run smoke tests:
 #   cd e2etests && PACKAGE_TEST=1 npx playwright test --project=package-tests --workers=1
 #   # Or open in browser:
@@ -33,7 +33,7 @@ VERSION="${1:-dev}"
 DIST_DIR="$PROJECT_ROOT/dist"
 PKG_DIR="$DIST_DIR/package"
 
-echo "=== Ruderbar Package Builder ==="
+echo "=== Club Bar Package Builder ==="
 echo "Version : $VERSION"
 echo "Project : $PROJECT_ROOT"
 echo ""
@@ -129,7 +129,7 @@ cp "$PROJECT_ROOT/package/README.txt"        "$PKG_DIR/README.txt"
 # ------------------------------------------------------------------
 # 8. Create ZIP archive
 # ------------------------------------------------------------------
-ARCHIVE="ruderbar-${VERSION}.zip"
+ARCHIVE="clubbar-${VERSION}.zip"
 echo "--- Creating archive: $ARCHIVE"
 cd "$DIST_DIR"
 zip -r "$ARCHIVE" package/ -q

@@ -232,7 +232,7 @@ transition: border-color 0.15s
 ```
 
 **Left Section**:
-- Ruderbar Admin title (20px, bold)
+- Club Bar Admin title (20px, bold)
 - Gap: 32px from nav
 
 **Center Section**:

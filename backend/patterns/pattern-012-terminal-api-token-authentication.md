@@ -10,7 +10,7 @@
 
 ## Context
 
-The Ruderbar system includes offline-capable Terminal devices (Electron POS) that sync with the backend periodically. Each terminal must authenticate itself, but this is **device authentication**, not user authentication.
+The Club Bar system includes offline-capable Terminal devices (Electron POS) that sync with the backend periodically. Each terminal must authenticate itself, but this is **device authentication**, not user authentication.
 
 **Key Principles (ADR-0015)**:
 1. **Separation of concerns**: Terminals authenticate as devices; members are identified by RFID (not authentication)

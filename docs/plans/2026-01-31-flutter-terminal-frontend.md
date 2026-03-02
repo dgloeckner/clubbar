@@ -23,7 +23,7 @@
 
 ```bash
 cd /Users/dg/dev/frgs-vereinsbar
-flutter create --org com.ruderbar terminal-frontend
+flutter create --org com.clubbar terminal-frontend
 cd terminal-frontend
 ```
 
@@ -159,7 +159,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Ruderbar Terminal',
+      title: 'Club Bar Terminal',
       theme: AppTheme.darkTheme(),
       home: const Scaffold(
         body: Center(child: Text('Theme setup complete')),

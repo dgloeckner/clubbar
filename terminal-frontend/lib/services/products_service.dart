@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/repository/products_repository.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/repository/products_repository.dart';
 
 class ProductsService {
   final ProductsRepository _repository;

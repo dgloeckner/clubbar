@@ -1,6 +1,6 @@
 # Data Model
 
-This document defines the complete data model for Ruderbar, covering both backend (MariaDB) and frontend (SQLite cache) entities.
+This document defines the complete data model for Club Bar, covering both backend (MariaDB) and frontend (SQLite cache) entities.
 
 ## Overview
 

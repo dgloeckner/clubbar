@@ -1,6 +1,6 @@
 {
-    "name": "frgs/ruderbar-backend",
-    "description": "Ruderbar POS Backend - Slim 4",
+    "name": "frgs/clubbar-backend",
+    "description": "Club Bar POS Backend - Slim 4",
     "type": "project",
     "license": "AGPL-3.0-or-later",
     "require": {

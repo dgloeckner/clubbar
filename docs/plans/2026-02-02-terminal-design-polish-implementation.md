@@ -334,9 +334,9 @@ git add terminal-frontend/lib/utils/icon_registry.dart && git commit -m "feat: a
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/icon_registry.dart';
 
 class ProductCard extends StatefulWidget {
   final ProductsCacheData product;
@@ -492,9 +492,9 @@ cd /Users/dg/dev/frgs-vereinsbar && git add terminal-frontend/lib/widgets/styled
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/icon_registry.dart';
 
 class CategoryChip extends StatelessWidget {
   final CategoriesCacheData category;
@@ -593,8 +593,8 @@ cd /Users/dg/dev/frgs-vereinsbar && git add terminal-frontend/lib/widgets/styled
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 class MemberInfoCard extends StatelessWidget {
   final MembersCacheData member;
@@ -729,7 +729,7 @@ cd /Users/dg/dev/frgs-vereinsbar && git add terminal-frontend/lib/widgets/styled
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 class PriceDisplay extends StatelessWidget {
   final int priceCents;
@@ -806,7 +806,7 @@ cd /Users/dg/dev/frgs-vereinsbar && git add terminal-frontend/lib/widgets/styled
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 class ActionButton extends StatefulWidget {
   final String label;
@@ -964,9 +964,9 @@ Run: `head -50 /Users/dg/dev/frgs-vereinsbar/terminal-frontend/lib/screens/idle_
 ```dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/providers/rfid_provider.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/widgets/rfid_detector_button.dart';
+import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/widgets/rfid_detector_button.dart';
 
 class IdleWaitingScreen extends StatelessWidget {
   const IdleWaitingScreen({super.key});
@@ -1087,8 +1087,8 @@ cd /Users/dg/dev/frgs-vereinsbar && git commit -am "feat: style Idle Waiting Scr
 ```dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/providers/rfid_provider.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 class RfidDetectorButton extends StatefulWidget {
   const RfidDetectorButton({Key? key}) : super(key: key);
@@ -1232,17 +1232,17 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/providers/auth_provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/widgets/app_header.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/product_card.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/category_chip.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/member_info_card.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/auth_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/widgets/app_header.dart';
+import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
+import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
+import 'package:clubbar_terminal/widgets/styled_components/member_info_card.dart';
 
 class ProductSelectionScreen extends StatefulWidget {
   const ProductSelectionScreen({super.key});
@@ -1461,9 +1461,9 @@ Run: `head -50 /Users/dg/dev/frgs-vereinsbar/terminal-frontend/lib/screens/membe
 ```dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/member_info_card.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/widgets/styled_components/member_info_card.dart';
 
 class MemberDetailsPage extends StatelessWidget {
   const MemberDetailsPage({super.key});
@@ -1625,12 +1625,12 @@ cd /Users/dg/dev/frgs-vereinsbar && git commit -am "feat: style Member Details P
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/action_button.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/price_display.dart';
-import 'package:ruderbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/widgets/styled_components/action_button.dart';
+import 'package:clubbar_terminal/widgets/styled_components/price_display.dart';
+import 'package:clubbar_terminal/utils/icon_registry.dart';
 
 class ShoppingCartScreen extends StatelessWidget {
   const ShoppingCartScreen({super.key});
@@ -1859,10 +1859,10 @@ cd /Users/dg/dev/frgs-vereinsbar && git commit -am "feat: style Shopping Cart Sc
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
-import 'package:ruderbar_terminal/widgets/styled_components/price_display.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/widgets/styled_components/price_display.dart';
 
 class CheckoutConfirmationScreen extends StatefulWidget {
   const CheckoutConfirmationScreen({super.key});

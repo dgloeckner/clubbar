@@ -1,16 +1,16 @@
 import 'package:uuid/uuid.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:drift/drift.dart';
 
 class CartService {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
   final TransactionsRepository _repository;
   static const _uuid = Uuid();
 
   CartService({
-    required RuderbarDatabase database,
+    required ClubBarDatabase database,
     required TransactionsRepository repository,
   })  : _db = database,
         _repository = repository;

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Ruderbar Installation Wizard
+ * Club Bar Installation Wizard
  *
  * Self-contained installer with embedded HTML/CSS.
  * No external dependencies — works before Composer vendor/ is loaded
@@ -313,15 +313,15 @@ function showAlreadyInstalled(): void
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Ruderbar - Already Installed</title>
+        <title>Club Bar - Already Installed</title>
         <style><?php echo getStyles(); ?></style>
     </head>
     <body>
         <div class="container">
-            <h1>Ruderbar</h1>
+            <h1>Club Bar</h1>
             <div class="card">
                 <h2>Already Installed</h2>
-                <p>Ruderbar is already installed and configured.</p>
+                <p>Club Bar is already installed and configured.</p>
                 <a href="/" class="btn">Go to Admin Panel</a>
                 <hr>
                 <p><small>Need to run database migrations after an update? <a href="?update=1">Run updater</a></small></p>
@@ -334,7 +334,7 @@ function showAlreadyInstalled(): void
 
 function renderPage(string $step, ?string $error, bool $isUpdate): void
 {
-    $title = $isUpdate ? 'Ruderbar Update' : 'Ruderbar Installation';
+    $title = $isUpdate ? 'Club Bar Update' : 'Club Bar Installation';
     ?>
     <!DOCTYPE html>
     <html lang="en">
@@ -552,7 +552,7 @@ function renderStep5(): void
 {
     ?>
     <h2>Installation Complete!</h2>
-    <p>Ruderbar has been installed successfully. You can now log in with the admin account you just created.</p>
+    <p>Club Bar has been installed successfully. You can now log in with the admin account you just created.</p>
     <a href="/" class="btn">Go to Admin Panel</a>
     <hr>
     <p><small>For security, consider deleting or renaming <code>install.php</code> after installation.</small></p>

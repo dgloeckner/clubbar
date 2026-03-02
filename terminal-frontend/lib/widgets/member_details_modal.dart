@@ -1,14 +1,14 @@
-import 'package:ruderbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/models/transaction_list_item.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/services/transaction_history_service.dart';
-import 'package:ruderbar_terminal/services/network_service.dart';
-import 'package:ruderbar_terminal/utils/formatters.dart';
-import 'package:ruderbar_terminal/utils/icon_registry.dart';
-import 'package:ruderbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/models/transaction_list_item.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/services/transaction_history_service.dart';
+import 'package:clubbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/utils/formatters.dart';
+import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/database/database.dart';
 
 /// Show member details modal as a bottom sheet
 void showMemberDetailsModal(BuildContext context) {
@@ -81,7 +81,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
 
       if (isOnline) {
         // Fetch from backend (includes local unsynced + remote)
-        final database = context.read<RuderbarDatabase>();
+        final database = context.read<ClubBarDatabase>();
         final service = TransactionHistoryService(
           baseUrl: networkService.baseUrl,
           authToken: authToken,

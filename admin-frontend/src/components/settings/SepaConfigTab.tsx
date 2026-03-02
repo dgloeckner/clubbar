@@ -316,7 +316,7 @@ export function SepaConfigTab({
               label="Verwendungszweck-Präfix (Payment Reference Prefix)"
               fieldKey="payment_reference_prefix"
               value={formData.payment_reference_prefix}
-              placeholder="z.B. Ruderbar Abrechnung"
+              placeholder="z.B. Club Bar Abrechnung"
               helperText="Präfix für den Verwendungszweck. Das Abrechnungsdatum wird automatisch angehängt."
               maxLength={100}
               showCharCounter={true}

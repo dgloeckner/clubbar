@@ -1,11 +1,11 @@
--- Ruderbar Database Initialization
+-- Club Bar Database Initialization
 -- This file runs on first container start
 
 -- Ensure UTF-8 encoding
-ALTER DATABASE ruderbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER DATABASE clubbar CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- Grant permissions
-GRANT ALL PRIVILEGES ON ruderbar.* TO 'ruderbar'@'%';
+GRANT ALL PRIVILEGES ON clubbar.* TO 'clubbar'@'%';
 FLUSH PRIVILEGES;
 
 -- Note: SQL migrations create the actual tables via the install endpoint

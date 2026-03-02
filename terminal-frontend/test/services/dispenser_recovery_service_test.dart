@@ -2,20 +2,20 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/services/dispenser_client.dart';
-import 'package:ruderbar_terminal/services/dispenser_recovery_service.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/services/dispenser_recovery_service.dart';
 
 class MockDispenserClient extends Mock implements DispenserClient {}
 
 void main() {
-  late RuderbarDatabase db;
+  late ClubBarDatabase db;
   late MockDispenserClient mockClient;
   late DispenserRecoveryService service;
 
   setUp(() async {
     // Create in-memory database for testing
-    db = RuderbarDatabase.forTesting(NativeDatabase.memory());
+    db = ClubBarDatabase.forTesting(NativeDatabase.memory());
     mockClient = MockDispenserClient();
     service = DispenserRecoveryService(
       database: db,

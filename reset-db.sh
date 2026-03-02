@@ -11,7 +11,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}🔄 Resetting Ruderbar backend database...${NC}\n"
+echo -e "${YELLOW}🔄 Resetting Club Bar backend database...${NC}\n"
 
 # Check if Docker containers are running
 if ! docker compose ps | grep -q "database"; then
@@ -23,7 +23,7 @@ fi
 # Run the reset script
 echo "   Clearing existing data..."
 echo "   Loading test data..."
-docker compose exec -T database mysql -u root -proot ruderbar < backend/db/reset_test_data.sql
+docker compose exec -T database mysql -u root -proot clubbar < backend/db/reset_test_data.sql
 
 echo ""
 echo -e "${GREEN}✨ Database reset complete!${NC}"

@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logger/logger.dart';
-import 'package:ruderbar_terminal/services/error_file_output.dart';
+import 'package:clubbar_terminal/services/error_file_output.dart';
 
 void main() {
   group('ErrorFileOutput', () {

@@ -26,9 +26,9 @@ Create `test/widgets/app_header_test.dart`:
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/providers/auth_provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
-import 'package:ruderbar_terminal/widgets/app_header.dart';
+import 'package:clubbar_terminal/providers/auth_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/widgets/app_header.dart';
 
 class MockAuthProvider extends Mock implements AuthProvider {}
 
@@ -140,8 +140,8 @@ Create `lib/widgets/app_header.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/providers/auth_provider.dart';
-import 'package:ruderbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/providers/auth_provider.dart';
+import 'package:clubbar_terminal/providers/sync_provider.dart';
 
 class AppHeader extends AppBar {
   AppHeader({
@@ -223,8 +223,8 @@ Create `test/widgets/product_card_test.dart`:
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:convert';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/widgets/product_card.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/widgets/product_card.dart';
 
 void main() {
   group('ProductCard', () {
@@ -324,7 +324,7 @@ Create `lib/widgets/product_card.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
 
 class ProductCard extends StatelessWidget {
   final ProductsCacheData product;
@@ -438,8 +438,8 @@ Create `test/widgets/category_tabs_test.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/widgets/category_tabs.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/widgets/category_tabs.dart';
 
 void main() {
   group('CategoryTabs', () {
@@ -535,7 +535,7 @@ Create `lib/widgets/category_tabs.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
 
 class CategoryTabs extends StatelessWidget {
   final List<CategoriesCacheData> categories;
@@ -620,8 +620,8 @@ Create `test/widgets/cart_item_row_test.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/widgets/cart_item_row.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/widgets/cart_item_row.dart';
 
 void main() {
   group('CartItemRow', () {
@@ -743,7 +743,7 @@ Create `lib/widgets/cart_item_row.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
 
 class CartItemRow extends StatelessWidget {
   final CartItem item;
@@ -870,7 +870,7 @@ Create `test/widgets/error_banner_test.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/widgets/error_banner.dart';
+import 'package:clubbar_terminal/widgets/error_banner.dart';
 
 void main() {
   group('ErrorBanner', () {
@@ -1044,7 +1044,7 @@ Create `test/widgets/loading_overlay_test.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/widgets/loading_overlay.dart';
+import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 
 void main() {
   group('LoadingOverlay', () {
@@ -1253,7 +1253,7 @@ Central export file for all common UI widgets:
 - AppHeader, ProductCard, CategoryTabs
 - CartItemRow, ErrorBanner, LoadingOverlay
 
-Simplifies screen imports: use 'package:ruderbar_terminal/widgets/index.dart'"
+Simplifies screen imports: use 'package:clubbar_terminal/widgets/index.dart'"
 ```
 
 ---
@@ -1274,9 +1274,9 @@ Create `test/screens/member_greeting_screen_test.dart`:
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/screens/member_greeting_screen.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/screens/member_greeting_screen.dart';
 
 class MockMembersProvider extends Mock implements MembersProvider {}
 
@@ -1377,8 +1377,8 @@ Create `lib/screens/member_greeting_screen.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/widgets/error_banner.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/widgets/error_banner.dart';
 
 class MemberGreetingScreen extends StatelessWidget {
   final MembersProvider membersProvider;
@@ -1486,10 +1486,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'dart:convert';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/screens/product_selection_screen.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/screens/product_selection_screen.dart';
 
 class MockProductsProvider extends Mock implements ProductsProvider {}
 
@@ -1584,13 +1584,13 @@ Create `lib/screens/product_selection_screen.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/widgets/category_tabs.dart';
-import 'package:ruderbar_terminal/widgets/error_banner.dart';
-import 'package:ruderbar_terminal/widgets/loading_overlay.dart';
-import 'package:ruderbar_terminal/widgets/product_card.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/widgets/category_tabs.dart';
+import 'package:clubbar_terminal/widgets/error_banner.dart';
+import 'package:clubbar_terminal/widgets/loading_overlay.dart';
+import 'package:clubbar_terminal/widgets/product_card.dart';
 
 class ProductSelectionScreen extends StatefulWidget {
   final ProductsProvider productsProvider;
@@ -1731,10 +1731,10 @@ Create `test/screens/shopping_cart_screen_test.dart`:
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/screens/shopping_cart_screen.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
 
@@ -1836,11 +1836,11 @@ Create `lib/screens/shopping_cart_screen.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/widgets/cart_item_row.dart';
-import 'package:ruderbar_terminal/widgets/error_banner.dart';
-import 'package:ruderbar_terminal/widgets/loading_overlay.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/widgets/cart_item_row.dart';
+import 'package:clubbar_terminal/widgets/error_banner.dart';
+import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 
 class ShoppingCartScreen extends StatelessWidget {
   final CartProvider cartProvider;
@@ -1992,7 +1992,7 @@ Create `test/screens/checkout_confirmation_screen_test.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ruderbar_terminal/screens/checkout_confirmation_screen.dart';
+import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
 
 void main() {
   group('CheckoutConfirmationScreen', () {

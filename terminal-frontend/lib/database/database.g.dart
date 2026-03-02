@@ -3454,9 +3454,9 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
   }
 }
 
-abstract class _$RuderbarDatabase extends GeneratedDatabase {
-  _$RuderbarDatabase(QueryExecutor e) : super(e);
-  $RuderbarDatabaseManager get managers => $RuderbarDatabaseManager(this);
+abstract class _$ClubBarDatabase extends GeneratedDatabase {
+  _$ClubBarDatabase(QueryExecutor e) : super(e);
+  $ClubBarDatabaseManager get managers => $ClubBarDatabaseManager(this);
   late final $MembersCacheTable membersCache = $MembersCacheTable(this);
   late final $CategoriesCacheTable categoriesCache = $CategoriesCacheTable(
     this,
@@ -3515,7 +3515,7 @@ typedef $$MembersCacheTableUpdateCompanionBuilder =
 final class $$MembersCacheTableReferences
     extends
         BaseReferences<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $MembersCacheTable,
           MembersCacheData
         > {
@@ -3525,7 +3525,7 @@ final class $$MembersCacheTableReferences
     $TransactionsLocalTable,
     List<TransactionsLocalData>
   >
-  _transactionsLocalRefsTable(_$RuderbarDatabase db) =>
+  _transactionsLocalRefsTable(_$ClubBarDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.transactionsLocal,
         aliasName: $_aliasNameGenerator(
@@ -3550,7 +3550,7 @@ final class $$MembersCacheTableReferences
 }
 
 class $$MembersCacheTableFilterComposer
-    extends Composer<_$RuderbarDatabase, $MembersCacheTable> {
+    extends Composer<_$ClubBarDatabase, $MembersCacheTable> {
   $$MembersCacheTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -3630,7 +3630,7 @@ class $$MembersCacheTableFilterComposer
 }
 
 class $$MembersCacheTableOrderingComposer
-    extends Composer<_$RuderbarDatabase, $MembersCacheTable> {
+    extends Composer<_$ClubBarDatabase, $MembersCacheTable> {
   $$MembersCacheTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -3685,7 +3685,7 @@ class $$MembersCacheTableOrderingComposer
 }
 
 class $$MembersCacheTableAnnotationComposer
-    extends Composer<_$RuderbarDatabase, $MembersCacheTable> {
+    extends Composer<_$ClubBarDatabase, $MembersCacheTable> {
   $$MembersCacheTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -3756,7 +3756,7 @@ class $$MembersCacheTableAnnotationComposer
 class $$MembersCacheTableTableManager
     extends
         RootTableManager<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $MembersCacheTable,
           MembersCacheData,
           $$MembersCacheTableFilterComposer,
@@ -3769,7 +3769,7 @@ class $$MembersCacheTableTableManager
           PrefetchHooks Function({bool transactionsLocalRefs})
         > {
   $$MembersCacheTableTableManager(
-    _$RuderbarDatabase db,
+    _$ClubBarDatabase db,
     $MembersCacheTable table,
   ) : super(
         TableManagerState(
@@ -3875,7 +3875,7 @@ class $$MembersCacheTableTableManager
 
 typedef $$MembersCacheTableProcessedTableManager =
     ProcessedTableManager<
-      _$RuderbarDatabase,
+      _$ClubBarDatabase,
       $MembersCacheTable,
       MembersCacheData,
       $$MembersCacheTableFilterComposer,
@@ -3909,7 +3909,7 @@ typedef $$CategoriesCacheTableUpdateCompanionBuilder =
 final class $$CategoriesCacheTableReferences
     extends
         BaseReferences<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $CategoriesCacheTable,
           CategoriesCacheData
         > {
@@ -3920,7 +3920,7 @@ final class $$CategoriesCacheTableReferences
   );
 
   static MultiTypedResultKey<$ProductsCacheTable, List<ProductsCacheData>>
-  _productsCacheRefsTable(_$RuderbarDatabase db) =>
+  _productsCacheRefsTable(_$ClubBarDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.productsCache,
         aliasName: $_aliasNameGenerator(
@@ -3943,7 +3943,7 @@ final class $$CategoriesCacheTableReferences
 }
 
 class $$CategoriesCacheTableFilterComposer
-    extends Composer<_$RuderbarDatabase, $CategoriesCacheTable> {
+    extends Composer<_$ClubBarDatabase, $CategoriesCacheTable> {
   $$CategoriesCacheTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -4003,7 +4003,7 @@ class $$CategoriesCacheTableFilterComposer
 }
 
 class $$CategoriesCacheTableOrderingComposer
-    extends Composer<_$RuderbarDatabase, $CategoriesCacheTable> {
+    extends Composer<_$ClubBarDatabase, $CategoriesCacheTable> {
   $$CategoriesCacheTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -4038,7 +4038,7 @@ class $$CategoriesCacheTableOrderingComposer
 }
 
 class $$CategoriesCacheTableAnnotationComposer
-    extends Composer<_$RuderbarDatabase, $CategoriesCacheTable> {
+    extends Composer<_$ClubBarDatabase, $CategoriesCacheTable> {
   $$CategoriesCacheTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -4090,7 +4090,7 @@ class $$CategoriesCacheTableAnnotationComposer
 class $$CategoriesCacheTableTableManager
     extends
         RootTableManager<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $CategoriesCacheTable,
           CategoriesCacheData,
           $$CategoriesCacheTableFilterComposer,
@@ -4103,7 +4103,7 @@ class $$CategoriesCacheTableTableManager
           PrefetchHooks Function({bool productsCacheRefs})
         > {
   $$CategoriesCacheTableTableManager(
-    _$RuderbarDatabase db,
+    _$ClubBarDatabase db,
     $CategoriesCacheTable table,
   ) : super(
         TableManagerState(
@@ -4193,7 +4193,7 @@ class $$CategoriesCacheTableTableManager
 
 typedef $$CategoriesCacheTableProcessedTableManager =
     ProcessedTableManager<
-      _$RuderbarDatabase,
+      _$ClubBarDatabase,
       $CategoriesCacheTable,
       CategoriesCacheData,
       $$CategoriesCacheTableFilterComposer,
@@ -4235,7 +4235,7 @@ typedef $$ProductsCacheTableUpdateCompanionBuilder =
 final class $$ProductsCacheTableReferences
     extends
         BaseReferences<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $ProductsCacheTable,
           ProductsCacheData
         > {
@@ -4245,7 +4245,7 @@ final class $$ProductsCacheTableReferences
     super.$_typedResult,
   );
 
-  static $CategoriesCacheTable _categoryIdTable(_$RuderbarDatabase db) =>
+  static $CategoriesCacheTable _categoryIdTable(_$ClubBarDatabase db) =>
       db.categoriesCache.createAlias(
         $_aliasNameGenerator(
           db.productsCache.categoryId,
@@ -4271,7 +4271,7 @@ final class $$ProductsCacheTableReferences
     $TransactionsLocalTable,
     List<TransactionsLocalData>
   >
-  _transactionsLocalRefsTable(_$RuderbarDatabase db) =>
+  _transactionsLocalRefsTable(_$ClubBarDatabase db) =>
       MultiTypedResultKey.fromTable(
         db.transactionsLocal,
         aliasName: $_aliasNameGenerator(
@@ -4296,7 +4296,7 @@ final class $$ProductsCacheTableReferences
 }
 
 class $$ProductsCacheTableFilterComposer
-    extends Composer<_$RuderbarDatabase, $ProductsCacheTable> {
+    extends Composer<_$ClubBarDatabase, $ProductsCacheTable> {
   $$ProductsCacheTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -4394,7 +4394,7 @@ class $$ProductsCacheTableFilterComposer
 }
 
 class $$ProductsCacheTableOrderingComposer
-    extends Composer<_$RuderbarDatabase, $ProductsCacheTable> {
+    extends Composer<_$ClubBarDatabase, $ProductsCacheTable> {
   $$ProductsCacheTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -4467,7 +4467,7 @@ class $$ProductsCacheTableOrderingComposer
 }
 
 class $$ProductsCacheTableAnnotationComposer
-    extends Composer<_$RuderbarDatabase, $ProductsCacheTable> {
+    extends Composer<_$ClubBarDatabase, $ProductsCacheTable> {
   $$ProductsCacheTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -4558,7 +4558,7 @@ class $$ProductsCacheTableAnnotationComposer
 class $$ProductsCacheTableTableManager
     extends
         RootTableManager<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $ProductsCacheTable,
           ProductsCacheData,
           $$ProductsCacheTableFilterComposer,
@@ -4571,7 +4571,7 @@ class $$ProductsCacheTableTableManager
           PrefetchHooks Function({bool categoryId, bool transactionsLocalRefs})
         > {
   $$ProductsCacheTableTableManager(
-    _$RuderbarDatabase db,
+    _$ClubBarDatabase db,
     $ProductsCacheTable table,
   ) : super(
         TableManagerState(
@@ -4713,7 +4713,7 @@ class $$ProductsCacheTableTableManager
 
 typedef $$ProductsCacheTableProcessedTableManager =
     ProcessedTableManager<
-      _$RuderbarDatabase,
+      _$ClubBarDatabase,
       $ProductsCacheTable,
       ProductsCacheData,
       $$ProductsCacheTableFilterComposer,
@@ -4763,7 +4763,7 @@ typedef $$TransactionsLocalTableUpdateCompanionBuilder =
 final class $$TransactionsLocalTableReferences
     extends
         BaseReferences<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $TransactionsLocalTable,
           TransactionsLocalData
         > {
@@ -4773,7 +4773,7 @@ final class $$TransactionsLocalTableReferences
     super.$_typedResult,
   );
 
-  static $MembersCacheTable _memberIdTable(_$RuderbarDatabase db) =>
+  static $MembersCacheTable _memberIdTable(_$ClubBarDatabase db) =>
       db.membersCache.createAlias(
         $_aliasNameGenerator(db.transactionsLocal.memberId, db.membersCache.id),
       );
@@ -4792,7 +4792,7 @@ final class $$TransactionsLocalTableReferences
     );
   }
 
-  static $ProductsCacheTable _productIdTable(_$RuderbarDatabase db) =>
+  static $ProductsCacheTable _productIdTable(_$ClubBarDatabase db) =>
       db.productsCache.createAlias(
         $_aliasNameGenerator(
           db.transactionsLocal.productId,
@@ -4816,7 +4816,7 @@ final class $$TransactionsLocalTableReferences
 }
 
 class $$TransactionsLocalTableFilterComposer
-    extends Composer<_$RuderbarDatabase, $TransactionsLocalTable> {
+    extends Composer<_$ClubBarDatabase, $TransactionsLocalTable> {
   $$TransactionsLocalTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -4927,7 +4927,7 @@ class $$TransactionsLocalTableFilterComposer
 }
 
 class $$TransactionsLocalTableOrderingComposer
-    extends Composer<_$RuderbarDatabase, $TransactionsLocalTable> {
+    extends Composer<_$ClubBarDatabase, $TransactionsLocalTable> {
   $$TransactionsLocalTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -5038,7 +5038,7 @@ class $$TransactionsLocalTableOrderingComposer
 }
 
 class $$TransactionsLocalTableAnnotationComposer
-    extends Composer<_$RuderbarDatabase, $TransactionsLocalTable> {
+    extends Composer<_$ClubBarDatabase, $TransactionsLocalTable> {
   $$TransactionsLocalTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -5141,7 +5141,7 @@ class $$TransactionsLocalTableAnnotationComposer
 class $$TransactionsLocalTableTableManager
     extends
         RootTableManager<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $TransactionsLocalTable,
           TransactionsLocalData,
           $$TransactionsLocalTableFilterComposer,
@@ -5154,7 +5154,7 @@ class $$TransactionsLocalTableTableManager
           PrefetchHooks Function({bool memberId, bool productId})
         > {
   $$TransactionsLocalTableTableManager(
-    _$RuderbarDatabase db,
+    _$ClubBarDatabase db,
     $TransactionsLocalTable table,
   ) : super(
         TableManagerState(
@@ -5305,7 +5305,7 @@ class $$TransactionsLocalTableTableManager
 
 typedef $$TransactionsLocalTableProcessedTableManager =
     ProcessedTableManager<
-      _$RuderbarDatabase,
+      _$ClubBarDatabase,
       $TransactionsLocalTable,
       TransactionsLocalData,
       $$TransactionsLocalTableFilterComposer,
@@ -5331,7 +5331,7 @@ typedef $$SyncStateTableUpdateCompanionBuilder =
     });
 
 class $$SyncStateTableFilterComposer
-    extends Composer<_$RuderbarDatabase, $SyncStateTable> {
+    extends Composer<_$ClubBarDatabase, $SyncStateTable> {
   $$SyncStateTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -5351,7 +5351,7 @@ class $$SyncStateTableFilterComposer
 }
 
 class $$SyncStateTableOrderingComposer
-    extends Composer<_$RuderbarDatabase, $SyncStateTable> {
+    extends Composer<_$ClubBarDatabase, $SyncStateTable> {
   $$SyncStateTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -5371,7 +5371,7 @@ class $$SyncStateTableOrderingComposer
 }
 
 class $$SyncStateTableAnnotationComposer
-    extends Composer<_$RuderbarDatabase, $SyncStateTable> {
+    extends Composer<_$ClubBarDatabase, $SyncStateTable> {
   $$SyncStateTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -5389,7 +5389,7 @@ class $$SyncStateTableAnnotationComposer
 class $$SyncStateTableTableManager
     extends
         RootTableManager<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $SyncStateTable,
           SyncStateData,
           $$SyncStateTableFilterComposer,
@@ -5399,12 +5399,12 @@ class $$SyncStateTableTableManager
           $$SyncStateTableUpdateCompanionBuilder,
           (
             SyncStateData,
-            BaseReferences<_$RuderbarDatabase, $SyncStateTable, SyncStateData>,
+            BaseReferences<_$ClubBarDatabase, $SyncStateTable, SyncStateData>,
           ),
           SyncStateData,
           PrefetchHooks Function()
         > {
-  $$SyncStateTableTableManager(_$RuderbarDatabase db, $SyncStateTable table)
+  $$SyncStateTableTableManager(_$ClubBarDatabase db, $SyncStateTable table)
     : super(
         TableManagerState(
           db: db,
@@ -5441,7 +5441,7 @@ class $$SyncStateTableTableManager
 
 typedef $$SyncStateTableProcessedTableManager =
     ProcessedTableManager<
-      _$RuderbarDatabase,
+      _$ClubBarDatabase,
       $SyncStateTable,
       SyncStateData,
       $$SyncStateTableFilterComposer,
@@ -5451,7 +5451,7 @@ typedef $$SyncStateTableProcessedTableManager =
       $$SyncStateTableUpdateCompanionBuilder,
       (
         SyncStateData,
-        BaseReferences<_$RuderbarDatabase, $SyncStateTable, SyncStateData>,
+        BaseReferences<_$ClubBarDatabase, $SyncStateTable, SyncStateData>,
       ),
       SyncStateData,
       PrefetchHooks Function()
@@ -5470,7 +5470,7 @@ typedef $$DispenserConfigTableUpdateCompanionBuilder =
     });
 
 class $$DispenserConfigTableFilterComposer
-    extends Composer<_$RuderbarDatabase, $DispenserConfigTable> {
+    extends Composer<_$ClubBarDatabase, $DispenserConfigTable> {
   $$DispenserConfigTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -5490,7 +5490,7 @@ class $$DispenserConfigTableFilterComposer
 }
 
 class $$DispenserConfigTableOrderingComposer
-    extends Composer<_$RuderbarDatabase, $DispenserConfigTable> {
+    extends Composer<_$ClubBarDatabase, $DispenserConfigTable> {
   $$DispenserConfigTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -5510,7 +5510,7 @@ class $$DispenserConfigTableOrderingComposer
 }
 
 class $$DispenserConfigTableAnnotationComposer
-    extends Composer<_$RuderbarDatabase, $DispenserConfigTable> {
+    extends Composer<_$ClubBarDatabase, $DispenserConfigTable> {
   $$DispenserConfigTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -5528,7 +5528,7 @@ class $$DispenserConfigTableAnnotationComposer
 class $$DispenserConfigTableTableManager
     extends
         RootTableManager<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $DispenserConfigTable,
           DispenserConfigData,
           $$DispenserConfigTableFilterComposer,
@@ -5539,7 +5539,7 @@ class $$DispenserConfigTableTableManager
           (
             DispenserConfigData,
             BaseReferences<
-              _$RuderbarDatabase,
+              _$ClubBarDatabase,
               $DispenserConfigTable,
               DispenserConfigData
             >,
@@ -5548,7 +5548,7 @@ class $$DispenserConfigTableTableManager
           PrefetchHooks Function()
         > {
   $$DispenserConfigTableTableManager(
-    _$RuderbarDatabase db,
+    _$ClubBarDatabase db,
     $DispenserConfigTable table,
   ) : super(
         TableManagerState(
@@ -5590,7 +5590,7 @@ class $$DispenserConfigTableTableManager
 
 typedef $$DispenserConfigTableProcessedTableManager =
     ProcessedTableManager<
-      _$RuderbarDatabase,
+      _$ClubBarDatabase,
       $DispenserConfigTable,
       DispenserConfigData,
       $$DispenserConfigTableFilterComposer,
@@ -5601,7 +5601,7 @@ typedef $$DispenserConfigTableProcessedTableManager =
       (
         DispenserConfigData,
         BaseReferences<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $DispenserConfigTable,
           DispenserConfigData
         >,
@@ -5641,7 +5641,7 @@ typedef $$DispenserOperationsTableUpdateCompanionBuilder =
     });
 
 class $$DispenserOperationsTableFilterComposer
-    extends Composer<_$RuderbarDatabase, $DispenserOperationsTable> {
+    extends Composer<_$ClubBarDatabase, $DispenserOperationsTable> {
   $$DispenserOperationsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -5706,7 +5706,7 @@ class $$DispenserOperationsTableFilterComposer
 }
 
 class $$DispenserOperationsTableOrderingComposer
-    extends Composer<_$RuderbarDatabase, $DispenserOperationsTable> {
+    extends Composer<_$ClubBarDatabase, $DispenserOperationsTable> {
   $$DispenserOperationsTableOrderingComposer({
     required super.$db,
     required super.$table,
@@ -5771,7 +5771,7 @@ class $$DispenserOperationsTableOrderingComposer
 }
 
 class $$DispenserOperationsTableAnnotationComposer
-    extends Composer<_$RuderbarDatabase, $DispenserOperationsTable> {
+    extends Composer<_$ClubBarDatabase, $DispenserOperationsTable> {
   $$DispenserOperationsTableAnnotationComposer({
     required super.$db,
     required super.$table,
@@ -5832,7 +5832,7 @@ class $$DispenserOperationsTableAnnotationComposer
 class $$DispenserOperationsTableTableManager
     extends
         RootTableManager<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $DispenserOperationsTable,
           DispenserOperation,
           $$DispenserOperationsTableFilterComposer,
@@ -5843,7 +5843,7 @@ class $$DispenserOperationsTableTableManager
           (
             DispenserOperation,
             BaseReferences<
-              _$RuderbarDatabase,
+              _$ClubBarDatabase,
               $DispenserOperationsTable,
               DispenserOperation
             >,
@@ -5852,7 +5852,7 @@ class $$DispenserOperationsTableTableManager
           PrefetchHooks Function()
         > {
   $$DispenserOperationsTableTableManager(
-    _$RuderbarDatabase db,
+    _$ClubBarDatabase db,
     $DispenserOperationsTable table,
   ) : super(
         TableManagerState(
@@ -5936,7 +5936,7 @@ class $$DispenserOperationsTableTableManager
 
 typedef $$DispenserOperationsTableProcessedTableManager =
     ProcessedTableManager<
-      _$RuderbarDatabase,
+      _$ClubBarDatabase,
       $DispenserOperationsTable,
       DispenserOperation,
       $$DispenserOperationsTableFilterComposer,
@@ -5947,7 +5947,7 @@ typedef $$DispenserOperationsTableProcessedTableManager =
       (
         DispenserOperation,
         BaseReferences<
-          _$RuderbarDatabase,
+          _$ClubBarDatabase,
           $DispenserOperationsTable,
           DispenserOperation
         >,
@@ -5956,9 +5956,9 @@ typedef $$DispenserOperationsTableProcessedTableManager =
       PrefetchHooks Function()
     >;
 
-class $RuderbarDatabaseManager {
-  final _$RuderbarDatabase _db;
-  $RuderbarDatabaseManager(this._db);
+class $ClubBarDatabaseManager {
+  final _$ClubBarDatabase _db;
+  $ClubBarDatabaseManager(this._db);
   $$MembersCacheTableTableManager get membersCache =>
       $$MembersCacheTableTableManager(_db, _db.membersCache);
   $$CategoriesCacheTableTableManager get categoriesCache =>

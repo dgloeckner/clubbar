@@ -3,7 +3,7 @@ import '../database/database.dart';
 import 'members_repository.dart';
 
 class TransactionsRepository {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
 
   TransactionsRepository(this._db);
 

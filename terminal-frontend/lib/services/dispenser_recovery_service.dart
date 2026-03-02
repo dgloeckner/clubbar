@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:logger/logger.dart';
-import 'package:ruderbar_terminal/database/database.dart';
-import 'package:ruderbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart';
 
@@ -21,14 +21,14 @@ import 'package:drift/drift.dart';
 /// Example: User shown "2 tokens", ESP actually dispensed 3, crashes.
 /// Recovery detects 3 - 2 = 1 missing transaction, creates it.
 class DispenserRecoveryService {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
   final DispenserClient _dispenserClient;
   final Logger _logger;
   final Uuid _uuid = const Uuid();
   Timer? _periodicTimer;
 
   DispenserRecoveryService({
-    required RuderbarDatabase database,
+    required ClubBarDatabase database,
     required DispenserClient client,
     Logger? logger,
   })  : _db = database,

@@ -4,11 +4,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/l10n/app_localizations.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/repository/transactions_repository.dart';
-import 'package:ruderbar_terminal/screens/checkout_confirmation_screen.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}

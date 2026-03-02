@@ -5,7 +5,7 @@ import '../models/product_dto.dart';
 import '../models/category_dto.dart';
 
 class ProductsRepository {
-  final RuderbarDatabase _db;
+  final ClubBarDatabase _db;
 
   ProductsRepository(this._db);
 
