@@ -1,4 +1,4 @@
-# Ruderbar Admin Frontend - Build and serve via Apache
+# Club Bar Admin Frontend - Build and serve via Apache
 # Multi-stage build: Node for building, Apache for serving
 
 # Stage 1: Build the React application
