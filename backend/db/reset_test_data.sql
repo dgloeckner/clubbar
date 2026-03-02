@@ -9,7 +9,7 @@
 -- IMPORTANT: After running this script, reset the Flutter app's local cache:
 --   1. QUIT the Flutter app first (press 'q' in terminal)
 --   2. Delete the database:
---      rm ~/Library/Containers/com.example.clubbarTerminal/Data/Library/Application\ Support/com.example.clubbarTerminal/clubbar_terminal.db
+--      rm ~/Library/Containers/de.clubbar.clubbarTerminal/Data/Library/Application\ Support/de.clubbar.clubbarTerminal/clubbar_terminal.db
 --   3. Restart the Flutter app: flutter run -d macos
 --
 -- Note: The app must be stopped BEFORE deleting the database, otherwise it

@@ -35,7 +35,7 @@ make reset-and-run
    - `card-456` → Jane Smith
 
 **Platform-specific paths:**
-- **macOS**: `~/Library/Containers/com.example.clubbarTerminal/Data/clubbar_terminal.db`
+- **macOS**: `~/Library/Containers/de.clubbar.clubbarTerminal/Data/clubbar_terminal.db`
 - **Linux**: `~/.local/share/clubbar_terminal/clubbar_terminal.db`
 
 ---

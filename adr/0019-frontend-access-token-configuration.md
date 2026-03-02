@@ -54,9 +54,9 @@ Location varies by platform:
 
 | Platform | Config Directory | Full Path |
 |----------|------------------|-----------|
-| macOS | `~/Library/Containers/com.example.clubbarTerminal/Data/Library/Application Support/com.example.clubbarTerminal/` | `~/Library/Containers/com.example.clubbarTerminal/Data/Library/Application Support/com.example.clubbarTerminal/config.json` |
-| Windows | `%APPDATA%\com.example.clubbarTerminal\` | `C:\Users\<user>\AppData\Roaming\com.example.clubbarTerminal\config.json` |
-| Linux | `~/.config/com.example.clubbarTerminal/` | `~/.config/com.example.clubbarTerminal/config.json` |
+| macOS | `~/Library/Containers/de.clubbar.clubbarTerminal/Data/Library/Application Support/de.clubbar.clubbarTerminal/` | `~/Library/Containers/de.clubbar.clubbarTerminal/Data/Library/Application Support/de.clubbar.clubbarTerminal/config.json` |
+| Windows | `%APPDATA%\de.clubbar.clubbarTerminal\` | `C:\Users\<user>\AppData\Roaming\de.clubbar.clubbarTerminal\config.json` |
+| Linux | `~/.config/de.clubbar.clubbarTerminal/` | `~/.config/de.clubbar.clubbarTerminal/config.json` |
 
 **File Format:**
 

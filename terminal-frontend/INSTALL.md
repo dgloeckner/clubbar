@@ -215,8 +215,8 @@ platform-specific and resolved automatically by the app:
 | Platform | Path |
 |----------|------|
 | Linux | `~/.local/share/clubbar_terminal/config.json` |
-| macOS | `~/Library/Containers/com.example.clubbar_terminal/Data/Library/Application Support/com.example.clubbar_terminal/config.json` |
-| Windows | `%APPDATA%\com.example.clubbar_terminal\config.json` |
+| macOS | `~/Library/Containers/de.clubbar.clubbar_terminal/Data/Library/Application Support/de.clubbar.clubbar_terminal/config.json` |
+| Windows | `%APPDATA%\de.clubbar.clubbar_terminal\config.json` |
 
 Every key is optional except `terminalId`, `apiUrl`, and `apiToken` (required
 for the app to connect). Omitted keys fall back to the defaults shown below.

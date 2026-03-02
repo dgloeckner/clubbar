@@ -167,9 +167,9 @@ CREATE TABLE IF NOT EXISTS products_cache (
 **Extend `config.json` file** (same file as backend credentials):
 
 **Location:**
-- macOS: `~/Library/Containers/com.example.clubbarTerminal/Data/Library/Application Support/com.example.clubbarTerminal/config.json`
-- Linux: `~/.config/com.example.clubbarTerminal/config.json`
-- Windows: `%APPDATA%\com.example.clubbarTerminal\config.json`
+- macOS: `~/Library/Containers/de.clubbar.clubbarTerminal/Data/Library/Application Support/de.clubbar.clubbarTerminal/config.json`
+- Linux: `~/.config/de.clubbar.clubbarTerminal/config.json`
+- Windows: `%APPDATA%\de.clubbar.clubbarTerminal\config.json`
 
 **Extended structure:**
 ```json
