@@ -95,6 +95,33 @@ This index tracks the status of all implementation plans for Ruderbar. When cont
 
 **Status**: Complete — 4 flow tests pass with 4 workers, 2372 lines deleted.
 
+### Mobile Responsive Design (📍 READY)
+
+**Plan**: [2026-03-02-mobile-responsive-design.md](./2026-03-02-mobile-responsive-design.md)
+**Design**: [../docs/plans/2026-03-02-mobile-responsive-design.md](../docs/plans/2026-03-02-mobile-responsive-design.md)
+
+**Goal**: Make admin frontend fully usable on 375px mobile screens with bottom tab bar, card views, collapsible filters, and single-column forms.
+
+**Status**: Plan complete, 14 tasks. Frontend-only work — no backend changes.
+
+**Tasks**:
+1. [ ] BottomTabBar component
+2. [ ] Integrate BottomTabBar into MainLayout
+3. [ ] MobileToolbar component
+4. [ ] MembersPage mobile view
+5. [ ] ProductsPage mobile view
+6. [ ] JournalPage mobile view
+7. [ ] SettlementsPage mobile view
+8. [ ] CategoriesPage mobile view
+9. [ ] AuditLogPage mobile view
+10. [ ] SettingsPage mobile view (AdminUsersTab)
+11. [ ] StatisticsPage mobile view
+12. [ ] Visual QA pass
+13. [ ] i18n keys
+14. [ ] E2E tests with iPhone 14 emulation
+
+---
+
 ### Terminals Settings Tab (📍 READY)
 
 **Plan**: [2026-02-28-terminals-settings-tab.md](./2026-02-28-terminals-settings-tab.md)
