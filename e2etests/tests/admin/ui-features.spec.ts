@@ -72,10 +72,12 @@ test.describe('Dashboard Statistics', () => {
 })
 
 test.describe('Responsive Layout', () => {
-  test('should show navigation on mobile viewport', async ({ page }) => {
+  test('should show bottom tab bar on mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })
     await page.goto('/members')
-    const layout = new MainLayoutPage(page)
-    await layout.expectHeaderVisible()
+    // Desktop nav should be hidden on mobile
+    await expect(page.getByTestId('desktop-nav')).toBeHidden()
+    // Bottom tab bar should be visible instead
+    await expect(page.getByTestId('bottom-tab-bar')).toBeVisible()
   })
 })
