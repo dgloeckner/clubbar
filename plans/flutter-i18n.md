@@ -167,7 +167,7 @@ This is the template/default locale. ARB format is JSON with metadata.
 
   "@_SETUP_SCREEN": {},
   "setupTitle": "Terminal-Einrichtung",
-  "setupSubtitle": "Verbinde dieses Terminal mit dem Ruderbar-Backend.",
+  "setupSubtitle": "Verbinde dieses Terminal mit dem Club Bar-Backend.",
   "terminalIdLabel": "Terminal-ID",
   "terminalIdRequired": "Terminal-ID ist erforderlich",
   "apiUrlLabel": "API-URL",
@@ -289,7 +289,7 @@ This is the template/default locale. ARB format is JSON with metadata.
   "demoScanCard": "Demo: Scan Card",
 
   "setupTitle": "Terminal Setup",
-  "setupSubtitle": "Connect this terminal to the Ruderbar backend.",
+  "setupSubtitle": "Connect this terminal to the Club Bar backend.",
   "terminalIdLabel": "Terminal ID",
   "terminalIdRequired": "Terminal ID is required",
   "apiUrlLabel": "API URL",

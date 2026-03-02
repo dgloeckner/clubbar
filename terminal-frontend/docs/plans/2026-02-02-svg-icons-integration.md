@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task.
 
-**Goal:** Replace Material icons with beautiful SVG icons from admin-frontend, maintaining visual consistency across the Ruderbar ecosystem.
+**Goal:** Replace Material icons with beautiful SVG icons from admin-frontend, maintaining visual consistency across the Club Bar ecosystem.
 
 **Architecture:** Extract SVG icon components from admin-frontend, convert to asset files in terminal-frontend, update IconRegistry to use flutter_svg SvgPicture.asset(), and modify styled components to support dynamic color filtering. SVG icons will be stored as separate files for each icon (product + category), with a centralized registry for lookup and rendering.
 

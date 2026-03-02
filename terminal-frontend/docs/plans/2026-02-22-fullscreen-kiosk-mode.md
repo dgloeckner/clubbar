@@ -28,7 +28,7 @@ In `lib/config/app_config.dart`, remove:
 The file should look like:
 ```dart
 class AppConfig {
-  static const String appName = 'Ruderbar Terminal';
+  static const String appName = 'Club Bar Terminal';
   static const String version = '0.1.0';
 
   // Display
@@ -274,13 +274,13 @@ Replace the existing **Section 4 "Autostart the terminal app"** with:
 ```markdown
 ## 4. Autostart the terminal app
 
-Create `~/.config/autostart/ruderbar-terminal.desktop`:
+Create `~/.config/autostart/clubbar-terminal.desktop`:
 
 ```ini
 [Desktop Entry]
 Type=Application
-Name=Ruderbar Terminal
-Exec=/opt/ruderbar-terminal/ruderbar_terminal
+Name=Club Bar Terminal
+Exec=/opt/clubbar-terminal/clubbar_terminal
 Hidden=false
 X-GNOME-Autostart-enabled=true
 ```
@@ -294,7 +294,7 @@ To run the app fullscreen (recommended for production kiosk deployments), add
 
 ```json
 {
-  "terminalId": "Ruderbar-Kühlschrank",
+  "terminalId": "Club Bar-Kühlschrank",
   "apiUrl": "https://club.example.com/api",
   "apiToken": "...",
   "fullscreen": true
@@ -307,8 +307,8 @@ Alternatively, set the environment variable `TERMINAL_FULLSCREEN=true` in the
 ```ini
 [Desktop Entry]
 Type=Application
-Name=Ruderbar Terminal
-Exec=env TERMINAL_FULLSCREEN=true /opt/ruderbar-terminal/ruderbar_terminal
+Name=Club Bar Terminal
+Exec=env TERMINAL_FULLSCREEN=true /opt/clubbar-terminal/clubbar_terminal
 Hidden=false
 X-GNOME-Autostart-enabled=true
 ```

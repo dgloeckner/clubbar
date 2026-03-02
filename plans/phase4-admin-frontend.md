@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Project**: Ruderbar Admin Frontend (React SPA)
+**Project**: Club Bar Admin Frontend (React SPA)
 
 **Objective**: Implement production-ready admin panel using React + TypeScript with exact design and UX from `prototypes/frgs-admin.html`
 
@@ -379,7 +379,7 @@ Button: 0 4px 12px rgba(color, 0.3)
 ### 2. Main Dashboard (Index)
 
 #### Header Navigation (Fixed)
-- Logo + "Ruderbar Admin"
+- Logo + "Club Bar Admin"
 - **Primary nav tabs with icons**:
   - 👥 Mitglieder (Members) - UsersIcon
   - 📦 Produkte (Products) - PackageIcon
@@ -1508,7 +1508,7 @@ npm run preview  # Preview production build
 
 Required variables:
 - VITE_API_BASE_URL=http://localhost:8080
-- VITE_APP_NAME=Ruderbar Admin
+- VITE_APP_NAME=Club Bar Admin
 ```
 
 ---

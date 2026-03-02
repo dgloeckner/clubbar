@@ -32,9 +32,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
-import 'package:ruderbar_terminal/screens/member_greeting_screen.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/screens/member_greeting_screen.dart';
 
 class MockMembersProvider extends Mock implements MembersProvider {}
 
@@ -162,7 +162,7 @@ Create `lib/screens/member_greeting_screen.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/providers/members_provider.dart';
 
 class MemberGreetingScreen extends StatelessWidget {
   const MemberGreetingScreen({Key? key}) : super(key: key);
@@ -286,10 +286,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/screens/product_selection_screen.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/screens/product_selection_screen.dart';
 
 class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockCartProvider extends Mock implements CartProvider {}
@@ -469,9 +469,9 @@ Create `lib/screens/product_selection_screen.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/models/product_dto.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
-import 'package:ruderbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
 
 class ProductSelectionScreen extends StatefulWidget {
   const ProductSelectionScreen({Key? key}) : super(key: key);
@@ -673,9 +673,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/models/cart_item.dart';
-import 'package:ruderbar_terminal/screens/shopping_cart_screen.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
 
@@ -829,7 +829,7 @@ Create `lib/screens/shopping_cart_screen.dart`:
 ```dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
 
 class ShoppingCartScreen extends StatelessWidget {
   const ShoppingCartScreen({Key? key}) : super(key: key);
@@ -941,8 +941,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
-import 'package:ruderbar_terminal/screens/checkout_confirmation_screen.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
 
 class MockMembersProvider extends Mock implements MembersProvider {}
 
@@ -1071,7 +1071,7 @@ Create `lib/screens/checkout_confirmation_screen.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ruderbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/models/member_dto.dart';
 
 class CheckoutConfirmationScreen extends StatelessWidget {
   final MembersCacheData member;
