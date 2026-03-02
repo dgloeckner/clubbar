@@ -28,6 +28,9 @@ import { IconCell } from '../components/tables/IconCell'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
+import { Toggle } from '../components/forms/Toggle'
+import { MobileToolbar } from '../components/layout/MobileToolbar'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -50,6 +53,8 @@ interface Category {
 
 export function CategoriesPage() {
   const { t, i18n } = useTranslation()
+  const breakpoint = useBreakpoint()
+  const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -74,6 +79,61 @@ export function CategoriesPage() {
   const [page, setPage] = useState(1)
   const pageSize = 20
   const [totalItems, setTotalItems] = useState(0)
+
+  // Mobile state
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  const mobileFilterCount = filterStatus !== 'all' ? 1 : 0
+
+  const mobileSortOptions = [
+    { value: 'name_asc', label: t('categories.sortName', 'Name A\u2013Z'), direction: 'asc' as const },
+    { value: 'name_desc', label: t('categories.sortNameDesc', 'Name Z\u2013A'), direction: 'desc' as const },
+    { value: 'created_at_desc', label: t('categories.sortNewest', 'Newest first'), direction: 'desc' as const },
+  ]
+
+  const mobileSortValue = `${sortKey}_${sortDirection}`
+
+  const handleMobileSortChange = (value: string) => {
+    const lastUnderscore = value.lastIndexOf('_')
+    const key = value.substring(0, lastUnderscore) as typeof sortKey
+    const dir = value.substring(lastUnderscore + 1) as 'asc' | 'desc'
+    setSortKey(key)
+    setSortDirection(dir)
+    setPage(1)
+  }
+
+  const MobileFilterRow = ({ label, options, value, onChange, testId }: {
+    label: string
+    options: { value: string; label: string }[]
+    value: string
+    onChange: (v: string) => void
+    testId: string
+  }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', minWidth: '50px' }}>
+        {label}
+      </span>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          data-testid={`${testId}-${opt.value}`}
+          onClick={() => { onChange(opt.value); setPage(1) }}
+          style={{
+            padding: '4px 10px',
+            borderRadius: '6px',
+            border: 'none',
+            background: value === opt.value ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+            color: value === opt.value ? '#3b82f6' : 'rgba(255,255,255,0.5)',
+            fontSize: '12px',
+            fontWeight: value === opt.value ? 600 : 400,
+            cursor: 'pointer',
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
 
   // Load categories on mount and when filter/sort changes
   useEffect(() => {
@@ -236,7 +296,36 @@ export function CategoriesPage() {
 
   return (
     <div data-testid="categories-page" style={{ padding: '20px' }}>
-      <h1 style={{ margin: '0 0 20px 0' }}>{t('categories.title')}</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 20px 0' }}>
+        <h1 style={{ margin: 0 }}>{t('categories.title')}</h1>
+        {isMobile && (
+          <button
+            data-testid="categories-create-button"
+            onClick={() => {
+              setSelectedCategory(null)
+              setModalMode('create')
+              setFormData({ de: '', en: '' })
+              setSelectedIcon(null)
+              setFormError(null)
+              setShowModal(true)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '36px',
+              height: '36px',
+              background: theme.colors.semantic.primary,
+              border: 'none',
+              borderRadius: '8px',
+              color: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            <PlusIcon size={20} />
+          </button>
+        )}
+      </div>
 
       {error && (
         <div
@@ -254,199 +343,340 @@ export function CategoriesPage() {
         </div>
       )}
 
-      {/* Search/Filter toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          gap: theme.spacing.md,
-          padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-          borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        {/* LEFT: Count summary */}
-        <span data-testid="categories-count-summary" style={{ color: theme.colors.text.secondary, fontSize: '14px', whiteSpace: 'nowrap' }}>
-          <strong style={{ color: theme.colors.text.primary }}>{totalItems}</strong> {t('categories.title')} {t('common.found')}
-        </span>
-
-        {/* RIGHT: Filter + Create button */}
-        <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
-          <StatusFilterPills
-            value={filterStatus}
-            onChange={(status) => {
-              setFilterStatus(status)
-              setPage(1) // Reset to first page when filtering
+      {isMobile ? (
+        <>
+          <MobileToolbar
+            testId="categories-mobile-toolbar"
+            sort={{
+              options: mobileSortOptions,
+              value: mobileSortValue,
+              onChange: handleMobileSortChange,
             }}
-            testId="categories-filter-status"
+            filterCount={mobileFilterCount}
+            onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
+            showFilters={showMobileFilters}
+            filterContent={
+              <MobileFilterRow
+                label={t('common.status', 'Status')}
+                options={[
+                  { value: 'all', label: t('common.all') },
+                  { value: 'active', label: t('common.active') },
+                  { value: 'inactive', label: t('common.inactive') },
+                ]}
+                value={filterStatus}
+                onChange={(v) => setFilterStatus(v as typeof filterStatus)}
+                testId="categories-mobile-filter-status"
+              />
+            }
           />
 
-          <button
-            data-testid="categories-create-button"
-            onClick={() => {
-              setSelectedCategory(null)
-              setShowModal(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: theme.spacing.sm,
-              padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
-              background: theme.colors.semantic.primary,
-              border: 'none',
-              borderRadius: '6px',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <PlusIcon size={18} />
-            <span>{t('common.create')}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Loading State */}
-      {loading ? (
-        <div data-testid="categories-loading-indicator" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
-          {t('common.loading')}
-        </div>
-      ) : categories.length === 0 ? (
-        <div
-          data-testid="categories-empty-state"
-          style={{
-            padding: theme.spacing.xl,
-            textAlign: 'center',
-            color: theme.colors.text.secondary,
-          }}
-        >
-          {t('categories.noCategories')}
-        </div>
-      ) : (
-        <>
-          <div data-testid="categories-table-wrapper" style={tableWrapperStyles}>
-            <table data-testid="categories-table" style={tableElementStyles}>
-            <thead>
-              <tr style={headerRowStyle}>
-                <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>{t('common.status')}</th>
-                <th style={headerCellBaseStyle}>
-                  <SortableTableHeader
-                    label={t('common.name')}
-                    sortKey="name"
-                    currentSort={{ key: sortKey, direction: sortDirection }}
-                    onSort={(key: string, direction: 'asc' | 'desc') => {
-                      setSortKey(key as 'name' | 'created_at')
-                      setSortDirection(direction)
-                      setPage(1) // Reset to first page when sorting
+          {/* Mobile card list */}
+          {loading ? (
+            <div data-testid="categories-loading-indicator" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+              {t('common.loading')}
+            </div>
+          ) : categories.length === 0 ? (
+            <div data-testid="categories-empty-state" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+              {t('categories.noCategories')}
+            </div>
+          ) : (
+            <div data-testid="categories-mobile-cards" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {categories.map((category) => {
+                const IconComponent = getCategoryIcon(category.icon_name)
+                return (
+                  <div
+                    key={category.id}
+                    data-testid={`category-card-${category.id}`}
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: '10px',
+                      padding: '14px 16px',
                     }}
-                    testId="categories-sort-name"
-                  />
-                </th>
-                <th style={headerCellBaseStyle}>{t('categories.productCount')}</th>
-                <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>{t('common.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categories.map((category) => (
-                <tr
-                  key={category.id}
-                  data-testid={`categories-table-row-${category.id}`}
-                  style={getRowStyle(category.is_active)}
-                  onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
-                    if (category.is_active) {
-                      e.currentTarget.style.backgroundColor = tableColors.rowActiveHoverBg
-                    }
-                  }}
-                  onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => {
-                    e.currentTarget.style.backgroundColor = category.is_active
-                      ? tableColors.rowActiveBg
-                      : tableColors.rowInactiveBg
-                  }}
-                >
-                  {/* Status Toggle */}
-                  <StatusToggleCell
-                    enabled={category.is_active}
-                    onChange={() => handleStatusToggle(category)}
-                    testId={`categories-status-toggle-${category.id}`}
-                  />
+                  >
+                    {/* Row 1: toggle + icon + category name */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                      <Toggle
+                        enabled={category.is_active}
+                        onChange={() => handleStatusToggle(category)}
+                        size="small"
+                        testId={`categories-status-toggle-${category.id}`}
+                      />
+                      {IconComponent && (
+                        <span style={{ display: 'flex', alignItems: 'center', color: '#94a3b8' }}>
+                          <IconComponent size={16} />
+                        </span>
+                      )}
+                      <span
+                        data-testid={`categories-table-cell-name-${category.id}`}
+                        style={{ flex: 1, fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}
+                      >
+                        {getLocalizedName(category.names, i18n.language)}
+                      </span>
+                    </div>
+                    {/* Row 2: product count + actions */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: '46px' }}>
+                      <span
+                        data-testid={`categories-table-cell-product-count-${category.id}`}
+                        style={{ fontSize: '12px', color: '#94a3b8' }}
+                      >
+                        {category.product_count} {t('categories.productCount', 'Products')}
+                      </span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          data-testid={`categories-table-action-edit-${category.id}`}
+                          onClick={() => {
+                            setModalMode('edit')
+                            setSelectedCategory(category)
+                            setFormData({ de: category.names.de || '', en: category.names.en || '' })
+                            setSelectedIcon(category.icon_name || null)
+                            setFormError(null)
+                            setShowModal(true)
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '4px',
+                            padding: '6px 12px', borderRadius: '6px', border: 'none',
+                            background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+                            fontSize: '12px', cursor: 'pointer',
+                          }}
+                        >
+                          <EditIcon size={14} /> {t('common.edit')}
+                        </button>
+                        <button
+                          data-testid={`categories-table-action-delete-${category.id}`}
+                          onClick={() => handleDelete(category)}
+                          disabled={category.product_count > 0}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '4px',
+                            padding: '6px 12px', borderRadius: '6px', border: 'none',
+                            background: category.product_count > 0 ? 'rgba(107,114,128,0.1)' : 'rgba(239,68,68,0.1)',
+                            color: category.product_count > 0 ? '#6b7280' : '#ef4444',
+                            fontSize: '12px',
+                            cursor: category.product_count > 0 ? 'not-allowed' : 'pointer',
+                            opacity: category.product_count > 0 ? 0.5 : 1,
+                          }}
+                        >
+                          <TrashIcon size={14} /> {t('common.delete')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
-                  {/* Name */}
-                  <IconCell
-                    icon={getCategoryIcon(category.icon_name)}
-                    label={getLocalizedName(category.names, i18n.language)}
-                    iconTestId={`categories-table-cell-icon-${category.id}`}
-                    labelTestId={`categories-table-cell-name-${category.id}`}
-                  />
-
-                  {/* Products Count */}
-                  <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
-                    <span data-testid={`categories-table-cell-product-count-${category.id}`}>
-                      {category.product_count}
-                    </span>
-                  </td>
-
-                  {/* Actions */}
-                  <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center' }}>
-                    <button
-                      data-testid={`categories-table-action-edit-${category.id}`}
-                      onClick={() => {
-                        setModalMode('edit')
-                        setSelectedCategory(category)
-                        setFormData({ de: category.names.de || '', en: category.names.en || '' })
-                        setSelectedIcon(category.icon_name || null)
-                        setFormError(null)
-                        setShowModal(true)
-                      }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: theme.colors.semantic.primary,
-                        cursor: 'pointer',
-                        padding: theme.spacing.sm,
-                      }}
-                      title="Edit"
-                    >
-                      <EditIcon size={18} />
-                    </button>
-                    <button
-                      data-testid={`categories-table-action-delete-${category.id}`}
-                      onClick={() => handleDelete(category)}
-                      disabled={category.product_count > 0}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: category.product_count > 0 ? '#6b7280' : theme.colors.semantic.danger,
-                        cursor: category.product_count > 0 ? 'not-allowed' : 'pointer',
-                        padding: theme.spacing.sm,
-                        marginLeft: theme.spacing.md,
-                        opacity: category.product_count > 0 ? 0.5 : 1,
-                      }}
-                      title={category.product_count > 0 ? `Cannot delete (${category.product_count} products)` : 'Delete'}
-                    >
-                      <TrashIcon size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
+          {/* Mobile pagination */}
           <PaginationToolbar
             currentPage={page}
             totalPages={Math.ceil(totalItems / pageSize)}
             totalItems={totalItems}
             pageSize={pageSize}
             onPageChange={setPage}
-            onPageSizeChange={() => {}} // Not implemented - always use 20
+            onPageSizeChange={() => {}}
             variant="default"
             showPageSize={false}
             showInfo={true}
             testId="categories-pagination"
           />
+        </>
+      ) : (
+        <>
+          {/* Desktop: Search/Filter toolbar */}
+          <div
+            style={{
+              display: 'flex',
+              gap: theme.spacing.md,
+              padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+              borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            {/* LEFT: Count summary */}
+            <span data-testid="categories-count-summary" style={{ color: theme.colors.text.secondary, fontSize: '14px', whiteSpace: 'nowrap' }}>
+              <strong style={{ color: theme.colors.text.primary }}>{totalItems}</strong> {t('categories.title')} {t('common.found')}
+            </span>
+
+            {/* RIGHT: Filter + Create button */}
+            <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
+              <StatusFilterPills
+                value={filterStatus}
+                onChange={(status) => {
+                  setFilterStatus(status)
+                  setPage(1)
+                }}
+                testId="categories-filter-status"
+              />
+
+              <button
+                data-testid="categories-create-button"
+                onClick={() => {
+                  setSelectedCategory(null)
+                  setShowModal(true)
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: theme.spacing.sm,
+                  padding: `${tableSpacing.cellPaddingVertical} ${tableSpacing.cellPaddingHorizontal}`,
+                  background: theme.colors.semantic.primary,
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <PlusIcon size={18} />
+                <span>{t('common.create')}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Loading State */}
+          {loading ? (
+            <div data-testid="categories-loading-indicator" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+              {t('common.loading')}
+            </div>
+          ) : categories.length === 0 ? (
+            <div
+              data-testid="categories-empty-state"
+              style={{
+                padding: theme.spacing.xl,
+                textAlign: 'center',
+                color: theme.colors.text.secondary,
+              }}
+            >
+              {t('categories.noCategories')}
+            </div>
+          ) : (
+            <>
+              <div data-testid="categories-table-wrapper" style={tableWrapperStyles}>
+                <table data-testid="categories-table" style={tableElementStyles}>
+                <thead>
+                  <tr style={headerRowStyle}>
+                    <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>{t('common.status')}</th>
+                    <th style={headerCellBaseStyle}>
+                      <SortableTableHeader
+                        label={t('common.name')}
+                        sortKey="name"
+                        currentSort={{ key: sortKey, direction: sortDirection }}
+                        onSort={(key: string, direction: 'asc' | 'desc') => {
+                          setSortKey(key as 'name' | 'created_at')
+                          setSortDirection(direction)
+                          setPage(1)
+                        }}
+                        testId="categories-sort-name"
+                      />
+                    </th>
+                    <th style={headerCellBaseStyle}>{t('categories.productCount')}</th>
+                    <th style={{ ...headerCellBaseStyle, width: '200px', textAlign: 'center' }}>{t('common.actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((category) => (
+                    <tr
+                      key={category.id}
+                      data-testid={`categories-table-row-${category.id}`}
+                      style={getRowStyle(category.is_active)}
+                      onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
+                        if (category.is_active) {
+                          e.currentTarget.style.backgroundColor = tableColors.rowActiveHoverBg
+                        }
+                      }}
+                      onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => {
+                        e.currentTarget.style.backgroundColor = category.is_active
+                          ? tableColors.rowActiveBg
+                          : tableColors.rowInactiveBg
+                      }}
+                    >
+                      {/* Status Toggle */}
+                      <StatusToggleCell
+                        enabled={category.is_active}
+                        onChange={() => handleStatusToggle(category)}
+                        testId={`categories-status-toggle-${category.id}`}
+                      />
+
+                      {/* Name */}
+                      <IconCell
+                        icon={getCategoryIcon(category.icon_name)}
+                        label={getLocalizedName(category.names, i18n.language)}
+                        iconTestId={`categories-table-cell-icon-${category.id}`}
+                        labelTestId={`categories-table-cell-name-${category.id}`}
+                      />
+
+                      {/* Products Count */}
+                      <td style={{ padding: tableSpacing.cellPadding, color: tableColors.cellText }}>
+                        <span data-testid={`categories-table-cell-product-count-${category.id}`}>
+                          {category.product_count}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center' }}>
+                        <button
+                          data-testid={`categories-table-action-edit-${category.id}`}
+                          onClick={() => {
+                            setModalMode('edit')
+                            setSelectedCategory(category)
+                            setFormData({ de: category.names.de || '', en: category.names.en || '' })
+                            setSelectedIcon(category.icon_name || null)
+                            setFormError(null)
+                            setShowModal(true)
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: theme.colors.semantic.primary,
+                            cursor: 'pointer',
+                            padding: theme.spacing.sm,
+                          }}
+                          title="Edit"
+                        >
+                          <EditIcon size={18} />
+                        </button>
+                        <button
+                          data-testid={`categories-table-action-delete-${category.id}`}
+                          onClick={() => handleDelete(category)}
+                          disabled={category.product_count > 0}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: category.product_count > 0 ? '#6b7280' : theme.colors.semantic.danger,
+                            cursor: category.product_count > 0 ? 'not-allowed' : 'pointer',
+                            padding: theme.spacing.sm,
+                            marginLeft: theme.spacing.md,
+                            opacity: category.product_count > 0 ? 0.5 : 1,
+                          }}
+                          title={category.product_count > 0 ? `Cannot delete (${category.product_count} products)` : 'Delete'}
+                        >
+                          <TrashIcon size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <PaginationToolbar
+                currentPage={page}
+                totalPages={Math.ceil(totalItems / pageSize)}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={() => {}}
+                variant="default"
+                showPageSize={false}
+                showInfo={true}
+                testId="categories-pagination"
+              />
+            </>
+          )}
         </>
       )}
 
