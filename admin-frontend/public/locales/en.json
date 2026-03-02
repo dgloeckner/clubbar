@@ -63,7 +63,10 @@
     "noData": "No data",
     "noChanges": "No value changes recorded",
     "requiredForTerminal": "required for terminal access",
-    "sepa": "SEPA"
+    "sepa": "SEPA",
+    "newest": "Newest first",
+    "oldest": "Oldest first",
+    "filters": "Filters"
   },
   "auth": {
     "email": "Email",
