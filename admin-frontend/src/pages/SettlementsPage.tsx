@@ -19,8 +19,9 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { theme as _theme } from '../styles/design-system'
+import { theme } from '../styles/design-system'
+import { useBreakpoint } from '../hooks/useBreakpoint'
+import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { useFormatters } from '../hooks/useFormatters'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
@@ -74,6 +75,7 @@ const defaultPageSize = 20
 export function SettlementsPage() {
   const { t } = useTranslation()
   const formatters = useFormatters()
+  const breakpoint = useBreakpoint()
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [totalItems, setTotalItems] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -95,6 +97,31 @@ export function SettlementsPage() {
 
   // Undo confirmation dialog
   const [undoConfirm, setUndoConfirm] = useState<string | null>(null)
+
+  // Mobile responsive
+  const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  const mobileFilterCount = [
+    period !== '3m' ? 1 : 0,
+    statusFilter !== 'all' ? 1 : 0,
+  ].reduce((a, b) => a + b, 0)
+
+  const mobileSortOptions = [
+    { value: 'created_at_desc', label: t('settlements.sortNewest', 'Newest first'), direction: 'desc' as const },
+    { value: 'created_at_asc', label: t('settlements.sortOldest', 'Oldest first'), direction: 'asc' as const },
+  ]
+
+  const mobileSortValue = `${sortKey}_${sortOrder}`
+
+  const handleMobileSortChange = (value: string) => {
+    const lastUnderscore = value.lastIndexOf('_')
+    const key = value.substring(0, lastUnderscore) as typeof sortKey
+    const dir = value.substring(lastUnderscore + 1) as 'asc' | 'desc'
+    setSortKey(key)
+    setSortOrder(dir)
+    setCurrentPage(1)
+  }
 
   // Load settlements when filters, sorting, or pagination changes
   useEffect(() => {
@@ -195,7 +222,214 @@ export function SettlementsPage() {
     return (
       <div data-testid="settlements-page">
         <h1 style={{ margin: '0 0 20px 0' }}>{t('settlements.title')}</h1>
-          {/* Toolbar */}
+
+          {/* Error state */}
+          {error && (
+            <div
+              data-testid="settlements-error-message"
+              style={{
+                padding: tableSpacing.cellPadding,
+                backgroundColor: '#7f1d1d',
+                color: '#fca5a5',
+                borderRadius: 6,
+                margin: tableSpacing.cellPadding,
+              }}
+            >
+              Error: {error}
+            </div>
+          )}
+
+        {isMobile ? (
+          <>
+            <MobileToolbar
+              testId="settlements-mobile-toolbar"
+              sort={{
+                options: mobileSortOptions,
+                value: mobileSortValue,
+                onChange: handleMobileSortChange,
+              }}
+              filterCount={mobileFilterCount}
+              onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
+              showFilters={showMobileFilters}
+              filterContent={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <PeriodPicker
+                    value={period}
+                    onPeriodChange={handlePeriodChange}
+                    testId="settlements-period-picker"
+                  />
+                  <StatusFilter
+                    value={statusFilter}
+                    onChange={(newStatus) => {
+                      setStatusFilter(newStatus)
+                      setCurrentPage(1)
+                    }}
+                    testId="settlements-status-filter"
+                  />
+                </div>
+              }
+            />
+
+            {/* Mobile card list */}
+            {loading ? (
+              <div style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+                {t('common.loading')}
+              </div>
+            ) : settlements.length === 0 ? (
+              <div data-testid="settlements-empty-state" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+                {t('settlements.noSettlements')}
+              </div>
+            ) : (
+              <div data-testid="settlements-mobile-cards" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {settlements.map((settlement) => (
+                  <div
+                    key={settlement.id}
+                    data-testid={`settlement-card-${settlement.id}`}
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: '10px',
+                      padding: '14px 16px',
+                    }}
+                  >
+                    {/* Row 1: date + status badge */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span style={{ fontWeight: 600, color: theme.colors.text.primary, fontSize: '14px' }}>
+                        {formatters.formatDate(settlement.created_at)}
+                      </span>
+                      <span
+                        data-testid={`settlements-badge-status-${settlement.id}`}
+                        style={{
+                          padding: '3px 8px',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          backgroundColor: settlement.is_cancelled ? '#ef4444' : '#10b981',
+                          color: '#ffffff',
+                        }}
+                      >
+                        {settlement.is_cancelled ? t('settlements.cancelled') : t('settlements.active')}
+                      </span>
+                    </div>
+
+                    {/* Row 2: admin user */}
+                    <div style={{ fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '4px' }}>
+                      {settlement.created_by_admin_name || '\u2014'}
+                    </div>
+
+                    {/* Row 3: summary */}
+                    <div style={{ fontSize: '12px', color: theme.colors.text.muted, marginBottom: '8px' }}>
+                      {settlement.member_count} {t('settlements.memberCount')} &middot; {settlement.transaction_count} {t('settlements.transactionCount')}
+                    </div>
+
+                    {/* Row 4: total amount */}
+                    <div
+                      data-testid={`settlements-price-${settlement.id}`}
+                      style={{
+                        fontWeight: 700,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        fontSize: '18px',
+                        color: theme.colors.text.primary,
+                        marginBottom: '10px',
+                      }}
+                    >
+                      {formatters.formatPrice(settlement.total_amount_cents)}
+                    </div>
+
+                    {/* Row 5: action buttons */}
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <button
+                        data-testid={`settlements-export-sepa-btn-${settlement.id}`}
+                        onClick={() => handleExportSepa(settlement.id)}
+                        disabled={settlement.is_cancelled}
+                        style={{
+                          padding: '5px 10px',
+                          backgroundColor: settlement.is_cancelled ? '#6b7280' : '#3b82f6',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        SEPA
+                      </button>
+                      <button
+                        data-testid={`settlements-export-csv-btn-${settlement.id}`}
+                        onClick={() => handleExportCsv(settlement.id)}
+                        disabled={settlement.is_cancelled}
+                        style={{
+                          padding: '5px 10px',
+                          backgroundColor: settlement.is_cancelled ? '#6b7280' : '#10b981',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        CSV
+                      </button>
+                      <button
+                        data-testid={`settlements-export-transactions-btn-${settlement.id}`}
+                        onClick={() => handleExportTransactionsCsv(settlement.id)}
+                        disabled={settlement.is_cancelled}
+                        style={{
+                          padding: '5px 10px',
+                          backgroundColor: settlement.is_cancelled ? '#6b7280' : '#8b5cf6',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        TXN
+                      </button>
+                      <button
+                        data-testid={`settlements-undo-btn-${settlement.id}`}
+                        onClick={() => handleUndoSettlement(settlement.id)}
+                        disabled={settlement.is_cancelled}
+                        style={{
+                          padding: '5px 10px',
+                          backgroundColor: settlement.is_cancelled ? '#6b7280' : '#ef4444',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {t('common.undo')}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Pagination (mobile) */}
+            {!loading && settlements.length > 0 && (
+              <PaginationToolbar
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={() => {}}
+                showPageSize={false}
+                showInfo={true}
+                testId="settlements"
+              />
+            )}
+          </>
+        ) : (
+          <>
+          {/* Desktop Toolbar */}
           <div
             data-testid="settlements-toolbar"
             style={{
@@ -237,22 +471,6 @@ export function SettlementsPage() {
               />
             </div>
           </div>
-
-          {/* Error state */}
-          {error && (
-            <div
-              data-testid="settlements-error-message"
-              style={{
-                padding: tableSpacing.cellPadding,
-                backgroundColor: '#7f1d1d',
-                color: '#fca5a5',
-                borderRadius: 6,
-                margin: tableSpacing.cellPadding,
-              }}
-            >
-              Error: {error}
-            </div>
-          )}
 
           {/* Loading state */}
           {loading ? (
@@ -603,6 +821,9 @@ export function SettlementsPage() {
               )}
             </>
           )}
+          </>
+        )}
+
       <ConfirmDialog
         isOpen={!!undoConfirm}
         message={t('settlements.undoConfirm')}
