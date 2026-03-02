@@ -111,7 +111,7 @@ jobs:
           key: playwright-chromium-${{ hashFiles('e2etests/package-lock.json') }}
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
         working-directory: e2etests
 
       - name: Run E2E tests
