@@ -22,6 +22,8 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { useFormatters } from '../hooks/useFormatters'
+import { useBreakpoint } from '../hooks/useBreakpoint'
+import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { SettlementStatusFilter } from '../components/forms/SettlementStatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { onLoadingStateChange } from '../services/api'
@@ -62,6 +64,8 @@ export function JournalPage() {
   const { t } = useTranslation()
   const { formatPrice, intlLocale } = useFormatters()
   const navigate = useNavigate()
+  const breakpoint = useBreakpoint()
+  const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
 
   // Data state
   const [state, setState] = useState<JournalPageState>({
@@ -112,6 +116,34 @@ export function JournalPage() {
 
   // Track if component is mounted to prevent state updates on unmounted component
   const isMountedRef = useRef(true)
+
+  // Mobile state
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+
+  const mobileSortOptions = [
+    { value: 'created_at_desc', label: t('journal.sortNewest', 'Newest first'), direction: 'desc' as const },
+    { value: 'created_at_asc', label: t('journal.sortOldest', 'Oldest first'), direction: 'asc' as const },
+    { value: 'member_asc', label: t('journal.sortMember', 'Member A\u2013Z'), direction: 'asc' as const },
+    { value: 'member_desc', label: t('journal.sortMemberDesc', 'Member Z\u2013A'), direction: 'desc' as const },
+    { value: 'amount_desc', label: t('journal.sortAmountHigh', 'Amount high\u2013low'), direction: 'desc' as const },
+    { value: 'amount_asc', label: t('journal.sortAmountLow', 'Amount low\u2013high'), direction: 'asc' as const },
+  ]
+
+  const mobileSortValue = `${sortKey}_${sortDirection}`
+
+  const handleMobileSortChange = (value: string) => {
+    const lastUnderscore = value.lastIndexOf('_')
+    const key = value.substring(0, lastUnderscore) as typeof sortKey
+    const dir = value.substring(lastUnderscore + 1) as 'asc' | 'desc'
+    setSortKey(key)
+    setSortDirection(dir)
+    setCurrentPage(1)
+  }
+
+  const mobileFilterCount = [
+    period !== '3m' ? 1 : 0,
+    settlementStatus !== 'all' ? 1 : 0,
+  ].reduce((a, b) => a + b, 0)
 
   // Subscribe to global loading state on mount
   useEffect(() => {
@@ -380,6 +412,7 @@ export function JournalPage() {
             display: 'flex',
             justifyContent: 'flex-end',
             gap: 12,
+            flexWrap: 'wrap',
             borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
           }}
         >
@@ -517,6 +550,143 @@ export function JournalPage() {
           )}
         </div>
 
+        {isMobile ? (
+          <>
+            <MobileToolbar
+              testId="journal-mobile-toolbar"
+              search={{
+                value: search,
+                onChange: (v) => { handleSearch(v) },
+                testId: 'journal-search-input',
+              }}
+              sort={{
+                options: mobileSortOptions,
+                value: mobileSortValue,
+                onChange: handleMobileSortChange,
+              }}
+              filterCount={mobileFilterCount}
+              onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
+              showFilters={showMobileFilters}
+              filterContent={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', marginBottom: '6px' }}>
+                      {t('journal.period', 'Period')}
+                    </div>
+                    <PeriodPicker
+                      value={period}
+                      onPeriodChange={handlePeriodChange}
+                      testId="journal-period-picker"
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', marginBottom: '6px' }}>
+                      {t('journal.settlementStatus', 'Settlement')}
+                    </div>
+                    <SettlementStatusFilter
+                      value={settlementStatus}
+                      onChange={handleSettlementStatusChange}
+                      testId="journal-settlement-status-filter"
+                    />
+                  </div>
+                </div>
+              }
+            />
+
+            {/* Mobile card list */}
+            {state.loading ? (
+              <div data-testid="journal-loading" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+                {t('common.loading')}
+              </div>
+            ) : state.error ? (
+              <div data-testid="journal-error-message" style={{ padding: theme.spacing.md, backgroundColor: '#7f1d1d', color: '#fca5a5', borderRadius: 6 }}>
+                Error: {state.error}
+              </div>
+            ) : state.transactions.length === 0 ? (
+              <div data-testid="journal-empty-state" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
+                {t('journal.noTransactions')}
+              </div>
+            ) : (
+              <div data-testid="journal-mobile-cards" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {state.transactions.map((tx) => (
+                  <div
+                    key={tx.id}
+                    data-testid={`journal-card-${tx.id}`}
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      borderRadius: '10px',
+                      padding: '14px 16px',
+                    }}
+                  >
+                    {/* Row 1: date+time (left), type badge (right) */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '12px', color: theme.colors.text.secondary }}>
+                        {new Date(tx.created_at).toLocaleDateString(intlLocale, {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                        })}{' '}
+                        {new Date(tx.created_at).toLocaleTimeString(intlLocale, {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        })}
+                      </span>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '3px 10px',
+                          borderRadius: 10,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          backgroundColor: getTransactionTypeColor(tx.type).bg,
+                          color: getTransactionTypeColor(tx.type).text,
+                        }}
+                      >
+                        {formatTransactionType(tx.type)}
+                      </span>
+                    </div>
+                    {/* Row 2: member name */}
+                    <div style={{ fontWeight: 600, fontSize: '14px', color: theme.colors.text.primary, marginBottom: '4px' }}>
+                      {tx.member_name}
+                    </div>
+                    {/* Row 3: product name + description */}
+                    {(tx.product_name || tx.description) && (
+                      <div style={{ fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {[tx.product_name, tx.description].filter(Boolean).join(' \u2022 ')}
+                      </div>
+                    )}
+                    {/* Row 4: amount (right-aligned) */}
+                    <div style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', color: getAmountColor(tx.amount_cents) }}>
+                      {formatPrice(tx.amount_cents)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Mobile pagination */}
+            {state.totalItems > 0 && !state.loading && (
+              <PaginationToolbar
+                data-testid="journal-pagination"
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={state.totalItems}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size)
+                  setCurrentPage(1)
+                }}
+                testId="journal"
+                showInfo={true}
+                showPageSize={true}
+              />
+            )}
+          </>
+        ) : (
+          <>
         {/* Toolbar */}
         <div
           data-testid="journal-toolbar"
@@ -933,6 +1103,8 @@ export function JournalPage() {
                 />
               )}
             </div>
+        )}
+          </>
         )}
 
         {/* Settlement Confirm Modal */}
