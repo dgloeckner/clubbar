@@ -175,11 +175,14 @@ export function MainLayout({ children }: MainLayoutProps) {
           data-testid="desktop-nav"
           style={{
             display: isMobile ? 'none' : 'flex',
-            gap: theme.spacing.sm,
+            gap: '2px',
             width: isMobile ? '100%' : 'auto',
             overflowX: isMobile ? 'auto' : 'visible',
             WebkitOverflowScrolling: 'touch',
             scrollBehavior: 'smooth',
+            flex: 1,
+            minWidth: 0,
+            justifyContent: 'center',
             // Hide scrollbar for mobile
             msOverflowStyle: 'none',
             scrollbarWidth: 'none',
@@ -194,13 +197,13 @@ export function MainLayout({ children }: MainLayoutProps) {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: theme.spacing.sm,
-                padding: isSmallMobile ? `${theme.spacing.sm} ${theme.spacing.md}` : `${theme.spacing.md} ${theme.spacing.lg}`,
+                gap: '6px',
+                padding: isSmallMobile ? `${theme.spacing.sm} ${theme.spacing.md}` : `${theme.spacing.sm} ${theme.spacing.md}`,
                 borderRadius: theme.borderRadius.md,
                 background: isActive(item.path) ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
                 color: isActive(item.path) ? theme.colors.semantic.primary : theme.colors.text.secondary,
                 textDecoration: 'none',
-                fontSize: isSmallMobile || isTablet ? theme.typography.fontSize.sm : theme.typography.fontSize.sm,
+                fontSize: theme.typography.fontSize.sm,
                 fontWeight: theme.typography.fontWeight.medium,
                 transition: `all ${theme.transitions.default}`,
                 whiteSpace: 'nowrap',
@@ -230,10 +233,9 @@ export function MainLayout({ children }: MainLayoutProps) {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: theme.spacing.lg,
-              width: isMobile ? '100%' : 'auto',
+              gap: theme.spacing.sm,
               justifyContent: 'flex-end',
-              marginLeft: 'auto',
+              flexShrink: 0,
             }}
           >
             {/* User Badge - clickable link to profile - hide on tablet smaller than 768px */}
@@ -244,8 +246,8 @@ export function MainLayout({ children }: MainLayoutProps) {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: theme.spacing.md,
-                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                  gap: theme.spacing.sm,
+                  padding: `${theme.spacing.sm} ${theme.spacing.md}`,
                   background: isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)',
                   border: `1px solid rgba(59, 130, 246, 0.3)`,
                   borderRadius: theme.borderRadius.full,
@@ -275,8 +277,8 @@ export function MainLayout({ children }: MainLayoutProps) {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: theme.spacing.md,
-                padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                gap: theme.spacing.sm,
+                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
                 background: 'rgba(239, 68, 68, 0.1)',
                 border: `1px solid rgba(239, 68, 68, 0.3)`,
                 borderRadius: theme.borderRadius.md,

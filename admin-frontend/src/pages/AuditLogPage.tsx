@@ -399,7 +399,7 @@ export function AuditLogPage() {
       <table data-testid="audit-log-table" style={tableElementStyles}>
         <thead>
           <tr style={headerRowStyle}>
-            <th style={{ ...headerCellBaseStyle, width: '200px' }}>
+            <th style={{ ...headerCellBaseStyle, width: '180px' }}>
               <SortableTableHeader
                 label={t('auditLog.timestamp')}
                 sortKey="created_at"
@@ -411,9 +411,8 @@ export function AuditLogPage() {
             </th>
             <th style={{ ...headerCellBaseStyle, width: '150px' }}>{t('auditLog.admin')}</th>
             <th style={{ ...headerCellBaseStyle, width: '120px' }}>{t('auditLog.action')}</th>
-            <th style={{ ...headerCellBaseStyle, width: '150px' }}>{t('auditLog.entityType')}</th>
-            <th style={{ ...headerCellBaseStyle, width: '200px' }}>{t('auditLog.entityId')}</th>
-            <th style={{ ...headerCellBaseStyle, width: '120px' }}>{t('auditLog.ipAddress')}</th>
+            <th style={{ ...headerCellBaseStyle, width: '140px' }}>{t('auditLog.entityType')}</th>
+            <th style={{ ...headerCellBaseStyle }}>{t('auditLog.entityId')}</th>
             <th style={{ ...headerCellBaseStyle, width: '80px', textAlign: 'center' }}>{t('auditLog.details')}</th>
           </tr>
         </thead>
@@ -446,9 +445,6 @@ export function AuditLogPage() {
                 <td style={{ padding: '12px 16px', fontFamily: 'monospace', fontSize: '12px' }} data-testid={`audit-log-entity-id-${entry.id}`}>
                   {entry.entity_id || '\u2014'}
                 </td>
-                <td style={{ padding: '12px 16px', fontSize: '12px' }} data-testid={`audit-log-ip-${entry.id}`}>
-                  {entry.ip_address || '\u2014'}
-                </td>
                 <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                   <button
                     data-testid={`audit-log-expand-button-${entry.id}`}
@@ -468,11 +464,18 @@ export function AuditLogPage() {
               </tr>
               {expandedRowId === entry.id && (
                 <tr data-testid={`audit-log-details-row-${entry.id}`}>
-                  <td colSpan={7} style={{
+                  <td colSpan={6} style={{
                     background: tableColors.rowInactiveBg,
                     padding: theme.spacing.lg,
                     borderTop: `1px solid ${tableColors.border}`,
                   }}>
+                    {/* IP Address */}
+                    <div style={{ marginBottom: theme.spacing.md, fontSize: '13px' }}>
+                      <span style={{ color: theme.colors.text.secondary }}>{t('auditLog.ipAddress')}: </span>
+                      <span data-testid={`audit-log-ip-${entry.id}`} style={{ color: theme.colors.text.primary, fontFamily: 'monospace' }}>
+                        {entry.ip_address || '\u2014'}
+                      </span>
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.spacing.lg }}>
                       {entry.old_values && (
                         <div>
