@@ -1,4 +1,4 @@
-# Ruderbar Admin Frontend - Apache SPA Routing
+# Club Bar Admin Frontend - Apache SPA Routing
 # Copy this file to your Apache document root
 
 <IfModule mod_rewrite.c>

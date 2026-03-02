@@ -130,7 +130,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                   color: theme.colors.text.primary,
                 }}
               >
-                Ruderbar
+                Club Bar
               </h1>
               <p
                 data-testid="header-brand-subtitle"
@@ -328,7 +328,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             color: theme.colors.text.secondary,
           }}
         >
-          Ruderbar Admin &copy; 2026 — Open Source POS System
+          Club Bar Admin &copy; 2026 — Open Source POS System
         </footer>
       )}
 

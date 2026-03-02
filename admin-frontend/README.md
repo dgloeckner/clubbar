@@ -1,6 +1,6 @@
-# Ruderbar Admin Frontend
+# Club Bar Admin Frontend
 
-React-based admin panel for Ruderbar POS system. Provides member management, product catalog, transaction journal, settlement billing, and analytics dashboard.
+React-based admin panel for Club Bar POS system. Provides member management, product catalog, transaction journal, settlement billing, and analytics dashboard.
 
 ## Technology Stack
 
@@ -321,4 +321,4 @@ Check localStorage for valid session (`admin_id` key). Clear and re-login if cor
 
 ## License
 
-Same as Ruderbar project (see root LICENSE file)
+Same as Club Bar project (see root LICENSE file)

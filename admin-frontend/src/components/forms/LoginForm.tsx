@@ -86,7 +86,7 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
               color: theme.colors.text.primary,
             }}
           >
-            Ruderbar
+            Club Bar
           </h1>
           <p
             style={{
