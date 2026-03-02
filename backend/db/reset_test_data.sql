@@ -4,12 +4,12 @@
 -- Resets the database to a clean state with test data for manual Flutter UI testing.
 --
 -- Usage:
---   docker compose exec -T database mysql -u root -proot ruderbar < backend/db/reset_test_data.sql
+--   docker compose exec -T database mysql -u root -proot clubbar < backend/db/reset_test_data.sql
 --
 -- IMPORTANT: After running this script, reset the Flutter app's local cache:
 --   1. QUIT the Flutter app first (press 'q' in terminal)
 --   2. Delete the database:
---      rm ~/Library/Containers/com.example.ruderbarTerminal/Data/Library/Application\ Support/com.example.ruderbarTerminal/ruderbar_terminal.db
+--      rm ~/Library/Containers/com.example.clubbarTerminal/Data/Library/Application\ Support/com.example.clubbarTerminal/clubbar_terminal.db
 --   3. Restart the Flutter app: flutter run -d macos
 --
 -- Note: The app must be stopped BEFORE deleting the database, otherwise it

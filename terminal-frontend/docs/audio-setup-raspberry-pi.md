@@ -47,7 +47,7 @@ echo 'GST_AUDIO_SINK=alsasink' | sudo tee -a /etc/environment
 If the Flutter app runs as a systemd service, also add it to the service file:
 
 ```bash
-sudo systemctl edit ruderbar-terminal.service
+sudo systemctl edit clubbar-terminal.service
 ```
 
 ```ini

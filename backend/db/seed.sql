@@ -5,7 +5,7 @@
 -- NOT included in the shared hosting package — production starts with empty tables.
 --
 -- Usage:
---   docker compose exec database mysql -uruderbar -pruderbar ruderbar < backend/db/seed.sql
+--   docker compose exec database mysql -uclubbar -pclubbar clubbar < backend/db/seed.sql
 --   — or —
 --   php backend/db/run-seed.php
 -- =============================================================================
