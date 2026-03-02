@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { get } from '../services/api'
 import { theme } from '../styles/design-system'
 import { useFormatters } from '../hooks/useFormatters'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import {
   tableElementStyles,
   headerRowStyle,
@@ -49,6 +50,8 @@ interface MonthlyStats {
 export function StatisticsPage() {
   const { t, i18n } = useTranslation()
   const formatters = useFormatters()
+  const breakpoint = useBreakpoint()
+  const isMobile = breakpoint === 'mobile'
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -233,7 +236,7 @@ export function StatisticsPage() {
             data-testid="summary-boxes"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
               gap: theme.spacing.lg,
               marginBottom: theme.spacing.xl,
             }}
@@ -407,7 +410,7 @@ export function StatisticsPage() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
               gap: theme.spacing.xl,
             }}
           >
