@@ -207,4 +207,27 @@ export async function del<T>(
   }
 }
 
+/**
+ * Download a file via the API client (uses auth + proxy)
+ * Fetches as blob and triggers browser download.
+ */
+export async function downloadFile(url: string, fallbackFilename: string): Promise<void> {
+  const response = await apiClient.get(url, { responseType: 'blob' })
+  const contentDisposition = response.headers['content-disposition']
+  let filename = fallbackFilename
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+    if (match?.[1]) filename = match[1].replace(/['"]/g, '')
+  }
+  const blob = new Blob([response.data])
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(objectUrl)
+}
+
 export default apiClient

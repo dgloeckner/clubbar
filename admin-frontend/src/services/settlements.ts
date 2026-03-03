@@ -3,7 +3,7 @@
  * Handles settlement list and detail operations (UC-A33, UC-A34)
  */
 
-import { get, post, del } from './api'
+import { get, post, del, downloadFile } from './api'
 
 export interface Settlement {
   id: string
@@ -257,7 +257,6 @@ export async function undoSettlement(settlementId: string): Promise<void> {
  *
  * @param settlementId Settlement UUID
  */
-export function downloadTransactionsCsv(settlementId: string): void {
-  const url = `/api/admin/settlements/${settlementId}/export-transactions`
-  window.open(url, '_blank')
+export async function downloadTransactionsCsv(settlementId: string): Promise<void> {
+  await downloadFile(`/admin/settlements/${settlementId}/export-transactions`, `transactions-${settlementId}.csv`)
 }

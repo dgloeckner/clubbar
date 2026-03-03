@@ -43,6 +43,7 @@ import {
   downloadTransactionsCsv,
   Settlement,
 } from '../services/settlements'
+import { downloadFile } from '../services/api'
 
 
 /**
@@ -166,11 +167,9 @@ export function SettlementsPage() {
 
   const handleExportSepa = async (settlementId: string) => {
     try {
-      // Trigger SEPA XML download (backend marks settlement as exported)
-      const url = `/api/admin/settlements/${settlementId}/export-sepa`
-      window.open(url, '_blank')
-      // Reload list after short delay so status updates to "Exported"
-      setTimeout(() => loadSettlements(), 1000)
+      await downloadFile(`/admin/settlements/${settlementId}/export-sepa`, `sepa-${settlementId}.xml`)
+      // Reload list so status updates to "Exported"
+      setTimeout(() => loadSettlements(), 500)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to export SEPA XML')
     }
@@ -178,9 +177,7 @@ export function SettlementsPage() {
 
   const handleExportCsv = async (settlementId: string) => {
     try {
-      // Trigger CSV download
-      const url = `/api/admin/settlements/${settlementId}/export-csv`
-      window.open(url, '_blank')
+      await downloadFile(`/admin/settlements/${settlementId}/export-csv`, `settlement-${settlementId}.csv`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to export CSV')
     }

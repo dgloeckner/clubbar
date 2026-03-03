@@ -33,7 +33,7 @@ export function EditTerminalModal({ isOpen, formData, onFormChange, onSubmit, on
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 1100,
       }}
       onClick={onClose}
     >

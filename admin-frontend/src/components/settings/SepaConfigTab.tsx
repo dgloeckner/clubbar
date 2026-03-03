@@ -7,6 +7,7 @@ import { theme } from '../../styles/design-system'
 import { Alert } from '../common/Alert'
 import { CharacterCounter } from '../forms/CharacterCounter'
 import { ValidationIndicator } from '../forms/ValidationIndicator'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { UpdateSepaConfigRequest, SepaConfig } from '../../types'
 
 export interface SepaConfigTabProps {
@@ -36,6 +37,8 @@ export function SepaConfigTab({
   onCancel,
   validateIban,
 }: SepaConfigTabProps) {
+  const breakpoint = useBreakpoint()
+  const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const isCreditorIdSet = !!config
 
   // Form field component
@@ -238,11 +241,11 @@ export function SepaConfigTab({
           />
         )}
 
-        {/* 2-Column Grid for form fields */}
+        {/* Form fields grid - single column on mobile, 2 columns on desktop */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
             gap: theme.spacing.lg,
           }}
         >

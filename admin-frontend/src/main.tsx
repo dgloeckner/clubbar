@@ -21,6 +21,7 @@ const globalStyles = `
 
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
   }
 
   body {
@@ -29,6 +30,7 @@ const globalStyles = `
     line-height: ${theme.typography.lineHeight.normal};
     color: ${theme.colors.text.primary};
     background: ${theme.colors.bg.primary};
+    overflow-x: hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {

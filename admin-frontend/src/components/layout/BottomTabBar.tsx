@@ -10,6 +10,7 @@ import {
   ChartIcon,
   SettingsIcon,
   AuditLogIcon,
+  UserIcon,
 } from '../icons'
 import { NavigationIconRegistry } from '../icons/IconRegistry'
 
@@ -40,8 +41,8 @@ export function BottomTabBar() {
   const primaryTabs = [
     { label: t('nav.members'), path: '/members', icon: UsersIcon, testId: 'tab-members' },
     { label: t('nav.products'), path: '/products', icon: PackageIcon, testId: 'tab-products' },
-    { label: t('nav.journal'), path: '/journal', icon: BookIcon, testId: 'tab-journal' },
-    { label: t('nav.settlements'), path: '/settlements', icon: ReceiptIcon, testId: 'tab-settlements' },
+    { label: t('nav.journalShort'), path: '/journal', icon: BookIcon, testId: 'tab-journal' },
+    { label: t('nav.settlementsShort'), path: '/settlements', icon: ReceiptIcon, testId: 'tab-settlements' },
   ]
 
   const moreItems = [
@@ -49,6 +50,7 @@ export function BottomTabBar() {
     { label: t('nav.statistics'), path: '/statistics', icon: ChartIcon, testId: 'tab-statistics' },
     { label: t('nav.settings'), path: '/settings', icon: SettingsIcon, testId: 'tab-settings' },
     { label: t('nav.auditLog'), path: '/audit-log', icon: AuditLogIcon, testId: 'tab-audit-log' },
+    { label: t('nav.profile'), path: '/profile', icon: UserIcon, testId: 'tab-profile' },
   ]
 
   const isMoreActive = moreItems.some((item) => isActive(item.path))
@@ -73,15 +75,19 @@ export function BottomTabBar() {
     alignItems: 'center',
     gap: '2px',
     flex: 1,
-    padding: '8px 0',
+    minWidth: 0,
+    padding: '8px 2px',
     background: 'transparent',
     border: 'none',
     color: active ? theme.colors.semantic.primary : theme.colors.text.secondary,
-    fontSize: '10px',
+    fontSize: '9px',
     fontWeight: active ? 600 : 400,
     textDecoration: 'none',
     cursor: 'pointer',
     transition: `all ${theme.transitions.default}`,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   })
 
   return (
@@ -104,7 +110,7 @@ export function BottomTabBar() {
       {primaryTabs.map((tab) => (
         <Link key={tab.path} to={tab.path} data-testid={tab.testId} style={tabStyle(isActive(tab.path))}>
           <tab.icon size={22} />
-          <span>{tab.label}</span>
+          <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{tab.label}</span>
         </Link>
       ))}
 

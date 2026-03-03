@@ -10,7 +10,9 @@
     "auditLog": "Audit Log",
     "profile": "Profile",
     "logout": "Logout",
-    "more": "More"
+    "more": "More",
+    "journalShort": "Journal",
+    "settlementsShort": "Settlem."
   },
   "common": {
     "save": "Save",
@@ -259,6 +261,7 @@
     "saving": "Saving...",
     "types": {
       "purchase": "Purchase",
+      "correction": "Correction",
       "manual_adjustment": "Manual Adjustment",
       "settlement": "Settlement",
       "reversal": "Reversal"

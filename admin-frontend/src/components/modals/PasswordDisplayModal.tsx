@@ -31,7 +31,7 @@ export function PasswordDisplayModal({ isOpen, password, onClose }: PasswordDisp
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 1100,
       }}
       onClick={onClose}
     >

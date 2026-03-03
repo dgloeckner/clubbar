@@ -8,6 +8,7 @@ import { theme, formatDateTime } from '../../styles/design-system'
 import { Toggle } from '../common/Toggle'
 import { Badge } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { Terminal } from '../../types'
 
 export interface TerminalsTabProps {
@@ -21,6 +22,46 @@ export interface TerminalsTabProps {
   onReactivateTerminal: (id: string) => void
 }
 
+function EditIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  )
+}
+
+function RotateTokenIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+    </svg>
+  )
+}
+
+function RevokeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+    </svg>
+  )
+}
+
+const actionButtonStyle: React.CSSProperties = {
+  width: '32px',
+  height: '32px',
+  borderRadius: '8px',
+  border: 'none',
+  background: 'transparent',
+  color: theme.colors.text.secondary,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: `all ${theme.transitions.default}`,
+}
+
 export function TerminalsTab({
   terminals,
   loading,
@@ -32,6 +73,8 @@ export function TerminalsTab({
   onReactivateTerminal,
 }: TerminalsTabProps) {
   const { t } = useTranslation()
+  const breakpoint = useBreakpoint()
+  const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
 
   if (loading) {
     return (
@@ -83,8 +126,118 @@ export function TerminalsTab({
         </button>
       </div>
 
-      {/* Terminals Table */}
-      {terminals.length > 0 ? (
+      {terminals.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: theme.spacing.xl, color: theme.colors.text.secondary }}>
+          {t('settings.noTerminals')}
+        </div>
+      ) : isMobile ? (
+        /* Mobile Card View */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {terminals.map((terminal) => (
+            <div
+              key={terminal.id}
+              data-testid={`settings-terminal-row-${terminal.id}`}
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '10px',
+                padding: '14px',
+                opacity: terminal.is_active ? 1 : 0.5,
+                transition: `opacity ${theme.transitions.default}`,
+              }}
+            >
+              {/* Top row: Toggle + Name + Device ID */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                <Toggle
+                  isEnabled={terminal.is_active}
+                  onChange={(enabled) => {
+                    if (enabled) {
+                      onReactivateTerminal(terminal.id)
+                    } else {
+                      onDeactivateTerminal(terminal.id)
+                    }
+                  }}
+                  testId={`settings-terminal-toggle-${terminal.id}`}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    data-testid={`settings-terminal-name-${terminal.id}`}
+                    style={{ fontWeight: 600, fontSize: '14px', color: theme.colors.text.primary }}
+                  >
+                    {terminal.name}
+                  </div>
+                  <code
+                    data-testid={`settings-terminal-device-id-${terminal.id}`}
+                    style={{
+                      fontSize: '11px',
+                      color: theme.colors.text.muted,
+                      background: theme.colors.bg.tertiary,
+                      padding: '1px 6px',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {terminal.device_id}
+                  </code>
+                </div>
+              </div>
+
+              {/* Info row: Last Sync + Last Transaction */}
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '10px', fontSize: '12px', color: theme.colors.text.secondary }}>
+                <div>
+                  <span style={{ color: theme.colors.text.muted }}>{t('settings.lastSync')}: </span>
+                  <span data-testid={`settings-terminal-last-sync-${terminal.id}`}>
+                    {terminal.last_sync_at ? formatDateTime(terminal.last_sync_at) : t('dates.never')}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ color: theme.colors.text.muted }}>{t('settings.lastTransaction')}: </span>
+                  <span data-testid={`settings-terminal-last-transaction-${terminal.id}`}>
+                    {terminal.last_transaction_at ? formatDateTime(terminal.last_transaction_at) : t('dates.never')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions row */}
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                <button
+                  data-testid={`settings-terminal-edit-button-${terminal.id}`}
+                  onClick={() => onEditTerminal(terminal)}
+                  style={{
+                    ...actionButtonStyle,
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    color: theme.colors.semantic.primary,
+                  }}
+                >
+                  <EditIcon />
+                </button>
+                <button
+                  data-testid={`settings-terminal-rotate-token-button-${terminal.id}`}
+                  onClick={() => onRotateToken(terminal.id)}
+                  style={{
+                    ...actionButtonStyle,
+                    background: 'rgba(249, 115, 22, 0.1)',
+                    color: 'rgb(249, 115, 22)',
+                  }}
+                >
+                  <RotateTokenIcon />
+                </button>
+                <button
+                  data-testid={`settings-terminal-revoke-button-${terminal.id}`}
+                  onClick={() => onRevokeAccess(terminal.id)}
+                  style={{
+                    ...actionButtonStyle,
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    color: 'rgb(239, 68, 68)',
+                  }}
+                >
+                  <RevokeIcon />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Desktop Table View */
         <div
           style={{
             overflowX: 'auto',
@@ -234,19 +387,7 @@ export function TerminalsTab({
                         <button
                           data-testid={`settings-terminal-edit-button-${terminal.id}`}
                           onClick={() => onEditTerminal(terminal)}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            background: 'transparent',
-                            color: theme.colors.text.secondary,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: `all ${theme.transitions.default}`,
-                          }}
+                          style={actionButtonStyle}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'
                             e.currentTarget.style.color = theme.colors.semantic.primary
@@ -256,10 +397,7 @@ export function TerminalsTab({
                             e.currentTarget.style.color = theme.colors.text.secondary
                           }}
                         >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
+                          <EditIcon />
                         </button>
                       </Tooltip>
 
@@ -268,19 +406,7 @@ export function TerminalsTab({
                         <button
                           data-testid={`settings-terminal-rotate-token-button-${terminal.id}`}
                           onClick={() => onRotateToken(terminal.id)}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            background: 'transparent',
-                            color: theme.colors.text.secondary,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: `all ${theme.transitions.default}`,
-                          }}
+                          style={actionButtonStyle}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'rgba(249, 115, 22, 0.2)'
                             e.currentTarget.style.color = 'rgb(249, 115, 22)'
@@ -290,9 +416,7 @@ export function TerminalsTab({
                             e.currentTarget.style.color = theme.colors.text.secondary
                           }}
                         >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
-                          </svg>
+                          <RotateTokenIcon />
                         </button>
                       </Tooltip>
 
@@ -301,19 +425,7 @@ export function TerminalsTab({
                         <button
                           data-testid={`settings-terminal-revoke-button-${terminal.id}`}
                           onClick={() => onRevokeAccess(terminal.id)}
-                          style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            background: 'transparent',
-                            color: theme.colors.text.secondary,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: `all ${theme.transitions.default}`,
-                          }}
+                          style={actionButtonStyle}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'
                             e.currentTarget.style.color = 'rgb(239, 68, 68)'
@@ -323,10 +435,7 @@ export function TerminalsTab({
                             e.currentTarget.style.color = theme.colors.text.secondary
                           }}
                         >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" />
-                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-                          </svg>
+                          <RevokeIcon />
                         </button>
                       </Tooltip>
 
@@ -336,10 +445,6 @@ export function TerminalsTab({
               ))}
             </tbody>
           </table>
-        </div>
-      ) : (
-        <div style={{ textAlign: 'center', padding: theme.spacing.xl, color: theme.colors.text.secondary }}>
-          {t('settings.noTerminals')}
         </div>
       )}
     </div>

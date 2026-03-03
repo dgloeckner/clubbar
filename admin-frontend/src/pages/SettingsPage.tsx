@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
+import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useLoading } from '../context/LoadingContext'
 import { getSepaConfig, updateSepaConfig } from '../services/sepa-config'
 import { getAdminUsers, createAdminUser, updateAdminUser, deactivateAdminUser, reactivateAdminUser, resetAdminPassword } from '../services/admin-users'
@@ -26,6 +27,8 @@ import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
 export function SettingsPage() {
   const { t } = useTranslation()
   const { setIsLoading } = useLoading()
+  const breakpoint = useBreakpoint()
+  const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
 
   // State management
   const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals'>('admin-users')
@@ -460,28 +463,32 @@ export function SettingsPage() {
   // const isCreditorIdSet = !!existingConfig
 
   // Tab styles (prototype styling: button group container)
-  const tabContainerStyle = {
-    display: 'inline-flex' as const,
+  const tabContainerStyle: React.CSSProperties = {
+    display: 'flex',
     background: '#1a2744',
     borderRadius: '12px',
     padding: '4px',
     gap: '4px',
     border: '1px solid rgba(71,85,105,0.3)',
+    maxWidth: '100%',
   }
 
   const tabStyle = (isActive: boolean) => ({
-    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+    flex: isMobile ? 1 : undefined,
+    padding: isMobile ? `${theme.spacing.sm} 0` : `${theme.spacing.md} ${theme.spacing.lg}`,
     borderRadius: '8px',
     background: isActive ? theme.colors.semantic.primary : 'transparent',
     color: isActive ? 'white' : theme.colors.text.secondary,
     cursor: 'pointer',
-    fontSize: theme.typography.fontSize.sm,
+    fontSize: isMobile ? theme.typography.fontSize.xs : theme.typography.fontSize.sm,
     fontWeight: isActive ? theme.typography.fontWeight.semibold : theme.typography.fontWeight.medium,
     transition: `all ${theme.transitions.default}`,
     border: 'none',
     display: 'flex',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    justifyContent: 'center',
+    gap: isMobile ? '4px' : theme.spacing.sm,
+    whiteSpace: 'nowrap' as const,
   })
 
   if (loading) {
@@ -507,12 +514,14 @@ export function SettingsPage() {
             onClick={() => setActiveTab('admin-users')}
             style={tabStyle(activeTab === 'admin-users') as any}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="8.5" cy="7" r="4" />
-              <circle cx="18.5" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-            </svg>
+            {!isMobile && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="8.5" cy="7" r="4" />
+                <circle cx="18.5" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              </svg>
+            )}
             {t('settings.adminUsers')}
           </button>
           <button
@@ -520,22 +529,26 @@ export function SettingsPage() {
             onClick={() => setActiveTab('sepa')}
             style={tabStyle(activeTab === 'sepa') as any}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="5" width="20" height="14" rx="2" />
-              <line x1="2" y1="10" x2="22" y2="10" />
-            </svg>
-            {t('settings.sepaConfig')}
+            {!isMobile && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="5" width="20" height="14" rx="2" />
+                <line x1="2" y1="10" x2="22" y2="10" />
+              </svg>
+            )}
+            {isMobile ? 'SEPA' : t('settings.sepaConfig')}
           </button>
           <button
             data-testid="settings-tab-terminals"
             onClick={() => setActiveTab('terminals')}
             style={tabStyle(activeTab === 'terminals') as any}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-              <line x1="8" y1="21" x2="16" y2="21" />
-              <line x1="12" y1="17" x2="12" y2="21" />
-            </svg>
+            {!isMobile && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+            )}
             {t('settings.terminals')}
           </button>
         </div>

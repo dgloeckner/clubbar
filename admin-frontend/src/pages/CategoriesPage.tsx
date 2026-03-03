@@ -694,7 +694,7 @@ export function CategoriesPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 1100,
           }}
           onClick={() => setShowModal(false)}
         >
@@ -702,11 +702,14 @@ export function CategoriesPage() {
             data-testid="categories-form-modal-content"
             style={{
               background: theme.colors.bg.secondary,
-              borderRadius: theme.borderRadius.lg,
-              padding: theme.spacing.xl,
-              maxWidth: '500px',
-              width: '90%',
-              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
+              borderRadius: isMobile ? 0 : theme.borderRadius.lg,
+              padding: isMobile ? theme.spacing.lg : theme.spacing.xl,
+              maxWidth: isMobile ? '100%' : '500px',
+              width: isMobile ? '100%' : '90%',
+              height: isMobile ? '100%' : 'auto',
+              maxHeight: isMobile ? '100%' : '90vh',
+              overflowY: 'auto' as const,
+              boxShadow: isMobile ? 'none' : '0 25px 50px rgba(0, 0, 0, 0.5)',
             }}
             onClick={(e) => e.stopPropagation()}
           >

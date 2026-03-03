@@ -33,7 +33,7 @@ export function CreateAdminModal({ isOpen, formData, onFormChange, onSubmit, onC
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 1100,
       }}
       onClick={onClose}
     >

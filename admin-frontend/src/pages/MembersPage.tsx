@@ -1109,7 +1109,7 @@ export function MembersPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 1100,
           }}
           onClick={() => setShowModal(false)}
         >
@@ -1117,12 +1117,13 @@ export function MembersPage() {
             data-testid="members-form-modal-content"
             style={{
               background: theme.colors.bg.secondary,
-              borderRadius: theme.borderRadius.lg,
-              padding: theme.spacing.xl,
-              maxWidth: '900px',
-              width: '90%',
-              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
-              maxHeight: '90vh',
+              borderRadius: isMobile ? 0 : theme.borderRadius.lg,
+              padding: isMobile ? theme.spacing.lg : theme.spacing.xl,
+              maxWidth: isMobile ? '100%' : '900px',
+              width: isMobile ? '100%' : '90%',
+              height: isMobile ? '100%' : 'auto',
+              boxShadow: isMobile ? 'none' : '0 25px 50px rgba(0, 0, 0, 0.5)',
+              maxHeight: isMobile ? '100%' : '90vh',
               overflowY: 'auto',
             }}
             onClick={(e) => e.stopPropagation()}

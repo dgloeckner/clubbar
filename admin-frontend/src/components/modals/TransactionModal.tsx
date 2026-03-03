@@ -84,7 +84,7 @@ export function TransactionModal({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 1100,
         padding: theme.spacing.lg,
       }}
       onClick={onClose}

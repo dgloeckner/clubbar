@@ -34,7 +34,7 @@ export function TokenDisplayModal({ isOpen, token, onClose }: TokenDisplayModalP
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 1100,
       }}
       onClick={onClose}
     >

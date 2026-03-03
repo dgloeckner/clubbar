@@ -73,8 +73,10 @@ export function MainLayout({ children }: MainLayoutProps) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        minHeight: '100vh',
+        height: '100vh',
         background: theme.colors.bg.primary,
+        overflowX: 'hidden',
+        maxWidth: '100vw',
       }}
     >
       <LoadingIndicator show={isLoading} />
@@ -82,9 +84,10 @@ export function MainLayout({ children }: MainLayoutProps) {
       {/* Header */}
       <header
         style={{
+          flexShrink: 0,
           background: theme.colors.bg.secondary,
           borderBottom: `1px solid ${theme.colors.border.light}`,
-          padding: isMobile ? `${theme.spacing.md} ${theme.spacing.lg}` : `${theme.spacing.lg} ${theme.spacing.xl}`,
+          padding: isMobile ? `${theme.spacing.sm} ${theme.spacing.sm}` : `${theme.spacing.lg} ${theme.spacing.xl}`,
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
           gap: isMobile ? theme.spacing.md : theme.spacing.xl,
@@ -305,11 +308,14 @@ export function MainLayout({ children }: MainLayoutProps) {
       <main
         style={{
           flex: 1,
-          padding: isMobile ? theme.spacing.lg : theme.spacing.xl,
+          overflowY: 'auto',
+          padding: isMobile ? `${theme.spacing.md} ${theme.spacing.sm}` : theme.spacing.xl,
           paddingBottom: isMobile ? '72px' : undefined,
           maxWidth: '1400px',
           margin: '0 auto',
           width: '100%',
+          boxSizing: 'border-box',
+          overflowX: 'hidden',
         }}
       >
         {children}
@@ -320,6 +326,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         <footer
           data-testid="app-footer"
           style={{
+            flexShrink: 0,
             background: theme.colors.bg.secondary,
             borderTop: `1px solid ${theme.colors.border.light}`,
             padding: theme.spacing.lg,

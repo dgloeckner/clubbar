@@ -26,6 +26,8 @@ interface MobileToolbarProps {
   onFilterToggle?: () => void
   showFilters?: boolean
   filterContent?: React.ReactNode
+  onCreate?: () => void
+  createTestId?: string
   testId?: string
 }
 
@@ -63,6 +65,15 @@ function FilterIcon() {
   )
 }
 
+function PlusIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
 export function MobileToolbar({
   search,
   sort,
@@ -70,6 +81,8 @@ export function MobileToolbar({
   onFilterToggle,
   showFilters = false,
   filterContent,
+  onCreate,
+  createTestId,
   testId = 'mobile-toolbar',
 }: MobileToolbarProps) {
   const { t } = useTranslation()
@@ -242,6 +255,28 @@ export function MobileToolbar({
                 {filterCount}
               </span>
             )}
+          </button>
+        )}
+
+        {/* Create button */}
+        {onCreate && (
+          <button
+            data-testid={createTestId || `${testId}-create`}
+            onClick={onCreate}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px 10px',
+              background: theme.colors.semantic.primary,
+              border: 'none',
+              borderRadius: '7px',
+              color: '#fff',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            <PlusIcon />
           </button>
         )}
       </div>

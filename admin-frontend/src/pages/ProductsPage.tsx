@@ -502,6 +502,15 @@ export function ProductsPage() {
             filterCount={mobileFilterCount}
             onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
             showFilters={showMobileFilters}
+            onCreate={() => {
+              setModalMode('create')
+              setEditingProduct(null)
+              setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
+              setSelectedCategory('')
+              setFormError(null)
+              setShowModal(true)
+            }}
+            createTestId="products-create-button"
             filterContent={
               <>
                 <MobileFilterRow
@@ -887,7 +896,7 @@ export function ProductsPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 1000,
+            zIndex: 1100,
           }}
           onClick={handleCancel}
         >
@@ -895,13 +904,17 @@ export function ProductsPage() {
             data-testid="products-form-modal-content"
             style={{
               backgroundColor: '#1a2744',
-              padding: '24px',
-              borderRadius: '8px',
-              maxWidth: '700px',
-              width: '90%',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+              padding: isMobile ? '16px' : '24px',
+              borderRadius: isMobile ? 0 : '8px',
+              maxWidth: isMobile ? '100%' : '700px',
+              width: isMobile ? '100%' : '90%',
+              height: isMobile ? '100%' : 'auto',
+              maxHeight: isMobile ? '100%' : '90vh',
+              overflowY: 'auto' as const,
+              boxShadow: isMobile ? 'none' : '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
               display: 'flex',
-              gap: '24px',
+              flexDirection: isMobile ? 'column' as const : 'row' as const,
+              gap: isMobile ? '16px' : '24px',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -989,7 +1002,7 @@ export function ProductsPage() {
                 label={`${t('products.icon')} (${t('common.optional')})`}
               />
 
-              <div style={{ marginBottom: '20px' }}>
+              <div style={{ marginBottom: isMobile ? '12px' : '20px' }}>
                 <label
                   style={{
                     display: 'flex',
@@ -1014,20 +1027,22 @@ export function ProductsPage() {
                   />
                   {t('products.requiresDispenser')}
                 </label>
-                <p
-                  style={{
-                    marginTop: '6px',
-                    marginLeft: '26px',
-                    color: '#94a3b8',
-                    fontSize: '12px',
-                    lineHeight: '1.5',
-                  }}
-                >
-                  {t('products.requiresDispenserHelp')}
-                </p>
+                {!isMobile && (
+                  <p
+                    style={{
+                      marginTop: '6px',
+                      marginLeft: '26px',
+                      color: '#94a3b8',
+                      fontSize: '12px',
+                      lineHeight: '1.5',
+                    }}
+                  >
+                    {t('products.requiresDispenserHelp')}
+                  </p>
+                )}
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: 'auto' }}>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: isMobile ? '16px' : 'auto' }}>
                 <button
                   data-testid="products-form-cancel-button"
                   type="button"
@@ -1065,17 +1080,19 @@ export function ProductsPage() {
               </form>
             </div>
 
-            {/* Right Column: Preview */}
-            <div style={{ width: '160px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '12px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {t('common.terminalPreview')}
+            {/* Right Column: Preview - hidden on mobile */}
+            {!isMobile && (
+              <div style={{ width: '160px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '12px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {t('common.terminalPreview')}
+                </div>
+                <ProductPreview
+                  name={getLocalizedName(formData.names, i18n.language)}
+                  price={formData.price}
+                  iconName={selectedIcon}
+                />
               </div>
-              <ProductPreview
-                name={getLocalizedName(formData.names, i18n.language)}
-                price={formData.price}
-                iconName={selectedIcon}
-              />
-            </div>
+            )}
           </div>
         </div>
       )}
