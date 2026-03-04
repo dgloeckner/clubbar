@@ -214,8 +214,8 @@ platform-specific and resolved automatically by the app:
 
 | Platform | Path |
 |----------|------|
-| Linux | `~/.local/share/clubbar_terminal/config.json` |
-| macOS | `~/Library/Containers/de.clubbar.clubbar_terminal/Data/Library/Application Support/de.clubbar.clubbar_terminal/config.json` |
+| Linux | `~/.local/share/de.clubbar.clubbar_terminal/config.json` |
+| macOS | `~/Library/Containers/de.clubbar.clubbarTerminal/Data/Library/Application Support/de.clubbar.clubbarTerminal/config.json` |
 | Windows | `%APPDATA%\de.clubbar.clubbar_terminal\config.json` |
 
 Every key is optional except `terminalId`, `apiUrl`, and `apiToken` (required
@@ -230,6 +230,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
   "fullscreen": false,
   "soundsEnabled": false,
   "seedTestData": false,
+  "demoMode": false,
 
   "fontSizes": {
     "xs":    12,
@@ -261,6 +262,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `fullscreen` | bool | `false` | Run the app fullscreen / kiosk mode on startup. Recommended for production deployments. |
 | `soundsEnabled` | bool | `false` | Enable audio feedback sounds. Natural/warm UI sounds at key interactions. |
 | `seedTestData` | bool | `false` | Pre-populate the local database with mock members, categories, and products. **Development only — never enable in production.** |
+| `demoMode` | bool | `false` | Enable demo mode for showcasing the terminal without a backend connection. **Development only.** |
 | `fontSizes.xs` | number | `12` | Font size in logical pixels for the `xs` scale step. |
 | `fontSizes.sm` | number | `13` | Font size for the `sm` scale step. |
 | `fontSizes.base` | number | `14` | Base body font size. Used for balance display, labels, and secondary text. |
@@ -287,6 +289,7 @@ for CI, Docker deployments, or `.desktop` file `Exec=env ...` lines:
 | `TERMINAL_FULLSCREEN` | `fullscreen` (`true`/`false`) |
 | `TERMINAL_SOUNDS_ENABLED` | `soundsEnabled` (`true`/`false`) |
 | `TERMINAL_SEED_TEST_DATA` | `seedTestData` (`true`/`false`) |
+| `TERMINAL_DEMO_MODE` | `demoMode` (`true`/`false`) |
 | `DISPENSER_ENABLED` | `dispenser.enabled` |
 | `DISPENSER_BASE_URL` | `dispenser.baseUrl` |
 | `DISPENSER_API_KEY` | `dispenser.apiKey` |

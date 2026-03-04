@@ -14,7 +14,7 @@ class ConfigParseException implements Exception {
 /// Manages terminal configuration (ADR-0019).
 ///
 /// Loads config from a JSON file at platform-specific path:
-/// - macOS: ~/Library/Containers/de.clubbar.clubbar_terminal/Data/Library/Application Support/de.clubbar.clubbar_terminal/config.json
+/// - macOS: ~/Library/Containers/de.clubbar.clubbarTerminal/Data/Library/Application Support/de.clubbar.clubbarTerminal/config.json
 /// - Linux: ~/.local/share/de.clubbar.clubbar_terminal/config.json
 /// - Windows: %APPDATA%\de.clubbar.clubbar_terminal\config.json
 ///
