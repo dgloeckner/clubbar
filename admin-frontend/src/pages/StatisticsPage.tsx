@@ -106,6 +106,14 @@ export function StatisticsPage() {
     return date.getDate().toString()
   }
 
+  const chartData = useMemo(() => {
+    if (!stats?.daily_revenue?.length) return []
+    return stats.daily_revenue.map(day => ({
+      date: formatDay(day.date),
+      revenue: day.revenue_cents / 100,
+    }))
+  }, [stats?.daily_revenue])
+
   const goToPreviousMonth = () => {
     const [year, month] = selectedMonth.split('-').map(Number)
     const newDate = new Date(year, month - 2, 1)
@@ -345,15 +353,10 @@ export function StatisticsPage() {
             }}
           >
             <h3 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('statistics.revenuePerDay')}</h3>
-            {stats.daily_revenue && stats.daily_revenue.length > 0 ? (
+            {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart
-                  data={stats.daily_revenue.map(day => ({
-                    date: formatDay(day.date),
-                    revenue: day.revenue_cents / 100,
-                    transactions: day.transaction_count,
-                    revenueCents: day.revenue_cents,
-                  }))}
+                  data={chartData}
                   margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke={theme.colors.border.light} />
