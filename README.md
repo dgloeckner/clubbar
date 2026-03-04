@@ -30,7 +30,7 @@ Club Bar is a complete point-of-sale solution designed for sports clubs, communi
 
 ```mermaid
 flowchart TB
-    subgraph Terminal["Terminal App (Electron)"]
+    subgraph Terminal["Terminal App (Flutter)"]
         T1[RFID card scan]
         T2[Product selection]
         T3[Offline checkout]
@@ -118,11 +118,10 @@ For local development using Docker Compose, see **[SETUP.md](./SETUP.md)**.
 
 | Component | Technologies |
 |-----------|--------------|
-| **Terminal** | Electron, React, TypeScript, SQLite, Drizzle ORM |
-| **Admin Panel** | React, TypeScript, Vite, Zustand, TanStack Table |
+| **Terminal** | Flutter, Dart, Drift (SQLite), Provider |
+| **Admin Panel** | React, TypeScript, Vite, Emotion, Recharts |
 | **Backend** | PHP 8.3, MariaDB, PDO |
-| **Database** | SQLite (dev), MySQL/MariaDB (production) |
-| **Testing** | PHPUnit, Vitest, Playwright |
+| **Testing** | PHPUnit, Vitest, Playwright, Flutter integration_test |
 
 ---
 
@@ -144,7 +143,7 @@ We welcome contributions! Please read:
 
 ## License
 
-License to be determined. See [LICENSE](./LICENSE) for details.
+Apache-2.0. See [LICENSE](./LICENSE) for details.
 
 ---
 
