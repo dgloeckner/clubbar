@@ -98,9 +98,8 @@ flowchart TB
 
 For production deployment instructions, see the **[Deployment Guide](./docs/deployment.md)**. It covers:
 
-- **Self-hosted package** -- upload ZIP to shared hosting, run the web installer
-- **Docker Compose** -- clone, configure, `docker compose up`
-- **Security hardening** -- HTTPS, CORS, database access, firewall
+- **Self-hosted package** -- upload ZIP to shared hosting, run the graphical web installer
+- **Security hardening** -- HTTPS, database access
 - **Database backups** -- automated daily backups with 30-day retention
 - **Monitoring** -- health endpoint polling and application logs
 - **Upgrading and rollback** -- step-by-step procedures
@@ -109,47 +108,9 @@ For terminal app deployment on Raspberry Pi or Linux, see the **[Terminal Instal
 
 ---
 
-## Project Status
+## Development Setup
 
-- [x] Architecture Decision Records (22 ADRs)
-- [x] Use Cases (50+ functional requirements)
-- [x] OpenAPI Specifications (Admin + Terminal APIs)
-- [x] Data Model (Backend + Terminal ERMs)
-- [x] UI Prototypes (Terminal + Admin)
-- [x] Technology Stack Documentation
-- [x] Docker Compose Setup
-- [ ] Backend Implementation
-- [ ] Terminal Implementation
-- [ ] Admin Panel Implementation
-- [ ] Test Suite
-
----
-
-## Quick Start
-
-```bash
-# Clone the repository
-git clone https://github.com/your-org/clubbar.git
-cd clubbar
-
-# Install backend dependencies
-cd backend && composer install && cd ..
-
-# Start with Docker
-docker compose up -d
-
-# Verify backend is running
-curl http://localhost:8080/api/health
-```
-
-### Services
-
-| Service | URL | Description |
-|---------|-----|-------------|
-| `database` | `localhost:3306` | MariaDB 10.11 |
-| `backend` | `localhost:8080` | PHP 8.3 |
-| `admin-frontend` | `localhost:5173` | React SPA (Apache) |
-| `terminal-frontend` | `localhost:5174` | React + Vite dev server |
+For local development using Docker Compose, see **[SETUP.md](./SETUP.md)**.
 
 ---
 
