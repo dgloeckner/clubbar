@@ -89,6 +89,23 @@ flowchart TB
 | [Use Cases](./use-cases/) | Functional requirements by domain |
 | [API Specs](./api/) | OpenAPI 3.0 specifications |
 | [Data Model](./docs/) | Entity-Relationship diagrams |
+| [Deployment Guide](./docs/deployment.md) | Production deployment, backups, and security |
+| [Terminal Install](./terminal-frontend/INSTALL.md) | Terminal app deployment on Raspberry Pi |
+
+---
+
+## Deployment
+
+For production deployment instructions, see the **[Deployment Guide](./docs/deployment.md)**. It covers:
+
+- **Self-hosted package** -- upload ZIP to shared hosting, run the web installer
+- **Docker Compose** -- clone, configure, `docker compose up`
+- **Security hardening** -- HTTPS, CORS, database access, firewall
+- **Database backups** -- automated daily backups with 30-day retention
+- **Monitoring** -- health endpoint polling and application logs
+- **Upgrading and rollback** -- step-by-step procedures
+
+For terminal app deployment on Raspberry Pi or Linux, see the **[Terminal Installation Guide](./terminal-frontend/INSTALL.md)**.
 
 ---
 
