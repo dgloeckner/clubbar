@@ -749,12 +749,6 @@ test.describe('Transaction Export Endpoint', () => {
       },
     });
 
-    // Debug: log actual status if not OK
-    if (!response.ok()) {
-      const body = await response.text();
-      console.error(`Export endpoint returned ${response.status()}: ${body}`);
-    }
-
     expect(response.ok()).toBeTruthy();
 
     // Verify CSV content type
