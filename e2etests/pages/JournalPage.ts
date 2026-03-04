@@ -17,12 +17,7 @@ import { Page, expect } from '@playwright/test'
 import { BasePage } from './BasePage'
 
 export class JournalPage extends BasePage {
-  // Page container
-  private readonly pageContainer = () => this.page.getByTestId('journal-page')
-
   // Toolbar elements
-  private readonly toolbar = () => this.page.getByTestId('journal-toolbar')
-  private readonly countSummary = () => this.page.getByTestId('journal-count-summary')
   private readonly searchInput = () => this.page.getByTestId('journal-search-input')
   private readonly periodPickerButton = (period: '1m' | '3m' | '6m' | '1y' | '2y' | 'all') =>
     this.page.getByTestId(`journal-period-picker-${period}`)
@@ -31,23 +26,16 @@ export class JournalPage extends BasePage {
   private readonly tableRows = () => this.page.locator('[data-testid^="journal-table-row-"]')
   private readonly emptyState = () => this.page.getByTestId('journal-empty-state')
   private readonly loadingIndicator = () => this.page.getByTestId('journal-loading')
-  private readonly errorMessage = () => this.page.getByTestId('journal-error-message')
-
-  // Pagination elements
-  private readonly paginationToolbar = () => this.page.getByTestId('journal-pagination-toolbar')
 
   // Table headers
   private readonly headerDate = () => this.page.getByTestId('journal-header-date')
   private readonly headerType = () => this.page.getByTestId('journal-header-type')
   private readonly headerMember = () => this.page.getByTestId('journal-header-member')
-  private readonly headerDetails = () => this.page.getByTestId('journal-header-details')
   private readonly headerAmount = () => this.page.getByTestId('journal-header-amount')
 
   // Settlement mode elements
   private readonly settlementStatusFilter = (status: 'all' | 'open' | 'settled') =>
     this.page.getByTestId(`journal-settlement-status-filter-${status}`)
-  private readonly transactionCheckbox = (transactionId: string) =>
-    this.page.locator(`[data-testid^="journal-table-row-"] input[data-testid="transaction-checkbox-${transactionId}"]`)
   private readonly concludeSettlementBtn = () => this.page.getByTestId('journal-settlement-conclude-btn')
 
   // Settlement confirm modal elements
@@ -56,15 +44,6 @@ export class JournalPage extends BasePage {
   private readonly settlementAllBtn = () => this.page.getByTestId('journal-settlement-all-btn')
   private readonly settlementConfirmTxCount = () => this.page.getByTestId('journal-settlement-confirm-transaction-count')
   private readonly settlementConfirmMemberCount = () => this.page.getByTestId('journal-settlement-confirm-member-count')
-
-  // Correction modal elements
-  private readonly createCorrectionBtn = () => this.page.getByTestId('journal-create-correction-btn')
-  private readonly correctionModal = () => this.page.getByTestId('journal-correction-modal')
-  private readonly correctionMemberSelect = () => this.page.getByTestId('journal-correction-member-select')
-  private readonly correctionAmountInput = () => this.page.getByTestId('journal-correction-amount-input')
-  private readonly correctionReasonInput = () => this.page.getByTestId('journal-correction-reason-input')
-  private readonly correctionSubmitBtn = () => this.page.getByTestId('journal-correction-submit-btn')
-  private readonly correctionError = () => this.page.getByTestId('journal-correction-error')
 
   constructor(page: Page) {
     super(page)
@@ -80,31 +59,6 @@ export class JournalPage extends BasePage {
   /**
    * VISIBILITY EXPECTATIONS (Pattern 008: Use expect() for assertions)
    */
-
-  async expectPageVisible() {
-    await expect(this.pageContainer()).toBeVisible()
-    // Wait for table or empty state to load
-    await this.page
-      .locator('[data-testid="journal-table"], [data-testid="journal-empty-state"]')
-      .first()
-      .waitFor({ timeout: 5000 })
-  }
-
-  async expectTableVisible() {
-    await expect(this.table()).toBeVisible()
-  }
-
-  async expectEmptyState() {
-    await expect(this.emptyState()).toBeVisible()
-  }
-
-  async expectCorrectionModalVisible() {
-    await expect(this.correctionModal()).toBeVisible()
-  }
-
-  async expectCorrectionModalHidden() {
-    await expect(this.correctionModal()).not.toBeVisible()
-  }
 
   /**
    * Period button state assertions (Pattern 006: POM abstraction)
@@ -176,38 +130,6 @@ export class JournalPage extends BasePage {
         details: '',
         amount: '',
       }
-    }
-  }
-
-  async getCountSummaryText(): Promise<string> {
-    const text = await this.countSummary().textContent()
-    return text?.trim() || ''
-  }
-
-  async getTotalItemsFromSummary(): Promise<number> {
-    const text = await this.getCountSummaryText()
-    // Accept both English "Transactions" and German "Buchungen"
-    const match = text.match(/(\d+)\s+(Transactions|Buchungen)/)
-    return match ? parseInt(match[1], 10) : 0
-  }
-
-  async findTransactionByMemberName(memberName: string): Promise<number | null> {
-    try {
-      const count = await this.getTransactionCount()
-      for (let i = 0; i < count; i++) {
-        try {
-          const row = await this.getTransactionRow(i)
-          if (row.member && row.member.includes(memberName)) {
-            return i
-          }
-        } catch (error) {
-          // Skip this row if we can't read it, continue to next
-          continue
-        }
-      }
-      return null
-    } catch (error) {
-      return null
     }
   }
 
@@ -300,30 +222,6 @@ export class JournalPage extends BasePage {
       .locator('[data-testid="journal-table"], [data-testid="journal-empty-state"]')
       .first()
       .waitFor({ timeout: 5000 })
-  }
-
-  async waitForTransactionToAppear(memberName: string) {
-    let found = false
-    let attempts = 0
-    const maxAttempts = 10
-
-    while (!found && attempts < maxAttempts) {
-      const count = await this.getTransactionCount()
-      if (count > 0) {
-        const index = await this.findTransactionByMemberName(memberName)
-        if (index !== null) {
-          found = true
-          break
-        }
-      }
-      attempts++
-      // Wait before retrying
-      await this.page.waitForTimeout(500)
-    }
-
-    if (!found) {
-      throw new Error(`Transaction with member name "${memberName}" not found after ${maxAttempts} attempts`)
-    }
   }
 
   /**
@@ -426,34 +324,6 @@ export class JournalPage extends BasePage {
     return {
       transactions: parseInt(txText?.trim() ?? '0', 10),
       members: parseInt(memberText?.trim() ?? '0', 10),
-    }
-  }
-
-  /**
-   * CORRECTION MODAL INTERACTIONS
-   */
-
-  async createCorrection(memberId: string, amountEur: string, reason: string) {
-    await this.createCorrectionBtn().click()
-    await expect(this.correctionModal()).toBeVisible()
-    // Wait for member dropdown to have options (members load async via getMembers())
-    await this.correctionMemberSelect().locator('option:not([value=""])').first().waitFor({ state: 'attached', timeout: 5000 })
-    await this.correctionMemberSelect().selectOption({ value: memberId })
-    await this.correctionAmountInput().fill(amountEur)
-    await this.correctionReasonInput().fill(reason)
-    const responsePromise = this.page.waitForResponse(
-      (resp) => resp.url().includes('/transactions/correction') && resp.ok()
-    )
-    await this.correctionSubmitBtn().click()
-    await responsePromise
-  }
-
-  async getCorrectionError(): Promise<string | null> {
-    try {
-      const text = await this.correctionError().textContent({ timeout: 3000 })
-      return text?.trim() || null
-    } catch {
-      return null
     }
   }
 

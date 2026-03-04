@@ -25,14 +25,8 @@ export class SettlementsPage extends BasePage {
   // Settlement list row/cell locators
   private readonly settlementRow = (settlementId: string) =>
     this.page.getByTestId(`settlements-table-row-${settlementId}`)
-  private readonly settlementDate = (settlementId: string) =>
-    this.page.getByTestId(`settlements-table-cell-date-${settlementId}`)
-  private readonly settlementMembers = (settlementId: string) =>
-    this.page.getByTestId(`settlements-table-cell-members-${settlementId}`)
   private readonly settlementMemberCount = (settlementId: string) =>
     this.page.getByTestId(`settlements-member-count-${settlementId}`)
-  private readonly settlementTransactionCount = (settlementId: string) =>
-    this.page.getByTestId(`settlements-transaction-count-${settlementId}`)
   private readonly settlementPrice = (settlementId: string) =>
     this.page.getByTestId(`settlements-price-${settlementId}`)
   private readonly settlementStatusBadge = (settlementId: string) =>
@@ -70,25 +64,9 @@ export class SettlementsPage extends BasePage {
    * SETTLEMENT LIST DATA
    */
 
-  async getSettlementCreatedDate(settlementId: string): Promise<string | null> {
-    try {
-      return await this.settlementDate(settlementId).textContent()
-    } catch {
-      return null
-    }
-  }
-
   async getSettlementMemberCount(settlementId: string): Promise<string | null> {
     try {
       return await this.settlementMemberCount(settlementId).textContent()
-    } catch {
-      return null
-    }
-  }
-
-  async getSettlementTransactionCount(settlementId: string): Promise<string | null> {
-    try {
-      return await this.settlementTransactionCount(settlementId).textContent()
     } catch {
       return null
     }

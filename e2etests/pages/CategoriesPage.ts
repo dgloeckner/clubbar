@@ -28,8 +28,6 @@ export class CategoriesPage extends BasePage {
   private readonly table = () => this.page.getByTestId('categories-table')
   private readonly tableRows = () => this.page.locator('[data-testid^="categories-table-row-"]')
   private readonly createBtn = () => this.page.getByTestId('categories-create-button')
-  private readonly emptyState = () => this.page.getByTestId('categories-empty-state')
-  private readonly errorMessage = () => this.page.getByTestId('categories-error-message')
   private readonly loadingIndicator = () => this.page.getByTestId('categories-loading-indicator')
 
   // Modal locators (PRIVATE)
@@ -82,10 +80,6 @@ export class CategoriesPage extends BasePage {
     await expect(this.formModal()).not.toBeVisible({ timeout: 15000 })
   }
 
-  async expectEmptyStateVisible() {
-    await expect(this.emptyState()).toBeVisible()
-  }
-
   async expectConfirmDialogVisible() {
     await expect(this.confirmDialog()).toBeVisible()
   }
@@ -110,16 +104,6 @@ export class CategoriesPage extends BasePage {
 
   async getCategoryCount(): Promise<number> {
     return await this.tableRows().count()
-  }
-
-  /**
-   * Returns the category ID of the first status toggle in the table,
-   * extracted from the toggle's data-testid attribute.
-   */
-  async getFirstStatusToggleCategoryId(): Promise<string | null> {
-    const toggle = this.page.locator('[data-testid^="categories-status-toggle-"]').first()
-    const testId = await toggle.getAttribute('data-testid')
-    return testId?.replace('categories-status-toggle-', '') ?? null
   }
 
   /**
@@ -335,11 +319,6 @@ export class CategoriesPage extends BasePage {
   /**
    * ERROR HANDLING
    */
-
-  async getErrorMessage(): Promise<string | null> {
-    if (await this.errorMessage().count() === 0) return null
-    return this.errorMessage().textContent()
-  }
 
   async getConfirmMessage(): Promise<string | null> {
     if (await this.confirmMessage().count() === 0) return null

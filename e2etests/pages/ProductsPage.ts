@@ -32,14 +32,12 @@ export class ProductsPage extends BasePage {
   private readonly tableRows = () => this.table().locator('tbody tr[data-testid]')
   private readonly createBtn = () => this.page.getByTestId('products-create-button')
   private readonly emptyState = () => this.page.getByTestId('products-empty-state')
-  private readonly errorMessage = () => this.page.getByTestId('products-error-message')
   private readonly globalLoadingIndicator = () => this.page.getByTestId('products-global-loading')
   private readonly searchInput = () => this.page.getByTestId('products-search-input')
 
   // Modal locators (PRIVATE)
   private readonly formModal = () => this.page.getByTestId('products-form-modal')
   private readonly formModalContent = () => this.page.getByTestId('products-form-modal-content')
-  private readonly formTitle = () => this.page.getByTestId('products-form-title')
   // Language tabs for multilingual name input
   private readonly nameTabDe = () => this.page.getByTestId('products-form-name-tab-de')
   private readonly nameTabEn = () => this.page.getByTestId('products-form-name-tab-en')
@@ -54,7 +52,6 @@ export class ProductsPage extends BasePage {
     this.page.getByTestId(`products-form-icon-select-option-${iconName}`)
   private readonly formSubmitBtn = () => this.page.getByTestId('products-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('products-form-cancel-button')
-  private readonly formError = () => this.page.getByTestId('products-form-error')
 
   // Action button locators (PRIVATE)
   private readonly editButton = (productId: string) =>
@@ -323,29 +320,12 @@ export class ProductsPage extends BasePage {
     await this.formCancelBtn().click()
   }
 
-  async isFormModalVisible(): Promise<boolean> {
-    return this.formModal().isVisible({ timeout: 2000 }).catch(() => false)
-  }
-
   async expectIconSelectTriggerVisible() {
     await expect(this.iconSelectTrigger()).toBeVisible()
   }
 
   async getIconSelectTriggerText(): Promise<string> {
     return (await this.iconSelectTrigger().textContent()) || ''
-  }
-
-  async openIconDropdown() {
-    await this.iconSelectTrigger().click()
-    await expect(this.iconSelectDropdown()).toBeVisible()
-  }
-
-  async expectIconDropdownVisible() {
-    await expect(this.iconSelectDropdown()).toBeVisible()
-  }
-
-  async getIconOptionCount(): Promise<number> {
-    return await this.page.locator('[data-testid^="products-form-icon-select-option-"]').count()
   }
 
   async selectIcon(iconName: string) {
@@ -459,44 +439,11 @@ export class ProductsPage extends BasePage {
   }
 
   /**
-   * ERROR HANDLING
-   */
-
-  async getErrorMessage(): Promise<string | null> {
-    if (await this.errorMessage().count() === 0) return null
-    return this.errorMessage().textContent()
-  }
-
-  async getFormErrorMessage(): Promise<string | null> {
-    if (await this.formError().count() === 0) return null
-    return this.formError().textContent()
-  }
-
-  /**
    * EDIT INTERACTIONS
    */
 
   async clickEditButton(productId: string) {
     await this.editButton(productId).first().click()
-  }
-
-  async editProduct(productId: string, name: string, price: string, categoryId?: string) {
-    await this.clickEditButton(productId)
-    await this.expectFormModalVisible()
-
-    await this.fillProductForm(name, price)
-
-    if (categoryId) {
-      await this.selectCategory(categoryId)
-    }
-
-    await this.submitForm()
-    await this.expectFormModalHidden()
-  }
-
-  async expectEditMode() {
-    const title = await this.formTitle().textContent()
-    expect(title).toContain('Produkt bearbeiten') // German: Edit Product
   }
 
   /**
@@ -724,11 +671,4 @@ export class ProductsPage extends BasePage {
     await this.waitForLoadingToComplete()
   }
 
-  /**
-   * PAGE STATE VERIFICATION
-   */
-
-  async isOnProductsPage(): Promise<boolean> {
-    return this.getCurrentUrl().includes('/products')
-  }
 }
