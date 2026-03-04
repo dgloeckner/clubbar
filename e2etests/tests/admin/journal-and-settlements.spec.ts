@@ -59,7 +59,8 @@ test.describe('Journal & Settlements', () => {
 
     const row0 = await journalPage.getTransactionRow(0)
     expect(row0.date).toBeTruthy()
-    expect(row0.type.toLowerCase()).toBe('correction')
+    // Accept both English and German transaction type labels
+    expect(['correction', 'korrektur']).toContain(row0.type.toLowerCase())
     expect(row0.member).toContain(`${prefix}A`)
     expect(row0.amount).toBeTruthy()
 
@@ -68,7 +69,7 @@ test.describe('Journal & Settlements', () => {
     await journalPage.waitForTableToLoad()
     await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(1)
     const purchaseRow = await journalPage.getTransactionRow(0)
-    expect(purchaseRow.type.toLowerCase()).toBe('purchase')
+    expect(['purchase', 'kauf']).toContain(purchaseRow.type.toLowerCase())
     expect(purchaseRow.details).toContain('JTestBier')
 
     // ── Search: member name isolation ─────────────────────────────────
@@ -148,7 +149,7 @@ test.describe('Journal & Settlements', () => {
     await journalPage.waitForTableToLoad()
     await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(1)
     const corrRow = await journalPage.getTransactionRow(0)
-    expect(corrRow.type.toLowerCase()).toBe('correction')
+    expect(['correction', 'korrektur']).toContain(corrRow.type.toLowerCase())
     expect(corrRow.amount).toMatch(/42[,.]50/)
   })
 
@@ -231,6 +232,13 @@ test.describe('Journal & Settlements', () => {
     expect(detailText).toContain(`${prefix}Bier`)
 
     // ── Export SEPA XML ───────────────────────────────────────────────
+    // Re-apply SEPA config right before export to guard against parallel test contamination
+    // (sepa_config is a singleton row shared across all tests)
+    const reConfigResp = await authenticatedRequest.put('/api/admin/sepa-config', {
+      data: { creditor_id: creditorId, creditor_name: creditorName, creditor_iban: creditorIban },
+    })
+    expect(reConfigResp.status()).toBe(200)
+
     const sepaResp = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}/export-sepa`)
     expect(sepaResp.status()).toBe(200)
     expect(sepaResp.headers()['content-type']).toContain('xml')

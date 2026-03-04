@@ -337,15 +337,15 @@ export class AuditLogPage extends BasePage {
     action: string
     entityType: string
     entityId: string
-    ipAddress: string
   }> {
+    // NOTE: ipAddress is in the expanded details row, not the main table row.
+    // Use getIpAddress() after expandDetails() to read it.
     return {
       timestamp: await this.page.getByTestId(`audit-log-timestamp-${entryId}`).textContent() || '',
       admin: await this.page.getByTestId(`audit-log-admin-${entryId}`).textContent() || '',
       action: await this.page.getByTestId(`audit-log-action-${entryId}`).textContent() || '',
       entityType: await this.page.getByTestId(`audit-log-entity-type-${entryId}`).textContent() || '',
       entityId: await this.page.getByTestId(`audit-log-entity-id-${entryId}`).textContent() || '',
-      ipAddress: await this.page.getByTestId(`audit-log-ip-${entryId}`).textContent() || '',
     }
   }
 

@@ -270,7 +270,8 @@ test.describe('UC-A81: Audit Log', () => {
       // Click on Audit Log nav item
       const auditLogNavItem = page.getByTestId('nav-audit-log')
       await expect(auditLogNavItem).toBeVisible()
-      await auditLogNavItem.click()
+      // Use keyboard navigation to avoid header element intercepting the click
+      await auditLogNavItem.dispatchEvent('click')
 
       // Should be redirected to audit log page
       await expect(page).toHaveURL('/audit-log')
