@@ -322,7 +322,8 @@
     "sales": "Verkäufe",
     "purchases": "Käufe",
     "noProductData": "Keine Produktdaten",
-    "noMemberData": "Keine Mitgliederdaten"
+    "noMemberData": "Keine Mitgliederdaten",
+    "day": "Tag"
   },
   "settings": {
     "title": "Einstellungen",

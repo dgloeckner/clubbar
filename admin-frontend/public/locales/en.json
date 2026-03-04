@@ -322,7 +322,8 @@
     "sales": "Sales",
     "purchases": "Purchases",
     "noProductData": "No product data",
-    "noMemberData": "No member data"
+    "noMemberData": "No member data",
+    "day": "Day"
   },
   "settings": {
     "title": "Settings",

@@ -5,6 +5,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { get } from '../services/api'
 import { theme } from '../styles/design-system'
 import { useFormatters } from '../hooks/useFormatters'
@@ -104,12 +105,6 @@ export function StatisticsPage() {
     const date = new Date(dateStr)
     return date.getDate().toString()
   }
-
-  // Calculate max revenue for chart scaling
-  const maxDailyRevenue = useMemo(() => {
-    if (!stats?.daily_revenue?.length) return 100
-    return Math.max(...stats.daily_revenue.map(d => d.revenue_cents), 100)
-  }, [stats])
 
   const goToPreviousMonth = () => {
     const [year, month] = selectedMonth.split('-').map(Number)
@@ -351,54 +346,51 @@ export function StatisticsPage() {
           >
             <h3 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('statistics.revenuePerDay')}</h3>
             {stats.daily_revenue && stats.daily_revenue.length > 0 ? (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  gap: '4px',
-                  height: '200px',
-                  padding: `0 ${theme.spacing.md}`,
-                }}
-              >
-                {stats.daily_revenue.map((day, index) => {
-                  const height = maxDailyRevenue > 0 ? (day.revenue_cents / maxDailyRevenue) * 180 : 0
-                  return (
-                    <div
-                      key={day.date}
-                      data-testid={`chart-bar-${index}`}
-                      style={{
-                        flex: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      <div
-                        title={`${formatters.formatPrice(day.revenue_cents)} (${day.transaction_count} ${t('statistics.transactions')})`}
-                        style={{
-                          width: '100%',
-                          maxWidth: '30px',
-                          height: `${Math.max(height, 2)}px`,
-                          background: 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)',
-                          borderRadius: '4px 4px 0 0',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%)'
-                        }}
-                      />
-                      <span style={{ fontSize: '10px', color: theme.colors.text.muted }}>
-                        {formatDay(day.date)}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart
+                  data={stats.daily_revenue.map(day => ({
+                    date: formatDay(day.date),
+                    revenue: day.revenue_cents / 100,
+                    transactions: day.transaction_count,
+                    revenueCents: day.revenue_cents,
+                  }))}
+                  margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme.colors.border.light} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: theme.colors.text.muted, fontSize: 10 }}
+                    axisLine={{ stroke: theme.colors.border.light }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: theme.colors.text.muted, fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(value: number) => formatters.formatPrice(value * 100)}
+                    width={80}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: theme.colors.bg.secondary,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                    }}
+                    formatter={(value?: number, name?: string) => {
+                      if (name === 'revenue' && value != null) return [formatters.formatPrice(value * 100), t('statistics.revenue')]
+                      return [value ?? 0, name ?? '']
+                    }}
+                    labelFormatter={(label) => `${t('statistics.day')} ${label}`}
+                  />
+                  <Bar
+                    dataKey="revenue"
+                    fill="#3b82f6"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={30}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
               <div style={{ textAlign: 'center', color: theme.colors.text.muted, padding: theme.spacing.xl }}>
                 {t('statistics.noDataForMonth')}
