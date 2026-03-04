@@ -10,7 +10,8 @@ cd backend && composer install && cd ..
 docker compose up -d
 
 # 3. Migrate database and seed test data
-docker compose exec -T backend sh -c "cd /app && php artisan migrate:fresh --seed"
+curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
+curl -sf "http://localhost:8080/install.php?action=seed&key=dev-install-key"
 
 # 4. Install E2E test dependencies
 cd e2etests && npm install
@@ -23,7 +24,7 @@ npm test
 
 ### Automated Test Data
 
-When you run `php artisan migrate:fresh --seed`, the following test data is automatically created:
+When you run the seed command, the following test data is automatically created:
 
 #### Admin User
 - **Email**: `admin@example.com`
@@ -49,8 +50,8 @@ Both files contain identical credentials to ensure consistency.
 ### Running Tests
 
 ```bash
-# All tests
-npm test
+# All tests (4 workers, parallel)
+cd e2etests && npm test
 
 # Specific test suite
 npm test -- --grep "Transactions"
@@ -58,7 +59,7 @@ npm test -- --grep "Transactions"
 # Single test
 npm test -- --grep "POST /api/sync/transactions accepts single transaction"
 
-# With serial execution (useful for debugging)
+# Serial execution (useful for debugging)
 npm test -- --workers=1
 ```
 
@@ -68,7 +69,7 @@ If you need to change test credentials (e.g., for security), update both files:
 
 1. **Backend**: `backend/app/Shared/Constants/TestCredentials.php`
    - Update the constant values
-   - Run `docker compose exec -T backend sh -c "cd /app && php artisan migrate:fresh --seed"`
+   - Re-seed: `curl -sf "http://localhost:8080/install.php?action=seed&key=dev-install-key"`
 
 2. **Frontend**: `e2etests/config/test-credentials.ts`
    - Update the TEST_CREDENTIALS object to match backend values
@@ -76,20 +77,21 @@ If you need to change test credentials (e.g., for security), update both files:
 ## Troubleshooting
 
 ### Tests fail with 401 Unauthorized
-- Ensure database is seeded: `docker compose exec -T backend sh -c "cd /app && php artisan migrate:fresh --seed"`
+- Ensure database is seeded: `curl -sf "http://localhost:8080/install.php?action=seed&key=dev-install-key"`
 - Verify credentials in both constant files are in sync
 
 ### Admin login fails
-- Check AdminUsersSeeder ran successfully
+- Check seed data ran successfully
 - Verify `admin@example.com` exists in database: `docker compose exec -T database mysql -u clubbar -pclubbar clubbar -e "SELECT email FROM admin_users;"`
 
 ### Terminal API authentication fails
-- Check TerminalSeeder ran successfully
+- Check seed data ran successfully
 - Verify test terminal exists: `docker compose exec -T database mysql -u clubbar -pclubbar clubbar -e "SELECT device_id, is_active FROM terminals;"`
 
 ### Database issues
-- Full reset: `docker compose exec -T backend sh -c "cd /app && php artisan migrate:fresh --seed"`
-- Or: `docker compose down -v && docker compose up -d` (deletes database volume)
+- Full reset: `docker compose down -v && docker compose up -d` (deletes database volume), then re-run migrate and seed commands
+- Migrate only: `curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"`
+- Check migration status: `curl -sf "http://localhost:8080/install.php?action=status&key=dev-install-key" | jq .`
 
 ## Backend Development
 
@@ -99,8 +101,8 @@ After changing backend code:
 docker compose exec backend supervisorctl restart php-fpm:php-fpmd
 sleep 2
 
-# Database schema changes
-docker compose exec -T backend sh -c "cd /app && php artisan migrate"
+# Database schema changes — add new migration file to backend/db/migrations/, then:
+curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
 
 # New dependencies
 cd backend && composer install
@@ -110,10 +112,12 @@ docker compose exec backend supervisorctl restart php-fpm:php-fpmd
 ## Architecture
 
 - **Database**: MariaDB (in Docker)
-- **Backend API**: Laravel/PHP (in Docker, code mounted from host)
+- **Backend API**: PHP 8.3 / PDO (in Docker, code mounted from host)
+- **Admin Panel**: React / TypeScript / Vite (runs on host or in Docker)
+- **Terminal App**: Flutter / Dart (desktop app, runs on host)
 - **Tests**: Playwright TypeScript (runs on host, connects to API)
 - **Authentication**:
-  - Admin: Session cookies (Pattern 013)
-  - Terminal: Bearer token (Pattern 012)
+  - Admin: Session cookies
+  - Terminal: Bearer token
 
 See `backend/patterns/` for architectural patterns and `CLAUDE.md` for detailed conventions.

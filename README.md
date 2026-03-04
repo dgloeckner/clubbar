@@ -110,7 +110,7 @@ For terminal app deployment on Raspberry Pi or Linux, see the **[Terminal Instal
 
 ## Development Setup
 
-For local development using Docker Compose, see **[SETUP.md](./SETUP.md)**.
+For local development using Docker Compose, see **[DEV_SETUP.md](./DEV_SETUP.md)**.
 
 ---
 
