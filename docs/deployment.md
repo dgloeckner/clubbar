@@ -1,22 +1,17 @@
 # Production Deployment Guide
 
-This guide covers deploying Club Bar in a production environment. Choose one of two deployment options depending on your infrastructure.
+This guide covers deploying Club Bar on standard PHP shared hosting (e.g., Hetzner, IONOS, Strato).
 
 ---
 
-## Deployment Options
+## Requirements
 
-### Option A: Self-Hosted Package (Shared Hosting)
-
-Best for clubs with standard PHP shared hosting (e.g., Hetzner, IONOS, Strato).
-
-**Requirements:**
 - PHP 8.3 or higher
 - MySQL 5.7+ or MariaDB 10.5+
 - Apache with mod_rewrite enabled
 - PHP extensions: `pdo_mysql`, `json`, `mbstring`
 
-**Steps:**
+## Installation
 
 1. Download the latest release ZIP from [GitHub Releases](https://github.com/dgloeckner/clubbar/releases)
 2. Extract and upload all files to your web hosting document root (e.g., `public_html/`)
@@ -24,129 +19,35 @@ Best for clubs with standard PHP shared hosting (e.g., Hetzner, IONOS, Strato).
    ```bash
    chmod 755 backend/storage backend/logs
    ```
-4. Copy `config.sample.php` to `config.php` and edit it with your database credentials:
-   ```bash
-   cp config.sample.php config.php
-   # Edit config.php with your DB_HOST, DB_NAME, DB_USER, DB_PASS, and INSTALL_KEY
-   ```
-5. Run database migrations via the install endpoint:
-   ```bash
-   curl -sf "http://your-domain.com/install.php?action=migrate&key=YOUR_INSTALL_KEY"
-   ```
-6. Seed initial data (e.g., default admin account, product categories):
-   ```bash
-   curl -sf "http://your-domain.com/install.php?action=seed&key=YOUR_INSTALL_KEY"
-   ```
-7. Verify installation by checking the status endpoint:
-   ```bash
-   curl -sf "http://your-domain.com/install.php?action=status&key=YOUR_INSTALL_KEY"
-   ```
-8. **Secure the install endpoint** -- change the `INSTALL_KEY` to a new value or delete `install.php` entirely:
-   ```bash
-   rm install.php
-   ```
+4. Open your domain in a browser — you will be redirected to the **Installation Wizard** (`install.php`)
 
-> **Note:** `install.php` is a JSON API with three actions: `status` (list migration state), `migrate` (run pending migrations), and `seed` (apply seed data). All requests require the `INSTALL_KEY` via `?key=` parameter or `X-Install-Key` header.
+### Installation Wizard
 
-### Option B: Docker Compose
+The installer guides you through five steps:
 
-Best for self-hosted servers (VPS, dedicated, or on-premises).
+1. **Prerequisites Check** — verifies PHP version, required extensions, and writable directories. All checks must pass before proceeding.
+2. **Database Configuration** — enter your database host, port, name, username, and password. Use the **"Test Connection"** button to verify credentials before continuing. The installer writes `config.php` automatically.
+3. **Run Migrations** — click **"Run Migrations"** to create the database tables.
+4. **Create Admin User** — enter email and password for the first admin account.
+5. **Done** — installation complete. Follow the link to open the Admin Panel.
 
-**Requirements:**
-- Docker Engine 20+ and Docker Compose v2
-- 1 GB RAM minimum
-- Ports 80/443 available
-
-**Steps:**
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/dgloeckner/clubbar.git
-   cd clubbar
-   ```
-
-2. Install backend dependencies:
-   ```bash
-   cd backend && composer install && cd ..
-   ```
-
-3. Create a production `.env` file for the backend:
-   ```bash
-   cp backend/.env.example backend/.env
-   ```
-   Edit `backend/.env` with production values:
-   ```env
-   APP_ENV=production
-   APP_DEBUG=false
-   APP_URL=https://your-domain.com
-
-   DB_HOST=database
-   DB_PORT=3306
-   DB_NAME=clubbar
-   DB_USER=clubbar_prod
-   DB_PASS=<strong-random-password>
-
-   SESSION_MAX_AGE=7200
-   SESSION_REGEN_INTERVAL=900
-   API_TOKEN_TTL_DAYS=90
-
-   CORS_ORIGINS=https://your-domain.com
-   INSTALL_KEY=<random-secret-for-install-endpoint>
-   ```
-
-4. Update `docker-compose.yml` environment variables to match:
-   - Set `MYSQL_PASSWORD` and `DB_PASS` to your chosen database password
-   - Set `MYSQL_ROOT_PASSWORD` to a different strong password
-   - Set `APP_ENV=production`, `APP_DEBUG=false`
-   - Set `CORS_ORIGINS` to your domain (not `*`)
-   - Set `PHP_OPCACHE_ENABLE=1` for production performance
-
-5. Start services:
-   ```bash
-   docker compose up -d
-   ```
-
-6. Run database migrations and seed initial data:
-   ```bash
-   curl -sf "http://localhost:8080/install.php?action=migrate&key=$INSTALL_KEY"
-   curl -sf "http://localhost:8080/install.php?action=seed&key=$INSTALL_KEY"
-   ```
-
-7. Verify the health endpoint:
-   ```bash
-   curl http://localhost:8080/api/health
-   ```
+> **Security:** After installation, delete or rename `install.php` to prevent unauthorized access:
+> ```bash
+> rm install.php
+> ```
 
 ---
 
 ## Security Hardening
 
-### HTTPS with Let's Encrypt
+### HTTPS
 
-Always use HTTPS in production. For shared hosting, enable SSL in your hosting panel. For Docker, add a reverse proxy:
-
-```bash
-# Example: Caddy as reverse proxy (auto-HTTPS with Let's Encrypt)
-# Caddyfile
-your-domain.com {
-    reverse_proxy localhost:8080
-}
-```
-
-Alternatives: nginx with certbot, or Traefik.
+Always use HTTPS in production. Enable SSL in your hosting panel (most providers offer free Let's Encrypt certificates).
 
 ### Application Security
 
-- **Set `APP_ENV=production`** -- disables debug output and stack traces
-- **Set `APP_DEBUG=false`** -- prevents detailed error messages from leaking to users
-- **Restrict CORS** -- set `CORS_ORIGINS` to your exact domain, never use `*` in production
-- **Delete or rename `install.php`** after initial setup (self-hosted package):
-  ```bash
-  mv install.php install.php.bak
-  ```
-  For updates, temporarily rename it back and run `curl -sf "http://your-domain.com/install.php?action=migrate&key=YOUR_INSTALL_KEY"`
-- **Protect `config.php`** -- ensure it is not publicly downloadable (Apache `.htaccess` should already block this; verify by requesting `https://your-domain.com/config.php` in a browser)
-- **Set a strong `INSTALL_KEY`** (Docker) -- the backend `install.php` endpoint requires this key via `X-Install-Key` header or `?key=` parameter
+- **Protect `config.php`** — ensure it is not publicly downloadable (the `.htaccess` file should already block this; verify by requesting `https://your-domain.com/config.php` in a browser)
+- **Delete `install.php`** after setup — restore it from the release ZIP only when upgrading
 
 ### Database Security
 
@@ -159,13 +60,6 @@ Alternatives: nginx with certbot, or Traefik.
   ```
 - Disable remote root access
 - Use a different password for the database root account
-
-### Firewall
-
-Expose only the ports you need:
-- **80** (HTTP, redirect to HTTPS)
-- **443** (HTTPS)
-- **3306** should NOT be exposed publicly (Docker: remove the `ports: - "3306:3306"` mapping in production)
 
 ---
 
@@ -183,12 +77,7 @@ DATE=$(date +%Y-%m-%d_%H%M%S)
 
 mkdir -p "$BACKUP_DIR"
 
-# Docker deployment
-docker compose exec -T database mysqldump -u clubbar -pCLUBBAR_PASSWORD clubbar \
-  | gzip > "$BACKUP_DIR/clubbar_$DATE.sql.gz"
-
-# Shared hosting (direct mysqldump)
-# mysqldump -u clubbar_prod -p'PASSWORD' clubbar | gzip > "$BACKUP_DIR/clubbar_$DATE.sql.gz"
+mysqldump -u clubbar_prod -p'PASSWORD' clubbar | gzip > "$BACKUP_DIR/clubbar_$DATE.sql.gz"
 
 # Remove backups older than retention period
 find "$BACKUP_DIR" -name "clubbar_*.sql.gz" -mtime +$RETENTION_DAYS -delete
@@ -204,20 +93,12 @@ Add to crontab (`crontab -e`):
 ### Manual Backup
 
 ```bash
-# Docker
-docker compose exec -T database mysqldump -u clubbar -pPASSWORD clubbar > backup.sql
-
-# Shared hosting
 mysqldump -u clubbar_prod -p clubbar > backup.sql
 ```
 
 ### Restore from Backup
 
 ```bash
-# Docker
-gunzip < backup.sql.gz | docker compose exec -T database mysql -u clubbar -pPASSWORD clubbar
-
-# Shared hosting
 gunzip < backup.sql.gz | mysql -u clubbar_prod -p clubbar
 ```
 
@@ -226,9 +107,9 @@ gunzip < backup.sql.gz | mysql -u clubbar_prod -p clubbar
 Always create a backup before upgrading:
 ```bash
 # 1. Backup database
-docker compose exec -T database mysqldump -u clubbar -pPASSWORD clubbar > pre-upgrade-backup.sql
+mysqldump -u clubbar_prod -p clubbar > pre-upgrade-backup.sql
 
-# 2. Backup config file (self-hosted package)
+# 2. Backup config file
 cp config.php config.php.pre-upgrade
 
 # 3. Proceed with upgrade (see Upgrading section)
@@ -253,10 +134,6 @@ Set up a cron job or external monitoring service (e.g., UptimeRobot) to check ev
 The backend writes JSON-formatted logs to daily files:
 
 ```bash
-# Docker
-docker compose exec backend tail -50 /app/logs/$(date +%Y-%m-%d).log | jq .
-
-# Shared hosting
 tail -50 backend/logs/$(date +%Y-%m-%d).log | jq .
 ```
 
@@ -276,42 +153,13 @@ SET GLOBAL slow_query_log_file = '/var/log/mysql/slow-query.log';
 
 ## Upgrading
 
-### Self-Hosted Package
-
 1. Create a pre-upgrade backup (see above)
 2. Download the new release ZIP
-3. Upload and overwrite all files -- `config.php` is preserved since it is not in the ZIP
+3. Upload and overwrite all files — `config.php` is preserved since it is not in the ZIP
 4. If `install.php` was deleted, restore it from the new release
-5. Run pending migrations:
-   ```bash
-   curl -sf "http://your-domain.com/install.php?action=migrate&key=YOUR_INSTALL_KEY"
-   ```
+5. Open `https://your-domain.com/install.php?update=1` in a browser and run pending migrations (step 3 of the wizard). The admin user step is skipped in update mode.
 6. Verify the Admin Panel loads and the health endpoint responds
-7. Delete `install.php` again or change the `INSTALL_KEY`
-
-### Docker Compose
-
-1. Create a pre-upgrade backup (see above)
-2. Pull the latest code:
-   ```bash
-   git pull origin main
-   ```
-3. Update dependencies:
-   ```bash
-   cd backend && composer install --no-dev --optimize-autoloader && cd ..
-   ```
-4. Run database migrations:
-   ```bash
-   curl -sf "http://localhost:8080/install.php?action=migrate&key=$INSTALL_KEY"
-   ```
-5. Restart PHP to pick up code changes:
-   ```bash
-   docker compose exec backend supervisorctl restart php-fpm:php-fpmd
-   ```
-6. Verify the health endpoint:
-   ```bash
-   curl -s https://your-domain.com/api/health | jq .
-   ```
+7. Delete `install.php` again
 
 ---
 
@@ -319,22 +167,12 @@ SET GLOBAL slow_query_log_file = '/var/log/mysql/slow-query.log';
 
 If an upgrade causes issues, restore the previous version:
 
-1. **Restore code**:
-   - Self-hosted: Re-upload the previous release ZIP files
-   - Docker: `git checkout <previous-tag>`
-2. **Restore database**:
+1. Re-upload the previous release ZIP files
+2. Restore the database:
    ```bash
-   # Docker
-   cat pre-upgrade-backup.sql | docker compose exec -T database mysql -u clubbar -pPASSWORD clubbar
-
-   # Shared hosting
    mysql -u clubbar_prod -p clubbar < pre-upgrade-backup.sql
    ```
-3. Restart services:
-   ```bash
-   docker compose exec backend supervisorctl restart php-fpm:php-fpmd
-   ```
-4. Verify the health endpoint responds correctly
+3. Verify the health endpoint responds correctly
 
 ---
 
