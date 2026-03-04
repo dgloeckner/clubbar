@@ -158,18 +158,6 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
           </Button>
         </form>
 
-        <div
-          style={{
-            marginTop: theme.spacing['2xl'],
-            paddingTop: theme.spacing.lg,
-            borderTop: `1px solid ${theme.colors.border.light}`,
-            fontSize: theme.typography.fontSize.xs,
-            color: theme.colors.text.secondary,
-            textAlign: 'center',
-          }}
-        >
-          Demo credentials available on backend
-        </div>
       </Card>
     </div>
   )
