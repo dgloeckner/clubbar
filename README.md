@@ -20,6 +20,8 @@ Club Bar is a complete point-of-sale solution designed for sports clubs, communi
 | Manual billing is error-prone | **RFID identification** — Tap card, select products, done |
 | Spreadsheet accounting chaos | **Automated SEPA settlement** — Generate bank-ready XML |
 | GDPR compliance concerns | **Privacy by design** — Anonymization workflows built-in |
+| Expensive POS hardware | **Commodity hardware** — Runs on any tablet or Raspberry Pi with a USB RFID reader |
+| Recurring SaaS fees | **Self-hosted & free** — No subscriptions, no vendor lock-in, your data stays yours |
 | Complex software requirements | **Simple deployment** — PHP backend, SQLite/MySQL |
 
 ---
