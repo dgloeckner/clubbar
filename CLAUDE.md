@@ -757,6 +757,6 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail")'
 
 ### Licensing & Attribution
 
-- **License**: [To be specified: AGPL-3.0, MIT, Apache-2.0, etc.]
+- **License**: Apache-2.0
 - **Attribution**: All contributors credited in CONTRIBUTORS.md
 - **DCO**: Contributions must include sign-off (e.g., `git commit -s`)
