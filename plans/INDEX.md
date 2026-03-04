@@ -151,22 +151,26 @@ This index tracks the status of all implementation plans for Club Bar. When cont
 
 ---
 
-### E2E Test Quality Improvement (📍 BACKLOG)
+### E2E Test Quality Improvement (✅ COMPLETE)
 
 **Plan**: [2026-02-28-e2e-test-quality.md](./2026-02-28-e2e-test-quality.md)
 
 **Goal**: Eliminate POM violations, weak assertions relying on seeded data, and console.log noise from the E2E test suite.
 
-**Status**: Plan written, 7 milestones, ready for execution.
+**Status**: ✅ Complete (2026-03-04) — All milestones executed. Dead POM methods removed, console.log cleaned up. 448/449 tests passing.
 
-**Milestones**:
-1. ProfilePage POM completion + profile.spec.ts rewrite
-2. Fix settlements-e2e.spec.ts POM violations
-3. Rewrite ui-features.spec.ts — remove icon tests, fix behavioral tests
-4. Fix sync-categories.spec.ts — create own test data
-5. Fix categories.spec.ts Terminal Sync section
-6. Remove console.log from 4 test files
-7. Fix members-stats.spec.ts — replace raw API calls + waitForTimeout
+### V1.0 Release Preparation (✅ COMPLETE)
+
+**Plan**: [2026-03-04-v1-release.md](./2026-03-04-v1-release.md)
+
+**Goal**: Prepare Club Bar for first public release with terminal E2E tests, Recharts charts, deployment docs, and test quality improvements.
+
+**Status**: ✅ Complete (2026-03-04) — All 5 workstreams delivered:
+1. ✅ Audit log E2E test verified passing
+2. ✅ Terminal integration_test infrastructure + checkout flow tests + CI pipeline
+3. ✅ E2E test quality plan executed (7 milestones)
+4. ✅ Recharts BarChart replaces CSS bars on Statistics page
+5. ✅ Production deployment guide (docs/deployment.md)
 
 ---
 
