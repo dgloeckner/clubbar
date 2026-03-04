@@ -106,9 +106,10 @@ Best for self-hosted servers (VPS, dedicated, or on-premises).
    docker compose up -d
    ```
 
-6. Run database migrations:
+6. Run database migrations and seed initial data:
    ```bash
    curl -sf "http://localhost:8080/install.php?action=migrate&key=$INSTALL_KEY"
+   curl -sf "http://localhost:8080/install.php?action=seed&key=$INSTALL_KEY"
    ```
 
 7. Verify the health endpoint:
@@ -143,7 +144,7 @@ Alternatives: nginx with certbot, or Traefik.
   ```bash
   mv install.php install.php.bak
   ```
-  For updates, temporarily rename it back and visit `?update=1`
+  For updates, temporarily rename it back and run `curl -sf "http://your-domain.com/install.php?action=migrate&key=YOUR_INSTALL_KEY"`
 - **Protect `config.php`** -- ensure it is not publicly downloadable (Apache `.htaccess` should already block this; verify by requesting `https://your-domain.com/config.php` in a browser)
 - **Set a strong `INSTALL_KEY`** (Docker) -- the backend `install.php` endpoint requires this key via `X-Install-Key` header or `?key=` parameter
 
