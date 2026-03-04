@@ -24,15 +24,29 @@ Best for clubs with standard PHP shared hosting (e.g., Hetzner, IONOS, Strato).
    ```bash
    chmod 755 backend/storage backend/logs
    ```
-4. Open your domain in a browser -- you will be redirected to `/install.php`
-5. Follow the installation wizard:
-   - **Step 1**: Prerequisites check (PHP version, extensions, writable dirs)
-   - **Step 2**: Enter MySQL/MariaDB database credentials (test connection before saving)
-   - **Step 3**: Run database migrations
-   - **Step 4**: Create your first admin account
-   - **Step 5**: Done -- log in to the Admin Panel
+4. Copy `config.sample.php` to `config.php` and edit it with your database credentials:
+   ```bash
+   cp config.sample.php config.php
+   # Edit config.php with your DB_HOST, DB_NAME, DB_USER, DB_PASS, and INSTALL_KEY
+   ```
+5. Run database migrations via the install endpoint:
+   ```bash
+   curl -sf "http://your-domain.com/install.php?action=migrate&key=YOUR_INSTALL_KEY"
+   ```
+6. Seed initial data (e.g., default admin account, product categories):
+   ```bash
+   curl -sf "http://your-domain.com/install.php?action=seed&key=YOUR_INSTALL_KEY"
+   ```
+7. Verify installation by checking the status endpoint:
+   ```bash
+   curl -sf "http://your-domain.com/install.php?action=status&key=YOUR_INSTALL_KEY"
+   ```
+8. **Secure the install endpoint** -- change the `INSTALL_KEY` to a new value or delete `install.php` entirely:
+   ```bash
+   rm install.php
+   ```
 
-The installer writes a `config.php` file in the document root with your database credentials and application settings (see `config.sample.php` for reference).
+> **Note:** `install.php` is a JSON API with three actions: `status` (list migration state), `migrate` (run pending migrations), and `seed` (apply seed data). All requests require the `INSTALL_KEY` via `?key=` parameter or `X-Install-Key` header.
 
 ### Option B: Docker Compose
 
@@ -94,7 +108,7 @@ Best for self-hosted servers (VPS, dedicated, or on-premises).
 
 6. Run database migrations:
    ```bash
-   docker compose exec -T backend sh -c "cd /app && php artisan migrate"
+   curl -sf "http://localhost:8080/install.php?action=migrate&key=$INSTALL_KEY"
    ```
 
 7. Verify the health endpoint:
@@ -266,10 +280,13 @@ SET GLOBAL slow_query_log_file = '/var/log/mysql/slow-query.log';
 1. Create a pre-upgrade backup (see above)
 2. Download the new release ZIP
 3. Upload and overwrite all files -- `config.php` is preserved since it is not in the ZIP
-4. If `install.php` was deleted, restore it temporarily
-5. Visit `https://your-domain.com/install.php?update=1` to run pending migrations
+4. If `install.php` was deleted, restore it from the new release
+5. Run pending migrations:
+   ```bash
+   curl -sf "http://your-domain.com/install.php?action=migrate&key=YOUR_INSTALL_KEY"
+   ```
 6. Verify the Admin Panel loads and the health endpoint responds
-7. Delete `install.php` again
+7. Delete `install.php` again or change the `INSTALL_KEY`
 
 ### Docker Compose
 
@@ -284,7 +301,7 @@ SET GLOBAL slow_query_log_file = '/var/log/mysql/slow-query.log';
    ```
 4. Run database migrations:
    ```bash
-   docker compose exec -T backend sh -c "cd /app && php artisan migrate"
+   curl -sf "http://localhost:8080/install.php?action=migrate&key=$INSTALL_KEY"
    ```
 5. Restart PHP to pick up code changes:
    ```bash
