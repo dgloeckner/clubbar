@@ -108,16 +108,3 @@ curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
 cd backend && composer install
 docker compose exec backend supervisorctl restart php-fpm:php-fpmd
 ```
-
-## Architecture
-
-- **Database**: MariaDB (in Docker)
-- **Backend API**: PHP 8.3 / PDO (in Docker, code mounted from host)
-- **Admin Panel**: React / TypeScript / Vite (runs on host or in Docker)
-- **Terminal App**: Flutter / Dart (desktop app, runs on host)
-- **Tests**: Playwright TypeScript (runs on host, connects to API)
-- **Authentication**:
-  - Admin: Session cookies
-  - Terminal: Bearer token
-
-See `backend/patterns/` for architectural patterns and `CLAUDE.md` for detailed conventions.
