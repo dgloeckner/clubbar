@@ -30,20 +30,20 @@ When you run the seed command, the following test data is automatically created:
 - **Email**: `admin@example.com`
 - **Password**: `password123`
 - **Purpose**: Admin panel authentication (session-based)
-- **Source**: `backend/app/Shared/Constants/TestCredentials.php`
+- **Source**: `backend/db/seed.sql`
 
 #### Test Terminal
 - **Device ID**: `test-device-001`
 - **Name**: `Test Terminal`
 - **API Token**: `test-terminal-token-do-not-use-in-production-0a1b2c3d4e5f6g7h`
 - **Purpose**: Terminal API authentication (bearer token-based)
-- **Source**: `backend/app/Shared/Constants/TestCredentials.php`
+- **Source**: `backend/db/seed.sql`
 
 ### No Environment Variables Needed
 
 Test credentials are hardcoded in:
-- **Backend**: `backend/app/Shared/Constants/TestCredentials.php`
-- **Frontend**: `e2etests/config/test-credentials.ts`
+- **Backend**: `backend/db/seed.sql` (seeds the database)
+- **Frontend**: `e2etests/config/test-credentials.ts` (used by E2E tests)
 
 Both files contain identical credentials to ensure consistency.
 
@@ -67,12 +67,12 @@ npm test -- --workers=1
 
 If you need to change test credentials (e.g., for security), update both files:
 
-1. **Backend**: `backend/app/Shared/Constants/TestCredentials.php`
-   - Update the constant values
+1. **Backend**: `backend/db/seed.sql`
+   - Update the credential values and password hash
    - Re-seed: `curl -sf "http://localhost:8080/install.php?action=seed&key=dev-install-key"`
 
 2. **Frontend**: `e2etests/config/test-credentials.ts`
-   - Update the TEST_CREDENTIALS object to match backend values
+   - Update the TEST_CREDENTIALS object to match seed.sql values
 
 ## Troubleshooting
 

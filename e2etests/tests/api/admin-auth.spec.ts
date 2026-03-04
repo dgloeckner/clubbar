@@ -1,10 +1,10 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
+import { TEST_CREDENTIALS } from "../../config/test-credentials";
 
 const API_BASE = "http://localhost:8080/api";
 
-// Test credentials
-const ADMIN_EMAIL = "admin@example.com";
-const ADMIN_PASSWORD = "password123";
+const ADMIN_EMAIL = TEST_CREDENTIALS.admin.email;
+const ADMIN_PASSWORD = TEST_CREDENTIALS.admin.password;
 const INVALID_PASSWORD = "wrongpassword";
 const NONEXISTENT_EMAIL = "doesnotexist@example.com";
 

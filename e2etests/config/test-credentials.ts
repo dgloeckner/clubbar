@@ -2,7 +2,7 @@
  * Test Credentials - Fixed test credentials for E2E tests
  *
  * These are known, hardcoded test credentials used during development and testing.
- * They must match the values used in backend seeders (TestCredentials.php).
+ * They must match the values used in backend seed script (backend/db/seed.sql).
  *
  * Usage:
  * - E2E test fixtures use these to authenticate
@@ -20,7 +20,7 @@ export const TEST_CREDENTIALS = {
   },
 
   // Terminal API token (created by TerminalSeeder)
-  // Must match TestCredentials::TERMINAL_TOKEN in PHP
+  // Must match token hash in backend/db/seed.sql
   terminal: {
     token: 'test-terminal-token-do-not-use-in-production-0a1b2c3d4e5f6g7h',
     deviceId: 'test-device-001',
