@@ -12,7 +12,7 @@ export function useBreakpoint(): Breakpoint {
         setBreakpoint('smallMobile')
       } else if (width <= 768) {
         setBreakpoint('mobile')
-      } else if (width <= 1024) {
+      } else if (width <= 1200) {
         setBreakpoint('tablet')
       } else {
         setBreakpoint('desktop')

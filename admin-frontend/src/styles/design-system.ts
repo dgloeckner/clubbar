@@ -153,7 +153,7 @@ export const theme = {
 export const breakpoints = {
   smallMobile: 480,   // iPhone SE and smaller
   mobile: 768,        // iPad portrait
-  tablet: 1024,       // iPad landscape
+  tablet: 1200,       // iPad landscape / narrow desktop
   desktop: 1440,      // Large screens
 }
 
