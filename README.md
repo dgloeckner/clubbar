@@ -86,7 +86,7 @@ flowchart TB
 |----------|-------------|
 | [CLAUDE.md](./CLAUDE.md) | Developer guide and project conventions |
 | [ADRs](./adr/) | Architecture Decision Records (22 decisions) |
-| [Use Cases](./use-cases/) | Functional requirements by domain |
+| [Use Cases](./use-cases/README.md) | Functional requirements by domain (64 use cases with status) |
 | [API Specs](./api/) | OpenAPI 3.0 specifications |
 | [Data Model](./docs/) | Entity-Relationship diagrams |
 | [Deployment Guide](./docs/deployment.md) | Production deployment, backups, and security |
