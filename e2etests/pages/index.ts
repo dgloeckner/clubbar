@@ -7,6 +7,7 @@
 
 export { AuditLogPage } from './AuditLogPage'
 export { BasePage } from './BasePage'
+export { DashboardPage } from './DashboardPage'
 export { LoginPage } from './LoginPage'
 export { ProductsPage } from './ProductsPage'
 export { MembersPage } from './MembersPage'

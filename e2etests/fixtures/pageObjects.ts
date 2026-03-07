@@ -19,7 +19,7 @@
  */
 
 import { test as base, Page } from '@playwright/test'
-import { LoginPage, MembersPage, ProductsPage, SettlementsPage, CategoriesPage, JournalPage, SettingsPage, AuditLogPage } from '../pages'
+import { LoginPage, MembersPage, ProductsPage, SettlementsPage, CategoriesPage, JournalPage, SettingsPage, AuditLogPage, DashboardPage } from '../pages'
 import { ProfilePage } from '../pages/ProfilePage'
 
 interface PageObjectFixtures {
@@ -39,6 +39,7 @@ interface PageObjectFixtures {
   auditLogPage: AuditLogPage
   authenticatedAuditLogPage: AuditLogPage
   authenticatedProfilePage: ProfilePage
+  authenticatedDashboardPage: DashboardPage
 }
 
 /**
@@ -282,6 +283,27 @@ const authenticatedProfilePageFixture = async (
 }
 
 /**
+ * Fixture: authenticatedDashboardPage
+ *
+ * Provides DashboardPage with test already authenticated (via storage state).
+ * Simply navigates to the page and returns the page object.
+ */
+const authenticatedDashboardPageFixture = async (
+  { page }: { page: Page },
+  use: (value: DashboardPage) => Promise<void>
+) => {
+  // Navigate to dashboard page
+  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
+
+  // Wait for page to load - dashboard-page test ID indicates page is ready
+  await page.waitForSelector('[data-testid="dashboard-page"]', { timeout: 5000 })
+
+  // Create and provide DashboardPage
+  const dashboardPage = new DashboardPage(page)
+  await use(dashboardPage)
+}
+
+/**
  * Extend base test with custom fixtures
  */
 export const test = base.extend<PageObjectFixtures>({
@@ -301,6 +323,7 @@ export const test = base.extend<PageObjectFixtures>({
   auditLogPage: auditLogPageFixture,
   authenticatedAuditLogPage: authenticatedAuditLogPageFixture,
   authenticatedProfilePage: authenticatedProfilePageFixture,
+  authenticatedDashboardPage: authenticatedDashboardPageFixture,
 })
 
 // Re-export expect for convenience
