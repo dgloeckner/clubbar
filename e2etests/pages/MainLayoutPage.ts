@@ -11,6 +11,7 @@ import { BasePage } from './BasePage'
 // Navigation labels by language
 const NAV_LABELS = {
   de: {
+    dashboard: 'Dashboard',
     members: 'Mitglieder',
     products: 'Produkte',
     categories: 'Kategorien',
@@ -21,6 +22,7 @@ const NAV_LABELS = {
     auditLog: 'Audit-Log',
   },
   en: {
+    dashboard: 'Dashboard',
     members: 'Members',
     products: 'Products',
     categories: 'Categories',
@@ -34,6 +36,7 @@ const NAV_LABELS = {
 
 export class MainLayoutPage extends BasePage {
   // Navigation locators
+  private readonly navDashboard = () => this.page.locator('[data-testid="nav-dashboard"]')
   private readonly navMembers = () => this.page.locator('[data-testid="nav-members"]')
   private readonly navProducts = () => this.page.locator('[data-testid="nav-products"]')
   private readonly navCategories = () => this.page.locator('[data-testid="nav-categories"]')
@@ -62,6 +65,11 @@ export class MainLayoutPage extends BasePage {
     await this.page.waitForURL('**/products', { timeout: 5000 })
   }
 
+  async clickDashboard() {
+    await this.navDashboard().click()
+    await this.page.waitForURL('**/dashboard', { timeout: 5000 })
+  }
+
   async expectHeaderVisible() {
     await expect(this.navMembers()).toBeVisible()
   }
@@ -79,6 +87,7 @@ export class MainLayoutPage extends BasePage {
    */
   async expectNavigationInLanguage(lang: 'de' | 'en') {
     const labels = NAV_LABELS[lang]
+    await expect(this.navDashboard()).toContainText(labels.dashboard)
     await expect(this.navMembers()).toContainText(labels.members)
     await expect(this.navProducts()).toContainText(labels.products)
     await expect(this.navCategories()).toContainText(labels.categories)
