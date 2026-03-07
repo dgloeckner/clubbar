@@ -95,7 +95,7 @@ test.describe('Reports Page', () => {
     })
 
     test('should display group-by selector on revenue tab', async ({ page }) => {
-      await expect(page.getByTestId('report-filter-group-by')).toBeVisible()
+      await expect(page.getByTestId('report-filter-group-by-trigger')).toBeVisible()
     })
 
     test('should display apply filter button', async ({ page }) => {
@@ -140,8 +140,9 @@ test.describe('Reports Page', () => {
     test('should change group-by and trigger new API call', async ({ page }) => {
       await waitForReportLoaded(page)
 
-      // Change group-by from default to 'day'
-      await page.getByTestId('report-filter-group-by').selectOption('day')
+      // Open group-by dropdown and select 'day'
+      await page.getByTestId('report-filter-group-by-trigger').click()
+      await page.getByTestId('report-filter-group-by-option-day').click()
 
       const responsePromise = page.waitForResponse(
         (resp) => resp.url().includes('/reports/revenue') && resp.status() === 200
@@ -156,18 +157,14 @@ test.describe('Reports Page', () => {
     })
 
     test('group-by selector should have expected options', async ({ page }) => {
-      const select = page.getByTestId('report-filter-group-by')
-      await expect(select).toBeVisible()
+      await expect(page.getByTestId('report-filter-group-by-trigger')).toBeVisible()
 
-      // Verify the select element has options by checking it is a select with values
-      const optionValues = await select.evaluate((el) => {
-        const selectEl = el as HTMLSelectElement
-        return Array.from(selectEl.options).map((opt) => opt.value)
-      })
-      expect(optionValues).toContain('category')
-      expect(optionValues).toContain('product')
-      expect(optionValues).toContain('day')
-      expect(optionValues).toContain('month')
+      // Open dropdown and verify options
+      await page.getByTestId('report-filter-group-by-trigger').click()
+      await expect(page.getByTestId('report-filter-group-by-option-category')).toBeVisible()
+      await expect(page.getByTestId('report-filter-group-by-option-product')).toBeVisible()
+      await expect(page.getByTestId('report-filter-group-by-option-day')).toBeVisible()
+      await expect(page.getByTestId('report-filter-group-by-option-month')).toBeVisible()
     })
   })
 
@@ -292,12 +289,12 @@ test.describe('Reports Page', () => {
       await expect(page.getByTestId('ranking-table')).toBeVisible()
     })
 
-    test('should display anonymize toggle checkbox', async ({ page }) => {
+    test('should display anonymize toggle', async ({ page }) => {
       await expect(page.getByTestId('ranking-anonymize')).toBeVisible()
     })
 
     test('should display limit selector', async ({ page }) => {
-      await expect(page.getByTestId('ranking-limit')).toBeVisible()
+      await expect(page.getByTestId('ranking-limit-trigger')).toBeVisible()
     })
 
     test('should display date filters on ranking tab', async ({ page }) => {
@@ -311,8 +308,8 @@ test.describe('Reports Page', () => {
     })
 
     test('anonymize toggle should send anonymize param to API', async ({ page }) => {
-      // Check the anonymize checkbox
-      await page.getByTestId('ranking-anonymize').check()
+      // Click the toggle to enable anonymize
+      await page.getByTestId('ranking-anonymize').click()
 
       const responsePromise = page.waitForResponse(
         (resp) => resp.url().includes('/reports/member-ranking') && resp.status() === 200
@@ -325,20 +322,19 @@ test.describe('Reports Page', () => {
     })
 
     test('limit selector should include standard options', async ({ page }) => {
-      const select = page.getByTestId('ranking-limit')
-      await expect(select).toBeVisible()
+      await expect(page.getByTestId('ranking-limit-trigger')).toBeVisible()
 
-      const optionValues = await select.evaluate((el) => {
-        const selectEl = el as HTMLSelectElement
-        return Array.from(selectEl.options).map((opt) => opt.value)
-      })
-      expect(optionValues).toContain('10')
-      expect(optionValues).toContain('25')
-      expect(optionValues).toContain('50')
+      // Open dropdown and verify options
+      await page.getByTestId('ranking-limit-trigger').click()
+      await expect(page.getByTestId('ranking-limit-option-10')).toBeVisible()
+      await expect(page.getByTestId('ranking-limit-option-25')).toBeVisible()
+      await expect(page.getByTestId('ranking-limit-option-50')).toBeVisible()
     })
 
     test('changing limit should send updated param to API', async ({ page }) => {
-      await page.getByTestId('ranking-limit').selectOption('10')
+      // Open dropdown and select 10
+      await page.getByTestId('ranking-limit-trigger').click()
+      await page.getByTestId('ranking-limit-option-10').click()
 
       const responsePromise = page.waitForResponse(
         (resp) => resp.url().includes('/reports/member-ranking') && resp.status() === 200

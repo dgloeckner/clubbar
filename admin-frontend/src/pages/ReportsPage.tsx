@@ -5,7 +5,7 @@
  * Implements UC-A50, UC-A51, UC-A52
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   BarChart,
@@ -40,6 +40,7 @@ import {
   tableColors,
   tableSpacing,
 } from '../styles/tableTokens'
+import { Toggle } from '../components/forms/Toggle'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,155 @@ function SummaryCard({ label, value, color, testId, isMobile }: SummaryCardMobil
       >
         {value}
       </div>
+    </div>
+  )
+}
+
+// ─── LimitSelect (custom dropdown matching design system) ─────────────────────
+
+interface FilterSelectOption {
+  value: string
+  label: string
+}
+
+interface FilterSelectProps {
+  value: string
+  onChange: (value: string) => void
+  options: FilterSelectOption[]
+  testId: string
+  label: string
+  minWidth?: number
+}
+
+function FilterSelect({ value, onChange, options, testId, label, minWidth = 80 }: FilterSelectProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? value
+
+  return (
+    <div style={{ position: 'relative' }} ref={ref}>
+      <label
+        style={{
+          fontSize: theme.typography.fontSize.xs,
+          color: theme.colors.text.secondary,
+          marginBottom: '4px',
+          display: 'block',
+        }}
+      >
+        {label}
+      </label>
+      <button
+        data-testid={`${testId}-trigger`}
+        onClick={() => setIsOpen(!isOpen)}
+        type="button"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+          minWidth,
+          background: theme.colors.bg.secondary,
+          border: `1px solid ${isOpen ? 'rgba(59,130,246,0.5)' : theme.colors.border.light}`,
+          borderRadius: theme.borderRadius.md,
+          color: theme.colors.text.primary,
+          fontSize: theme.typography.fontSize.sm,
+          cursor: 'pointer',
+          transition: 'all 0.15s',
+          fontFamily: 'inherit',
+        }}
+      >
+        <span>{selectedLabel}</span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            color: theme.colors.text.muted,
+            transform: isOpen ? 'rotate(180deg)' : '',
+            transition: 'transform 0.2s',
+            flexShrink: 0,
+          }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div
+          data-testid={`${testId}-dropdown`}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            marginTop: 4,
+            background: theme.colors.bg.card,
+            border: `1px solid ${theme.colors.border.light}`,
+            borderRadius: theme.borderRadius.md,
+            boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
+            zIndex: 1000,
+            minWidth: '100%',
+          }}
+        >
+          <div style={{ padding: 4 }}>
+            {options.map((opt) => (
+              <button
+                key={opt.value}
+                data-testid={`${testId}-option-${opt.value}`}
+                onClick={() => {
+                  onChange(opt.value)
+                  setIsOpen(false)
+                }}
+                type="button"
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  background: value === opt.value ? 'rgba(59,130,246,0.15)' : 'transparent',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: value === opt.value ? theme.colors.semantic.primary : theme.colors.text.primary,
+                  fontSize: theme.typography.fontSize.sm,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.15s',
+                  fontFamily: 'inherit',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span
+                  style={{
+                    color: value === opt.value ? theme.colors.semantic.primary : theme.colors.text.muted,
+                    fontWeight: 500,
+                    fontSize: 8,
+                  }}
+                >
+                  ●
+                </span>
+                <span>{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -354,23 +504,22 @@ export function ReportsPage() {
               />
             </div>
           </div>
-          <div>
-            <label style={labelStyle}>{t('reports.groupBy')}</label>
-            <select
-              data-testid="report-filter-group-by"
-              value={groupBy}
-              onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-              style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
-            >
-              <option value="category">{t('reports.groupByCategory')}</option>
-              <option value="product">{t('reports.groupByProduct')}</option>
-              <option value="member">{t('reports.groupByMember')}</option>
-              <option value="day">{t('reports.groupByDay')}</option>
-              <option value="week">{t('reports.groupByWeek')}</option>
-              <option value="month">{t('reports.groupByMonth')}</option>
-              <option value="year">{t('reports.groupByYear')}</option>
-            </select>
-          </div>
+          <FilterSelect
+            value={groupBy}
+            onChange={(v) => setGroupBy(v as GroupBy)}
+            testId="report-filter-group-by"
+            label={t('reports.groupBy')}
+            minWidth={120}
+            options={[
+              { value: 'category', label: t('reports.groupByCategory') },
+              { value: 'product', label: t('reports.groupByProduct') },
+              { value: 'member', label: t('reports.groupByMember') },
+              { value: 'day', label: t('reports.groupByDay') },
+              { value: 'week', label: t('reports.groupByWeek') },
+              { value: 'month', label: t('reports.groupByMonth') },
+              { value: 'year', label: t('reports.groupByYear') },
+            ]}
+          />
           <button
             data-testid="report-apply-filter"
             onClick={handleApplyFilter}
@@ -576,35 +725,37 @@ export function ReportsPage() {
               />
             </div>
           </div>
-          <div>
-            <label style={labelStyle}>{t('reports.limit')}</label>
-            <select
-              data-testid="ranking-limit"
-              value={rankingLimit}
-              onChange={(e) => setRankingLimit(Number(e.target.value))}
-              style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.sm }}>
-            <input
-              type="checkbox"
-              id="ranking-anonymize"
-              data-testid="ranking-anonymize"
-              checked={rankingAnonymize}
-              onChange={(e) => setRankingAnonymize(e.target.checked)}
-              style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-            />
+          <FilterSelect
+            value={String(rankingLimit)}
+            onChange={(v) => setRankingLimit(Number(v))}
+            testId="ranking-limit"
+            label={t('reports.limit')}
+            options={[
+              { value: '10', label: '10' },
+              { value: '25', label: '25' },
+              { value: '50', label: '50' },
+              { value: '100', label: '100' },
+            ]}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
             <label
-              htmlFor="ranking-anonymize"
-              style={{ ...labelStyle, marginBottom: 0, cursor: 'pointer' }}
+              style={{
+                fontSize: theme.typography.fontSize.xs,
+                color: theme.colors.text.secondary,
+                marginBottom: '4px',
+                display: 'block',
+              }}
             >
               {t('reports.anonymize')}
             </label>
+            <div style={{ display: 'flex', alignItems: 'center', height: '34px' }}>
+              <Toggle
+                enabled={rankingAnonymize}
+                onChange={setRankingAnonymize}
+                size="small"
+                testId="ranking-anonymize"
+              />
+            </div>
           </div>
           <button
             data-testid="report-apply-filter"

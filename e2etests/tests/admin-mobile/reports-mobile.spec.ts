@@ -174,7 +174,7 @@ test.describe('Reports Page - Mobile', () => {
       await rankingTab.click()
 
       // Ranking-specific filters should appear
-      await expect(page.getByTestId('ranking-limit')).toBeVisible()
+      await expect(page.getByTestId('ranking-limit-trigger')).toBeVisible()
       await expect(page.getByTestId('ranking-anonymize')).toBeVisible()
     })
 
