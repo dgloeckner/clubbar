@@ -1,24 +1,24 @@
 import { test, expect } from '@playwright/test';
+import { execSync } from 'child_process';
 
 const API_BASE = 'http://localhost:8080/api';
+
+function clearLoginAttempts() {
+  execSync(
+    `docker compose exec -T database mysql -uroot -proot clubbar -e "DELETE FROM login_attempts;"`,
+    { cwd: '/Users/dg/dev/frgs-vereinsbar', stdio: 'pipe' }
+  );
+}
 
 test.describe('Login Rate Limiting', () => {
   test.describe.configure({ mode: 'serial' });
 
-  // Clean up login_attempts before tests to ensure clean state
-  test.beforeAll(async ({ request }) => {
-    // Login successfully to clear any existing attempts for this IP
-    await request.post(`${API_BASE}/auth/login`, {
-      data: { email: 'admin@example.com', password: 'password123' },
-    });
+  test.beforeAll(async () => {
+    clearLoginAttempts();
   });
 
-  test.afterAll(async ({ request }) => {
-    // Clean up: login successfully to clear rate limit counter for this IP
-    // Note: if we're rate-limited, this will fail silently (429), which is acceptable.
-    await request.post(`${API_BASE}/auth/login`, {
-      data: { email: 'admin@example.com', password: 'password123' },
-    });
+  test.afterAll(async () => {
+    clearLoginAttempts();
   });
 
   test('blocks login after 5 failed attempts and returns correct 429 format', async ({ request }) => {
