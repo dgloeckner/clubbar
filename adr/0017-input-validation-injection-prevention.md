@@ -100,26 +100,21 @@ Content-Security-Policy: default-src 'self'; script-src 'self'
 | POST/PUT/DELETE | CSRF token required |
 | Cookie attribute | `SameSite=Lax` (see ADR-0016) |
 
-**Implementation:**
+**Implementation** (see `backend/src/Shared/Middleware/CsrfMiddleware.php`):
 
-1. Server generates CSRF token and stores in session
-2. Token sent to frontend in response (meta tag or cookie)
-3. Frontend includes token in `X-CSRF-Token` header for state-changing requests
-4. Backend validates token matches session
+1. Server generates CSRF token on login: `$_SESSION['csrf_token'] = bin2hex(random_bytes(32))`
+2. Token returned in login and profile JSON responses (`csrf_token` field)
+3. Frontend stores token and attaches via axios request interceptor as `X-CSRF-Token` header
+4. `CsrfMiddleware` (PSR-15) validates token on POST/PATCH/PUT/DELETE requests
+5. Returns 403 JSON `{"error": "csrf_validation_failed"}` on mismatch
 
-```php
-// Generate token on session start
-$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+**Middleware applies to:**
+- `/api/auth` group (logout, profile update, password change)
+- `/api/admin` group (all admin CRUD operations)
 
-// Validate on POST/PUT/DELETE
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
-    if (!hash_equals($_SESSION['csrf_token'], $token)) {
-        http_response_code(403);
-        exit('CSRF validation failed');
-    }
-}
-```
+**Excluded:**
+- Login endpoint (no session yet)
+- Terminal sync API (uses bearer token, inherently CSRF-safe)
 
 **For Terminal API:**
 Bearer token authentication provides CSRF protection (token not in cookies).
@@ -157,16 +152,18 @@ flowchart TD
 
 ### Rate Limiting
 
-**Login Endpoint Protection:**
+**Login Endpoint Protection** (see `backend/src/Shared/Middleware/RateLimitMiddleware.php`):
 
 | Threshold | Action |
 |-----------|--------|
-| 5 failed attempts per IP per 15 min | Temporary block (15 min) |
-| 10 failed attempts per account per hour | Account lockout (30 min) |
-| Successful login | Reset counters |
+| 5 failed attempts per IP per 15 min | Temporary block (429 response) |
+| Successful login | Reset IP counter |
 
 **Implementation:**
-Track attempts in database or cache:
+- `RateLimitMiddleware` (PSR-15) applied to login route only
+- Tracks attempts in `login_attempts` table (see `backend/db/migrations/002_login_attempts.sql`)
+- `AuthController` records failed attempts and clears on success
+- 429 response includes `Retry-After: 900` header and JSON body with `retry_after_seconds`
 
 ```sql
 CREATE TABLE login_attempts (
@@ -178,6 +175,8 @@ CREATE TABLE login_attempts (
     INDEX idx_email_time (email, attempted_at)
 );
 ```
+
+**Design choice:** Per-account lockout was omitted to avoid account enumeration attacks and keep the implementation simple. IP-based limiting is sufficient for this deployment model (single organization, small admin team).
 
 ### Error Handling
 
