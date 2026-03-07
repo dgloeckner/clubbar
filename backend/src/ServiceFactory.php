@@ -52,6 +52,10 @@ use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminControlle
 use App\Modules\Transactions\Controllers\AdminController as TransactionsAdminController;
 use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncController;
 
+// Reports
+use App\Modules\Reports\Controllers\AdminController as ReportsAdminController;
+use App\Modules\Reports\Services\ReportsService;
+
 // Middleware
 use App\Modules\Auth\Middleware\AdminSessionAuth;
 use App\Modules\Auth\Middleware\TerminalTokenAuth;
@@ -103,6 +107,10 @@ class ServiceFactory implements ContainerInterface
 
         // Dashboard
         DashboardAdminController::class => 'getDashboardAdminController',
+
+        // Reports
+        ReportsAdminController::class => 'getReportsAdminController',
+        ReportsService::class => 'getReportsService',
 
         // Auth
         AuthController::class => 'getAuthController',
@@ -368,6 +376,18 @@ class ServiceFactory implements ContainerInterface
     public function getTerminalsAdminController(): TerminalsAdminController
     {
         return $this->resolve(TerminalsAdminController::class, fn() => new TerminalsAdminController($this->getTerminalsService(), $this->getValidator()));
+    }
+
+    public function getReportsService(): ReportsService
+    {
+        return $this->resolve(ReportsService::class, fn() => new ReportsService($this->pdo));
+    }
+
+    public function getReportsAdminController(): ReportsAdminController
+    {
+        return $this->resolve(ReportsAdminController::class, fn() => new ReportsAdminController(
+            $this->getReportsService(),
+        ));
     }
 
     public function getDashboardAdminController(): DashboardAdminController
