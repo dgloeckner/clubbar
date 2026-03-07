@@ -55,6 +55,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
 
   # Code Generation
   drift_dev: ^2.30.1
