@@ -15,6 +15,7 @@ class SyncProvider extends ChangeNotifier {
   final NetworkService _networkService;
 
   bool _isSyncing = false;
+  bool _disposed = false;
   DateTime? _lastSyncTime;
   DateTime? _lastSuccessfulTransactionSync;
   int _retryCount = 0;
@@ -140,7 +141,14 @@ class SyncProvider extends ChangeNotifier {
   }
 
   @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
+
+  @override
   void dispose() {
+    _disposed = true;
     stopSync();
     super.dispose();
   }
