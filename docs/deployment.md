@@ -44,7 +44,7 @@ The installer guides you through five steps:
 
 HTTPS is mandatory in production. See [ADR-0016](../adr/0016-transport-security.md) for full security requirements.
 
-The package `.htaccess` already includes HTTPS redirect, HSTS, and security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`). GZIP compression is also pre-configured.
+The package `.htaccess` already includes HTTPS redirect (skipped on localhost for dev/CI), HSTS, and security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`). GZIP compression is also pre-configured.
 
 **Setup:**
 1. Enable SSL in your hosting panel (most providers offer free Let's Encrypt certificates)

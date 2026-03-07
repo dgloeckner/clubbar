@@ -2,8 +2,10 @@ Options -MultiViews
 RewriteEngine On
 RewriteBase /
 
-# Force HTTPS in production
+# Force HTTPS in production (skip on localhost for dev/CI)
 RewriteCond %{HTTPS} off
+RewriteCond %{HTTP_HOST} !^localhost [NC]
+RewriteCond %{HTTP_HOST} !^127\.0\.0\.1 [NC]
 RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
 # If the file exists on disk, serve it directly (SPA assets, install.php)
