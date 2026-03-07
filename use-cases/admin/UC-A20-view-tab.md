@@ -1,5 +1,8 @@
 # UC-A20: View Tab
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: No dedicated per-member tab view. Member balance shown on Members page; transaction history accessible via Journal page with member filter. Confirmed acceptable by stakeholder.
+
 ## Actor
 Admin
 

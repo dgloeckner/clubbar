@@ -1,5 +1,7 @@
 # UC-SEPA-06: Settlement Preview
 
+**Implementation Status**: Implemented
+
 **Category**: Settlement
 
 ## Summary

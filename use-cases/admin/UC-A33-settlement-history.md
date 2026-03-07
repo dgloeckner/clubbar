@@ -1,5 +1,7 @@
 # UC-A33: Settlement History
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

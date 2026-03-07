@@ -1,5 +1,7 @@
 # UC-DSGVO-01: Right to Access (Art. 15)
 
+**Implementation Status**: Partially implemented — action needed (backend ready, frontend UI button missing; see plans/action-items-use-cases.md)
+
 **GDPR Article**: Art. 15 - Right of access by the data subject
 **Response Deadline**: 1 month (extendable by 2 months for complex cases)
 

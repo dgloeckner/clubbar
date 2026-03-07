@@ -1,5 +1,7 @@
 # UC-A31: Download SEPA XML
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

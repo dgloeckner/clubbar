@@ -1,5 +1,7 @@
 # UC-DSGVO-02: Right to Erasure (Art. 17)
 
+**Implementation Status**: Partially implemented — action needed (backend ready, frontend UI button missing; see plans/action-items-use-cases.md)
+
 **GDPR Article**: Art. 17 - Right to erasure ("right to be forgotten")
 **Response Deadline**: 1 month
 **Legal Exception**: § 147 AO requires 10-year transaction retention

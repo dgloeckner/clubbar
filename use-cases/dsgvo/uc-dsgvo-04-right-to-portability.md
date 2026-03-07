@@ -1,5 +1,8 @@
 # UC-DSGVO-04: Right to Data Portability (Art. 20)
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: Export includes system-generated fields (IDs, timestamps) alongside user-provided data. Art. 20 technically requires only user-provided data, but full export confirmed acceptable by stakeholder.
+
 **GDPR Article**: Art. 20 - Right to data portability
 **Response Deadline**: 1 month
 

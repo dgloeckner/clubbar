@@ -1,5 +1,8 @@
 # UC-T02: View Tab Balance and Transaction History
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: Balance is displayed in the terminal header bar. The scrollable 90-day transaction history is not implemented — balance display alone confirmed sufficient by stakeholder.
+
 ## Actor
 Member
 

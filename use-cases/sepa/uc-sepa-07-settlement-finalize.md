@@ -1,5 +1,8 @@
 # UC-SEPA-07: Settlement Finalization
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: No separate finalize endpoint. Settlements are created in final state with execution_date validated at creation time. The preview step (UC-SEPA-06) serves as the review before creation. Confirmed acceptable by stakeholder.
+
 **Category**: Settlement
 
 ## Summary

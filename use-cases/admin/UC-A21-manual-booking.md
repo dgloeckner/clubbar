@@ -1,5 +1,7 @@
 # UC-A21: Manual Booking
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

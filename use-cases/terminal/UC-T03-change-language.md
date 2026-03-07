@@ -1,5 +1,8 @@
 # UC-T03: Change Preferred Language
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: Language auto-switches based on member's preferred_language on card scan. No manual language toggle on terminal. Confirmed acceptable by stakeholder.
+
 ## Actor
 Member
 

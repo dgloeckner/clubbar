@@ -1,5 +1,8 @@
 # UC-A82: Members Needing SEPA Data
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: No dedicated SEPA issues report page. Covered by member list filter (sepa_status=missing). Confirmed acceptable by stakeholder.
+
 ## Actor
 Admin
 

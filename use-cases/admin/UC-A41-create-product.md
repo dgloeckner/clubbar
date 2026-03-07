@@ -1,5 +1,7 @@
 # UC-A41: Create Product
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

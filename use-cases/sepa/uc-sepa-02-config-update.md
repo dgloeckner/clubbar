@@ -1,5 +1,7 @@
 # UC-SEPA-02: SEPA Configuration Update
 
+**Implementation Status**: Implemented
+
 **Category**: Configuration
 
 ## Summary

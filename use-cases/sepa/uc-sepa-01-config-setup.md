@@ -1,5 +1,7 @@
 # UC-SEPA-01: SEPA Configuration Setup
 
+**Implementation Status**: Implemented
+
 **Category**: Configuration
 **Prerequisite**: Gläubiger-ID obtained from Bundesbank
 

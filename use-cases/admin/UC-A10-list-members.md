@@ -1,5 +1,7 @@
 # UC-A10: List Members
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

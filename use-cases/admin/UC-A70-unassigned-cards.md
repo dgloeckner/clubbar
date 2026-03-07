@@ -1,5 +1,7 @@
 # UC-A70: Unassigned Cards
 
+**Implementation Status**: Not implemented — deferred
+
 ## Actor
 Admin
 

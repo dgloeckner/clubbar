@@ -1,5 +1,7 @@
 # UC-T14: Update Local Balance on Transaction Sync
 
+**Implementation Status**: Implemented
+
 ## Actor
 System (Terminal Sync Process)
 

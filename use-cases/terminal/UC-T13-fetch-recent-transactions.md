@@ -1,5 +1,8 @@
 # UC-T13: Fetch and Display Recent Transaction History On-Demand
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: Backend endpoint exists and is called. Transaction list UI on terminal is minimal — balance display confirmed sufficient by stakeholder.
+
 ## Actor
 Member / Terminal Operator
 

@@ -1,5 +1,7 @@
 # UC-A02: Logout
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

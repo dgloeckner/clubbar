@@ -1,5 +1,7 @@
 # UC-A15: Deactivate Member
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

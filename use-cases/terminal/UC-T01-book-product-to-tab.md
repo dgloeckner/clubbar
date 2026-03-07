@@ -1,5 +1,7 @@
 # UC-T01: Book Product to Tab
 
+**Implementation Status**: Implemented
+
 ## Actor
 Member
 

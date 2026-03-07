@@ -1,5 +1,7 @@
 # UC-A12: Edit Member
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

@@ -1,5 +1,7 @@
 # UC-SEPA-04: Member Mandate Reference Management
 
+**Implementation Status**: Implemented
+
 **Category**: Member Data
 
 ## Summary

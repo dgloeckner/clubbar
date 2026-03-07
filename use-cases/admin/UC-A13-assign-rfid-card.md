@@ -1,5 +1,8 @@
 # UC-A13: Assign RFID Card
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: Card UID is managed as a field on the member entity via the edit form, not via dedicated assign-card endpoint. Confirmed acceptable by stakeholder.
+
 ## Actor
 Admin
 

@@ -1,5 +1,7 @@
 # UC-A43: Deactivate Product
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

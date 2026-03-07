@@ -1,5 +1,7 @@
 # UC-A51: Create Terminal
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

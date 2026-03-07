@@ -1,5 +1,7 @@
 # UC-DSGVO-03: Right to Rectification (Art. 16)
 
+**Implementation Status**: Implemented
+
 **GDPR Article**: Art. 16 - Right to rectification
 **Response Deadline**: 1 month
 

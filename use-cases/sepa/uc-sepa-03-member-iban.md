@@ -1,5 +1,7 @@
 # UC-SEPA-03: Member IBAN Management
 
+**Implementation Status**: Implemented
+
 **Category**: Member Data
 
 ## Summary

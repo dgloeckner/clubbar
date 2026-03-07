@@ -1,5 +1,7 @@
 # UC-A63: Reset Admin Password
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

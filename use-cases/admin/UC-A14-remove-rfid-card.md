@@ -1,5 +1,8 @@
 # UC-A14: Remove RFID Card
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: Card removal is done by clearing the card_uid field in the member edit form, not via a dedicated remove-card endpoint. Confirmed acceptable by stakeholder.
+
 ## Actor
 Admin
 

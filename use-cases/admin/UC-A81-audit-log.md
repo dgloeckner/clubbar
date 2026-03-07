@@ -1,5 +1,7 @@
 # UC-A81: Audit Log
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

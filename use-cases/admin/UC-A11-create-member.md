@@ -1,5 +1,7 @@
 # UC-A11: Create Member
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

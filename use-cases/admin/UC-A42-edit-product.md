@@ -1,5 +1,7 @@
 # UC-A42: Edit Product
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

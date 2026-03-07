@@ -1,5 +1,7 @@
 # UC-DSGVO-06: Audit Log Access (Art. 30)
 
+**Implementation Status**: Implemented
+
 **GDPR Article**: Art. 30 - Records of processing activities
 **Retention**: 10 years (§ 147 AO)
 

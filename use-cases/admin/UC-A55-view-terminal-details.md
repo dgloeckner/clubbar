@@ -1,5 +1,7 @@
 # UC-A55: View Terminal Details
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

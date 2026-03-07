@@ -1,5 +1,7 @@
 # UC-T11: Shopping Cart Management
 
+**Implementation Status**: Implemented
+
 ## Actor
 Member
 

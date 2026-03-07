@@ -1,5 +1,7 @@
 # UC-A52: Terminal Activity
 
+**Implementation Status**: Not implemented — action needed (see plans/action-items-use-cases.md)
+
 ## Actor
 Admin
 

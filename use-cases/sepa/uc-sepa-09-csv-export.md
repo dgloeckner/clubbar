@@ -1,5 +1,7 @@
 # UC-SEPA-09: CSV Export
 
+**Implementation Status**: Implemented
+
 **Category**: Export
 
 ## Summary

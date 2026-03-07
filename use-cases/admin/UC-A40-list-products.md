@@ -1,5 +1,7 @@
 # UC-A40: List Products
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

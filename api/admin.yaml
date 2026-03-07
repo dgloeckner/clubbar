@@ -152,23 +152,8 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /auth/me:
-    get:
-      tags: [Authentication]
-      summary: Get current session info
-      description: Returns information about the currently authenticated admin user.
-      operationId: getCurrentUser
-      security:
-        - sessionAuth: []
-      responses:
-        '200':
-          description: Current user info
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdminUser'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+  # /auth/me — REMOVED (2026-03-07 audit)
+  # Implementation uses GET /auth/profile instead. See use-case-implementation-audit.md.
 
   /auth/change-password:
     post:
@@ -393,90 +378,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /members/{memberId}/assign-card:
-    parameters:
-      - $ref: '#/components/parameters/memberId'
-    post:
-      tags: [Members]
-      summary: Assign RFID card to member
-      description: |
-        Assign an RFID card to a member.
-
-        **Use Case**: UC-A13
-
-        If the card is in the unknown_card_scans table, it will be removed.
-        If the card is already assigned to another member, returns 409 unless `force_reassign` is true.
-      operationId: assignCard
-      security:
-        - sessionAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [card_uid]
-              properties:
-                card_uid:
-                  type: string
-                  description: RFID card identifier (8-20 hex characters, uppercase)
-                  pattern: '^[0-9A-F]{8,20}$'
-                  example: "04A2B3C4D5E6F7"
-                force_reassign:
-                  type: boolean
-                  description: If true, reassign card from another member
-                  default: false
-      responses:
-        '200':
-          description: Card assigned
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Member'
-        '400':
-          $ref: '#/components/responses/ValidationError'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Card already assigned to another member
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: card_already_assigned
-                message: Card is already assigned to another member
-                details:
-                  assigned_to_member_id: "550e8400-e29b-41d4-a716-446655440000"
-
-  /members/{memberId}/remove-card:
-    parameters:
-      - $ref: '#/components/parameters/memberId'
-    post:
-      tags: [Members]
-      summary: Remove RFID card from member
-      description: |
-        Remove the assigned RFID card from a member.
-
-        **Use Case**: UC-A14
-
-        The card becomes available for assignment to another member.
-      operationId: removeCard
-      security:
-        - sessionAuth: []
-      responses:
-        '200':
-          description: Card removed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Member'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+  # /members/{memberId}/assign-card — REMOVED (2026-03-07 audit)
+  # /members/{memberId}/remove-card — REMOVED (2026-03-07 audit)
+  # Card UID is managed as a field on the member entity via PATCH /members/{memberId}.
+  # Dedicated assign/remove endpoints not needed. See use-case-implementation-audit.md.
 
   /members/{memberId}/transactions:
     parameters:
@@ -706,6 +611,7 @@ paths:
         Import members from a CSV file.
 
         **Use Case**: UC-A16
+        **Status**: Not implemented — nice to have (2026-03-07 audit)
 
         **CSV columns** (required): first_name, last_name, iban, mandate_signed_at
         **CSV columns** (optional): email, preferred_language
@@ -750,6 +656,7 @@ paths:
         Execute the member import after preview.
 
         **Use Case**: UC-A16
+        **Status**: Not implemented — nice to have (2026-03-07 audit)
       operationId: importMembersConfirm
       security:
         - sessionAuth: []
@@ -1296,71 +1203,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /settlements/{settlementId}/finalize:
-    parameters:
-      - name: settlementId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    post:
-      tags: [Settlements]
-      summary: Finalize settlement
-      description: |
-        Finalize a settlement and lock its transactions.
-
-        **Use Case**: UC-SEPA-07
-
-        **Requirements** (SEPA):
-        - `execution_date` must be set (>= TODAY + 7 calendar days)
-
-        **Effects**:
-        - Settlement status changes to "finalized"
-        - Transactions are marked as settled
-        - Settlement becomes eligible for export
-        - Cannot be undone (create new settlement to correct)
-      operationId: finalizeSettlement
-      security:
-        - sessionAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [execution_date]
-              properties:
-                execution_date:
-                  type: string
-                  format: date
-                  description: SEPA execution date (must be >= TODAY + 7 days)
-      responses:
-        '200':
-          description: Settlement finalized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Settlement'
-        '400':
-          description: Invalid execution date
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: invalid_execution_date
-                message: Execution date must be at least 7 days in the future
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Settlement already finalized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+  # /settlements/{settlementId}/finalize — REMOVED (2026-03-07 audit)
+  # Settlements are created in final state (one-step with preview).
+  # execution_date is validated at creation time. See use-case-implementation-audit.md.
 
   /settlements/{settlementId}/cancel:
     parameters:
@@ -1370,7 +1215,7 @@ paths:
         schema:
           type: string
           format: uuid
-    post:
+    delete:
       tags: [Settlements]
       summary: Cancel settlement
       description: |
@@ -1378,19 +1223,11 @@ paths:
 
         Transactions linked to this settlement will have their settlement_id cleared
         and become available for new settlements.
+
+        **Note**: Uses DELETE method (updated 2026-03-07 audit to match implementation).
       operationId: cancelSettlement
       security:
         - sessionAuth: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-                  description: Cancellation reason for audit trail
-                  maxLength: 500
       responses:
         '200':
           description: Settlement cancelled
@@ -1426,7 +1263,6 @@ paths:
         **Use Cases**: UC-A31, UC-SEPA-08
 
         **Requirements**:
-        - Settlement must be finalized
         - Settlement type must be "sepa"
         - At least one member must have valid SEPA data
 
@@ -1462,7 +1298,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '412':
-          description: Settlement not finalized or not SEPA type
+          description: Settlement not of SEPA type
           content:
             application/json:
               schema:
@@ -1509,7 +1345,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '412':
-          description: Settlement not finalized
+          description: Settlement cancelled or invalid for export
           content:
             application/json:
               schema:
@@ -1803,6 +1639,7 @@ paths:
         Retrieve report data for analytics.
 
         **Use Case**: UC-A50
+        **Status**: Not implemented — action needed (2026-03-07 audit)
       operationId: getReport
       security:
         - sessionAuth: []
@@ -1862,6 +1699,7 @@ paths:
         Export report data as CSV.
 
         **Use Case**: UC-A50
+        **Status**: Not implemented — action needed (2026-03-07 audit)
       operationId: exportReport
       security:
         - sessionAuth: []
@@ -1901,6 +1739,7 @@ paths:
         Retrieve member ranking by consumption.
 
         **Use Case**: UC-A51
+        **Status**: Not implemented — action needed (2026-03-07 audit)
       operationId: getMemberRanking
       security:
         - sessionAuth: []
@@ -1960,6 +1799,7 @@ paths:
         Retrieve terminal activity statistics.
 
         **Use Case**: UC-A52
+        **Status**: Not implemented — action needed (2026-03-07 audit)
       operationId: getTerminalActivity
       security:
         - sessionAuth: []
@@ -1993,68 +1833,8 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /reports/sepa-issues:
-    get:
-      tags: [Reports]
-      summary: Get SEPA issues report
-      description: |
-        Retrieve members with SEPA data issues.
-
-        **Use Case**: UC-A82
-      operationId: getSepaIssuesReport
-      security:
-        - sessionAuth: []
-      parameters:
-        - name: missing_data
-          in: query
-          schema:
-            type: string
-            enum: [all, iban_only, mandate_only, both]
-            default: all
-        - name: balance
-          in: query
-          schema:
-            type: string
-            enum: [all, has_balance, zero_balance]
-            default: all
-        - name: sort_by
-          in: query
-          schema:
-            type: string
-            enum: [balance_desc, last_transaction, name]
-            default: balance_desc
-      responses:
-        '200':
-          description: SEPA issues report
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: string
-                          format: uuid
-                        member_name:
-                          type: string
-                        balance_cents:
-                          type: integer
-                        missing_data:
-                          type: string
-                          enum: [iban, mandate, both]
-                        last_transaction_at:
-                          type: string
-                          format: date-time
-                          nullable: true
-                        created_at:
-                          type: string
-                          format: date-time
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+  # /reports/sepa-issues — REMOVED (2026-03-07 audit)
+  # Covered by member list filter (sepa_status=missing). See use-case-implementation-audit.md.
 
   # ============================================================================
   # AUDIT LOG
@@ -2127,37 +1907,13 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /audit-log/{entryId}:
-    parameters:
-      - name: entryId
-        in: path
-        required: true
-        schema:
-          type: integer
-    get:
-      tags: [Audit Log]
-      summary: Get audit log entry details
-      description: |
-        Retrieve detailed information about an audit log entry.
-
-        **Use Case**: UC-DSGVO-06
-      operationId: getAuditLogEntry
-      security:
-        - sessionAuth: []
-      responses:
-        '200':
-          description: Audit log entry
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuditLogEntry'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+  # /audit-log/{entryId} — REMOVED (2026-03-07 audit)
+  # Detail data is included inline in list response. See use-case-implementation-audit.md.
 
   # ============================================================================
-  # RFID CARDS
+  # RFID CARDS (DEFERRED — 2026-03-07 audit)
+  # UC-A70 (unknown cards) and UC-A71 (blocked cards) are deferred.
+  # Endpoints kept in spec for future implementation.
   # ============================================================================
   /unknown-cards:
     get:

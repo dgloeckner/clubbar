@@ -1,5 +1,7 @@
 # UC-A62: Create Admin User
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

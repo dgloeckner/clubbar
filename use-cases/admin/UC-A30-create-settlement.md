@@ -1,5 +1,7 @@
 # UC-A30: Create Settlement (SEPA)
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

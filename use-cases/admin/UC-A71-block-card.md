@@ -1,5 +1,7 @@
 # UC-A71: Block Card
 
+**Implementation Status**: Not implemented — deferred
+
 ## Actor
 Admin
 

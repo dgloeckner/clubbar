@@ -1,5 +1,7 @@
 # UC-DSGVO-05: Right to Restriction of Processing (Art. 18)
 
+**Implementation Status**: Implemented
+
 **GDPR Article**: Art. 18 - Right to restriction of processing
 **Response Deadline**: 1 month
 

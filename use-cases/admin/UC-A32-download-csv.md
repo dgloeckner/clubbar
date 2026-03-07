@@ -1,5 +1,7 @@
 # UC-A32: Download CSV
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

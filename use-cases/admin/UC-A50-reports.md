@@ -1,5 +1,7 @@
 # UC-A50: Reports
 
+**Implementation Status**: Partially implemented — action needed (see plans/action-items-use-cases.md)
+
 ## Actor
 Admin
 

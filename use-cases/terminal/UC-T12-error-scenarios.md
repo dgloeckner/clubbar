@@ -1,5 +1,7 @@
 # UC-T12: Error Scenarios
 
+**Implementation Status**: Implemented
+
 ## Overview
 
 This use case documents error scenarios and their expected behavior for test derivation and implementation guidance.

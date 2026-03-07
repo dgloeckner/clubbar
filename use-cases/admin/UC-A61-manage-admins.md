@@ -1,5 +1,7 @@
 # UC-A61: Manage Admin Users
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

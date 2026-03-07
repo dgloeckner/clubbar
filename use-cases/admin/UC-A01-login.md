@@ -1,5 +1,7 @@
 # UC-A01: Login
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

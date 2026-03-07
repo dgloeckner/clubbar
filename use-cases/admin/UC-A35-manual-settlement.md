@@ -1,5 +1,7 @@
 # UC-A35: Manual Settlement
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

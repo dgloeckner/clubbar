@@ -1,5 +1,7 @@
 # UC-A80: Dashboard
 
+**Implementation Status**: Partially implemented — action needed (backend ready, frontend page missing; see plans/action-items-use-cases.md)
+
 ## Actor
 Admin
 

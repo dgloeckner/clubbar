@@ -1,5 +1,7 @@
 # UC-A34: Settlement Details
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

@@ -1,5 +1,8 @@
 # UC-SEPA-05: Settlement Creation
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: Settlements are created in one step with preview, not via a two-step draft-then-finalize workflow. Confirmed acceptable by stakeholder.
+
 **Category**: Settlement
 
 ## Summary

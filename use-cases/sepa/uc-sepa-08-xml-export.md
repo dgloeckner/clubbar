@@ -1,5 +1,7 @@
 # UC-SEPA-08: SEPA XML Export
 
+**Implementation Status**: Implemented
+
 **Category**: Export
 **Format**: ISO 20022 pain.008.001.02
 

@@ -1,5 +1,7 @@
 # UC-A52: Update Terminal
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

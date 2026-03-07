@@ -1,5 +1,7 @@
 # UC-A54: Rotate Terminal Token
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

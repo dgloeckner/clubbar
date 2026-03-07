@@ -1,5 +1,7 @@
 # UC-A44: Manage Categories
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

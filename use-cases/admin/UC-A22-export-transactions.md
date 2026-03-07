@@ -1,5 +1,8 @@
 # UC-A22: Export Transactions
 
+**Implementation Status**: Implemented (diverges from spec)
+**Divergence**: No standalone export button in Journal UI. Transaction export is covered via settlement CSV exports. Backend endpoint exists. Confirmed acceptable by stakeholder.
+
 ## Actor
 Admin
 

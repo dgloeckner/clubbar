@@ -1,5 +1,7 @@
 # UC-A53: Delete Terminal
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 

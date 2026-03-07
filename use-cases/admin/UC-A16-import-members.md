@@ -1,5 +1,7 @@
 # UC-A16: Import Members (CSV)
 
+**Implementation Status**: Not implemented — nice to have
+
 ## Actor
 Admin
 

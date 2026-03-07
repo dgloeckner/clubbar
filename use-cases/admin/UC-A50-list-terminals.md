@@ -1,5 +1,7 @@
 # UC-A50: List Terminals
 
+**Implementation Status**: Implemented
+
 ## Actor
 Admin
 
