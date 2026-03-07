@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import {
+  HomeIcon,
   UsersIcon,
   PackageIcon,
   BookIcon,
@@ -39,13 +40,14 @@ export function BottomTabBar() {
   const isActive = (path: string) => location.pathname === path
 
   const primaryTabs = [
+    { label: t('nav.dashboard'), path: '/dashboard', icon: HomeIcon, testId: 'tab-dashboard' },
     { label: t('nav.members'), path: '/members', icon: UsersIcon, testId: 'tab-members' },
     { label: t('nav.products'), path: '/products', icon: PackageIcon, testId: 'tab-products' },
     { label: t('nav.journalShort'), path: '/journal', icon: BookIcon, testId: 'tab-journal' },
-    { label: t('nav.settlementsShort'), path: '/settlements', icon: ReceiptIcon, testId: 'tab-settlements' },
   ]
 
   const moreItems = [
+    { label: t('nav.settlements'), path: '/settlements', icon: ReceiptIcon, testId: 'tab-settlements' },
     { label: t('nav.categories'), path: '/categories', icon: NavigationIconRegistry.CategoryIcon, testId: 'tab-categories' },
     { label: t('nav.reports'), path: '/reports', icon: ChartIcon, testId: 'tab-reports' },
     { label: t('nav.settings'), path: '/settings', icon: SettingsIcon, testId: 'tab-settings' },

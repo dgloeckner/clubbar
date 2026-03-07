@@ -20,6 +20,7 @@ import { ReportsPage } from './pages/ReportsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AuditLogPage } from './pages/AuditLogPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { DashboardPage } from './pages/DashboardPage'
 
 // Layout
 import { MainLayout } from './components/layout/MainLayout'
@@ -76,10 +77,18 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/members" /> : <LoginPage />} />
-      <Route path="/" element={isAuthenticated ? <Navigate to="/members" /> : <Navigate to="/login" />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
+      <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
 
       {/* Protected Routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/members"
         element={
@@ -155,7 +164,7 @@ function AppRoutes() {
       />
 
       {/* 404 Fallback */}
-      <Route path="*" element={<Navigate to="/members" />} />
+      <Route path="*" element={<Navigate to="/dashboard" />} />
     </Routes>
   )
 }

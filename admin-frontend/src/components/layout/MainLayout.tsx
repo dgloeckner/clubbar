@@ -14,6 +14,7 @@ import { LoadingIndicator } from '../common/LoadingIndicator'
 import { BottomTabBar } from './BottomTabBar'
 import {
   AuditLogIcon,
+  HomeIcon,
   UsersIcon,
   PackageIcon,
   BookIcon,
@@ -54,6 +55,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const isActive = (path: string): boolean => location.pathname === path
 
   const navItems = [
+    { label: t('nav.dashboard'), path: '/dashboard', icon: <HomeIcon size={20} />, testId: 'nav-dashboard' },
     { label: t('nav.members'), path: '/members', icon: <UsersIcon size={20} />, testId: 'nav-members' },
     { label: t('nav.products'), path: '/products', icon: <PackageIcon size={20} />, testId: 'nav-products' },
     { label: t('nav.categories'), path: '/categories', icon: <NavigationIconRegistry.CategoryIcon size={20} />, testId: 'nav-categories' },
