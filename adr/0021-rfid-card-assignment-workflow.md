@@ -2,7 +2,7 @@
 
 **Status**: Accepted
 
-**Date**: 2025-01-23
+**Date**: 2025-01-23 (revised 2026-03-07)
 
 **Deciders**: Architecture Team
 
@@ -12,163 +12,72 @@
 
 Members need RFID cards assigned to use the terminal. The admin panel must provide a way to link a card's UID to a member record.
 
-Current challenges:
+Current situation:
 
-1. **No reader at admin workstation**: Admin workstations typically don't have RFID readers
-2. **Manual UID entry is error-prone**: Card UIDs are 8-20 hex characters, easy to mistype
-3. **Terminal already has a reader**: The terminal hardware includes an RFID reader
-4. **Unknown cards are tracked**: System already logs cards scanned at terminal that aren't assigned (`unknown_card_scans` table)
-
-### Existing Infrastructure
-
-The terminal already captures unknown card scans:
-
-| Field | Description |
-|-------|-------------|
-| card_uid | The scanned card identifier |
-| terminal_id | Which terminal detected the card |
-| first_seen_at | When card was first scanned |
-| last_seen_at | Most recent scan attempt |
-| scan_count | Number of scan attempts |
-
-This data is available but not currently used for card assignment.
+1. **Cards have printed UIDs**: Most RFID cards have the UID printed on the card label
+2. **Reader diagnostic tools**: Card UIDs can also be read via reader diagnostic software and copied
+3. **Small club scope**: Clubs typically onboard members one at a time, not in bulk
+4. **Existing member edit form**: The admin panel already has a member edit form with a `card_uid` field
 
 ---
 
 ## Decision
 
-**RFID card assignment supports two methods: (1) manual UID entry for known card IDs, and (2) selection from recent unknown card scans captured by the terminal. The terminal's existing reader serves as the primary card registration device.**
+**RFID card assignment uses manual UID entry in the admin panel. The admin types or pastes the card UID into the member edit form. The card_uid field is validated for format (8-20 hex characters, uppercase) and uniqueness.**
 
-### Core Principles
+### Card UID Validation
 
-1. **Terminal as scanner**: Use the terminal's RFID reader for card registration (no admin workstation reader required)
-2. **Unknown cards list**: Admin selects from cards recently scanned at terminal
-3. **Manual fallback**: Direct UID entry for special cases (known card, replacement cards)
-4. **Automatic cleanup**: Unknown card entry removed when assigned to member
-5. **Recency-based**: Show most recently scanned cards first
-6. **Multi-terminal support**: Show which terminal scanned each card
+| Rule | Description |
+|------|-------------|
+| Format | 8-20 hexadecimal characters (0-9, A-F) |
+| Case | Uppercase (input normalized to uppercase before storage) |
+| Uniqueness | Each card_uid must be unique across all members |
 
 ### Card Assignment Flow
 
 ```mermaid
 sequenceDiagram
-    participant Member as New Member
-    participant Terminal
-    participant Backend
     participant Admin as Admin Panel
+    participant Backend
+    participant Terminal
 
-    Note over Member,Terminal: Step 1: Capture card at terminal (immediate)
-    Member->>Terminal: Scan new card
-    Terminal->>Terminal: Card not found in cache
-    Terminal->>Backend: POST /api/unknown-cards {card_uid, terminal_id}
-    Note over Terminal,Backend: Sent immediately (not batched with sync)
-    Backend->>Backend: Upsert to unknown_card_scans
-    Backend-->>Terminal: 201 Created
-    Terminal->>Member: "Unknown card" message
-
-    Note over Admin,Backend: Step 2: Assign card in admin panel
-    Admin->>Backend: GET /api/unknown-cards?limit=20
-    Backend-->>Admin: List of recent unknown cards
-    Admin->>Admin: Select card from list
-    Admin->>Backend: PATCH /api/members/{id} {card_uid}
+    Note over Admin: Admin reads UID from card label or reader tool
+    Admin->>Admin: Open member edit form
+    Admin->>Admin: Enter card_uid
+    Admin->>Backend: PATCH /api/admin/members/{id} {card_uid}
+    Backend->>Backend: Validate format & uniqueness
     Backend->>Backend: Update member.card_uid
-    Backend->>Backend: DELETE from unknown_card_scans
-    Backend-->>Admin: Success
+    Backend-->>Admin: 200 OK
 
-    Note over Member,Terminal: Step 3: Member can now use terminal
-    Member->>Terminal: Scan card again
+    Note over Terminal: Next sync cycle
+    Terminal->>Backend: GET /api/sync/members (delta sync)
+    Backend-->>Terminal: Updated member with card_uid
+    Terminal->>Terminal: Cache member with card_uid
+
+    Note over Terminal: Member uses terminal
+    participant Member as Member
+    Member->>Terminal: Scan card
     Terminal->>Terminal: Card found in cache
     Terminal->>Member: Welcome screen
 ```
 
-### Immediate Upload of Unknown Cards
-
-Unknown card scans are sent to the backend **immediately** (not batched with the regular sync interval):
-
-| Data Type | Upload Timing | Reason |
-|-----------|---------------|--------|
-| Transactions | Batched (30-60s sync) | High volume, not time-sensitive |
-| Unknown cards | **Immediate** | Admin needs to see card right away for assignment |
-
-This ensures the card appears in the admin panel within seconds of scanning, enabling a smooth onboarding workflow where the admin can assign the card while the member is still present.
-
-**Implementation**: Terminal makes a separate `POST /api/unknown-cards` request immediately when an unknown card is detected, independent of the regular sync cycle.
-
-### Admin UI: Card Assignment Dialog
-
-**Option A: Select from Unknown Cards (Recommended)**
-
-| Element | Description |
-|---------|-------------|
-| List header | "Recent unassigned cards" |
-| Card row | Card UID, terminal name, last scanned time, scan count |
-| Sort | Most recently scanned first |
-| Limit | Show last 20 cards |
-| Empty state | "No unassigned cards. Ask member to scan their card at the terminal." |
-
-**Option B: Manual Entry**
-
-| Element | Description |
-|---------|-------------|
-| Toggle | "Enter card ID manually" |
-| Input field | Text input for card UID |
-| Validation | 8-20 hex characters, uppercase |
-| Use case | Known card ID, card from external source |
-
 ### Onboarding Workflow
 
-Recommended steps for registering a new member:
+Steps for registering a new member with a card:
 
-1. Admin creates member record (with SEPA data)
-2. Admin tells member: "Please scan your card at the terminal"
-3. Member scans card → terminal shows "Unknown card" → card logged
-4. Admin refreshes unknown cards list → selects the card → assigns to member
-5. Member scans again → terminal shows welcome
+1. Admin creates member record (name, IBAN, SEPA mandate)
+2. Admin reads the card UID from the card label (or pastes from reader diagnostic tool)
+3. Admin enters card_uid in the member edit form and saves
+4. Terminal syncs and receives the updated member record
+5. Member scans card at terminal and is recognized
 
-### API Endpoints
+### Card UID Sources
 
-**POST /api/unknown-cards** (Terminal → Backend, immediate)
-
-Reports an unknown card scan. Called immediately when terminal detects unrecognized card.
-
-Request:
-```json
-{
-  "card_uid": "A1B2C3D4E5F6",
-  "terminal_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-Response: `201 Created` (new card) or `200 OK` (existing card, scan_count incremented)
-
-**GET /api/unknown-cards** (Admin Panel)
-
-Returns recent unknown card scans.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| limit | int | 20 | Max cards to return |
-| since | datetime | - | Only cards scanned after this time |
-
-Response:
-```json
-{
-  "cards": [
-    {
-      "card_uid": "A1B2C3D4E5F6",
-      "terminal_id": "uuid",
-      "terminal_name": "Bar Terminal 1",
-      "first_seen_at": "2025-01-23T10:00:00Z",
-      "last_seen_at": "2025-01-23T14:30:00Z",
-      "scan_count": 3
-    }
-  ]
-}
-```
-
-**DELETE /api/unknown-cards/{card_uid}**
-
-Removes card from unknown list (called automatically when assigned, or manually to dismiss).
+| Source | Description |
+|--------|-------------|
+| Card label | UID printed directly on the RFID card |
+| Reader diagnostic software | USB/NFC reader tools display UID when card is scanned |
+| Copy-paste | UID copied from reader software into admin form |
 
 ---
 
@@ -176,89 +85,68 @@ Removes card from unknown list (called automatically when assigned, or manually 
 
 ### Positive
 
-- **No extra hardware**: Uses existing terminal reader; no admin workstation reader needed
-- **Reduced errors**: Selecting from list eliminates manual UID entry mistakes
-- **Better UX**: Member scans card once; admin selects from list
-- **Leverages existing data**: `unknown_card_scans` table already captures this
-- **Multi-terminal friendly**: Works with multiple terminals; shows which terminal scanned
-- **Immediate feedback**: Member sees "unknown card" confirming scan worked
-- **Real-time availability**: Unknown cards sent immediately to backend (not waiting for sync interval)
+- **Simple implementation**: No extra API endpoints needed; uses existing PATCH /api/admin/members/{id}
+- **No terminal changes**: Terminal does not need upload logic for unknown cards
+- **Leverages existing form**: card_uid is already a field in the member edit form
+- **No extra infrastructure**: No unknown_card_scans table, no cleanup jobs, no immediate-upload logic
+- **Straightforward onboarding**: Single-step assignment in the admin panel
 
 ### Negative
 
-- **Two-step process**: Member must scan at terminal before admin can assign
-- **Timing dependency**: Card must be scanned before admin opens assignment dialog
-- **List management**: Old unknown cards accumulate if not cleaned up
+- **Manual entry is error-prone**: Long UIDs without labels can lead to typos
 
 ### Mitigations
 
-1. **Clear instructions**: Admin tells member to scan card before starting assignment
-2. **Auto-refresh**: Unknown cards list refreshes automatically or on button click
-3. **Cleanup job**: Periodic removal of unknown cards older than 30 days
-4. **Manual entry fallback**: Always available for edge cases
+- UIDs are typically printed on RFID cards, making them easy to read
+- Copy-paste from reader diagnostic tools eliminates manual typing entirely
+- Format validation (hex-only, length check) catches most typos before save
+- Uniqueness constraint prevents accidental duplicate assignments
 
 ---
 
 ## Alternatives Considered
 
-### Alternative 1: Admin Workstation Reader
+### Alternative 1: Unknown Card Upload Workflow
+
+Terminal captures unknown card scans and uploads them to the backend immediately. Admin selects from a list of recently scanned unknown cards instead of typing the UID.
+
+This would require:
+- `unknown_card_scans` table in the database
+- POST /api/unknown-cards endpoint (terminal to backend, immediate upload)
+- GET /api/unknown-cards endpoint (admin panel to list recent cards)
+- DELETE /api/unknown-cards/{uid} endpoint (cleanup on assignment)
+- Terminal-side immediate upload logic (separate from regular sync)
+- Admin UI card selection dialog with refresh, empty states, terminal names
+
+**Rejected**: Over-engineered for small clubs where RFID cards have printed UIDs. The additional API endpoints, terminal-side upload logic, and admin UI for card selection add complexity without proportional benefit.
+
+### Alternative 2: Admin Workstation Reader
 
 Require RFID reader connected to admin workstation.
 
-**Pros**: Direct card scanning in admin panel
+**Rejected**: Additional hardware cost per admin workstation. Terminal reader is already available, but the admin workstation typically does not have one. Cards have printed UIDs, making a reader unnecessary.
 
-**Cons**:
-- Additional hardware cost per admin workstation
-- Driver/compatibility issues across platforms
-- Admin may be remote (no physical card access)
-
-**Rejected**: Terminal reader is already available; no need for duplicate hardware.
-
-### Alternative 2: Real-time Push Notifications
+### Alternative 3: Real-time Push Notifications
 
 WebSocket notification when card scanned at terminal.
 
-**Pros**: Instant update in admin panel
+**Rejected**: Adds WebSocket infrastructure complexity. Overkill for an infrequent operation.
 
-**Cons**:
-- Adds complexity (WebSocket infrastructure)
-- Overkill for infrequent operation
-- Polling/refresh is sufficient
-
-**Rejected**: Simple refresh is adequate for this workflow.
-
-### Alternative 3: QR Code on Card
+### Alternative 4: QR Code on Card
 
 Print QR code with card UID; admin scans with phone/webcam.
 
-**Pros**: Works without RFID reader
-
-**Cons**:
-- Requires QR codes on all cards
-- Additional printing/labeling step
-- Not all cards have QR codes
-
-**Rejected**: Existing RFID infrastructure is sufficient.
+**Rejected**: Requires QR codes on all cards. Not all cards have QR codes printed.
 
 ---
 
 ## Related Decisions
 
-- [ADR-0014: RFID Scanning Integration](./0014-rfid-scanning-integration.md) - Terminal RFID reader
-- [ADR-0020: SEPA Mandate Requirement](./0020-sepa-mandate-requirement-terminal-access.md) - Member onboarding
+- [ADR-0014: RFID Scanning Integration](./0014-rfid-scanning-integration.md) - Terminal RFID reader hardware and protocol
+- [ADR-0020: SEPA Mandate Requirement](./0020-sepa-mandate-requirement-terminal-access.md) - Member onboarding prerequisites
 
 ---
 
 ## References
 
-- **Data Model**: `unknown_card_scans` table in [datamodel.md](../docs/datamodel.md)
 - **Use Case**: [UC-A13: Assign RFID Card](../use-cases/admin/UC-A13-assign-rfid-card.md)
-
----
-
-## Post-Implementation Monitoring
-
-- Track percentage of cards assigned via list selection vs manual entry
-- Monitor unknown_card_scans table size over time
-- Measure time from card scan to assignment (onboarding efficiency)
-- Collect feedback on card assignment workflow usability
