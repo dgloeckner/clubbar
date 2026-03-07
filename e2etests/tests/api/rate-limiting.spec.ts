@@ -1,12 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
+import path from 'path';
 
 const API_BASE = 'http://localhost:8080/api';
+
+// Project root relative to this test file (e2etests/tests/api/ → project root)
+const PROJECT_ROOT = path.resolve(__dirname, '../../..');
 
 function clearLoginAttempts() {
   execSync(
     `docker compose exec -T database mysql -uroot -proot clubbar -e "DELETE FROM login_attempts;"`,
-    { cwd: '/Users/dg/dev/frgs-vereinsbar', stdio: 'pipe' }
+    { cwd: PROJECT_ROOT, stdio: 'pipe' }
   );
 }
 

@@ -1,5 +1,6 @@
 import { test, expect } from '../../fixtures/pageObjects'
 import { createMemberViaPage } from '../../utils/members'
+import { csrfHeaders } from '../../utils/csrf'
 
 /**
  * Admin Frontend - Members Page E2E Tests (Consolidated)
@@ -154,7 +155,7 @@ test.describe('Admin Members Page', () => {
     // Backend ignores is_active on POST (hardcoded true) — must PATCH to deactivate
     const patchResp = await page.request.patch(
       `http://localhost:8080/api/admin/members/${memberC.id}`,
-      { data: { is_active: false } }
+      { data: { is_active: false }, headers: await csrfHeaders(page) }
     )
     expect(patchResp.ok()).toBe(true)
 

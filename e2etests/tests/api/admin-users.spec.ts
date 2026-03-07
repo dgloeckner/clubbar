@@ -1,4 +1,5 @@
 import { test, expect } from "../../fixtures/auth.fixture";
+import { loginAs } from "../../utils/csrf";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -377,19 +378,10 @@ test.describe("Admin Users API", () => {
     expect(createResponse.status()).toBe(201);
     const { admin, password } = await createResponse.json();
 
-    // Create a new API context that persists cookies
-    const context = await playwright.request.newContext();
+    // Login as the new admin (returns CSRF-aware context)
+    const context = await loginAs(playwright, admin.email, password);
 
-    // Authenticate as this new admin
-    const loginResponse = await context.post(`${API_BASE}/auth/login`, {
-      data: {
-        email: admin.email,
-        password: password,
-      },
-    });
-    expect(loginResponse.status()).toBe(200);
-
-    // Test password change with incorrect current password (cookie is automatically persisted)
+    // Test password change with incorrect current password
     const response = await context.patch(`${API_BASE}/auth/change-password`, {
       data: {
         current_password: "wrongpassword",
@@ -421,17 +413,8 @@ test.describe("Admin Users API", () => {
     expect(createResponse.status()).toBe(201);
     const { admin, password } = await createResponse.json();
 
-    // Create a new API context that persists cookies
-    const context = await playwright.request.newContext();
-
-    // Authenticate as this new admin
-    const loginResponse = await context.post(`${API_BASE}/auth/login`, {
-      data: {
-        email: admin.email,
-        password: password,
-      },
-    });
-    expect(loginResponse.status()).toBe(200);
+    // Login as the new admin (returns CSRF-aware context)
+    const context = await loginAs(playwright, admin.email, password);
 
     // Test password change with weak password (no uppercase)
     const response = await context.patch(`${API_BASE}/auth/change-password`, {
@@ -465,17 +448,8 @@ test.describe("Admin Users API", () => {
     expect(createResponse.status()).toBe(201);
     const { admin, password } = await createResponse.json();
 
-    // Create a new API context that persists cookies
-    const context = await playwright.request.newContext();
-
-    // Authenticate as this new admin
-    const loginResponse = await context.post(`${API_BASE}/auth/login`, {
-      data: {
-        email: admin.email,
-        password: password,
-      },
-    });
-    expect(loginResponse.status()).toBe(200);
+    // Login as the new admin (returns CSRF-aware context)
+    const context = await loginAs(playwright, admin.email, password);
 
     // Test password change with short password
     const response = await context.patch(`${API_BASE}/auth/change-password`, {

@@ -24,6 +24,7 @@
 
 import type { Page } from '@playwright/test'
 import { createTestMember } from './transactions'
+import { csrfHeaders } from './csrf'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -95,7 +96,10 @@ export async function createMemberViaPage(
     data.is_active = options.isActive
   }
 
-  const response = await page.request.post(`${API_BASE}/admin/members`, { data })
+  const response = await page.request.post(`${API_BASE}/admin/members`, {
+    data,
+    headers: await csrfHeaders(page),
+  })
   if (response.status() !== 201) {
     const error = await response.json().catch(() => response.text())
     throw new Error(`createMemberViaPage failed (${response.status()}): ${JSON.stringify(error)}`)

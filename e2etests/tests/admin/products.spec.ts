@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/pageObjects'
+import { csrfHeaders } from '../../utils/csrf'
 
 /**
  * Admin Frontend - Products Page E2E Tests (Consolidated)
@@ -18,6 +19,7 @@ const API_BASE = 'http://localhost:8080/api'
 async function createCategoryViaApi(page: import('@playwright/test').Page, nameDe: string, nameEn: string) {
   const resp = await page.request.post(`${API_BASE}/admin/categories`, {
     data: { names: { de: nameDe, en: nameEn } },
+    headers: await csrfHeaders(page),
   })
   expect(resp.status()).toBe(201)
   return resp.json()
@@ -33,6 +35,7 @@ async function createProductViaApi(
 ) {
   const resp = await page.request.post(`${API_BASE}/admin/products`, {
     data: { names: { de: nameDe }, price_cents: priceCents, category_id: categoryId, ...overrides },
+    headers: await csrfHeaders(page),
   })
   expect(resp.status()).toBe(201)
   return resp.json()
@@ -42,6 +45,7 @@ async function createProductViaApi(
 async function deactivateProductViaApi(page: import('@playwright/test').Page, productId: string) {
   const resp = await page.request.patch(`${API_BASE}/admin/products/${productId}/status`, {
     data: { is_active: false },
+    headers: await csrfHeaders(page),
   })
   expect(resp.ok()).toBeTruthy()
 }
@@ -304,7 +308,10 @@ test.describe('Admin Products Page', () => {
     expect(await authenticatedProductsPage.hasDispenserBadge(dispenserId!)).toBe(true)
 
     // ── i18n: create with DE+EN names → verify DE displayed ─────
-    await page.request.patch(`${API_BASE}/auth/profile`, { data: { locale: 'de' } })
+    await page.request.patch(`${API_BASE}/auth/profile`, {
+      data: { locale: 'de' },
+      headers: await csrfHeaders(page),
+    })
     await page.evaluate(() => localStorage.setItem('adminLocale', 'de'))
     await authenticatedProductsPage.reloadPage()
 
