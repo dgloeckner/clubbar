@@ -204,7 +204,7 @@ export function ProductsPage() {
       })
       console.log('Products API response:', response)
       // API response uses 'items' array with pagination metadata
-      let items = (response as any).items || []
+      const items = (response as any).items || []
       console.log(`Loaded ${items.length} products from API`)
       console.log('Pagination info:', {
         total: (response as any).total,
