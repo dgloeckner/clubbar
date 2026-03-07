@@ -1,6 +1,6 @@
 # ADR-0023: Terminal Balance State Management
 
-**Status**: Pending Review
+**Status**: Accepted
 
 **Date**: 2025-01-25
 

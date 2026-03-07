@@ -1,6 +1,6 @@
 # ADR-0024: Transaction History Retrieval in Terminal
 
-**Status**: Pending Review
+**Status**: Accepted
 
 **Date**: 2025-01-25
 
