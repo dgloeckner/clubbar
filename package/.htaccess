@@ -2,6 +2,10 @@ Options -MultiViews
 RewriteEngine On
 RewriteBase /
 
+# Force HTTPS in production
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
 # If the file exists on disk, serve it directly (SPA assets, install.php)
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
@@ -13,6 +17,14 @@ RewriteRule ^ index.php [L,QSA]
 # Ensure correct MIME types for static assets
 <IfModule mod_mime.c>
     AddType image/svg+xml .svg .svgz
+</IfModule>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 
 # Enable gzip compression
