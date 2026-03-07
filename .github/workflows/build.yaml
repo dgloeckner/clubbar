@@ -13,6 +13,30 @@ permissions:
   contents: write
 
 jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: admin-frontend
+
+      - name: Type check
+        run: npm run type-check
+        working-directory: admin-frontend
+
+      - name: Lint
+        run: npm run lint
+        working-directory: admin-frontend
+
   test-backend:
     runs-on: ubuntu-24.04
 
@@ -25,6 +49,13 @@ jobs:
           php-version: '8.3'
           tools: composer
 
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-
+
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
         working-directory: backend
@@ -33,7 +64,31 @@ jobs:
         run: php vendor/bin/phpunit -c phpunit.xml --testsuite Unit
         working-directory: backend
 
+  build-frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin-frontend/package-lock.json
+
+      - name: Install and build
+        run: npm ci && npm run build
+        working-directory: admin-frontend
+
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-frontend-dist
+          path: admin-frontend/dist/
+          retention-days: 1
+
   test-e2e:
+    needs: [lint, test-backend, build-frontend]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 
@@ -55,6 +110,13 @@ jobs:
             admin-frontend/package-lock.json
             e2etests/package-lock.json
 
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-
+
       - name: Install backend dependencies
         run: composer install --no-interaction --prefer-dist
         working-directory: backend
@@ -62,8 +124,14 @@ jobs:
       - name: Prepare writable directories
         run: chmod -R 777 backend/logs backend/storage
 
-      - name: Build admin frontend
-        run: npm ci && npm run build
+      - name: Download admin frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: admin-frontend-dist
+          path: admin-frontend/dist/
+
+      - name: Install admin frontend deps (for vite preview)
+        run: npm ci
         working-directory: admin-frontend
 
       - name: Start services
@@ -80,6 +148,7 @@ jobs:
         run: |
           for i in $(seq 1 30); do
             curl -sf http://localhost:8080/api/health && break
+            if [ $i -eq 30 ]; then echo "Backend not ready after 60s" && exit 1; fi
             sleep 2
           done
 
@@ -108,14 +177,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ hashFiles('e2etests/package-lock.json') }}
+          key: playwright-chromium-webkit-${{ hashFiles('e2etests/package-lock.json') }}
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
         working-directory: e2etests
 
       - name: Run E2E tests
-        run: npx playwright test
+        run: npx playwright test --project=api-tests --project=admin-chromium --project=admin-mobile
         working-directory: e2etests
         env:
           CI: true
@@ -139,6 +208,7 @@ jobs:
 
   test-package:
     name: Build & Test Package
+    needs: [test-e2e]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 
@@ -157,17 +227,24 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: |
-            admin-frontend/package-lock.json
-            e2etests/package-lock.json
+          cache-dependency-path: e2etests/package-lock.json
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-no-dev-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-no-dev-
 
       - name: Install backend dependencies (production)
         run: composer install --no-dev --optimize-autoloader --no-interaction
         working-directory: backend
 
-      - name: Build admin frontend
-        run: npm ci && npm run build
-        working-directory: admin-frontend
+      - name: Download admin frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: admin-frontend-dist
+          path: admin-frontend/dist/
 
       - name: Assemble package
         run: |
@@ -222,6 +299,13 @@ jobs:
         run: npx playwright install --with-deps chromium
         working-directory: e2etests
 
+      - name: Run package smoke tests
+        run: npx playwright test --project=package-tests --workers=1
+        working-directory: e2etests
+        env:
+          CI: true
+          PACKAGE_TEST: '1'
+
       - name: Create package ZIP
         run: cd dist && zip -r clubbar-package.zip package/ -q
 
@@ -238,13 +322,6 @@ jobs:
         with:
           files: dist/clubbar-package.zip
 
-      - name: Run package smoke tests
-        run: npx playwright test --project=package-tests --workers=1
-        working-directory: e2etests
-        env:
-          CI: true
-          PACKAGE_TEST: '1'
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -254,12 +331,13 @@ jobs:
           retention-days: 14
 
   build-terminal:
+    needs: [lint, test-backend]
     runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Flutter dependencies
+      - name: Install Linux build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -269,16 +347,21 @@ jobs:
             xvfb
 
       - name: Setup Flutter
-        run: |
-          git clone https://github.com/flutter/flutter.git --depth 1 -b stable ~/flutter
-          echo "$HOME/flutter/bin" >> $GITHUB_PATH
-
-      - name: Verify Flutter
-        run: flutter doctor -v
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
 
       - name: Enable Linux desktop
         run: flutter config --enable-linux-desktop
         working-directory: terminal-frontend
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ hashFiles('terminal-frontend/pubspec.lock') }}
+          restore-keys: pub-
 
       - name: Get dependencies
         run: flutter pub get

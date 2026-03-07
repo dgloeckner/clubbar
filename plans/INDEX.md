@@ -6,7 +6,9 @@ This index tracks the status of all implementation plans for Club Bar.
 
 ## Current Plan
 
-None active.
+| Plan | Status | Summary |
+|------|--------|---------|
+| [CI Pipeline Refactoring](./2026-03-07-ci-pipeline-refactoring.md) | In Progress | Restructure CI: job dependencies, caching, dedup, lint gate, fix silent failures |
 
 ---
 
