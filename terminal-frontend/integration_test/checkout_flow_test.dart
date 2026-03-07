@@ -28,7 +28,9 @@ void main() {
     testWidgets('App launches and shows idle scan screen', (tester) async {
       final app = await buildTestApp(db);
       await tester.pumpWidget(app);
-      await tester.pumpAndSettle();
+      // Use pump() instead of pumpAndSettle() because ClubBarHeader has a
+      // periodic Timer (clock update every second) that prevents settling.
+      await tester.pump(const Duration(milliseconds: 500));
 
       // The idle screen should be displayed (initial route is /idle)
       expect(find.byType(IdleWaitingScreen), findsOneWidget);
@@ -38,7 +40,7 @@ void main() {
         (tester) async {
       final app = await buildTestApp(db);
       await tester.pumpWidget(app);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Verify we start on the idle screen
       expect(find.byType(IdleWaitingScreen), findsOneWidget);
@@ -48,7 +50,7 @@ void main() {
       final context = tester.element(find.byType(IdleWaitingScreen));
       final rfidProvider = context.read<RfidProvider>();
       await rfidProvider.handleCardScan('test-card-001');
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // After successful scan, the router should redirect to /products
       // because MembersProvider.selectedMember is now non-null
@@ -63,13 +65,13 @@ void main() {
         (tester) async {
       final app = await buildTestApp(db);
       await tester.pumpWidget(app);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // First, identify a member to reach the product selection screen
       final idleContext = tester.element(find.byType(IdleWaitingScreen));
       final rfidProvider = idleContext.read<RfidProvider>();
       await rfidProvider.handleCardScan('test-card-001');
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // We should now be on the product selection screen
       expect(find.byType(ProductSelectionScreen), findsOneWidget);
@@ -87,7 +89,7 @@ void main() {
 
       // Tap on the "Pils 0,5l" product card to add it to cart
       await tester.tap(find.text('Pils 0,5l'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // After tapping, the product card should show a quantity badge "1x"
       expect(find.text('1x'), findsOneWidget);
@@ -100,7 +102,7 @@ void main() {
 
       // Tap the same product again to increase quantity
       await tester.tap(find.text('Pils 0,5l'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Quantity badge should now show "2x"
       expect(find.text('2x'), findsOneWidget);

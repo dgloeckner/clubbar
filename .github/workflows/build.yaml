@@ -418,6 +418,7 @@ jobs:
 
       - name: Run integration tests
         run: xvfb-run flutter test integration_test/
+        timeout-minutes: 5
         working-directory: terminal-frontend
 
       - name: Build Linux ARM64
