@@ -12,10 +12,16 @@ import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios'
 import { ApiResponse } from '../types'
 
 // CSRF token for state-changing requests
-let csrfToken: string | null = null
+// Persisted to localStorage so it survives page reloads and Playwright storage state restoration
+let csrfToken: string | null = localStorage.getItem('csrf_token')
 
 export function setCsrfToken(token: string | null) {
   csrfToken = token
+  if (token) {
+    localStorage.setItem('csrf_token', token)
+  } else {
+    localStorage.removeItem('csrf_token')
+  }
 }
 
 // Global pending request counter
@@ -114,6 +120,8 @@ apiClient.interceptors.response.use(
       localStorage.removeItem('email')
       localStorage.removeItem('display_name')
       localStorage.removeItem('locale')
+      localStorage.removeItem('csrf_token')
+      csrfToken = null
 
       // Redirect to login
       if (window.location.pathname !== '/login') {
