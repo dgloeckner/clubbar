@@ -1,5 +1,6 @@
 {
   "nav": {
+    "dashboard": "Dashboard",
     "members": "Mitglieder",
     "products": "Produkte",
     "categories": "Kategorien",
@@ -444,6 +445,35 @@
     "terminalSummary": "Terminal-Übersicht",
     "colTerminalName": "Terminal",
     "colLastSync": "Letzte Sync"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "activeMembers": "Aktive Mitglieder",
+    "outstandingBalance": "Offene Posten",
+    "todaysRevenue": "Heutiger Umsatz",
+    "terminals": "Terminals",
+    "recentTransactions": "Letzte Buchungen",
+    "terminalStatus": "Terminal-Status",
+    "systemStatus": "Systemstatus",
+    "alerts": "Hinweise",
+    "sepaIssues": "SEPA-Probleme",
+    "noRecentTransactions": "Keine aktuellen Buchungen",
+    "noTerminals": "Keine Terminals konfiguriert",
+    "lastSettlement": "Letzte Abrechnung",
+    "pendingSettlements": "Ausstehende Abrechnungen",
+    "totalMembers": "Mitglieder gesamt",
+    "totalTransactions": "Buchungen gesamt",
+    "databaseHealth": "Datenbank",
+    "online": "Online",
+    "offline": "Offline",
+    "disabled": "Deaktiviert",
+    "lastSync": "Letzte Sync",
+    "membersNeedSepaData": "{{count}} Mitglied(er) ohne SEPA-Daten",
+    "allSepaValid": "Alle SEPA-Daten vollständig",
+    "autoRefresh": "Automatische Aktualisierung",
+    "refreshNow": "Jetzt aktualisieren",
+    "purchase": "Kauf",
+    "correction": "Korrektur"
   },
   "confirmDialog": {
     "title": "Bestätigung",
