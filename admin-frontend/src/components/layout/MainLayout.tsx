@@ -59,7 +59,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     { label: t('nav.categories'), path: '/categories', icon: <NavigationIconRegistry.CategoryIcon size={20} />, testId: 'nav-categories' },
     { label: t('nav.journal'), path: '/journal', icon: <BookIcon size={20} />, testId: 'nav-journal' },
     { label: t('nav.settlements'), path: '/settlements', icon: <ReceiptIcon size={20} />, testId: 'nav-settlements' },
-    { label: t('nav.statistics'), path: '/statistics', icon: <ChartIcon size={20} />, testId: 'nav-statistics' },
+    { label: t('nav.reports'), path: '/reports', icon: <ChartIcon size={20} />, testId: 'nav-reports' },
     { label: t('nav.settings'), path: '/settings', icon: <SettingsIcon size={20} />, testId: 'nav-settings' },
     { label: t('nav.auditLog'), path: '/audit-log', icon: <AuditLogIcon size={20} />, testId: 'nav-audit-log' },
   ]

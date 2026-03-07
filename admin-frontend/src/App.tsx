@@ -16,7 +16,7 @@ import { ProductsPage } from './pages/ProductsPage'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { JournalPage } from './pages/JournalPage'
 import { SettlementsPage } from './pages/SettlementsPage'
-import { StatisticsPage } from './pages/StatisticsPage'
+import { ReportsPage } from './pages/ReportsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AuditLogPage } from './pages/AuditLogPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -121,13 +121,14 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/statistics"
+        path="/reports"
         element={
           <ProtectedRoute>
-            <StatisticsPage />
+            <ReportsPage />
           </ProtectedRoute>
         }
       />
+      <Route path="/statistics" element={<Navigate to="/reports" />} />
       <Route
         path="/settings"
         element={

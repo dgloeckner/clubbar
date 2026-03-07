@@ -47,7 +47,7 @@ export function BottomTabBar() {
 
   const moreItems = [
     { label: t('nav.categories'), path: '/categories', icon: NavigationIconRegistry.CategoryIcon, testId: 'tab-categories' },
-    { label: t('nav.statistics'), path: '/statistics', icon: ChartIcon, testId: 'tab-statistics' },
+    { label: t('nav.reports'), path: '/reports', icon: ChartIcon, testId: 'tab-reports' },
     { label: t('nav.settings'), path: '/settings', icon: SettingsIcon, testId: 'tab-settings' },
     { label: t('nav.auditLog'), path: '/audit-log', icon: AuditLogIcon, testId: 'tab-audit-log' },
     { label: t('nav.profile'), path: '/profile', icon: UserIcon, testId: 'tab-profile' },
