@@ -40,9 +40,62 @@ The installer guides you through five steps:
 
 ## Security Hardening
 
-### HTTPS
+### HTTPS & TLS
 
-Always use HTTPS in production. Enable SSL in your hosting panel (most providers offer free Let's Encrypt certificates).
+HTTPS is mandatory in production. See [ADR-0016](../adr/0016-transport-security.md) for full security requirements.
+
+**Setup:**
+1. Enable SSL in your hosting panel (most providers offer free Let's Encrypt certificates)
+2. Force HTTPS redirect (add to `.htaccess`):
+   ```apache
+   RewriteEngine On
+   RewriteCond %{HTTPS} off
+   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+   ```
+3. Verify secure cookies work after enabling HTTPS
+
+**Security headers** (add to `.htaccess` or virtual host):
+
+```apache
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+Header always set X-Content-Type-Options "nosniff"
+Header always set X-Frame-Options "DENY"
+```
+
+**Verify:**
+
+```bash
+curl -I https://your-domain.com/api/health
+# Check for: Strict-Transport-Security, X-Content-Type-Options headers
+```
+
+### HTTP Compression (GZIP)
+
+Enable GZIP compression to reduce API response sizes by 70-85%. See [ADR-0003](../adr/0003-gzip-compression-http.md) for architectural rationale.
+
+**Apache** (add to `.htaccess` or virtual host config):
+
+```apache
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json text/html text/plain text/css application/javascript
+</IfModule>
+```
+
+**Nginx** (add to server block):
+
+```nginx
+gzip on;
+gzip_types application/json text/html text/plain text/css application/javascript;
+gzip_min_length 256;
+```
+
+**Verify:**
+
+```bash
+# Compare compressed vs uncompressed response sizes
+curl -s -H "Accept-Encoding: gzip" -o /dev/null -w "%{size_download}" https://your-domain.com/api/health
+curl -s -o /dev/null -w "%{size_download}" https://your-domain.com/api/health
+```
 
 ### Application Security
 
