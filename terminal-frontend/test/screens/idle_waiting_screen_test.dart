@@ -54,7 +54,7 @@ void main() {
 
       await tester.pumpWidget(buildTestApp());
 
-      expect(find.text('Halte deine Karte an den Scanner'), findsOneWidget); // German translation
+      expect(find.text('Halte deinen Chip an den Scanner'), findsOneWidget); // German translation
     });
 
     testWidgets('displays demo button', (WidgetTester tester) async {
@@ -64,7 +64,7 @@ void main() {
 
       await tester.pumpWidget(buildTestApp());
 
-      expect(find.text('Demo: Karte scannen'), findsOneWidget); // German translation
+      expect(find.text('Demo: Chip scannen'), findsOneWidget); // German translation
     });
 
     testWidgets('demo button is disabled when scanning', (WidgetTester tester) async {
@@ -75,7 +75,7 @@ void main() {
       await tester.pumpWidget(buildTestApp());
 
       final button = tester.widget<ElevatedButton>(
-        find.widgetWithText(ElevatedButton, 'Demo: Karte scannen'),
+        find.widgetWithText(ElevatedButton, 'Demo: Chip scannen'),
       );
       expect(button.onPressed, isNull); // Button disabled when scanning
     });

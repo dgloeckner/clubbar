@@ -83,8 +83,10 @@ void main() {
       verify(() => mockClient.getStatus('disp-abc')).called(1);
     });
 
-    test('skips operations where polling is active', () async {
-      // Tracking record with polling_active=1 (dialog still open)
+    test('skips operations that were recently polled', () async {
+      // Tracking record with recent lastPolledAt (recovery resets pollingActive,
+      // but respects the 30-second recency window)
+      final recentPoll = DateTime.now().toUtc().subtract(const Duration(seconds: 5));
       await db.into(db.dispenserOperations).insert(
         DispenserOperationsCompanion.insert(
           dispenserTxId: 'disp-def',
@@ -93,14 +95,15 @@ void main() {
           priceCents: 200,
           requestedQty: 2,
           createdAt: DateTime.now().toUtc().toIso8601String(),
-          pollingActive: const Value(1), // ACTIVE POLLING
+          pollingActive: const Value(1), // Will be reset by recovery
+          lastPolledAt: Value(recentPoll.toIso8601String()), // Recently polled
         ),
       );
 
       // Run recovery
       await service.recoverIncompleteDispenses();
 
-      // Verify: No ESP8266 queries made (operation skipped)
+      // Verify: No ESP8266 queries made (recently polled, skipped)
       verifyNever(() => mockClient.getStatus(any()));
 
       // Verify: Tracking record NOT cleaned up

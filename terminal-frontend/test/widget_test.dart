@@ -16,10 +16,11 @@ import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
-import 'package:clubbar_terminal/services/config_service.dart';
+// ConfigService mock comes from test_helpers.dart
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/main.dart';
+import 'test_helpers.dart';
 
 class MockClubBarDatabase extends Mock implements ClubBarDatabase {}
 class MockLocaleProvider extends Mock implements LocaleProvider {}
@@ -29,7 +30,7 @@ class MockCartService extends Mock implements CartService {}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockMembersRepository extends Mock implements MembersRepository {}
 class MockTransactionsRepository extends Mock implements TransactionsRepository {}
-class MockConfigService extends Mock implements ConfigService {}
+// MockConfigService is provided by test_helpers.dart
 class MockNetworkService extends Mock implements NetworkService {}
 class MockSoundService extends Mock implements SoundService {}
 
@@ -43,10 +44,9 @@ void main() {
     final mockSyncProvider = MockSyncProvider();
     final mockMembersRepository = MockMembersRepository();
     final mockTransactionsRepository = MockTransactionsRepository();
-    final mockConfigService = MockConfigService();
+    final mockConfigService = createMockConfigService();
     final mockNetworkService = MockNetworkService();
     final mockSoundService = MockSoundService();
-    when(() => mockConfigService.isConfigured).thenReturn(true);
     when(() => mockSyncProvider.connectionStatus).thenReturn(ConnectionStatus.online);
     when(() => mockLocaleProvider.locale).thenReturn(const Locale('de'));
     when(() => mockLocaleProvider.addListener(any())).thenReturn(null);

@@ -11,6 +11,8 @@ import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
+import '../test_helpers.dart';
 
 class MockAuthProvider extends Mock implements AuthProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
@@ -75,6 +77,7 @@ void main() {
             ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
             ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
             ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+            Provider<ConfigService>.value(value: createMockConfigService()),
           ],
           child: Builder(
             builder: (context) => MaterialApp.router(

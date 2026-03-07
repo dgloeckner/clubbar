@@ -132,7 +132,7 @@ void main() {
 
       expect(find.text('Online'), findsOneWidget);
 
-      await tester.tap(find.text('Schließen')); // "Dismiss" in German
+      await tester.tap(find.byIcon(Icons.close)); // Close icon button
       await tester.pumpAndSettle();
 
       expect(find.text('Online'), findsNothing);

@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/widgets/rfid_detector_button.dart';
+import '../test_helpers.dart';
 
 class MockRfidProvider extends Mock implements RfidProvider {}
 class FakeBuildContext extends Fake implements BuildContext {}
@@ -27,8 +29,11 @@ void main() {
     testWidgets('button displays icon when not scanning', (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: ChangeNotifierProvider<RfidProvider>.value(
-            value: mockRfidProvider,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+              Provider<ConfigService>.value(value: createMockConfigService()),
+            ],
             child: const Scaffold(
               body: RfidDetectorButton(),
             ),
@@ -44,8 +49,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ChangeNotifierProvider<RfidProvider>.value(
-            value: mockRfidProvider,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+              Provider<ConfigService>.value(value: createMockConfigService()),
+            ],
             child: const Scaffold(
               body: RfidDetectorButton(),
             ),
@@ -62,8 +70,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ChangeNotifierProvider<RfidProvider>.value(
-            value: mockRfidProvider,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+              Provider<ConfigService>.value(value: createMockConfigService()),
+            ],
             child: const Scaffold(
               body: RfidDetectorButton(),
             ),
@@ -82,8 +93,11 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: ChangeNotifierProvider<RfidProvider>.value(
-            value: mockRfidProvider,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+              Provider<ConfigService>.value(value: createMockConfigService()),
+            ],
             child: const Scaffold(
               body: RfidDetectorButton(),
             ),

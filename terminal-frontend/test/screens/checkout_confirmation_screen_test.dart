@@ -236,17 +236,19 @@ void main() {
       // Let FutureBuilder resolve
       await tester.pump();
       await tester.pump();
+      // Trigger addPostFrameCallback for _startAutoNav
+      await tester.pump();
 
-      // Initially shows 3 seconds
-      expect(find.textContaining('Weiterleitung in 3'), findsOneWidget);
+      // Initially shows 30 seconds
+      expect(find.textContaining('Weiterleitung in 30'), findsOneWidget);
 
-      // After 1 second, should show 2 seconds
+      // After 1 second, should show 29 seconds
       await tester.pump(const Duration(seconds: 1));
-      expect(find.textContaining('Weiterleitung in 2'), findsOneWidget);
+      expect(find.textContaining('Weiterleitung in 29'), findsOneWidget);
 
-      // After another 1 second, should show 1 second
+      // After another 1 second, should show 28 seconds
       await tester.pump(const Duration(seconds: 1));
-      expect(find.textContaining('Weiterleitung in 1'), findsOneWidget);
+      expect(find.textContaining('Weiterleitung in 28'), findsOneWidget);
     });
 
     testWidgets('clears cart on navigation', (WidgetTester tester) async {
@@ -294,9 +296,11 @@ void main() {
       // Let FutureBuilder resolve
       await tester.pump();
       await tester.pump();
+      // Trigger addPostFrameCallback for _startAutoNav
+      await tester.pump();
 
-      // Wait for auto-navigation
-      await tester.pump(const Duration(seconds: 3));
+      // Wait for auto-navigation (30 second countdown)
+      await tester.pump(const Duration(seconds: 30));
 
       // Verify clearCart was called
       verify(() => mockCartProvider.clearCart()).called(greaterThanOrEqualTo(1));
