@@ -9,6 +9,7 @@ This index tracks the status of all implementation plans for Club Bar.
 | Plan | Status | Summary |
 |------|--------|---------|
 | [CI Pipeline Refactoring](./2026-03-07-ci-pipeline-refactoring.md) | In Progress | Restructure CI: job dependencies, caching, dedup, lint gate, fix silent failures |
+| [Reports System](./2026-03-07-reports-system.md) | Complete | Reports system (UC-A50, UC-A51, UC-A52): backend API, frontend ReportsPage, responsive, E2E tests |
 
 ---
 
