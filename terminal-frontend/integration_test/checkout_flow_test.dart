@@ -11,6 +11,15 @@ import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
 
 import 'test_helpers.dart';
 
+/// Pump multiple frames to allow async rebuilds, navigation, and fade
+/// transitions to complete.  We cannot use [pumpAndSettle] because
+/// [ClubBarHeader] runs a periodic 1-second Timer that prevents settling.
+Future<void> pumpFrames(WidgetTester tester, {int count = 15}) async {
+  for (int i = 0; i < count; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -28,8 +37,6 @@ void main() {
     testWidgets('App launches and shows idle scan screen', (tester) async {
       final app = await buildTestApp(db);
       await tester.pumpWidget(app);
-      // Use pump() instead of pumpAndSettle() because ClubBarHeader has a
-      // periodic Timer (clock update every second) that prevents settling.
       await tester.pump(const Duration(milliseconds: 500));
 
       // The idle screen should be displayed (initial route is /idle)
@@ -46,11 +53,13 @@ void main() {
       expect(find.byType(IdleWaitingScreen), findsOneWidget);
 
       // Simulate RFID card scan by calling RfidProvider.handleCardScan
-      // with the test member's card UID (seeded as 'test-card-001')
+      // with the test member's card UID (seeded as 'test-card-001').
+      // startListening sets _context so handleCardScan can navigate.
       final context = tester.element(find.byType(IdleWaitingScreen));
       final rfidProvider = context.read<RfidProvider>();
+      rfidProvider.startListening(context);
       await rfidProvider.handleCardScan('test-card-001');
-      await tester.pump(const Duration(milliseconds: 500));
+      await pumpFrames(tester);
 
       // After successful scan, the router should redirect to /products
       // because MembersProvider.selectedMember is now non-null
@@ -59,6 +68,8 @@ void main() {
       // Verify the member name appears in the member bar
       expect(find.text('Test'), findsOneWidget);
       expect(find.text('Member'), findsOneWidget);
+
+      rfidProvider.stopListening();
     });
 
     testWidgets('Product selection adds item to cart with correct price',
@@ -70,8 +81,9 @@ void main() {
       // First, identify a member to reach the product selection screen
       final idleContext = tester.element(find.byType(IdleWaitingScreen));
       final rfidProvider = idleContext.read<RfidProvider>();
+      rfidProvider.startListening(idleContext);
       await rfidProvider.handleCardScan('test-card-001');
-      await tester.pump(const Duration(milliseconds: 500));
+      await pumpFrames(tester);
 
       // We should now be on the product selection screen
       expect(find.byType(ProductSelectionScreen), findsOneWidget);
@@ -89,7 +101,7 @@ void main() {
 
       // Tap on the "Pils 0,5l" product card to add it to cart
       await tester.tap(find.text('Pils 0,5l'));
-      await tester.pump(const Duration(milliseconds: 500));
+      await pumpFrames(tester, count: 5);
 
       // After tapping, the product card should show a quantity badge "1x"
       expect(find.text('1x'), findsOneWidget);
@@ -102,12 +114,14 @@ void main() {
 
       // Tap the same product again to increase quantity
       await tester.tap(find.text('Pils 0,5l'));
-      await tester.pump(const Duration(milliseconds: 500));
+      await pumpFrames(tester, count: 5);
 
       // Quantity badge should now show "2x"
       expect(find.text('2x'), findsOneWidget);
       expect(cartProvider.itemCount, equals(2));
       expect(cartProvider.total, equals(700));
+
+      rfidProvider.stopListening();
     });
   });
 }
