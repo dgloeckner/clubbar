@@ -36,7 +36,7 @@ export class LoginPage extends BasePage {
     await this.passwordInput().fill(password)
     await this.loginBtn().click()
     if (waitForLogin) {
-      await this.page.waitForURL('**/members', { timeout: 5000 })
+      await this.page.waitForURL('**/dashboard', { timeout: 5000 })
       // Verify authentication succeeded
       const adminId = await this.page.evaluate(() => {
         return localStorage.getItem('admin_id')

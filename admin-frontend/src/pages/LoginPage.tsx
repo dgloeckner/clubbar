@@ -17,7 +17,7 @@ export function LoginPage() {
     setLocalError(undefined)
     const success = await login({ email, password })
     if (success) {
-      navigate('/members')
+      navigate('/dashboard')
     } else {
       setLocalError(error || 'Login failed')
     }

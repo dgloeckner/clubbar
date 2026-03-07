@@ -31,8 +31,8 @@ test.describe('User Badge & Logout', () => {
 
   test('should perform logout and redirect to login', async ({ page }) => {
     // Navigate first so localStorage is accessible, then clear auth state
-    await page.goto('/members')
-    await page.waitForURL('**/members', { timeout: 10000 })
+    await page.goto('/dashboard')
+    await page.waitForURL('**/dashboard', { timeout: 10000 })
     await page.evaluate(() => localStorage.clear())
     await page.context().clearCookies()
 
@@ -41,7 +41,7 @@ test.describe('User Badge & Logout', () => {
     await page.locator('[data-testid="login-email-input"]').fill('admin@example.com')
     await page.locator('[data-testid="login-password-input"]').fill('password123')
     await page.locator('[data-testid="login-submit-button"]').click()
-    await page.waitForURL('**/members', { timeout: 10000 })
+    await page.waitForURL('**/dashboard', { timeout: 10000 })
 
     const layout = new MainLayoutPage(page)
     await layout.clickLogout()
