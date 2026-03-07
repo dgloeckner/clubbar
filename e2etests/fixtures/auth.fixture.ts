@@ -66,7 +66,8 @@ interface AuthFixtures {
 class AuthenticatedRequestContext {
   constructor(
     private request: APIRequestContext,
-    private cookieString: string
+    private cookieString: string,
+    private csrfToken: string = ''
   ) {}
 
   get = (url: string, options?: any) =>
@@ -84,6 +85,7 @@ class AuthenticatedRequestContext {
       headers: {
         ...options?.headers,
         cookie: this.cookieString,
+        'X-CSRF-Token': this.csrfToken,
       },
     });
 
@@ -93,6 +95,7 @@ class AuthenticatedRequestContext {
       headers: {
         ...options?.headers,
         cookie: this.cookieString,
+        'X-CSRF-Token': this.csrfToken,
       },
     });
 
@@ -102,6 +105,7 @@ class AuthenticatedRequestContext {
       headers: {
         ...options?.headers,
         cookie: this.cookieString,
+        'X-CSRF-Token': this.csrfToken,
       },
     });
 
@@ -111,6 +115,7 @@ class AuthenticatedRequestContext {
       headers: {
         ...options?.headers,
         cookie: this.cookieString,
+        'X-CSRF-Token': this.csrfToken,
       },
     });
 
@@ -220,6 +225,10 @@ export const test = base.extend<AuthFixtures>({
     // Extract just the name=value part (remove expires, path, httponly, etc.)
     const cookieString = fullCookieString.split(";")[0];
 
+    // Extract CSRF token from login response
+    const loginData = await loginResponse.json();
+    const csrfToken = loginData.csrf_token || '';
+
     if (!cookieString) {
       // Fallback: try headersArray() which preserves duplicate headers
       const headersArray = loginResponse.headersArray();
@@ -229,7 +238,8 @@ export const test = base.extend<AuthFixtures>({
         if (fallbackCookie) {
           const authenticatedRequest = new AuthenticatedRequestContext(
             freshRequest,
-            fallbackCookie
+            fallbackCookie,
+            csrfToken
           ) as any;
           authenticatedRequest.cookieString = fallbackCookie;
           await use(authenticatedRequest);
@@ -243,7 +253,8 @@ export const test = base.extend<AuthFixtures>({
     // Create authenticated request wrapper
     const authenticatedRequest = new AuthenticatedRequestContext(
       freshRequest,
-      cookieString
+      cookieString,
+      csrfToken
     ) as any;
     authenticatedRequest.cookieString = cookieString;
 

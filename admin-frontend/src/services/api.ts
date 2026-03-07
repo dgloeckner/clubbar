@@ -11,6 +11,13 @@
 import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios'
 import { ApiResponse } from '../types'
 
+// CSRF token for state-changing requests
+let csrfToken: string | null = null
+
+export function setCsrfToken(token: string | null) {
+  csrfToken = token
+}
+
 // Global pending request counter
 let pendingRequests = 0
 const loadingStateCallbacks: Array<(isLoading: boolean) => void> = []
@@ -74,6 +81,10 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem('auth_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+    // Add CSRF token for state-changing requests
+    if (csrfToken && config.method && !['get', 'head', 'options'].includes(config.method)) {
+      config.headers['X-CSRF-Token'] = csrfToken
     }
     incrementPending()
     return config

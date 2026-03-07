@@ -16,12 +16,12 @@ const NONEXISTENT_EMAIL = "doesnotexist@example.com";
  */
 
 test.describe("Admin Authentication", () => {
-  // Helper function to login and return cookies
+  // Helper function to login and return cookies + CSRF token
   async function login(
     request: APIRequestContext,
     email: string,
     password: string
-  ): Promise<string> {
+  ): Promise<{ cookieString: string; csrfToken: string }> {
     const loginResponse = await request.post(`${API_BASE}/auth/login`, {
       data: { email, password },
     });
@@ -32,7 +32,11 @@ test.describe("Admin Authentication", () => {
       ? setCookieHeader[0]
       : setCookieHeader || "";
 
-    return cookieString;
+    // Extract CSRF token from login response
+    const loginData = await loginResponse.json();
+    const csrfToken = loginData.csrf_token || '';
+
+    return { cookieString, csrfToken };
   }
 
   test.describe("POST /api/auth/login", () => {
@@ -110,10 +114,14 @@ test.describe("Admin Authentication", () => {
         ? setCookieHeader[0]
         : setCookieHeader;
 
+      const loginData = await loginResponse.json();
+      const csrfToken = loginData.csrf_token || '';
+
       // Then logout with session
       const logoutResponse = await request.post(`${API_BASE}/auth/logout`, {
         headers: {
           cookie: cookieString,
+          'X-CSRF-Token': csrfToken,
         },
       });
 
@@ -146,10 +154,14 @@ test.describe("Admin Authentication", () => {
         ? setCookieHeader[0]
         : setCookieHeader;
 
+      const loginData = await loginResponse.json();
+      const csrfToken = loginData.csrf_token || '';
+
       // Logout
       await request.post(`${API_BASE}/auth/logout`, {
         headers: {
           cookie: cookieString,
+          'X-CSRF-Token': csrfToken,
         },
       });
 
@@ -359,6 +371,9 @@ test.describe("Admin Authentication", () => {
         ? setCookieHeader[0]
         : setCookieHeader;
 
+      const loginData = await loginResponse.json();
+      const csrfToken = loginData.csrf_token || '';
+
       // Verify session works
       let profileResponse = await request.get(`${API_BASE}/auth/profile`, {
         headers: { cookie: cookieString },
@@ -367,7 +382,7 @@ test.describe("Admin Authentication", () => {
 
       // Logout
       const logoutResponse = await request.post(`${API_BASE}/auth/logout`, {
-        headers: { cookie: cookieString },
+        headers: { cookie: cookieString, 'X-CSRF-Token': csrfToken },
       });
       expect(logoutResponse.status()).toBe(200);
 

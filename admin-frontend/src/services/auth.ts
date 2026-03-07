@@ -3,7 +3,7 @@
  * Handles login, logout, and session management
  */
 
-import { post, get, patch } from './api'
+import { post, get, patch, setCsrfToken } from './api'
 import { LoginCredentials, AuthResponse } from '../types'
 import { changeLanguage } from '../i18n/config'
 
@@ -66,6 +66,11 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
       changeLanguage(userLocale)
     }
 
+    // Store CSRF token
+    if ((response as any).csrf_token) {
+      setCsrfToken((response as any).csrf_token)
+    }
+
     return {
       success: true,
       message: 'Login successful',
@@ -100,6 +105,7 @@ export async function logout(): Promise<void> {
     localStorage.removeItem('email')
     localStorage.removeItem('display_name')
     localStorage.removeItem('locale')
+    setCsrfToken(null)
   }
 }
 
@@ -128,8 +134,14 @@ export function isAuthenticated(): boolean {
 export async function getProfile(): Promise<AdminProfile> {
   const apiResponse = await get<{ admin: AdminProfile }>('/auth/profile')
   // Handle both wrapped and unwrapped responses
-  const response = (apiResponse.data ?? apiResponse) as unknown as { admin: AdminProfile }
-  return response.admin
+  const fullResponse = (apiResponse.data ?? apiResponse) as unknown as { admin: AdminProfile; csrf_token?: string }
+
+  // Refresh CSRF token from profile response
+  if (fullResponse.csrf_token) {
+    setCsrfToken(fullResponse.csrf_token)
+  }
+
+  return fullResponse.admin
 }
 
 /**
