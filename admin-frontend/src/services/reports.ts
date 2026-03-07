@@ -126,42 +126,130 @@ function buildQuery(params: Record<string, string | number | boolean | undefined
 
 /**
  * Get a report by type (revenue, consumption, transactions)
+ *
+ * Backend response format:
+ * { metadata: { report_type, generated_at, filters }, summary: { total_revenue_cents, ... }, data: [...rows] }
+ *
+ * Maps to the ReportResponse shape expected by the UI.
  */
 export async function getReport(reportType: ReportType, params: ReportParams = {}): Promise<ReportResponse> {
   const query = buildQuery(params as Record<string, string | number | boolean | undefined>)
-  const apiResponse = await get<ReportResponse>(`/admin/reports/${reportType}${query}`)
+  const apiResponse = await get<any>(`/admin/reports/${reportType}${query}`)
 
-  // Handle both wrapped and unwrapped response formats
-  const data = apiResponse as any
-  if (data && 'metadata' in data) return data as ReportResponse
-  if (data && 'data' in data && data.data?.metadata) return data.data as ReportResponse
-  return data as ReportResponse
+  const raw = apiResponse as any
+
+  // Backend returns { metadata, summary, data } — map to ReportResponse shape
+  if (raw && 'summary' in raw && 'data' in raw) {
+    const mapped: ReportResponse = {
+      metadata: {
+        total_revenue_cents: raw.summary?.total_revenue_cents ?? 0,
+        total_quantity: raw.summary?.total_quantity ?? 0,
+        total_count: raw.summary?.transaction_count ?? 0,
+        avg_transaction_cents: raw.summary?.avg_transaction_cents ?? 0,
+        date_from: raw.metadata?.filters?.date_from ?? params.date_from ?? '',
+        date_to: raw.metadata?.filters?.date_to ?? params.date_to ?? '',
+        group_by: raw.metadata?.filters?.group_by ?? params.group_by ?? 'month',
+        report_type: reportType,
+      },
+      rows: (raw.data ?? []).map((row: any) => ({
+        dimension: row.dimension ?? '',
+        revenue_cents: row.revenue_cents ?? 0,
+        quantity: row.quantity ?? 0,
+        count: row.count ?? 0,
+        percentage: row.percent_of_total ?? row.percentage ?? 0,
+      })),
+    }
+    return mapped
+  }
+
+  // Fallback: already in correct shape
+  return raw as ReportResponse
 }
 
 /**
  * Get member spending ranking (UC-A51)
+ *
+ * Backend response format: { data: [...rows] }
+ * Maps to the MemberRankingResponse shape expected by the UI.
  */
 export async function getMemberRanking(params: MemberRankingParams = {}): Promise<MemberRankingResponse> {
   const query = buildQuery(params as Record<string, string | number | boolean | undefined>)
-  const apiResponse = await get<MemberRankingResponse>(`/admin/reports/member-ranking${query}`)
+  const apiResponse = await get<any>(`/admin/reports/member-ranking${query}`)
 
-  const data = apiResponse as any
-  if (data && 'rows' in data) return data as MemberRankingResponse
-  if (data && 'data' in data && data.data?.rows) return data.data as MemberRankingResponse
-  return data as MemberRankingResponse
+  const raw = apiResponse as any
+
+  // Backend returns { data: [...rows] } — map to MemberRankingResponse shape
+  if (raw && 'data' in raw && Array.isArray(raw.data)) {
+    const mapped: MemberRankingResponse = {
+      rows: raw.data.map((row: any) => ({
+        rank: row.rank ?? 0,
+        member_id: row.member_id ?? null,
+        member_name: row.member_name ?? '',
+        total_amount_cents: row.total_amount_cents ?? 0,
+        transaction_count: row.transaction_count ?? 0,
+      })),
+      metadata: raw.metadata ?? {
+        date_from: params.date_from ?? '',
+        date_to: params.date_to ?? '',
+        limit: params.limit ?? 25,
+        anonymized: params.anonymize ?? false,
+        total_members: raw.data.length,
+      },
+    }
+    return mapped
+  }
+
+  // Fallback: already correct shape (has rows key)
+  if (raw && 'rows' in raw) return raw as MemberRankingResponse
+
+  return raw as MemberRankingResponse
 }
 
 /**
  * Get terminal activity report (UC-A52)
+ *
+ * Backend response format: { sessions, hourly_distribution, terminals }
+ * Maps to the TerminalActivityResponse shape expected by the UI.
  */
 export async function getTerminalActivity(params: TerminalActivityParams): Promise<TerminalActivityResponse> {
   const query = buildQuery(params as unknown as Record<string, string | number | boolean | undefined>)
-  const apiResponse = await get<TerminalActivityResponse>(`/admin/reports/terminal-activity${query}`)
+  const apiResponse = await get<any>(`/admin/reports/terminal-activity${query}`)
 
-  const data = apiResponse as any
-  if (data && 'sessions' in data) return data as TerminalActivityResponse
-  if (data && 'data' in data && data.data?.sessions) return data.data as TerminalActivityResponse
-  return data as TerminalActivityResponse
+  const raw = apiResponse as any
+
+  // Backend returns { sessions, hourly_distribution, terminals } — map to TerminalActivityResponse
+  if (raw && 'sessions' in raw) {
+    const mapped: TerminalActivityResponse = {
+      sessions: (raw.sessions ?? []).map((s: any) => ({
+        date: s.date ?? '',
+        start_time: s.start_time ?? null,
+        end_time: s.end_time ?? null,
+        transaction_count: s.transaction_count ?? 0,
+        revenue_cents: s.revenue_cents ?? 0,
+      })),
+      hourly_distribution: (raw.hourly_distribution ?? []).map((b: any) => ({
+        hour: b.hour ?? 0,
+        transaction_count: b.transaction_count ?? 0,
+        revenue_cents: b.revenue_cents ?? 0,
+      })),
+      terminal_summaries: (raw.terminals ?? raw.terminal_summaries ?? []).map((t: any) => ({
+        terminal_id: t.id ?? t.terminal_id ?? '',
+        terminal_name: t.name ?? t.terminal_name ?? '',
+        transaction_count: t.transaction_count ?? 0,
+        revenue_cents: t.revenue_cents ?? 0,
+        last_sync: t.last_sync_at ?? t.last_sync ?? null,
+      })),
+      metadata: raw.metadata ?? {
+        date_from: params.date_from,
+        date_to: params.date_to,
+        total_transactions: (raw.sessions ?? []).reduce((sum: number, s: any) => sum + (s.transaction_count ?? 0), 0),
+        total_revenue_cents: (raw.sessions ?? []).reduce((sum: number, s: any) => sum + (s.revenue_cents ?? 0), 0),
+      },
+    }
+    return mapped
+  }
+
+  return raw as TerminalActivityResponse
 }
 
 /**
