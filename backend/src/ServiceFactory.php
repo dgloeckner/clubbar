@@ -56,8 +56,10 @@ use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncContr
 use App\Modules\Auth\Middleware\AdminSessionAuth;
 use App\Modules\Auth\Middleware\TerminalTokenAuth;
 use App\Shared\Middleware\CorsMiddleware;
+use App\Shared\Middleware\CsrfMiddleware;
 use App\Shared\Middleware\ErrorHandler;
 use App\Shared\Middleware\JsonBodyParser;
+use App\Shared\Middleware\RateLimitMiddleware;
 
 use PDO;
 use Psr\Container\ContainerInterface;
@@ -109,8 +111,10 @@ class ServiceFactory implements ContainerInterface
         AdminSessionAuth::class => 'getAdminSessionAuth',
         TerminalTokenAuth::class => 'getTerminalTokenAuth',
         CorsMiddleware::class => 'getCorsMiddleware',
+        CsrfMiddleware::class => 'getCsrfMiddleware',
         JsonBodyParser::class => 'getJsonBodyParser',
         ErrorHandler::class => 'getErrorHandler',
+        RateLimitMiddleware::class => 'getRateLimitMiddleware',
     ];
 
     public function __construct(
@@ -266,6 +270,11 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(TerminalTokenAuth::class, fn() => new TerminalTokenAuth($this->getTerminalsRepository()));
     }
 
+    public function getCsrfMiddleware(): CsrfMiddleware
+    {
+        return $this->resolve(CsrfMiddleware::class, fn() => new CsrfMiddleware());
+    }
+
     public function getCorsMiddleware(): CorsMiddleware
     {
         $origins = Env::get('CORS_ORIGINS', '*');
@@ -283,6 +292,11 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(ErrorHandler::class, fn() => new ErrorHandler($this->logger, $this->config->debug));
     }
 
+    public function getRateLimitMiddleware(): RateLimitMiddleware
+    {
+        return $this->resolve(RateLimitMiddleware::class, fn() => new RateLimitMiddleware($this->pdo));
+    }
+
     // --- Controllers ---
 
     public function getHealthController(): HealthController
@@ -297,6 +311,7 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminUsersService(),
             $this->getAuditService(),
             $this->getValidator(),
+            $this->pdo,
         ));
     }
 

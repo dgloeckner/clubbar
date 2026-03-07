@@ -10,6 +10,7 @@ use App\Shared\Services\AuditService;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Validation\Validator;
+use PDO;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -20,6 +21,7 @@ class AuthController
         private AdminUsersService $adminUsersService,
         private AuditService $auditService,
         private Validator $validator,
+        private PDO $pdo,
     ) {}
 
     public function login(Request $request, Response $response): Response
@@ -36,6 +38,11 @@ class AuthController
         $admin = $this->authService->authenticate($body['email'], $body['password']);
 
         if (!$admin) {
+            // Record failed login attempt for rate limiting
+            $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
+            $stmt = $this->pdo->prepare('INSERT INTO login_attempts (ip_address, email) VALUES (:ip, :email)');
+            $stmt->execute(['ip' => $ip, 'email' => $body['email']]);
+
             $this->auditService->log(
                 action: AuditAction::LOGIN_FAILED,
                 entityType: EntityType::ADMIN_USER,
@@ -44,12 +51,18 @@ class AuthController
             return $this->json($response, ['error' => 'invalid_credentials', 'message' => 'Invalid credentials'], 401);
         }
 
+        // Clear rate limit counter on successful login
+        $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
+        $stmt = $this->pdo->prepare('DELETE FROM login_attempts WHERE ip_address = :ip');
+        $stmt->execute(['ip' => $ip]);
+
         // Start session with custom name
         if (session_status() === PHP_SESSION_NONE) {
             session_name('_session');
             session_start();
         }
         $_SESSION['admin_user_id'] = $admin['id'];
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
         $this->auditService->log(
             action: AuditAction::LOGIN,
@@ -67,6 +80,7 @@ class AuthController
                 'locale' => $admin['locale'] ?? 'de',
                 'last_login_at' => $admin['last_login_at'] ?? null,
             ],
+            'csrf_token' => $_SESSION['csrf_token'],
         ]);
     }
 
@@ -111,6 +125,7 @@ class AuthController
                 'locale' => $admin['locale'] ?? 'de',
                 'last_login_at' => $admin['last_login_at'] ?? null,
             ],
+            'csrf_token' => $_SESSION['csrf_token'] ?? null,
         ]);
     }
 

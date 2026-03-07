@@ -18,6 +18,8 @@ use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminControlle
 use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminController;
 use App\Modules\Auth\Middleware\AdminSessionAuth;
 use App\Modules\Auth\Middleware\TerminalTokenAuth;
+use App\Shared\Middleware\CsrfMiddleware;
+use App\Shared\Middleware\RateLimitMiddleware;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
 
@@ -26,14 +28,14 @@ return function (App $app): void {
     $app->get('/api/health', [HealthController::class, 'check']);
 
     // Auth endpoints (login is public, rest require session)
-    $app->post('/api/auth/login', [AuthController::class, 'login']);
+    $app->post('/api/auth/login', [AuthController::class, 'login'])->add(RateLimitMiddleware::class);
 
     $app->group('/api/auth', function (RouteCollectorProxy $group) {
         $group->post('/logout', [AuthController::class, 'logout']);
         $group->get('/profile', [AuthController::class, 'profile']);
         $group->patch('/profile', [AuthController::class, 'updateProfile']);
         $group->patch('/change-password', [AuthController::class, 'changePassword']);
-    })->add(AdminSessionAuth::class);
+    })->add(CsrfMiddleware::class)->add(AdminSessionAuth::class);
 
     // Terminal sync endpoints (token auth)
     $app->group('/api/sync', function (RouteCollectorProxy $group) {
@@ -119,5 +121,5 @@ return function (App $app): void {
         $group->delete('/terminals/{id}', [TerminalsAdminController::class, 'destroy']);
         $group->post('/terminals/{id}/rotate-token', [TerminalsAdminController::class, 'rotateToken']);
         $group->post('/terminals/{id}/revoke', [TerminalsAdminController::class, 'revoke']);
-    })->add(AdminSessionAuth::class);
+    })->add(CsrfMiddleware::class)->add(AdminSessionAuth::class);
 };
