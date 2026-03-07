@@ -62,7 +62,11 @@ interface SummaryCardProps {
   testId: string
 }
 
-function SummaryCard({ label, value, color, testId }: SummaryCardProps) {
+interface SummaryCardMobileProps extends SummaryCardProps {
+  isMobile?: boolean
+}
+
+function SummaryCard({ label, value, color, testId, isMobile }: SummaryCardMobileProps) {
   return (
     <div
       data-testid={testId}
@@ -70,14 +74,14 @@ function SummaryCard({ label, value, color, testId }: SummaryCardProps) {
         background: 'linear-gradient(135deg, #1e3a5f 0%, #0d1829 100%)',
         border: `1px solid ${theme.colors.border.light}`,
         borderRadius: theme.borderRadius.xl,
-        padding: theme.spacing.xl,
+        padding: isMobile ? theme.spacing.md : theme.spacing.xl,
         textAlign: 'center',
       }}
     >
       <div
         style={{
           color: theme.colors.text.secondary,
-          fontSize: theme.typography.fontSize.sm,
+          fontSize: isMobile ? theme.typography.fontSize.xs : theme.typography.fontSize.sm,
           marginBottom: theme.spacing.sm,
         }}
       >
@@ -85,7 +89,7 @@ function SummaryCard({ label, value, color, testId }: SummaryCardProps) {
       </div>
       <div
         style={{
-          fontSize: '28px',
+          fontSize: isMobile ? '20px' : '28px',
           fontWeight: 700,
           fontFamily: 'JetBrains Mono, monospace',
           color,
@@ -260,11 +264,12 @@ export function ReportsPage() {
 
   const filterGroupStyle: React.CSSProperties = {
     display: 'flex',
-    flexWrap: 'wrap',
+    flexDirection: isMobile ? 'column' : 'row',
+    flexWrap: isMobile ? undefined : 'wrap',
     gap: theme.spacing.md,
-    alignItems: 'flex-end',
+    alignItems: isMobile ? 'stretch' : 'flex-end',
     marginBottom: theme.spacing.xl,
-    padding: theme.spacing.lg,
+    padding: isMobile ? theme.spacing.md : theme.spacing.lg,
     background: theme.colors.bg.card,
     border: `1px solid ${theme.colors.border.light}`,
     borderRadius: theme.borderRadius.lg,
@@ -279,6 +284,7 @@ export function ReportsPage() {
     fontWeight: 600,
     fontSize: theme.typography.fontSize.sm,
     cursor: 'pointer',
+    ...(isMobile ? { width: '100%' } : {}),
   }
 
   const exportBtnStyle: React.CSSProperties = {
@@ -291,6 +297,7 @@ export function ReportsPage() {
     fontSize: theme.typography.fontSize.sm,
     cursor: 'pointer',
     marginBottom: theme.spacing.lg,
+    ...(isMobile ? { width: '100%' } : {}),
   }
 
   const errorStyle: React.CSSProperties = {
@@ -306,7 +313,7 @@ export function ReportsPage() {
     background: theme.colors.bg.card,
     border: `1px solid ${theme.colors.border.light}`,
     borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.xl,
+    padding: isMobile ? theme.spacing.md : theme.spacing.xl,
     marginBottom: theme.spacing.xl,
   }
 
@@ -324,25 +331,28 @@ export function ReportsPage() {
       <>
         {/* Filters */}
         <div style={filterGroupStyle}>
-          <div>
-            <label style={labelStyle}>{t('reports.dateFrom')}</label>
-            <input
-              type="date"
-              data-testid="report-filter-date-from"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>{t('reports.dateTo')}</label>
-            <input
-              type="date"
-              data-testid="report-filter-date-to"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              style={inputStyle}
-            />
+          {/* Date row: side-by-side on mobile, inline on desktop */}
+          <div style={isMobile ? { display: 'flex', gap: theme.spacing.sm } : { display: 'contents' }}>
+            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
+              <label style={labelStyle}>{t('reports.dateFrom')}</label>
+              <input
+                type="date"
+                data-testid="report-filter-date-from"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
+              <label style={labelStyle}>{t('reports.dateTo')}</label>
+              <input
+                type="date"
+                data-testid="report-filter-date-to"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
+              />
+            </div>
           </div>
           <div>
             <label style={labelStyle}>{t('reports.groupBy')}</label>
@@ -350,7 +360,7 @@ export function ReportsPage() {
               data-testid="report-filter-group-by"
               value={groupBy}
               onChange={(e) => setGroupBy(e.target.value as GroupBy)}
-              style={inputStyle}
+              style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
             >
               <option value="category">{t('reports.groupByCategory')}</option>
               <option value="product">{t('reports.groupByProduct')}</option>
@@ -396,24 +406,28 @@ export function ReportsPage() {
                 label={t('reports.summaryRevenue')}
                 value={formatters.formatPrice(reportData.metadata.total_revenue_cents)}
                 color="#22c55e"
+                isMobile={isMobile}
               />
               <SummaryCard
                 testId="report-summary-quantity"
                 label={t('reports.summaryQuantity')}
                 value={reportData.metadata.total_quantity.toLocaleString(locale)}
                 color="#3b82f6"
+                isMobile={isMobile}
               />
               <SummaryCard
                 testId="report-summary-count"
                 label={t('reports.summaryCount')}
                 value={reportData.metadata.total_count.toLocaleString(locale)}
                 color="#a855f7"
+                isMobile={isMobile}
               />
               <SummaryCard
                 testId="report-summary-avg"
                 label={t('reports.summaryAvg')}
                 value={formatters.formatPrice(reportData.metadata.avg_transaction_cents)}
                 color="#f59e0b"
+                isMobile={isMobile}
               />
             </div>
 
@@ -421,7 +435,7 @@ export function ReportsPage() {
             <div data-testid="report-chart" style={cardStyle}>
               <h3 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('reports.chartTitle')}</h3>
               {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={220}>
+                <ResponsiveContainer width="100%" height={isMobile ? 160 : 220}>
                   <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={theme.colors.border.light} />
                     <XAxis
@@ -539,25 +553,28 @@ export function ReportsPage() {
       <>
         {/* Filters */}
         <div style={filterGroupStyle}>
-          <div>
-            <label style={labelStyle}>{t('reports.dateFrom')}</label>
-            <input
-              type="date"
-              data-testid="report-filter-date-from"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>{t('reports.dateTo')}</label>
-            <input
-              type="date"
-              data-testid="report-filter-date-to"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              style={inputStyle}
-            />
+          {/* Date row: side-by-side on mobile, inline on desktop */}
+          <div style={isMobile ? { display: 'flex', gap: theme.spacing.sm } : { display: 'contents' }}>
+            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
+              <label style={labelStyle}>{t('reports.dateFrom')}</label>
+              <input
+                type="date"
+                data-testid="report-filter-date-from"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
+              <label style={labelStyle}>{t('reports.dateTo')}</label>
+              <input
+                type="date"
+                data-testid="report-filter-date-to"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
+              />
+            </div>
           </div>
           <div>
             <label style={labelStyle}>{t('reports.limit')}</label>
@@ -565,7 +582,7 @@ export function ReportsPage() {
               data-testid="ranking-limit"
               value={rankingLimit}
               onChange={(e) => setRankingLimit(Number(e.target.value))}
-              style={inputStyle}
+              style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
@@ -691,25 +708,28 @@ export function ReportsPage() {
       <>
         {/* Filters */}
         <div style={filterGroupStyle}>
-          <div>
-            <label style={labelStyle}>{t('reports.dateFrom')}</label>
-            <input
-              type="date"
-              data-testid="report-filter-date-from"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>{t('reports.dateTo')}</label>
-            <input
-              type="date"
-              data-testid="report-filter-date-to"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              style={inputStyle}
-            />
+          {/* Date row: side-by-side on mobile, inline on desktop */}
+          <div style={isMobile ? { display: 'flex', gap: theme.spacing.sm } : { display: 'contents' }}>
+            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
+              <label style={labelStyle}>{t('reports.dateFrom')}</label>
+              <input
+                type="date"
+                data-testid="report-filter-date-from"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={isMobile ? { flex: 1, minWidth: 0 } : {}}>
+              <label style={labelStyle}>{t('reports.dateTo')}</label>
+              <input
+                type="date"
+                data-testid="report-filter-date-to"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                style={{ ...inputStyle, width: isMobile ? '100%' : undefined, boxSizing: 'border-box' }}
+              />
+            </div>
           </div>
           <button
             data-testid="report-apply-filter"
@@ -891,8 +911,8 @@ export function ReportsPage() {
   // ─── Main render ──────────────────────────────────────────────────────────
 
   return (
-    <div data-testid="reports-page" style={{ padding: '20px' }}>
-      <h2 style={{ margin: 0, marginBottom: theme.spacing.xl }}>{t('reports.title')}</h2>
+    <div data-testid="reports-page" style={{ padding: isMobile ? '12px' : '20px' }}>
+      <h2 style={{ margin: 0, marginBottom: theme.spacing.xl, fontSize: isMobile ? '20px' : undefined }}>{t('reports.title')}</h2>
 
       {/* Tab Bar */}
       <div
@@ -903,6 +923,8 @@ export function ReportsPage() {
           marginBottom: theme.spacing.xl,
           overflowX: 'auto',
           scrollbarWidth: 'none',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ...(isMobile ? { WebkitOverflowScrolling: 'touch' as any } : {}),
         }}
       >
         <button
