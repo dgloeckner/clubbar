@@ -39,7 +39,6 @@ The admin panel provides management and accounting functions for the bar system:
 | [UC-A13](./UC-A13-assign-rfid-card.md) | Assign RFID Card | Link card to member |
 | [UC-A14](./UC-A14-remove-rfid-card.md) | Remove RFID Card | Unlink card from member |
 | [UC-A15](./UC-A15-deactivate-member.md) | Deactivate Member | Disable member account |
-| [UC-A16](./UC-A16-import-members.md) | Import Members | Bulk import from CSV |
 
 ### Tab Management
 
@@ -86,13 +85,6 @@ The admin panel provides management and accounting functions for the bar system:
 | [UC-A61](./UC-A61-manage-admins.md) | Manage Admins | Admin user list |
 | [UC-A62](./UC-A62-create-admin.md) | Create Admin | Add admin user |
 | [UC-A63](./UC-A63-reset-admin-password.md) | Reset Admin Password | Generate new password |
-
-### RFID Management
-
-| ID | Name | Description |
-|----|------|-------------|
-| [UC-A70](./UC-A70-unassigned-cards.md) | Unassigned Cards | Cards without members |
-| [UC-A71](./UC-A71-block-card.md) | Block Card | Disable lost card |
 
 ### System
 
