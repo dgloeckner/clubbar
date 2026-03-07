@@ -5,7 +5,7 @@
  * - Bottom tab bar navigation (replaces desktop top nav)
  * - Mobile card views (replace desktop tables)
  * - MobileToolbar with search, sort dropdown, and collapsible filters
- * - Statistics page stacking
+ * - Reports page (tab bar and filter bar)
  * - Footer hidden on mobile
  *
  * Implements E2E Testing Patterns:
@@ -63,7 +63,7 @@ test.describe('Mobile Responsive Layout', () => {
       await expect(page.getByTestId('tab-more-popup')).toBeVisible()
 
       await expect(page.getByTestId('tab-categories')).toBeVisible()
-      await expect(page.getByTestId('tab-statistics')).toBeVisible()
+      await expect(page.getByTestId('tab-reports')).toBeVisible()
       await expect(page.getByTestId('tab-settings')).toBeVisible()
       await expect(page.getByTestId('tab-audit-log')).toBeVisible()
     })
@@ -75,11 +75,11 @@ test.describe('Mobile Responsive Layout', () => {
       await expect(page).toHaveURL(/\/categories/)
     })
 
-    test('should navigate to Statistics from More popup', async ({ page }) => {
+    test('should navigate to Reports from More popup', async ({ page }) => {
       await page.getByTestId('tab-more').click()
       await expect(page.getByTestId('tab-more-popup')).toBeVisible()
-      await page.getByTestId('tab-statistics').click()
-      await expect(page).toHaveURL(/\/statistics/)
+      await page.getByTestId('tab-reports').click()
+      await expect(page).toHaveURL(/\/reports/)
     })
   })
 
@@ -184,11 +184,11 @@ test.describe('Mobile Responsive Layout', () => {
     })
   })
 
-  test.describe('Statistics Page', () => {
-    test('should display summary boxes on Statistics page', async ({ page }) => {
-      await page.goto('/statistics')
-      await page.getByTestId('summary-boxes').waitFor({ state: 'visible', timeout: 15000 })
-      await expect(page.getByTestId('summary-boxes')).toBeVisible()
+  test.describe('Reports Page', () => {
+    test('should display reports page on mobile', async ({ page }) => {
+      await page.goto('/reports')
+      await page.getByTestId('reports-page').waitFor({ state: 'visible', timeout: 15000 })
+      await expect(page.getByTestId('reports-page')).toBeVisible()
     })
   })
 
