@@ -1,8 +1,8 @@
 # ADR-0014: Robust RFID Scanning Integration
 
-**Status**: Accepted
+**Status**: Accepted (Revised)
 
-**Date**: 2025-01-23
+**Date**: 2025-01-23 (Revised: 2026-03-07)
 
 ---
 
@@ -13,7 +13,7 @@ The terminal application identifies members via RFID/NFC cards. Each member is a
 Key requirements:
 
 1. **Hardware flexibility**: Support various USB RFID/NFC readers (Mifare, NFC, etc.)
-2. **Reliability**: Handle reader disconnections, malformed reads, and rapid successive scans
+2. **Reliability**: Handle malformed reads and rapid successive scans
 3. **Performance**: Instant member lookup from local SQLite cache
 4. **Security**: RFID serves as identification only, not authentication
 5. **User feedback**: Clear visual/audio feedback for successful and failed scans
@@ -25,23 +25,23 @@ Common USB RFID/NFC readers operate in one of two modes:
 
 | Mode | Behavior | Pros | Cons |
 |------|----------|------|------|
-| **Keyboard emulation** | Reader types card UID as keystrokes | Universal compatibility; no drivers | Captures keyboard focus; slower |
-| **HID raw mode** | Reader sends binary data via USB HID | Faster; doesn't steal focus | Requires node-hid; device-specific parsing |
+| **Keyboard emulation** | Reader types card UID as keystrokes followed by Enter | Universal compatibility; no drivers; no native dependencies | Requires hidden input field to capture keystrokes |
+| **HID raw mode** | Reader sends binary data via USB HID | Faster; doesn't steal focus | Requires native USB library; device-specific parsing |
 
 ---
 
 ## Decision
 
-**The terminal uses node-hid in the Electron main process to communicate with USB RFID readers in HID raw mode. Card UIDs are transmitted to the React renderer via IPC. Member lookup is performed against the local SQLite cache. Keyboard emulation mode is supported as fallback.**
+**The terminal uses keyboard emulation mode as the primary RFID input method in a Flutter desktop application. RFID readers operating in keyboard emulation mode type the card UID as keystrokes followed by Enter. The Flutter app captures these via a hidden TextField whose `onSubmitted` callback emits the UID to an `RfidService` stream. Member lookup is performed against the local Drift SQLite cache.**
 
 ### Core Principles
 
-1. **Main process handles hardware**: All USB/HID communication in Electron main process (Node.js context)
-2. **Secure IPC bridge**: Card events passed to renderer via contextBridge (no direct node-hid access in renderer)
-3. **Local-first lookup**: Member resolution uses SQLite cache; no network required
-4. **Graceful degradation**: Fallback to keyboard emulation if HID mode fails
-5. **Debouncing**: Prevent duplicate scans from rapid card taps
-6. **Identification, not authentication**: Card UID identifies member; terminal is pre-authorized via API token
+1. **Keyboard emulation as primary**: USB RFID readers in keyboard emulation mode provide universal compatibility without native dependencies
+2. **Stream-based architecture**: Card UIDs flow through a Dart `StreamController` for clean decoupling between input capture and business logic
+3. **Local-first lookup**: Member resolution uses Drift SQLite cache; no network required
+4. **Debounce via scanning state**: The `RfidProvider` prevents duplicate scans by tracking an `_isScanning` flag
+5. **Identification, not authentication**: Card UID identifies member; terminal is pre-authorized via API token
+6. **Sound feedback**: `SoundService` plays distinct sounds for success and error outcomes
 
 ### Architecture
 
@@ -49,51 +49,52 @@ Common USB RFID/NFC readers operate in one of two modes:
 sequenceDiagram
     participant Card as RFID Card
     participant Reader as USB Reader
-    participant Main as Electron Main Process
-    participant IPC as IPC Bridge
-    participant Renderer as React Renderer
-    participant DB as SQLite Cache
+    participant OS as OS Keyboard Input
+    participant TextField as Hidden TextField
+    participant Service as RealRfidService
+    participant Provider as RfidProvider
+    participant Repo as MembersRepository (Drift SQLite)
+    participant Sound as SoundService
 
     Card->>Reader: Card presented
-    Reader->>Main: USB HID event (raw bytes)
-    Main->>Main: Parse card UID from HID data
-    Main->>Main: Debounce check (500ms)
+    Reader->>OS: Keyboard HID events (UID chars + Enter)
+    OS->>TextField: Keystrokes arrive in hidden TextField
+    TextField->>Service: onSubmitted(cardUid)
+    Service->>Service: Trim and uppercase UID
+    Service->>Provider: cardScans stream emission
 
-    alt Duplicate scan (within debounce window)
-        Main->>Main: Ignore duplicate
+    alt Already scanning (debounce)
+        Provider->>Provider: Ignore (isScanning = true)
     else New scan
-        Main->>IPC: cardScanned(card_uid)
-        IPC->>Renderer: onCardScanned event
-        Renderer->>DB: SELECT * FROM members_cache WHERE card_uid = ?
+        Provider->>Repo: findByCardUid(card_uid)
 
-        alt Member found and active
-            DB-->>Renderer: Member record
-            Renderer->>Renderer: Open transaction UI for member
-            Renderer->>Renderer: Play success sound
+        alt Member found, active, SEPA valid
+            Repo-->>Provider: Member record
+            Provider->>Sound: play(scanSuccess)
+            Provider->>Provider: Navigate to product selection
         else Member not found
-            DB-->>Renderer: No results
-            Renderer->>Renderer: Show "Unknown card" error
-            Renderer->>Renderer: Play error sound
-        else Member inactive/deleted
-            DB-->>Renderer: Member with is_active=false
-            Renderer->>Renderer: Show "Card blocked" error
-            Renderer->>Renderer: Play error sound
+            Repo-->>Provider: No results
+            Provider->>Sound: play(scanError)
+            Provider->>Provider: Show "Unknown card" error
+        else Member inactive or SEPA invalid
+            Repo-->>Provider: Error key
+            Provider->>Sound: play(scanError)
+            Provider->>Provider: Show error message
         end
     end
 ```
 
-### Electron Process Separation
+### Flutter Architecture
 
-| Responsibility | Process | Technology |
-|----------------|---------|------------|
-| USB device enumeration | Main | node-hid |
-| HID event handling | Main | node-hid |
-| Card UID parsing | Main | Custom parser per reader type |
-| Debouncing | Main | Timer-based (500ms default) |
-| IPC communication | Main ↔ Renderer | contextBridge, ipcMain/ipcRenderer |
-| Member lookup | Renderer | better-sqlite3 via preload |
-| UI feedback | Renderer | React + Mantine |
-| Audio feedback | Renderer | Web Audio API |
+| Responsibility | Component | Technology |
+|----------------|-----------|------------|
+| Keyboard input capture | Hidden `TextField` widget | Flutter `onSubmitted` callback |
+| UID stream management | `RealRfidService` | Dart `StreamController<String>.broadcast()` |
+| Card UID normalization | `RealRfidService.emitScan()` | `trim().toUpperCase()` |
+| Member lookup | `MembersRepository` | Drift ORM (SQLite) |
+| Scan state and navigation | `RfidProvider` | `ChangeNotifier` (Provider pattern) |
+| Audio feedback | `SoundService` | `audioplayers` package |
+| Mock/demo scanning | `MockRfidService` | Simulated card detection for development |
 
 ### Card UID Handling
 
@@ -105,29 +106,33 @@ sequenceDiagram
 | Comparison | Case-insensitive (normalize to uppercase) |
 | Uniqueness | Enforced at database level (UNIQUE constraint) |
 
-### Reader Connection Management
+### Reader Input Flow
 
 ```mermaid
 flowchart TD
-    Start([App Start]) --> Enumerate[Enumerate USB HID devices]
-    Enumerate --> Filter[Filter for known RFID readers]
-    Filter --> Found{Reader found?}
+    Start([App Start]) --> Mount[Mount hidden TextField on idle screen]
+    Mount --> Focus[TextField receives focus]
+    Focus --> Wait[Wait for keyboard input]
 
-    Found -->|Yes| Connect[Open HID connection]
-    Found -->|No| Fallback[Enable keyboard fallback mode]
+    Wait --> Keystroke[Reader types UID chars]
+    Keystroke --> Enter[Reader sends Enter key]
+    Enter --> Submit[onSubmitted fires with UID string]
 
-    Connect --> Listen[Listen for HID events]
-    Listen --> Disconnected{Disconnected?}
+    Submit --> Emit[RealRfidService.emitScan]
+    Emit --> Normalize[Trim and uppercase UID]
+    Normalize --> Stream[Emit to cardScans stream]
 
-    Disconnected -->|Yes| Retry[Retry connection<br/>every 5 seconds]
-    Retry --> Found
+    Stream --> Scanning{isScanning?}
+    Scanning -->|Yes| Wait
+    Scanning -->|No| Lookup[MembersRepository.findByCardUid]
 
-    Disconnected -->|No| Listen
+    Lookup --> Found{Member found?}
+    Found -->|Yes, active| Success[Play success sound + navigate]
+    Found -->|No or inactive| Error[Play error sound + show message]
 
-    Fallback --> KeyboardListen[Listen for keyboard input<br/>with terminator detection]
-    KeyboardListen --> Disconnected2{HID reader<br/>reconnected?}
-    Disconnected2 -->|Yes| Connect
-    Disconnected2 -->|No| KeyboardListen
+    Success --> Reset[Reset scanning state]
+    Error --> Reset
+    Reset --> Wait
 ```
 
 ### Error Handling
@@ -136,26 +141,14 @@ flowchart TD
 |----------|----------|---------------|
 | Unknown card UID | Log scan attempt; do not create member | "Unknown card" message; error sound |
 | Inactive member | Reject transaction | "Card blocked" message; error sound |
-| Reader disconnected | Switch to keyboard fallback; retry HID | Status indicator shows "Reader disconnected" |
-| Malformed HID data | Discard; log warning | None (silent failure) |
-| Rapid duplicate scans | Debounce (500ms window) | None (ignore duplicates) |
-| Multiple readers connected | Use first matching reader | None (automatic selection) |
-
-### Keyboard Fallback Mode
-
-When HID mode is unavailable, the terminal accepts keyboard input:
-
-| Aspect | Specification |
-|--------|---------------|
-| Trigger | No HID reader detected; HID connection lost |
-| Input capture | Global keyboard listener in renderer |
-| Terminator | Enter key (reader sends UID + Enter) |
-| Timeout | 100ms between keystrokes; reset buffer on timeout |
-| Security | Only active when HID unavailable |
+| SEPA data invalid | Reject transaction | SEPA error message; error sound |
+| Malformed input | Empty/whitespace UIDs discarded by `emitScan()` | None (silent discard) |
+| Rapid duplicate scans | Blocked by `_isScanning` flag | None (ignore while processing) |
+| Database error | Catch exception; set error state | Database error message; error sound |
 
 ### Supported Reader Types
 
-The system is designed to work with standard USB HID RFID/NFC readers:
+The system is designed to work with standard USB HID RFID/NFC readers in keyboard emulation mode:
 
 | Reader Type | Card Technology | UID Length |
 |-------------|-----------------|------------|
@@ -164,7 +157,7 @@ The system is designed to work with standard USB HID RFID/NFC readers:
 | NFC (ISO 14443) | 13.56 MHz | 4, 7, or 10 bytes |
 | EM4100 | 125 kHz | 5 bytes |
 
-**Note**: Specific reader models may require custom HID parsing logic. The architecture supports pluggable parsers.
+**Note**: Any USB reader that supports keyboard emulation mode will work without additional configuration. The reader must be configured to output the card UID as hexadecimal characters followed by Enter.
 
 ### Security Considerations
 
@@ -183,44 +176,45 @@ The system is designed to work with standard USB HID RFID/NFC readers:
 
 ### Positive
 
-- **Instant identification**: SQLite lookup is sub-millisecond
+- **Instant identification**: Drift SQLite lookup is sub-millisecond
 - **Offline capable**: No network required for card scanning
-- **Hardware agnostic**: Works with most USB RFID/NFC readers
-- **Resilient**: Automatic reconnection and keyboard fallback
-- **Simple UX**: Tap card → immediate feedback
+- **Universal reader compatibility**: Any USB RFID reader with keyboard emulation mode works out of the box
+- **No native dependencies**: No platform-specific USB libraries needed
+- **Simple UX**: Tap card, immediate feedback
+- **Cross-platform**: Flutter desktop app runs on macOS, Linux, and Windows
 
 ### Negative
 
 - **No card security**: UID can be cloned (Mifare Classic vulnerability)
-- **Reader-specific parsing**: Some readers may need custom HID parsers
-- **Main process complexity**: Hardware handling adds complexity to main process
+- **Hidden TextField approach**: Requires careful focus management to ensure the hidden input field captures keystrokes
+- **No reader status detection**: Cannot distinguish "no reader connected" from "reader connected, no card scanned"
 
 ### Mitigations
 
 1. **Card cloning**: Accept as known limitation; social trust model appropriate for member bars
-2. **Parser maintenance**: Document HID protocol for common readers; community contributions welcome
-3. **Complexity**: Isolate HID logic in dedicated module; comprehensive unit tests
+2. **Focus management**: Hidden TextField is mounted on the idle screen and auto-focused; re-focus logic handles edge cases
+3. **Reader status**: Provide manual "test scan" button for operators to verify reader is working
 
 ---
 
 ## Alternatives Considered
 
-### Alternative 1: Keyboard Emulation Only
+### Alternative 1: Electron + node-hid (HID Raw Mode) — Original ADR Design
 
-Use only keyboard emulation mode; no node-hid.
+The original version of this ADR specified an Electron-based terminal using `node-hid` in the main process to communicate with USB RFID readers in HID raw mode, with card events passed to the React renderer via `contextBridge` IPC.
 
-**Pros**: Simpler implementation; universal reader compatibility
+**Pros**: Faster than keyboard emulation; doesn't require keyboard focus; can detect reader disconnection
 **Cons**:
-- Reader steals keyboard focus (problematic for UI)
-- Slower than HID mode
-- Cannot detect reader disconnection
-- Security risk (any keyboard input accepted)
+- Requires native `node-hid` dependency (platform-specific compilation)
+- Reader-specific HID parsing logic needed for each reader model
+- Electron main process complexity (USB enumeration, reconnection logic)
+- Terminal was ultimately built in Flutter, not Electron
 
-**Rejected**: HID mode provides better UX and reliability; keyboard is fallback only.
+**Rejected**: The terminal was implemented as a Flutter desktop app for cross-platform support and offline-first capabilities. Keyboard emulation provides universal reader compatibility without native USB dependencies, making it the natural primary approach for a Flutter app.
 
 ### Alternative 2: Serial Port Communication
 
-Use USB-to-serial readers with serialport library.
+Use USB-to-serial readers with a serial port library.
 
 **Pros**: Well-documented protocol for some readers
 **Cons**:
@@ -228,19 +222,19 @@ Use USB-to-serial readers with serialport library.
 - Additional driver requirements
 - Platform-specific configuration
 
-**Rejected**: HID is more universal and driver-free.
+**Rejected**: Keyboard emulation is more universal and driver-free.
 
-### Alternative 3: WebUSB in Renderer
+### Alternative 3: Flutter Platform Channels to Native USB
 
-Use WebUSB API directly in Electron renderer.
+Use Flutter platform channels to invoke native USB HID APIs per platform.
 
-**Pros**: No IPC complexity; web-standard API
+**Pros**: Direct hardware access; reader status detection
 **Cons**:
-- Limited device support in Electron
-- Security sandbox restrictions
-- Less reliable than node-hid
+- Requires platform-specific native code (Swift/Kotlin/C++)
+- Significant maintenance burden for three desktop platforms
+- Complex build setup for native dependencies
 
-**Rejected**: node-hid in main process is more reliable for production use.
+**Rejected**: Keyboard emulation avoids all native code complexity while supporting the same readers.
 
 ### Alternative 4: External Reader Service
 
@@ -250,9 +244,9 @@ Run separate background service for reader communication.
 **Cons**:
 - Additional deployment complexity
 - IPC overhead between processes
-- Harder to package with Electron
+- Harder to package and distribute
 
-**Rejected**: Integrated node-hid is simpler for single-application deployment.
+**Rejected**: Integrated keyboard capture is simpler for single-application deployment.
 
 ---
 
@@ -264,8 +258,8 @@ Run separate background service for reader communication.
 
 ## References
 
-- **node-hid**: [GitHub - node-hid](https://github.com/node-hid/node-hid)
-- **Electron IPC**: [Electron contextBridge](https://www.electronjs.org/docs/latest/api/context-bridge)
+- **Flutter KeyboardListener**: [Flutter RawKeyboardListener](https://api.flutter.dev/flutter/widgets/RawKeyboardListener-class.html)
+- **Drift ORM**: [Drift — Reactive persistence library for Flutter & Dart](https://drift.simonbinder.eu/)
 - **Mifare UID**: [NXP Mifare Documentation](https://www.nxp.com/products/rfid-nfc/mifare-hf:MC_53422)
 - **USB HID Specification**: [USB HID Usage Tables](https://usb.org/document-library/hid-usage-tables-15)
 
@@ -273,8 +267,14 @@ Run separate background service for reader communication.
 
 ## Post-Implementation Monitoring
 
-- Track reader disconnection frequency and duration
-- Monitor fallback mode activation rate
 - Log unknown card scan attempts (potential new member onboarding)
 - Measure card-to-UI latency (target: < 100ms)
 - Test with multiple reader models during QA
+- Monitor focus loss on hidden TextField (edge case for reliability)
+- Track error rates by error type (unknown card, inactive, SEPA invalid)
+
+---
+
+## Technology Change Note
+
+The original version of this ADR (2025-01-23) specified an Electron-based terminal using `node-hid` for HID raw mode communication with RFID readers, `contextBridge` IPC for card events, `better-sqlite3` for member lookup, React/Mantine for UI, and Web Audio API for sound feedback. The terminal was subsequently implemented as a Flutter desktop application (see `terminal-frontend/`), using Drift ORM for SQLite, Provider for state management, and `audioplayers` for sound. This made keyboard emulation the natural primary RFID input method, as Flutter does not have a `node-hid` equivalent and keyboard emulation provides universal reader compatibility without native dependencies. This ADR was revised on 2026-03-07 to reflect the implemented architecture.
