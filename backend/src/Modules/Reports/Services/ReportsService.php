@@ -183,6 +183,180 @@ class ReportsService
     }
 
     /**
+     * Get member consumption ranking (UC-A51).
+     */
+    public function getMemberRanking(
+        ?string $dateFrom,
+        ?string $dateTo,
+        bool $anonymize = false,
+        int $limit = 25,
+    ): array {
+        $limit = min(max($limit, 1), 100);
+
+        $conditions = ["t.transaction_type = 'purchase'"];
+        $params = [];
+
+        if ($dateFrom) {
+            $conditions[] = 't.created_at >= ?';
+            $params[] = $dateFrom;
+        }
+        if ($dateTo) {
+            $conditions[] = 't.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
+            $params[] = $dateTo;
+        }
+
+        $where = implode(' AND ', $conditions);
+
+        $stmt = $this->db->prepare(
+            "SELECT m.id, m.first_name, m.last_name,
+                    SUM(t.amount_cents) as total_amount_cents,
+                    COUNT(*) as transaction_count
+             FROM transactions t
+             JOIN members m ON t.member_id = m.id
+             WHERE {$where}
+             GROUP BY m.id
+             ORDER BY total_amount_cents DESC
+             LIMIT {$limit}"
+        );
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+
+        $data = [];
+        $rank = 1;
+        foreach ($rows as $row) {
+            $data[] = [
+                'rank' => $rank,
+                'member_name' => $anonymize
+                    ? "Member {$rank}"
+                    : trim($row['first_name'] . ' ' . $row['last_name']),
+                'total_amount_cents' => (int) $row['total_amount_cents'],
+                'transaction_count' => (int) $row['transaction_count'],
+            ];
+            $rank++;
+        }
+
+        return ['data' => $data];
+    }
+
+    /**
+     * Get terminal activity report (UC-A52).
+     * Sessions: gap of 30+ minutes between transactions = new session.
+     */
+    public function getTerminalActivity(
+        string $dateFrom,
+        string $dateTo,
+        ?string $terminalId = null,
+    ): array {
+        $conditions = ['1=1'];
+        $params = [];
+
+        $conditions[] = 't.created_at >= ?';
+        $params[] = $dateFrom;
+        $conditions[] = 't.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
+        $params[] = $dateTo;
+
+        if ($terminalId) {
+            $conditions[] = 't.created_by_terminal_id = ?';
+            $params[] = $terminalId;
+        }
+
+        $where = implode(' AND ', $conditions);
+
+        // Get all transactions ordered by time
+        $stmt = $this->db->prepare(
+            "SELECT t.id, t.created_by_terminal_id, t.amount_cents, t.created_at,
+                    te.name as terminal_name
+             FROM transactions t
+             LEFT JOIN terminals te ON t.created_by_terminal_id = te.id
+             WHERE {$where}
+             ORDER BY t.created_at ASC"
+        );
+        $stmt->execute($params);
+        $transactions = $stmt->fetchAll();
+
+        // Build sessions (30-minute gap = new session)
+        $sessions = [];
+        $currentSession = null;
+        $sessionGapSeconds = 30 * 60;
+
+        foreach ($transactions as $tx) {
+            $txTime = strtotime($tx['created_at']);
+            if ($currentSession === null || ($txTime - $currentSession['last_time']) > $sessionGapSeconds) {
+                if ($currentSession !== null) {
+                    $sessions[] = $this->finalizeSession($currentSession);
+                }
+                $currentSession = [
+                    'date' => date('Y-m-d', $txTime),
+                    'start_time' => date('H:i:s', $txTime),
+                    'last_time' => $txTime,
+                    'end_time' => date('H:i:s', $txTime),
+                    'transaction_count' => 0,
+                    'revenue_cents' => 0,
+                ];
+            }
+            $currentSession['last_time'] = $txTime;
+            $currentSession['end_time'] = date('H:i:s', $txTime);
+            $currentSession['transaction_count']++;
+            $currentSession['revenue_cents'] += (int) $tx['amount_cents'];
+        }
+        if ($currentSession !== null) {
+            $sessions[] = $this->finalizeSession($currentSession);
+        }
+
+        // Hourly distribution (all 24 hours)
+        $hourlyStmt = $this->db->prepare(
+            "SELECT HOUR(t.created_at) as hour, COUNT(*) as transaction_count
+             FROM transactions t
+             WHERE {$where}
+             GROUP BY HOUR(t.created_at)
+             ORDER BY hour"
+        );
+        $hourlyStmt->execute($params);
+        $hourlyRows = $hourlyStmt->fetchAll();
+        $hourMap = [];
+        foreach ($hourlyRows as $row) {
+            $hourMap[(int) $row['hour']] = (int) $row['transaction_count'];
+        }
+        $hourlyDist = [];
+        for ($h = 0; $h < 24; $h++) {
+            $hourlyDist[] = ['hour' => $h, 'transaction_count' => $hourMap[$h] ?? 0];
+        }
+
+        // Terminal summary
+        $terminalStmt = $this->db->prepare(
+            "SELECT te.id, te.name, COUNT(t.id) as transaction_count, MAX(te.last_sync_at) as last_sync_at
+             FROM transactions t
+             JOIN terminals te ON t.created_by_terminal_id = te.id
+             WHERE {$where}
+             GROUP BY te.id
+             ORDER BY transaction_count DESC"
+        );
+        $terminalStmt->execute($params);
+        $terminalRows = $terminalStmt->fetchAll();
+        $terminals = [];
+        foreach ($terminalRows as $row) {
+            $terminals[] = [
+                'id' => $row['id'],
+                'name' => $row['name'],
+                'transaction_count' => (int) $row['transaction_count'],
+                'last_sync_at' => $row['last_sync_at'],
+            ];
+        }
+
+        return [
+            'sessions' => $sessions,
+            'hourly_distribution' => $hourlyDist,
+            'terminals' => $terminals,
+        ];
+    }
+
+    private function finalizeSession(array $session): array
+    {
+        unset($session['last_time']);
+        return $session;
+    }
+
+    /**
      * @return array{string, string, string} [dimensionSelect, groupByClause, joins]
      */
     private function buildGroupBy(string $groupBy): array

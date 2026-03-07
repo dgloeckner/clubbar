@@ -115,6 +115,8 @@ return function (App $app): void {
         $group->put('/sepa-config', [SepaConfigController::class, 'update']);
 
         // Reports
+        $group->get('/reports/member-ranking', [ReportsAdminController::class, 'memberRanking']);
+        $group->get('/reports/terminal-activity', [ReportsAdminController::class, 'terminalActivity']);
         $group->get('/reports/{reportType}/export', [ReportsAdminController::class, 'exportReport']);
         $group->get('/reports/{reportType}', [ReportsAdminController::class, 'getReport']);
 

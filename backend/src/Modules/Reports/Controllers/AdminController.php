@@ -66,6 +66,45 @@ class AdminController
             ->withStatus(200);
     }
 
+    /**
+     * GET /api/admin/reports/member-ranking
+     */
+    public function memberRanking(Request $request, Response $response): Response
+    {
+        $params = $request->getQueryParams();
+
+        $data = $this->reportsService->getMemberRanking(
+            dateFrom: $params['date_from'] ?? null,
+            dateTo: $params['date_to'] ?? null,
+            anonymize: filter_var($params['anonymize'] ?? 'false', FILTER_VALIDATE_BOOLEAN),
+            limit: (int) ($params['limit'] ?? 25),
+        );
+
+        return $this->json($response, $data);
+    }
+
+    /**
+     * GET /api/admin/reports/terminal-activity
+     */
+    public function terminalActivity(Request $request, Response $response): Response
+    {
+        $params = $request->getQueryParams();
+        $dateFrom = $params['date_from'] ?? null;
+        $dateTo = $params['date_to'] ?? null;
+
+        if (!$dateFrom || !$dateTo) {
+            return $this->json($response, ['error' => 'date_from and date_to are required'], 400);
+        }
+
+        $data = $this->reportsService->getTerminalActivity(
+            dateFrom: $dateFrom,
+            dateTo: $dateTo,
+            terminalId: $params['terminal_id'] ?? null,
+        );
+
+        return $this->json($response, $data);
+    }
+
     private function json(Response $response, mixed $data, int $status = 200): Response
     {
         $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
