@@ -66,8 +66,8 @@ void main() {
       expect(find.byType(ProductSelectionScreen), findsOneWidget);
 
       // Verify the member name appears in the member bar
-      expect(find.text('Test'), findsOneWidget);
-      expect(find.text('Member'), findsOneWidget);
+      // MemberBar displays "$firstName $lastName" as a single Text widget
+      expect(find.text('Test Member'), findsOneWidget);
 
       rfidProvider.stopListening();
     });
