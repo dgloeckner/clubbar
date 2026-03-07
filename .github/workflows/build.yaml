@@ -40,6 +40,22 @@ jobs:
   test-backend:
     runs-on: ubuntu-24.04
 
+    services:
+      database:
+        image: mariadb:10.11
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: clubbar
+          MYSQL_USER: clubbar
+          MYSQL_PASSWORD: clubbar
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -48,6 +64,7 @@ jobs:
         with:
           php-version: '8.3'
           tools: composer
+          extensions: pdo_mysql, mbstring
 
       - name: Cache Composer packages
         uses: actions/cache@v4
@@ -60,9 +77,29 @@ jobs:
         run: composer install --no-interaction --prefer-dist
         working-directory: backend
 
+      - name: Run database migrations
+        run: |
+          php -r "
+            require 'vendor/autoload.php';
+            \$pdo = new PDO('mysql:host=127.0.0.1;dbname=clubbar;charset=utf8mb4', 'clubbar', 'clubbar');
+            \$runner = new App\Db\MigrationRunner(\$pdo);
+            \$log = \$runner->migrate(__DIR__ . '/db/migrations', 'ci');
+            foreach (\$log as \$entry) echo \$entry . PHP_EOL;
+          "
+        working-directory: backend
+
       - name: Run unit tests
         run: php vendor/bin/phpunit -c phpunit.xml --testsuite Unit
         working-directory: backend
+
+      - name: Run feature tests
+        run: php vendor/bin/phpunit -c phpunit.xml --testsuite Feature
+        working-directory: backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_NAME: clubbar
+          DB_USER: clubbar
+          DB_PASS: clubbar
 
   build-frontend:
     runs-on: ubuntu-24.04
@@ -346,11 +383,19 @@ jobs:
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             xvfb
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - name: Cache Flutter SDK
+        uses: actions/cache@v4
         with:
-          channel: stable
-          cache: true
+          path: ~/flutter
+          key: flutter-arm64-stable-${{ hashFiles('terminal-frontend/pubspec.lock') }}
+          restore-keys: flutter-arm64-stable-
+
+      - name: Setup Flutter
+        run: |
+          if [ ! -d ~/flutter ]; then
+            git clone https://github.com/flutter/flutter.git --depth 1 -b stable ~/flutter
+          fi
+          echo "$HOME/flutter/bin" >> $GITHUB_PATH
 
       - name: Enable Linux desktop
         run: flutter config --enable-linux-desktop
