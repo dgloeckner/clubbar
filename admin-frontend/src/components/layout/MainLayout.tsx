@@ -182,13 +182,13 @@ export function MainLayout({ children }: MainLayoutProps) {
             display: isMobile ? 'none' : 'flex',
             gap: '2px',
             width: isMobile ? '100%' : 'auto',
-            overflowX: isMobile ? 'auto' : 'visible',
+            overflowX: 'auto',
             WebkitOverflowScrolling: 'touch',
             scrollBehavior: 'smooth',
             flex: 1,
             minWidth: 0,
-            justifyContent: 'center',
-            // Hide scrollbar for mobile
+            justifyContent: 'flex-start',
+            // Hide scrollbar
             msOverflowStyle: 'none',
             scrollbarWidth: 'none',
           }}
@@ -202,13 +202,13 @@ export function MainLayout({ children }: MainLayoutProps) {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: isSmallMobile ? `${theme.spacing.sm} ${theme.spacing.md}` : `${theme.spacing.sm} ${theme.spacing.md}`,
+                gap: '4px',
+                padding: `${theme.spacing.sm} ${theme.spacing.sm}`,
                 borderRadius: theme.borderRadius.md,
                 background: isActive(item.path) ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
                 color: isActive(item.path) ? theme.colors.semantic.primary : theme.colors.text.secondary,
                 textDecoration: 'none',
-                fontSize: theme.typography.fontSize.sm,
+                fontSize: theme.typography.fontSize.xs,
                 fontWeight: theme.typography.fontWeight.medium,
                 transition: `all ${theme.transitions.default}`,
                 whiteSpace: 'nowrap',

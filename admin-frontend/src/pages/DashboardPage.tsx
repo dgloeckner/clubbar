@@ -92,7 +92,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div data-testid="dashboard-page" style={{ padding: isMobile ? theme.spacing.lg : theme.spacing['2xl'], maxWidth: '1200px' }}>
+    <div data-testid="dashboard-page" style={{ padding: isMobile ? `${theme.spacing.sm} 0` : theme.spacing['2xl'], maxWidth: '1200px' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.xl }}>
         <h1 data-testid="dashboard-title" style={{
@@ -156,7 +156,7 @@ export function DashboardPage() {
       {/* Two-column layout: Transactions + Sidebar */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
+        gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '2fr 1fr',
         gap: theme.spacing.xl,
       }}>
         {/* Recent Transactions */}
@@ -164,7 +164,7 @@ export function DashboardPage() {
           background: theme.colors.bg.card,
           border: `1px solid ${theme.colors.border.light}`,
           borderRadius: theme.borderRadius.lg,
-          padding: theme.spacing.xl,
+          padding: isMobile ? theme.spacing.md : theme.spacing.xl,
         }}>
           <h2 style={{
             fontSize: theme.typography.fontSize.lg,
@@ -190,8 +190,8 @@ export function DashboardPage() {
                   borderRadius: theme.borderRadius.sm,
                   background: theme.colors.bg.secondary,
                 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.primary }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {tx.member_name}
                     </div>
                     <div style={{ fontSize: theme.typography.fontSize.xs, color: theme.colors.text.muted }}>
@@ -203,6 +203,9 @@ export function DashboardPage() {
                     fontWeight: theme.typography.fontWeight.semibold,
                     fontFamily: 'JetBrains Mono, monospace',
                     color: tx.amount_cents < 0 ? theme.colors.semantic.success : theme.colors.text.primary,
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                    marginLeft: theme.spacing.sm,
                   }}>
                     {formatPrice(tx.amount_cents)}
                   </div>
@@ -219,7 +222,7 @@ export function DashboardPage() {
             background: theme.colors.bg.card,
             border: `1px solid ${theme.colors.border.light}`,
             borderRadius: theme.borderRadius.lg,
-            padding: theme.spacing.xl,
+            padding: isMobile ? theme.spacing.md : theme.spacing.xl,
           }}>
             <h2 style={{
               fontSize: theme.typography.fontSize.lg,
@@ -245,7 +248,7 @@ export function DashboardPage() {
                     borderRadius: theme.borderRadius.sm,
                     background: theme.colors.bg.secondary,
                   }}>
-                    <span style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.primary }}>
+                    <span style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                       {term.name}
                     </span>
                     <span data-testid={`dashboard-terminal-status-${term.id}`} style={{
@@ -253,6 +256,8 @@ export function DashboardPage() {
                       fontWeight: theme.typography.fontWeight.semibold,
                       color: statusColor(term.status),
                       textTransform: 'uppercase',
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
                     }}>
                       {t(`dashboard.${term.status}`)}
                     </span>
@@ -267,7 +272,7 @@ export function DashboardPage() {
             background: theme.colors.bg.card,
             border: `1px solid ${theme.colors.border.light}`,
             borderRadius: theme.borderRadius.lg,
-            padding: theme.spacing.xl,
+            padding: isMobile ? theme.spacing.md : theme.spacing.xl,
           }}>
             <h2 style={{
               fontSize: theme.typography.fontSize.lg,
@@ -315,7 +320,7 @@ export function DashboardPage() {
             background: theme.colors.bg.card,
             border: `1px solid ${theme.colors.border.light}`,
             borderRadius: theme.borderRadius.lg,
-            padding: theme.spacing.xl,
+            padding: isMobile ? theme.spacing.md : theme.spacing.xl,
           }}>
             <h2 style={{
               fontSize: theme.typography.fontSize.lg,
@@ -340,12 +345,14 @@ export function DashboardPage() {
                   padding: `${theme.spacing.xs} 0`,
                   borderBottom: `1px solid ${theme.colors.border.dark}`,
                 }}>
-                  <span style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.secondary }}>{label}</span>
+                  <span style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
                   <span style={{
                     fontSize: theme.typography.fontSize.sm,
                     fontWeight: theme.typography.fontWeight.medium,
                     color: theme.colors.text.primary,
                     fontFamily: 'JetBrains Mono, monospace',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
                   }}>
                     {value}
                   </span>
