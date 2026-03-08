@@ -17,7 +17,10 @@ class TerminalsRepository
 
     public function findById(string $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM terminals WHERE id = ?');
+        $stmt = $this->db->prepare(
+            'SELECT t.*, (SELECT MAX(tx.created_at) FROM transactions tx WHERE tx.created_by_terminal_id = t.id) AS last_transaction_at
+             FROM terminals t WHERE t.id = ?'
+        );
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }

@@ -912,14 +912,15 @@ test.describe('Transaction Export Endpoint', () => {
 
     expect(response.ok()).toBeTruthy();
 
-    // Fetch terminal list and verify last_transaction_at is set
-    const terminalsResponse = await authenticatedRequest.get('/api/admin/terminals');
+    // Fetch the seed terminal directly by its known UUID (from backend/db/seed.sql)
+    const seedTerminalId = '44e4567-e89b-12d3-a456-426614174000';
+    const terminalsResponse = await authenticatedRequest.get(`/api/admin/terminals/${seedTerminalId}`);
     expect(terminalsResponse.ok()).toBeTruthy();
 
     const terminalsData = await terminalsResponse.json();
-    // The test terminal (test-device-001) should have last_transaction_at set
-    const testTerminal = terminalsData.data.find(t => t.device_id === 'test-device-001');
+    const testTerminal = terminalsData.terminal;
     expect(testTerminal).toBeDefined();
+    expect(testTerminal.device_id).toBe('test-device-001');
     expect(testTerminal.last_transaction_at).not.toBeNull();
     // Verify it's a valid ISO 8601 timestamp
     expect(new Date(testTerminal.last_transaction_at).getTime()).not.toBeNaN();

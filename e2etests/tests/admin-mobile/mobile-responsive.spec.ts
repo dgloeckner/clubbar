@@ -31,10 +31,10 @@ test.describe('Mobile Responsive Layout', () => {
     })
 
     test('should display all 5 tabs', async ({ page }) => {
+      await expect(page.getByTestId('tab-dashboard')).toBeVisible()
       await expect(page.getByTestId('tab-members')).toBeVisible()
       await expect(page.getByTestId('tab-products')).toBeVisible()
       await expect(page.getByTestId('tab-journal')).toBeVisible()
-      await expect(page.getByTestId('tab-settlements')).toBeVisible()
       await expect(page.getByTestId('tab-more')).toBeVisible()
     })
 
@@ -48,7 +48,9 @@ test.describe('Mobile Responsive Layout', () => {
       await expect(page).toHaveURL(/\/journal/)
     })
 
-    test('should navigate to Settlements when clicking Settlements tab', async ({ page }) => {
+    test('should navigate to Settlements via More popup', async ({ page }) => {
+      await page.getByTestId('tab-more').click()
+      await expect(page.getByTestId('tab-more-popup')).toBeVisible()
       await page.getByTestId('tab-settlements').click()
       await expect(page).toHaveURL(/\/settlements/)
     })

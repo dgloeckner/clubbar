@@ -11,14 +11,14 @@ test.describe('Admin Dashboard Page (UC-A80)', () => {
     await authenticatedDashboardPage.expectSystemStatusVisible()
   })
 
-  test('displays 4 stat cards with correct labels', async ({ authenticatedDashboardPage, page }) => {
+  test('displays 3 stat cards in metrics section', async ({ authenticatedDashboardPage, page }) => {
     await authenticatedDashboardPage.expectPageVisible()
 
     const metricsSection = page.getByTestId('dashboard-metrics')
     // Each StatCard has child elements (icon-container, label, value) that also start with "stat-card-".
     // Use :not() to exclude children and count only top-level card containers.
     const statCards = metricsSection.locator('[data-testid^="stat-card-"]:not([data-testid$="-icon-container"]):not([data-testid$="-label"]):not([data-testid$="-value"])')
-    await expect(statCards).toHaveCount(4)
+    await expect(statCards).toHaveCount(3)
   })
 
   test('displays recent transactions from API', async ({ authenticatedDashboardPage }) => {
