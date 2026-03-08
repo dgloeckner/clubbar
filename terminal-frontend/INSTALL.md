@@ -323,6 +323,143 @@ database and opens the idle RFID scanning screen.
 
 ---
 
+## 7. Optional: Token Dispenser
+
+Club Bar can integrate with a physical token dispenser for venues that use
+coin-operated equipment (saunas, laundromats, arcades). The dispenser is an
+**ESP8266 microcontroller** (Wemos D1 Mini) driving an **Azkoyen Hopper U-II**
+industrial token dispenser. See the
+[remote-token-dispenser](https://github.com/dgloeckner/remote-token-dispenser)
+repository for firmware, hardware assembly guide, and schematics.
+
+### How it works
+
+```
+┌──────────────┐   HTTP/REST   ┌──────────────┐   GPIO    ┌──────────────┐
+│   Club Bar   │──────────────▶│   ESP8266    │─────────▶│   Azkoyen    │
+│   Terminal   │◀──────────────│  (Wemos D1)  │◀─────────│  Hopper U-II │
+│  (Raspberry  │  local WiFi   │              │  opto-   │              │
+│     Pi)      │               │              │  coupled │              │
+└──────────────┘               └──────────────┘          └──────────────┘
+```
+
+1. Member taps RFID card and selects a product flagged with `requires_dispenser`
+2. Terminal sends `POST /dispense` to the ESP8266 with a transaction ID and
+   quantity
+3. ESP8266 activates the hopper motor; optical sensor counts dispensed tokens
+4. Terminal polls `GET /dispense/:txId` until the operation completes
+5. Transaction is recorded locally only after tokens are physically dispensed
+
+Key properties:
+- **Dispense-first, pay-after** — tokens dispense before the transaction is
+  recorded, eliminating refund complexity
+- **Crash-resilient** — ESP8266 persists state to flash memory; survives power
+  loss mid-transaction with exact token counts
+- **Idempotent** — client-generated transaction IDs prevent double-dispensing
+- **Jam detection** — watchdog timer halts the motor if no token pulse arrives
+  within 5 seconds
+
+### Hardware setup
+
+Follow the [assembly guide](https://github.com/dgloeckner/remote-token-dispenser/tree/main/hardware)
+in the remote-token-dispenser repository. Key requirements:
+
+- **Azkoyen Hopper U-II** set to **NEGATIVE mode** (active-LOW control signals)
+- **4x PC817 optocoupler modules** for galvanic isolation between ESP8266 and
+  hopper (3.3V logic ↔ 12V motor)
+- **12V DC power supply**, 2A minimum
+- **Hardware mod**: Add a 330 Ohm resistor in parallel with the stock 1k Ohm resistor
+  on each optocoupler for adequate drive current
+- Flash the ESP8266 firmware from the
+  [firmware/](https://github.com/dgloeckner/remote-token-dispenser/tree/main/firmware)
+  directory
+
+### Network setup
+
+The ESP8266 runs an HTTP server on port 80. The terminal communicates with it
+over local WiFi — no internet or cloud dependency required.
+
+- Assign the ESP8266 a **static IP** or **mDNS hostname** (e.g.
+  `dispenser.local`) on your local network
+- Ensure the Raspberry Pi and ESP8266 are on the **same WiFi network / VLAN**
+- The dispenser API requires an **API key** via `X-API-Key` header (configured
+  in both the ESP8266 firmware and the terminal `config.json`)
+
+### Terminal configuration
+
+Enable the dispenser in the terminal's `config.json`:
+
+```json
+{
+  "terminalId": "Club Bar-Kühlschrank",
+  "apiUrl": "https://club.example.com/api",
+  "apiToken": "...",
+  "dispenser": {
+    "enabled": true,
+    "baseUrl": "http://dispenser.local",
+    "apiKey": "your-dispenser-api-key",
+    "timeoutMs": 3000,
+    "pollIntervalMs": 250
+  }
+}
+```
+
+Or via environment variables:
+
+```bash
+DISPENSER_ENABLED=true
+DISPENSER_BASE_URL=http://dispenser.local
+DISPENSER_API_KEY=your-dispenser-api-key
+```
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `dispenser.enabled` | bool | `false` | Enable the dispenser integration. When `false`, products with `requires_dispenser` are sold normally without dispensing. |
+| `dispenser.baseUrl` | string | — | Base URL of the ESP8266 HTTP server, e.g. `http://192.168.1.50` or `http://dispenser.local`. |
+| `dispenser.apiKey` | string | — | Shared secret for `X-API-Key` authentication. Must match the key configured in the ESP8266 firmware. |
+| `dispenser.timeoutMs` | integer | `3000` | HTTP request timeout in milliseconds. Increase if the ESP8266 is on a slow network. |
+| `dispenser.pollIntervalMs` | integer | `250` | How often (ms) to poll for dispense completion. Lower values give faster UI feedback but more network traffic. |
+
+### Product setup
+
+In the Admin Panel, mark products that require token dispensing:
+
+1. Go to **Products** → edit or create a product
+2. Enable the **Requires dispenser** checkbox
+3. The product syncs to terminals on the next sync cycle
+
+When a member purchases a `requires_dispenser` product and the terminal has
+`dispenser.enabled: true`, the checkout flow triggers the dispense operation
+before recording the transaction.
+
+### Development without hardware
+
+The remote-token-dispenser repository includes a
+[Go-based mock server](https://github.com/dgloeckner/remote-token-dispenser/tree/main/dispenser-mock)
+that simulates the ESP8266 API without any hardware:
+
+```bash
+# Clone and run the mock
+git clone https://github.com/dgloeckner/remote-token-dispenser.git
+cd remote-token-dispenser/dispenser-mock
+go run .
+```
+
+Point the terminal's `dispenser.baseUrl` at `http://localhost:8080` (or
+wherever the mock is running) to test the full checkout flow.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| "Dispenser offline" during checkout | Verify ESP8266 is powered and reachable: `curl http://dispenser.local/health` |
+| Timeout errors | Increase `dispenser.timeoutMs`; check WiFi signal strength at the ESP8266 location |
+| Double-dispensing | Should not happen (idempotent by design). Check that transaction IDs are unique in terminal logs |
+| Tokens jam mid-dispense | Hopper's watchdog stops the motor automatically. Clear the jam, then retry — the ESP8266 resumes from the exact count |
+| "Unauthorized" from dispenser | API key mismatch between `config.json` and ESP8266 firmware |
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |

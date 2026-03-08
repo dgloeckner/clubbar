@@ -53,8 +53,15 @@ flowchart TB
         B1 --> DB
     end
 
+    subgraph Dispenser["Token Dispenser (optional)"]
+        D1[ESP8266 WiFi controller]
+        D2[Azkoyen Hopper]
+        D1 --> D2
+    end
+
     Terminal <-->|"Sync API"| Backend
     Admin <-->|"REST API"| Backend
+    Terminal <-->|"HTTP REST\n(local WiFi)"| Dispenser
 ```
 
 ---
@@ -78,6 +85,20 @@ flowchart TB
 - **Idempotent sync** — Client-generated UUIDs prevent duplicates
 - **SEPA Direct Debit** — pain.008.001.02 XML generation with mandate handling
 
+### Optional: Token Dispenser Integration
+
+Club Bar supports an optional hardware integration with a physical token dispenser for venues that use coin-operated equipment (saunas, laundromats, arcades). The terminal can trigger token dispensing as part of the checkout flow — members tap their RFID card, select a token product, and tokens are dispensed automatically.
+
+**How it works:**
+- An **[ESP8266 microcontroller](https://github.com/dgloeckner/remote-token-dispenser)** (Wemos D1 Mini) drives an **Azkoyen Hopper U-II** industrial token dispenser over GPIO with optocoupler isolation
+- The terminal communicates with the ESP8266 via **HTTP REST over local WiFi** — no cloud dependency
+- **Dispense-first, pay-after** model — tokens are physically dispensed before the transaction is recorded, eliminating complex refund scenarios
+- **Crash-resilient** — the ESP8266 persists state to flash memory; survives power loss mid-transaction with exact token counts
+- **Idempotent** — client-controlled transaction IDs prevent double-dispensing on retries
+- **Jam detection** — watchdog timer monitors token pulses and halts on mechanical issues
+
+Products that require dispensing are flagged with `requires_dispenser` in the product catalog. The dispenser is configured entirely on the terminal side via `config.json` — no backend changes needed. See the [Terminal Installation Guide](./terminal-frontend/INSTALL.md#7-optional-token-dispenser) for deployment details and the [remote-token-dispenser](https://github.com/dgloeckner/remote-token-dispenser) repository for firmware, hardware schematics, and a Go-based mock for development.
+
 ---
 
 ## Documentation
@@ -91,6 +112,7 @@ flowchart TB
 | [Data Model](./docs/) | Entity-Relationship diagrams |
 | [Deployment Guide](./docs/deployment.md) | Production deployment, backups, and security |
 | [Terminal Install](./terminal-frontend/INSTALL.md) | Terminal app deployment on Raspberry Pi |
+| [Token Dispenser](https://github.com/dgloeckner/remote-token-dispenser) | Optional hardware integration — ESP8266 firmware, schematics, mock server |
 
 ---
 
