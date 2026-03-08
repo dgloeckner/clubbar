@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\Members\Services;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
+use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
@@ -15,6 +16,7 @@ class MembersServiceTest extends TestCase
     private MembersRepository $membersRepository;
     private TransactionsRepository $transactionsRepository;
     private AuditService $auditService;
+    private AuditLogRepository $auditLogRepository;
     private MembersService $membersService;
 
     protected function setUp(): void
@@ -25,12 +27,14 @@ class MembersServiceTest extends TestCase
         $this->membersRepository = $this->createMock(MembersRepository::class);
         $this->transactionsRepository = $this->createMock(TransactionsRepository::class);
         $this->auditService = $this->createMock(AuditService::class);
+        $this->auditLogRepository = $this->createMock(AuditLogRepository::class);
 
         // Create service instance
         $this->membersService = new MembersService(
             $this->membersRepository,
             $this->transactionsRepository,
-            $this->auditService
+            $this->auditService,
+            $this->auditLogRepository
         );
     }
 
