@@ -164,7 +164,7 @@ test.describe("Dashboard API", () => {
       // Verify types
       expect(typeof txn.id).toBe("string");
       expect(typeof txn.member_id).toBe("string");
-      expect(typeof txn.member_name).toBe("string");
+      expect(txn.member_name === null || typeof txn.member_name === "string").toBe(true);
       expect(typeof txn.type).toBe("string");
       expect(typeof txn.amount_cents).toBe("number");
       expect(txn.product_name === null || typeof txn.product_name === "string").toBe(true);

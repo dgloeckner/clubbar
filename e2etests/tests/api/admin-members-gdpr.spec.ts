@@ -113,12 +113,12 @@ test.describe('Admin Members GDPR Endpoints', () => {
     expect(body.deleted_at).toBeDefined();
     expect(body.is_active).toBe(false);
 
-    // Validate PII is cleared
-    expect(body.first_name).toBe('DELETED');
-    expect(body.last_name).toBe('DELETED');
-    expect(body.email).toBe('deleted@example.com');
+    // Validate PII is cleared (NULL per GDPR Art. 17)
+    expect(body.first_name).toBeNull();
+    expect(body.last_name).toBeNull();
+    expect(body.email).toBeNull();
     expect(body.phone).toBeNull();
-    expect(body.card_uid).toBeNull();
+    expect(body.card_uid).toMatch(/^ANON-/);
     expect(body.iban_masked).toBeNull();
 
     // Validate timestamp format
@@ -218,8 +218,8 @@ test.describe('Admin Members GDPR Endpoints', () => {
 
     const anonData = await anonResponse.json();
 
-    // Verify anonymization cleared PII
-    expect(anonData.first_name).toBe('DELETED');
-    expect(anonData.email).toBe('deleted@example.com');
+    // Verify anonymization cleared PII (NULL per GDPR Art. 17)
+    expect(anonData.first_name).toBeNull();
+    expect(anonData.email).toBeNull();
   });
 });

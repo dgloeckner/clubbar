@@ -440,9 +440,9 @@ test.describe('Admin Members Database Persistence', () => {
     const getRes = await authenticatedRequest.get(`/api/admin/members/${memberId}`);
     const body = await getRes.json();
 
-    expect(body.first_name).toBe('DELETED');
-    expect(body.last_name).toBe('DELETED');
-    expect(body.email).toBe('deleted@example.com');
+    expect(body.first_name).toBeNull();
+    expect(body.last_name).toBeNull();
+    expect(body.email).toBeNull();
     expect(body.phone).toBeNull();
     expect(body.is_active).toBe(false);
     expect(body.deleted_at).toBeDefined();

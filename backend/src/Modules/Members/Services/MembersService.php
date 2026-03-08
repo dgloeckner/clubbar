@@ -10,8 +10,10 @@ use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\DTOs\SyncResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\NotFoundException;
 use App\Modules\Members\Enums\SupportedLanguage;
+use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Services\AuditService;
@@ -22,6 +24,7 @@ class MembersService
         private MembersRepository $membersRepository,
         private TransactionsRepository $transactionsRepository,
         private AuditService $auditService,
+        private AuditLogRepository $auditLogRepository,
     ) {}
 
     public function syncSince(int $since): SyncResultDto
@@ -65,9 +68,10 @@ class MembersService
         if (!$member) {
             throw NotFoundException::forResource('Member', $memberId);
         }
-        // Truly-deleted members (not anonymized) are inaccessible via the admin API.
-        // Anonymized members retain their (scrubbed) record with first_name='DELETED'.
-        if ($member['deleted_at'] !== null && $member['first_name'] !== 'DELETED') {
+        // Anonymized members are accessible (deleted_at set, PII fields NULL, card_uid starts with ANON-).
+        // Non-anonymized soft-deleted members are not accessible via admin API.
+        $isAnonymized = $member['deleted_at'] !== null && str_starts_with($member['card_uid'] ?? '', 'ANON-');
+        if ($member['deleted_at'] !== null && !$isAnonymized) {
             throw NotFoundException::forResource('Member', $memberId);
         }
         return MemberAdminDto::fromRow($member);
@@ -206,24 +210,61 @@ class MembersService
 
     public function anonymizeMember(string $memberId, ?string $adminUserId = null): MemberAdminDto
     {
-        $oldMember = $this->membersRepository->findById($memberId);
-        if (!$oldMember) {
+        $member = $this->membersRepository->findByIdIncludingDeleted($memberId);
+        if (!$member) {
             throw NotFoundException::forResource('Member', $memberId);
         }
 
-        $this->membersRepository->anonymize($memberId);
-        $member = $this->membersRepository->findByIdIncludingDeleted($memberId);
+        // Already anonymized?
+        if ($member['deleted_at'] !== null) {
+            throw new BusinessRuleException('Member already anonymized');
+        }
 
+        // Outstanding balance must be €0.00
+        $balanceCents = $this->getUnsettledBalanceCents($memberId);
+        if ($balanceCents !== 0) {
+            $balanceEur = number_format(abs($balanceCents) / 100, 2, '.', '');
+            $sign = $balanceCents > 0 ? '' : '-';
+            throw new BusinessRuleException("Cannot anonymize: outstanding balance of {$sign}€{$balanceEur}");
+        }
+
+        // No pending (non-cancelled) settlement including this member
+        if ($this->hasPendingSettlement($memberId)) {
+            throw new BusinessRuleException('Cannot anonymize: member included in active settlement');
+        }
+
+        // Anonymize the member record (all PII → NULL)
+        $anonymized = $this->membersRepository->anonymize($memberId);
+        if (!$anonymized) {
+            throw new BusinessRuleException('Anonymization failed');
+        }
+
+        // Scrub all historical audit log entries for this member (GDPR Art. 17)
+        $this->auditLogRepository->scrubByEntityId('member', $memberId);
+
+        // Fetch the updated member record
+        $updatedMember = $this->membersRepository->findByIdIncludingDeleted($memberId);
+
+        // Create anonymization audit entry with NO PII
         $this->auditService->log(
             action: AuditAction::ANONYMIZE,
             entityType: EntityType::MEMBER,
             entityId: $memberId,
-            oldValues: ['first_name' => $oldMember['first_name'], 'last_name' => $oldMember['last_name'], 'iban' => '[MASKED]'],
-            newValues: ['first_name' => 'DELETED', 'last_name' => 'DELETED', 'deleted_at' => $member['deleted_at']],
+            newValues: ['deleted_at' => $updatedMember['deleted_at']],
             adminUserId: $adminUserId,
         );
 
-        return MemberAdminDto::fromRow($member);
+        return MemberAdminDto::fromRow($updatedMember);
+    }
+
+    private function getUnsettledBalanceCents(string $memberId): int
+    {
+        return $this->transactionsRepository->getUnsettledMemberBalanceCents($memberId);
+    }
+
+    private function hasPendingSettlement(string $memberId): bool
+    {
+        return $this->transactionsRepository->hasMemberInActiveSettlement($memberId);
     }
 
     private function detectChanges(array $old, array $new): array

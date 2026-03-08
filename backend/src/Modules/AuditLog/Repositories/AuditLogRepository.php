@@ -33,6 +33,15 @@ class AuditLogRepository
         ]);
     }
 
+    public function scrubByEntityId(string $entityType, string $entityId): int
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE audit_log SET old_values = NULL, new_values = NULL WHERE entity_type = ? AND entity_id = ?'
+        );
+        $stmt->execute([$entityType, $entityId]);
+        return $stmt->rowCount();
+    }
+
     public function listWithFilters(int $limit, int $offset, array $filters = []): array
     {
         $where = [];

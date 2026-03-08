@@ -58,6 +58,35 @@ class TransactionsRepository
         return (int) $stmt->fetchColumn();
     }
 
+    public function getUnsettledMemberBalanceCents(string $memberId): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COALESCE(SUM(t.amount_cents), 0)
+             FROM transactions t
+             WHERE t.member_id = ?
+               AND NOT EXISTS (
+                   SELECT 1 FROM settlement_items si
+                   JOIN settlements s ON si.settlement_id = s.id
+                   WHERE si.transaction_id = t.id AND s.is_cancelled = 0
+               )'
+        );
+        $stmt->execute([$memberId]);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function hasMemberInActiveSettlement(string $memberId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT EXISTS (
+                SELECT 1 FROM settlement_items si
+                JOIN settlements s ON si.settlement_id = s.id
+                WHERE si.member_id = ? AND s.is_cancelled = 0
+            )'
+        );
+        $stmt->execute([$memberId]);
+        return (bool) $stmt->fetchColumn();
+    }
+
     public function findByMemberId(string $memberId, int $limit = 50, int $offset = 0, ?string $type = null, ?string $since = null): array
     {
         $where = ['t.member_id = ?'];

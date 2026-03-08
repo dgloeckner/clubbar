@@ -132,10 +132,13 @@ class MembersRepository
     public function anonymize(string $id): bool
     {
         $now = date('Y-m-d H:i:s');
+        // card_uid is VARCHAR(20), so use ANON- + 15 chars of UUID = 20 chars max
+        $anonCardUid = 'ANON-' . substr(str_replace('-', '', $this->generateUuid()), 0, 15);
         $stmt = $this->db->prepare(
-            'UPDATE members SET first_name = ?, last_name = ?, email = ?, phone = NULL, iban = NULL, account_holder_name = NULL, mandate_reference = NULL, card_uid = NULL, is_active = 0, deleted_at = ?, updated_at = ? WHERE id = ?'
+            'UPDATE members SET first_name = NULL, last_name = NULL, email = NULL, phone = NULL, iban = NULL, account_holder_name = NULL, mandate_reference = NULL, card_uid = ?, is_active = 0, deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
         );
-        return $stmt->execute(['DELETED', 'DELETED', 'deleted@example.com', $now, $now, $id]);
+        $stmt->execute([$anonCardUid, $now, $now, $id]);
+        return $stmt->rowCount() > 0;
     }
 
     public function listPaginated(int $limit, int $offset, array $filters = [], string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $search = null): array

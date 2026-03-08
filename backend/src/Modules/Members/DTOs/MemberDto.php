@@ -9,8 +9,8 @@ final readonly class MemberDto
     public function __construct(
         public string $id,
         public ?string $cardUid,
-        public string $firstName,
-        public string $lastName,
+        public ?string $firstName,
+        public ?string $lastName,
         public string $preferredLanguage,
         public bool $isActive,
         public bool $isSepaValid,
@@ -24,8 +24,8 @@ final readonly class MemberDto
         return new self(
             id: $row['id'],
             cardUid: $row['card_uid'] ?? null,
-            firstName: $row['first_name'],
-            lastName: $row['last_name'],
+            firstName: $row['first_name'] ?? null,
+            lastName: $row['last_name'] ?? null,
             preferredLanguage: $row['preferred_language'],
             isActive: (bool) $row['is_active'],
             isSepaValid: !empty($row['iban']) && !empty($row['mandate_reference']),
