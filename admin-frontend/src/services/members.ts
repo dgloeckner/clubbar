@@ -201,6 +201,26 @@ export async function getMemberTransactions(
 }
 
 /**
+ * Anonymize a member (GDPR Art. 17 - Right to Erasure)
+ * Permanently deletes all PII. This action is irreversible.
+ */
+export async function anonymizeMember(memberId: string): Promise<Member> {
+  const apiResponse = await post<Member>(`/admin/members/${memberId}/anonymize`, {})
+
+  const response = apiResponse as any
+  if (response && typeof response === 'object') {
+    if ('id' in response) {
+      return response as Member
+    }
+    if ('data' in response && response.data) {
+      return response.data as Member
+    }
+  }
+
+  throw new Error('Invalid response from anonymize member API')
+}
+
+/**
  * Export member data (GDPR Art. 15 - Right of Access)
  * Downloads the export as a JSON file.
  */

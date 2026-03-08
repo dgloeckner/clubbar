@@ -552,6 +552,52 @@ export class MembersPage extends BasePage {
   }
 
   /**
+   * GDPR ANONYMIZE (UC-DSGVO-02)
+   */
+
+  async clickAnonymizeButtonForMember(memberId: string) {
+    const btn = this.page.getByTestId(`members-table-action-anonymize-${memberId}`)
+    await expect(btn).toBeVisible()
+    await btn.click()
+  }
+
+  async expectAnonymizeConfirmVisible() {
+    await expect(this.page.getByTestId('members-anonymize-confirm-modal')).toBeVisible()
+  }
+
+  async expectAnonymizeConfirmHidden() {
+    await expect(this.page.getByTestId('members-anonymize-confirm-modal')).not.toBeVisible()
+  }
+
+  async getAnonymizeConfirmMessage(): Promise<string> {
+    return await this.page.getByTestId('members-anonymize-confirm-message').textContent() || ''
+  }
+
+  async confirmAnonymize() {
+    await this.page.getByTestId('members-anonymize-confirm-ok').click()
+  }
+
+  async cancelAnonymize() {
+    await this.page.getByTestId('members-anonymize-confirm-cancel').click()
+  }
+
+  /**
+   * Find member ID from a table row by first name
+   */
+  async getMemberIdByFirstName(firstName: string): Promise<string | null> {
+    const nameLocators = this.page.locator('[data-testid^="members-table-cell-name-"]')
+    const count = await nameLocators.count()
+    for (let i = 0; i < count; i++) {
+      const text = await nameLocators.nth(i).textContent()
+      if (text && text.includes(firstName)) {
+        const testId = await nameLocators.nth(i).getAttribute('data-testid')
+        if (testId) return testId.replace('members-table-cell-name-', '')
+      }
+    }
+    return null
+  }
+
+  /**
    * NEGATIVE VISIBILITY ASSERTION
    */
 

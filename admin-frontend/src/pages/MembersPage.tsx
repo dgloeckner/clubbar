@@ -11,8 +11,8 @@ import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
-import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon, DownloadIcon } from '../components/icons'
-import { getMembers, createMember, updateMember, deactivateMember, exportMemberData, Member } from '../services/members'
+import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon } from '../components/icons'
+import { getMembers, createMember, updateMember, exportMemberData, anonymizeMember, Member } from '../services/members'
 import { getDashboardMetrics } from '../services/dashboard'
 import { AxiosError } from 'axios'
 // TableSearchToolbar is available but not currently used
@@ -48,7 +48,6 @@ export function MembersPage() {
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<'first_name' | 'last_name' | 'created_at' | 'card_uid'>('created_at')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterIsActive, setFilterIsActive] = useState<'all' | 'active' | 'inactive'>('all')
@@ -70,6 +69,7 @@ export function MembersPage() {
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [anonymizeConfirm, setAnonymizeConfirm] = useState<Member | null>(null)
 
   const mobileFilterCount = [
     filterIsActive !== 'all' ? 1 : 0,
@@ -330,32 +330,34 @@ export function MembersPage() {
   }
 
   // Handle delete confirmation
-  const handleDelete = async (memberId: string) => {
+  // Handle anonymize member (GDPR Art. 17)
+  const handleAnonymize = async (member: Member) => {
     try {
       setIsLoading(true)
-      await deactivateMember(memberId)
+      await anonymizeMember(member.id)
 
-      // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
+      // Reload members
       const filter: { is_active?: boolean; has_card_uid?: boolean } = {}
-      if (filterIsActive === 'active') {
-        filter.is_active = true
-      } else if (filterIsActive === 'inactive') {
-        filter.is_active = false
-      }
-      if (filterCardUid === 'with') {
-        filter.has_card_uid = true
-      } else if (filterCardUid === 'without') {
-        filter.has_card_uid = false
-      }
+      if (filterIsActive === 'active') filter.is_active = true
+      else if (filterIsActive === 'inactive') filter.is_active = false
+      if (filterCardUid === 'with') filter.has_card_uid = true
+      else if (filterCardUid === 'without') filter.has_card_uid = false
 
       const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
       setMembers(response.items)
       setTotalMembers(response.total)
 
-      setDeleteConfirm(null)
+      setAnonymizeConfirm(null)
       setError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete member')
+      const axiosError = err as AxiosError
+      if (axiosError.response?.status === 409) {
+        const data = axiosError.response.data as any
+        setError(data.message || 'Cannot anonymize member')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to anonymize member')
+      }
+      setAnonymizeConfirm(null)
     } finally {
       setIsLoading(false)
     }
@@ -574,16 +576,21 @@ export function MembersPage() {
                       <EditIcon size={14} /> {t('common.edit')}
                     </button>
                     <button
-                      data-testid={`member-delete-${member.id}`}
-                      onClick={() => setDeleteConfirm(member.id)}
+                      data-testid={`member-anonymize-${member.id}`}
+                      onClick={() => setAnonymizeConfirm(member)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: '4px',
                         padding: '6px 12px', borderRadius: '6px', border: 'none',
-                        background: 'rgba(239,68,68,0.1)', color: theme.colors.semantic.danger,
+                        background: 'rgba(249,115,22,0.1)', color: theme.colors.semantic.warning,
                         fontSize: '12px', cursor: 'pointer',
                       }}
                     >
-                      <TrashIcon size={14} /> {t('common.delete')}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <line x1="9" y1="9" x2="15" y2="15"/>
+                        <line x1="15" y1="9" x2="9" y2="15"/>
+                      </svg>
+                      {t('members.anonymizeButton')}
                     </button>
                   </div>
                 </div>
@@ -1069,19 +1076,23 @@ export function MembersPage() {
                         <EditIcon size={18} />
                       </button>
                       <button
-                        data-testid={`members-table-action-delete-${member.id}`}
-                        onClick={() => setDeleteConfirm(member.id)}
+                        data-testid={`members-table-action-anonymize-${member.id}`}
+                        onClick={() => setAnonymizeConfirm(member)}
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: theme.colors.semantic.danger,
+                          color: theme.colors.semantic.warning,
                           cursor: 'pointer',
                           padding: theme.spacing.sm,
                           marginLeft: theme.spacing.md,
                         }}
-                        title="Delete"
+                        title={t('members.anonymizeMember')}
                       >
-                        <TrashIcon size={18} />
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                          <line x1="9" y1="9" x2="15" y2="15"/>
+                          <line x1="15" y1="9" x2="9" y2="15"/>
+                        </svg>
                       </button>
                     </TableCell>
                   </tr>
@@ -1476,10 +1487,11 @@ export function MembersPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      {deleteConfirm && (
+
+      {/* Anonymize Confirmation Dialog */}
+      {anonymizeConfirm && (
         <div
-          data-testid="members-delete-confirm-modal"
+          data-testid="members-anonymize-confirm-modal"
           style={{
             position: 'fixed',
             top: 0,
@@ -1492,31 +1504,31 @@ export function MembersPage() {
             justifyContent: 'center',
             zIndex: 1001,
           }}
-          onClick={() => setDeleteConfirm(null)}
+          onClick={() => setAnonymizeConfirm(null)}
         >
           <div
-            data-testid="members-delete-confirm-content"
+            data-testid="members-anonymize-confirm-content"
             style={{
               background: theme.colors.bg.secondary,
               borderRadius: theme.borderRadius.lg,
               padding: theme.spacing.xl,
-              maxWidth: '400px',
+              maxWidth: '440px',
               width: '90%',
               boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 data-testid="members-delete-confirm-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.lg }}>
-              {t('members.deleteMember')}
+            <h2 data-testid="members-anonymize-confirm-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.lg, color: theme.colors.semantic.warning }}>
+              {t('members.anonymizeMember')}
             </h2>
-            <p data-testid="members-delete-confirm-message" style={{ color: theme.colors.text.secondary, marginBottom: theme.spacing.lg }}>
-              {t('members.deleteConfirm')}
+            <p data-testid="members-anonymize-confirm-message" style={{ color: theme.colors.text.secondary, marginBottom: theme.spacing.lg, lineHeight: 1.5 }}>
+              {t('members.anonymizeConfirm', { name: `${anonymizeConfirm.first_name} ${anonymizeConfirm.last_name}` })}
             </p>
 
             <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end' }}>
               <button
-                data-testid="members-delete-confirm-cancel"
-                onClick={() => setDeleteConfirm(null)}
+                data-testid="members-anonymize-confirm-cancel"
+                onClick={() => setAnonymizeConfirm(null)}
                 style={{
                   padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                   background: 'transparent',
@@ -1531,11 +1543,11 @@ export function MembersPage() {
                 {t('common.cancel')}
               </button>
               <button
-                data-testid="members-delete-confirm-ok"
-                onClick={() => handleDelete(deleteConfirm)}
+                data-testid="members-anonymize-confirm-ok"
+                onClick={() => handleAnonymize(anonymizeConfirm)}
                 style={{
                   padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                  background: theme.colors.semantic.danger,
+                  background: theme.colors.semantic.warning,
                   border: 'none',
                   borderRadius: theme.borderRadius.md,
                   color: 'white',
@@ -1544,7 +1556,7 @@ export function MembersPage() {
                   fontWeight: theme.typography.fontWeight.semibold,
                 }}
               >
-                {t('common.delete')}
+                {t('members.anonymizeButton')}
               </button>
             </div>
           </div>

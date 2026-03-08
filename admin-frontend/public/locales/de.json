@@ -176,7 +176,11 @@
     "filterWithCard": "Mit",
     "filterWithoutCard": "Ohne",
     "filterSepaValid": "Gültig",
-    "filterSepaMissing": "Fehlend"
+    "filterSepaMissing": "Fehlend",
+    "anonymizeMember": "Mitglied anonymisieren",
+    "anonymizeConfirm": "Alle persönlichen Daten von {{name}} werden unwiderruflich gelöscht (DSGVO Art. 17). Diese Aktion kann nicht rückgängig gemacht werden.",
+    "anonymizeSuccess": "Mitglied wurde anonymisiert",
+    "anonymizeButton": "Anonymisieren"
   },
   "products": {
     "title": "Produkte",

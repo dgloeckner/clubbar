@@ -176,7 +176,11 @@
     "filterWithCard": "With",
     "filterWithoutCard": "Without",
     "filterSepaValid": "Valid",
-    "filterSepaMissing": "Missing"
+    "filterSepaMissing": "Missing",
+    "anonymizeMember": "Anonymize Member",
+    "anonymizeConfirm": "All personal data of {{name}} will be permanently deleted (GDPR Art. 17). This action cannot be undone.",
+    "anonymizeSuccess": "Member has been anonymized",
+    "anonymizeButton": "Anonymize"
   },
   "products": {
     "title": "Products",
