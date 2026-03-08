@@ -31,8 +31,9 @@ test.describe('Admin Panel Walkthrough', () => {
     await narrationPause();
 
     // Hit refresh to show live data
-    await authenticatedDashboardPage.clickRefresh();
-    await pause(1500);
+    // Use page-level click + pause instead of clickRefresh() which has tight waitForResponse timing
+    await page.locator('[data-testid="dashboard-refresh-button"]').click();
+    await pause(2000);
   });
 
   test('02 — Members: browse, search, filter', async ({
@@ -175,7 +176,7 @@ test.describe('Admin Panel Walkthrough', () => {
     }
 
     // Pick an icon
-    await authenticatedProductsPage.selectIcon('beer');
+    await authenticatedProductsPage.selectIcon('beer-pils');
     await pause(1000);
 
     // Show the terminal preview (it's visible alongside the form)
@@ -200,32 +201,32 @@ test.describe('Admin Panel Walkthrough', () => {
   test('07 — Journal: transactions and filters', async ({
     page, authenticatedJournalPage, pause, narrationPause, quickPause,
   }) => {
-    await authenticatedJournalPage.expectPageVisible();
+    await authenticatedJournalPage.waitForPageLoad();
     await narrationPause();
 
     // Wait for table
     await authenticatedJournalPage.waitForTableToLoad();
     await pause(1000);
 
-    // Switch period
-    await authenticatedJournalPage.selectPeriod('3m');
+    // Switch period using direct clicks (POM methods use waitForResponse which can race)
+    await page.getByTestId('journal-period-picker-3m').click();
+    await pause(1500);
+
+    await page.getByTestId('journal-period-picker-all').click();
+    await pause(1500);
+
+    // Sort by amount header
+    await page.getByTestId('journal-header-amount').click();
     await pause(1000);
 
-    await authenticatedJournalPage.selectPeriod('all');
-    await quickPause();
-
-    // Sort by amount
-    await authenticatedJournalPage.sortBy('amount');
-    await pause(800);
-
     // Sort by date (back to default)
-    await authenticatedJournalPage.sortBy('date');
-    await quickPause();
+    await page.getByTestId('journal-header-date').click();
+    await pause(1000);
 
     // Search for a seeded member
-    await authenticatedJournalPage.search('Thomas');
-    await pause(1200);
-    await authenticatedJournalPage.search('');
+    await page.getByTestId('journal-search-input').fill('Thomas');
+    await pause(1500);
+    await page.getByTestId('journal-search-input').clear();
     await narrationPause();
   });
 
@@ -332,11 +333,15 @@ test.describe('Admin Panel Walkthrough', () => {
   });
 
   test('12 — Logout', async ({
-    page, pause,
+    page, pause, narrationPause,
   }) => {
-    // Click logout via nav
-    const logoutButton = page.locator('[data-testid="logout-button"]');
-    await logoutButton.click();
+    // Navigate to dashboard first (each serial test gets a fresh page)
+    await page.goto('/dashboard');
+    await page.waitForLoadState('domcontentloaded');
+    await narrationPause();
+
+    // Click logout via header
+    await page.locator('[data-testid="header-logout-button"]').click();
     await pause(2000); // final moment on login screen
   });
 

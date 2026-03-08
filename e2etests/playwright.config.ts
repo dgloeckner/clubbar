@@ -119,9 +119,8 @@ export default defineConfig({
           size: { width: 1280, height: 720 },
         },
         viewport: { width: 1280, height: 720 },
-        launchOptions: {
-          slowMo: 150,
-        },
+        // No slowMo — pacing is handled by pause() fixtures in the walkthrough spec
+        // slowMo causes race conditions with waitForResponse in POM methods
       },
       dependencies: ['setup auth', 'setup walkthrough-data'],
     },
