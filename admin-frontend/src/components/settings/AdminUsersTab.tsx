@@ -9,6 +9,7 @@ import { Badge } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
 import { AdminUser } from '../../types'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { useTranslation } from 'react-i18next'
 
 export interface AdminUsersTabProps {
   users: AdminUser[]
@@ -30,13 +31,14 @@ export function AdminUsersTab({
   onDeactivateUser,
   onReactivateUser,
 }: AdminUsersTabProps) {
+  const { t } = useTranslation()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'mobile' || breakpoint === 'smallMobile'
 
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: theme.spacing.xl }}>
-        Loading admin users...
+        {t('settings.loadingAdminUsers')}
       </div>
     )
   }
@@ -53,7 +55,7 @@ export function AdminUsersTab({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md }}>
-          <h2 style={{ margin: 0, fontSize: theme.typography.fontSize.lg }}>Admin Users</h2>
+          <h2 style={{ margin: 0, fontSize: theme.typography.fontSize.lg }}>{t('settings.adminUsers')}</h2>
           <Badge label={`${users.length}`} variant="info" showDot={false} testId="settings-admin-users-count-badge" />
         </div>
 
@@ -79,7 +81,7 @@ export function AdminUsersTab({
             e.currentTarget.style.background = theme.colors.semantic.primary
           }}
         >
-          + Create Admin User
+          + {t('settings.createAdminUser')}
         </button>
       </div>
 
@@ -141,7 +143,7 @@ export function AdminUsersTab({
                 {/* Row 3: Last Login + Action Buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: '44px' }}>
                   <span style={{ fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary }}>
-                    {admin.last_login_at ? formatRelativeDate(admin.last_login_at) : 'Never'}
+                    {admin.last_login_at ? formatRelativeDate(admin.last_login_at) : t('dates.never')}
                   </span>
                   <div style={{ display: 'flex', gap: theme.spacing.sm }}>
                     {/* Edit Button */}
@@ -222,7 +224,7 @@ export function AdminUsersTab({
                       fontWeight: theme.typography.fontWeight.semibold,
                     }}
                   >
-                    User
+                    {t('settings.user')}
                   </th>
                   <th
                     style={{
@@ -232,7 +234,7 @@ export function AdminUsersTab({
                       fontWeight: theme.typography.fontWeight.semibold,
                     }}
                   >
-                    Email
+                    {t('auth.email')}
                   </th>
                   <th
                     style={{
@@ -242,7 +244,7 @@ export function AdminUsersTab({
                       fontWeight: theme.typography.fontWeight.semibold,
                     }}
                   >
-                    Last Login
+                    {t('profile.lastLogin')}
                   </th>
                   <th
                     style={{
@@ -252,7 +254,7 @@ export function AdminUsersTab({
                       fontWeight: theme.typography.fontWeight.semibold,
                     }}
                   >
-                    Actions
+                    {t('common.actions')}
                   </th>
                 </tr>
               </thead>
@@ -303,14 +305,14 @@ export function AdminUsersTab({
                         fontSize: theme.typography.fontSize.xs,
                       }}
                     >
-                      {admin.last_login_at ? formatRelativeDate(admin.last_login_at) : 'Never'}
+                      {admin.last_login_at ? formatRelativeDate(admin.last_login_at) : t('dates.never')}
                     </td>
 
                     {/* Actions */}
                     <td style={{ padding: theme.spacing.md, textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: theme.spacing.sm, justifyContent: 'center', alignItems: 'center' }}>
                         {/* Edit Button */}
-                        <Tooltip content="Bearbeiten" position="top">
+                        <Tooltip content={t('common.edit')} position="top">
                           <button
                             data-testid={`settings-admin-edit-button-${admin.id}`}
                             onClick={() => onEditUser(admin)}
@@ -344,7 +346,7 @@ export function AdminUsersTab({
                         </Tooltip>
 
                         {/* Reset Password Button */}
-                        <Tooltip content="Passwort zurücksetzen" position="top">
+                        <Tooltip content={t('settings.resetPassword')} position="top">
                           <button
                             data-testid={`settings-admin-reset-password-button-${admin.id}`}
                             onClick={() => onResetPassword(admin.id)}
@@ -386,7 +388,7 @@ export function AdminUsersTab({
         )
       ) : (
         <div style={{ textAlign: 'center', padding: theme.spacing.xl, color: theme.colors.text.secondary }}>
-          No admin users found
+          {t('settings.noAdminUsers')}
         </div>
       )}
     </div>

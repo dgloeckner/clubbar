@@ -728,7 +728,7 @@ export function ProductsPage() {
               whiteSpace: 'nowrap',
             }}
           >
-            {t('products.createProduct')}
+            + {t('products.createProduct')}
           </button>
         </div>
       </div>

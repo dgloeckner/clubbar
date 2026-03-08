@@ -28,8 +28,15 @@ class AdminController
         $totalMembers = $this->membersRepository->count();
         $activeMembers = $this->membersRepository->countActive();
         $recentTransactions = $this->transactionsRepository->countRecentTransactions(days: 30);
-        $totalRevenueCents = $this->transactionsRepository->sumRecentAmountCents(days: 30);
         $pendingSettlements = $this->settlementsRepository->countPending();
+
+        // Revenue: today, week-to-date (Monday), month-to-date (1st)
+        $today = date('Y-m-d');
+        $weekStart = date('Y-m-d', strtotime('monday this week'));
+        $monthStart = date('Y-m-01');
+        $todaysRevenueCents = $this->sumRevenueSince($today);
+        $wtdRevenueCents = $this->sumRevenueSince($weekStart);
+        $mtdRevenueCents = $this->sumRevenueSince($monthStart);
 
         // Get latest settlement date
         $latestSettlement = $this->settlementsRepository->getLatest();
@@ -42,10 +49,12 @@ class AdminController
         $recentTxStmt = $this->db->prepare(
             "SELECT t.id, t.member_id, CONCAT(m.first_name, ' ', m.last_name) as member_name,
                     t.transaction_type as type, t.amount_cents,
-                    p.names as product_names, t.created_at as timestamp
+                    p.names as product_names, t.created_at as timestamp,
+                    te.name as terminal_name
              FROM transactions t
              LEFT JOIN members m ON t.member_id = m.id
              LEFT JOIN products p ON t.product_id = p.id
+             LEFT JOIN terminals te ON t.terminal_id = te.id
              ORDER BY t.created_at DESC
              LIMIT 10"
         );
@@ -62,6 +71,7 @@ class AdminController
                 'id' => $row['id'],
                 'member_id' => $row['member_id'],
                 'member_name' => $row['member_name'],
+                'terminal_name' => $row['terminal_name'],
                 'type' => $row['type'],
                 'amount_cents' => (int) $row['amount_cents'],
                 'product_name' => $productName,
@@ -78,7 +88,8 @@ class AdminController
             if (!$isActive) {
                 $status = 'disabled';
             } elseif ($lastSyncAt !== null) {
-                $status = 'online';
+                $syncAge = time() - strtotime($lastSyncAt);
+                $status = $syncAge <= 300 ? 'online' : 'offline';
             } else {
                 $status = 'offline';
             }
@@ -110,7 +121,9 @@ class AdminController
                 'active_members' => $activeMembers,
                 'inactive_members' => $totalMembers - $activeMembers,
                 'outstanding_balance_cents' => $outstandingBalanceCents,
-                'todays_revenue_cents' => $this->transactionsRepository->sumRecentAmountCents(days: 1),
+                'todays_revenue_cents' => $todaysRevenueCents,
+                'wtd_revenue_cents' => $wtdRevenueCents,
+                'mtd_revenue_cents' => $mtdRevenueCents,
                 'terminal_count' => count($terminalRows),
                 'active_terminals' => $activeTerminalCount,
                 'settled_members' => 0,
@@ -261,6 +274,15 @@ class AdminController
             'top_products' => $topProducts,
             'top_members' => $topMembers,
         ]);
+    }
+
+    private function sumRevenueSince(string $date): int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE created_at >= ?'
+        );
+        $stmt->execute([$date]);
+        return (int) $stmt->fetchColumn();
     }
 
     private function json(Response $response, mixed $data, int $status = 200): Response

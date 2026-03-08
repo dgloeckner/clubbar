@@ -275,7 +275,9 @@
     "sortAmountHigh": "Betrag hoch–niedrig",
     "sortAmountLow": "Betrag niedrig–hoch",
     "period": "Zeitraum",
-    "settlementStatus": "Abrechnung"
+    "settlementStatus": "Abrechnung",
+    "open": "Offen",
+    "settled": "Abgerechnet"
   },
   "settlements": {
     "title": "Abrechnungen",
@@ -338,6 +340,36 @@
     "paymentReferencePrefix": "Verwendungszweck-Präfix",
     "adminUsers": "Admin-Benutzer",
     "loadingSettings": "Lade Einstellungen...",
+    "loadingAdminUsers": "Lade Admin-Benutzer...",
+    "createAdminUser": "Admin-Benutzer erstellen",
+    "user": "Benutzer",
+    "resetPassword": "Passwort zurücksetzen",
+    "noAdminUsers": "Keine Admin-Benutzer gefunden",
+    "loadingSepa": "Lade SEPA-Konfiguration...",
+    "saving": "Speichert...",
+    "sepaWarningTitle": "Warnung",
+    "sepaWarningMessage": "Die Gläubiger-ID ist eine rechtliche Kennung, die in SEPA-Exporten und Abrechnungsunterlagen erscheint. Eine Änderung kann Auswirkungen auf Compliance und Prüfpfade haben.",
+    "creditorStreet": "Straße",
+    "creditorCity": "Stadt",
+    "creditorCountry": "Ländercode",
+    "sepaPlaceholders": {
+      "creditorId": "z.B. DE01ZZZ09999999999",
+      "creditorName": "z.B. Ruderverein Musterstadt e.V.",
+      "creditorIban": "z.B. DE89370400440532013000",
+      "street": "z.B. Hauptstraße 123",
+      "city": "z.B. München",
+      "country": "z.B. DE",
+      "paymentPrefix": "z.B. Club Bar Abrechnung"
+    },
+    "sepaHelpers": {
+      "creditorId": "SEPA Gläubiger-Identifikationsnummer (max 35 Zeichen)",
+      "creditorName": "Name der Organisation (max 70 Zeichen)",
+      "creditorIban": "Bankkonto IBAN (15–34 Zeichen)",
+      "street": "Straße und Hausnummer (max 70 Zeichen)",
+      "city": "Stadtname (max 70 Zeichen)",
+      "country": "2-stelliger ISO-Ländercode (DE, AT, CH)",
+      "paymentPrefix": "Präfix für den Verwendungszweck. Das Abrechnungsdatum wird automatisch angehängt."
+    },
     "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?",
     "terminals": "Terminals",
     "createTerminal": "Terminal erstellen",
@@ -450,7 +482,9 @@
     "title": "Dashboard",
     "activeMembers": "Aktive Mitglieder",
     "outstandingBalance": "Offene Posten",
-    "todaysRevenue": "Heutiger Umsatz",
+    "todaysRevenue": "Heute",
+    "wtdRevenue": "Woche (WTD)",
+    "mtdRevenue": "Monat (MTD)",
     "terminals": "Terminals",
     "recentTransactions": "Letzte Buchungen",
     "terminalStatus": "Terminal-Status",
@@ -474,6 +508,12 @@
     "refreshNow": "Jetzt aktualisieren",
     "purchase": "Kauf",
     "correction": "Korrektur"
+  },
+  "pagination": {
+    "firstPage": "Erste Seite",
+    "previousPage": "Vorherige Seite",
+    "nextPage": "Nächste Seite",
+    "lastPage": "Letzte Seite"
   },
   "confirmDialog": {
     "title": "Bestätigung",

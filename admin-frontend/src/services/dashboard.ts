@@ -10,6 +10,8 @@ export interface MetricsDto {
   inactive_members: number
   outstanding_balance_cents: number
   todays_revenue_cents: number
+  wtd_revenue_cents: number
+  mtd_revenue_cents: number
   terminal_count: number
   active_terminals: number
   settled_members: number

@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface Category {
   id: string
@@ -39,8 +40,10 @@ export function CategoryFilter({
   onChange,
   testId = 'category-filter',
 }: CategoryFilterProps) {
+  const { t, i18n } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const lang = i18n.language
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -54,10 +57,11 @@ export function CategoryFilter({
 
   const selectedLabel =
     value && categories.length > 0
-      ? categories.find((cat) => cat.id === value)?.names?.de ||
+      ? categories.find((cat) => cat.id === value)?.names?.[lang] ||
+        categories.find((cat) => cat.id === value)?.names?.de ||
         categories.find((cat) => cat.id === value)?.names?.en ||
-        'Category'
-      : 'All Categories'
+        t('common.category')
+      : t('products.allCategories')
 
   return (
     <div style={{ position: 'relative' }} ref={dropdownRef}>
@@ -132,7 +136,7 @@ export function CategoryFilter({
               }}
             >
               <span style={{ color: value === null ? '#3b82f6' : '#64748b', fontWeight: 500 }}>●</span>
-              <span style={{ flex: 1 }}>All Categories</span>
+              <span style={{ flex: 1 }}>{t('products.allCategories')}</span>
             </button>
 
             {/* Category options */}
@@ -161,7 +165,7 @@ export function CategoryFilter({
                 }}
               >
                 <span style={{ color: value === category.id ? '#3b82f6' : '#64748b', fontWeight: 500 }}>●</span>
-                <span style={{ flex: 1 }}>{category.names.de || category.names.en || 'Unnamed'}</span>
+                <span style={{ flex: 1 }}>{category.names[lang] || category.names.de || category.names.en || t('common.name')}</span>
               </button>
             ))}
           </div>

@@ -11,6 +11,8 @@
  * - Callback on status change
  */
 
+import { useTranslation } from 'react-i18next'
+
 export interface StatusFilterPillsProps {
   value?: 'all' | 'active' | 'inactive'
   onChange?: (status: 'all' | 'active' | 'inactive') => void
@@ -22,14 +24,13 @@ export interface StatusFilterPillsProps {
   }
 }
 
-const DEFAULT_LABELS = {
-  all: 'All',
-  active: 'Active',
-  inactive: 'Inactive',
-}
-
 export function StatusFilterPills({ value = 'all', onChange, testId = 'status-filter-pills', labels }: StatusFilterPillsProps) {
-  const displayLabels = labels || DEFAULT_LABELS
+  const { t } = useTranslation()
+  const displayLabels = labels || {
+    all: t('common.all'),
+    active: t('common.active'),
+    inactive: t('common.inactive'),
+  }
 
   const STATUSES = [
     { key: 'all', label: displayLabels.all },

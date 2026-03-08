@@ -5,6 +5,8 @@
  * Used by: SettlementsPage for filtering settlements by status
  */
 
+import { useTranslation } from 'react-i18next'
+
 interface StatusFilterProps {
   value: 'all' | 'active' | 'cancelled'
   onChange: (value: 'all' | 'active' | 'cancelled') => void
@@ -16,14 +18,16 @@ export function StatusFilter({
   onChange,
   testId = 'status-filter',
 }: StatusFilterProps) {
+  const { t } = useTranslation()
+
   const options: Array<{
     value: 'all' | 'active' | 'cancelled'
     label: string
     color: string
   }> = [
-    { value: 'all', label: 'All', color: '#6b7280' },
-    { value: 'active', label: 'Active', color: '#3b82f6' },
-    { value: 'cancelled', label: 'Cancelled', color: '#ef4444' },
+    { value: 'all', label: t('common.all'), color: '#6b7280' },
+    { value: 'active', label: t('settlements.active'), color: '#3b82f6' },
+    { value: 'cancelled', label: t('settlements.cancelled'), color: '#ef4444' },
   ]
 
   return (

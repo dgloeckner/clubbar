@@ -6,6 +6,8 @@
  * Implements: UC-A22-B Filter Transactions by Settlement Status
  */
 
+import { useTranslation } from 'react-i18next'
+
 interface SettlementStatusFilterProps {
   value: 'all' | 'open' | 'settled'
   onChange: (value: 'all' | 'open' | 'settled') => void
@@ -17,14 +19,16 @@ export function SettlementStatusFilter({
   onChange,
   testId = 'settlement-status-filter',
 }: SettlementStatusFilterProps) {
+  const { t } = useTranslation()
+
   const options: Array<{
     value: 'all' | 'open' | 'settled'
     label: string
     color: string
   }> = [
-    { value: 'all', label: 'All', color: '#6b7280' },
-    { value: 'open', label: 'Open', color: '#10b981' },
-    { value: 'settled', label: 'Settled', color: '#8b5cf6' },
+    { value: 'all', label: t('common.all'), color: '#6b7280' },
+    { value: 'open', label: t('journal.open'), color: '#10b981' },
+    { value: 'settled', label: t('journal.settled'), color: '#8b5cf6' },
   ]
 
   return (

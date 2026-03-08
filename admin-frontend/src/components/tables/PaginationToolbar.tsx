@@ -17,6 +17,8 @@
  * - testId: Base test ID for elements
  */
 
+import { useTranslation } from 'react-i18next'
+
 interface PaginationToolbarProps {
   currentPage: number
   totalPages: number
@@ -79,6 +81,7 @@ export function PaginationToolbar({
   showInfo = true,
   testId = 'pagination',
 }: PaginationToolbarProps) {
+  const { t } = useTranslation()
   const startItem = (currentPage - 1) * pageSize + 1
   const endItem = Math.min(currentPage * pageSize, totalItems)
 
@@ -180,13 +183,13 @@ export function PaginationToolbar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         {showInfo && (
           <span data-testid={`${testId}-info`} style={{ color: '#cbd5e1', fontSize: 14 }}>
-            Showing <strong style={{ color: '#e2e8f0' }}>{startItem}-{endItem}</strong> of{' '}
+            {t('common.showing')} <strong style={{ color: '#e2e8f0' }}>{startItem}-{endItem}</strong> {t('common.of')}{' '}
             <strong style={{ color: '#e2e8f0' }}>{totalItems}</strong>
           </span>
         )}
         {showPageSize && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: '#94a3b8', fontSize: 13 }}>Items per page:</span>
+            <span style={{ color: '#94a3b8', fontSize: 13 }}>{t('common.perPage')}:</span>
             <select
               data-testid={`${testId}-page-size-select`}
               value={pageSize}
@@ -224,7 +227,7 @@ export function PaginationToolbar({
           <NavButton
             onClick={() => onPageChange(1)}
             disabled={currentPage === 1}
-            title="First page"
+            title={t('pagination.firstPage')}
             testIdSuffix="first"
           >
             <ChevronsLeftIcon />
@@ -233,7 +236,7 @@ export function PaginationToolbar({
         <NavButton
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          title="Previous page"
+          title={t('pagination.previousPage')}
           testIdSuffix="prev"
         >
           <ChevronLeftIcon />
@@ -256,14 +259,14 @@ export function PaginationToolbar({
 
         {variant === 'minimal' && (
           <span data-testid={`${testId}-page-info`} style={{ padding: '0 12px', color: '#e2e8f0', fontSize: 14 }}>
-            Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+            {t('common.page')} <strong>{currentPage}</strong> {t('common.of')} <strong>{totalPages}</strong>
           </span>
         )}
 
         <NavButton
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          title="Next page"
+          title={t('pagination.nextPage')}
           testIdSuffix="next"
         >
           <ChevronRightIcon />
@@ -272,7 +275,7 @@ export function PaginationToolbar({
           <NavButton
             onClick={() => onPageChange(totalPages)}
             disabled={currentPage === totalPages}
-            title="Last page"
+            title={t('pagination.lastPage')}
             testIdSuffix="last"
           >
             <ChevronsRightIcon />

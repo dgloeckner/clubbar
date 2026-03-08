@@ -52,7 +52,7 @@ export function CreateTerminalModal({ isOpen, formData, onFormChange, onSubmit, 
         <input
           data-testid="settings-terminal-create-name"
           type="text"
-          placeholder="Terminal Name"
+          placeholder={t('settings.terminalName')}
           value={formData.name}
           onChange={(e) => onFormChange('name', e.target.value)}
           style={{
@@ -69,7 +69,7 @@ export function CreateTerminalModal({ isOpen, formData, onFormChange, onSubmit, 
         <input
           data-testid="settings-terminal-create-device-id"
           type="text"
-          placeholder="Device ID"
+          placeholder={t('settings.deviceId')}
           value={formData.device_id}
           onChange={(e) => onFormChange('device_id', e.target.value)}
           style={{

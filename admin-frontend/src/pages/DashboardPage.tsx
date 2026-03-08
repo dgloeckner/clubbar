@@ -123,7 +123,7 @@ export function DashboardPage() {
       {/* Metrics Row */}
       <div data-testid="dashboard-metrics" style={{
         display: 'grid',
-        gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)',
+        gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
         gap: theme.spacing.lg,
         marginBottom: theme.spacing['2xl'],
       }}>
@@ -140,16 +140,37 @@ export function DashboardPage() {
           color={metrics.outstanding_balance_cents > 0 ? 'orange' : 'green'}
         />
         <StatCard
+          icon={<HomeIcon />}
+          label={t('dashboard.terminals')}
+          value={`${metrics.active_terminals}/${metrics.terminal_count}`}
+          color="blue"
+        />
+      </div>
+
+      {/* Revenue Row */}
+      <div data-testid="dashboard-revenue" style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+        gap: theme.spacing.lg,
+        marginBottom: theme.spacing['2xl'],
+      }}>
+        <StatCard
           icon={<BookIcon />}
           label={t('dashboard.todaysRevenue')}
           value={formatPrice(metrics.todays_revenue_cents)}
           color="green"
         />
         <StatCard
-          icon={<HomeIcon />}
-          label={t('dashboard.terminals')}
-          value={`${metrics.active_terminals}/${metrics.terminal_count}`}
-          color="blue"
+          icon={<BookIcon />}
+          label={t('dashboard.wtdRevenue')}
+          value={formatPrice(metrics.wtd_revenue_cents)}
+          color="green"
+        />
+        <StatCard
+          icon={<BookIcon />}
+          label={t('dashboard.mtdRevenue')}
+          value={formatPrice(metrics.mtd_revenue_cents)}
+          color="green"
         />
       </div>
 
@@ -194,8 +215,8 @@ export function DashboardPage() {
                     <div style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {tx.member_name}
                     </div>
-                    <div style={{ fontSize: theme.typography.fontSize.xs, color: theme.colors.text.muted }}>
-                      {tx.product_name || t(`dashboard.${tx.type}`)} · {formatDateTime(tx.timestamp)}
+                    <div style={{ fontSize: theme.typography.fontSize.xs, color: theme.colors.text.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {tx.product_name || t(`dashboard.${tx.type}`)}{tx.terminal_name ? ` · ${tx.terminal_name}` : ''} · {formatDateTime(tx.timestamp)}
                     </div>
                   </div>
                   <div style={{

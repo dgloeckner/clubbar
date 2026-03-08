@@ -275,7 +275,9 @@
     "sortAmountHigh": "Amount high–low",
     "sortAmountLow": "Amount low–high",
     "period": "Period",
-    "settlementStatus": "Settlement"
+    "settlementStatus": "Settlement",
+    "open": "Open",
+    "settled": "Settled"
   },
   "settlements": {
     "title": "Settlements",
@@ -338,6 +340,36 @@
     "paymentReferencePrefix": "Payment Reference Prefix",
     "adminUsers": "Admin Users",
     "loadingSettings": "Loading settings...",
+    "loadingAdminUsers": "Loading admin users...",
+    "createAdminUser": "Create Admin User",
+    "user": "User",
+    "resetPassword": "Reset Password",
+    "noAdminUsers": "No admin users found",
+    "loadingSepa": "Loading SEPA configuration...",
+    "saving": "Saving...",
+    "sepaWarningTitle": "Warning",
+    "sepaWarningMessage": "The creditor ID is a legal identifier that appears in SEPA exports and settlement records. Changing it may impact compliance and audit trails.",
+    "creditorStreet": "Street Address",
+    "creditorCity": "City",
+    "creditorCountry": "Country Code",
+    "sepaPlaceholders": {
+      "creditorId": "e.g. DE01ZZZ09999999999",
+      "creditorName": "e.g. Rowing Club Springfield",
+      "creditorIban": "e.g. DE89370400440532013000",
+      "street": "e.g. Main Street 123",
+      "city": "e.g. Munich",
+      "country": "e.g. DE",
+      "paymentPrefix": "e.g. Club Bar Settlement"
+    },
+    "sepaHelpers": {
+      "creditorId": "SEPA creditor identification number (max 35 characters)",
+      "creditorName": "Organization name (max 70 characters)",
+      "creditorIban": "Bank account IBAN (15–34 characters)",
+      "street": "Street and house number (max 70 characters)",
+      "city": "City name (max 70 characters)",
+      "country": "2-letter ISO country code (DE, AT, CH)",
+      "paymentPrefix": "Prefix for the payment reference. The settlement date is appended automatically."
+    },
     "deactivateAdminConfirm": "Are you sure you want to deactivate this admin user?",
     "terminals": "Terminals",
     "createTerminal": "Create Terminal",
@@ -450,7 +482,9 @@
     "title": "Dashboard",
     "activeMembers": "Active Members",
     "outstandingBalance": "Outstanding Balance",
-    "todaysRevenue": "Today's Revenue",
+    "todaysRevenue": "Today",
+    "wtdRevenue": "Week (WTD)",
+    "mtdRevenue": "Month (MTD)",
     "terminals": "Terminals",
     "recentTransactions": "Recent Transactions",
     "terminalStatus": "Terminal Status",
@@ -474,6 +508,12 @@
     "refreshNow": "Refresh now",
     "purchase": "Purchase",
     "correction": "Correction"
+  },
+  "pagination": {
+    "firstPage": "First page",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "lastPage": "Last page"
   },
   "confirmDialog": {
     "title": "Confirmation",

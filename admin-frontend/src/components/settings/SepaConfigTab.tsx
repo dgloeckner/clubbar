@@ -8,6 +8,7 @@ import { Alert } from '../common/Alert'
 import { CharacterCounter } from '../forms/CharacterCounter'
 import { ValidationIndicator } from '../forms/ValidationIndicator'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { useTranslation } from 'react-i18next'
 import { UpdateSepaConfigRequest, SepaConfig } from '../../types'
 
 export interface SepaConfigTabProps {
@@ -37,6 +38,7 @@ export function SepaConfigTab({
   onCancel,
   validateIban,
 }: SepaConfigTabProps) {
+  const { t } = useTranslation()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const isCreditorIdSet = !!config
@@ -175,7 +177,7 @@ export function SepaConfigTab({
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: theme.spacing.xl }}>
-        Loading SEPA configuration...
+        {t('settings.loadingSepa')}
       </div>
     )
   }
@@ -235,8 +237,8 @@ export function SepaConfigTab({
           <Alert
             variant="warning"
             icon="⚠️"
-            title="Warning"
-            message="The creditor ID is a legal identifier that appears in SEPA exports and settlement records. Changing it may impact compliance and audit trails."
+            title={t('settings.sepaWarningTitle')}
+            message={t('settings.sepaWarningMessage')}
             testId="settings-sepa-alert-warning"
           />
         )}
@@ -251,76 +253,76 @@ export function SepaConfigTab({
         >
           {/* Creditor ID Field */}
           <FormField
-            label="Gläubiger ID (Creditor ID)"
+            label={t('settings.creditorId')}
             fieldKey="creditor_id"
             value={formData.creditor_id}
-            placeholder="z.B. DE01ZZZ09999999999"
-            helperText="SEPA Gläubiger-Identifikationsnummer (max 35 Zeichen)"
+            placeholder={t('settings.sepaPlaceholders.creditorId')}
+            helperText={t('settings.sepaHelpers.creditorId')}
             maxLength={35}
             showCharCounter={true}
           />
 
           {/* Creditor Name Field */}
           <FormField
-            label="Gläubiger Name (Creditor Name)"
+            label={t('settings.creditorName')}
             fieldKey="creditor_name"
             value={formData.creditor_name}
-            placeholder="z.B. Ruderverein Musterstadt e.V."
-            helperText="Name der Organisation (max 70 Zeichen)"
+            placeholder={t('settings.sepaPlaceholders.creditorName')}
+            helperText={t('settings.sepaHelpers.creditorName')}
             maxLength={70}
             showCharCounter={true}
           />
 
           {/* Creditor IBAN Field */}
           <FormField
-            label="Gläubiger IBAN (Creditor IBAN)"
+            label={t('settings.creditorIban')}
             fieldKey="creditor_iban"
             value={formData.creditor_iban}
-            placeholder="z.B. DE89370400440532013000"
+            placeholder={t('settings.sepaPlaceholders.creditorIban')}
             monospace={true}
-            helperText="Bankkonto IBAN (15-34 Zeichen)"
+            helperText={t('settings.sepaHelpers.creditorIban')}
             showValidation={true}
           />
 
           {/* Street Address Field */}
           <FormField
-            label="Straße (Street Address)"
+            label={t('settings.creditorStreet')}
             fieldKey="creditor_address_street"
             value={formData.creditor_address_street}
-            placeholder="z.B. Hauptstraße 123"
-            helperText="Straße und Hausnummer (max 70 Zeichen)"
+            placeholder={t('settings.sepaPlaceholders.street')}
+            helperText={t('settings.sepaHelpers.street')}
             maxLength={70}
             showCharCounter={true}
           />
 
           {/* City Field */}
           <FormField
-            label="Stadt (City)"
+            label={t('settings.creditorCity')}
             fieldKey="creditor_address_city"
             value={formData.creditor_address_city}
-            placeholder="z.B. München"
-            helperText="Stadtname (max 70 Zeichen)"
+            placeholder={t('settings.sepaPlaceholders.city')}
+            helperText={t('settings.sepaHelpers.city')}
             maxLength={70}
             showCharCounter={true}
           />
 
           {/* Country Code Field */}
           <FormField
-            label="Ländercode (Country Code)"
+            label={t('settings.creditorCountry')}
             fieldKey="creditor_address_country"
             value={formData.creditor_address_country}
-            placeholder="z.B. DE"
-            helperText="2-stelliger ISO-Ländercode (DE, AT, CH)"
+            placeholder={t('settings.sepaPlaceholders.country')}
+            helperText={t('settings.sepaHelpers.country')}
           />
 
           {/* Payment Reference Prefix Field - spans both columns */}
           <div style={{ gridColumn: '1 / -1' }}>
             <FormField
-              label="Verwendungszweck-Präfix (Payment Reference Prefix)"
+              label={t('settings.paymentReferencePrefix')}
               fieldKey="payment_reference_prefix"
               value={formData.payment_reference_prefix}
-              placeholder="z.B. Club Bar Abrechnung"
-              helperText="Präfix für den Verwendungszweck. Das Abrechnungsdatum wird automatisch angehängt."
+              placeholder={t('settings.sepaPlaceholders.paymentPrefix')}
+              helperText={t('settings.sepaHelpers.paymentPrefix')}
               maxLength={100}
               showCharCounter={true}
             />
@@ -361,7 +363,7 @@ export function SepaConfigTab({
               e.currentTarget.style.background = theme.colors.semantic.primary
             }}
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('settings.saving') : t('common.save')}
           </button>
 
           <button
@@ -389,7 +391,7 @@ export function SepaConfigTab({
               e.currentTarget.style.backgroundColor = 'transparent'
             }}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       </form>
