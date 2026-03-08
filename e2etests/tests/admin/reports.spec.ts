@@ -216,11 +216,12 @@ test.describe('Reports Page', () => {
     test('should hide revenue content when switching to consumption tab', async ({ page }) => {
       await waitForReportLoaded(page)
 
-      // Switch to consumption tab
-      await page.getByTestId('report-tab-consumption').click()
-      await page.waitForResponse(
+      // Switch to consumption tab (set up listener BEFORE click to avoid race condition)
+      const responsePromise = page.waitForResponse(
         (resp) => resp.url().includes('/reports/consumption') && resp.status() === 200
       )
+      await page.getByTestId('report-tab-consumption').click()
+      await responsePromise
 
       // Filters and summary cards should still be visible (shared across standard tabs)
       await expect(page.getByTestId('report-filter-date-from')).toBeVisible()
