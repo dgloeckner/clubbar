@@ -35,6 +35,7 @@ export { TrashIcon } from './TrashIcon'
 export { CalendarIcon } from './CalendarIcon'
 export { BankIcon } from './BankIcon'
 export { HomeIcon } from './HomeIcon'
+export { DownloadIcon } from './DownloadIcon'
 
 // Admin user icons (for future use in members, admin management, etc.)
 export { AdminUserIcon } from './admin-user-icons'

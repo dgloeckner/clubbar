@@ -11,8 +11,8 @@ import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
-import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon } from '../components/icons'
-import { getMembers, createMember, updateMember, deactivateMember, Member } from '../services/members'
+import { UsersIcon, BankIcon, CalendarIcon, TrashIcon, EditIcon, PlusIcon, DownloadIcon } from '../components/icons'
+import { getMembers, createMember, updateMember, deactivateMember, exportMemberData, Member } from '../services/members'
 import { getDashboardMetrics } from '../services/dashboard'
 import { AxiosError } from 'axios'
 // TableSearchToolbar is available but not currently used
@@ -69,6 +69,7 @@ export function MembersPage() {
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const mobileFilterCount = [
     filterIsActive !== 'all' ? 1 : 0,
@@ -187,6 +188,19 @@ export function MembersPage() {
 
     loadDashboardMetrics()
   }, [])
+
+  // Handle GDPR data export
+  const handleExportData = async () => {
+    if (!editingMember) return
+    setExporting(true)
+    try {
+      await exportMemberData(editingMember.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export member data')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1394,40 +1408,68 @@ export function MembersPage() {
                 />
               </div>
 
-              <div style={{ gridColumn: '1 / -1', display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end', marginTop: theme.spacing.lg }}>
-                <button
-                  data-testid="members-form-cancel-button"
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  style={{
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: 'transparent',
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    cursor: 'pointer',
-                    fontSize: theme.typography.fontSize.sm,
-                    fontWeight: theme.typography.fontWeight.semibold,
-                  }}
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  data-testid="members-form-submit-button"
-                  type="submit"
-                  style={{
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.semantic.primary,
-                    border: 'none',
-                    borderRadius: theme.borderRadius.md,
-                    color: 'white',
-                    cursor: 'pointer',
-                    fontSize: theme.typography.fontSize.sm,
-                    fontWeight: theme.typography.fontWeight.semibold,
-                  }}
-                >
-                  {t('common.save')}
-                </button>
+              <div style={{ gridColumn: '1 / -1', display: 'flex', gap: theme.spacing.lg, justifyContent: editingMember ? 'space-between' : 'flex-end', marginTop: theme.spacing.lg }}>
+                {editingMember && (
+                  <button
+                    data-testid="members-form-export-button"
+                    type="button"
+                    onClick={handleExportData}
+                    disabled={exporting}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: theme.spacing.sm,
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: 'transparent',
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.secondary,
+                      cursor: exporting ? 'not-allowed' : 'pointer',
+                      fontSize: theme.typography.fontSize.sm,
+                      fontWeight: theme.typography.fontWeight.semibold,
+                      opacity: exporting ? 0.6 : 1,
+                    }}
+                    title={t('common.export')}
+                  >
+                    <DownloadIcon size={16} />
+                    {t('common.export')}
+                  </button>
+                )}
+                <div style={{ display: 'flex', gap: theme.spacing.lg }}>
+                  <button
+                    data-testid="members-form-cancel-button"
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    style={{
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: 'transparent',
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      cursor: 'pointer',
+                      fontSize: theme.typography.fontSize.sm,
+                      fontWeight: theme.typography.fontWeight.semibold,
+                    }}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    data-testid="members-form-submit-button"
+                    type="submit"
+                    style={{
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.semantic.primary,
+                      border: 'none',
+                      borderRadius: theme.borderRadius.md,
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: theme.typography.fontSize.sm,
+                      fontWeight: theme.typography.fontWeight.semibold,
+                    }}
+                  >
+                    {t('common.save')}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
