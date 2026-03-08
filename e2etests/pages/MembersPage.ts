@@ -55,6 +55,7 @@ export class MembersPage extends BasePage {
   private readonly languageSelect = () => this.page.getByTestId('members-form-language-select')
   private readonly formSubmitBtn = () => this.page.getByTestId('members-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('members-form-cancel-button')
+  private readonly formExportBtn = () => this.page.getByTestId('members-form-export-button')
 
   // Card UID field
   private readonly cardUidInput = () => this.page.getByTestId('member-form-card-uid')
@@ -275,6 +276,22 @@ export class MembersPage extends BasePage {
     }
 
     throw new Error(`Member with first name "${firstName}" not found in table`)
+  }
+
+  /**
+   * GDPR EXPORT
+   */
+
+  async expectExportButtonVisible() {
+    await expect(this.formExportBtn()).toBeVisible()
+  }
+
+  async expectExportButtonHidden() {
+    await expect(this.formExportBtn()).not.toBeVisible()
+  }
+
+  async clickExportButton() {
+    await this.formExportBtn().click()
   }
 
   /**
