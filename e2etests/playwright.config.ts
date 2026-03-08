@@ -93,6 +93,38 @@ export default defineConfig({
         baseURL: process.env.PACKAGE_URL || 'http://localhost:8080',
       },
     },
+
+    // Walkthrough data seeding - runs before walkthrough recording
+    {
+      name: 'setup walkthrough-data',
+      testMatch: /seed-data\.setup\.ts/,
+      testDir: './tests/walkthrough',
+      use: {
+        baseURL: 'http://localhost:8080',
+      },
+      dependencies: ['setup auth'],
+    },
+
+    // Walkthrough recording - browser demo with video capture
+    {
+      name: 'walkthrough',
+      testDir: './tests/walkthrough',
+      testIgnore: /\.setup\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:5173',
+        storageState: 'playwright/.auth/admin.json',
+        video: {
+          mode: 'on',
+          size: { width: 1280, height: 720 },
+        },
+        viewport: { width: 1280, height: 720 },
+        launchOptions: {
+          slowMo: 150,
+        },
+      },
+      dependencies: ['setup auth', 'setup walkthrough-data'],
+    },
   ],
 
   // Web server configuration for local development
