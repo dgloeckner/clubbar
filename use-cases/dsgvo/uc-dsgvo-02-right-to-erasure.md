@@ -1,14 +1,25 @@
 # UC-DSGVO-02: Right to Erasure (Art. 17)
 
-**Implementation Status**: Partially implemented — action needed (backend ready, frontend UI button missing; see plans/action-items-use-cases.md)
+**Implementation Status**: Partially implemented — action needed (backend needs fixes, frontend UI button missing)
 
-**GDPR Article**: Art. 17 - Right to erasure ("right to be forgotten")
+**GDPR Article**: [Art. 17 — Right to erasure ("right to be forgotten")](https://gdpr-info.eu/art-17-gdpr/)
 **Response Deadline**: 1 month
-**Legal Exception**: § 147 AO requires 10-year transaction retention
+**Legal Exception**: [Art. 17(3)(b)](https://gdpr-info.eu/art-17-gdpr/) — retention for legal obligation ([§ 147 AO](https://www.gesetze-im-internet.de/ao_1977/__147.html))
 
 ## Summary
 
-A member requests deletion of their personal data. Due to tax law requirements, the system anonymizes personal data while retaining transaction history.
+A member requests deletion of their personal data. Due to tax law requirements, the system anonymizes personal data while retaining transaction history. Anonymization is **irreversible** — all PII is destroyed across all storage including audit log entries.
+
+## Legal Basis
+
+| Requirement | GDPR Article | Summary |
+|-------------|-------------|---------|
+| Erase personal data on request | [Art. 17(1)](https://gdpr-info.eu/art-17-gdpr/) | Data subject may request deletion when purpose lapses |
+| Retain financial records | [Art. 17(3)(b)](https://gdpr-info.eu/art-17-gdpr/) | Exception: legal obligation (§ 147 AO) permits retention |
+| Storage limitation | [Art. 5(1)(e)](https://gdpr-info.eu/art-5-gdpr/) | No identifiable data beyond purpose |
+| Accountability | [Art. 5(2)](https://gdpr-info.eu/art-5-gdpr/) | Controller must prove compliance |
+| True anonymization | [Art. 4(5)](https://gdpr-info.eu/art-4-gdpr/) / [Recital 26](https://gdpr-info.eu/recitals/no-26/) | Pseudonymized data is still personal data; only truly anonymous data falls outside GDPR |
+| Processing records | [Art. 30](https://gdpr-info.eu/art-30-gdpr/) | Document anonymization as processing activity |
 
 ## Actors
 
@@ -31,6 +42,7 @@ Member submits deletion request (verbal, written, or email - outside system).
 |-------|-----------|----------|
 | Outstanding balance | Must be €0.00 | Yes |
 | Active settlement | No pending settlement including this member | Yes |
+| Already anonymized | `deleted_at` must be NULL | Yes |
 
 ## Main Flow
 
@@ -42,35 +54,55 @@ Member submits deletion request (verbal, written, or email - outside system).
    - Warning about irreversibility
    - Note about transaction retention
 5. Admin confirms anonymization
-6. System anonymizes member data
-7. System creates audit log entry
-8. System displays confirmation
+6. System anonymizes member data (see [Anonymization Transformations](#anonymization-transformations))
+7. System scrubs historical audit log entries (see [Audit Log Scrubbing](#audit-log-scrubbing))
+8. System creates anonymization audit entry (no PII)
+9. System displays confirmation
 
 ## Anonymization Transformations
+
+All personal data fields set to NULL — true anonymization, not pseudonymization.
 
 | Field | Before | After |
 |-------|--------|-------|
 | first_name | "Max" | NULL |
 | last_name | "Mustermann" | NULL |
+| email | "max@example.com" | NULL |
+| phone | "+49 170 1234567" | NULL |
 | iban | "DE89370400440532013000" | NULL |
-| bic | "COBADEFFXXX" | NULL |
-| card_uid | "A1B2C3D4" | "DELETED-{uuid}" |
+| account_holder_name | "Max Mustermann" | NULL |
+| mandate_reference | "ABC123..." | NULL |
+| card_uid | "A1B2C3D4" | "ANON-{uuid}" |
 | is_active | true/false | false |
 | deleted_at | NULL | Current timestamp |
 
-**Unchanged**: id (UUID), created_at
+**card_uid** is set to `"ANON-{uuid}"` (not NULL) to maintain UNIQUE constraint validity and prevent RFID re-use.
 
-## Audit Log Entry
+**Unchanged**: `id` (UUID), `created_at`, `updated_at`, `preferred_language`, `mandate_signed_at`
+
+## Audit Log Scrubbing
+
+**Critical**: Anonymization must scrub PII from **all** storage, including historical audit log entries. Leaving PII in audit entries would allow identity reconstruction, violating [Art. 17 GDPR](https://gdpr-info.eu/art-17-gdpr/).
+
+**Step 1 — Scrub historical entries:**
+```sql
+UPDATE audit_log
+SET old_values = NULL, new_values = NULL
+WHERE entity_type = 'member' AND entity_id = ?
+```
+
+**Step 2 — Create anonymization entry (no PII):**
 
 | Field | Value |
 |-------|-------|
 | action | `anonymize` |
 | entity_type | `member` |
 | entity_id | Member UUID |
-| old_values | `{ "first_name": "Max", "last_name": "Mustermann", "iban": "DE89****0000", "card_uid": "A1B2C3D4" }` |
-| new_values | `{ "first_name": null, "last_name": null, "iban": null, "card_uid": "DELETED-{uuid}", "deleted_at": "..." }` |
+| old_values | NULL |
+| new_values | `{ "deleted_at": "2025-01-23T14:30:00Z" }` |
 
-Note: IBAN masked in audit log (first 4 + last 4 characters only).
+**What is preserved**: Entry metadata (who, what action, when, IP) — proves accountability per [Art. 5(2)](https://gdpr-info.eu/art-5-gdpr/).
+**What is removed**: All `old_values`/`new_values` JSON payloads containing PII.
 
 ## Alternative Flows
 
@@ -91,11 +123,12 @@ Note: IBAN masked in audit log (first 4 + last 4 characters only).
 
 ## Postconditions
 
-- Personal data fields set to NULL
-- card_uid changed to "DELETED-{uuid}"
+- All personal data fields set to NULL in `members` table
+- card_uid changed to "ANON-{uuid}"
 - is_active = false, deleted_at = timestamp
-- Transactions remain intact (linked to anonymized member)
-- Audit log records anonymization
+- All historical audit log entries for this member have old_values/new_values = NULL
+- New anonymization audit entry created (no PII)
+- Transactions remain intact (linked to anonymized member via UUID)
 
 ## Terminal Sync Impact
 
@@ -115,5 +148,13 @@ Note: IBAN masked in audit log (first 4 + last 4 characters only).
 | T06 | Terminal sync after anonymization | Member removed from terminal cache |
 | T07 | RFID scan after anonymization | "Unknown card" displayed |
 | T08 | Anonymize without authentication | Access denied (401) |
-| T09 | Audit log IBAN masking | IBAN shows as "DE89****0000" in log |
-| T10 | Double anonymization attempt | Action not available |
+| T09 | Historical audit log entries scrubbed | All old_values/new_values NULL for this member's audit entries |
+| T10 | Anonymization audit entry has no PII | Entry contains only action metadata and deleted_at |
+| T11 | Double anonymization attempt | Action not available / rejected |
+| T12 | Member data not reconstructable | No PII exists in any table for this member after anonymization |
+
+## Related Documentation
+
+- [ADR-0004: Immutable Transaction Storage](../../adr/0004-immutable-transaction-storage.md) — Transactions retained per Art. 17(3)(b)
+- [ADR-0013: Audit Logging](../../adr/0013-audit-logging.md) — Audit log scrubbing during anonymization
+- [UC-DSGVO-01: Right to Access](./uc-dsgvo-01-right-to-access.md) — Data export must happen before anonymization

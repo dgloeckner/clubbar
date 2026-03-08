@@ -38,12 +38,13 @@ The Club Bar system manages sensitive member data (personal information, banking
 
 ### Core Principles
 
-1. **Append-only audit log**: Audit entries are never updated or deleted
+1. **Append-only audit log**: Audit entries are never updated or deleted — with one exception: GDPR anonymization (see below)
 2. **Complete change capture**: Record old and new values for all modified fields
 3. **Sensitive data masking**: IBAN, passwords, and tokens are masked or omitted
 4. **Actor identification**: Every entry links to the admin user who performed the action
 5. **Request context**: Capture IP address and user agent for security analysis
 6. **Retention alignment**: Audit log retained for same period as financial records (10 years per § 147 AO)
+7. **GDPR audit log scrubbing**: When a member is anonymized, all historical audit entries for that member must have `old_values` and `new_values` set to NULL to prevent PII reconstruction (see [Audit Log Scrubbing](#audit-log-scrubbing-during-gdpr-anonymization))
 
 ### Data Structure
 
@@ -120,20 +121,14 @@ The Club Bar system manages sensitive member data (personal information, banking
   "action": "anonymize",
   "entity_type": "member",
   "entity_id": "d4e5f6...",
-  "old_values": {
-    "first_name": "Max",
-    "last_name": "Mustermann",
-    "iban": "[MASKED]"
-  },
-  "new_values": {
-    "first_name": null,
-    "last_name": null,
-    "display_name": "Deleted User",
-    "card_uid": "ANONYMOUS-d4e5f6...",
-    "deleted_at": "2025-01-23T14:30:00Z"
-  }
+  "old_values": null,
+  "new_values": { "deleted_at": "2025-01-23T14:30:00Z" },
+  "ip_address": "192.168.1.100",
+  "created_at": "2025-01-23T14:30:00Z"
 }
 ```
+
+**Important**: The anonymization audit entry contains **no PII** — only the fact that anonymization occurred, when, and by whom. Storing old PII values (even masked) in the audit log would defeat the purpose of anonymization ([Art. 17 GDPR](https://gdpr-info.eu/art-17-gdpr/)).
 
 **Failed login attempt:**
 ```json
@@ -183,6 +178,38 @@ Clicking an audit entry opens a detail panel showing:
 **Access Control:**
 
 - All admin users have full access to audit log viewer
+
+### Audit Log Scrubbing During GDPR Anonymization
+
+When a member exercises their right to erasure ([Art. 17 GDPR](https://gdpr-info.eu/art-17-gdpr/)), personal data must be erased from **all storage**, including audit log entries. Leaving PII in historical audit entries (e.g., name changes, IBAN updates) would allow reconstruction of the member's identity, which violates the erasure obligation.
+
+**Legal basis:**
+- [Art. 17(1) GDPR](https://gdpr-info.eu/art-17-gdpr/) — Right to erasure: personal data must be deleted without undue delay
+- [Art. 5(1)(e) GDPR](https://gdpr-info.eu/art-5-gdpr/) — Storage limitation: identifiable data kept no longer than necessary
+- [Art. 4(5) GDPR](https://gdpr-info.eu/art-4-gdpr/) / [Recital 26](https://gdpr-info.eu/recitals/no-26/) — Pseudonymized data (reversible) is still personal data; only truly anonymous data falls outside GDPR scope
+
+**Scrubbing procedure** (executed atomically during member anonymization):
+
+1. **Scrub all historical audit entries** for the member:
+   ```sql
+   UPDATE audit_log
+   SET old_values = NULL, new_values = NULL
+   WHERE entity_type = 'member' AND entity_id = ?
+   ```
+2. **Create new anonymization entry** with no PII:
+   ```sql
+   INSERT INTO audit_log (action, entity_type, entity_id, old_values, new_values, ...)
+   VALUES ('anonymize', 'member', ?, NULL, '{"deleted_at": "..."}', ...)
+   ```
+
+**What is preserved** after scrubbing:
+- Audit entry metadata: `id`, `admin_user_id`, `action`, `entity_type`, `entity_id`, `ip_address`, `user_agent`, `created_at`
+- This proves accountability ([Art. 5(2) GDPR](https://gdpr-info.eu/art-5-gdpr/)): *who* performed *what action* on *which entity* and *when*
+
+**What is removed**:
+- `old_values` and `new_values` JSON payloads containing PII (names, IBAN, email, phone, etc.)
+
+**Why this is the only exception to append-only**: The audit log's append-only design exists to ensure accountability. GDPR Art. 17 creates a legal obligation that supersedes the append-only principle for PII content — but not for the audit structure itself. The entry rows remain; only the PII payloads are nullified.
 
 ---
 
@@ -261,9 +288,16 @@ Create `members_history`, `products_history`, etc. with full row copies.
 
 ## References
 
-- **GDPR Article 5**: Principles of data processing (accountability)
-- **GDPR Article 30**: Records of processing activities
-- **§ 147 AO (German Tax Code)**: 10-year retention for business records
+- **GDPR**:
+  - [Art. 4(5)](https://gdpr-info.eu/art-4-gdpr/) — Definition of pseudonymization (reversible ≠ anonymous)
+  - [Art. 5(1)(e)](https://gdpr-info.eu/art-5-gdpr/) — Storage limitation principle
+  - [Art. 5(2)](https://gdpr-info.eu/art-5-gdpr/) — Accountability principle
+  - [Art. 17](https://gdpr-info.eu/art-17-gdpr/) — Right to erasure ("right to be forgotten")
+  - [Art. 30](https://gdpr-info.eu/art-30-gdpr/) — Records of processing activities
+  - [Recital 26](https://gdpr-info.eu/recitals/no-26/) — Anonymous data falls outside GDPR scope
+- **German Law**:
+  - [§ 147 AO](https://www.gesetze-im-internet.de/ao_1977/__147.html) — Retention of business records (8 years for booking vouchers, 10 years for annual statements)
+  - [§ 257 HGB](https://www.gesetze-im-internet.de/hgb/__257.html) — Commercial retention obligations
 - **OWASP Logging Guide**: [Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
 
 ---

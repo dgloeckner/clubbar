@@ -270,7 +270,7 @@ Error correction requires creating new correction transaction (never modify orig
 ✅ **Immutable source**: Transactions never modified; basis for settlement is reliable
 ✅ **Settlement flexible**: Can create multiple settlements; mark different subsets of transactions
 ✅ **Idempotent**: Retry same transaction safely (INSERT IGNORE)
-✅ **GDPR-compliant**: Retains transaction history for 10 years (tax law § 147 AO)
+✅ **GDPR-compliant**: Transaction records contain no PII after member anonymization — only UUID linkage remains. Retained per [Art. 17(3)(b) GDPR](https://gdpr-info.eu/art-17-gdpr/) exception for legal obligations (§ 147 AO). Anonymized transaction data falls outside GDPR scope per [Recital 26](https://gdpr-info.eu/recitals/no-26/)
 ✅ **Dispute resolution**: Full evidence of purchases and corrections
 ✅ **Compliance-ready**: Complete history for audits
 ✅ **Easy corrections**: Reversals clearly link to originals (related_transaction_id)
@@ -420,17 +420,23 @@ UPDATE transactions SET deleted_at = NOW() WHERE id IN (...);
 
 ## References
 
-- **Accounting Standards**:
-  - German tax law [§ 147 Aufbewahrungspflicht](https://www.gesetze-im-internet.de/ao_1977/__147.html) - 10-year retention of transaction records
-  - [GAAP: General Accepted Accounting Principles](https://www.investopedia.com/terms/g/gaap.asp) - requires complete transaction history
-
 - **GDPR**:
-  - [Art. 16 Right to Rectification](https://gdpr-info.eu/art-16-gdpr/) - right to correct inaccurate data
-  - [Art. 17 Right to Erasure](https://gdpr-info.eu/art-17-gdpr/) - right to delete data (with exceptions for accounting)
+  - [Art. 5(1)(e)](https://gdpr-info.eu/art-5-gdpr/) — Storage limitation: identifiable data kept no longer than necessary for its purpose
+  - [Art. 16 Right to Rectification](https://gdpr-info.eu/art-16-gdpr/) — Right to correct inaccurate data
+  - [Art. 17 Right to Erasure](https://gdpr-info.eu/art-17-gdpr/) — Right to delete data
+  - [Art. 17(3)(b)](https://gdpr-info.eu/art-17-gdpr/) — Exception: erasure not required where retention is a legal obligation (§ 147 AO)
+  - [Recital 26](https://gdpr-info.eu/recitals/no-26/) — Truly anonymous data (no reasonable means to re-identify) falls outside GDPR scope entirely
+
+- **German Tax & Commercial Law**:
+  - [§ 147 AO](https://www.gesetze-im-internet.de/ao_1977/__147.html) — Retention of business records: 8 years for booking vouchers (Buchungsbelege), 10 years for annual financial statements
+  - [§ 257 HGB](https://www.gesetze-im-internet.de/hgb/__257.html) — Commercial retention obligations (same periods as § 147 AO)
+
+- **Accounting Standards**:
+  - [GAAP: General Accepted Accounting Principles](https://www.investopedia.com/terms/g/gaap.asp) — Requires complete transaction history
 
 - **Software Patterns**:
-  - [Event Sourcing](https://www.martinfowler.com/eaaDev/EventSourcing.html) - immutable event logs
-  - [CQRS](https://www.martinfowler.com/bliki/CQRS.html) - Command Query Responsibility Segregation
+  - [Event Sourcing](https://www.martinfowler.com/eaaDev/EventSourcing.html) — Immutable event logs
+  - [CQRS](https://www.martinfowler.com/bliki/CQRS.html) — Command Query Responsibility Segregation
 
 ---
 
