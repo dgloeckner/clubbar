@@ -54,7 +54,7 @@ class AdminController
              FROM transactions t
              LEFT JOIN members m ON t.member_id = m.id
              LEFT JOIN products p ON t.product_id = p.id
-             LEFT JOIN terminals te ON t.terminal_id = te.id
+             LEFT JOIN terminals te ON t.created_by_terminal_id = te.id
              ORDER BY t.created_at DESC
              LIMIT 10"
         );
