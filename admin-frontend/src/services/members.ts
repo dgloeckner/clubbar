@@ -199,3 +199,23 @@ export async function getMemberTransactions(
 
   return { items: [], total: 0, page: 1, per_page: perPage }
 }
+
+/**
+ * Export member data (GDPR Art. 15 - Right of Access)
+ * Downloads the export as a JSON file.
+ */
+export async function exportMemberData(memberId: string): Promise<void> {
+  const response = await post<Record<string, unknown>>(`/admin/members/${memberId}/export`, {})
+
+  // Convert JSON response to downloadable file
+  const json = JSON.stringify(response, null, 2)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `member-export-${memberId}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
