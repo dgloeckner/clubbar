@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "description": "E2E and API tests for Club Bar POS system",
   "scripts": {
-    "test": "playwright test --workers 4",
+    "test": "playwright test --workers 4 --project=api-tests --project=admin-chromium --project=admin-mobile --project=terminal-touch",
     "test:api": "playwright test --project=api-tests",
     "test:admin": "playwright test --project=admin-chromium",
     "test:terminal": "playwright test --project=terminal-touch",
     "test:ui": "playwright test --ui",
-    "report": "playwright show-report"
+    "report": "playwright show-report",
+    "walkthrough": "playwright test --project=walkthrough --workers=1"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
