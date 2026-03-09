@@ -158,7 +158,8 @@ export function JournalPage() {
 
   // Load transactions when filters, sorting, or pagination changes
   useEffect(() => {
-    loadTransactions()
+    const timer = setTimeout(loadTransactions, search ? 500 : 0)
+    return () => clearTimeout(timer)
   }, [currentPage, pageSize, dateFrom, dateTo, settlementStatus, search, sortKey, sortDirection])
 
   async function loadTransactions() {
