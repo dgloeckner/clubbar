@@ -19,7 +19,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 4 : undefined,
-  reporter: process.env.CI ? [['github'], ['list'], ['html']] : 'html',
+  reporter: process.env.CI
+    ? [['github'], ['list'], ['html']]
+    : [['html'], ['./reporters/subtitle-reporter.ts']],
 
   use: {
     baseURL: process.env.API_URL || 'http://localhost:8080',
@@ -119,8 +121,8 @@ export default defineConfig({
           size: { width: 1280, height: 720 },
         },
         viewport: { width: 1280, height: 720 },
-        // No slowMo — pacing is handled by pause() fixtures in the walkthrough spec
-        // slowMo causes race conditions with waitForResponse in POM methods
+        // No slowMo — POM methods (setSepaFilter, etc.) have waitForResponse
+        // after click, which races with slowMo. Pacing via pause fixtures instead.
       },
       dependencies: ['setup auth', 'setup walkthrough-data'],
     },

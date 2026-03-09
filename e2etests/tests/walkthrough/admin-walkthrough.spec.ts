@@ -5,344 +5,328 @@ test.describe.configure({ mode: 'serial' });
 test.describe('Admin Panel Walkthrough', () => {
 
   test('01 — Login and Dashboard', async ({
-    page, authenticatedDashboardPage, pause, narrationPause, quickPause,
+    page, authenticatedDashboardPage, pause, narrationPause, quickPause, showCursor,
   }) => {
-    // We're already authenticated and on the dashboard
-    await narrationPause(); // let viewer take in the dashboard
+    await test.step('subtitle: Dashboard Overview', async () => {
+      await narrationPause();
+      await authenticatedDashboardPage.expectMetricsVisible();
+      await quickPause();
+    });
 
-    // Highlight metrics
-    await authenticatedDashboardPage.expectMetricsVisible();
-    await quickPause();
+    await test.step('subtitle: Recent Activity & System Status', async () => {
+      await authenticatedDashboardPage.expectRecentTransactionsVisible();
+      await quickPause();
+      await authenticatedDashboardPage.expectTerminalStatusVisible();
+      await quickPause();
+      await authenticatedDashboardPage.expectSystemStatusVisible();
+      await quickPause();
+    });
 
-    // Recent transactions
-    await authenticatedDashboardPage.expectRecentTransactionsVisible();
-    await quickPause();
-
-    // Terminal status
-    await authenticatedDashboardPage.expectTerminalStatusVisible();
-    await quickPause();
-
-    // System status
-    await authenticatedDashboardPage.expectSystemStatusVisible();
-    await quickPause();
-
-    // Alerts
-    await authenticatedDashboardPage.expectAlertsVisible();
-    await narrationPause();
-
-    // Hit refresh to show live data
-    // Use page-level click + pause instead of clickRefresh() which has tight waitForResponse timing
-    await page.locator('[data-testid="dashboard-refresh-button"]').click();
-    await pause(2000);
+    await test.step('subtitle: Alerts & Live Refresh', async () => {
+      await authenticatedDashboardPage.expectAlertsVisible();
+      await narrationPause();
+      const refreshBtn = page.locator('[data-testid="dashboard-refresh-button"]');
+      await showCursor(refreshBtn);
+      await refreshBtn.click();
+      await pause(1200);
+    });
   });
 
   test('02 — Members: browse, search, filter', async ({
     page, authenticatedMembersPage, pause, narrationPause, quickPause,
   }) => {
-    await authenticatedMembersPage.expectPageVisible();
-    await narrationPause();
+    await test.step('subtitle: Members Overview', async () => {
+      await authenticatedMembersPage.expectPageVisible();
+      await authenticatedMembersPage.waitForStatsToLoad();
+      await authenticatedMembersPage.expectTableVisible();
+      await narrationPause();
+    });
 
-    // Show stats bar
-    await authenticatedMembersPage.waitForStatsToLoad();
-    await quickPause();
+    await test.step('subtitle: Search & Filter Members', async () => {
+      await authenticatedMembersPage.search('Thomas');
+      await pause(800);
+      await authenticatedMembersPage.clearSearch();
+      await quickPause();
 
-    // Browse the table
-    await authenticatedMembersPage.expectTableVisible();
-    await pause(1200);
+      await authenticatedMembersPage.setSepaFilter('valid');
+      await pause(800);
+      await authenticatedMembersPage.setSepaFilter('all');
+      await quickPause();
 
-    // Search for a member
-    await authenticatedMembersPage.search('Thomas');
-    await pause(1500);
+      await authenticatedMembersPage.setStatusFilter('active');
+      await pause(600);
+      await authenticatedMembersPage.setStatusFilter('all');
+      await quickPause();
+    });
 
-    // Clear search
-    await authenticatedMembersPage.clearSearch();
-    await quickPause();
-
-    // Filter by SEPA status
-    await authenticatedMembersPage.setSepaFilter('valid');
-    await pause(1200);
-
-    // Reset filter
-    await authenticatedMembersPage.setSepaFilter('all');
-    await quickPause();
-
-    // Filter by status
-    await authenticatedMembersPage.setStatusFilter('active');
-    await pause(1000);
-    await authenticatedMembersPage.setStatusFilter('all');
-    await quickPause();
-
-    // Click edit on first member to show the form
-    await authenticatedMembersPage.clickEditButtonAtRowIndex(0);
-    await authenticatedMembersPage.expectFormModalVisible();
-    await narrationPause();
-
-    // Close it
-    await authenticatedMembersPage.cancelForm();
-    await authenticatedMembersPage.expectFormModalHidden();
-    await quickPause();
+    await test.step('subtitle: Edit Member Details', async () => {
+      await authenticatedMembersPage.clickEditButtonAtRowIndex(0);
+      await authenticatedMembersPage.expectFormModalVisible();
+      await narrationPause();
+      await authenticatedMembersPage.cancelForm();
+      await authenticatedMembersPage.expectFormModalHidden();
+      await quickPause();
+    });
   });
 
   test('03 — Members: create a new member', async ({
     page, authenticatedMembersPage, pause, narrationPause, quickPause,
   }) => {
     const testId = Date.now().toString().slice(-6);
-
     await authenticatedMembersPage.expectPageVisible();
-    await quickPause();
 
-    // Open create form
-    await authenticatedMembersPage.openCreateModal();
-    await authenticatedMembersPage.expectFormModalVisible();
-    await pause(800);
+    await test.step('subtitle: Create New Member', async () => {
+      await authenticatedMembersPage.openCreateModal();
+      await authenticatedMembersPage.expectFormModalVisible();
+      await quickPause();
 
-    // Fill in fun demo data
-    await authenticatedMembersPage.fillMemberForm(
-      'Demo',
-      `Walker${testId}`,
-      'DE89370400440532013000',
-      '2026-01-15',
-      `demo${testId}@club.example`,
-      'de',
-    );
-    await narrationPause(); // let viewer see the filled form
+      await authenticatedMembersPage.fillMemberForm(
+        'Demo',
+        `Walker${testId}`,
+        'DE89370400440532013000',
+        '2026-01-15',
+        `demo${testId}@club.example`,
+        'de',
+      );
+      await narrationPause();
+    });
 
-    // Submit
-    await authenticatedMembersPage.submitForm();
-    await authenticatedMembersPage.expectFormModalHidden();
-    await pause(1000);
+    await test.step('subtitle: Save & Verify Member', async () => {
+      await authenticatedMembersPage.submitForm();
+      await authenticatedMembersPage.expectFormModalHidden();
+      await pause(600);
 
-    // Verify the new member appears
-    await authenticatedMembersPage.search('Demo');
-    await pause(1500);
-    await authenticatedMembersPage.clearSearch();
-    await quickPause();
+      await authenticatedMembersPage.search('Demo');
+      await pause(800);
+      await authenticatedMembersPage.clearSearch();
+      await quickPause();
+    });
   });
 
   test('04 — Products: browse, filter, sort', async ({
     page, authenticatedProductsPage, pause, narrationPause, quickPause,
   }) => {
-    await authenticatedProductsPage.expectPageVisible();
-    await narrationPause();
+    await test.step('subtitle: Product Catalog', async () => {
+      await authenticatedProductsPage.expectPageVisible();
+      await authenticatedProductsPage.expectTableVisible();
+      await narrationPause();
+    });
 
-    // Browse table
-    await authenticatedProductsPage.expectTableVisible();
-    await pause(1000);
+    await test.step('subtitle: Sort & Search Products', async () => {
+      await authenticatedProductsPage.sortBy('price');
+      await pause(600);
+      await authenticatedProductsPage.sortBy('name');
+      await quickPause();
 
-    // Sort by price (high to low)
-    await authenticatedProductsPage.sortBy('price');
-    await pause(1000);
+      await authenticatedProductsPage.search('Bier');
+      await pause(800);
+      await authenticatedProductsPage.clearSearch();
+      await quickPause();
 
-    // Sort by name
-    await authenticatedProductsPage.sortBy('name');
-    await quickPause();
-
-    // Search
-    await authenticatedProductsPage.search('Bier');
-    await pause(1200);
-    await authenticatedProductsPage.clearSearch();
-    await quickPause();
-
-    // Filter by status
-    await authenticatedProductsPage.filterByStatus('active');
-    await pause(800);
-    await authenticatedProductsPage.filterByStatus('all');
-    await quickPause();
+      await authenticatedProductsPage.filterByStatus('active');
+      await pause(600);
+      await authenticatedProductsPage.filterByStatus('all');
+      await quickPause();
+    });
   });
 
   test('05 — Products: create with multilingual name and icon', async ({
     page, authenticatedProductsPage, pause, narrationPause, quickPause,
   }) => {
     await authenticatedProductsPage.expectPageVisible();
-    await quickPause();
 
-    // Open create modal
-    await authenticatedProductsPage.openCreateModal();
-    await authenticatedProductsPage.expectFormModalVisible();
-    await pause(800);
-
-    // Fill multilingual names
-    await authenticatedProductsPage.fillProductFormMultilingual(
-      { de: 'Demo Weizen', en: 'Demo Wheat Beer' },
-      '3.50',
-    );
-    await quickPause();
-
-    // Pick a category
-    const categoryId = await authenticatedProductsPage.getFirstActiveCategoryId();
-    if (categoryId) {
-      await authenticatedProductsPage.selectCategory(categoryId);
+    await test.step('subtitle: Create Multilingual Product', async () => {
+      await authenticatedProductsPage.openCreateModal();
+      await authenticatedProductsPage.expectFormModalVisible();
       await quickPause();
-    }
 
-    // Pick an icon
-    await authenticatedProductsPage.selectIcon('beer-pils');
-    await pause(1000);
+      await authenticatedProductsPage.fillProductFormMultilingual(
+        { de: 'Demo Weizen', en: 'Demo Wheat Beer' },
+        '3.50',
+      );
+      await quickPause();
 
-    // Show the terminal preview (it's visible alongside the form)
-    await narrationPause();
+      const categoryId = await authenticatedProductsPage.getFirstActiveCategoryId();
+      if (categoryId) {
+        await authenticatedProductsPage.selectCategory(categoryId);
+        await quickPause();
+      }
+    });
 
-    // Submit
-    await authenticatedProductsPage.submitForm();
-    await authenticatedProductsPage.expectFormModalHidden();
-    await pause(1000);
+    await test.step('subtitle: Icon Selection & Terminal Preview', async () => {
+      await authenticatedProductsPage.selectIcon('beer-pils');
+      await pause(600);
+      await narrationPause();
+
+      await authenticatedProductsPage.submitForm();
+      await authenticatedProductsPage.expectFormModalHidden();
+      await pause(600);
+    });
   });
 
   test('06 — Categories: quick tour', async ({
     page, authenticatedCategoriesPage, pause, narrationPause, quickPause,
   }) => {
-    await authenticatedCategoriesPage.expectPageVisible();
-    await narrationPause();
-
-    await authenticatedCategoriesPage.expectTableVisible();
-    await pause(1000);
+    await test.step('subtitle: Category Management', async () => {
+      await authenticatedCategoriesPage.expectPageVisible();
+      await authenticatedCategoriesPage.expectTableVisible();
+      await narrationPause();
+    });
   });
 
   test('07 — Journal: transactions and filters', async ({
-    page, authenticatedJournalPage, pause, narrationPause, quickPause,
+    page, authenticatedJournalPage, pause, narrationPause, quickPause, showCursor,
   }) => {
-    await authenticatedJournalPage.waitForPageLoad();
-    await narrationPause();
+    await test.step('subtitle: Transaction Journal', async () => {
+      await authenticatedJournalPage.waitForPageLoad();
+      await authenticatedJournalPage.waitForTableToLoad();
+      await narrationPause();
+    });
 
-    // Wait for table
-    await authenticatedJournalPage.waitForTableToLoad();
-    await pause(1000);
+    await test.step('subtitle: Filter by Period & Sort', async () => {
+      const picker3m = page.getByTestId('journal-period-picker-3m');
+      await showCursor(picker3m);
+      await picker3m.click();
+      await pause(800);
+      const pickerAll = page.getByTestId('journal-period-picker-all');
+      await showCursor(pickerAll);
+      await pickerAll.click();
+      await pause(800);
 
-    // Switch period using direct clicks (POM methods use waitForResponse which can race)
-    await page.getByTestId('journal-period-picker-3m').click();
-    await pause(1500);
+      const headerAmount = page.getByTestId('journal-header-amount');
+      await showCursor(headerAmount);
+      await headerAmount.click();
+      await pause(600);
+      const headerDate = page.getByTestId('journal-header-date');
+      await showCursor(headerDate);
+      await headerDate.click();
+      await pause(600);
+    });
 
-    await page.getByTestId('journal-period-picker-all').click();
-    await pause(1500);
-
-    // Sort by amount header
-    await page.getByTestId('journal-header-amount').click();
-    await pause(1000);
-
-    // Sort by date (back to default)
-    await page.getByTestId('journal-header-date').click();
-    await pause(1000);
-
-    // Search for a seeded member
-    await page.getByTestId('journal-search-input').fill('Thomas');
-    await pause(1500);
-    await page.getByTestId('journal-search-input').clear();
-    await narrationPause();
+    await test.step('subtitle: Search Transactions', async () => {
+      const searchInput = page.getByTestId('journal-search-input');
+      await showCursor(searchInput);
+      await searchInput.fill('Thomas');
+      await pause(800);
+      await searchInput.clear();
+      await narrationPause();
+    });
   });
 
   test('08 — Reports: revenue, ranking, terminal activity', async ({
-    page, pause, narrationPause, quickPause,
+    page, pause, narrationPause, quickPause, showCursor,
   }) => {
-    // Navigate to reports manually (no POM fixture for reports)
-    await page.goto('/reports');
-    await page.waitForLoadState('domcontentloaded');
-    await narrationPause();
+    await test.step('subtitle: Reports & Analytics', async () => {
+      await page.goto('/reports');
+      await page.waitForLoadState('networkidle');
+      await narrationPause();
+    });
 
-    // Revenue tab (default)
-    await pause(1500);
+    await test.step('subtitle: Consumption & Member Ranking', async () => {
+      const consumptionTab = page.getByRole('tab', { name: /consumption|verbrauch/i });
+      if (await consumptionTab.isVisible()) {
+        await showCursor(consumptionTab);
+        await consumptionTab.click();
+        await pause(800);
+      }
 
-    // Click Consumption tab
-    const consumptionTab = page.getByRole('tab', { name: /consumption|verbrauch/i });
-    if (await consumptionTab.isVisible()) {
-      await consumptionTab.click();
-      await pause(1200);
-    }
+      const rankingTab = page.getByRole('tab', { name: /ranking/i });
+      if (await rankingTab.isVisible()) {
+        await showCursor(rankingTab);
+        await rankingTab.click();
+        await pause(800);
+      }
+    });
 
-    // Click Member Ranking tab
-    const rankingTab = page.getByRole('tab', { name: /ranking/i });
-    if (await rankingTab.isVisible()) {
-      await rankingTab.click();
-      await pause(1500);
-    }
+    await test.step('subtitle: Terminal Activity', async () => {
+      const terminalTab = page.getByRole('tab', { name: /terminal/i });
+      if (await terminalTab.isVisible()) {
+        await showCursor(terminalTab);
+        await terminalTab.click();
+        await pause(800);
+      }
 
-    // Click Terminal Activity tab
-    const terminalTab = page.getByRole('tab', { name: /terminal/i });
-    if (await terminalTab.isVisible()) {
-      await terminalTab.click();
-      await pause(1500);
-    }
-
-    // Back to Revenue
-    const revenueTab = page.getByRole('tab', { name: /revenue|umsatz/i });
-    if (await revenueTab.isVisible()) {
-      await revenueTab.click();
-      await quickPause();
-    }
+      const revenueTab = page.getByRole('tab', { name: /revenue|umsatz/i });
+      if (await revenueTab.isVisible()) {
+        await showCursor(revenueTab);
+        await revenueTab.click();
+        await quickPause();
+      }
+    });
   });
 
   test('09 — Settings: SEPA, admin users, terminals', async ({
     page, authenticatedSettingsPage, pause, narrationPause, quickPause,
   }) => {
-    await authenticatedSettingsPage.expectPageVisible();
-    await narrationPause();
+    await test.step('subtitle: SEPA Configuration', async () => {
+      await authenticatedSettingsPage.expectPageVisible();
+      await authenticatedSettingsPage.expectSepaTabVisible();
+      await narrationPause();
+    });
 
-    // SEPA tab (default)
-    await authenticatedSettingsPage.expectSepaTabVisible();
-    await pause(1200);
+    await test.step('subtitle: Admin Users & Terminals', async () => {
+      await authenticatedSettingsPage.clickAdminUsersTab();
+      await authenticatedSettingsPage.expectAdminUsersTabVisible();
+      await pause(800);
 
-    // Admin Users tab
-    await authenticatedSettingsPage.clickAdminUsersTab();
-    await authenticatedSettingsPage.expectAdminUsersTabVisible();
-    await pause(1200);
-
-    // Terminals tab
-    await authenticatedSettingsPage.clickTerminalsTab();
-    await authenticatedSettingsPage.expectTerminalsTabVisible();
-    await narrationPause();
+      await authenticatedSettingsPage.clickTerminalsTab();
+      await authenticatedSettingsPage.expectTerminalsTabVisible();
+      await narrationPause();
+    });
   });
 
   test('10 — Audit Log: browse and expand details', async ({
     page, authenticatedAuditLogPage, pause, narrationPause, quickPause,
   }) => {
-    await authenticatedAuditLogPage.expectPageVisible();
-    await narrationPause();
-
-    await authenticatedAuditLogPage.expectTableVisible();
-    await pause(1000);
-
-    // Expand first entry to show details
-    const firstEntryId = await authenticatedAuditLogPage.getFirstEntryId();
-    if (firstEntryId) {
-      await authenticatedAuditLogPage.expandDetails(firstEntryId);
-      await authenticatedAuditLogPage.expectDetailsVisible(firstEntryId);
+    await test.step('subtitle: Audit Log', async () => {
+      await authenticatedAuditLogPage.expectPageVisible();
+      await authenticatedAuditLogPage.expectTableVisible();
       await narrationPause();
+    });
 
-      // Collapse it
-      await authenticatedAuditLogPage.collapseDetails(firstEntryId);
-      await quickPause();
-    }
+    await test.step('subtitle: Expand Log Entry Details', async () => {
+      const firstEntryId = await authenticatedAuditLogPage.getFirstEntryId();
+      if (firstEntryId) {
+        await authenticatedAuditLogPage.expandDetails(firstEntryId);
+        await authenticatedAuditLogPage.expectDetailsVisible(firstEntryId);
+        await narrationPause();
+
+        await authenticatedAuditLogPage.collapseDetails(firstEntryId);
+        await quickPause();
+      }
+    });
   });
 
   test('11 — Profile: language switch', async ({
     page, authenticatedProfilePage, pause, narrationPause, quickPause,
   }) => {
-    await authenticatedProfilePage.expectPageVisible();
-    await narrationPause();
+    await test.step('subtitle: User Profile', async () => {
+      await authenticatedProfilePage.expectPageVisible();
+      await authenticatedProfilePage.expectSectionsVisible();
+      await narrationPause();
+    });
 
-    // Show profile sections
-    await authenticatedProfilePage.expectSectionsVisible();
-    await pause(800);
-
-    // Switch to English
-    await authenticatedProfilePage.changeLanguage('en');
-    await narrationPause(); // viewer sees the UI switch to English
-
-    // Switch back to German
-    await authenticatedProfilePage.changeLanguage('de');
-    await pause(1500);
+    await test.step('subtitle: Language Switching', async () => {
+      await authenticatedProfilePage.changeLanguage('en');
+      await narrationPause();
+      await authenticatedProfilePage.changeLanguage('de');
+      await pause(800);
+    });
   });
 
   test('12 — Logout', async ({
-    page, pause, narrationPause,
+    page, pause, narrationPause, showCursor,
   }) => {
-    // Navigate to dashboard first (each serial test gets a fresh page)
-    await page.goto('/dashboard');
-    await page.waitForLoadState('domcontentloaded');
-    await narrationPause();
+    await test.step('subtitle: Session Logout', async () => {
+      await page.goto('/dashboard');
+      await page.waitForLoadState('networkidle');
+      await narrationPause();
 
-    // Click logout via header
-    await page.locator('[data-testid="header-logout-button"]').click();
-    await pause(2000); // final moment on login screen
+      const logoutBtn = page.locator('[data-testid="header-logout-button"]');
+      await showCursor(logoutBtn);
+      await logoutBtn.click();
+      await pause(1200);
+    });
   });
 
 });
