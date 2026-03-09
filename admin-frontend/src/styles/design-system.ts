@@ -153,7 +153,7 @@ export const theme = {
 export const breakpoints = {
   smallMobile: 480,   // iPhone SE and smaller
   mobile: 768,        // iPad portrait
-  tablet: 1200,       // iPad landscape / narrow desktop
+  tablet: 1500,       // iPad landscape / narrow desktop — nav labels need ~1500px
   desktop: 1440,      // Large screens
 }
 
