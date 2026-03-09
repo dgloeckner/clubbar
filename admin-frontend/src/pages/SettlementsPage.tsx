@@ -660,7 +660,7 @@ export function SettlementsPage() {
                             textAlign: 'center',
                           }}
                         >
-                          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
                             {/* Export SEPA XML */}
                             <button
                               data-testid={`settlements-export-sepa-btn-${settlement.id}`}
@@ -788,7 +788,7 @@ export function SettlementsPage() {
                               }}
                               title={t('common.undo')}
                             >
-                              {t('common.undo')}
+                              ↩
                             </button>
                           </div>
                         </td>
