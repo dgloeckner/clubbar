@@ -59,6 +59,7 @@ export default defineConfig({
       dependencies: ['setup auth'],
       use: {
         ...devices['Desktop Chrome'],
+        viewport: { width: 1920, height: 1080 },
         baseURL: process.env.ADMIN_URL || 'http://localhost:5173',
         storageState: 'playwright/.auth/admin.json',
       },
