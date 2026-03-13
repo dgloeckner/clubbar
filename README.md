@@ -68,7 +68,7 @@ flowchart TB
 
 ## Demo
 
-<video src="docs/walkthrough.mp4" width="100%" autoplay muted loop playsinline></video>
+<video src="https://github.com/user-attachments/assets/95e9a704-b300-43d1-ae71-defe73c1458d" width="100%" autoplay muted loop playsinline></video>
 
 > Admin Panel walkthrough: dashboard, member & product management, journal, settlements, SEPA export, reports, settings, and audit log.
 
