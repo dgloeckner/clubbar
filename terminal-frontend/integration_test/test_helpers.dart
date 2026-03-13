@@ -105,7 +105,7 @@ Future<Widget> buildTestApp(ClubBarDatabase database) async {
   final configFile = File(p.join(configDir.path, 'config.json'));
   await configFile.writeAsString(jsonEncode({
     'terminalId': 'integration-test-terminal',
-    'apiUrl': 'http://10.255.255.1:9999',
+    'apiUrl': 'http://localhost:1',
     'apiToken': 'test-token-0000000000000000000000000000000000000000000000000000000000',
     'seedTestData': false,
     'demoMode': false,
