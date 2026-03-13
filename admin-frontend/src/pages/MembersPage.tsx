@@ -761,7 +761,7 @@ export function MembersPage() {
               letterSpacing: '0.04em',
             }}
           >
-            Karte
+            {t('members.filters.card.label')}
           </span>
           <button
             data-testid="filter-card-all"
@@ -930,7 +930,7 @@ export function MembersPage() {
                 gap: '5px',
               }}
             >
-              <span style={{ fontSize: '14px', lineHeight: 1 }}>×</span> Filter zurücksetzen
+              <span style={{ fontSize: '14px', lineHeight: 1 }}>×</span> {t('members.filters.resetFilters')}
             </button>
           </>
         )}

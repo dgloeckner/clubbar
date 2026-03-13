@@ -33,7 +33,13 @@ export function LanguageTabsInput({
 
   return (
     <div data-testid={`${testIdPrefix}-container`}>
-      <label style={{ display: 'block', marginBottom: '4px', fontWeight: 500 }}>
+      <label style={{
+        display: 'block',
+        marginBottom: '6px',
+        color: '#e2e8f0',
+        fontSize: '14px',
+        fontWeight: '500',
+      }}>
         {label}
         {required && <span style={{ color: 'var(--color-danger)' }}> *</span>}
       </label>
@@ -83,11 +89,13 @@ export function LanguageTabsInput({
           style={{
             width: '100%',
             minHeight: '80px',
-            padding: '8px 12px',
-            border: '1px solid var(--color-border)',
-            borderRadius: '4px',
-            background: 'var(--color-bg-input)',
-            color: 'var(--color-text-primary)',
+            padding: '10px 12px',
+            border: '1px solid #4b5563',
+            borderRadius: '6px',
+            backgroundColor: '#1e293b',
+            color: '#e2e8f0',
+            fontSize: '14px',
+            boxSizing: 'border-box',
             resize: 'vertical',
           }}
         />
@@ -100,11 +108,13 @@ export function LanguageTabsInput({
           data-testid={`${testIdPrefix}-input-${activeTab}`}
           style={{
             width: '100%',
-            padding: '8px 12px',
-            border: '1px solid var(--color-border)',
-            borderRadius: '4px',
-            background: 'var(--color-bg-input)',
-            color: 'var(--color-text-primary)',
+            padding: '10px 12px',
+            border: '1px solid #4b5563',
+            borderRadius: '6px',
+            backgroundColor: '#1e293b',
+            color: '#e2e8f0',
+            fontSize: '14px',
+            boxSizing: 'border-box',
           }}
         />
       )}

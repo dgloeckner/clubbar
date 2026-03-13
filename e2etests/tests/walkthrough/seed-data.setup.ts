@@ -45,6 +45,43 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
     }
   }
 
+  // --- 2b. Create an inactive member ---
+  const inactiveResp = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
+    data: {
+      first_name: 'Klaus',
+      last_name: 'Bauer',
+      email: 'klaus.bauer@sportverein-demo.de',
+      preferred_language: 'de',
+      iban: 'DE27100777770209299700',
+      mandate_signed_at: '2025-03-10',
+    },
+  });
+  if (inactiveResp.status() === 201) {
+    const inactiveMember = await inactiveResp.json();
+    // Deactivate via PATCH
+    await authenticatedRequest.patch(`${API_BASE}/admin/members/${inactiveMember.id}`, {
+      data: { is_active: false },
+    });
+    console.log('Inactive member created: Klaus Bauer');
+  } else {
+    console.log(`Skipping inactive member Klaus Bauer: ${inactiveResp.status()}`);
+  }
+
+  // --- 2c. Create a member without SEPA (no IBAN, no mandate) ---
+  const noSepaResp = await authenticatedRequest.post(`${API_BASE}/admin/members`, {
+    data: {
+      first_name: 'Lisa',
+      last_name: 'Hoffmann',
+      email: 'lisa.hoffmann@sportverein-demo.de',
+      preferred_language: 'de',
+    },
+  });
+  if (noSepaResp.status() === 201) {
+    console.log('SEPA-missing member created: Lisa Hoffmann');
+  } else {
+    console.log(`Skipping SEPA-missing member Lisa Hoffmann: ${noSepaResp.status()}`);
+  }
+
   if (memberIds.length === 0) {
     // Try to fetch existing members instead
     const membersResp = await authenticatedRequest.get(`${API_BASE}/admin/members?per_page=10`);
@@ -59,7 +96,30 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
     throw new Error('No members available for seeding transactions');
   }
 
-  // --- 3. Create ~20 transactions via sync API (simulating terminal usage) ---
+  // --- 2d. Create an inactive product ---
+  if (activeProducts.length > 0) {
+    const categoryId = activeProducts[0].category_id;
+    const inactiveProductResp = await authenticatedRequest.post(`${API_BASE}/admin/products`, {
+      data: {
+        names: { de: 'Altes Hausbier', en: 'Old House Beer' },
+        price_cents: 280,
+        category_id: categoryId,
+        is_active: true,
+      },
+    });
+    if (inactiveProductResp.status() === 201) {
+      const inactiveProduct = await inactiveProductResp.json();
+      // Deactivate via PATCH
+      await authenticatedRequest.patch(`${API_BASE}/admin/products/${inactiveProduct.id}/status`, {
+        data: { is_active: false },
+      });
+      console.log('Inactive product created: Altes Hausbier');
+    } else {
+      console.log(`Skipping inactive product: ${inactiveProductResp.status()}`);
+    }
+  }
+
+  // --- 3. Create ~80 transactions over the last 3 months (realistic bar usage) ---
   const generateUUID = () =>
     'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = (Math.random() * 16) | 0;
@@ -67,36 +127,49 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
     });
 
   const transactions: any[] = [];
-  const transactionIds: string[] = [];
 
-  // Spread transactions across the last 30 days
-  for (let i = 0; i < 20; i++) {
+  // Spread ~80 transactions across 90 days with realistic patterns:
+  // - More transactions on weekends (Fri/Sat)
+  // - Varying quantities per member (some drink more)
+  // - Mix of products (beverages dominate, some sauna)
+  const TOTAL_TRANSACTIONS = 80;
+  const DAYS_BACK = 90;
+
+  for (let i = 0; i < TOTAL_TRANSACTIONS; i++) {
     const memberId = memberIds[i % memberIds.length];
-    const product = activeProducts[i % activeProducts.length];
-    const daysAgo = Math.floor(Math.random() * 30);
+    // Weight product selection: first few products (beverages) more likely
+    const productIndex = Math.random() < 0.7
+      ? Math.floor(Math.random() * Math.min(5, activeProducts.length))
+      : Math.floor(Math.random() * activeProducts.length);
+    const product = activeProducts[productIndex];
+
+    const daysAgo = Math.floor(Math.random() * DAYS_BACK);
     const date = new Date();
     date.setDate(date.getDate() - daysAgo);
+    // Bar hours: 17:00–22:00
     date.setHours(17 + Math.floor(Math.random() * 5), Math.floor(Math.random() * 60));
 
-    const txnId = generateUUID();
-    transactionIds.push(txnId);
+    const quantity = Math.random() < 0.8 ? 1 : Math.floor(Math.random() * 3) + 2;
 
     transactions.push({
-      id: txnId,
+      id: generateUUID(),
       member_id: memberId,
       type: 'product',
       product_id: product.id,
-      quantity: 1,
+      quantity,
       unit_price_cents: product.price_cents,
-      amount_cents: product.price_cents,
+      amount_cents: product.price_cents * quantity,
       notes: '',
       created_at: date.toISOString(),
     });
   }
 
-  // Send transactions in batches of 5 (sync API style)
-  for (let i = 0; i < transactions.length; i += 5) {
-    const batch = transactions.slice(i, i + 5);
+  // Sort by date (oldest first) for realistic sync order
+  transactions.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  // Send transactions in batches of 10 (sync API style)
+  for (let i = 0; i < transactions.length; i += 10) {
+    const batch = transactions.slice(i, i + 10);
     const resp = await authenticatedTerminalRequest.post(`${API_BASE}/sync/transactions`, {
       data: { transactions: batch },
     });
@@ -107,31 +180,7 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
     }
   }
 
-  // --- 4. Create a settlement from the first 10 transactions ---
-  const settlementTxnIds = transactionIds.slice(0, 10);
-  if (settlementTxnIds.length > 0) {
-    const today = new Date().toISOString().split('T')[0];
-    const execDate = new Date();
-    execDate.setDate(execDate.getDate() + 7);
-
-    const resp = await authenticatedRequest.post(`${API_BASE}/admin/settlements`, {
-      data: {
-        settlement_type: 'sepa',
-        transaction_ids: settlementTxnIds,
-        settlement_date: today,
-        execution_date: execDate.toISOString().split('T')[0],
-        period_start: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
-        period_end: today,
-      },
-    });
-
-    if (resp.status() === 201) {
-      console.log('Settlement created successfully');
-    } else {
-      const error = await resp.text();
-      console.log(`Settlement warning: ${resp.status()} — ${error}`);
-    }
-  }
+  // No pre-created settlement — the walkthrough will create one interactively
 
   console.log(`Walkthrough data seeded: ${memberIds.length} members, ${transactions.length} transactions`);
 });

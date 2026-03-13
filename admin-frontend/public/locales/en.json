@@ -150,6 +150,7 @@
         "inactive": "Inactive"
       },
       "card": {
+        "label": "Card",
         "all": "All",
         "withCard": "With Card",
         "withoutCard": "Without Card"
@@ -158,7 +159,8 @@
         "all": "All",
         "valid": "Valid",
         "missing": "Missing"
-      }
+      },
+      "resetFilters": "Reset Filters"
     },
     "validation": {
       "invalidCardUid": "Invalid card UID format (8-20 hex characters required)"

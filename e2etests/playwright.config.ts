@@ -127,6 +127,21 @@ export default defineConfig({
       },
       dependencies: ['setup auth', 'setup walkthrough-data'],
     },
+
+    // Walkthrough screenshots - captures PNG at key UI states for slideshow video
+    {
+      name: 'walkthrough-screenshots',
+      testDir: './tests/walkthrough',
+      testIgnore: /\.setup\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:5173',
+        storageState: 'playwright/.auth/admin.json',
+        video: { mode: 'off' },
+        viewport: { width: 1920, height: 1038 },
+      },
+      dependencies: ['setup auth', 'setup walkthrough-data'],
+    },
   ],
 
   // Web server configuration for local development

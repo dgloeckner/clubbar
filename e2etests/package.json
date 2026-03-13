@@ -9,7 +9,8 @@
     "test:terminal": "playwright test --project=terminal-touch",
     "test:ui": "playwright test --ui",
     "report": "playwright show-report",
-    "walkthrough": "playwright test --project=walkthrough --workers=1"
+    "walkthrough": "playwright test --project=walkthrough --workers=1",
+    "walkthrough:screenshots": "playwright test --project=walkthrough-screenshots --workers=1"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
