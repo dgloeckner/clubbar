@@ -246,10 +246,11 @@ test.describe('Admin Panel Walkthrough', () => {
     // Find the first settlement row and trigger SEPA export
     const sepaBtn = page.locator('[data-testid^="settlements-export-sepa-btn-"]').first();
     if (await sepaBtn.isVisible()) {
-      // Set up download handler before clicking
-      const downloadPromise = page.waitForEvent('download');
+      const responsePromise = page.waitForResponse(
+        resp => resp.url().includes('/export-sepa')
+      );
       await sepaBtn.click();
-      await downloadPromise;
+      await responsePromise;
       await page.waitForTimeout(500);
       await capture('SEPA XML Exported');
     }

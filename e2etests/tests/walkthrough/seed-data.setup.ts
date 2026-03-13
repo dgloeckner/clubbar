@@ -119,7 +119,18 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
     }
   }
 
-  // --- 3. Create ~80 transactions over the last 3 months (realistic bar usage) ---
+  // --- 3. Ensure SEPA config is set (required for SEPA export) ---
+  const sepaResp = await authenticatedRequest.put(`${API_BASE}/admin/sepa-config`, {
+    data: {
+      creditor_name: 'Sportverein Demo e.V.',
+      creditor_iban: 'DE89370400440532013000',
+      creditor_bic: 'COBADEFFXXX',
+      creditor_id: 'DE98ZZZ09999999999',
+    },
+  });
+  console.log(`SEPA config: ${sepaResp.status()}`);
+
+  // --- 4. Create ~80 transactions over the last 3 months (realistic bar usage) ---
   const generateUUID = () =>
     'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = (Math.random() * 16) | 0;
