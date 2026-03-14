@@ -9,6 +9,7 @@ final readonly class HealthResponseDto
     public function __construct(
         public string $status,
         public string $timestamp,
+        public string $version,
     ) {}
 
     public function toArray(): array
@@ -16,6 +17,7 @@ final readonly class HealthResponseDto
         return [
             'status' => $this->status,
             'timestamp' => $this->timestamp,
+            'version' => $this->version,
         ];
     }
 }

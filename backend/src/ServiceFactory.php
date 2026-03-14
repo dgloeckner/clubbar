@@ -309,7 +309,9 @@ class ServiceFactory implements ContainerInterface
 
     public function getHealthController(): HealthController
     {
-        return $this->resolve(HealthController::class, fn() => new HealthController());
+        return $this->resolve(HealthController::class, fn() => new HealthController(
+            new \App\Shared\Services\HealthCheckService(),
+        ));
     }
 
     public function getAuthController(): AuthController

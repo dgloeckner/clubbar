@@ -13,6 +13,16 @@ class HealthCheckService
         return new HealthResponseDto(
             status: 'ok',
             timestamp: (new \DateTimeImmutable())->format('Y-m-d\TH:i:s\Z'),
+            version: $this->getVersion(),
         );
+    }
+
+    private function getVersion(): string
+    {
+        $versionFile = dirname(__DIR__, 3) . '/VERSION';
+        if (file_exists($versionFile)) {
+            return trim(file_get_contents($versionFile));
+        }
+        return 'dev';
     }
 }

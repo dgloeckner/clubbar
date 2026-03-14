@@ -6,6 +6,7 @@ import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/rfid_detector_button.dart';
 
@@ -238,6 +239,14 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                       );
                     },
                   ),
+                const SizedBox(height: AppSpacing.xxxl),
+                Text(
+                  AppConfig.version,
+                  style: TextStyle(
+                    color: const Color(0xff94a3b8).withValues(alpha: 0.4),
+                    fontSize: AppFontSizes.xs,
+                  ),
+                ),
               ],
             ),
           ),

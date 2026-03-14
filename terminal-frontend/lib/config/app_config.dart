@@ -1,6 +1,6 @@
 class AppConfig {
   static const String appName = 'Club Bar Terminal';
-  static const String version = '0.1.0';
+  static const String version = String.fromEnvironment('APP_VERSION', defaultValue: 'dev');
 
   // Display
   static const bool isProduction = false;

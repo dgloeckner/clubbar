@@ -116,6 +116,8 @@ jobs:
       - name: Install and build
         run: npm ci && npm run build
         working-directory: admin-frontend
+        env:
+          VITE_APP_VERSION: ${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}
 
       - name: Upload frontend build
         uses: actions/upload-artifact@v4
@@ -283,11 +285,14 @@ jobs:
           name: admin-frontend-dist
           path: admin-frontend/dist/
 
+      - name: Write version file
+        run: echo "${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}" > backend/VERSION
+
       - name: Assemble package
         run: |
           mkdir -p dist/package/backend/db
           cp -r backend/src backend/vendor dist/package/backend/
-          cp backend/bootstrap.php dist/package/backend/
+          cp backend/bootstrap.php backend/VERSION dist/package/backend/
           cp backend/db/MigrationRunner.php dist/package/backend/db/
           cp -r backend/db/migrations dist/package/backend/db/migrations
           mkdir -p dist/package/backend/storage dist/package/backend/logs
@@ -427,7 +432,7 @@ jobs:
         working-directory: terminal-frontend
 
       - name: Build Linux ARM64
-        run: flutter build linux --release
+        run: flutter build linux --release --dart-define=APP_VERSION=${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}
         working-directory: terminal-frontend
 
       - name: Package artifact
