@@ -344,20 +344,25 @@ jobs:
           PACKAGE_TEST: '1'
 
       - name: Create package ZIP
-        run: cd dist && zip -r clubbar-package.zip package/ -q
+        id: package
+        run: |
+          VERSION="${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}"
+          ARTIFACT="clubbar-${VERSION}.zip"
+          cd dist && zip -r "${ARTIFACT}" package/ -q
+          echo "artifact=${ARTIFACT}" >> "$GITHUB_OUTPUT"
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: clubbar-package
-          path: dist/clubbar-package.zip
+          name: ${{ steps.package.outputs.artifact }}
+          path: dist/${{ steps.package.outputs.artifact }}
           retention-days: 30
 
       - name: Upload to release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/clubbar-package.zip
+          files: dist/${{ steps.package.outputs.artifact }}
 
       - name: Upload test results
         if: always()
@@ -429,8 +434,8 @@ jobs:
         id: package
         working-directory: terminal-frontend/build/linux/arm64/release/bundle
         run: |
-          VERSION="${{ github.event.release.tag_name || github.sha }}"
-          ARTIFACT="flutter-app-linux-arm64-${VERSION}.tar.gz"
+          VERSION="${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}"
+          ARTIFACT="clubbar-terminal-linux-arm64-${VERSION}.tar.gz"
           tar -czf "$GITHUB_WORKSPACE/${ARTIFACT}" .
           echo "artifact=${ARTIFACT}" >> "$GITHUB_OUTPUT"
 

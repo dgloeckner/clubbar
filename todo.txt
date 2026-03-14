@@ -1,3 +1,0 @@
-The visual theme of the clubbar installer should be more aligned with the admin frontend. Looks at the fonts and design tokens.
-  Use the clubbar svg in the top bar. We need internationalization depending on browser's preferred language.
-  English and German should be supported.
