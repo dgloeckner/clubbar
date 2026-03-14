@@ -291,8 +291,10 @@ void main() {
 
       expect(find.byType(ProductSelectionScreen), findsOneWidget);
 
-      // -- Scene 3: Open member menu and switch language to English --
-      // Verify member name is visible, then tap to open details modal
+      // -- Scene 2: Products shown in German (member's default language) --
+      await capture(tester, 'Products shown in German');
+
+      // -- Scene 3: Open member details and switch language to English --
       expect(find.text('Jane Smith'), findsOneWidget);
       await tester.tap(find.text('Jane Smith'));
       // Bottom sheet animation needs many frames
@@ -309,8 +311,10 @@ void main() {
       await tester.tapAt(const Offset(640, 50));
       await pumpFrames(tester, count: 20);
 
-      // -- Scene 4: Drinks category (now in English) --
-      // Add 2 beverages: Pils and Weizen
+      // -- Scene 4: Products now shown in English --
+      await capture(tester, 'Products now in English');
+
+      // -- Scene 5: Select drinks --
       await tester.tap(find.text('Pils 0.5l'));
       await pumpFrames(tester, count: 5);
       await tester.tap(find.text('Weizen 0.5l'));
