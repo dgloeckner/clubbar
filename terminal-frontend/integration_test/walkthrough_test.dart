@@ -294,27 +294,24 @@ void main() {
       // -- Scene 2: Products shown in German (member's default language) --
       await capture(tester, 'Products shown in German');
 
-      // -- Scene 3: Open member details and switch language to English --
+      // -- Scene 3: Open member details modal --
       expect(find.text('Jane Smith'), findsOneWidget);
       await tester.tap(find.text('Jane Smith'));
       // Bottom sheet animation needs many frames
       await pumpFrames(tester, count: 30);
 
-      // Tap "English" language button in the modal
+      // Capture modal with language selection visible (German still active)
       expect(find.text('English'), findsOneWidget);
+      await capture(tester, 'Member details with language selection');
+
+      // -- Scene 4: Tap English — modal closes automatically on language change --
       await tester.tap(find.text('English'));
-      await pumpFrames(tester, count: 15);
-
-      await capture(tester, 'Switch language to English');
-
-      // Close the modal — tap outside the bottom sheet (top area)
-      await tester.tapAt(const Offset(640, 50));
       await pumpFrames(tester, count: 20);
 
-      // -- Scene 4: Products now shown in English --
+      // -- Scene 5: Products now shown in English --
       await capture(tester, 'Products now in English');
 
-      // -- Scene 5: Select drinks --
+      // -- Scene 6: Select drinks --
       await tester.tap(find.text('Pils 0.5l'));
       await pumpFrames(tester, count: 5);
       await tester.tap(find.text('Weizen 0.5l'));
