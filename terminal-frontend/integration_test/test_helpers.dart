@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -19,6 +20,8 @@ import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/repository/sync_repository.dart';
+import 'package:clubbar_terminal/models/sync_response.dart';
+import 'package:clubbar_terminal/models/transaction_sync_response.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/services/members_service.dart';
 import 'package:clubbar_terminal/services/products_service.dart';
@@ -26,6 +29,172 @@ import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/sync_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+
+/// Intercepts all HTTP requests at the dart:io level, returning empty JSON
+/// responses. This prevents any real network calls from the app (including
+/// TransactionHistoryService which bypasses NetworkService).
+class MockHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) => _MockHttpClient();
+}
+
+class _MockHttpClient implements HttpClient {
+  @override
+  bool autoUncompress = true;
+  @override
+  Duration? connectionTimeout;
+  @override
+  Duration idleTimeout = const Duration(seconds: 15);
+  @override
+  int? maxConnectionsPerHost;
+  @override
+  String? userAgent;
+
+  @override
+  Future<HttpClientRequest> openUrl(String method, Uri url) async =>
+      _MockHttpClientRequest();
+
+  @override
+  Future<HttpClientRequest> getUrl(Uri url) => openUrl('GET', url);
+  @override
+  Future<HttpClientRequest> postUrl(Uri url) => openUrl('POST', url);
+  @override
+  Future<HttpClientRequest> putUrl(Uri url) => openUrl('PUT', url);
+  @override
+  Future<HttpClientRequest> patchUrl(Uri url) => openUrl('PATCH', url);
+  @override
+  Future<HttpClientRequest> deleteUrl(Uri url) => openUrl('DELETE', url);
+  @override
+  Future<HttpClientRequest> headUrl(Uri url) => openUrl('HEAD', url);
+  @override
+  Future<HttpClientRequest> open(String method, String host, int port, String path) =>
+      openUrl(method, Uri(scheme: 'http', host: host, port: port, path: path));
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _MockHttpClientRequest implements HttpClientRequest {
+  @override
+  HttpHeaders get headers => _MockHttpHeaders();
+  @override
+  Encoding get encoding => utf8;
+  @override
+  set encoding(Encoding enc) {}
+  @override
+  Future<HttpClientResponse> get done => close();
+  @override
+  Future<HttpClientResponse> close() async => _MockHttpClientResponse();
+  @override
+  void add(List<int> data) {}
+  @override
+  Future addStream(Stream<List<int>> stream) async {}
+  @override
+  Future flush() async {}
+  @override
+  void write(Object? object) {}
+  @override
+  void abort([Object? exception, StackTrace? stackTrace]) {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// Returns 200 OK with empty JSON for all requests.
+class _MockHttpClientResponse extends Stream<List<int>>
+    implements HttpClientResponse {
+  static final _body = utf8.encode('{"data":[],"transactions":[]}');
+
+  @override
+  int get statusCode => 200;
+  @override
+  String get reasonPhrase => 'OK';
+  @override
+  int get contentLength => _body.length;
+  @override
+  HttpHeaders get headers => _MockHttpHeaders();
+  @override
+  List<Cookie> get cookies => [];
+  @override
+  bool get isRedirect => false;
+  @override
+  bool get persistentConnection => true;
+  @override
+  List<RedirectInfo> get redirects => [];
+  @override
+  HttpClientResponseCompressionState get compressionState =>
+      HttpClientResponseCompressionState.notCompressed;
+  @override
+  X509Certificate? get certificate => null;
+  @override
+  HttpConnectionInfo? get connectionInfo => null;
+  @override
+  Future<Socket> detachSocket() => throw UnsupportedError('mock');
+  @override
+  Future<HttpClientResponse> redirect(
+          [String? method, Uri? url, bool? followLoops]) =>
+      throw UnsupportedError('mock');
+
+  @override
+  StreamSubscription<List<int>> listen(void Function(List<int> event)? onData,
+      {Function? onError, void Function()? onDone, bool? cancelOnError}) {
+    return Stream<List<int>>.value(_body).listen(onData,
+        onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+  }
+}
+
+class _MockHttpHeaders implements HttpHeaders {
+  @override
+  ContentType? get contentType => ContentType.json;
+  @override
+  List<String>? operator [](String name) => null;
+  @override
+  String? value(String name) => null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// A [NetworkService] that reports healthy and returns empty sync responses.
+/// Used in integration tests so the UI shows "Online" status without
+/// making any real HTTP calls.
+class FakeNetworkService extends NetworkService {
+  FakeNetworkService({required super.baseUrl});
+
+  @override
+  Future<bool> checkHealth() async => true;
+
+  @override
+  Future<MembersSyncResponse?> syncMembers({int? since, String? ifNoneMatch}) async =>
+      MembersSyncResponse(members: []);
+
+  @override
+  Future<CategoriesSyncResponse?> syncCategories({int? since, String? ifNoneMatch}) async =>
+      CategoriesSyncResponse(categories: []);
+
+  @override
+  Future<ProductsSyncResponse?> syncProducts({int? since, String? ifNoneMatch}) async =>
+      ProductsSyncResponse(products: []);
+
+  @override
+  Future<TransactionSyncResponse> syncTransactions(List<Map<String, dynamic>> transactions) async =>
+      TransactionSyncResponse(
+        acceptedIds: transactions.map((t) => t['id']?.toString() ?? '').toList(),
+        rejected: TransactionSyncRejected(count: 0, errors: []),
+        memberBalances: {},
+      );
+
+  @override
+  Future<dynamic> patch(String endpoint, Map<String, dynamic> body) async => {};
+
+  @override
+  Future<dynamic> get(String endpoint) async => {};
+
+  @override
+  Future<dynamic> post(String endpoint, Map<String, dynamic> body) async => {};
+}
 
 /// Creates an in-memory [ClubBarDatabase] seeded with minimal test data:
 /// - 1 category ("Drinks")
@@ -96,6 +265,11 @@ Future<ClubBarDatabase> createTestDatabase() async {
 /// The returned widget can be passed to [tester.pumpWidget] in
 /// integration tests.
 Future<Widget> buildTestApp(ClubBarDatabase database) async {
+  // Install mock HTTP overrides so all dart:io HTTP calls return 200 OK.
+  // This prevents TransactionHistoryService (which bypasses NetworkService)
+  // from failing with connection refused.
+  HttpOverrides.global = MockHttpOverrides();
+
   // Temporary directory for failed-transactions log
   final tmpDir = await Directory.systemTemp.createTemp('clubbar_inttest_');
   final failedTxnsPath = p.join(tmpDir.path, 'failed_transactions.json');
@@ -122,7 +296,7 @@ Future<Widget> buildTestApp(ClubBarDatabase database) async {
   final syncRepo = SyncRepository(database);
 
   // Services
-  final networkService = NetworkService(
+  final networkService = FakeNetworkService(
     baseUrl: configService.apiUrl!,
   );
   networkService.setAuthToken(configService.apiToken!);
