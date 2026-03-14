@@ -18,4 +18,4 @@ Updating:
 2. Upload and overwrite all files (config.php is preserved)
 3. Visit /install.php — enter your admin password to run pending migrations
 
-More info: https://github.com/[org]/clubbar
+More info: https://github.com/dgloeckner/clubbar

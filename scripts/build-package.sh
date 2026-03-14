@@ -131,8 +131,8 @@ cp "$PROJECT_ROOT/package/README.txt"        "$PKG_DIR/README.txt"
 # ------------------------------------------------------------------
 ARCHIVE="clubbar-${VERSION}.zip"
 echo "--- Creating archive: $ARCHIVE"
-cd "$DIST_DIR"
-zip -r "$ARCHIVE" package/ -q
+cd "$PKG_DIR"
+zip -r "$DIST_DIR/$ARCHIVE" . -q
 
 # ------------------------------------------------------------------
 # 9. Summary

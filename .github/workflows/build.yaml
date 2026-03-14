@@ -348,7 +348,7 @@ jobs:
         run: |
           VERSION="${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}"
           ARTIFACT="clubbar-${VERSION}.zip"
-          cd dist && zip -r "${ARTIFACT}" package/ -q
+          cd dist/package && zip -r "../${ARTIFACT}" . -q
           echo "artifact=${ARTIFACT}" >> "$GITHUB_OUTPUT"
 
       - name: Upload package artifact
