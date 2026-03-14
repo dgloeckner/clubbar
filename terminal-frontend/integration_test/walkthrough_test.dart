@@ -1,3 +1,6 @@
+@Tags(['walkthrough'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;

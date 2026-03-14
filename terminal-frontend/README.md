@@ -1,6 +1,6 @@
 # Club Bar Terminal
 
-Flutter-based POS terminal for the Club Bar club bar system. Supports offline-capable transaction processing with RFID/NFC member identification.
+Flutter-based POS terminal for the Club Bar system. Supports offline-capable transaction processing with RFID/NFC member identification.
 
 ## Terminal Onboarding
 
@@ -13,43 +13,24 @@ Flutter-based POS terminal for the Club Bar club bar system. Supports offline-ca
 ### 1. Create Terminal in Admin Panel
 
 1. Log in to the admin panel
-2. Navigate to **Terminals** > **Add Terminal**
+2. Navigate to **Settings** > **Terminals** > **Add Terminal**
 3. Enter a descriptive Terminal ID (e.g. `Club Bar-Kühlschrank`)
 4. The admin panel generates a 64-character hex API token (shown once)
 5. Copy the Terminal ID and API Token
 
-### 2. Configure Terminal App (First Launch)
+### 2. Configure Terminal App
 
-On first launch, the terminal app shows a **Setup Screen**:
-
-1. **Terminal ID** - Enter the ID from step 1 (e.g. `Club Bar-Kühlschrank`)
-2. **API URL** - Enter the backend API URL (e.g. `https://club.example.com/api`)
-3. **API Token** - Paste the 64-character hex token
-4. Click **Save & Connect**
-
-The app tests the connection via api endpoint. On success, config is saved and the terminal navigates to the idle screen.
-
-### 3. Alternative: Environment Variables
-
-For automated deployment or CI, set environment variables instead of using the setup screen:
-
-```bash
-export TERMINAL_ID="Club Bar-Kühlschrank"
-export TERMINAL_API_URL="https://club.example.com/api"
-export TERMINAL_API_TOKEN="<64-char-hex-token>"
-```
-
-Environment variables override config file values (per ADR-0019).
-
-### 4. Alternative: Manual Config File
+The terminal reads its configuration from a `config.json` file. Without a valid config, the app exits with an error message to stderr indicating the expected config file path.
 
 Create `config.json` at the platform-specific path:
 
 | Platform | Path |
 |----------|------|
+| Linux | `~/.local/share/de.clubbar.clubbar_terminal/config.json` |
 | macOS | `~/Library/Containers/de.clubbar.clubbarTerminal/Data/Library/Application Support/de.clubbar.clubbarTerminal/config.json` |
-| Linux | `~/.config/de.clubbar.clubbarTerminal/config.json` |
-| Windows | `%APPDATA%\de.clubbar.clubbarTerminal\config.json` |
+| Windows | `%APPDATA%\de.clubbar.clubbar_terminal\config.json` |
+
+**Required fields:**
 
 ```json
 {
@@ -59,22 +40,70 @@ Create `config.json` at the platform-specific path:
 }
 ```
 
-The file is created with permissions `600` (owner read/write only) on macOS/Linux.
+**Optional fields:**
+
+```json
+{
+  "terminalId": "Club Bar-Kühlschrank",
+  "apiUrl": "https://club.example.com/api",
+  "apiToken": "<64-char-hex-token>",
+  "fullscreen": true,
+  "soundsEnabled": true,
+  "demoMode": false,
+  "seedTestData": false,
+  "fontSizes": {
+    "xs": 12, "sm": 14, "base": 16, "lg": 18, "xl": 24, "xxl": 32, "xxxl": 48
+  },
+  "dispenser": {
+    "enabled": false,
+    "baseUrl": "http://192.168.1.100",
+    "apiKey": "<dispenser-api-key>"
+  }
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `fullscreen` | `false` | Launch in fullscreen mode |
+| `soundsEnabled` | `false` | Audio feedback for scans, checkout, cart actions |
+| `demoMode` | `false` | Shows a "Simulate Card Scan" button on idle screen (no RFID reader needed) |
+| `seedTestData` | `false` | Seeds mock categories, products, and members into local DB (dev only) |
+| `fontSizes` | — | Override the 7 font size scale steps |
+| `dispenser` | — | Token dispenser hardware integration (ESP8266 / Azkoyen Hopper) |
+
+### 3. Alternative: Environment Variables
+
+For automated deployment or CI, environment variables override config file values:
+
+```bash
+export TERMINAL_ID="Club Bar-Kühlschrank"
+export TERMINAL_API_URL="https://club.example.com/api"
+export TERMINAL_API_TOKEN="<64-char-hex-token>"
+export TERMINAL_FULLSCREEN="true"
+export TERMINAL_SOUNDS_ENABLED="true"
+export TERMINAL_SEED_TEST_DATA="false"
+export TERMINAL_DEMO_MODE="false"
+export DISPENSER_ENABLED="false"
+export DISPENSER_BASE_URL="http://192.168.1.100"
+export DISPENSER_API_KEY="<dispenser-api-key>"
+```
+
+Note: `fontSizes` cannot be set via environment variables.
 
 ### Token Rotation
 
 1. In the admin panel, navigate to the terminal and click **Rotate Token**
 2. Copy the new token
-3. On the terminal, delete the config file (or clear via admin) and re-enter credentials on the setup screen
+3. Update `apiToken` in the terminal's `config.json` and restart the app
 
 ### Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| "Connection failed" on setup | Verify the API URL is correct and the backend is running. Check network connectivity. |
-| Token rejected (401) | The token may have been rotated. Get a new token from the admin panel. |
-| App shows setup screen after restart | Config file may have been deleted or is unreadable. Re-enter credentials. |
-| Sync failures after setup | Check backend logs. The terminal retries automatically on the next sync cycle. |
+| App exits immediately | Config file missing or has invalid JSON. Check stderr for the expected path. |
+| Token rejected (401) | The token may have been rotated. Get a new token from the admin panel and update `config.json`. |
+| Sync shows "offline" | Backend unreachable. Verify `apiUrl` and network connectivity. The terminal continues operating offline. |
+| Sync failures | Check backend logs. The terminal retries automatically every 60 seconds. |
 
 ## Development
 
@@ -82,14 +111,17 @@ The file is created with permissions `600` (owner read/write only) on macOS/Linu
 # Install dependencies
 flutter pub get
 
-# Run in development mode (uses http://localhost:8080/api by default)
+# Run in development mode
 flutter run
 
-# Run tests
+# Run unit tests
 flutter test
+
+# Run integration tests (requires display — use xvfb-run on headless Linux)
+flutter test integration_test/
 
 # Run specific test file
 flutter test test/services/config_service_test.dart
 ```
 
-In development mode without a config file, the app uses `http://localhost:8080/api` as the default API URL. Mock data is auto-seeded into the local database.
+For local development, create a `config.json` with `seedTestData: true` and `demoMode: true` to get mock data and a simulated RFID scan button without needing hardware or a running backend.

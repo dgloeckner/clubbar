@@ -1,324 +1,157 @@
 # Club Bar Admin Frontend
 
-React-based admin panel for Club Bar POS system. Provides member management, product catalog, transaction journal, settlement billing, and analytics dashboard.
+React-based admin panel for the Club Bar POS system. Provides member management, product catalog, transaction journal, SEPA settlement billing, reports, GDPR compliance, and a dashboard with live terminal status.
 
 ## Technology Stack
 
-- **React 18.x** - UI framework
-- **TypeScript 5.x** - Type safety
-- **Vite** - Lightning-fast build tool and dev server
-- **React Router v6** - Client-side routing
-- **Axios** - HTTP client for API requests
-- **Tailwind CSS** (optional) - Utility-first CSS framework
-- **Playwright** - E2E testing
-- **Vitest** - Unit testing
+- **React 18** with TypeScript 5
+- **Vite** — build tool and dev server
+- **React Router v6** — client-side routing
+- **Axios** — HTTP client with CSRF and bearer token interceptors
+- **Recharts** — charts for reports and dashboard
+- **i18next** — internationalization (German and English)
+- **CSS-in-JS** — custom design system with inline styles (no CSS files)
+- **Vitest** — unit testing
+- **Playwright** — E2E testing
 
-## Project Setup
+## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ installed locally
-- npm or yarn package manager
+- Node.js 18+
+- Backend running at `http://localhost:8080` (see root README)
 
-### Installation
+### Installation & Development
 
 ```bash
 cd admin-frontend
 npm install
-```
-
-### Development Server
-
-```bash
 npm run dev
 ```
 
-The app runs at `http://localhost:5173` with hot module reloading enabled.
+The app runs at `http://localhost:5173`. API requests are proxied to the backend at `http://localhost:8080`.
 
-API requests are proxied to `http://localhost:8080/api` (backend).
-
-### Build for Production
+### Production Build
 
 ```bash
-npm run build
+npm run build     # outputs to dist/
+npm run preview   # preview production build locally
 ```
 
-Creates optimized production build in `dist/` directory.
+## Pages
 
-Preview production build:
-
-```bash
-npm run preview
-```
+| Route | Page | Description |
+|-------|------|-------------|
+| `/login` | Login | Email/password authentication |
+| `/dashboard` | Dashboard | KPI cards, recent transactions, terminal status, system alerts |
+| `/members` | Members | Member CRUD, RFID card assignment, GDPR export & anonymize |
+| `/products` | Products | Product catalog with multilingual names, icons, category assignment |
+| `/categories` | Categories | Category management with icons and display order |
+| `/journal` | Journal | Transaction ledger with search, date/type filters, CSV export, manual corrections |
+| `/settlements` | Settlements | Settlement wizard (filter, preview, finalize), SEPA XML/CSV export, cancel |
+| `/reports` | Reports | Revenue by period, member ranking, terminal activity — with charts and CSV export |
+| `/settings` | Settings | Three tabs: Admin Users, SEPA Config, Terminals |
+| `/audit-log` | Audit Log | Chronological log of all admin actions |
+| `/profile` | Profile | Change display name, email, and password |
 
 ## Project Structure
 
 ```
 src/
 ├── components/
-│   ├── common/           # Reusable UI components (Button, Input, Card)
-│   ├── forms/            # Form components (LoginForm)
-│   ├── layout/           # Layout wrapper (MainLayout)
-│   └── modals/           # Modal dialogs (created in Phase 2)
-├── pages/
-│   ├── LoginPage         # Authentication page
-│   ├── MembersPage       # Member management
-│   ├── ProductsPage      # Product catalog
-│   ├── JournalPage       # Transaction journal
-│   ├── SettlementsPage   # Settlement management
-│   └── StatisticsPage    # Analytics dashboard
-├── services/
-│   ├── api.ts            # Axios HTTP client with interceptors
-│   ├── auth.ts           # Authentication service
-│   ├── members.ts        # Members API methods
-│   ├── products.ts       # Products API methods
-│   ├── transactions.ts   # Transactions API methods
-│   └── settlements.ts    # Settlements API methods
+│   ├── common/        # Button, Input, Card, Alert, Avatar, Badge, Tooltip,
+│   │                  # ActionMenu, StatCard, Toggle, LoadingIndicator
+│   ├── forms/         # LoginForm, IconSelect, CategorySelect, LanguageSelector,
+│   │                  # LanguageTabsInput, DateRangePicker, PeriodPicker,
+│   │                  # StatusFilter, StatusFilterPills, TypeFilter, etc.
+│   ├── icons/         # 30+ custom SVG product icons, category icons, admin icons,
+│   │                  # navigation icons, IconRegistry
+│   ├── layout/        # MainLayout, MobileToolbar, BottomTabBar
+│   ├── modals/        # ConfirmDialog, CreateAdminModal, EditAdminModal,
+│   │                  # CreateTerminalModal, EditTerminalModal, TokenDisplayModal,
+│   │                  # PasswordDisplayModal, SettlementConfirmModal, TransactionModal
+│   └── tables/        # TableContainer, SortableTableHeader, SortDropdown,
+│                      # TableSearchToolbar, SearchAndSortToolbar, StatusToggleCell,
+│                      # BadgeCell, IconCell, PriceCell, ActionButtons
 ├── context/
-│   ├── AuthContext.tsx   # Global auth state
-│   └── AppContext.tsx    # Global app state
+│   ├── AuthContext.tsx    # Auth state, login/logout, session management
+│   └── LoadingContext.tsx # Global loading state (driven by Axios request counter)
 ├── hooks/
-│   ├── useAuth.ts        # Auth hook
-│   ├── useFetch.ts       # Data fetching hook
-│   └── useForm.ts        # Form handling hook
+│   ├── useFormatters.ts   # Locale-aware price, date, relative date formatting
+│   └── useBreakpoint.ts   # Responsive breakpoint detection
+├── i18n/
+│   └── config.ts          # i18next setup (de/en), persists language in localStorage
+├── pages/                 # One file per page (see table above)
+├── services/
+│   ├── api.ts             # Axios client, bearer token + CSRF interceptors
+│   ├── auth.ts            # Login, logout, profile, password change
+│   ├── members.ts         # Member CRUD + GDPR export/anonymize
+│   ├── admin-users.ts     # Admin user management
+│   ├── transactions.ts    # Transaction/journal listing + corrections
+│   ├── settlements.ts     # Settlement creation, cancellation, SEPA export
+│   ├── sepa-config.ts     # SEPA creditor configuration
+│   ├── terminals.ts       # Terminal management + token rotation
+│   ├── audit-log.ts       # Audit log listing
+│   ├── reports.ts         # Revenue, ranking, terminal activity reports
+│   └── dashboard.ts       # Dashboard metrics + monthly statistics
 ├── styles/
-│   └── design-system.ts  # Theme, colors, utilities, formatters
+│   ├── design-system.ts   # Theme tokens, colors, typography, formatting utilities
+│   └── tableTokens.ts     # Table-specific design tokens
 ├── types/
-│   └── index.ts          # TypeScript interfaces
-├── App.tsx               # Main app component with routing
-└── main.tsx              # React entry point
-
-public/
-├── vite.svg              # Vite logo
-└── (other static assets)
+│   └── index.ts           # All TypeScript interfaces
+├── utils/
+│   ├── i18n-helpers.ts    # Locale code mapping (de → de-DE)
+│   └── productIcons.tsx   # Product icon name → component resolver
+├── App.tsx                # Router setup with protected routes
+└── main.tsx               # Entry point
 ```
 
 ## Authentication
 
-- Session-based authentication via Laravel backend
-- Credentials stored in localStorage
-- Auto-redirect to login on 401 Unauthorized
-- Logout clears session and redirects to login
-
-### Login
-
-1. Navigate to `/login`
-2. Enter admin email and password
-3. Session stored in localStorage
-4. Auto-redirect to `/members` on success
+- **Session-based** with bearer token stored in `localStorage`
+- CSRF token sent as `X-CSRF-Token` header on state-changing requests
+- 401 responses automatically clear session and redirect to `/login`
+- Login redirects to `/dashboard` on success
 
 ## Design System
 
-Theme and colors defined in `src/styles/design-system.ts`:
+Dark theme defined in `src/styles/design-system.ts`:
 
-- **Primary colors**: Blue #3b82f6 (actions), Green #22c55e (success), Orange #f97316 (warning), Red #ef4444 (danger)
-- **Backgrounds**: #0a1628 (primary), #1a2744 (cards), #0d1829 (inputs)
-- **Typography**: System font stack, Monospace for technical data (RFID, IBAN)
-- **Localization**: German UI, DD.MM.YYYY dates, Euro currency with comma separator
-
-### Formatting Utilities
-
-```typescript
-import { formatPrice, formatIban, formatDate, formatDateTime } from './styles/design-system'
-
-// Format price in EUR with German locale
-formatPrice(10050) // "100,50 €"
-
-// Format IBAN (mask except last 4 digits)
-formatIban('DE89370400440532013000') // "DE89****3000"
-
-// Format dates
-formatDate('2026-01-26') // "26.01.2026"
-formatDateTime('2026-01-26T14:30:00Z') // "26.01.2026 14:30"
-```
-
-## API Integration
-
-All API requests use `src/services/api.ts`:
-
-```typescript
-import { get, post, patch, del } from './services/api'
-
-// Fetch paginated members
-const response = await get<Member[]>('/admin/members', {
-  params: { page: 1, per_page: 20 }
-})
-
-// Create member
-const response = await post<Member>('/admin/members', {
-  first_name: 'John',
-  last_name: 'Doe',
-  // ... other fields
-})
-
-// Update member
-const response = await patch<Member>('/admin/members/{id}', {
-  first_name: 'Jane'
-})
-
-// Delete member
-await del<void>('/admin/members/{id}')
-```
-
-**Automatic features**:
-- Session cookies sent automatically
-- Bearer token from localStorage added to requests
-- Auto-redirect to login on 401 Unauthorized
-- Error logging on failures
+- **Dark backgrounds**: `#0a1628` (primary), `#1a2744` (cards), `#0d1829` (inputs)
+- **Semantic colors**: Blue (actions), Green (success), Orange (warning), Red (danger)
+- **Typography**: System font stack; monospace for IBAN, RFID UIDs
+- **Responsive**: Breakpoints at 480px (small mobile), 768px (mobile), 1500px (tablet)
+- **i18n-aware formatting**: Dates, prices, and relative times adapt to selected language
 
 ## Testing
 
-### Unit Tests
-
 ```bash
+# Unit tests
 npm run test
-```
-
-Run with watch mode:
-
-```bash
 npm run test -- --watch
-```
 
-### E2E Tests
-
-```bash
+# E2E tests (requires backend running)
 npm run test:e2e
-```
-
-Run with UI:
-
-```bash
 npm run test:e2e:ui
 ```
 
+E2E tests live in `/e2etests/` (project root) and follow patterns documented in `e2etests/patterns/`.
+
 ## Code Quality
 
-### Type Checking
-
 ```bash
-npm run type-check
-```
-
-### Linting
-
-```bash
-npm run lint
-```
-
-Fix linting issues:
-
-```bash
+npm run type-check   # TypeScript strict mode
+npm run lint         # ESLint
 npm run lint -- --fix
+npm run format       # Prettier
 ```
 
-### Code Formatting
+## API
 
-```bash
-npm run format
-```
+All API requests are proxied through Vite to the backend. See `api/admin.yaml` for the full OpenAPI spec.
 
-## Implementation Phases
-
-### Phase 1 ✅ (Current)
-- Project setup with Vite + TypeScript
-- Design system implementation
-- Component library (Button, Input, Card)
-- Authentication (login, session)
-- Layout and routing
-- Page placeholders
-
-### Phase 2 (Next)
-- Members page (CRUD, search, filter)
-- Products page (CRUD, categories)
-- Transaction journal (list, filter, export)
-- Settlements page (create, preview, export)
-- Statistics page (metrics, charts)
-
-### Phase 3
-- Advanced features (SEPA config, settlement workflows)
-- Modal dialogs for forms
-- Batch operations
-- Advanced filtering
-
-### Phase 4
-- Comprehensive E2E tests
-- Performance optimization
-- Accessibility improvements
-
-### Phase 5
-- Production deployment
-- Documentation
-- Performance monitoring
-
-## Backend API Reference
-
-See `api/admin.yaml` for OpenAPI specification.
-
-**Base URL**: `http://localhost:8080/api/admin`
-
-**Authentication**: Session cookies (same-origin requests)
-
-**Key Endpoints**:
-- `GET /members` - List members
-- `POST /members` - Create member
-- `PATCH /members/{id}` - Update member
-- `DELETE /members/{id}` - Delete member
-- `GET /products` - List products
-- `POST /products` - Create product
-- `GET /transactions` - List transactions
-- `GET /settlements` - List settlements
-- `POST /settlements` - Create settlement
-- `GET /dashboard` - Dashboard metrics
-
-## Development Tips
-
-### Hot Module Reloading
-
-Changes to React components and styles automatically reload without losing state.
-
-### API Proxy
-
-All requests to `/api` are proxied to backend at `http://localhost:8080`.
-
-### Environment Variables
-
-Create `.env.local` to override defaults:
-
-```
-VITE_API_BASE_URL=http://localhost:8080/api
-```
-
-### Debugging
-
-Use browser DevTools:
-- React DevTools extension
-- Redux DevTools (optional, if Redux added)
-- Network tab for API requests
-
-## Common Issues
-
-### "Cannot GET /"
-
-Start development server: `npm run dev`
-
-### API requests fail with CORS
-
-Ensure backend is running at `http://localhost:8080` and proxy is configured in `vite.config.ts`.
-
-### Login redirect loop
-
-Check localStorage for valid session (`admin_id` key). Clear and re-login if corrupted.
-
-## Contributing
-
-1. Follow TypeScript strict mode
-2. Use components from `src/components/common/` for consistency
-3. Add tests for new features
-4. Format code: `npm run format`
-5. Check types: `npm run type-check`
-6. Lint: `npm run lint`
+**Base URL**: `/api/admin` (proxied to `http://localhost:8080/api/admin`)
 
 ## License
 
-Same as Club Bar project (see root LICENSE file)
+Apache-2.0 (see root LICENSE file)
