@@ -23,6 +23,7 @@ export class SettingsPage {
   private readonly errorMessage: Locator
   private readonly successMessage: Locator
   private readonly loadingIndicator: Locator
+  private readonly ibanValidationIndicator: Locator
 
   constructor(page: Page) {
     this.page = page
@@ -42,6 +43,7 @@ export class SettingsPage {
     this.errorMessage = page.getByTestId('settings-sepa-error-message')
     this.successMessage = page.getByTestId('settings-sepa-success-message')
     this.loadingIndicator = page.getByTestId('settings-page-loading')
+    this.ibanValidationIndicator = page.getByTestId('settings-sepa-validation-creditor_iban')
   }
 
   /**
@@ -268,6 +270,16 @@ export class SettingsPage {
   async expectSepaTabVisible() {
     // Pattern 008: Use Playwright assertions
     await expect(this.sepaTab).toBeVisible()
+  }
+
+  async expectIbanValidIndicator() {
+    await expect(this.ibanValidationIndicator).toBeVisible()
+    await expect(this.ibanValidationIndicator).toContainText('✓')
+  }
+
+  async expectIbanInvalidIndicator() {
+    await expect(this.ibanValidationIndicator).toBeVisible()
+    await expect(this.ibanValidationIndicator).toContainText('✗')
   }
 
   /**

@@ -62,6 +62,10 @@ export class MembersPage extends BasePage {
   private readonly cardUidFormatError = () => this.page.getByTestId('member-form-card-uid-format-error')
   private readonly cardUidDuplicateError = () => this.page.getByTestId('member-form-card-uid-error')
 
+  // IBAN validation
+  private readonly ibanValidationIndicator = () => this.page.getByTestId('members-form-iban-validation')
+  private readonly ibanError = () => this.page.getByTestId('members-form-iban-error')
+
   // Filter controls
   private readonly clearFiltersBtn = () => this.page.getByTestId('members-clear-filters')
 
@@ -343,6 +347,32 @@ export class MembersPage extends BasePage {
 
   async fillMandateReference(reference: string) {
     await this.mandateReferenceInput().fill(reference.toUpperCase())
+  }
+
+  async expectIbanValidVisible() {
+    await expect(this.ibanValidationIndicator()).toBeVisible()
+    await expect(this.ibanValidationIndicator()).toContainText('✓')
+  }
+
+  async expectIbanInvalidVisible() {
+    await expect(this.ibanValidationIndicator()).toBeVisible()
+    await expect(this.ibanValidationIndicator()).toContainText('✗')
+  }
+
+  async expectIbanValidationHidden() {
+    await expect(this.ibanValidationIndicator()).not.toBeVisible()
+  }
+
+  async expectIbanErrorVisible() {
+    await expect(this.ibanError()).toBeVisible()
+  }
+
+  async expectIbanErrorHidden() {
+    await expect(this.ibanError()).not.toBeVisible()
+  }
+
+  async getIbanErrorText(): Promise<string> {
+    return await this.ibanError().textContent() || ''
   }
 
   async selectLanguage(language: string) {
