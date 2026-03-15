@@ -23,6 +23,7 @@ import { TerminalsTab } from '../components/settings/TerminalsTab'
 import { CreateTerminalModal } from '../components/modals/CreateTerminalModal'
 import { EditTerminalModal } from '../components/modals/EditTerminalModal'
 import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
+import { validateIban } from '../utils/iban'
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -320,12 +321,6 @@ export function SettingsPage() {
     }
   }
 
-  // Validate IBAN format (basic client-side validation)
-  const validateIban = (iban: string): boolean => {
-    if (!iban) return false
-    return /^[A-Z]{2}[0-9A-Z]{13,32}$/.test(iban.toUpperCase())
-  }
-
   // Validate form
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -374,7 +369,9 @@ export function SettingsPage() {
   const handleFieldChange = (field: keyof UpdateSepaConfigRequest, value: string) => {
     let finalValue = value
 
-    if (field === 'creditor_iban' || field === 'creditor_address_country') {
+    if (field === 'creditor_iban') {
+      finalValue = value.replace(/\s/g, '').toUpperCase()
+    } else if (field === 'creditor_address_country') {
       finalValue = value.toUpperCase()
     }
 
