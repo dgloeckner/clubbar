@@ -163,7 +163,8 @@
       "resetFilters": "Reset Filters"
     },
     "validation": {
-      "invalidCardUid": "Invalid card UID format (8-20 hex characters required)"
+      "invalidCardUid": "Invalid card UID format (8-20 hex characters required)",
+      "invalidIban": "Invalid IBAN (check country code and digits)"
     },
     "errors": {
       "cardUidInUse": "This card UID is already assigned to another member"

@@ -23,6 +23,8 @@ import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { Toggle } from '../components/forms/Toggle'
 import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
+import { validateIban } from '../utils/iban'
+import { ValidationIndicator } from '../components/forms/ValidationIndicator'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -210,6 +212,13 @@ export function MembersPage() {
       setIsLoading(true)
       // Clear previous form errors
       setFormErrors({})
+
+      // Client-side IBAN validation
+      if (formData.iban && !validateIban(formData.iban)) {
+        setFormErrors({ iban: t('members.validation.invalidIban') })
+        setIsLoading(false)
+        return
+      }
 
       // Build payload
       const payload: any = { ...formData }
@@ -1306,15 +1315,20 @@ export function MembersPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.iban')} <span style={{ color: theme.colors.semantic.danger }}>*</span> <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')})</span>
+                  <ValidationIndicator
+                    isValid={validateIban(formData.iban)}
+                    show={formData.iban.length > 0}
+                    testId="members-form-iban-validation"
+                  />
                 </label>
                 <input
                   data-testid="members-form-iban-input"
                   type="text"
                   required
                   value={formData.iban}
-                  onChange={(e) => setFormData({ ...formData, iban: e.target.value.toUpperCase() })}
+                  onChange={(e) => setFormData({ ...formData, iban: e.target.value.replace(/\s/g, '').toUpperCase() })}
                   placeholder="DE89370400440532013000"
                   minLength={15}
                   maxLength={34}
@@ -1322,13 +1336,18 @@ export function MembersPage() {
                     width: '100%',
                     padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                     background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
+                    border: `1px solid ${formErrors.iban ? theme.colors.semantic.danger : theme.colors.border.light}`,
                     borderRadius: theme.borderRadius.md,
                     color: theme.colors.text.primary,
                     boxSizing: 'border-box',
                     fontFamily: 'monospace',
                   }}
                 />
+                {formErrors.iban && (
+                  <p data-testid="members-form-iban-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                    {formErrors.iban}
+                  </p>
+                )}
               </div>
 
               <div>
