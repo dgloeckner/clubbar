@@ -21,16 +21,9 @@ $configFile = __DIR__ . '/config.php';
 $isInstalled = file_exists($configFile);
 $isUpdate = isset($_GET['update']);
 
-// --- Already installed? ---
-// Only show "already installed" if config exists AND no step/update param is set
-// (steps 3-5 need config.php to exist — it's written in step 2)
-$step = $_GET['step'] ?? ($_POST['step'] ?? null);
-if ($isInstalled && !$isUpdate && $step === null) {
-    showAlreadyInstalled();
-    exit;
-}
-
-// --- Handle AJAX DB test (before any HTML output) ---
+// --- Handle AJAX DB test (before any HTML output or guards) ---
+// Must come before the "already installed" guard because the AJAX request
+// doesn't include step/update params and would otherwise be blocked.
 if (isset($_GET['action']) && $_GET['action'] === 'test_db') {
     header('Content-Type: application/json');
     try {
@@ -49,6 +42,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_db') {
     } catch (\PDOException $e) {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
+    exit;
+}
+
+// --- Already installed? ---
+// Only show "already installed" if config exists AND no step/update param is set
+// (steps 3-5 need config.php to exist — it's written in step 2)
+$step = $_GET['step'] ?? ($_POST['step'] ?? null);
+if ($isInstalled && !$isUpdate && $step === null) {
+    showAlreadyInstalled();
     exit;
 }
 
