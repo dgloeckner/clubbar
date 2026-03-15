@@ -5,10 +5,11 @@ import { csrfHeaders } from '../../utils/csrf'
 /**
  * Admin Frontend - Members Page E2E Tests (Consolidated)
  *
- * Three flow-based tests covering UC-A10 through UC-A15:
+ * Four flow-based tests covering UC-A10 through UC-A15:
  * 1. CRUD lifecycle: create → verify persistence → edit → verify changes → search
  * 2. Filters: SEPA, card, status, sort, card-edit interaction
  * 3. Card UID validation: format checks, auto-format, duplicate detection
+ * 4. IBAN validation: inline indicator, checksum rejection, normalization, valid submit
  *
  * Patterns: 001 (test data isolation), 004 (parallel safety),
  *           005 (test IDs), 006 (page object), 007 (fixtures), 008 (expect assertions)
@@ -295,5 +296,55 @@ test.describe('Admin Members Page', () => {
     await authenticatedMembersPage.expectCardUidDuplicateErrorHidden()
 
     await authenticatedMembersPage.cancelForm()
+  })
+
+
+  test('IBAN validation: inline indicator, checksum rejection, valid IBAN accepted', async ({
+    authenticatedMembersPage,
+  }) => {
+    const ts = Date.now()
+
+    await authenticatedMembersPage.openCreateModal()
+    await authenticatedMembersPage.expectFormModalVisible()
+
+    // ── Empty IBAN → no validation indicator shown ──────────────────
+    await authenticatedMembersPage.expectIbanValidationHidden()
+
+    // ── Invalid IBAN (bad checksum) → red X indicator ───────────────
+    const ibanInput = authenticatedMembersPage['page'].getByTestId('members-form-iban-input')
+    await ibanInput.fill('DE00000000000000000000')
+    await authenticatedMembersPage.expectIbanInvalidVisible()
+
+    // ── Try submitting invalid IBAN → form stays open, error shown ──
+    await authenticatedMembersPage.fillMemberForm(
+      `IVal${ts}`, `Last${ts}`, 'DE00000000000000000000', '2025-01-01',
+      `ival-${ts}@test.com`, 'de',
+    )
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalVisible()
+    await authenticatedMembersPage.expectIbanErrorVisible()
+
+    // ── Valid IBAN → green checkmark ─────────────────────────────────
+    await ibanInput.fill('DE89370400440532013000')
+    await authenticatedMembersPage.expectIbanValidVisible()
+    await authenticatedMembersPage.expectIbanErrorHidden()
+
+    // ── Pasted IBAN with spaces → normalized and valid ──────────────
+    await ibanInput.fill('DE89 3704 0044 0532 0130 00')
+    const normalizedValue = await authenticatedMembersPage.getFormIbanValue()
+    expect(normalizedValue).toBe('DE89370400440532013000')
+    await authenticatedMembersPage.expectIbanValidVisible()
+
+    // ── Submit with valid IBAN → succeeds ────────────────────────────
+    await authenticatedMembersPage.fillMemberForm(
+      `IVal${ts}`, `Last${ts}`, 'DE89370400440532013000', '2025-01-01',
+      `ival-${ts}@test.com`, 'de',
+    )
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    // ── Verify member created ────────────────────────────────────────
+    await authenticatedMembersPage.search(`IVal${ts}`)
+    await authenticatedMembersPage.expectMemberVisibleInTable(`IVal${ts}`)
   })
 })

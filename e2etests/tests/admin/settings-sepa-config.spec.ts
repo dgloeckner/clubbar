@@ -22,9 +22,8 @@ function generateUnique(): string {
  */
 function generateTestSepaConfig() {
   const unique = generateUnique()
-  // Generate valid DE IBAN (22 chars): DE + 18 digits (check + bank + account)
-  const randomDigits = Math.random().toString().substring(2, 11) + Math.random().toString().substring(2, 11)
-  const iban = `DE89${randomDigits.substring(0, 18)}`.substring(0, 22)
+  // Use a known-valid German IBAN (passes Mod 97 checksum)
+  const iban = 'DE89370400440532013000'
 
   return {
     creditor_id: `DE${unique}ZZZ09999999999`.substring(0, 35),
@@ -284,6 +283,34 @@ test.describe('SEPA Configuration Settings', () => {
    *
    * Pattern 008: Use expect() for assertions
    */
+  test('should show IBAN validation indicator for valid and invalid IBANs', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
+
+    // Enter invalid IBAN (bad checksum) → red X
+    await authenticatedSettingsPage.fillSepaConfig({
+      creditor_iban: 'DE00000000000000000000',
+    })
+    await authenticatedSettingsPage.expectIbanInvalidIndicator()
+
+    // Enter valid IBAN → green checkmark
+    await authenticatedSettingsPage.fillSepaConfig({
+      creditor_iban: 'DE89370400440532013000',
+    })
+    await authenticatedSettingsPage.expectIbanValidIndicator()
+
+    // IBAN with spaces → normalized (stripped by onChange handler)
+    await authenticatedSettingsPage.fillSepaConfig({
+      creditor_iban: 'DE89 3704 0044 0532 0130 00',
+    })
+    const normalizedIban = await authenticatedSettingsPage.getIbanValue()
+    expect(normalizedIban).toBe('DE89370400440532013000')
+    await authenticatedSettingsPage.expectIbanValidIndicator()
+
+    // Cancel to avoid persisting test data
+    await authenticatedSettingsPage.cancel()
+  })
+
   test('should auto-uppercase country code input', async ({ authenticatedSettingsPage }) => {
     // Arrange: Navigate to settings
     await authenticatedSettingsPage.waitForLoad()
