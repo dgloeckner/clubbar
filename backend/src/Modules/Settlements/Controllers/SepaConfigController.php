@@ -35,7 +35,7 @@ class SepaConfigController
         if (!$this->validator->validate($body, [
             'creditor_name' => ['required', 'string', 'max:70'],
             'creditor_id' => ['required', 'string'],
-            'creditor_iban' => ['required', 'string'],
+            'creditor_iban' => ['required', 'string', 'iban'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }

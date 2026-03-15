@@ -28,7 +28,7 @@ test.describe('Admin Members Page', () => {
       firstName: `CNew${ts}`,
       lastName: `Last${ts}`,
       email: `cnew-${ts}@test.com`,
-      iban: 'DE89370400440532013050',
+      iban: 'DE75512108001245126199',
       mandateDate: '2025-02-01',
       accountHolder: `Holder${ts}`,
       mandateRef: `REF${ts}`,
@@ -79,7 +79,7 @@ test.describe('Admin Members Page', () => {
       firstName: `CEdit${ts}`,
       lastName: `ELast${ts}`,
       email: `cedit-${ts}@test.com`,
-      iban: 'DE89370400440532013099',
+      iban: 'DE27100777770209299700',
       mandateDate: '2025-01-15',
       accountHolder: `EHolder${ts}`,
       mandateRef: `EREF${ts}`,
@@ -277,7 +277,7 @@ test.describe('Admin Members Page', () => {
     // Try second member with same card_uid
     await authenticatedMembersPage.openCreateModal()
     await authenticatedMembersPage.fillMemberForm(
-      `Dup2${ts}`, 'Test', 'DE89370400440532013001', '2024-01-15',
+      `Dup2${ts}`, 'Test', 'DE02120300000000202051', '2024-01-15',
       `dup2-${ts}@test.com`, 'de',
     )
     await authenticatedMembersPage.fillMandateReference(`MDUP2${ts}`)

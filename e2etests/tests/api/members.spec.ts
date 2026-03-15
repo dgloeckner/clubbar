@@ -41,7 +41,7 @@ test.describe('Members API - Card UID Filter', () => {
         first_name: `${testId}Without`,
         last_name: 'Test',
         email: `${testId}without@test.com`,
-        iban: 'DE89370400440532013001',
+        iban: 'DE02120300000000202051',
         mandate_reference: `MAN${testId}WO`,
         mandate_signed_at: '2024-01-15',
         preferred_language: 'de'
