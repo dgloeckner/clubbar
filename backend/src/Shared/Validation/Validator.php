@@ -62,6 +62,7 @@ class Validator
             'same'     => ($value !== null && $param && $value !== ($data[$param] ?? null)) ? "{$field} must match {$param}" : null,
             'nullable' => null,
             'in'       => ($value !== null && $param && !in_array((string)$value, explode(',', $param), true)) ? "{$field} must be one of: {$param}" : null,
+            'iban'     => $this->validateIban($field, $value),
             'unique'   => $this->validateUnique($field, $value, $param),
             default    => null,
         };
@@ -106,6 +107,44 @@ class Validator
         // For non-string numeric values (int, float), check numeric value
         if (is_numeric($value) && $value > (int)$param) {
             return "{$field} must be at most {$param}";
+        }
+
+        return null;
+    }
+
+    /**
+     * Validate IBAN using ISO 7064 Mod 97-10 checksum.
+     */
+    private function validateIban(string $field, mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null; // nullable — let 'required' handle presence
+        }
+
+        $iban = strtoupper(str_replace(' ', '', (string)$value));
+
+        // Format: 2 letters + 2 digits + 11-30 alphanumeric
+        if (!preg_match('/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/', $iban)) {
+            return "{$field} must be a valid IBAN";
+        }
+
+        // Rearrange: move first 4 chars to end
+        $rearranged = substr($iban, 4) . substr($iban, 0, 4);
+
+        // Replace letters with numbers (A=10 .. Z=35)
+        $numeric = '';
+        for ($i = 0; $i < strlen($rearranged); $i++) {
+            $ch = $rearranged[$i];
+            if (ctype_alpha($ch)) {
+                $numeric .= (string)(ord($ch) - 55);
+            } else {
+                $numeric .= $ch;
+            }
+        }
+
+        // Mod 97 using bcmod for arbitrary precision
+        if (bcmod($numeric, '97') !== '1') {
+            return "{$field} must be a valid IBAN";
         }
 
         return null;

@@ -98,6 +98,7 @@ class AdminController
             'preferred_language' => ['required', 'string', 'in:de,en,fr'],
             'account_holder_name' => ['nullable', 'string', 'max:70'],
             'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/', 'unique:members,card_uid'],
+            'iban' => ['nullable', 'string', 'iban'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
@@ -148,6 +149,15 @@ class AdminController
         if (isset($body['preferred_language'])) {
             if (!$this->validator->validate($body, [
                 'preferred_language' => ['string', 'in:de,en,fr'],
+            ])) {
+                return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+            }
+        }
+
+        // Validate IBAN if provided
+        if (isset($body['iban']) && $body['iban'] !== null && $body['iban'] !== '') {
+            if (!$this->validator->validate($body, [
+                'iban' => ['string', 'iban'],
             ])) {
                 return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
             }
