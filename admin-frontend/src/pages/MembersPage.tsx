@@ -1328,7 +1328,7 @@ export function MembersPage() {
                   type="text"
                   required
                   value={formData.iban}
-                  onChange={(e) => { setFormData({ ...formData, iban: e.target.value.replace(/\s/g, '').toUpperCase() }); setFormErrors((prev) => { const { iban: _, ...rest } = prev; return rest }) }}
+                  onChange={(e) => { setFormData({ ...formData, iban: e.target.value.replace(/\s/g, '').toUpperCase() }); if (formErrors.iban) setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban'))) }}
                   placeholder="DE89370400440532013000"
                   minLength={15}
                   maxLength={34}
