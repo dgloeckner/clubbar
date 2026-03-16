@@ -2,13 +2,13 @@ import { IconProps } from '../types'
 
 export function SaunaThermometerIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="12" cy="12" r="10" fill="#dc2626" stroke="#991b1b"/>
-      <circle cx="12" cy="12" r="8" fill="none" stroke="#fca5a5" strokeWidth="0.5"/>
-      <rect x="10" y="5" width="4" height="10" rx="2" fill="#fef2f2" stroke="#fca5a5" strokeWidth="0.5"/>
-      <circle cx="12" cy="17" r="3" fill="#fef2f2" stroke="#fca5a5" strokeWidth="0.5"/>
-      <rect x="11" y="8" width="2" height="6" fill="#dc2626"/>
-      <circle cx="12" cy="17" r="2" fill="#dc2626"/>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <rect x="20" y="4" width="8" height="28" rx="4" fill="white" stroke="#92400E" strokeWidth="2.5"/>
+      <rect x="22" y="20" width="4" height="12" rx="2" fill="#EF4444"/>
+      <circle cx="24" cy="38" r="7" fill="#EF4444" stroke="#92400E" strokeWidth="2.5"/>
+      <line x1="27" y1="8" x2="31" y2="8" stroke="#92400E" strokeWidth="1.5"/>
+      <line x1="27" y1="13" x2="31" y2="13" stroke="#92400E" strokeWidth="1.5"/>
+      <line x1="27" y1="18" x2="31" y2="18" stroke="#92400E" strokeWidth="1.5"/>
     </svg>
   )
 }

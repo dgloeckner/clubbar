@@ -2,14 +2,13 @@ import { IconProps } from '../types'
 
 export function SaunaTimeIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="12" cy="12" r="10" fill="#7c3aed" stroke="#5b21b6"/>
-      <circle cx="12" cy="12" r="8" fill="none" stroke="#c4b5fd" strokeWidth="0.5"/>
-      <circle cx="12" cy="10" r="5" fill="#ede9fe" stroke="#c4b5fd" strokeWidth="0.5"/>
-      <line x1="12" y1="10" x2="12" y2="6" stroke="#5b21b6" strokeWidth="1.5"/>
-      <line x1="12" y1="10" x2="12" y2="13" stroke="#7c3aed" strokeWidth="1"/>
-      <circle cx="12" cy="10" r="1" fill="#5b21b6"/>
-      <text x="12" y="20" textAnchor="middle" fill="#ede9fe" fontSize="4" fontWeight="bold">30m</text>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <circle cx="24" cy="26" r="18" fill="#FDE68A" stroke="#92400E" strokeWidth="2.5"/>
+      <circle cx="24" cy="26" r="13" fill="none" stroke="#92400E" strokeWidth="1" opacity=".3"/>
+      <line x1="24" y1="26" x2="24" y2="14" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round"/>
+      <line x1="24" y1="26" x2="33" y2="26" stroke="#92400E" strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="24" cy="26" r="2" fill="#92400E"/>
+      <path d="M20,8Q24,5 28,8" fill="none" stroke="#92400E" strokeWidth="2" strokeLinecap="round"/>
     </svg>
   )
 }

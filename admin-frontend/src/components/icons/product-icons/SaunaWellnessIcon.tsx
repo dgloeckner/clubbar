@@ -2,11 +2,14 @@ import { IconProps } from '../types'
 
 export function SaunaWellnessIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="12" cy="12" r="10" fill="#e11d48" stroke="#be123c"/>
-      <circle cx="12" cy="12" r="8" fill="none" stroke="#fda4af" strokeWidth="0.5"/>
-      <path d="M12 18l-5-5c-1.5-1.5-2-3.5-.5-5.5 1-1.3 3-1.5 4.5-.5l1 1 1-1c1.5-1 3.5-.8 4.5.5 1.5 2 1 4-.5 5.5z" fill="#ffe4e6" fillOpacity="0.3" stroke="#ffe4e6" strokeWidth="1"/>
-      <path d="M6 12h3l1-2 1.5 4 1.5-4 1 2h4" stroke="#ffe4e6" strokeWidth="1" fill="none"/>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <path d="M24,38Q20,28 24,18Q28,28 24,38Z" fill="#F9A8D4" stroke="#831843" strokeWidth="2"/>
+      <path d="M24,38Q13,34 11,22Q19,24 24,38Z" fill="#F9A8D4" stroke="#831843" strokeWidth="2"/>
+      <path d="M24,38Q35,34 37,22Q29,24 24,38Z" fill="#F9A8D4" stroke="#831843" strokeWidth="2"/>
+      <path d="M24,38Q8,36 7,26Q15,30 24,38Z" fill="#FBCFE8" stroke="#831843" strokeWidth="1.5"/>
+      <path d="M24,38Q40,36 41,26Q33,30 24,38Z" fill="#FBCFE8" stroke="#831843" strokeWidth="1.5"/>
+      <line x1="4" y1="40" x2="44" y2="40" stroke="#7DD3FC" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M4,44Q8,42 12,44Q16,46 20,44Q24,42 28,44Q32,46 36,44Q40,42 44,44" fill="none" stroke="#7DD3FC" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   )
 }

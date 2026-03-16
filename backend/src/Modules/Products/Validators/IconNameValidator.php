@@ -23,33 +23,60 @@ class IconNameValidator
         // Beverages - Beer
         'beer-pils',
         'beer-weizen',
+        'beer-weizen-new',
         'beer-radler',
         'beer-alcohol-free',
 
         // Beverages - Cider & Spritzers
         'cider-apfelwein',
+        'cider-appler',
         'spritzer-apple',
+
+        // Beverages - Soft Drinks
+        'soda-lemonade',
+        'soda-limonade',
+        'juice-apple',
+        'juice-orange',
 
         // Beverages - Hot Drinks
         'coffee',
 
-        // Beverages - Water & Soft Drinks
+        // Beverages - Wine
+        'wine-red',
+        'wine-white',
+
+        // Beverages - Water
         'water',
         'water-large',
+        'water-small',
         'soda',
 
         // Food
         'food-pizza',
         'food-sandwich',
+        'food-bratwurst',
+        'food-hamburger',
+        'food-fish-sandwich',
+        'food-crisps',
+        'food-fries',
+        'food-bretzel',
+        'food-crackers',
+        'food-steak',
+        'food-salad',
         'snack-chips',
         'snack',
 
         // Services - Sauna
+        'sauna-token',
+        'sauna-thermometer',
         'sauna-session',
         'sauna-cabin',
         'sauna-infusion',
+        'sauna-ice',
+        'sauna-shower',
         'sauna-towel',
-        'sauna-token',
+        'sauna-wellness',
+        'sauna-whisk',
 
         // Special
         'correction',

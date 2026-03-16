@@ -2,15 +2,15 @@ import { IconProps } from '../types'
 
 export function ApplerIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M7 20L6 6c0-1 .5-2 2-2h8c1.5 0 2 1 2 2l-1 14c0 1-1 2-5 2s-5-1-5-2z" fill="#d97706" fillOpacity="0.4"/>
-      <line x1="7" y1="8" x2="10" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
-      <line x1="10" y1="8" x2="13" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
-      <line x1="13" y1="8" x2="16" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
-      <line x1="17" y1="8" x2="14" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
-      <line x1="14" y1="8" x2="11" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
-      <line x1="11" y1="8" x2="8" y2="18" stroke="currentColor" strokeWidth="0.5" opacity="0.4"/>
-      <circle cx="18" cy="5" r="2" fill="#dc2626"/>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <path d="M9,40L9,18L39,18L39,40Z" fill="#FDE68A" stroke="#92400E" strokeWidth="2.5" strokeLinejoin="round"/>
+      <rect x="8" y="15" width="32" height="5" rx="2.5" fill="#FDE68A" stroke="#92400E" strokeWidth="2.5"/>
+      <rect x="8" y="40" width="32" height="4" rx="2" fill="#C4934F" stroke="#92400E" strokeWidth="2"/>
+      <line x1="9" y1="24" x2="39" y2="24" stroke="#92400E" strokeWidth="1" opacity=".4"/>
+      <line x1="9" y1="30" x2="39" y2="30" stroke="#92400E" strokeWidth="1" opacity=".4"/>
+      <line x1="9" y1="36" x2="39" y2="36" stroke="#92400E" strokeWidth="1" opacity=".4"/>
+      <circle cx="24" cy="28" r="5" fill="#86EFAC" stroke="#065F46" strokeWidth="1.5"/>
+      <path d="M23,22Q25,20 27,21" fill="none" stroke="#065F46" strokeWidth="1" strokeLinecap="round"/>
     </svg>
   )
 }

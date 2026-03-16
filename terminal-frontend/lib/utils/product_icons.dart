@@ -52,6 +52,15 @@ class ProductIcons {
     'food-sandwich': '🥪',
     'snack-chips': '🍟',
     'snack': '🍿',
+    'food-bratwurst': '🌭',
+    'food-hamburger': '🍔',
+    'food-fish-sandwich': '🐟',
+    'food-crisps': '🥨',
+    'food-fries': '🍟',
+    'food-bretzel': '🥨',
+    'food-crackers': '🍘',
+    'food-steak': '🥩',
+    'food-salad': '🥗',
 
     // Services - Sauna
     'sauna-session': '🧖',
@@ -64,4 +73,3 @@ class ProductIcons {
     'unknown': '🛒',
   };
 }
-

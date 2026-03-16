@@ -2,10 +2,13 @@ import { IconProps } from '../types'
 
 export function WeizenIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M8 20c0 1 1 2 4 2s4-1 4-2l1-8c.5-4-1-6-2-8-.5-1-.5-2 0-3h-6c.5 1 .5 2 0 3-1 2-2.5 4-2 8z" fill="#f59e0b" fillOpacity="0.3"/>
-      <ellipse cx="12" cy="7" rx="3" ry="1.5" fill="#fef3c7"/>
-      <ellipse cx="12" cy="5.5" rx="2.5" ry="1.5" fill="white"/>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <path d="M20,44Q18,36 14,28Q11,20 10,10L38,10Q37,20 34,28Q30,36 28,44Z" fill="#FBBF24" stroke="#92400E" strokeWidth="2.5" strokeLinejoin="round"/>
+      <path d="M9,10Q11,3 16,7Q20,0 24,5Q28,0 32,7Q37,3 39,10Z" fill="white" stroke="#92400E" strokeWidth="2.5" strokeLinejoin="round"/>
+      <line x1="19" y1="44" x2="29" y2="44" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round"/>
+      <circle cx="18" cy="32" r="1.5" fill="white" opacity=".7"/>
+      <circle cx="24" cy="22" r="1.2" fill="white" opacity=".6"/>
+      <circle cx="30" cy="36" r="1.5" fill="white" opacity=".65"/>
     </svg>
   )
 }

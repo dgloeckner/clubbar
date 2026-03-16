@@ -7,6 +7,7 @@ import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 void showStatusInfoModal(BuildContext context) {
@@ -39,6 +40,14 @@ void showStatusInfoModal(BuildContext context) {
       // Database not available
     }
 
+    // Get network service for fetching backend version
+    NetworkService? networkService;
+    try {
+      networkService = context.read<NetworkService>();
+    } catch (_) {
+      // Network service not available
+    }
+
     showDialog(
       context: context,
       builder: (context) => _StatusInfoDialog(
@@ -51,6 +60,7 @@ void showStatusInfoModal(BuildContext context) {
         backendUrl: backendUrl,
         dispenserUrl: dispenserUrl,
         database: database,
+        networkService: networkService,
       ),
     );
   } catch (e) {
@@ -83,6 +93,7 @@ class _StatusInfoDialog extends StatefulWidget {
   final String? backendUrl;
   final String? dispenserUrl;
   final ClubBarDatabase? database;
+  final NetworkService? networkService;
 
   const _StatusInfoDialog({
     required this.connectionStatus,
@@ -94,6 +105,7 @@ class _StatusInfoDialog extends StatefulWidget {
     this.dispenserHealth,
     this.dispenserUrl,
     this.database,
+    this.networkService,
   });
 
   @override
@@ -105,10 +117,12 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   List<DispenserOperation> _pendingOps = [];
   StreamSubscription<List<DispenserOperation>>? _opsSub;
   DispenserHealthService? _healthService;
+  String? _backendVersion;
 
   @override
   void initState() {
     super.initState();
+    _fetchBackendVersion();
     if (widget.database != null) {
       _opsSub = widget.database!
           .select(widget.database!.dispenserOperations)
@@ -133,6 +147,13 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
 
   void _onHealthChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _fetchBackendVersion() async {
+    final version = await widget.networkService?.fetchBackendVersion();
+    if (mounted && version != null) {
+      setState(() => _backendVersion = version);
+    }
   }
 
   @override
@@ -384,7 +405,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             title: l10n.endpoints,
             children: [
               if (widget.backendUrl != null) ...[
-                _urlRow(l10n.backendEndpoint, widget.backendUrl!),
+                _urlRow(l10n.backendEndpoint, widget.backendUrl!, version: _backendVersion),
                 const SizedBox(height: 12),
               ],
               if (widget.dispenserUrl != null) ...[
@@ -1058,13 +1079,35 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     );
   }
 
-  Widget _urlRow(String label, String url) {
+  Widget _urlRow(String label, String url, {String? version}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(fontSize: AppFontSizes.sm, fontWeight: FontWeight.w600),
+        Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(fontSize: AppFontSizes.sm, fontWeight: FontWeight.w600),
+            ),
+            if (version != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xff334155),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  version,
+                  style: TextStyle(
+                    fontSize: AppFontSizes.xs,
+                    fontFamily: 'monospace',
+                    color: const Color(0xff94a3b8),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 4),
         Text(

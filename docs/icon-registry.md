@@ -1,10 +1,8 @@
 # Icon Registry
 
-**Single source of truth for product icons across backend, admin frontend, and terminal.**
+**Reference documentation for product icons across backend, admin frontend, and terminal.**
 
-## Purpose
-
-This document defines the canonical set of icon identifiers used throughout the Club Bar application. All three systems (backend database, admin frontend React app, Flutter terminal) MUST reference these exact icon names.
+The authoritative source of truth for icon validation is `backend/src/Modules/Products/Validators/IconNameValidator.php`. This document mirrors that list for human reference.
 
 ## Format
 
@@ -17,58 +15,92 @@ This document defines the canonical set of icon identifiers used throughout the 
 
 ### Beverages - Beer
 
-| Icon Name | Description | Terminal Emoji | Admin UI Icon | Notes |
-|-----------|-------------|----------------|---------------|-------|
-| `beer-pils` | Pilsner beer | 🍺 | TBD | Standard German lager |
-| `beer-weizen` | Wheat beer (Weißbier) | 🍺 | TBD | Bavarian wheat beer |
-| `beer-radler` | Radler (beer + lemonade) | 🍺 | TBD | Shandy, cyclist's drink |
-| `beer-alcohol-free` | Non-alcoholic beer | 🍺 | TBD | 0.0% or <0.5% ABV |
+| Icon Name | Description | Terminal Emoji |
+|-----------|-------------|----------------|
+| `beer-pils` | Pilsner beer | 🍺 |
+| `beer-weizen` | Wheat beer (Weißbier) | 🍺 |
+| `beer-weizen-new` | Fresh wheat beer (with garnish) | 🍺 |
+| `beer-radler` | Radler (beer + lemonade) | 🍺 |
+| `beer-alcohol-free` | Non-alcoholic beer | 🍺 |
 
 ### Beverages - Cider & Spritzers
 
-| Icon Name | Description | Terminal Emoji | Admin UI Icon | Notes |
-|-----------|-------------|----------------|---------------|-------|
-| `cider-apfelwein` | Apfelwein / Äppler | 🍺 | TBD | Frankfurt specialty apple cider (Bembel) |
-| `spritzer-apple` | Apfelschorle (apple juice + sparkling water) | 🍎 | TBD | Popular German soft drink |
+| Icon Name | Description | Terminal Emoji |
+|-----------|-------------|----------------|
+| `cider-apfelwein` | Apfelwein / Äppler (Bembel) | 🍺 |
+| `cider-appler` | Äppler cider can | 🍺 |
+| `spritzer-apple` | Apfelschorle (apple juice + sparkling water) | 🍎 |
+
+### Beverages - Soft Drinks
+
+| Icon Name | Description | Terminal Emoji |
+|-----------|-------------|----------------|
+| `soda-lemonade` | Lemonade | 🥤 |
+| `soda-limonade` | Limonade (bottled) | 🥤 |
+| `juice-apple` | Apple juice | 🍎 |
+| `juice-orange` | Orange juice | 🍊 |
+| `soda` | Generic soft drink / soda | 🥤 |
 
 ### Beverages - Hot Drinks
 
-| Icon Name | Description | Terminal Emoji | Admin UI Icon | Notes |
-|-----------|-------------|----------------|---------------|-------|
-| `coffee` | Coffee | ☕ | TBD | Hot brewed coffee |
+| Icon Name | Description | Terminal Emoji |
+|-----------|-------------|----------------|
+| `coffee` | Coffee | ☕ |
 
-### Beverages - Water & Soft Drinks
+### Beverages - Wine
 
-| Icon Name | Description | Terminal Emoji | Admin UI Icon | Notes |
-|-----------|-------------|----------------|---------------|-------|
-| `water` | Water (0.5L) | 💧 | TBD | Standard bottle size |
-| `water-large` | Water (1.0L) | 💧 | TBD | Large bottle |
-| `soda` | Soft drink / Soda | 🥤 | TBD | Generic carbonated drink |
+| Icon Name | Description | Terminal Emoji |
+|-----------|-------------|----------------|
+| `wine-red` | Red wine | 🍷 |
+| `wine-white` | White wine | 🥂 |
+
+### Beverages - Water
+
+| Icon Name | Description | Terminal Emoji |
+|-----------|-------------|----------------|
+| `water` | Water (0.5L) | 💧 |
+| `water-large` | Water (1.0L) | 💧 |
+| `water-small` | Water (0.25L) | 💧 |
 
 ### Food
 
-| Icon Name | Description | Terminal Emoji | Admin UI Icon | Notes |
-|-----------|-------------|----------------|---------------|-------|
-| `food-pizza` | Pizza | 🍕 | TBD | - |
-| `food-sandwich` | Sandwich | 🥪 | TBD | - |
-| `snack-chips` | Chips / Crisps | 🍟 | TBD | - |
-| `snack` | Generic snack | 🍿 | TBD | Fallback for other snacks |
+| Icon Name | Description | Terminal Emoji |
+|-----------|-------------|----------------|
+| `food-pizza` | Pizza | 🍕 |
+| `food-sandwich` | Sandwich | 🥪 |
+| `food-bratwurst` | Bratwurst in bun | 🌭 |
+| `food-hamburger` | Hamburger | 🍔 |
+| `food-fish-sandwich` | Fish sandwich | 🐟 |
+| `food-crisps` | Crisps / chips bag | 🥨 |
+| `food-fries` | French fries | 🍟 |
+| `food-bretzel` | Bretzel / pretzel | 🥨 |
+| `food-crackers` | Crackers | 🍘 |
+| `food-steak` | Steak | 🥩 |
+| `food-salad` | Salad bowl | 🥗 |
+| `snack-chips` | Chips / crisps | 🍟 |
+| `snack` | Generic snack | 🍿 |
 
 ### Services - Sauna
 
-| Icon Name | Description | Terminal Emoji | Admin UI Icon | Notes |
-|-----------|-------------|----------------|---------------|-------|
-| `sauna-session` | Sauna session time | 🧖 | TBD | Time-based booking |
-| `sauna-cabin` | Sauna cabin rental | 🏠 | TBD | Private cabin |
-| `sauna-infusion` | Aufguss (sauna infusion) | 💨 | TBD | Aromatherapy session |
-| `sauna-towel` | Towel rental | 🧺 | TBD | Linen service |
+| Icon Name | Description | Terminal Emoji |
+|-----------|-------------|----------------|
+| `sauna-token` | Sauna access token | 🪙 |
+| `sauna-thermometer` | Sauna thermometer | 🌡️ |
+| `sauna-session` | Sauna session time | 🧖 |
+| `sauna-cabin` | Sauna cabin rental | 🏠 |
+| `sauna-infusion` | Aufguss (sauna infusion) | 💨 |
+| `sauna-ice` | Ice bucket | 🧊 |
+| `sauna-shower` | Shower | 🚿 |
+| `sauna-towel` | Towel rental | 🧺 |
+| `sauna-wellness` | Wellness / spa | 🌸 |
+| `sauna-whisk` | Birch whisk (venik) | 🌿 |
 
 ### Special
 
-| Icon Name | Description | Terminal Emoji | Admin UI Icon | Notes |
-|-----------|-------------|----------------|---------------|-------|
-| `correction` | Manual correction | 📝 | TBD | Used for transaction corrections (no product) |
-| `unknown` | Unknown/undefined | 🛒 | TBD | Fallback when icon not recognized |
+| Icon Name | Description | Terminal Emoji |
+|-----------|-------------|----------------|
+| `correction` | Manual correction | 📝 |
+| `unknown` | Unknown/undefined | 🛒 |
 
 ## Database Migration Required
 
@@ -135,14 +167,17 @@ static const Map<String, String> _iconMap = {
 
 ## Adding New Icons
 
-1. Add entry to this document with description
-2. Update terminal Flutter emoji mapping (`lib/utils/product_icons.dart`)
-3. Update admin frontend icon component mapping
-4. Database automatically supports new names (no migration needed for additions)
+1. Add name to `IconNameValidator::CANONICAL_ICONS` in `backend/src/Modules/Products/Validators/IconNameValidator.php`
+2. Add SVG file to `terminal-frontend/assets/icons/products/`
+3. Add canonical + legacy entries in `terminal-frontend/lib/utils/icon_registry.dart`
+4. Add emoji mapping in `terminal-frontend/lib/utils/product_icons.dart`
+5. Add React component in `admin-frontend/src/components/icons/product-icons/`
+6. Export from `admin-frontend/src/components/icons/product-icons/index.ts`
+7. Register in `admin-frontend/src/components/icons/IconRegistry.ts`
+8. Update this document to match
 
 ## Validation
 
-All systems MUST validate icon names against this registry:
-- Backend: Validate on product creation/update
-- Admin frontend: Dropdown/autocomplete from this list
-- Terminal: Graceful fallback to `unknown` (🛒) for unrecognized names
+- **Backend** (authoritative): `IconNameValidator.php` validates on product creation/update
+- **Admin frontend**: Dropdown from `PRODUCT_ICON_NAMES` in `IconRegistry.ts`
+- **Terminal**: Graceful fallback to default icon for unrecognized names

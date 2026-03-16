@@ -2,11 +2,13 @@ import { IconProps } from '../types'
 
 export function CoffeeMugIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M5 8h10v11c0 1.5-2 3-5 3s-5-1.5-5-3V8z" fill="#92400e" fillOpacity="0.3"/>
-      <path d="M15 11c3 0 4 1.5 4 3s-1 3-4 3"/>
-      <path d="M8 6c.3-1-.3-2 0-3" opacity="0.4"/>
-      <path d="M11 6c.3-1-.3-2 0-3" opacity="0.4"/>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <rect x="8" y="16" width="28" height="24" rx="5" fill="#451A03" stroke="#78350F" strokeWidth="2.5"/>
+      <path d="M36,22Q44,22 44,28Q44,34 36,34" fill="none" stroke="#78350F" strokeWidth="2.5" strokeLinecap="round"/>
+      <ellipse cx="22" cy="19" rx="11" ry="2.5" fill="#78350F" opacity=".6"/>
+      <path d="M14,13Q16,9 14,5" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M22,12Q24,8 22,4" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M30,13Q32,9 30,5" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round"/>
     </svg>
   )
 }

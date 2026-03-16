@@ -2,13 +2,13 @@ import { IconProps } from '../types'
 
 export function WaterLargeIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M8 21V9c0-1 1-2 2-2V5c0-1 .5-2 2-2s2 1 2 2v2c1 0 2 1 2 2v12c0 1-1 2-4 2s-4-1-4-2z" fill="#60a5fa" fillOpacity="0.2"/>
-      <rect x="10" y="2" width="4" height="2" rx="0.5" fill="#3b82f6"/>
-      <circle cx="10" cy="14" r="0.7" fill="currentColor" opacity="0.3"/>
-      <circle cx="13" cy="11" r="0.5" fill="currentColor" opacity="0.3"/>
-      <circle cx="11" cy="17" r="0.6" fill="currentColor" opacity="0.3"/>
-      <text x="12" y="15" textAnchor="middle" fill="currentColor" fontSize="4" opacity="0.6">1L</text>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <path d="M16,44L14,22Q14,18 18,16L18,11L30,11L30,16Q34,18 34,22L32,44Z" fill="#BAE6FD" stroke="#0C4A6E" strokeWidth="2.5" strokeLinejoin="round"/>
+      <rect x="19" y="6" width="10" height="7" rx="3.5" fill="#38BDF8" stroke="#0C4A6E" strokeWidth="2.5"/>
+      <rect x="16" y="28" width="16" height="10" rx="2" fill="#7DD3FC" opacity=".4"/>
+      <circle cx="20" cy="38" r="1.5" fill="white" opacity=".7"/>
+      <circle cx="27" cy="33" r="1.2" fill="white" opacity=".6"/>
+      <circle cx="29" cy="40" r="1.5" fill="white" opacity=".7"/>
     </svg>
   )
 }

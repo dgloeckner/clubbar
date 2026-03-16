@@ -2,24 +2,17 @@ import { IconProps } from '../types'
 
 export function SaunaWhiskIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="12" cy="12" r="10" fill="#16a34a" stroke="#15803d"/>
-      <circle cx="12" cy="12" r="8" fill="none" stroke="#86efac" strokeWidth="0.5"/>
-      <rect x="10.5" y="15" width="3" height="5" rx="0.8" fill="#fef3c7" fillOpacity="0.3" stroke="#dcfce7" strokeWidth="0.8"/>
-      <g stroke="#dcfce7" strokeWidth="0.8" fill="none">
-        <path d="M12 15V7"/>
-        <path d="M12 15L9 7.5"/>
-        <path d="M12 15L15 7.5"/>
-        <path d="M12 15L7.5 9"/>
-        <path d="M12 15L16.5 9"/>
-      </g>
-      <g fill="#dcfce7" fillOpacity="0.6" stroke="none">
-        <ellipse cx="12" cy="6.5" rx="1.2" ry="0.6"/>
-        <ellipse cx="9" cy="7" rx="1" ry="0.5" transform="rotate(-15,9,7)"/>
-        <ellipse cx="15" cy="7" rx="1" ry="0.5" transform="rotate(15,15,7)"/>
-        <ellipse cx="7.5" cy="8.5" rx="1" ry="0.5" transform="rotate(-30,7.5,8.5)"/>
-        <ellipse cx="16.5" cy="8.5" rx="1" ry="0.5" transform="rotate(30,16.5,8.5)"/>
-      </g>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <rect x="19" y="30" width="10" height="14" rx="5" fill="#C4934F" stroke="#78350F" strokeWidth="2.5"/>
+      <rect x="18" y="28" width="12" height="5" rx="2.5" fill="#78350F"/>
+      <path d="M24,30Q18,23 14,14" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round"/>
+      <path d="M24,30Q22,22 21,12" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round"/>
+      <path d="M24,30Q26,22 27,12" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round"/>
+      <path d="M24,30Q30,23 34,14" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round"/>
+      <ellipse cx="13" cy="13" rx="4.5" ry="2.5" fill="#86EFAC" stroke="#166534" strokeWidth="1.5" transform="rotate(-35 13 13)"/>
+      <ellipse cx="21" cy="11" rx="4.5" ry="2.5" fill="#86EFAC" stroke="#166534" strokeWidth="1.5" transform="rotate(-10 21 11)"/>
+      <ellipse cx="27" cy="11" rx="4.5" ry="2.5" fill="#86EFAC" stroke="#166534" strokeWidth="1.5" transform="rotate(10 27 11)"/>
+      <ellipse cx="35" cy="13" rx="4.5" ry="2.5" fill="#86EFAC" stroke="#166534" strokeWidth="1.5" transform="rotate(35 35 13)"/>
     </svg>
   )
 }

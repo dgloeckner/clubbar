@@ -2,13 +2,13 @@ import { IconProps } from '../types'
 
 export function SaunaCabinIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="12" cy="12" r="10" fill="#0891b2" stroke="#0e7490"/>
-      <circle cx="12" cy="12" r="8" fill="none" stroke="#67e8f9" strokeWidth="0.5"/>
-      <path d="M6 11L12 5l6 6" stroke="#ecfeff" strokeWidth="1.5"/>
-      <rect x="7" y="11" width="10" height="7" fill="#ecfeff" fillOpacity="0.2" stroke="#ecfeff" strokeWidth="1"/>
-      <rect x="10" y="13" width="4" height="5" fill="#0891b2" stroke="#ecfeff" strokeWidth="0.5"/>
-      <path d="M15 4q-0.5-1 0-2" stroke="#67e8f9" strokeWidth="1"/>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <path d="M4,28L24,8L44,28Z" fill="#7C3F1A" stroke="#78350F" strokeWidth="2.5" strokeLinejoin="round"/>
+      <rect x="8" y="26" width="32" height="18" rx="2" fill="#C4934F" stroke="#78350F" strokeWidth="2.5"/>
+      <rect x="19" y="30" width="10" height="14" rx="2" fill="#78350F"/>
+      <rect x="10" y="29" width="7" height="7" rx="1.5" fill="#BAE6FD" stroke="#78350F" strokeWidth="1.5"/>
+      <rect x="30" y="14" width="5" height="12" rx="1" fill="#9CA3AF" stroke="#374151" strokeWidth="2"/>
+      <path d="M32,13Q34,9 32,6" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   )
 }

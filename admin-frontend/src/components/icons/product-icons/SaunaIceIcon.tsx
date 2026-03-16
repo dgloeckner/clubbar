@@ -2,26 +2,12 @@ import { IconProps } from '../types'
 
 export function SaunaIceIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <circle cx="12" cy="12" r="10" fill="#0284c7" stroke="#0369a1"/>
-      <circle cx="12" cy="12" r="8" fill="none" stroke="#7dd3fc" strokeWidth="0.5"/>
-      <g stroke="#e0f2fe" strokeWidth="1.2">
-        <line x1="12" y1="5" x2="12" y2="19"/>
-        <line x1="6" y1="8.5" x2="18" y2="15.5"/>
-        <line x1="6" y1="15.5" x2="18" y2="8.5"/>
-        <line x1="12" y1="5" x2="10.5" y2="6.5"/>
-        <line x1="12" y1="5" x2="13.5" y2="6.5"/>
-        <line x1="12" y1="19" x2="10.5" y2="17.5"/>
-        <line x1="12" y1="19" x2="13.5" y2="17.5"/>
-        <line x1="6" y1="8.5" x2="7" y2="10"/>
-        <line x1="6" y1="8.5" x2="7.8" y2="8"/>
-        <line x1="18" y1="15.5" x2="17" y2="14"/>
-        <line x1="18" y1="15.5" x2="16.2" y2="16"/>
-        <line x1="6" y1="15.5" x2="7.8" y2="16"/>
-        <line x1="6" y1="15.5" x2="7" y2="14"/>
-        <line x1="18" y1="8.5" x2="16.2" y2="8"/>
-        <line x1="18" y1="8.5" x2="17" y2="10"/>
-      </g>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <path d="M12,44L10,24L38,24L36,44Z" fill="#BAE6FD" stroke="#0C4A6E" strokeWidth="2.5" strokeLinejoin="round"/>
+      <path d="M10,24Q10,16 24,13Q38,16 38,24" fill="none" stroke="#0C4A6E" strokeWidth="2.5" strokeLinecap="round"/>
+      <rect x="13" y="26" width="9" height="9" rx="2" fill="white" stroke="#0C4A6E" strokeWidth="1.5"/>
+      <rect x="24" y="26" width="9" height="9" rx="2" fill="white" stroke="#0C4A6E" strokeWidth="1.5"/>
+      <rect x="17" y="35" width="9" height="7" rx="2" fill="white" stroke="#0C4A6E" strokeWidth="1.5"/>
     </svg>
   )
 }

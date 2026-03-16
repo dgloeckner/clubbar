@@ -68,6 +68,17 @@ export const PRODUCT_ICON_NAMES = [
   'sauna-towel',
   'sauna-wellness',
   'sauna-whisk',
+
+  // Food
+  'food-bratwurst',
+  'food-hamburger',
+  'food-fish-sandwich',
+  'food-crisps',
+  'food-fries',
+  'food-bretzel',
+  'food-crackers',
+  'food-steak',
+  'food-salad',
 ] as const
 
 export type ProductIconName = (typeof PRODUCT_ICON_NAMES)[number]
@@ -145,6 +156,17 @@ export const ProductIconRegistry: Record<ProductIconName, React.FC<IconProps>> =
   'sauna-towel': ProductIcons.SaunaTowelIcon,
   'sauna-wellness': ProductIcons.SaunaWellnessIcon,
   'sauna-whisk': ProductIcons.SaunaWhiskIcon,
+
+  // Food
+  'food-bratwurst': ProductIcons.BratwurstIcon,
+  'food-hamburger': ProductIcons.HamburgerIcon,
+  'food-fish-sandwich': ProductIcons.FishSandwichIcon,
+  'food-crisps': ProductIcons.CrispsIcon,
+  'food-fries': ProductIcons.FriesIcon,
+  'food-bretzel': ProductIcons.BretzelIcon,
+  'food-crackers': ProductIcons.CrackersIcon,
+  'food-steak': ProductIcons.SteakIcon,
+  'food-salad': ProductIcons.SaladIcon,
 }
 
 /**

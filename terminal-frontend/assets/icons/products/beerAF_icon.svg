@@ -1,6 +1,8 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M7 20L6 8c0-1 .5-2 2-2h8c1.5 0 2 1 2 2l-1 12c0 1-1 2-5 2s-5-1-5-2z" fill="#fbbf24" fill-opacity="0.3"/>
-  <ellipse cx="12" cy="8" rx="5" ry="1.5" fill="#fef3c7"/>
-  <circle cx="18" cy="16" r="4" fill="#22c55e" stroke="none"/>
-  <text x="18" y="17.5" text-anchor="middle" fill="white" font-size="5" font-weight="bold">0%</text>
+<svg viewBox="0 0 48 48">
+  <path d="M11,44L9,14L39,14L37,44Z" fill="#FEF9C3" stroke="#78350F" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M8,14Q11,5 15,9Q18,2 23,7Q28,2 31,9Q35,5 40,14Z" fill="white" stroke="#78350F" stroke-width="2.5" stroke-linejoin="round"/>
+  <line x1="9" y1="44" x2="39" y2="44" stroke="#78350F" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M34,40Q40,34 40,28Q34,30 32,40Z" fill="#86EFAC" stroke="#166534" stroke-width="1.5"/>
+  <line x1="32" y1="40" x2="40" y2="28" stroke="#166534" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="18" cy="28" r="1.2" fill="white" opacity=".6"/>
 </svg>

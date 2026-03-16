@@ -2,16 +2,16 @@ import { IconProps } from '../types'
 
 export function ApfelschorleIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M7 20L6 6c0-1 .5-2 2-2h8c1.5 0 2 1 2 2l-1 14c0 1-1 2-5 2s-5-1-5-2z" fill="#fbbf24" fillOpacity="0.2"/>
-      <circle cx="17" cy="5" r="2.5" fill="#22c55e"/>
-      <path d="M17 2.5q1-1 1 0" stroke="#166534" strokeWidth="1" fill="none"/>
-      <circle cx="9" cy="12" r="0.5" fill="currentColor" opacity="0.3"/>
-      <circle cx="11" cy="16" r="0.4" fill="currentColor" opacity="0.25"/>
-      <circle cx="13" cy="13" r="0.5" fill="currentColor" opacity="0.3"/>
-      <circle cx="10" cy="18" r="0.4" fill="currentColor" opacity="0.2"/>
-      <circle cx="14" cy="10" r="0.4" fill="currentColor" opacity="0.2"/>
-      <circle cx="12" cy="9" r="0.3" fill="currentColor" opacity="0.2"/>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <path d="M17,43L15,11L33,11L31,43Z" fill="#D1FAE5" stroke="#065F46" strokeWidth="2.5" strokeLinejoin="round"/>
+      <line x1="14" y1="11" x2="34" y2="11" stroke="#065F46" strokeWidth="2.5" strokeLinecap="round"/>
+      <line x1="16" y1="43" x2="32" y2="43" stroke="#065F46" strokeWidth="2.5" strokeLinecap="round"/>
+      <circle cx="37" cy="10" r="6" fill="#86EFAC" stroke="#065F46" strokeWidth="2"/>
+      <path d="M35,4Q37,2 40,3" fill="none" stroke="#065F46" strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="37" y1="4" x2="37" y2="8" stroke="#065F46" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="20" cy="28" r="1.5" fill="white" opacity=".8"/>
+      <circle cx="26" cy="20" r="1.2" fill="white" opacity=".7"/>
+      <circle cx="28" cy="36" r="1.5" fill="white" opacity=".8"/>
     </svg>
   )
 }

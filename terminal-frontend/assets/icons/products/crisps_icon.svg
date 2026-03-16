@@ -1,0 +1,15 @@
+<svg viewBox="0 0 48 48">
+  <!-- bag bottom seal -->
+  <path d="M13,44L10,22L38,22L35,44Z" fill="#EF4444" stroke="#991B1B" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- bag highlight stripe -->
+  <path d="M15,44L13,28L20,28L21,44Z" fill="#F87171" opacity=".5"/>
+  <!-- bag top twist -->
+  <path d="M10,22Q12,16 18,14L30,14Q36,16 38,22Z" fill="#EF4444" stroke="#991B1B" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M18,14Q21,10 24,9Q27,10 30,14" fill="none" stroke="#991B1B" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- crisps spilling out -->
+  <path d="M16,18Q18,14 22,16Q20,20 16,18Z" fill="#FDE68A" stroke="#92400E" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M22,16Q26,12 30,15Q28,19 22,16Z" fill="#FDE68A" stroke="#92400E" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M30,15Q34,13 37,17Q34,20 30,15Z" fill="#FDE68A" stroke="#92400E" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- brand stripe on bag -->
+  <path d="M11,32L37,32" stroke="#FDE68A" stroke-width="3" stroke-linecap="round" opacity=".4"/>
+</svg>

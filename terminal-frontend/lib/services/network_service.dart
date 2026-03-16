@@ -71,6 +71,24 @@ class NetworkService {
     }
   }
 
+  /// Fetch the backend version from the health endpoint.
+  /// Returns the version string or null on failure.
+  Future<String?> fetchBackendVersion() async {
+    try {
+      final uri = Uri.parse('$_baseUrl${AppConfig.healthEndpoint}');
+      final response = await http
+          .get(uri, headers: _buildHeaders())
+          .timeout(AppConfig.healthCheckTimeout);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(response.body);
+        return data['version'] as String?;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// GET request
   Future<dynamic> get(String endpoint) async {
     try {

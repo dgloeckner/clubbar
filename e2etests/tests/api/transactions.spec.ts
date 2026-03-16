@@ -16,7 +16,6 @@ import { test, expect } from '../../fixtures/auth.fixture';
 // Helper to create test member
 async function createMember(authenticatedRequest) {
   const uniqueId = randomUUID().substring(0, 8);
-  const ibanSuffix = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0');
 
   // Format date for MySQL (YYYY-MM-DD HH:MM:SS)
   const now = new Date();
@@ -27,7 +26,7 @@ async function createMember(authenticatedRequest) {
       first_name: `Test${uniqueId}`,
       last_name: `Member${uniqueId}`,
       email: `test${uniqueId}@example.com`,
-      iban: `DE89370400440532${ibanSuffix}`,
+      iban: 'DE89370400440532013000',
       mandate_signed_at: mandateDate,
       preferred_language: 'de',
     },

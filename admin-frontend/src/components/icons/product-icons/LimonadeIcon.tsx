@@ -2,13 +2,12 @@ import { IconProps } from '../types'
 
 export function LimonadeIcon({ size = 20, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M7 20L6 6c0-1 .5-2 2-2h8c1.5 0 2 1 2 2l-1 14c0 1-1 2-5 2s-5-1-5-2z" fill="#fef08a" fillOpacity="0.5"/>
-      <line x1="14" y1="2" x2="15" y2="12" stroke="#ef4444" strokeWidth="1.5"/>
-      <circle cx="9" cy="13" r="0.5" fill="currentColor" opacity="0.3"/>
-      <circle cx="12" cy="17" r="0.4" fill="currentColor" opacity="0.25"/>
-      <circle cx="11" cy="10" r="0.4" fill="currentColor" opacity="0.2"/>
-      <circle cx="13" cy="14" r="0.3" fill="currentColor" opacity="0.2"/>
+    <svg width={size} height={size} viewBox="0 0 48 48" {...props}>
+      <path d="M17,44Q14,44 14,40L14,28Q14,22 17,20L17,14L31,14L31,20Q34,22 34,28L34,40Q34,44 31,44Z" fill="#FEF08A" stroke="#713F12" strokeWidth="2.5" strokeLinejoin="round"/>
+      <rect x="18" y="8" width="12" height="8" rx="4" fill="#F97316" stroke="#713F12" strokeWidth="2.5"/>
+      <rect x="14" y="28" width="20" height="10" rx="2" fill="#FDE047" opacity=".6"/>
+      <circle cx="20" cy="22" r="1.2" fill="white" opacity=".7"/>
+      <circle cx="26" cy="37" r="1.5" fill="white" opacity=".7"/>
     </svg>
   )
 }

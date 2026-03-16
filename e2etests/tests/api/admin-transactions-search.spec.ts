@@ -16,7 +16,6 @@ import type { APIRequestContext } from '@playwright/test';
 // Helper to create a member via admin API
 async function createMember(authenticatedRequest: APIRequestContext, lastNameSuffix?: string) {
   const uniqueId = randomUUID().substring(0, 8);
-  const ibanSuffix = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0');
   const mandateDate = new Date().toISOString().slice(0, 10);
   const lastName = lastNameSuffix ? `Member${lastNameSuffix}` : `Member${uniqueId}`;
 
@@ -25,7 +24,7 @@ async function createMember(authenticatedRequest: APIRequestContext, lastNameSuf
       first_name: `Search${uniqueId}`,
       last_name: lastName,
       email: `search${uniqueId}@example.com`,
-      iban: `DE89370400440532${ibanSuffix}`,
+      iban: 'DE89370400440532013000',
       mandate_signed_at: mandateDate,
       preferred_language: 'de',
     },
