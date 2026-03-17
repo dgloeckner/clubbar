@@ -25,6 +25,10 @@ use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
 
 return function (App $app): void {
+    /** @var \App\ServiceFactory $factory */
+    $factory = $app->getContainer();
+    $terminalRateLimit = $factory->getTerminalRateLimitMiddleware();
+
     // Public health check
     $app->get('/api/health', [HealthController::class, 'check']);
 
@@ -39,16 +43,18 @@ return function (App $app): void {
     })->add(CsrfMiddleware::class)->add(AdminSessionAuth::class);
 
     // Terminal sync endpoints (token auth)
+    // Middleware order (reverse-add): $terminalRateLimit runs first (pre-check), then TerminalTokenAuth
     $app->group('/api/sync', function (RouteCollectorProxy $group) {
         $group->get('/members', [MembersSyncController::class, 'index']);
         $group->patch('/members/{memberId}/language', [MembersSyncController::class, 'updateLanguage']);
         $group->get('/categories', [ProductsSyncController::class, 'categories']);
         $group->get('/products', [ProductsSyncController::class, 'products']);
         $group->post('/transactions', [TransactionsSyncController::class, 'processBatch']);
-    })->add(TerminalTokenAuth::class);
+    })->add(TerminalTokenAuth::class)->add($terminalRateLimit);
 
     $app->get('/api/terminal/transactions/{memberId}', [TransactionsSyncController::class, 'transactionHistory'])
-        ->add(TerminalTokenAuth::class);
+        ->add(TerminalTokenAuth::class)
+        ->add($terminalRateLimit);
 
     // Admin endpoints (session auth)
     $app->group('/api/admin', function (RouteCollectorProxy $group) {

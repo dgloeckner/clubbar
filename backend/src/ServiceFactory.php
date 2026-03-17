@@ -275,7 +275,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getTerminalTokenAuth(): TerminalTokenAuth
     {
-        return $this->resolve(TerminalTokenAuth::class, fn() => new TerminalTokenAuth($this->getTerminalsRepository()));
+        return $this->resolve(TerminalTokenAuth::class, fn() => new TerminalTokenAuth($this->getTerminalsRepository(), $this->pdo));
     }
 
     public function getCsrfMiddleware(): CsrfMiddleware
@@ -303,6 +303,13 @@ class ServiceFactory implements ContainerInterface
     public function getRateLimitMiddleware(): RateLimitMiddleware
     {
         return $this->resolve(RateLimitMiddleware::class, fn() => new RateLimitMiddleware($this->pdo));
+    }
+
+    public function getTerminalRateLimitMiddleware(): RateLimitMiddleware
+    {
+        // Not cached via resolve() — returns a fresh instance with terminal-specific config.
+        // Uses a different table and higher threshold than the login rate limiter.
+        return new RateLimitMiddleware($this->pdo, 'terminal_auth_attempts', 10, 15);
     }
 
     // --- Controllers ---
