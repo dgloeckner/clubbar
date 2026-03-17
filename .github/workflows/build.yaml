@@ -201,6 +201,8 @@ jobs:
           curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"
           rm -f backend/storage/.installed
           curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=seed"
+          # Re-enable the installed marker so security tests see install.php as blocked
+          docker compose exec -T backend touch /app/storage/.installed
 
       - name: Serve admin frontend
         run: npx vite preview --port 5173 --host &

@@ -307,7 +307,7 @@ test.describe('Journal & Settlements', () => {
     })
     expect(dupResp.status()).not.toBe(201)
     const errBody = JSON.stringify(await dupResp.json())
-    expect(errBody.toLowerCase()).toContain('settlement')
+    expect(errBody.toLowerCase()).toContain('settled')
 
     // ── Verify first settlement intact ────────────────────────────────
     const s1Resp = await authenticatedRequest.get(`/api/admin/settlements/${settlement1Id}`)
