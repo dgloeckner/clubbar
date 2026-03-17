@@ -6,6 +6,12 @@ SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
 # Block dotfiles
 RedirectMatch 403 /\.(.*)$
 
+# Block installer endpoint. Comment out this block ONLY during initial setup or migrations,
+# then immediately restore it. The installer has key-based auth, but defence-in-depth matters.
+<Files "install.php">
+    Require all denied
+</Files>
+
 # Front controller
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

@@ -99,6 +99,21 @@ The install endpoint requires an `INSTALL_KEY` environment variable (at least 16
 
 > **Production:** Replace `INSTALL_KEY` in your server's `.env` with a randomly generated secret of at least 16 characters before exposing the backend to any non-local network. Generate one with: `openssl rand -hex 24`
 
+### Blocking install.php via Apache
+
+`install.php` is blocked by `.htaccess` by default as a defence-in-depth measure. For local development, use the CLI instead:
+
+```bash
+# Preferred: Run migrations and seeds via CLI (no .htaccess config needed)
+docker compose exec backend php artisan migrate
+docker compose exec backend php artisan db:seed
+```
+
+If you must run migrations via HTTP (not recommended locally):
+1. Temporarily comment out the `<Files "install.php">` block in `backend/public/.htaccess`
+2. Call your migration endpoint: `curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"`
+3. **Immediately restore** the `<Files>` block in `.htaccess` (uncomment it)
+
 ## Backend Development
 
 After changing backend code:
