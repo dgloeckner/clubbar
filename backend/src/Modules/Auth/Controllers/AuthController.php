@@ -56,11 +56,13 @@ class AuthController
         $stmt = $this->pdo->prepare('DELETE FROM login_attempts WHERE ip_address = :ip');
         $stmt->execute(['ip' => $ip]);
 
-        // Start session with custom name
+        // Start session with custom name, then regenerate the ID to prevent session fixation.
+        // The old session file is deleted (true) so an attacker cannot resume it.
         if (session_status() === PHP_SESSION_NONE) {
             session_name('_session');
             session_start();
         }
+        session_regenerate_id(true);
         $_SESSION['admin_user_id'] = $admin['id'];
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
