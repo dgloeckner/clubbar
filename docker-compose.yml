@@ -71,7 +71,7 @@ services:
       CORS_ORIGINS: "*"
 
       # Installation
-      INSTALL_KEY: dev-install-key
+      INSTALL_KEY: dev-install-key-x
     ports:
       - "8080:80"
     volumes:

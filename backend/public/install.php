@@ -14,9 +14,13 @@ if (file_exists($envFile)) {
 
 // --- Access control ---
 $installKey  = Env::get('INSTALL_KEY', '');
-$providedKey = $_SERVER['HTTP_X_INSTALL_KEY'] ?? $_GET['key'] ?? '';
+$providedKey = $_SERVER['HTTP_X_INSTALL_KEY'] ?? '';
 
-if ($installKey === '' || !hash_equals($installKey, $providedKey)) {
+$keyNotConfigured = $installKey === '';
+$keyTooShort      = strlen($installKey) < 16;
+$keyMismatch      = !hash_equals($installKey, $providedKey);
+
+if ($keyNotConfigured || $keyTooShort || $keyMismatch) {
     http_response_code(403);
     header('Content-Type: application/json');
     exit(json_encode(['error' => 'Forbidden']));

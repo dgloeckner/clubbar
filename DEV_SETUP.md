@@ -10,8 +10,8 @@ cd backend && composer install && cd ..
 docker compose up -d
 
 # 3. Migrate database and seed test data
-curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
-curl -sf "http://localhost:8080/install.php?action=seed&key=dev-install-key"
+curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"
+curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=seed"
 
 # 4. Install E2E test dependencies
 cd e2etests && npm install
@@ -69,7 +69,7 @@ If you need to change test credentials (e.g., for security), update both files:
 
 1. **Backend**: `backend/db/seed.sql`
    - Update the credential values and password hash
-   - Re-seed: `curl -sf "http://localhost:8080/install.php?action=seed&key=dev-install-key"`
+   - Re-seed: `curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=seed"`
 
 2. **Frontend**: `e2etests/config/test-credentials.ts`
    - Update the TEST_CREDENTIALS object to match seed.sql values
@@ -77,7 +77,7 @@ If you need to change test credentials (e.g., for security), update both files:
 ## Troubleshooting
 
 ### Tests fail with 401 Unauthorized
-- Ensure database is seeded: `curl -sf "http://localhost:8080/install.php?action=seed&key=dev-install-key"`
+- Ensure database is seeded: `curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=seed"`
 - Verify credentials in both constant files are in sync
 
 ### Admin login fails
@@ -90,8 +90,8 @@ If you need to change test credentials (e.g., for security), update both files:
 
 ### Database issues
 - Full reset: `docker compose down -v && docker compose up -d` (deletes database volume), then re-run migrate and seed commands
-- Migrate only: `curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"`
-- Check migration status: `curl -sf "http://localhost:8080/install.php?action=status&key=dev-install-key" | jq .`
+- Migrate only: `curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"`
+- Check migration status: `curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=status" | jq .`
 
 ## Backend Development
 
@@ -102,7 +102,7 @@ docker compose exec backend supervisorctl restart php-fpm:php-fpmd
 sleep 2
 
 # Database schema changes — add new migration file to backend/db/migrations/, then:
-curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
+curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"
 
 # New dependencies
 cd backend && composer install
