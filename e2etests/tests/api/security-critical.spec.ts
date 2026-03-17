@@ -86,6 +86,30 @@ test.describe('C2: CORS configuration', () => {
 });
 
 // ============================================================
+// M3: Malformed JSON body returns 400
+// ============================================================
+test.describe('M3: Malformed JSON body rejected', () => {
+  test('POST with malformed JSON returns 400 invalid_json', async ({ request }) => {
+    const response = await request.post(`${API_BASE}/api/auth/login`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: Buffer.from('{bad json'),  // Buffer sends raw bytes; string would be JSON-encoded
+    });
+    expect(response.status()).toBe(400);
+    const body = await response.json();
+    expect(body.error).toBe('invalid_json');
+    expect(body.message).toContain('malformed JSON');
+  });
+
+  test('POST with valid JSON proceeds normally (no false positive)', async ({ request }) => {
+    const response = await request.post(`${API_BASE}/api/auth/login`, {
+      data: { email: 'x@example.com', password: 'wrongpassword' },
+    });
+    // 401 means it reached the handler — body was parsed correctly
+    expect(response.status()).toBe(401);
+  });
+});
+
+// ============================================================
 // C3: Error responses must not expose stack traces
 // ============================================================
 test.describe('C3: No stack traces in error responses', () => {
