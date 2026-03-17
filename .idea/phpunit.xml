@@ -3,6 +3,7 @@
   <component name="PHPUnit">
     <option name="directories">
       <list>
+        <option value="$PROJECT_DIR$/.worktrees/shared-hosting-package/backend/tests" />
         <option value="$PROJECT_DIR$/backend/tests" />
       </list>
     </option>

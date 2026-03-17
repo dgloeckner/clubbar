@@ -5,6 +5,9 @@
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/backend/db" isTestSource="false" packagePrefix="App\Db\" />
       <sourceFolder url="file://$MODULE_DIR$/backend/src" isTestSource="false" packagePrefix="App\" />
+      <sourceFolder url="file://$MODULE_DIR$/.worktrees/shared-hosting-package/backend/db" isTestSource="false" packagePrefix="App\Db\" />
+      <sourceFolder url="file://$MODULE_DIR$/.worktrees/shared-hosting-package/backend/src" isTestSource="false" packagePrefix="App\" />
+      <sourceFolder url="file://$MODULE_DIR$/.worktrees/shared-hosting-package/backend/tests" isTestSource="true" packagePrefix="Tests\" />
       <sourceFolder url="file://$MODULE_DIR$/backend/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/backend/tests" isTestSource="true" packagePrefix="Tests\" />
       <excludeFolder url="file://$MODULE_DIR$/backend/vendor/brick/math" />

@@ -1,0 +1,49 @@
+{
+  "clips": [
+    {
+      "testTitle": "01 — Dashboard (German)",
+      "video": "/Users/dg/dev/frgs-vereinsbar/e2etests/test-results/admin-walkthrough-Admin-Pa-cf35c-cene-01-—-Dashboard-German--walkthrough/video.webm",
+      "subtitles": []
+    },
+    {
+      "testTitle": "02 — Switch to English",
+      "video": "/Users/dg/dev/frgs-vereinsbar/e2etests/test-results/admin-walkthrough-Admin-Pa-c9f7d-ough-02-—-Switch-to-English-walkthrough/video.webm",
+      "subtitles": []
+    },
+    {
+      "testTitle": "03 — Members: browse, search, filter",
+      "video": "/Users/dg/dev/frgs-vereinsbar/e2etests/test-results/admin-walkthrough-Admin-Pa-b3853-embers-browse-search-filter-walkthrough/video.webm",
+      "subtitles": []
+    },
+    {
+      "testTitle": "04 — Members: create a new member",
+      "video": "/Users/dg/dev/frgs-vereinsbar/e2etests/test-results/admin-walkthrough-Admin-Pa-fa7f6-Members-create-a-new-member-walkthrough/video.webm",
+      "subtitles": []
+    },
+    {
+      "testTitle": "05 — Products: browse, filter, sort",
+      "video": "/Users/dg/dev/frgs-vereinsbar/e2etests/test-results/admin-walkthrough-Admin-Pa-7ef38-Products-browse-filter-sort-walkthrough/video.webm",
+      "subtitles": []
+    },
+    {
+      "testTitle": "06 — Products: create with multilingual name and icon",
+      "video": "/Users/dg/dev/frgs-vereinsbar/e2etests/test-results/admin-walkthrough-Admin-Pa-de032--multilingual-name-and-icon-walkthrough/video.webm",
+      "subtitles": []
+    },
+    {
+      "testTitle": "07 — Categories: quick tour",
+      "video": "/Users/dg/dev/frgs-vereinsbar/e2etests/test-results/admin-walkthrough-Admin-Pa-01c1f--07-—-Categories-quick-tour-walkthrough/video.webm",
+      "subtitles": []
+    },
+    {
+      "testTitle": "08 — Journal: transactions and filters",
+      "video": "/Users/dg/dev/frgs-vereinsbar/e2etests/test-results/admin-walkthrough-Admin-Pa-f0827-al-transactions-and-filters-walkthrough/video.webm",
+      "subtitles": []
+    },
+    {
+      "testTitle": "09 — Journal: create settlement from selected transactions",
+      "video": "/Users/dg/dev/frgs-vereinsbar/e2etests/test-results/admin-walkthrough-Admin-Pa-f1a7c--from-selected-transactions-walkthrough/video.webm",
+      "subtitles": []
+    }
+  ]
+}

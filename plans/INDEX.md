@@ -8,6 +8,7 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Status | Summary |
 |------|--------|---------|
+| [install.php Security Hardening](./2026-03-17-install-php-security-hardening.md) | Completed | Fix Env::get() precedence bug, remove key from query param, block install.php via .htaccess |
 | [GDPR Anonymization Fix](./2026-03-08-gdpr-anonymization-fix.md) | Not Started | Fix anonymization: NULL instead of DELETED, audit log scrubbing, pre-deletion checks, E2E tests |
 | [CI Pipeline Refactoring](./2026-03-07-ci-pipeline-refactoring.md) | In Progress | Restructure CI: job dependencies, caching, dedup, lint gate, fix silent failures |
 
