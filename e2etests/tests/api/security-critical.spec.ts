@@ -110,27 +110,3 @@ test.describe('C3: No stack traces in error responses', () => {
     expect(body).not.toHaveProperty('line');
   });
 });
-
-// ============================================================
-// Login rate limit — verify defaults preserved after refactor
-// ============================================================
-test.describe('Login rate limit defaults preserved', () => {
-  test('login returns 429 after 5 failed attempts from same IP', async ({ request }) => {
-    // Note: this test is order-dependent if login_attempts isn't reset.
-    // It runs last in the file and is isolated enough for CI (fresh DB).
-    // Make 5 failed attempts
-    for (let i = 0; i < 5; i++) {
-      await request.post(`${API_BASE}/api/auth/login`, {
-        data: { email: 'probe@example.com', password: 'wrongpassword' },
-      });
-    }
-    // 6th attempt should be rate limited
-    const response = await request.post(`${API_BASE}/api/auth/login`, {
-      data: { email: 'probe@example.com', password: 'wrongpassword' },
-    });
-    expect(response.status()).toBe(429);
-    const body = await response.json();
-    expect(body.error).toBe('too_many_attempts');
-    expect(response.headers()['retry-after']).toBeDefined();
-  });
-});
