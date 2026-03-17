@@ -52,7 +52,8 @@ services:
 
       # Application Configuration
       APP_ENV: local
-      APP_DEBUG: "true"
+      # Set to "true" locally only when debugging. Must be false in production (exposes stack traces).
+      APP_DEBUG: "false"
       APP_URL: http://localhost:8080
 
       # Database Configuration
