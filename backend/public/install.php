@@ -32,6 +32,16 @@ if ($keyInvalid) {
     exit(json_encode(['error' => 'Forbidden']));
 }
 
+// --- Installed marker ---
+// Written after the first successful migration run. Delete manually on the server
+// to re-enable install.php (e.g. to apply new migrations after a deployment).
+$installedMarker = __DIR__ . '/../storage/.installed';
+if (file_exists($installedMarker)) {
+    http_response_code(403);
+    header('Content-Type: application/json');
+    exit(json_encode(['error' => 'Already installed. Delete storage/.installed to re-enable.']));
+}
+
 // --- Concurrency lock ---
 $lockFile = __DIR__ . '/../storage/install.lock';
 if (file_exists($lockFile) && (time() - filemtime($lockFile)) < 300) {
@@ -63,6 +73,8 @@ switch ($action) {
     case 'migrate':
         $result = $runner->migrate($migrationsDir, $_SERVER['REMOTE_ADDR'] ?? 'unknown');
         echo json_encode($result, JSON_PRETTY_PRINT);
+        // Mark installation complete so install.php cannot be re-run without manual intervention
+        file_put_contents($installedMarker, date('c'));
         break;
 
     case 'seed':

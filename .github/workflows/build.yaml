@@ -195,7 +195,11 @@ jobs:
         run: |
           # Temporarily allow install.php through .htaccess (CI only — container is ephemeral)
           sed -i '/<Files "install.php">/,/<\/Files>/d' backend/public/.htaccess
+          # CI: clear installed marker before each action — container is ephemeral so persistence
+          # of the marker between steps has no security value here.
+          rm -f backend/storage/.installed
           curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"
+          rm -f backend/storage/.installed
           curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=seed"
 
       - name: Serve admin frontend
