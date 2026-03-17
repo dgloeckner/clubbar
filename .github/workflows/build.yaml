@@ -193,6 +193,8 @@ jobs:
 
       - name: Run database migrations and seed
         run: |
+          # Temporarily allow install.php through .htaccess (CI only — container is ephemeral)
+          sed -i '/<Files "install.php">/,/<\/Files>/d' backend/public/.htaccess
           curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"
           curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=seed"
 
