@@ -9,4 +9,4 @@ GRANT ALL PRIVILEGES ON clubbar.* TO 'clubbar'@'%';
 FLUSH PRIVILEGES;
 
 -- Note: SQL migrations create the actual tables via the install endpoint
--- Run: curl "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
+-- Run: curl -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"

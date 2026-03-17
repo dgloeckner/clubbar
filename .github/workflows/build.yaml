@@ -193,8 +193,8 @@ jobs:
 
       - name: Run database migrations and seed
         run: |
-          curl -sf "http://localhost:8080/install.php?action=migrate&key=dev-install-key"
-          curl -sf "http://localhost:8080/install.php?action=seed&key=dev-install-key"
+          curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"
+          curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=seed"
 
       - name: Serve admin frontend
         run: npx vite preview --port 5173 --host &
