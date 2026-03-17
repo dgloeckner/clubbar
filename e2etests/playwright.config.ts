@@ -47,6 +47,9 @@ export default defineConfig({
     {
       name: 'api-tests',
       testDir: './tests/api',
+      // Exclude serial rate-limit tests — they require an empty terminal_auth_attempts table
+      // and must be run explicitly: npm test -- tests/api/terminal-rate-limit.spec.ts --workers=1
+      testIgnore: /terminal-rate-limit\.spec\.ts/,
       use: {
         // No browser needed for API tests
       },
