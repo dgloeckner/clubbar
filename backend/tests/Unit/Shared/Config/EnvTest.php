@@ -18,6 +18,8 @@ class EnvTest extends TestCase
     {
         Env::reset();
         unset($_ENV['TEST_KEY_ENV'], $_ENV['TEST_FALSY_ZERO'], $_ENV['TEST_EMPTY_STRING'], $_ENV['INSTALL_KEY_TEST']);
+        putenv('TEST_SYSTEM_ENV');
+        putenv('TEST_SYSTEM_ZERO');
     }
 
     public function test_get_returns_value_from_env_superglobal(): void
@@ -70,5 +72,27 @@ class EnvTest extends TestCase
         $result = Env::get('INSTALL_KEY_TEST', '');
 
         $this->assertSame('', $result);
+    }
+
+    public function test_get_returns_value_from_system_environment(): void
+    {
+        putenv('TEST_SYSTEM_ENV=system-value');
+
+        $result = Env::get('TEST_SYSTEM_ENV', 'default');
+
+        $this->assertSame('system-value', $result);
+
+        putenv('TEST_SYSTEM_ENV'); // clear (no = means delete)
+    }
+
+    public function test_get_returns_falsy_zero_from_system_environment(): void
+    {
+        putenv('TEST_SYSTEM_ZERO=0');
+
+        $result = Env::get('TEST_SYSTEM_ZERO', 'default');
+
+        $this->assertSame('0', $result, 'Falsy "0" from getenv() must not be replaced by default');
+
+        putenv('TEST_SYSTEM_ZERO');
     }
 }

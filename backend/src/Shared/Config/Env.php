@@ -52,7 +52,9 @@ class Env
     public static function require(array $keys): void
     {
         $missing = array_filter($keys, fn($k) =>
-            !isset(self::$vars[$k]) && !isset($_ENV[$k]) && !getenv($k)
+            !array_key_exists($k, self::$vars)
+            && !array_key_exists($k, $_ENV)
+            && getenv($k) === false
         );
         if ($missing) {
             throw new \RuntimeException('Missing required env vars: ' . implode(', ', $missing));
