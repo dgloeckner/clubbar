@@ -16,12 +16,17 @@ if (file_exists($envFile)) {
 $installKey  = Env::get('INSTALL_KEY', '');
 $providedKey = $_SERVER['HTTP_X_INSTALL_KEY'] ?? '';
 
-// strlen intentional: enforces minimum byte length, not character count
-$keyNotConfigured = $installKey === '';
-$keyTooShort      = !$keyNotConfigured && strlen($installKey) < 16;
-$keyMismatch      = !$keyNotConfigured && !$keyTooShort && !hash_equals($installKey, $providedKey);
+// Hash both values to equal length before comparing.
+// This ensures hash_equals() always runs (no short-circuit) and both inputs
+// are always 64 bytes (no length timing leak from differing string lengths).
+$installHash = hash('sha256', $installKey);
+$providedHash = hash('sha256', $providedKey);
+$keyMatch = hash_equals($installHash, $providedHash);
 
-if ($keyNotConfigured || $keyTooShort || $keyMismatch) {
+// strlen intentional: enforces minimum byte length, not character count
+$keyInvalid = ($installKey === '') || (strlen($installKey) < 16) || !$keyMatch;
+
+if ($keyInvalid) {
     http_response_code(403);
     header('Content-Type: application/json');
     exit(json_encode(['error' => 'Forbidden']));
