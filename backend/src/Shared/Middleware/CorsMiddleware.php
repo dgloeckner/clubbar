@@ -35,9 +35,14 @@ class CorsMiddleware implements MiddlewareInterface
             $response = $response
                 ->withHeader('Access-Control-Allow-Origin', $allowOrigin)
                 ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-                ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
-                ->withHeader('Access-Control-Allow-Credentials', 'true')
+                ->withHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-CSRF-Token')
                 ->withHeader('Access-Control-Max-Age', '86400');
+
+            // Credentials (cookies/session) only work with a specific origin — never with wildcard.
+            // https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#requests_with_credentials
+            if ($allowOrigin !== '*') {
+                $response = $response->withHeader('Access-Control-Allow-Credentials', 'true');
+            }
         }
 
         return $response;

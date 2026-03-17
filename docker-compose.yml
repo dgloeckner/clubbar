@@ -67,8 +67,8 @@ services:
       SESSION_REGEN_INTERVAL: 900
       API_TOKEN_TTL_DAYS: 90
 
-      # CORS
-      CORS_ORIGINS: "*"
+      # CORS — local dev: allow admin (5173) and terminal (5174) frontends. Never use * in production.
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:5174"
 
       # Installation
       INSTALL_KEY: dev-install-key-x
