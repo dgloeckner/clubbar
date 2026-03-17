@@ -16,9 +16,10 @@ if (file_exists($envFile)) {
 $installKey  = Env::get('INSTALL_KEY', '');
 $providedKey = $_SERVER['HTTP_X_INSTALL_KEY'] ?? '';
 
+// strlen intentional: enforces minimum byte length, not character count
 $keyNotConfigured = $installKey === '';
-$keyTooShort      = strlen($installKey) < 16;
-$keyMismatch      = !hash_equals($installKey, $providedKey);
+$keyTooShort      = !$keyNotConfigured && strlen($installKey) < 16;
+$keyMismatch      = !$keyNotConfigured && !$keyTooShort && !hash_equals($installKey, $providedKey);
 
 if ($keyNotConfigured || $keyTooShort || $keyMismatch) {
     http_response_code(403);

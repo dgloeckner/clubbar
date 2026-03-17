@@ -93,6 +93,12 @@ If you need to change test credentials (e.g., for security), update both files:
 - Migrate only: `curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"`
 - Check migration status: `curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=status" | jq .`
 
+## INSTALL_KEY Security
+
+The install endpoint requires an `INSTALL_KEY` environment variable (at least 16 bytes) sent via the `X-Install-Key` header. In development, the key is set to `dev-install-key-x` in `.env.example`.
+
+> **Production:** Replace `INSTALL_KEY` in your server's `.env` with a randomly generated secret of at least 16 characters before exposing the backend to any non-local network. Generate one with: `openssl rand -hex 24`
+
 ## Backend Development
 
 After changing backend code:
