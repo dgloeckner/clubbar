@@ -44,7 +44,7 @@ api/terminal.yaml
 
 **Package:** `swagger_dart_code_generator` (pub.dev)
 - Integrates with the existing `build_runner` pipeline (alongside `drift_dev`)
-- Configured via `build.yaml` pointing at `api/terminal.yaml`
+- Configured via `build.yaml` with `inputFile: ../api/terminal.yaml` (path relative to `terminal-frontend/`)
 - No external tools or Java runtime required
 - Run: `dart run build_runner build`
 
@@ -56,27 +56,84 @@ From `api/terminal.yaml`, the generator produces:
 
 Generated files live in `lib/generated/` and are gitignored. They are regenerated on every `dart run build_runner build`.
 
+#### Model Migration: Files to Remove vs. Retain
+
+The following `lib/models/` files are **replaced by generated equivalents** and must be deleted:
+
+| File | Replaced by |
+|---|---|
+| `lib/models/member_dto.dart` | Generated `MemberDto` |
+| `lib/models/product_dto.dart` | Generated `ProductDto` |
+| `lib/models/category_dto.dart` | Generated `CategoryDto` |
+| `lib/models/sync_response.dart` | Generated response wrappers |
+| `lib/models/transaction_sync_response.dart` | Generated `TransactionSyncResponse` |
+
+The following files are **not API-generated** and must be retained:
+
+| File | Reason |
+|---|---|
+| `lib/models/transaction_list_item.dart` | UI-layer projection merging local SQLite data with remote API data; not in the OAS spec |
+| `lib/models/shopping_cart.dart` | Pure local UI model; no API representation |
+| `lib/models/cart_item.dart` | Pure local UI model; no API representation |
+
 ### NetworkService Wrapper
 
 The existing `NetworkService` is retained as the public API for the rest of the app. It becomes a thin wrapper over the generated Chopper client and continues to own:
 
 | Responsibility | Detail |
 |---|---|
-| Bearer token injection | Set on the Chopper client interceptor |
+| Bearer token injection | Via a `TokenInterceptor` (see below) |
 | 304 Not Modified → `null` | Translated before returning to callers |
 | `since` delta parameter | Constructed before passing to generated methods |
 | `NetworkException` translation | Generated client errors mapped to existing type |
 
-The rest of the app (`SyncService`, repositories, providers) is unchanged.
+#### Bearer Token Interceptor
+
+The existing `NetworkService.setAuthToken()` is called at runtime after the terminal authenticates — the token is not known at construction time. Chopper clients are immutable once built, so a mutable interceptor is required.
+
+Introduce a `TokenInterceptor` class that implements `RequestInterceptor` and holds a mutable `token` field:
+
+```
+class TokenInterceptor implements RequestInterceptor {
+  String? token;
+
+  @override
+  FutureOr<Request> onRequest(Request request) {
+    if (token == null) return request;
+    return applyHeader(request, 'Authorization', 'Bearer $token');
+  }
+}
+```
+
+`NetworkService` holds a reference to the same `TokenInterceptor` instance passed to the `ChopperClient`. Both `setAuthToken(token)` and `setAuthToken(null)` update `tokenInterceptor.token`; `clearAuthToken()` also sets it to `null`. All three paths converge on the same interceptor field — no separate clearing logic required.
+
+#### TransactionHistoryService Migration
+
+`lib/services/transaction_history_service.dart` makes direct `package:http` calls to `GET /api/terminal/transactions/{member_id}` — one of the six in-scope endpoints. It must be migrated.
+
+Add a `getTransactionHistory(String memberId, {int limit = 50})` method to `NetworkService` that delegates to the generated Chopper client. `TransactionListItem` (a local UI projection) is not replaced by a generated type; `TransactionHistoryService` continues to map the generated response model to `TransactionListItem`.
+
+`TransactionHistoryService` requires the following structural changes:
+
+- **Constructor signature changes** from `{required String baseUrl, required String authToken, required ClubBarDatabase database}` to `{required NetworkService networkService, required ClubBarDatabase database}`. The service no longer holds a snapshot of the auth token — it calls `networkService.getTransactionHistory()` which uses the live `TokenInterceptor` token.
+- **`lib/widgets/member_details_modal.dart`** constructs `TransactionHistoryService` and must be updated to pass `networkService` instead of extracting `baseUrl` and `authToken` at construction time.
+
+The rest of the app (`SyncService`, repositories, providers, `DispenserClient`) is unchanged.
+
+#### `package:http` Retention
+
+`lib/services/dispenser_client.dart` uses `package:http` directly to communicate with the ESP8266 hardware dispenser. This is outside the scope of the OAS contract migration (no spec exists for the dispenser API). **`http: ^1.6.0` must be retained in `pubspec.yaml`.** Do not remove it.
 
 ### New Dependencies
 
-| Package | Role |
-|---|---|
-| `swagger_dart_code_generator` | Dev: build_runner code generator |
-| `chopper` | Runtime: generated HTTP client base |
-| `json_annotation` | Runtime: generated model serialization |
-| `json_serializable` | Dev: build_runner JSON codegen |
+| Package | Role | Approximate version |
+|---|---|---|
+| `swagger_dart_code_generator` | Dev: build_runner code generator | latest stable (verify on pub.dev) |
+| `chopper` | Runtime: generated HTTP client base | `^8.0.0` |
+| `json_annotation` | Runtime: generated model serialization | `^4.9.0` |
+| `json_serializable` | Dev: build_runner JSON codegen | `^6.8.0` |
+
+Versions must be verified for compatibility with existing `build_runner: ^2.10.5` and `drift_dev: ^2.30.1` before adding to `pubspec.yaml`. Run `dart pub get` and resolve any conflicts before proceeding.
 
 ---
 
@@ -91,14 +148,21 @@ The rest of the app (`SyncService`, repositories, providers) is unchanged.
 
 ### Integration
 
-The middleware is registered in the Slim 4 app conditionally:
+The middleware is registered in `backend/bootstrap.php`, after `$app->add($factory->getErrorHandler())` (inside the error handler so validation failures are formatted correctly) and before `$app->add($factory->getJsonBodyParser())`. Slim 4 executes middleware in FIFO order (first added = outermost), so this placement puts the validator inside the error handler and outside the JSON body parser:
 
 ```
-APP_ENV=test → middleware active
-APP_ENV=production → middleware inactive (no overhead)
+// $app->addRoutingMiddleware() must remain the first call (innermost anchor)
+$app->addRoutingMiddleware();
+
+$app->add($factory->getErrorHandler());            // outermost — first added
+if (getenv('APP_ENV') === 'test') {
+    $app->add(new OpenApiValidatorMiddleware(...));  // inside error handler
+}
+$app->add($factory->getJsonBodyParser());
+$app->add($factory->getCorsMiddleware());           // innermost of middleware stack
 ```
 
-The Docker Compose configuration for test runs sets `APP_ENV=test`.
+`APP_ENV=test` is set in the Docker Compose environment for test runs. Production omits this variable.
 
 ### Effect on Test Runs
 
@@ -136,6 +200,7 @@ Validation covers the terminal API endpoints defined in `api/terminal.yaml`:
 - Runtime validation in production — overhead not justified; test-time coverage is sufficient
 - openapi-generator CLI / Java toolchain — rejected in favour of build_runner-native approach
 - PHPUnit contract tests — Playwright E2E suite already covers all terminal endpoints end-to-end
+- `DispenserClient` migration — communicates with ESP8266 hardware dispenser, no OAS spec exists; `package:http` retained for this use
 
 ---
 
@@ -143,11 +208,32 @@ Validation covers the terminal API endpoints defined in `api/terminal.yaml`:
 
 | File/Directory | Change |
 |---|---|
-| `terminal-frontend/pubspec.yaml` | Add `chopper`, `json_annotation`; add `swagger_dart_code_generator`, `json_serializable` to dev deps |
+| `terminal-frontend/pubspec.yaml` | Add `chopper`, `json_annotation`; add `swagger_dart_code_generator`, `json_serializable` to dev deps. Retain `http: ^1.6.0` (used by `DispenserClient`). |
 | `terminal-frontend/build.yaml` | Configure `swagger_dart_code_generator` with path to `api/terminal.yaml` |
 | `terminal-frontend/lib/generated/` | New directory (gitignored); contains generated models + client |
-| `terminal-frontend/lib/services/network_service.dart` | Rewrite to wrap generated Chopper client |
-| `terminal-frontend/lib/models/` | Hand-written DTO files removed (replaced by generated equivalents) |
-| `backend/composer.json` | Add `league/openapi-psr7-validator` |
-| `backend/src/app.php` (or middleware bootstrap) | Register validation middleware behind `APP_ENV=test` guard |
+| `terminal-frontend/lib/services/network_service.dart` | Rewrite to wrap generated Chopper client; add `TokenInterceptor`; add `getTransactionHistory()` |
+| `terminal-frontend/lib/services/transaction_history_service.dart` | Remove direct `package:http` calls; change constructor to accept `NetworkService` instead of `baseUrl`/`authToken`; delegate HTTP to `NetworkService.getTransactionHistory()` |
+| `terminal-frontend/lib/widgets/member_details_modal.dart` | Update `TransactionHistoryService` construction to pass `networkService` instead of `baseUrl`/`authToken` |
+| `terminal-frontend/lib/models/member_dto.dart` | Delete — replaced by generated model |
+| `terminal-frontend/lib/models/product_dto.dart` | Delete — replaced by generated model |
+| `terminal-frontend/lib/models/category_dto.dart` | Delete — replaced by generated model |
+| `terminal-frontend/lib/models/sync_response.dart` | Delete — replaced by generated response wrappers |
+| `terminal-frontend/lib/models/transaction_sync_response.dart` | Delete — replaced by generated model |
+| `terminal-frontend/lib/models/transaction_list_item.dart` | Retain — local UI projection, not API-generated |
+| `terminal-frontend/lib/models/shopping_cart.dart` | Retain — local UI model |
+| `terminal-frontend/lib/models/cart_item.dart` | Retain — local UI model |
+| `terminal-frontend/lib/repository/members_repository.dart` | Update import and `upsertMembers(List<MemberDTO>)` signature to use generated type |
+| `terminal-frontend/lib/repository/products_repository.dart` | Update imports and `upsertCategories()`/`upsertProducts()` signatures to use generated types |
+| `terminal-frontend/lib/providers/rfid_provider.dart` | Update import and inline `MemberDTO` construction to use generated type |
+| `terminal-frontend/lib/services/mock_rfid_service.dart` | Update throughout — entire file is built around `MemberDTO`; replace with generated type |
+| `terminal-frontend/lib/main.dart` | Update DTO imports and seed data constructors to use generated types |
+| `terminal-frontend/test/models_test.dart` | Rewrite — currently tests hand-written `fromJson`; replace with equivalent tests against generated types (or delete if generated types are considered trusted and not worth re-testing) |
+| `terminal-frontend/test/models/transaction_sync_response_test.dart` | Update import to generated type |
+| `terminal-frontend/test/repository_test.dart` | Update DTO imports to generated types |
+| `terminal-frontend/test/sync_service_test.dart` | Update imports to generated response types |
+| `terminal-frontend/test/services/members_service_test.dart` | Update import to generated type |
+| `terminal-frontend/integration_test/test_helpers.dart` | Update all DTO imports to generated types |
+| `terminal-frontend/integration_test/walkthrough_test.dart` | Update DTO imports to generated types |
+| `backend/composer.json` | Add `league/openapi-psr7-validator: ^3.0` |
+| `backend/bootstrap.php` | Register validation middleware after `add(ErrorHandler)`, guarded by `APP_ENV=test` |
 | `docker-compose.yml` (or test env config) | Set `APP_ENV=test` for test runs |
