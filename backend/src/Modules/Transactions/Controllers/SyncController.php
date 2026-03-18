@@ -71,7 +71,7 @@ class SyncController
 
         $result = $this->transactionsService->processBatch($transactions);
 
-        return $this->json($response, $result->toArray(), 201);
+        return $this->json($response, $result->toArray(), 200);
     }
 
     public function transactionHistory(Request $request, Response $response, array $args): Response

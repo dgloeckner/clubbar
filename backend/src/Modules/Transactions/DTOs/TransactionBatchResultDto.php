@@ -21,7 +21,7 @@ final readonly class TransactionBatchResultDto
                 'count' => $this->rejectedCount,
                 'errors' => $this->errors,
             ],
-            'member_balances' => $this->memberBalances,
+            'member_balances' => $this->memberBalances ?: new \stdClass(),
         ];
     }
 }
