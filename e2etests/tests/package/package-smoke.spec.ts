@@ -23,7 +23,7 @@ test.describe('Package: Install Wizard', () => {
     expect(response.ok()).toBeTruthy();
     const html = await response.text();
     expect(html).toContain('Install Key Required');
-    expect(html).toContain('.install-key');
+    expect(html).toContain('.installer-data');
   });
 
   test('install wizard completes via POST steps', async ({ request }) => {

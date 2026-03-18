@@ -327,8 +327,8 @@ jobs:
             database
             backend
 
-      - name: Write install key for package tests
-        run: echo -n "ci-package-install-key-0000" > dist/package/.install-key
+      - name: Write installer data for package tests
+        run: echo -n '{"key":"ci-package-install-key-0000","completed_step":0}' > dist/package/.installer-data
 
       - name: Wait for backend
         run: |
@@ -360,7 +360,7 @@ jobs:
           PACKAGE_TEST: '1'
 
       - name: Clean test artifacts from package
-        run: rm -f dist/package/config.php dist/package/backend/storage/install.lock
+        run: rm -f dist/package/config.php dist/package/.installer-data dist/package/backend/storage/install.lock
 
       - name: Create package ZIP
         id: package

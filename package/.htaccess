@@ -1,7 +1,7 @@
 Options -MultiViews
 
 # Block direct HTTP access to the install key file
-<Files ".install-key">
+<Files ".installer-data">
     Require all denied
 </Files>
 RewriteEngine On

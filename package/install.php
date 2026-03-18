@@ -15,12 +15,18 @@ declare(strict_types=1);
  * 3. Run migrations
  * 4. Create admin user
  * 5. Done
+ *
+ * State is tracked in .installer-data (JSON):
+ *   {"key": "<random hex>", "completed_step": <0|2|3>}
+ *
+ * The file is generated on first access and deleted after successful installation.
+ * The next installer run (e.g. to apply migrations after an update) generates a fresh file.
  */
 
 $configFile = __DIR__ . '/config.php';
 $isInstalled = file_exists($configFile);
 $isUpdate = isset($_GET['update']);
-$keyFile = __DIR__ . '/.install-key';
+$dataFile = __DIR__ . '/.installer-data';
 
 session_start();
 
@@ -32,7 +38,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'reset') {
 }
 
 // --- Handle AJAX DB test (session-protected) ---
-// Must come before the key gate HTML output, but still requires a verified session.
 if (isset($_GET['action']) && $_GET['action'] === 'test_db') {
     header('Content-Type: application/json');
     if (empty($_SESSION['install_key_verified'])) {
@@ -59,24 +64,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_db') {
 }
 
 // --- Install key gate ---
-// Generate .install-key on first access if it does not exist yet.
-// The user must retrieve it from the server (FTP / cPanel / SSH) and paste it
-// into the form below. This proves they have server access — not just the URL.
-// The key is deleted after a successful installation; the next installer run
-// (e.g. to apply migrations after an update) will generate a fresh key.
-if (!file_exists($keyFile)) {
-    file_put_contents($keyFile, bin2hex(random_bytes(16)));
+// .installer-data holds the one-time install key and tracks completed steps.
+// Generated on first access; deleted after successful installation.
+// The user retrieves the key via FTP/cPanel/SSH and pastes it into the form.
+$installerData = readInstallerData($dataFile);
+if (empty($installerData)) {
+    $installerData = ['key' => bin2hex(random_bytes(16)), 'completed_step' => 0];
+    writeInstallerData($dataFile, $installerData);
 }
 
 if (empty($_SESSION['install_key_verified'])) {
     $keyError = null;
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_key'])) {
         $provided = trim($_POST['install_key']);
-        $stored   = trim((string) file_get_contents($keyFile));
+        $stored   = $installerData['key'] ?? '';
         if ($stored !== '' && hash_equals($stored, $provided)) {
             $_SESSION['install_key_verified'] = true;
         } else {
-            $keyError = 'Invalid install key. Check the contents of .install-key on your server.';
+            $keyError = 'Invalid install key. Check the "key" field in .installer-data on your server.';
         }
     }
 
@@ -86,9 +91,9 @@ if (empty($_SESSION['install_key_verified'])) {
     }
 }
 
+$completedStep = (int) ($installerData['completed_step'] ?? 0);
+
 // --- Already installed? ---
-// Only show "already installed" if config exists AND no step/update param is set
-// (steps 3-5 need config.php to exist — it's written in step 2)
 $step = $_GET['step'] ?? ($_POST['step'] ?? null);
 if ($isInstalled && !$isUpdate && $step === null) {
     showAlreadyInstalled();
@@ -97,6 +102,16 @@ if ($isInstalled && !$isUpdate && $step === null) {
 
 $step = $_GET['step'] ?? ($_POST['step'] ?? '1');
 $error = null;
+
+// --- Enforce step ordering on GET ---
+// Prevent jumping ahead to steps whose prerequisites haven't been completed.
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $minCompleted = ['3' => 2, '4' => 3];
+    if (isset($minCompleted[$step]) && $completedStep < $minCompleted[$step]) {
+        header('Location: ?step=' . ($completedStep < 2 ? '2' : '3'));
+        exit;
+    }
+}
 
 // --- Handle POST actions (PRG pattern: process, then redirect) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -154,6 +169,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     break;
                 }
 
+                $installerData['completed_step'] = 2;
+                writeInstallerData($dataFile, $installerData);
+
                 $redirectParam = $isUpdate ? '&update=1' : '';
                 header('Location: ?step=3' . $redirectParam);
                 exit;
@@ -203,10 +221,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'Migration failed: ' . ($failedEntry['message'] ?? 'unknown error');
                 } else {
                     if ($isUpdate) {
-                        // Update complete — delete the key so the next run requires a fresh fetch
-                        @unlink($keyFile);
+                        // Update complete — delete installer data so next run requires a fresh key
+                        @unlink($dataFile);
                         header('Location: ?step=4&update=1');
                     } else {
+                        $installerData['completed_step'] = 3;
+                        writeInstallerData($dataFile, $installerData);
                         header('Location: ?step=4');
                     }
                     exit;
@@ -270,8 +290,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 $stmt->execute([$id, $email, $hashedPassword]);
 
-                // Installation complete — delete the key so the next installer run requires a fresh fetch
-                @unlink($keyFile);
+                // Installation complete — delete installer data so next run requires a fresh key
+                @unlink($dataFile);
                 header('Location: ?step=5');
                 exit;
             } catch (\PDOException $e) {
@@ -291,6 +311,20 @@ renderPage($step, $error, $isUpdate);
 // ============================================================================
 // Functions
 // ============================================================================
+
+function readInstallerData(string $dataFile): array
+{
+    if (!file_exists($dataFile)) {
+        return [];
+    }
+    $data = json_decode((string) file_get_contents($dataFile), true);
+    return is_array($data) ? $data : [];
+}
+
+function writeInstallerData(string $dataFile, array $data): void
+{
+    file_put_contents($dataFile, json_encode($data));
+}
 
 function checkPrerequisites(): array
 {
@@ -371,13 +405,13 @@ function renderKeyGate(?string $error): void
             <?php endif; ?>
             <div class="card">
                 <h2>Install Key Required</h2>
-                <p>A one-time install key has been written to <code>.install-key</code> in your document root.</p>
-                <p>Retrieve it via <strong>FTP</strong>, <strong>cPanel File Manager</strong>, or <strong>SSH</strong>, then paste it below to continue.</p>
+                <p>A one-time install key has been written to <code>.installer-data</code> in your document root.</p>
+                <p>Open the file via <strong>FTP</strong>, <strong>cPanel File Manager</strong>, or <strong>SSH</strong> and copy the value of the <code>key</code> field, then paste it below.</p>
                 <form method="post" action="install.php">
                     <label>
                         Install Key
                         <input type="text" name="install_key" required autofocus autocomplete="off"
-                               placeholder="Paste the contents of .install-key">
+                               placeholder='Paste the "key" value from .installer-data'>
                     </label>
                     <button type="submit" class="btn">Verify &amp; Continue</button>
                 </form>
