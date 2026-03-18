@@ -49,6 +49,16 @@ $app->addRoutingMiddleware();
 // Global middleware (outer to inner execution order)
 // Error handler MUST be the outermost middleware to catch routing errors
 $app->add($factory->getErrorHandler());
+
+// OAS contract validation for terminal API paths — active in test environment only.
+// Slim 4 adds middleware in FIFO order (first added = outermost = first to handle request).
+// Placing this AFTER getErrorHandler() means it executes inside the error handler:
+// ErrorHandler → TerminalOasValidator → JsonBodyParser → CorsMiddleware → route handler
+// So validation exceptions are caught and formatted by ErrorHandler.
+if (getenv('APP_ENV') === 'test') {
+    $app->add($factory->getTerminalOasValidator());
+}
+
 $app->add($factory->getJsonBodyParser());
 $app->add($factory->getCorsMiddleware());
 

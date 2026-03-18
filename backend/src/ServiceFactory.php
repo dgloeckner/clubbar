@@ -64,6 +64,8 @@ use App\Shared\Middleware\CsrfMiddleware;
 use App\Shared\Middleware\ErrorHandler;
 use App\Shared\Middleware\JsonBodyParser;
 use App\Shared\Middleware\RateLimitMiddleware;
+use App\Shared\Middleware\TerminalOasValidator;
+use League\OpenAPIValidation\PSR15\ValidationMiddlewareBuilder;
 
 use PDO;
 use Psr\Container\ContainerInterface;
@@ -310,6 +312,19 @@ class ServiceFactory implements ContainerInterface
         // Not cached via resolve() — returns a fresh instance with terminal-specific config.
         // Uses a different table and higher threshold than the login rate limiter.
         return new RateLimitMiddleware($this->pdo, 'terminal_auth_attempts', 10, 15);
+    }
+
+    public function getTerminalOasValidator(): \Psr\Http\Server\MiddlewareInterface
+    {
+        $specPath = realpath(__DIR__ . '/../../api/terminal.yaml');
+        if ($specPath === false) {
+            throw new \RuntimeException('OAS spec not found: api/terminal.yaml');
+        }
+        $validator = (new ValidationMiddlewareBuilder())
+            ->fromYamlFile($specPath)
+            ->getValidationMiddleware();
+
+        return new TerminalOasValidator($validator);
     }
 
     // --- Controllers ---
