@@ -65,9 +65,9 @@ info:
     url: https://github.com/clubbar/clubbar/blob/main/LICENSE
 
 servers:
-  - url: https://api.example.com
+  - url: https://api.example.com/api
     description: Production server (HTTPS only)
-  - url: http://localhost:8080
+  - url: http://localhost:8080/api
     description: Local development (Docker)
 
 tags:
@@ -504,7 +504,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /transactions/{member_id}:
+  /terminal/transactions/{member_id}:
     get:
       tags:
         - Transactions
