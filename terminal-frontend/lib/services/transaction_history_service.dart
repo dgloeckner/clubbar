@@ -1,24 +1,24 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'package:drift/drift.dart' as drift;
 import '../models/transaction_list_item.dart';
 import '../database/database.dart';
+import 'network_service.dart';
+import '../generated/terminal.swagger.dart';
+import '../generated/terminal.enums.swagger.dart';
 
 /// Service for fetching transaction history (local + remote)
 class TransactionHistoryService {
-  final String baseUrl;
-  final String authToken;
+  final NetworkService _networkService;
   final ClubBarDatabase database;
   final Logger _logger;
 
   TransactionHistoryService({
-    required this.baseUrl,
-    required this.authToken,
+    required NetworkService networkService,
     required this.database,
     Logger? logger,
-  }) : _logger = logger ?? Logger();
+  })  : _networkService = networkService,
+        _logger = logger ?? Logger();
 
   /// Fetch transaction history for a member
   ///
@@ -44,7 +44,6 @@ class TransactionHistoryService {
       // 2. Fetch remote transactions from API
       final remoteTransactions = await _fetchRemoteTransactions(
         memberId: memberId,
-        preferredLanguage: preferredLanguage,
         limit: remoteLimit,
       );
 
@@ -98,54 +97,38 @@ class TransactionHistoryService {
     }).toList();
   }
 
-  /// Fetch remote transactions from backend API
+  /// Fetch remote transactions from backend API via NetworkService
   Future<List<TransactionListItem>> _fetchRemoteTransactions({
     required String memberId,
-    required String preferredLanguage,
     required int limit,
   }) async {
     try {
-      final uri = Uri.parse('$baseUrl/terminal/transactions/$memberId')
-          .replace(queryParameters: {'limit': limit.toString()});
+      final response = await _networkService.getTransactionHistory(
+        memberId,
+        limit: limit,
+      );
 
-      _logger.d('Fetching remote transaction history: $uri');
+      if (response == null) return []; // 304 → empty
 
-      final response = await http
-          .get(
-            uri,
-            headers: {
-              'Authorization': 'Bearer $authToken',
-              'Content-Type': 'application/json',
-            },
-          )
-          .timeout(const Duration(seconds: 5));
+      return response.transactions.map((item) {
+        final details =
+            item.type == TransactionHistoryResponse$Transactions$ItemType.correction
+                ? (item.notes ?? 'Correction')
+                : item.productName;
 
-      _logger.d('Remote transaction response: HTTP ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final transactionsJson = json['transactions'] as List<dynamic>;
-
-        return transactionsJson
-            .map((t) => TransactionListItem.fromBackendJson(
-                  t as Map<String, dynamic>,
-                  preferredLanguage,
-                ))
-            .toList();
-      } else if (response.statusCode == 404) {
-        throw MemberNotFoundException(memberId);
-      } else {
-        throw TransactionFetchException(
-          'Failed to load transactions: HTTP ${response.statusCode}',
+        return TransactionListItem(
+          id: item.id,
+          timestamp: item.createdAt.toLocal(),
+          details: details,
+          amountCents: item.amountCents,
+          syncStatus: TransactionSyncStatus.open,
+          productIcon: null,
         );
-      }
-    } on TimeoutException {
-      _logger.w('Remote transaction request timed out');
-      rethrow;
+      }).toList();
+    } on NetworkException catch (e) {
+      if (e.statusCode == 404) throw MemberNotFoundException(memberId);
+      throw TransactionFetchException('Failed to load transactions: ${e.message}');
     } catch (e) {
-      if (e is TransactionFetchException || e is MemberNotFoundException) {
-        rethrow;
-      }
       throw TransactionFetchException('Network error: $e');
     }
   }

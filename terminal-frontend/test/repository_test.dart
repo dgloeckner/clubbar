@@ -2,9 +2,7 @@ import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clubbar_terminal/database/database.dart';
-import 'package:clubbar_terminal/models/category_dto.dart';
-import 'package:clubbar_terminal/models/member_dto.dart';
-import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
@@ -107,7 +105,7 @@ void main() {
 
     test('upsertMembers inserts new members', () async {
       final dtos = [
-        MemberDTO(
+        Member(
           id: 'member-1',
           cardUid: 'card-1',
           firstName: 'Alice',
@@ -115,7 +113,8 @@ void main() {
           preferredLanguage: 'de',
           isActive: true,
           isSepaValid: true,
-          updatedAt: '2025-02-01T12:00:00Z',
+          createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
         ),
       ];
 
@@ -143,7 +142,7 @@ void main() {
 
       // Upsert with updated data
       final dtos = [
-        MemberDTO(
+        Member(
           id: 'member-1',
           cardUid: 'card-1',
           firstName: 'Alice',
@@ -151,7 +150,8 @@ void main() {
           preferredLanguage: 'en', // Changed
           isActive: false,
           isSepaValid: true,
-          updatedAt: '2025-02-02T12:00:00Z',
+          createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          updatedAt: DateTime.parse('2025-02-02T12:00:00Z'),
         ),
       ];
 
@@ -394,12 +394,12 @@ void main() {
 
     test('upsertCategories inserts categories', () async {
       final dtos = [
-        CategoryDTO(
+        Category(
           id: 'cat-1',
           names: {'de': 'Getränke', 'en': 'Beverages'},
-
           isActive: true,
-          updatedAt: '2025-02-01T12:00:00Z',
+          createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
         ),
       ];
 
@@ -413,25 +413,26 @@ void main() {
     test('upsertProducts inserts products', () async {
       // Insert category first (foreign key constraint)
       final categoryDtos = [
-        CategoryDTO(
+        Category(
           id: 'cat-1',
           names: {'de': 'Getränke'},
-
           isActive: true,
-          updatedAt: '2025-02-01T12:00:00Z',
+          createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
         ),
       ];
       await repo.upsertCategories(categoryDtos);
 
       final dtos = [
-        ProductDTO(
+        Product(
           id: 'prod-1',
           categoryId: 'cat-1',
           names: {'de': 'Pils'},
           descriptions: {'de': 'German beer'},
           priceCents: 350,
           isActive: true,
-          updatedAt: '2025-02-01T12:00:00Z',
+          createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
         ),
       ];
 

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/database/database.dart';
-import 'package:clubbar_terminal/models/transaction_sync_response.dart';
+import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/services/members_service.dart';
@@ -112,9 +112,9 @@ void main() {
         when(() => mockTxnRepo.getUnsyncedTransactions())
             .thenAnswer((_) async => []);
         when(() => mockNetwork.syncTransactions(any()))
-            .thenAnswer((_) async => TransactionSyncResponse(
+            .thenAnswer((_) async => TransactionBatchResponse(
                   acceptedIds: [],
-                  rejected: TransactionSyncRejected(count: 0, errors: []),
+                  rejected: const TransactionBatchResponse$Rejected(),
                   memberBalances: {'member-1': 4200},
                 ));
         when(() => mockRepo.updateMemberBalance('member-1', 4200))
@@ -157,9 +157,9 @@ void main() {
         when(() => mockTxnRepo.getUnsyncedTransactions())
             .thenAnswer((_) async => []);
         when(() => mockNetwork.syncTransactions(any()))
-            .thenAnswer((_) async => TransactionSyncResponse(
+            .thenAnswer((_) async => TransactionBatchResponse(
                   acceptedIds: [],
-                  rejected: TransactionSyncRejected(count: 0, errors: []),
+                  rejected: const TransactionBatchResponse$Rejected(),
                   memberBalances: {}, // empty — member not in response
                 ));
         when(() => mockRepo.findById('member-1'))

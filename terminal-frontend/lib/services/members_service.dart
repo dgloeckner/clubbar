@@ -89,10 +89,7 @@ class MembersService {
     final network = _networkService;
     if (network != null) {
       try {
-        await network.patch(
-          '/sync/members/$memberId/language',
-          {'preferred_language': language},
-        );
+        await network.updateMemberLanguage(memberId, language);
       } catch (_) {
         // Offline or network error — local cache updated, backend will sync later
       }

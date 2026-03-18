@@ -61,16 +61,6 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       }
 
       final networkService = context.read<NetworkService>();
-      final authToken = networkService.getAuthToken();
-
-      if (authToken == null) {
-        setState(() {
-          _hasError = true;
-          _errorMessage = 'Not authenticated';
-          _isLoading = false;
-        });
-        return;
-      }
 
       // Check if online
       final isOnline = await networkService.checkHealth();
@@ -83,8 +73,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         // Fetch from backend (includes local unsynced + remote)
         final database = context.read<ClubBarDatabase>();
         final service = TransactionHistoryService(
-          baseUrl: networkService.baseUrl,
-          authToken: authToken,
+          networkService: networkService,
           database: database,
         );
 

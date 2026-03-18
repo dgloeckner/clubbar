@@ -5,8 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/database/database.dart';
-import 'package:clubbar_terminal/models/sync_response.dart';
-import 'package:clubbar_terminal/models/transaction_sync_response.dart';
+import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
 import 'package:clubbar_terminal/repository/sync_repository.dart';
@@ -115,13 +114,28 @@ void main() {
 
     test('syncAll returns success on successful sync', () async {
       // Setup mocks for sync
-      when(() => mockNetworkService.syncMembers(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => MembersSyncResponse(members: []));
+      when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+          .thenAnswer((_) async => MemberDeltaResponse(
+                members: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
 
-      when(() => mockNetworkService.syncCategories(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
-      when(() => mockNetworkService.syncProducts(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => ProductsSyncResponse(products: []));
+      when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
+          .thenAnswer((_) async => CategoryDeltaResponse(
+                categories: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
+      when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
+          .thenAnswer((_) async => ProductDeltaResponse(
+                products: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
 
       final result = await syncService.syncAll();
 
@@ -129,13 +143,28 @@ void main() {
     });
 
     test('isSyncing flag reflects sync state', () async {
-      when(() => mockNetworkService.syncMembers(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => MembersSyncResponse(members: []));
+      when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+          .thenAnswer((_) async => MemberDeltaResponse(
+                members: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
 
-      when(() => mockNetworkService.syncCategories(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
-      when(() => mockNetworkService.syncProducts(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => ProductsSyncResponse(products: []));
+      when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
+          .thenAnswer((_) async => CategoryDeltaResponse(
+                categories: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
+      when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
+          .thenAnswer((_) async => ProductDeltaResponse(
+                products: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
 
       expect(syncService.isSyncing, isFalse);
 
@@ -148,7 +177,7 @@ void main() {
     });
 
     test('syncAll returns failure on network error', () async {
-      when(() => mockNetworkService.syncMembers(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
+      when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
           .thenThrow(NetworkException('Network error'));
 
       when(() => mockSyncRepo.setLastSyncError(any()))
@@ -181,12 +210,27 @@ void main() {
 
     test('syncAll posts unsynced transactions and completes atomically', () async {
       // Setup sync mocks
-      when(() => mockNetworkService.syncMembers(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => MembersSyncResponse(members: []));
-      when(() => mockNetworkService.syncCategories(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
-      when(() => mockNetworkService.syncProducts(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => ProductsSyncResponse(products: []));
+      when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+          .thenAnswer((_) async => MemberDeltaResponse(
+                members: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
+      when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
+          .thenAnswer((_) async => CategoryDeltaResponse(
+                categories: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
+      when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
+          .thenAnswer((_) async => ProductDeltaResponse(
+                products: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
 
       // Return unsynced transactions
       final unsyncedTxns = [
@@ -220,9 +264,9 @@ void main() {
 
       // Mock syncTransactions response
       when(() => mockNetworkService.syncTransactions(any()))
-          .thenAnswer((_) async => TransactionSyncResponse(
+          .thenAnswer((_) async => TransactionBatchResponse(
                 acceptedIds: ['txn-1', 'txn-2'],
-                rejected: TransactionSyncRejected(count: 0, errors: []),
+                rejected: const TransactionBatchResponse$Rejected(count: 0, errors: []),
                 memberBalances: {'member-1': 4500, 'member-2': 1200},
               ));
 
@@ -256,12 +300,27 @@ void main() {
     });
 
     test('syncAll handles rejected transactions gracefully', () async {
-      when(() => mockNetworkService.syncMembers(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => MembersSyncResponse(members: []));
-      when(() => mockNetworkService.syncCategories(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
-      when(() => mockNetworkService.syncProducts(since: any(named: 'since'), ifNoneMatch: any(named: 'ifNoneMatch')))
-          .thenAnswer((_) async => ProductsSyncResponse(products: []));
+      when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+          .thenAnswer((_) async => MemberDeltaResponse(
+                members: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
+      when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
+          .thenAnswer((_) async => CategoryDeltaResponse(
+                categories: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
+      when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
+          .thenAnswer((_) async => ProductDeltaResponse(
+                products: [],
+                cursor: 0,
+                count: 0,
+                hasMore: false,
+              ));
 
       final unsyncedTxns = [
         TransactionsLocalData(
@@ -281,12 +340,12 @@ void main() {
           .thenAnswer((_) async => unsyncedTxns);
 
       when(() => mockNetworkService.syncTransactions(any()))
-          .thenAnswer((_) async => TransactionSyncResponse(
+          .thenAnswer((_) async => TransactionBatchResponse(
                 acceptedIds: [],
-                rejected: TransactionSyncRejected(
+                rejected: const TransactionBatchResponse$Rejected(
                   count: 1,
                   errors: [
-                    TransactionSyncError(
+                    TransactionBatchResponse$Rejected$Errors$Item(
                       transactionId: 'txn-1',
                       reason: 'member_not_found',
                     ),
@@ -343,12 +402,27 @@ void main() {
         final service = createSyncServiceWithFailedTxns();
 
         // Setup successful member/category/product sync
-        when(() => mockNetworkService.syncMembers())
-            .thenAnswer((_) async => MembersSyncResponse(members: []));
-        when(() => mockNetworkService.syncCategories())
-            .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
-        when(() => mockNetworkService.syncProducts())
-            .thenAnswer((_) async => ProductsSyncResponse(products: []));
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenAnswer((_) async => MemberDeltaResponse(
+                  members: [],
+                  cursor: 0,
+                  count: 0,
+                  hasMore: false,
+                ));
+        when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
+            .thenAnswer((_) async => CategoryDeltaResponse(
+                  categories: [],
+                  cursor: 0,
+                  count: 0,
+                  hasMore: false,
+                ));
+        when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
+            .thenAnswer((_) async => ProductDeltaResponse(
+                  products: [],
+                  cursor: 0,
+                  count: 0,
+                  hasMore: false,
+                ));
 
         // Return unsynced transactions
         final unsyncedTxns = [
@@ -415,12 +489,27 @@ void main() {
         ]));
 
         // Setup sync
-        when(() => mockNetworkService.syncMembers())
-            .thenAnswer((_) async => MembersSyncResponse(members: []));
-        when(() => mockNetworkService.syncCategories())
-            .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
-        when(() => mockNetworkService.syncProducts())
-            .thenAnswer((_) async => ProductsSyncResponse(products: []));
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenAnswer((_) async => MemberDeltaResponse(
+                  members: [],
+                  cursor: 0,
+                  count: 0,
+                  hasMore: false,
+                ));
+        when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
+            .thenAnswer((_) async => CategoryDeltaResponse(
+                  categories: [],
+                  cursor: 0,
+                  count: 0,
+                  hasMore: false,
+                ));
+        when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
+            .thenAnswer((_) async => ProductDeltaResponse(
+                  products: [],
+                  cursor: 0,
+                  count: 0,
+                  hasMore: false,
+                ));
 
         when(() => mockTransactionsRepo.getUnsyncedTransactions())
             .thenAnswer((_) async => [
@@ -452,12 +541,27 @@ void main() {
 
       test('does not write file when no failedTransactionsPath configured', () async {
         // Use the default syncService which has no failedTransactionsPath
-        when(() => mockNetworkService.syncMembers())
-            .thenAnswer((_) async => MembersSyncResponse(members: []));
-        when(() => mockNetworkService.syncCategories())
-            .thenAnswer((_) async => CategoriesSyncResponse(categories: []));
-        when(() => mockNetworkService.syncProducts())
-            .thenAnswer((_) async => ProductsSyncResponse(products: []));
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenAnswer((_) async => MemberDeltaResponse(
+                  members: [],
+                  cursor: 0,
+                  count: 0,
+                  hasMore: false,
+                ));
+        when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
+            .thenAnswer((_) async => CategoryDeltaResponse(
+                  categories: [],
+                  cursor: 0,
+                  count: 0,
+                  hasMore: false,
+                ));
+        when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
+            .thenAnswer((_) async => ProductDeltaResponse(
+                  products: [],
+                  cursor: 0,
+                  count: 0,
+                  hasMore: false,
+                ));
 
         when(() => mockTransactionsRepo.getUnsyncedTransactions())
             .thenAnswer((_) async => [

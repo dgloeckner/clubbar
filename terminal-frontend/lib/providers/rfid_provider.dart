@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
-import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/services/mock_rfid_service.dart';
 import 'package:clubbar_terminal/services/real_rfid_service.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
@@ -127,27 +127,28 @@ class RfidProvider extends ChangeNotifier {
         }
         member = MembersCacheData(
           id: mockMember.id,
-          cardUid: mockMember.cardUid!,
+          cardUid: mockMember.cardUid,
           firstName: mockMember.firstName,
           lastName: mockMember.lastName,
           preferredLanguage: mockMember.preferredLanguage,
           isActive: mockMember.isActive ? 1 : 0,
           isSepaValid: mockMember.isSepaValid ? 1 : 0,
           balanceCents: 0,
-          updatedAt: mockMember.updatedAt,
+          updatedAt: mockMember.updatedAt.toIso8601String(),
         );
         // Persist mock member locally for offline dev
         try {
           await _membersRepository.upsertMembers([
-            MemberDTO(
+            Member(
               id: member.id,
-              cardUid: member.cardUid,
-              firstName: member.firstName ?? 'Unknown',
-              lastName: member.lastName ?? 'User',
+              cardUid: member.cardUid ?? '',
+              firstName: member.firstName,
+              lastName: member.lastName,
               preferredLanguage: member.preferredLanguage,
               isActive: member.isActive == 1,
               isSepaValid: member.isSepaValid == 1,
-              updatedAt: member.updatedAt,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.tryParse(member.updatedAt) ?? DateTime.now(),
             ),
           ]);
         } catch (_) {}

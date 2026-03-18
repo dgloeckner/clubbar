@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:drift/drift.dart' hide Column;
 import '../database/database.dart';
-import '../models/product_dto.dart';
-import '../models/category_dto.dart';
+import '../generated/terminal.swagger.dart';
 
 class ProductsRepository {
   final ClubBarDatabase _db;
@@ -57,22 +56,22 @@ class ProductsRepository {
   }
 
   /// Upsert categories from sync response
-  Future<void> upsertCategories(List<CategoryDTO> categories) async {
+  Future<void> upsertCategories(List<Category> categories) async {
     for (final dto in categories) {
       await _db.into(_db.categoriesCache).insertOnConflictUpdate(
         CategoriesCacheCompanion(
           id: Value(dto.id),
           names: Value(jsonEncode(dto.names)),
           isActive: Value(dto.isActive ? 1 : 0),
-          iconName: Value(dto.iconName),
-          updatedAt: Value(dto.updatedAt),
+          // icon_name is not included in the OAS spec; keep existing value (null on insert)
+          updatedAt: Value(dto.updatedAt.toIso8601String()),
         ),
       );
     }
   }
 
   /// Upsert products from sync response
-  Future<void> upsertProducts(List<ProductDTO> products) async {
+  Future<void> upsertProducts(List<Product> products) async {
     for (final dto in products) {
       await _db.into(_db.productsCache).insertOnConflictUpdate(
         ProductsCacheCompanion(
@@ -82,9 +81,9 @@ class ProductsRepository {
           descriptions: Value(dto.descriptions != null ? jsonEncode(dto.descriptions) : null),
           priceCents: Value(dto.priceCents),
           isActive: Value(dto.isActive ? 1 : 0),
-          requiresDispenser: Value(dto.requiresDispenser ? 1 : 0),
-          iconName: Value(dto.iconName),
-          updatedAt: Value(dto.updatedAt),
+          // requires_dispenser and icon_name are not included in the OAS spec; default to 0/null
+          requiresDispenser: const Value(0),
+          updatedAt: Value(dto.updatedAt.toIso8601String()),
         ),
       );
     }
