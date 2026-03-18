@@ -137,7 +137,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
           ),
           child: Column(
             children: [
-              // Header
+              // Fixed header — stays pinned while content scrolls
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -167,117 +167,128 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                 ),
               ),
 
-              // Member Info Section
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    // Avatar
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: const Color(0xffFF6B4A),
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: Center(
-                        child: Text(
-                          initials,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: AppFontSizes.xl,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Name and balance
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '$firstName $lastName',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: AppFontSizes.xl,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          '${l10n.balance}: ${formatPrice(balanceCents, locale)}',
-                          style: TextStyle(
-                            color: _balanceColor(balanceCents),
-                            fontSize: AppFontSizes.base,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // Language Section
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.preferredLanguage,
-                      style: TextStyle(
-                        color: Color(0xffa1a1aa),
-                        fontSize: AppFontSizes.base,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _languageButton('de', 'Deutsch', locale == 'de'),
-                        const SizedBox(width: 8),
-                        _languageButton('en', 'English', locale == 'en'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Transactions Section Header
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      l10n.recentTransactions,
-                      style: TextStyle(
-                        color: Color(0xffa1a1aa),
-                        fontSize: AppFontSizes.base,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    if (_isLoading)
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(Color(0xff3b82f6)),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Transactions List or Error
+              // Scrollable body — CustomScrollView drives both sheet expansion
+              // and list scrolling via the DraggableScrollableSheet controller.
               Expanded(
-                child: _buildTransactionsList(scrollController, l10n, locale),
+                child: CustomScrollView(
+                  controller: scrollController,
+                  slivers: [
+                    // Member Info
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: const Color(0xffFF6B4A),
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  initials,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: AppFontSizes.xl,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '$firstName $lastName',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: AppFontSizes.xl,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  '${l10n.balance}: ${formatPrice(balanceCents, locale)}',
+                                  style: TextStyle(
+                                    color: _balanceColor(balanceCents),
+                                    fontSize: AppFontSizes.base,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Language Section
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.preferredLanguage,
+                              style: TextStyle(
+                                color: const Color(0xffa1a1aa),
+                                fontSize: AppFontSizes.base,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                _languageButton('de', 'Deutsch', locale == 'de'),
+                                const SizedBox(width: 8),
+                                _languageButton('en', 'English', locale == 'en'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                    // Transactions Section Header
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              l10n.recentTransactions,
+                              style: TextStyle(
+                                color: const Color(0xffa1a1aa),
+                                fontSize: AppFontSizes.base,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (_isLoading)
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation(Color(0xff3b82f6)),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                    // Transactions List or State
+                    _buildTransactionsSliver(l10n, locale),
+                  ],
+                ),
               ),
             ],
           ),
@@ -286,136 +297,149 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
     );
   }
 
-  Widget _buildTransactionsList(ScrollController scrollController, AppLocalizations l10n, String locale) {
+  Widget _buildTransactionsSliver(AppLocalizations l10n, String locale) {
     if (_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation(Color(0xff3b82f6)),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              l10n.loadingTransactions,
-              style: TextStyle(
-                color: Color(0xffa1a1aa),
-                fontSize: AppFontSizes.base,
+      return SliverFillRemaining(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(Color(0xff3b82f6)),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text(
+                l10n.loadingTransactions,
+                style: TextStyle(
+                  color: const Color(0xffa1a1aa),
+                  fontSize: AppFontSizes.base,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     if (_hasError) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.error_outline,
-                color: Color(0xffef4444),
-                size: 48,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                l10n.errorLoadingTransactions,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: AppFontSizes.lg,
-                  fontWeight: FontWeight.w600,
+      return SliverFillRemaining(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: Color(0xffef4444),
+                  size: 48,
                 ),
-              ),
-              if (_errorMessage != null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Text(
-                  _errorMessage!,
+                  l10n.errorLoadingTransactions,
                   style: TextStyle(
-                    color: Color(0xffa1a1aa),
-                    fontSize: AppFontSizes.sm,
+                    color: Colors.white,
+                    fontSize: AppFontSizes.lg,
+                    fontWeight: FontWeight.w600,
                   ),
-                  textAlign: TextAlign.center,
+                ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorMessage!,
+                    style: TextStyle(
+                      color: const Color(0xffa1a1aa),
+                      fontSize: AppFontSizes.sm,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _loadTransactions,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.retry),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xff3b82f6),
+                    foregroundColor: Colors.white,
+                  ),
                 ),
               ],
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _loadTransactions,
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.retry),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xff3b82f6),
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       );
     }
 
     if (_isOffline) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.cloud_off,
-                color: Color(0xff3b82f6),
-                size: 48,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                l10n.offlineMode,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: AppFontSizes.lg,
-                  fontWeight: FontWeight.w600,
+      return SliverFillRemaining(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.cloud_off,
+                  color: Color(0xff3b82f6),
+                  size: 48,
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                l10n.transactionHistoryUnavailableOffline,
-                style: TextStyle(
-                  color: Color(0xffa1a1aa),
-                  fontSize: AppFontSizes.sm,
+                const SizedBox(height: 12),
+                Text(
+                  l10n.offlineMode,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: AppFontSizes.lg,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  l10n.transactionHistoryUnavailableOffline,
+                  style: TextStyle(
+                    color: const Color(0xffa1a1aa),
+                    fontSize: AppFontSizes.sm,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
 
     if (_transactions.isEmpty) {
-      return Center(
-        child: Text(
-          l10n.noTransactions,
-          style: TextStyle(
-            color: Color(0xffa1a1aa),
-            fontSize: AppFontSizes.base,
+      return SliverFillRemaining(
+        child: Center(
+          child: Text(
+            l10n.noTransactions,
+            style: TextStyle(
+              color: const Color(0xffa1a1aa),
+              fontSize: AppFontSizes.base,
+            ),
           ),
         ),
       );
     }
 
-    return ListView.separated(
-      controller: scrollController,
+    return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _transactions.length,
-      separatorBuilder: (context, index) => Divider(
-        color: const Color(0xff475569).withValues(alpha: 0.2),
-        height: 1,
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            if (index.isOdd) {
+              return Divider(
+                color: const Color(0xff475569).withValues(alpha: 0.2),
+                height: 1,
+              );
+            }
+            final transaction = _transactions[index ~/ 2];
+            return _buildTransactionRow(transaction, locale);
+          },
+          childCount: _transactions.length * 2 - 1,
+        ),
       ),
-      itemBuilder: (context, index) {
-        final transaction = _transactions[index];
-        return _buildTransactionRow(transaction, locale);
-      },
     );
   }
 
