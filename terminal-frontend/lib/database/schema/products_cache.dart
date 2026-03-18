@@ -9,7 +9,7 @@ class ProductsCache extends Table {
   IntColumn get priceCents => integer()();
   IntColumn get isActive => integer().withDefault(Constant(1))();
   IntColumn get requiresDispenser => integer().withDefault(Constant(0))(); // 1=requires dispenser, 0=normal product
-  TextColumn get iconName => text().nullable()(); // Backend icon enum: PilsIcon, WeizenIcon, etc.
+  TextColumn get iconName => text().nullable()(); // Canonical kebab-case icon name (e.g., "beer-pils")
   TextColumn get updatedAt => text()();
 
   @override
