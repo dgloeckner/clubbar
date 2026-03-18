@@ -101,7 +101,7 @@ class _MockHttpClientRequest implements HttpClientRequest {
 /// Returns 200 OK with empty JSON for all requests.
 class _MockHttpClientResponse extends Stream<List<int>>
     implements HttpClientResponse {
-  static final _body = utf8.encode('{"data":[],"transactions":[]}');
+  static final _body = utf8.encode('{"member_id":"mock","count":0,"transactions":[]}');
 
   @override
   int get statusCode => 200;
