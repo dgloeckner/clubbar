@@ -86,6 +86,7 @@ paths:
         Simple health check endpoint. Useful for terminal to verify connectivity
         without requiring authentication. Does not consume rate limits.
       operationId: healthCheck
+      security: []
       responses:
         '200':
           description: Backend is healthy and reachable
@@ -591,7 +592,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/BadRequest'
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
