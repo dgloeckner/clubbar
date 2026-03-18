@@ -631,9 +631,11 @@ components:
           description: Permanent member identifier (UUIDv4)
         card_uid:
           type: string
+          nullable: true
           description: |
             RFID/NFC card identifier (e.g., Mifare UID).
             Used for card scans at terminal. Immutable (except on anonymization).
+            Null if member exists in the system but has not been assigned a card yet.
         first_name:
           type: string
           nullable: true
