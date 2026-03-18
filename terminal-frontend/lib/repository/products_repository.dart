@@ -63,7 +63,7 @@ class ProductsRepository {
           id: Value(dto.id),
           names: Value(jsonEncode(dto.names)),
           isActive: Value(dto.isActive ? 1 : 0),
-          // icon_name is not included in the OAS spec; keep existing value (null on insert)
+          iconName: Value(dto.iconName),
           updatedAt: Value(dto.updatedAt.toIso8601String()),
         ),
       );
@@ -81,8 +81,8 @@ class ProductsRepository {
           descriptions: Value(dto.descriptions != null ? jsonEncode(dto.descriptions) : null),
           priceCents: Value(dto.priceCents),
           isActive: Value(dto.isActive ? 1 : 0),
-          // requires_dispenser and icon_name are not included in the OAS spec; default to 0/null
-          requiresDispenser: const Value(0),
+          requiresDispenser: Value(dto.requiresDispenser == true ? 1 : 0),
+          iconName: Value(dto.iconName),
           updatedAt: Value(dto.updatedAt.toIso8601String()),
         ),
       );

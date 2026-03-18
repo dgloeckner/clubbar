@@ -735,6 +735,13 @@ components:
           description: |
             If false, category is hidden from terminal UI.
             Products in inactive categories are also hidden, regardless of product's own is_active status.
+        icon_name:
+          type: string
+          nullable: true
+          description: |
+            Canonical icon identifier (kebab-case, e.g., "beer-pils", "sauna-cabin").
+            Terminal maps this to the appropriate SVG asset for display.
+            Null if no icon has been assigned.
         created_at:
           type: string
           format: date-time
@@ -756,6 +763,7 @@ components:
           de: Getränke
           fr: Boissons
         is_active: true
+        icon_name: beer-pils
         created_at: '2024-01-01T00:00:00Z'
         updated_at: '2025-01-10T10:15:30Z'
 
@@ -813,6 +821,19 @@ components:
           description: |
             If false, product is archived but should be retained in transaction history.
             Terminal should hide from purchase UI but keep in local cache.
+        icon_name:
+          type: string
+          nullable: true
+          description: |
+            Canonical icon identifier (kebab-case, e.g., "beer-pils", "coffee", "sauna-session").
+            Terminal maps this to the appropriate SVG asset for display.
+            Null if no icon has been assigned.
+        requires_dispenser:
+          type: boolean
+          description: |
+            If true, purchasing this product triggers the physical dispenser hardware.
+            Terminal must confirm dispenser readiness before allowing checkout.
+          default: false
         created_at:
           type: string
           format: date-time
@@ -842,6 +863,8 @@ components:
         price_cents: 350
         category_id: abc12345-e21a-11d3-b456-426614174001
         is_active: true
+        icon_name: beer-pils
+        requires_dispenser: false
         created_at: '2024-01-01T00:00:00Z'
         updated_at: '2025-01-10T10:15:30Z'
 
