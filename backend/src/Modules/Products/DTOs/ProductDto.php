@@ -46,7 +46,7 @@ final readonly class ProductDto
             'price_cents' => $this->priceCents,
             'category_id' => $this->categoryId,
             'is_active' => $this->isActive,
-            'requires_dispenser' => $this->requiresDispenser ? 1 : 0,
+            'requires_dispenser' => $this->requiresDispenser,
             'icon_name' => $this->iconName,
             'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
             'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),
