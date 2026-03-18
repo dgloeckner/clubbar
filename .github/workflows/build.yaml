@@ -327,10 +327,13 @@ jobs:
             database
             backend
 
+      - name: Write install key for package tests
+        run: echo -n "ci-package-install-key-0000" > dist/package/.install-key
+
       - name: Wait for backend
         run: |
           for i in $(seq 1 30); do
-            curl -sf http://localhost:8080/install.php?step=1 > /dev/null 2>&1 && break
+            curl -sf http://localhost:8080/install.php > /dev/null 2>&1 && break
             if [ $i -eq 30 ]; then echo "Backend not ready after 60s" && exit 1; fi
             sleep 2
           done

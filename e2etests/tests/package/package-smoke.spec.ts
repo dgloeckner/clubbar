@@ -7,22 +7,34 @@ import { test, expect } from '@playwright/test';
  * The install wizard must be completed before API/SPA tests run.
  *
  * Run: PACKAGE_TEST=1 npm test -- tests/package/package-smoke.spec.ts --workers=1
+ *
+ * CI writes a known key to dist/package/.install-key before these tests run.
+ * Each test that drives the wizard must enter the key first to obtain a session cookie.
  */
 
 const PACKAGE_URL = process.env.PACKAGE_URL || 'http://localhost:8080';
+const CI_INSTALL_KEY = 'ci-package-install-key-0000';
 
 test.describe('Package: Install Wizard', () => {
   test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
 
-  test('install.php shows prerequisites page', async ({ request }) => {
-    const response = await request.get(`${PACKAGE_URL}/install.php?step=1`);
+  test('install.php requires install key when not authenticated', async ({ request }) => {
+    const response = await request.get(`${PACKAGE_URL}/install.php`);
     expect(response.ok()).toBeTruthy();
     const html = await response.text();
-    expect(html).toContain('Prerequisites');
-    expect(html).toContain('PHP');
+    expect(html).toContain('Install Key Required');
+    expect(html).toContain('.install-key');
   });
 
   test('install wizard completes via POST steps', async ({ request }) => {
+    // Enter install key — sets session cookie on this request context
+    const keyResponse = await request.post(`${PACKAGE_URL}/install.php`, {
+      form: { install_key: CI_INSTALL_KEY },
+    });
+    expect(keyResponse.ok()).toBeTruthy();
+    const html = await keyResponse.text();
+    expect(html).toContain('Prerequisites');
+
     // Step 2: DB credentials
     const step2 = await request.post(`${PACKAGE_URL}/install.php?step=2`, {
       form: {
