@@ -2,14 +2,14 @@ targets:
   $default:
     sources:
       - lib/**
-      - api/**
+      - openapi/**
       - $package$
     builders:
       swagger_dart_code_generator:
         options:
-          input_folder: "api/"
+          input_folder: "openapi/"
           output_folder: "lib/generated/"
           with_base_url: false
-          classes_with_nullabe_lists:
+          classes_with_nullable_lists:
             - ".*"
           build_only_models: false
