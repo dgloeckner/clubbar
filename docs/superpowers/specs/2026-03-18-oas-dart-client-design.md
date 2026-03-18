@@ -162,7 +162,7 @@ $app->add($factory->getJsonBodyParser());
 $app->add($factory->getCorsMiddleware());           // innermost of middleware stack
 ```
 
-`APP_ENV=test` is set in the Docker Compose environment for test runs. Production omits this variable.
+`APP_ENV=test` is set in `docker-compose.ci.yml` by adding it to the `backend` service's environment block (alongside the existing `platform` override). This means CI test runs activate validation automatically; local development (`docker-compose.yml` only, `APP_ENV: local`) is unaffected. Production omits `APP_ENV` entirely.
 
 ### Effect on Test Runs
 
@@ -236,4 +236,4 @@ Validation covers the terminal API endpoints defined in `api/terminal.yaml`:
 | `terminal-frontend/integration_test/walkthrough_test.dart` | Update DTO imports to generated types |
 | `backend/composer.json` | Add `league/openapi-psr7-validator: ^3.0` |
 | `backend/bootstrap.php` | Register validation middleware after `add(ErrorHandler)`, guarded by `APP_ENV=test` |
-| `docker-compose.yml` (or test env config) | Set `APP_ENV=test` for test runs |
+| `docker-compose.ci.yml` | Add `APP_ENV: test` to `backend` service environment |
