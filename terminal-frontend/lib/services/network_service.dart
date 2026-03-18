@@ -294,7 +294,7 @@ class NetworkService {
     int limit = 50,
   }) async {
     try {
-      final response = await _api.transactionsMemberIdGet(
+      final response = await _api.terminalTransactionsMemberIdGet(
         memberId: memberId,
         limit: limit,
       );
