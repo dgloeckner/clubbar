@@ -130,7 +130,7 @@ paths:
       parameters:
         - name: since
           in: query
-          required: true
+          required: false
           schema:
             type: integer
             format: int64
@@ -187,7 +187,7 @@ paths:
       parameters:
         - name: since
           in: query
-          required: true
+          required: false
           schema:
             type: integer
             format: int64
@@ -252,7 +252,7 @@ paths:
       parameters:
         - name: since
           in: query
-          required: true
+          required: false
           schema:
             type: integer
             format: int64
