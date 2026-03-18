@@ -132,13 +132,12 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
     final balanceCents = membersProvider.memberDeckel ?? member.balanceCents;
     final locale = member.preferredLanguage;
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.5,
-      maxChildSize: 0.9,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: const BoxDecoration(
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    return SizedBox(
+      height: screenHeight * 0.75,
+      child: Container(
+        decoration: const BoxDecoration(
             color: Color(0xff1e293b),
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(16),
@@ -291,8 +290,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
               ),
             ],
           ),
-        );
-      },
+        ),
     );
   }
 
