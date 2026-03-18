@@ -32,9 +32,7 @@ import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/dispenser_recovery_service.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/error_file_output.dart';
-import 'package:clubbar_terminal/models/category_dto.dart';
-import 'package:clubbar_terminal/models/product_dto.dart';
-import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 /// Seed database with mock categories and products for development
@@ -49,121 +47,113 @@ Future<void> _seedMockData(ClubBarDatabase database) async {
 
     if (existingCategories.isEmpty) {
       // Seed categories and products only if they don't exist
+      final seedDate = DateTime.parse('2025-02-01T10:00:00Z');
       await productsRepo.upsertCategories([
-      CategoryDTO(
+      Category(
         id: 'cat-1',
         names: {'de': 'Getränke', 'en': 'Drinks'},
         isActive: true,
-        iconName: 'CategoryDrinksIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
-      CategoryDTO(
+      Category(
         id: 'cat-2',
         names: {'de': 'Sauna', 'en': 'Sauna'},
         isActive: true,
-        iconName: 'CategorySaunaIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
     ]);
 
     await productsRepo.upsertProducts([
       // Getränke / Drinks
-      ProductDTO(
+      Product(
         id: 'prod-1',
         categoryId: 'cat-1',
         names: {'de': 'Pils 0,5l', 'en': 'Pils 0.5l'},
-        descriptions: null,
         priceCents: 350,
         isActive: true,
-        iconName: 'PilsIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
-      ProductDTO(
+      Product(
         id: 'prod-2',
         categoryId: 'cat-1',
         names: {'de': 'Radler 0,5l', 'en': 'Radler 0.5l'},
-        descriptions: null,
         priceCents: 300,
         isActive: true,
-        iconName: 'RadlerIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
-      ProductDTO(
+      Product(
         id: 'prod-3',
         categoryId: 'cat-1',
         names: {'de': 'Weizen 0,5l', 'en': 'Weizen 0.5l'},
-        descriptions: null,
         priceCents: 380,
         isActive: true,
-        iconName: 'WeizenIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
-      ProductDTO(
+      Product(
         id: 'prod-4',
         categoryId: 'cat-1',
         names: {'de': 'Wasser 0,33l', 'en': 'Water 0.33l'},
-        descriptions: null,
         priceCents: 150,
         isActive: true,
-        iconName: 'WaterSmallIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
-      ProductDTO(
+      Product(
         id: 'prod-5',
         categoryId: 'cat-1',
         names: {'de': 'Apfelschorle', 'en': 'Apple Spritzer'},
-        descriptions: null,
         priceCents: 200,
         isActive: true,
-        iconName: 'LemonadeIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
-      ProductDTO(
+      Product(
         id: 'prod-6',
         categoryId: 'cat-1',
         names: {'de': 'Apfelwein 1l', 'en': 'Cider 1l'},
-        descriptions: null,
         priceCents: 300,
         isActive: true,
-        iconName: 'ApplerIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
-      ProductDTO(
+      Product(
         id: 'prod-7',
         categoryId: 'cat-1',
         names: {'de': 'Wasser 1l', 'en': 'Water 1l'},
-        descriptions: null,
         priceCents: 200,
         isActive: true,
-        iconName: 'WaterLargeIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
-      ProductDTO(
+      Product(
         id: 'prod-8',
         categoryId: 'cat-1',
         names: {'de': 'Kaffee', 'en': 'Coffee'},
-        descriptions: null,
         priceCents: 200,
         isActive: true,
-        iconName: 'PilsIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
       // Sauna
-      ProductDTO(
+      Product(
         id: 'prod-9',
         categoryId: 'cat-2',
         names: {'de': 'Sauna-Token', 'en': 'Sauna Token'},
-        descriptions: null,
         priceCents: 200,
         isActive: true,
-        iconName: 'SaunaTokenIcon',
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
     ]);
 
     // Seed test members only when no real members exist yet
     await membersRepo.upsertMembers([
-      MemberDTO(
+      Member(
         id: 'member-1',
         cardUid: 'card-123',
         firstName: 'John',
@@ -171,9 +161,10 @@ Future<void> _seedMockData(ClubBarDatabase database) async {
         preferredLanguage: 'de',
         isActive: true,
         isSepaValid: true,
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
-      MemberDTO(
+      Member(
         id: 'member-2',
         cardUid: 'card-456',
         firstName: 'Jane',
@@ -181,7 +172,8 @@ Future<void> _seedMockData(ClubBarDatabase database) async {
         preferredLanguage: 'de',
         isActive: true,
         isSepaValid: true,
-        updatedAt: '2025-02-01T10:00:00Z',
+        createdAt: seedDate,
+        updatedAt: seedDate,
       ),
     ]);
     }

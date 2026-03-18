@@ -320,48 +320,33 @@ class NetworkService {
   }
 
   // ---------------------------------------------------------------------------
-  // Generic HTTP helpers (kept for backward-compatibility with callers that
-  // have not yet been migrated to the generated Chopper service methods)
+  // Member language update (PATCH /sync/members/{memberId}/language)
   // ---------------------------------------------------------------------------
 
-  /// PATCH request (generic, for callers not yet migrated to generated methods).
-  Future<dynamic> patch(String endpoint, Map<String, dynamic> body) async {
+  /// Update a member's preferred language on the backend.
+  ///
+  /// Calls `PATCH /api/sync/members/{memberId}/language` via the generated
+  /// Chopper service. Throws [NetworkException] on non-2xx responses.
+  Future<void> updateMemberLanguage(String memberId, String language) async {
     try {
-      final uri = Uri.parse('$_baseUrl$endpoint');
-      final headers = <String, String>{'Content-Type': 'application/json'};
-      final token = _tokenInterceptor.token;
-      if (token != null) {
-        headers['Authorization'] = 'Bearer $token';
-      }
-      final response = await http.patch(
-        uri,
-        headers: headers,
-        body: jsonEncode(body),
+      final body = SyncMembersMemberIdLanguagePatch$RequestBody(
+        preferredLanguage: language,
       );
-      return _handleRawResponse(response);
-    } catch (e) {
-      if (e is NetworkException) rethrow;
-      throw NetworkException('PATCH request failed: $e');
-    }
-  }
+      final response = await _api.syncMembersMemberIdLanguagePatch(
+        memberId: memberId,
+        body: body,
+      );
+      _logger.i('PATCH /sync/members/$memberId/language -> HTTP ${response.statusCode}');
 
-  /// Handle a raw [http.Response]: decode JSON and throw on non-2xx.
-  dynamic _handleRawResponse(http.Response response) {
-    try {
-      final decoded = jsonDecode(response.body);
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return decoded;
+      if (!response.isSuccessful) {
+        throw NetworkException(
+          'Update member language failed: HTTP ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
       }
-      final errorMessage =
-          (decoded is Map ? decoded['message'] : null) ??
-          'HTTP ${response.statusCode}';
-      throw NetworkException(
-        '$errorMessage | Body: ${response.body}',
-        statusCode: response.statusCode,
-      );
     } catch (e) {
       if (e is NetworkException) rethrow;
-      throw NetworkException('Failed to parse response: $e');
+      throw NetworkException('Update member language failed: $e');
     }
   }
 }

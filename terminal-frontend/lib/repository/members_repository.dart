@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart' hide Column;
 import '../database/database.dart';
-import '../models/member_dto.dart';
+import '../generated/terminal.swagger.dart';
 
 class MembersRepository {
   final ClubBarDatabase _db;
@@ -34,7 +34,7 @@ class MembersRepository {
   }
 
   /// Upsert members from sync response (INSERT OR REPLACE)
-  Future<void> upsertMembers(List<MemberDTO> members) async {
+  Future<void> upsertMembers(List<Member> members) async {
     for (final dto in members) {
       await _db.into(_db.membersCache).insertOnConflictUpdate(
         MembersCacheCompanion(
@@ -45,7 +45,7 @@ class MembersRepository {
           preferredLanguage: Value(dto.preferredLanguage),
           isActive: Value(dto.isActive ? 1 : 0),
           isSepaValid: Value(dto.isSepaValid ? 1 : 0),
-          updatedAt: Value(dto.updatedAt),
+          updatedAt: Value(dto.updatedAt.toIso8601String()),
         ),
       );
     }
