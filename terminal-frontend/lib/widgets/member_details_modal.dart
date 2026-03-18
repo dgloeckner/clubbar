@@ -118,7 +118,8 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
     final firstName = member.firstName ?? '';
     final lastName = member.lastName ?? '';
     final initials = '${firstName.isNotEmpty ? firstName[0] : '?'}${lastName.isNotEmpty ? lastName[0] : '?'}'.toUpperCase();
-    final balanceCents = member.balanceCents;
+    final membersProvider = context.watch<MembersProvider>();
+    final balanceCents = membersProvider.memberDeckel ?? member.balanceCents;
     final locale = member.preferredLanguage;
 
     return DraggableScrollableSheet(
