@@ -1,9 +1,9 @@
-import 'package:clubbar_terminal/models/member_dto.dart';
+import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 
 class MockRfidService {
   // Single test member with full SEPA data
   static final _mockMembers = {
-    'RF-4821': MemberDTO(
+    'RF-4821': Member(
       id: '550e8400-e29b-41d4-a716-446655440000',
       cardUid: 'RF-4821',
       firstName: 'Max',
@@ -11,12 +11,13 @@ class MockRfidService {
       preferredLanguage: 'de',
       isActive: true,
       isSepaValid: true, // Has valid IBAN + mandate_reference
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
   };
 
   /// Simulate RFID card detection (called when user taps "detect" button)
-  Future<MemberDTO?> detectCard({String? cardUidOverride}) async {
+  Future<Member?> detectCard({String? cardUidOverride}) async {
     // Simulate reader delay
     await Future.delayed(const Duration(milliseconds: 800));
 
@@ -25,5 +26,5 @@ class MockRfidService {
   }
 
   /// Get all mock members (just 1 for MVP)
-  List<MemberDTO> getAllMockMembers() => _mockMembers.values.toList();
+  List<Member> getAllMockMembers() => _mockMembers.values.toList();
 }

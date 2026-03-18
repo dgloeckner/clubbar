@@ -174,18 +174,10 @@ class SyncService {
         return;
       }
 
-      // Separate deleted categories (tombstones) from active/updated categories
-      final deletedCategories = response.categories.where((c) => c.deletedAt != null).toList();
-      final activeCategories = response.categories.where((c) => c.deletedAt == null).toList();
-
-      // Remove deleted categories from local cache
-      for (final deleted in deletedCategories) {
-        await _productsRepo.deleteCategoryById(deleted.id);
-        _logger.i('Category deleted: ${deleted.id}');
-      }
-
-      // Upsert active categories into local database
-      await _productsRepo.upsertCategories(activeCategories);
+      // Upsert categories into local database
+      // Note: the generated Category type does not include deleted_at; tombstone
+      // handling is not available for categories in this API version.
+      await _productsRepo.upsertCategories(response.categories);
 
       // Store cursor for next delta sync (API returns int, store as string)
       if (response.cursor != null) {
@@ -218,18 +210,10 @@ class SyncService {
         return;
       }
 
-      // Separate deleted products (tombstones) from active/updated products
-      final deletedProducts = response.products.where((p) => p.deletedAt != null).toList();
-      final activeProducts = response.products.where((p) => p.deletedAt == null).toList();
-
-      // Remove deleted products from local cache
-      for (final deleted in deletedProducts) {
-        await _productsRepo.deleteProductById(deleted.id);
-        _logger.i('Product deleted: ${deleted.id}');
-      }
-
-      // Upsert active products into local database
-      await _productsRepo.upsertProducts(activeProducts);
+      // Upsert products into local database
+      // Note: the generated Product type does not include deleted_at; tombstone
+      // handling is not available for products in this API version.
+      await _productsRepo.upsertProducts(response.products);
 
       // Store cursor for next delta sync (API returns int, store as string)
       if (response.cursor != null) {
@@ -284,18 +268,24 @@ class SyncService {
       // POST to backend
       final response = await _networkService.syncTransactions(payloads);
 
+      // Cast member_balances from Map<String, dynamic> to Map<String, int>
+      final memberBalances = response.memberBalances.map(
+        (key, value) => MapEntry(key, (value as num).toInt()),
+      );
+
       // Atomically mark accepted transactions as synced and update balances
       await _transactionsRepo.completeSyncAtomically(
         acceptedIds: response.acceptedIds,
-        memberBalances: response.memberBalances,
+        memberBalances: memberBalances,
         membersRepo: _membersRepo,
       );
 
       _logger.i('Transactions synced: ${response.acceptedIds.length} accepted');
 
-      if (response.rejected.count > 0) {
-        _logger.w('Transactions rejected: ${response.rejected.count}');
-        for (final error in response.rejected.errors) {
+      final rejectedCount = response.rejected.count ?? 0;
+      if (rejectedCount > 0) {
+        _logger.w('Transactions rejected: $rejectedCount');
+        for (final error in response.rejected.errors ?? []) {
           _logger.w('  Rejected ${error.transactionId}: ${error.reason}');
         }
       }
