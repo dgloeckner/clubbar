@@ -165,8 +165,13 @@ class TransactionsService
                 $names = is_array($productNames) ? $productNames : (json_decode($productNames, true) ?? []);
                 $row['product_name'] = $names[$language] ?? $names['de'] ?? $names['en'] ?? reset($names) ?: null;
             } else {
-                // No product (e.g. correction): use notes as product_name or null
-                $row['product_name'] = $row['notes'] ?? null;
+                // No product (e.g. correction/topup): use notes, fallback to type label
+                $typeLabel = match ($row['transaction_type'] ?? '') {
+                    'correction' => 'Correction',
+                    'topup'      => 'Top-up',
+                    default      => 'Transaction',
+                };
+                $row['product_name'] = $row['notes'] ?: $typeLabel;
             }
         }
         unset($row);
