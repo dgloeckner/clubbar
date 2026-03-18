@@ -65,9 +65,9 @@ info:
     url: https://github.com/clubbar/clubbar/blob/main/LICENSE
 
 servers:
-  - url: https://api.example.com
+  - url: https://api.example.com/api
     description: Production server (HTTPS only)
-  - url: http://localhost:8080
+  - url: http://localhost:8080/api
     description: Local development (Docker)
 
 tags:
@@ -86,6 +86,7 @@ paths:
         Simple health check endpoint. Useful for terminal to verify connectivity
         without requiring authentication. Does not consume rate limits.
       operationId: healthCheck
+      security: []
       responses:
         '200':
           description: Backend is healthy and reachable
@@ -504,7 +505,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /transactions/{member_id}:
+  /terminal/transactions/{member_id}:
     get:
       tags:
         - Transactions
@@ -591,7 +592,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/responses/BadRequest'
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
