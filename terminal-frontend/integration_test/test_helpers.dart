@@ -8,10 +8,8 @@ import 'package:logger/logger.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/main.dart';
-import 'package:clubbar_terminal/models/category_dto.dart';
-import 'package:clubbar_terminal/models/product_dto.dart';
-import 'package:clubbar_terminal/models/member_dto.dart';
 import 'package:clubbar_terminal/providers/locale_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
@@ -20,8 +18,6 @@ import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/repository/sync_repository.dart';
-import 'package:clubbar_terminal/models/sync_response.dart';
-import 'package:clubbar_terminal/models/transaction_sync_response.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/services/members_service.dart';
 import 'package:clubbar_terminal/services/products_service.dart';
@@ -167,33 +163,24 @@ class FakeNetworkService extends NetworkService {
   Future<bool> checkHealth() async => true;
 
   @override
-  Future<MembersSyncResponse?> syncMembers({int? since, String? ifNoneMatch}) async =>
-      MembersSyncResponse(members: []);
+  Future<MemberDeltaResponse?> syncMembers({int? since}) async =>
+      MemberDeltaResponse(members: [], cursor: 0, count: 0, hasMore: false);
 
   @override
-  Future<CategoriesSyncResponse?> syncCategories({int? since, String? ifNoneMatch}) async =>
-      CategoriesSyncResponse(categories: []);
+  Future<CategoryDeltaResponse?> syncCategories({int? since}) async =>
+      CategoryDeltaResponse(categories: [], cursor: 0, count: 0, hasMore: false);
 
   @override
-  Future<ProductsSyncResponse?> syncProducts({int? since, String? ifNoneMatch}) async =>
-      ProductsSyncResponse(products: []);
+  Future<ProductDeltaResponse?> syncProducts({int? since}) async =>
+      ProductDeltaResponse(products: [], cursor: 0, count: 0, hasMore: false);
 
   @override
-  Future<TransactionSyncResponse> syncTransactions(List<Map<String, dynamic>> transactions) async =>
-      TransactionSyncResponse(
+  Future<TransactionBatchResponse> syncTransactions(List<Map<String, dynamic>> transactions) async =>
+      TransactionBatchResponse(
         acceptedIds: transactions.map((t) => t['id']?.toString() ?? '').toList(),
-        rejected: TransactionSyncRejected(count: 0, errors: []),
+        rejected: const TransactionBatchResponse$Rejected(),
         memberBalances: {},
       );
-
-  @override
-  Future<dynamic> patch(String endpoint, Map<String, dynamic> body) async => {};
-
-  @override
-  Future<dynamic> get(String endpoint) async => {};
-
-  @override
-  Future<dynamic> post(String endpoint, Map<String, dynamic> body) async => {};
 }
 
 /// Creates an in-memory [ClubBarDatabase] seeded with minimal test data:
@@ -202,45 +189,44 @@ class FakeNetworkService extends NetworkService {
 /// - 1 member ("Test Member" with card UID "test-card-001")
 Future<ClubBarDatabase> createTestDatabase() async {
   final db = ClubBarDatabase.forTesting(NativeDatabase.memory());
-
   final productsRepo = ProductsRepository(db);
   final membersRepo = MembersRepository(db);
 
   await productsRepo.upsertCategories([
-    CategoryDTO(
+    Category(
       id: 'int-cat-1',
       names: {'de': 'Getränke', 'en': 'Drinks'},
       isActive: true,
-      iconName: 'CategoryDrinksIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
   ]);
 
   await productsRepo.upsertProducts([
-    ProductDTO(
+    Product(
       id: 'int-prod-1',
       categoryId: 'int-cat-1',
       names: {'de': 'Pils 0,5l', 'en': 'Pils 0.5l'},
       descriptions: null,
       priceCents: 350,
       isActive: true,
-      iconName: 'PilsIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    ProductDTO(
+    Product(
       id: 'int-prod-2',
       categoryId: 'int-cat-1',
       names: {'de': 'Wasser 0,33l', 'en': 'Water 0.33l'},
       descriptions: null,
       priceCents: 150,
       isActive: true,
-      iconName: 'WaterSmallIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
   ]);
 
   await membersRepo.upsertMembers([
-    MemberDTO(
+    Member(
       id: 'int-member-1',
       cardUid: 'test-card-001',
       firstName: 'Test',
@@ -248,7 +234,8 @@ Future<ClubBarDatabase> createTestDatabase() async {
       preferredLanguage: 'de',
       isActive: true,
       isSepaValid: true,
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
   ]);
 

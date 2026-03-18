@@ -13,9 +13,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:clubbar_terminal/database/database.dart';
-import 'package:clubbar_terminal/models/category_dto.dart';
-import 'package:clubbar_terminal/models/member_dto.dart';
-import 'package:clubbar_terminal/models/product_dto.dart';
+import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
@@ -66,157 +64,157 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
   final membersRepo = MembersRepository(db);
 
   await productsRepo.upsertCategories([
-    CategoryDTO(
+    Category(
       id: 'wt-cat-drinks',
       names: {'de': 'Getränke', 'en': 'Drinks'},
       isActive: true,
-      iconName: 'PilsIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    CategoryDTO(
+    Category(
       id: 'wt-cat-snacks',
       names: {'de': 'Snacks', 'en': 'Snacks'},
       isActive: true,
-      iconName: 'CoffeeMugIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    CategoryDTO(
+    Category(
       id: 'wt-cat-sauna',
       names: {'de': 'Sauna', 'en': 'Sauna'},
       isActive: true,
-      iconName: 'SaunaTokenIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
   ]);
 
   await productsRepo.upsertProducts([
     // -- Drinks --
-    ProductDTO(
+    Product(
       id: 'wt-prod-pils',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Pils 0,5l', 'en': 'Pils 0.5l'},
       descriptions: null,
       priceCents: 350,
       isActive: true,
-      iconName: 'PilsIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    ProductDTO(
+    Product(
       id: 'wt-prod-weizen',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Weizen 0,5l', 'en': 'Weizen 0.5l'},
       descriptions: null,
       priceCents: 380,
       isActive: true,
-      iconName: 'WeizenIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    ProductDTO(
+    Product(
       id: 'wt-prod-radler',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Radler 0,5l', 'en': 'Radler 0.5l'},
       descriptions: null,
       priceCents: 300,
       isActive: true,
-      iconName: 'RadlerIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    ProductDTO(
+    Product(
       id: 'wt-prod-water',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Wasser 0,33l', 'en': 'Water 0.33l'},
       descriptions: null,
       priceCents: 150,
       isActive: true,
-      iconName: 'WaterSmallIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    ProductDTO(
+    Product(
       id: 'wt-prod-apfelschorle',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Apfelschorle', 'en': 'Apple Spritzer'},
       descriptions: null,
       priceCents: 200,
       isActive: true,
-      iconName: 'ApfelschorleIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    ProductDTO(
+    Product(
       id: 'wt-prod-coffee',
       categoryId: 'wt-cat-drinks',
       names: {'de': 'Kaffee', 'en': 'Coffee'},
       descriptions: null,
       priceCents: 200,
       isActive: true,
-      iconName: 'CoffeeMugIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
     // -- Snacks --
-    ProductDTO(
+    Product(
       id: 'wt-prod-pretzel',
       categoryId: 'wt-cat-snacks',
       names: {'de': 'Brezel', 'en': 'Pretzel'},
       descriptions: null,
       priceCents: 250,
       isActive: true,
-      iconName: 'PilsIcon', // fallback icon
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    ProductDTO(
+    Product(
       id: 'wt-prod-nuts',
       categoryId: 'wt-cat-snacks',
       names: {'de': 'Erdnüsse', 'en': 'Peanuts'},
       descriptions: null,
       priceCents: 150,
       isActive: true,
-      iconName: 'PilsIcon', // fallback icon
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    ProductDTO(
+    Product(
       id: 'wt-prod-chips',
       categoryId: 'wt-cat-snacks',
       names: {'de': 'Chips', 'en': 'Chips'},
       descriptions: null,
       priceCents: 200,
       isActive: true,
-      iconName: 'PilsIcon', // fallback icon
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
     // -- Sauna --
-    ProductDTO(
+    Product(
       id: 'wt-prod-sauna-session',
       categoryId: 'wt-cat-sauna',
       names: {'de': 'Sauna-Session', 'en': 'Sauna Session'},
       descriptions: null,
       priceCents: 500,
       isActive: true,
-      iconName: 'SaunaTimeIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    ProductDTO(
+    Product(
       id: 'wt-prod-sauna-towel',
       categoryId: 'wt-cat-sauna',
       names: {'de': 'Handtuch-Verleih', 'en': 'Towel Rental'},
       descriptions: null,
       priceCents: 200,
       isActive: true,
-      iconName: 'SaunaTowelIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
-    ProductDTO(
+    Product(
       id: 'wt-prod-sauna-aufguss',
       categoryId: 'wt-cat-sauna',
       names: {'de': 'Aufguss-Event', 'en': 'Infusion Event'},
       descriptions: null,
       priceCents: 300,
       isActive: true,
-      iconName: 'SaunaAufgussIcon',
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
   ]);
 
   await membersRepo.upsertMembers([
-    MemberDTO(
+    Member(
       id: 'wt-member-1',
       cardUid: 'walkthrough-card-001',
       firstName: 'Jane',
@@ -224,7 +222,8 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
       preferredLanguage: 'de',
       isActive: true,
       isSepaValid: true,
-      updatedAt: '2025-02-01T10:00:00Z',
+      createdAt: DateTime.parse('2025-02-01T10:00:00Z'),
+      updatedAt: DateTime.parse('2025-02-01T10:00:00Z'),
     ),
   ]);
 
