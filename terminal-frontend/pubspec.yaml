@@ -67,6 +67,7 @@ dev_dependencies:
   build_runner: ^2.10.5
   swagger_dart_code_generator: 4.1.1
   json_serializable: ^6.8.0
+  chopper_generator: ^8.0.0
 
   # Testing (note: flutter_test pins test_api, use compatible test version)
   mocktail: ^1.0.4

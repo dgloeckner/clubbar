@@ -1,86 +1,95 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:chopper/chopper.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import '../config/app_config.dart';
-import '../models/sync_response.dart';
-import '../models/transaction_sync_response.dart';
-
-/// Response wrapper that includes HTTP metadata
-class HttpResponse<T> {
-  final int statusCode;
-  final T? data;
-  final bool notModified;
-
-  HttpResponse({
-    required this.statusCode,
-    this.data,
-    this.notModified = false,
-  });
-}
+import '../generated/terminal.swagger.dart';
+import 'token_interceptor.dart';
 
 class NetworkService {
   String _baseUrl;
-  String? _authToken;
   final Logger _logger;
+  final TokenInterceptor _tokenInterceptor;
+
+  late Terminal _api;
 
   NetworkService({required String baseUrl, Logger? logger})
       : _baseUrl = baseUrl,
-        _logger = logger ?? Logger();
+        _logger = logger ?? Logger(),
+        _tokenInterceptor = TokenInterceptor() {
+    _buildClient();
+  }
 
   String get baseUrl => _baseUrl;
 
-  /// Update the base URL at runtime if needed
+  /// Rebuild the Chopper Terminal service when the base URL changes.
+  /// ChopperClient is immutable, so a new service is created on URL change.
+  void _buildClient() {
+    _api = Terminal.create(
+      baseUrl: Uri.parse(_baseUrl),
+      interceptors: [_tokenInterceptor],
+    );
+  }
+
+  /// Update the base URL at runtime (rebuilds the ChopperClient).
   void setBaseUrl(String baseUrl) {
     _baseUrl = baseUrl;
+    _buildClient();
   }
 
-  /// Set authentication token
+  /// Set authentication token.
   void setAuthToken(String? token) {
-    _authToken = token;
+    _tokenInterceptor.token = token;
   }
 
-  /// Get authentication token
+  /// Get authentication token.
   String? getAuthToken() {
-    return _authToken;
+    return _tokenInterceptor.token;
   }
 
-  /// Build HTTP headers with auth token if available
-  Map<String, String> _buildHeaders() {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-    };
-
-    if (_authToken != null) {
-      headers['Authorization'] = 'Bearer $_authToken';
-    }
-
-    return headers;
+  /// Clear authentication token (for logout).
+  void clearAuthToken() {
+    _tokenInterceptor.token = null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Health
+  // ---------------------------------------------------------------------------
 
   /// Check if the backend is reachable via the health endpoint.
   /// Returns true on 2xx, false on any exception or non-2xx status.
   Future<bool> checkHealth() async {
     try {
-      final uri = Uri.parse('$_baseUrl${AppConfig.healthEndpoint}');
-      final response = await http
-          .get(uri, headers: _buildHeaders())
+      final response = await _api
+          .healthGet()
           .timeout(AppConfig.healthCheckTimeout);
-      return response.statusCode >= 200 && response.statusCode < 300;
+      return response.isSuccessful;
     } catch (_) {
       return false;
     }
   }
 
   /// Fetch the backend version from the health endpoint.
-  /// Returns the version string or null on failure.
+  ///
+  /// The OAS spec does not include a `version` field in the health response, so
+  /// this method is hand-written: it calls GET /health with a plain HTTP client
+  /// and parses `version` from the raw JSON body.
+  ///
+  /// Returns the version string, or null on failure.
   Future<String?> fetchBackendVersion() async {
     try {
       final uri = Uri.parse('$_baseUrl${AppConfig.healthEndpoint}');
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      final token = _tokenInterceptor.token;
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
       final response = await http
-          .get(uri, headers: _buildHeaders())
+          .get(uri, headers: headers)
           .timeout(AppConfig.healthCheckTimeout);
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         return data['version'] as String?;
       }
       return null;
@@ -89,212 +98,276 @@ class NetworkService {
     }
   }
 
-  /// GET request
-  Future<dynamic> get(String endpoint) async {
-    try {
-      final uri = Uri.parse('$_baseUrl$endpoint');
-      final response = await http.get(uri, headers: _buildHeaders());
-      _logger.d('GET $endpoint -> HTTP ${response.statusCode}');
-      return _handleResponse(response);
-    } catch (e) {
-      throw NetworkException('GET request failed: $e');
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // Delta sync — members
+  // ---------------------------------------------------------------------------
 
-  /// GET request with full HTTP response info (for sync endpoints)
-  Future<HttpResponse<dynamic>> getWithStatus(String endpoint, {Map<String, String>? extraHeaders}) async {
+  /// Sync members endpoint.
+  ///
+  /// [since] — Unix timestamp for delta sync (only items modified after this
+  /// time). Pass null or 0 for a full sync.
+  ///
+  /// Returns null if the server returns 304 Not Modified.
+  Future<MemberDeltaResponse?> syncMembers({int? since}) async {
     try {
-      final uri = Uri.parse('$_baseUrl$endpoint');
-      final headers = _buildHeaders();
-      if (extraHeaders != null) {
-        headers.addAll(extraHeaders);
-      }
-      final response = await http.get(uri, headers: headers);
-      _logger.i('GET $endpoint -> HTTP ${response.statusCode} (${response.contentLength ?? response.body.length} bytes)');
+      final response = await _api.syncMembersGet(since: since);
+      _logger.i('GET /sync/members -> HTTP ${response.statusCode}');
 
-      // Handle 304 Not Modified
       if (response.statusCode == 304) {
-        return HttpResponse(statusCode: 304, notModified: true);
+        _logger.i('Members: 304 Not Modified');
+        return null;
       }
 
-      return HttpResponse(
-        statusCode: response.statusCode,
-        data: _handleResponse(response),
-      );
+      if (!response.isSuccessful) {
+        throw NetworkException(
+          'Sync members failed: HTTP ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+
+      return response.body;
     } catch (e) {
-      throw NetworkException('GET request failed: $e');
+      if (e is NetworkException) rethrow;
+      throw NetworkException('Sync members failed: $e');
     }
   }
 
-  /// POST request
-  Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
+  // ---------------------------------------------------------------------------
+  // Delta sync — categories
+  // ---------------------------------------------------------------------------
+
+  /// Sync categories endpoint.
+  ///
+  /// [since] — Unix timestamp for delta sync. Pass null or 0 for a full sync.
+  ///
+  /// Returns null if the server returns 304 Not Modified.
+  Future<CategoryDeltaResponse?> syncCategories({int? since}) async {
     try {
-      final uri = Uri.parse('$_baseUrl$endpoint');
-      final response = await http.post(
-        uri,
-        headers: _buildHeaders(),
-        body: jsonEncode(body),
-      );
-      return _handleResponse(response);
+      final response = await _api.syncCategoriesGet(since: since);
+      _logger.i('GET /sync/categories -> HTTP ${response.statusCode}');
+
+      if (response.statusCode == 304) {
+        _logger.i('Categories: 304 Not Modified');
+        return null;
+      }
+
+      if (!response.isSuccessful) {
+        throw NetworkException(
+          'Sync categories failed: HTTP ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+
+      return response.body;
     } catch (e) {
-      throw NetworkException('POST request failed: $e');
+      if (e is NetworkException) rethrow;
+      throw NetworkException('Sync categories failed: $e');
     }
   }
 
-  /// PUT request
-  Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
+  // ---------------------------------------------------------------------------
+  // Delta sync — products
+  // ---------------------------------------------------------------------------
+
+  /// Sync products endpoint.
+  ///
+  /// [since] — Unix timestamp for delta sync. Pass null or 0 for a full sync.
+  ///
+  /// Returns null if the server returns 304 Not Modified.
+  Future<ProductDeltaResponse?> syncProducts({int? since}) async {
     try {
-      final uri = Uri.parse('$_baseUrl$endpoint');
-      final response = await http.put(
-        uri,
-        headers: _buildHeaders(),
-        body: jsonEncode(body),
-      );
-      return _handleResponse(response);
+      final response = await _api.syncProductsGet(since: since);
+      _logger.i('GET /sync/products -> HTTP ${response.statusCode}');
+
+      if (response.statusCode == 304) {
+        _logger.i('Products: 304 Not Modified');
+        return null;
+      }
+
+      if (!response.isSuccessful) {
+        throw NetworkException(
+          'Sync products failed: HTTP ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+
+      return response.body;
     } catch (e) {
-      throw NetworkException('PUT request failed: $e');
+      if (e is NetworkException) rethrow;
+      throw NetworkException('Sync products failed: $e');
     }
   }
 
-  /// PATCH request
+  // ---------------------------------------------------------------------------
+  // Sync transactions (POST batch upload)
+  // ---------------------------------------------------------------------------
+
+  /// Sync transactions endpoint (POST batch upload).
+  ///
+  /// Accepts a list of raw transaction maps (as built by SyncService) and
+  /// returns a [TransactionBatchResponse].
+  ///
+  /// **PHP compatibility**: PHP's `json_encode` returns `[]` for empty arrays
+  /// and `{}` for objects. The `member_balances` field can arrive as either.
+  /// The generated [TransactionBatchResponse.fromJson] cannot handle `[]`, so
+  /// this method decodes the raw response body manually and applies the same
+  /// defensive logic as the old `TransactionSyncResponse.fromJson`.
+  Future<TransactionBatchResponse> syncTransactions(
+    List<Map<String, dynamic>> transactions,
+  ) async {
+    try {
+      // Build the typed request body from the raw maps.
+      final txList = transactions.map((t) {
+        return Transaction(
+          id: t['id'] as String,
+          memberId: t['member_id'] as String,
+          productId: t['product_id'] as String,
+          amountCents: (t['amount_cents'] as num).toInt(),
+          createdAt: DateTime.parse(t['created_at'] as String),
+        );
+      }).toList();
+
+      final requestBody = TransactionBatchRequest(transactions: txList);
+      final response = await _api.syncTransactionsPost(body: requestBody);
+
+      _logger.i('POST /sync/transactions -> HTTP ${response.statusCode}');
+
+      if (!response.isSuccessful) {
+        throw NetworkException(
+          'Sync transactions failed: HTTP ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+
+      // Decode raw body manually to apply PHP [] vs {} compatibility fix.
+      // The generated fromJson will throw if member_balances is [] (empty array).
+      final rawBody = response.bodyString;
+      final json = jsonDecode(rawBody) as Map<String, dynamic>;
+
+      // accepted_ids
+      final rawAccepted = json['accepted_ids'] as List<dynamic>? ?? [];
+      final acceptedIds = rawAccepted
+          .where((id) => id != null)
+          .map((id) => id.toString())
+          .toList();
+
+      // PHP json_encode returns [] for empty arrays and {} for objects.
+      // Handle both Map and List (empty array) for member_balances.
+      final balancesRaw = json['member_balances'];
+      final Map<String, dynamic> memberBalances;
+      if (balancesRaw is Map) {
+        memberBalances = Map<String, dynamic>.from(balancesRaw);
+      } else {
+        memberBalances = {};
+      }
+
+      // PHP json_encode returns [] for empty arrays and {} for objects.
+      // Handle both Map and List (empty array) for rejected.
+      final rejectedRaw = json['rejected'];
+      final TransactionBatchResponse$Rejected rejected;
+      if (rejectedRaw is Map<String, dynamic>) {
+        rejected = TransactionBatchResponse$Rejected.fromJson(rejectedRaw);
+      } else {
+        rejected = const TransactionBatchResponse$Rejected();
+      }
+
+      return TransactionBatchResponse(
+        acceptedIds: acceptedIds,
+        rejected: rejected,
+        memberBalances: memberBalances,
+      );
+    } catch (e) {
+      if (e is NetworkException) rethrow;
+      throw NetworkException('Sync transactions failed: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Transaction history (on-demand)
+  // ---------------------------------------------------------------------------
+
+  /// Fetch recent transaction history for a member.
+  ///
+  /// Returns null on 304 Not Modified.
+  /// Throws [NetworkException] on non-2xx responses.
+  Future<TransactionHistoryResponse?> getTransactionHistory(
+    String memberId, {
+    int limit = 50,
+  }) async {
+    try {
+      final response = await _api.transactionsMemberIdGet(
+        memberId: memberId,
+        limit: limit,
+      );
+
+      _logger.i('GET /transactions/$memberId -> HTTP ${response.statusCode}');
+
+      if (response.statusCode == 304) {
+        return null;
+      }
+
+      if (!response.isSuccessful) {
+        throw NetworkException(
+          'Get transaction history failed: HTTP ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+
+      return response.body;
+    } catch (e) {
+      if (e is NetworkException) rethrow;
+      throw NetworkException('Get transaction history failed: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Generic HTTP helpers (kept for backward-compatibility with callers that
+  // have not yet been migrated to the generated Chopper service methods)
+  // ---------------------------------------------------------------------------
+
+  /// PATCH request (generic, for callers not yet migrated to generated methods).
   Future<dynamic> patch(String endpoint, Map<String, dynamic> body) async {
     try {
       final uri = Uri.parse('$_baseUrl$endpoint');
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      final token = _tokenInterceptor.token;
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
       final response = await http.patch(
         uri,
-        headers: _buildHeaders(),
+        headers: headers,
         body: jsonEncode(body),
       );
-      return _handleResponse(response);
+      return _handleRawResponse(response);
     } catch (e) {
+      if (e is NetworkException) rethrow;
       throw NetworkException('PATCH request failed: $e');
     }
   }
 
-  /// DELETE request
-  Future<dynamic> delete(String endpoint) async {
-    try {
-      final uri = Uri.parse('$_baseUrl$endpoint');
-      final response = await http.delete(uri, headers: _buildHeaders());
-      return _handleResponse(response);
-    } catch (e) {
-      throw NetworkException('DELETE request failed: $e');
-    }
-  }
-
-  /// Handle HTTP response - throw on non-2xx status codes
-  dynamic _handleResponse(http.Response response) {
+  /// Handle a raw [http.Response]: decode JSON and throw on non-2xx.
+  dynamic _handleRawResponse(http.Response response) {
     try {
       final decoded = jsonDecode(response.body);
-
-      // Status code 2xx is success
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return decoded;
       }
-
-      // Status code 4xx or 5xx is error — include full response body for debugging
-      final errorMessage = decoded['message'] ?? 'HTTP ${response.statusCode}';
+      final errorMessage =
+          (decoded is Map ? decoded['message'] : null) ??
+          'HTTP ${response.statusCode}';
       throw NetworkException(
         '$errorMessage | Body: ${response.body}',
         statusCode: response.statusCode,
       );
     } catch (e) {
-      if (e is NetworkException) {
-        rethrow;
-      }
+      if (e is NetworkException) rethrow;
       throw NetworkException('Failed to parse response: $e');
     }
   }
-
-  /// Build endpoint URL with optional since parameter
-  String _buildSyncEndpoint(String endpoint, {int? since}) {
-    if (since != null && since > 0) {
-      return '$endpoint?since=$since';
-    }
-    return endpoint;
-  }
-
-  /// Sync members endpoint
-  /// [since] - Unix timestamp for delta sync (only items modified after this time)
-  /// Returns null if server returns 304 Not Modified
-  Future<MembersSyncResponse?> syncMembers({int? since, String? ifNoneMatch}) async {
-    try {
-      final headers = ifNoneMatch != null ? {'If-None-Match': ifNoneMatch} : null;
-      final endpoint = _buildSyncEndpoint(AppConfig.syncEndpointMembers, since: since);
-      final response = await getWithStatus(endpoint, extraHeaders: headers);
-
-      if (response.notModified) {
-        _logger.i('Members: 304 Not Modified');
-        return null;
-      }
-
-      return MembersSyncResponse.fromJson(response.data);
-    } catch (e) {
-      throw NetworkException('Sync members failed: $e');
-    }
-  }
-
-  /// Sync categories endpoint
-  /// [since] - Unix timestamp for delta sync (only items modified after this time)
-  /// Returns null if server returns 304 Not Modified
-  Future<CategoriesSyncResponse?> syncCategories({int? since, String? ifNoneMatch}) async {
-    try {
-      final headers = ifNoneMatch != null ? {'If-None-Match': ifNoneMatch} : null;
-      final endpoint = _buildSyncEndpoint(AppConfig.syncEndpointCategories, since: since);
-      final response = await getWithStatus(endpoint, extraHeaders: headers);
-
-      if (response.notModified) {
-        _logger.i('Categories: 304 Not Modified');
-        return null;
-      }
-
-      return CategoriesSyncResponse.fromJson(response.data);
-    } catch (e) {
-      throw NetworkException('Sync categories failed: $e');
-    }
-  }
-
-  /// Sync products endpoint
-  /// [since] - Unix timestamp for delta sync (only items modified after this time)
-  /// Returns null if server returns 304 Not Modified
-  Future<ProductsSyncResponse?> syncProducts({int? since, String? ifNoneMatch}) async {
-    try {
-      final headers = ifNoneMatch != null ? {'If-None-Match': ifNoneMatch} : null;
-      final endpoint = _buildSyncEndpoint(AppConfig.syncEndpointProducts, since: since);
-      final response = await getWithStatus(endpoint, extraHeaders: headers);
-
-      if (response.notModified) {
-        _logger.i('Products: 304 Not Modified');
-        return null;
-      }
-
-      return ProductsSyncResponse.fromJson(response.data);
-    } catch (e) {
-      throw NetworkException('Sync products failed: $e');
-    }
-  }
-
-  /// Sync transactions endpoint (POST batch upload)
-  Future<TransactionSyncResponse> syncTransactions(
-      List<Map<String, dynamic>> transactions) async {
-    try {
-      final response = await post(
-        AppConfig.syncEndpointTransactions,
-        {'transactions': transactions},
-      );
-      return TransactionSyncResponse.fromJson(response);
-    } catch (e) {
-      throw NetworkException('Sync transactions failed: $e');
-    }
-  }
-
-  /// Clear auth token (for logout)
-  void clearAuthToken() {
-    _authToken = null;
-  }
 }
 
-/// Network exception for API errors
+/// Network exception for API errors.
 class NetworkException implements Exception {
   final String message;
   final int? statusCode;
@@ -302,5 +375,7 @@ class NetworkException implements Exception {
   NetworkException(this.message, {this.statusCode});
 
   @override
-  String toString() => 'NetworkException: $message ${statusCode != null ? '(HTTP $statusCode)' : ''}';
+  String toString() =>
+      'NetworkException: $message'
+      '${statusCode != null ? ' (HTTP $statusCode)' : ''}';
 }
