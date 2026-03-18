@@ -20,12 +20,25 @@ declare(strict_types=1);
 $configFile = __DIR__ . '/config.php';
 $isInstalled = file_exists($configFile);
 $isUpdate = isset($_GET['update']);
+$keyFile = __DIR__ . '/.install-key';
 
-// --- Handle AJAX DB test (before any HTML output or guards) ---
-// Must come before the "already installed" guard because the AJAX request
-// doesn't include step/update params and would otherwise be blocked.
+session_start();
+
+// --- Handle reset ---
+if (isset($_GET['action']) && $_GET['action'] === 'reset') {
+    session_destroy();
+    header('Location: install.php');
+    exit;
+}
+
+// --- Handle AJAX DB test (session-protected) ---
+// Must come before the key gate HTML output, but still requires a verified session.
 if (isset($_GET['action']) && $_GET['action'] === 'test_db') {
     header('Content-Type: application/json');
+    if (empty($_SESSION['install_key_verified'])) {
+        echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+        exit;
+    }
     try {
         $testPdo = new PDO(
             sprintf(
@@ -43,6 +56,34 @@ if (isset($_GET['action']) && $_GET['action'] === 'test_db') {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
     exit;
+}
+
+// --- Install key gate ---
+// Generate .install-key on first access if it does not exist yet.
+// The user must retrieve it from the server (FTP / cPanel / SSH) and paste it
+// into the form below. This proves they have server access — not just the URL.
+// The key is deleted after a successful installation; the next installer run
+// (e.g. to apply migrations after an update) will generate a fresh key.
+if (!file_exists($keyFile)) {
+    file_put_contents($keyFile, bin2hex(random_bytes(16)));
+}
+
+if (empty($_SESSION['install_key_verified'])) {
+    $keyError = null;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['install_key'])) {
+        $provided = trim($_POST['install_key']);
+        $stored   = trim((string) file_get_contents($keyFile));
+        if ($stored !== '' && hash_equals($stored, $provided)) {
+            $_SESSION['install_key_verified'] = true;
+        } else {
+            $keyError = 'Invalid install key. Check the contents of .install-key on your server.';
+        }
+    }
+
+    if (empty($_SESSION['install_key_verified'])) {
+        renderKeyGate($keyError);
+        exit;
+    }
 }
 
 // --- Already installed? ---
@@ -162,6 +203,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'Migration failed: ' . ($failedEntry['message'] ?? 'unknown error');
                 } else {
                     if ($isUpdate) {
+                        // Update complete — delete the key so the next run requires a fresh fetch
+                        @unlink($keyFile);
                         header('Location: ?step=4&update=1');
                     } else {
                         header('Location: ?step=4');
@@ -227,6 +270,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 $stmt->execute([$id, $email, $hashedPassword]);
 
+                // Installation complete — delete the key so the next installer run requires a fresh fetch
+                @unlink($keyFile);
                 header('Location: ?step=5');
                 exit;
             } catch (\PDOException $e) {
@@ -305,6 +350,42 @@ function checkPrerequisites(): array
     }
 
     return $checks;
+}
+
+function renderKeyGate(?string $error): void
+{
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Club Bar - Installer</title>
+        <style><?php echo getStyles(); ?></style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Club Bar</h1>
+            <?php if ($error): ?>
+                <div class="error"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
+            <div class="card">
+                <h2>Install Key Required</h2>
+                <p>A one-time install key has been written to <code>.install-key</code> in your document root.</p>
+                <p>Retrieve it via <strong>FTP</strong>, <strong>cPanel File Manager</strong>, or <strong>SSH</strong>, then paste it below to continue.</p>
+                <form method="post" action="install.php">
+                    <label>
+                        Install Key
+                        <input type="text" name="install_key" required autofocus autocomplete="off"
+                               placeholder="Paste the contents of .install-key">
+                    </label>
+                    <button type="submit" class="btn">Verify &amp; Continue</button>
+                </form>
+            </div>
+        </div>
+    </body>
+    </html>
+    <?php
 }
 
 function showAlreadyInstalled(): void
@@ -388,6 +469,7 @@ function renderPage(string $step, ?string $error, bool $isUpdate): void
             }
             ?>
             </div>
+            <p class="reset-link"><small><a href="?action=reset">Start over</a></small></p>
         </div>
     </body>
     </html>
@@ -556,8 +638,6 @@ function renderStep5(): void
     <h2>Installation Complete!</h2>
     <p>Club Bar has been installed successfully. You can now log in with the admin account you just created.</p>
     <a href="/" class="btn">Go to Admin Panel</a>
-    <hr>
-    <p><small>For security, consider deleting or renaming <code>install.php</code> after installation.</small></p>
     <?php
 }
 
@@ -743,6 +823,13 @@ code {
     border-radius: 3px;
     font-size: 13px;
 }
+.reset-link {
+    text-align: center;
+    color: #9ca3af;
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+.reset-link a { color: #9ca3af; }
 @media (max-width: 640px) {
     .container { margin: 20px auto; }
     .card { padding: 20px; }
