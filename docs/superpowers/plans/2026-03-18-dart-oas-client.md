@@ -6,7 +6,7 @@
 
 **Architecture:** `swagger_dart_code_generator` (a build_runner plugin) reads `api/terminal.yaml` and generates typed Dart model classes and a Chopper-based API client into `lib/generated/`. A rewritten `NetworkService` wraps the generated client, preserving the existing public API for the rest of the app (304 handling, bearer token injection via `TokenInterceptor`, delta sync parameters, `NetworkException` translation). All hand-written DTO files are deleted after all consumers are migrated.
 
-**Tech Stack:** Flutter/Dart, `swagger_dart_code_generator` (latest stable), `chopper ^8.0.0`, `json_annotation ^4.9.0`, `json_serializable ^6.8.0` (dev), `build_runner ^2.10.5` (already present)
+**Tech Stack:** Flutter/Dart, `swagger_dart_code_generator` (latest stable), `chopper ^8.0.0`, `json_annotation ^4.9.0`, `json_serializable ^6.8.0` (dev), `chopper_generator ^8.0.0` (dev — required for Chopper v8's code-generation annotations), `build_runner ^2.10.5` (already present)
 
 ---
 
@@ -50,6 +50,7 @@ Field names are camelCase from snake_case: `card_uid` → `cardUid`, `price_cent
 - `terminal-frontend/lib/repository/products_repository.dart` — update `ProductDTO`/`CategoryDTO` → `Product`/`Category`
 - `terminal-frontend/lib/providers/rfid_provider.dart` — update `MemberDTO` → `Member`
 - `terminal-frontend/lib/services/mock_rfid_service.dart` — update `MemberDTO` → `Member`
+- `terminal-frontend/lib/services/members_service.dart` — migrate `updateLanguage()` from `network.patch()` to typed `NetworkService.updateMemberLanguage()` call (the generic `patch()` method will be removed when this is done)
 - `terminal-frontend/lib/main.dart` — update DTO constructors to generated types
 - `terminal-frontend/lib/widgets/member_details_modal.dart` — pass `NetworkService` not `baseUrl`/`authToken`
 - `terminal-frontend/test/models_test.dart` — rewrite for generated types
@@ -120,24 +121,45 @@ Expected: Clean resolution, no conflicts with `build_runner: ^2.10.5` or `drift_
 
 **Files:**
 - Create: `terminal-frontend/build.yaml`
+- Create: `terminal-frontend/openapi/` directory with symlink to `terminal.yaml`
 
-- [ ] **Step 1: Create the file**
+> **⚠️ Implementation note (verified during execution):** `build_runner` rejects `input_folder` paths that point outside the package root (`../api/` fails). Solution: create a dedicated `terminal-frontend/openapi/` directory containing a symlink `terminal.yaml -> ../../api/terminal.yaml`, then set `input_folder: "openapi/"`. This also prevents `admin.yaml` from being processed. Additionally, `output_folder` is required (not optional), and `use_default_null_for_lists` was removed in generator v4 — use `classes_with_nullable_lists: [".*"]` instead.
+
+- [x] **Step 1: Create the `openapi/` symlink directory**
+
+```bash
+cd terminal-frontend
+mkdir -p openapi
+ln -s ../../api/terminal.yaml openapi/terminal.yaml
+```
+
+- [x] **Step 2: Create the `build.yaml` file**
 
 ```yaml
 targets:
   $default:
+    sources:
+      - lib/**
+      - openapi/**
+      - $package$
     builders:
       swagger_dart_code_generator:
         options:
-          input_folder: "../api/"
+          input_folder: "openapi/"
+          output_folder: "lib/generated/"
           with_base_url: false
-          use_default_null_for_lists: true
+          classes_with_nullable_lists:
+            - ".*"
           build_only_models: false
 ```
 
-`input_folder: "../api/"` is relative to `terminal-frontend/` and resolves to the repo-root `api/` directory. `swagger_dart_code_generator` processes **all YAML files** in this directory, which means both `terminal.yaml` and `admin.yaml` will be processed. This is acceptable: the admin API client types will be generated but are never imported or used — they add no runtime overhead. Do not add `input_file` — it is not a valid configuration key for this generator.
+Notes:
+- `input_folder: "openapi/"` — symlinked directory containing only `terminal.yaml`; `build_runner` cannot use paths outside the package root
+- `output_folder: "lib/generated/"` — required by the generator (not optional)
+- `classes_with_nullable_lists` — replaces removed `use_default_null_for_lists` option in v4
+- `sources:` block — required to make `build_runner` see the `openapi/` symlink as a source
 
-- [ ] **Step 2: Add `lib/generated/` to `.gitignore`**
+- [x] **Step 3: Add `lib/generated/` to `.gitignore`**
 
 Add to `terminal-frontend/.gitignore`:
 
@@ -173,9 +195,9 @@ Note the generated file names. Typical output includes a models file and a servi
 
 Open the generated file(s) and confirm the class names match the table in the "Important: Generated Type Names" section above. If names differ (e.g., generator uses `MemberItem` instead of `Member`), update the field in the table and all subsequent tasks to use the actual names.
 
-- [ ] **Step 4: Note the generated Chopper service class name**
+- [x] **Step 4: Note the generated Chopper service class name**
 
-The service class (the Chopper client) will have a name based on the OAS title ("Club Bar - Terminal API"). Note the exact class name — you will need it in Task 5 when rewriting `NetworkService`.
+The service class is `Terminal` (`abstract class Terminal extends ChopperService`). Import from `lib/generated/terminal.swagger.dart`. Use it in Task 5 as: `_client.getService<Terminal>()`.
 
 - [ ] **Step 5: Commit setup**
 
@@ -463,6 +485,58 @@ Replace all occurrences of `MemberDTO` with `Member` and update the import.
 
 ```bash
 cd terminal-frontend && dart analyze lib/services/mock_rfid_service.dart
+```
+
+---
+
+### Task 9b: Update `members_service.dart` — migrate `updateLanguage`
+
+**Files:**
+- Modify: `terminal-frontend/lib/services/members_service.dart`
+
+`MembersService.updateLanguage()` currently calls the generic `network.patch()` helper. This helper exists in the rewritten `NetworkService` as a backward-compatibility bridge but must be removed once all callers are migrated.
+
+- [ ] **Step 1: Add `updateMemberLanguage` method to `NetworkService`**
+
+In `network_service.dart`, add a typed wrapper method:
+
+```dart
+Future<void> updateMemberLanguage(String memberId, String language) async {
+  try {
+    final body = SyncMembersMemberIdLanguagePatch$RequestBody(
+      preferredLanguage: language,
+    );
+    final response = await _api.syncMembersMemberIdLanguagePatch(
+      memberId: memberId,
+      body: body,
+    );
+    if (!response.isSuccessful) {
+      throw NetworkException(
+        response.error?.toString() ?? 'HTTP ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    }
+  } catch (e) {
+    if (e is NetworkException) rethrow;
+    throw NetworkException('Update member language failed: $e');
+  }
+}
+```
+
+Check the generated `terminal.swagger.dart` for the exact method name and request body class name — they may differ from the example above.
+
+- [ ] **Step 2: Update `MembersService.updateLanguage()` to call the typed method**
+
+Replace the `network.patch(...)` call with `network.updateMemberLanguage(memberId, language)`.
+
+- [ ] **Step 3: Remove the `patch()` generic helper from `NetworkService`**
+
+Once this is the only caller, remove `patch()` from `network_service.dart`.
+
+- [ ] **Step 4: Run analysis**
+
+```bash
+cd terminal-frontend && dart analyze lib/services/members_service.dart lib/services/network_service.dart
 ```
 
 ---
