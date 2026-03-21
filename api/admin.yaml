@@ -73,6 +73,8 @@ tags:
     description: Audit trail access
   - name: RFID Cards
     description: Unknown and blocked card management
+  - name: Terminals
+    description: Terminal device management and API token operations
 
 paths:
   # ============================================================================
@@ -198,6 +200,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /auth/profile:
+    get:
+      tags: [Authentication]
+      summary: Get current admin profile
+      description: |
+        Get the profile of the currently authenticated admin user.
+
+        **Use Case**: UC-A03
+      operationId: getProfile
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags: [Authentication]
+      summary: Update current admin profile
+      description: |
+        Update email, display name, or locale for the currently authenticated admin user.
+
+        **Use Case**: UC-A03
+      operationId: updateProfile
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProfile'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   # ============================================================================
   # MEMBERS
@@ -2030,6 +2080,348 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # ============================================================================
+  # TERMINALS
+  # ============================================================================
+  /admin/terminals:
+    get:
+      tags: [Terminals]
+      summary: List terminals
+      operationId: listTerminals
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Terminals list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Terminal'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Terminals]
+      summary: Create terminal
+      operationId: createTerminal
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTerminalRequest'
+      responses:
+        '201':
+          description: Terminal created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TerminalWithToken'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/terminals/{terminalId}:
+    parameters:
+      - name: terminalId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Terminals]
+      summary: Get terminal
+      operationId: getTerminal
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Terminal details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  terminal:
+                    $ref: '#/components/schemas/Terminal'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Terminals]
+      summary: Update terminal
+      operationId: updateTerminal
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTerminalRequest'
+      responses:
+        '200':
+          description: Terminal updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  terminal:
+                    $ref: '#/components/schemas/Terminal'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Terminals]
+      summary: Delete (soft-deactivate) terminal
+      operationId: deleteTerminal
+      security:
+        - sessionAuth: []
+      responses:
+        '204':
+          description: Terminal deactivated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/terminals/{terminalId}/rotate-token:
+    post:
+      tags: [Terminals]
+      summary: Rotate terminal API token
+      operationId: rotateTerminalToken
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: terminalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Token rotated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TerminalWithToken'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/terminals/{terminalId}/revoke:
+    post:
+      tags: [Terminals]
+      summary: Revoke terminal access
+      operationId: revokeTerminalAccess
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: terminalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Access revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # TRANSACTIONS (global journal)
+  # ============================================================================
+  /admin/transactions:
+    get:
+      tags: [Transactions]
+      summary: List all transactions (global journal)
+      operationId: listTransactions
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [purchase, correction]
+        - name: member_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [created_at, amount, type, member]
+            default: created_at
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: settlement_status
+          in: query
+          schema:
+            type: string
+            enum: [open, settled]
+      responses:
+        '200':
+          description: Transactions list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GlobalTransaction'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  per_page:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ============================================================================
+  # SETTLEMENT FILTER ENDPOINTS
+  # ============================================================================
+  /admin/settlements/filter-preview:
+    get:
+      tags: [Settlements]
+      summary: Preview settlement by date filter
+      description: Preview which transactions would be included in a settlement based on date filters
+      operationId: previewSettlementByFilters
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: member_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Filter preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementFilterPreview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/settlements/settle-filter:
+    post:
+      tags: [Settlements]
+      summary: Create settlement by date filter
+      description: Create a settlement for all unsettled transactions matching date filters
+      operationId: createSettlementByFilters
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                settlement_date:
+                  type: string
+                  format: date
+                execution_date:
+                  type: string
+                  format: date
+                date_from:
+                  type: string
+                  format: date
+                date_to:
+                  type: string
+                  format: date
+                search:
+                  type: string
+                member_id:
+                  type: string
+                  format: uuid
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Settlement created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settlement'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /admin/dashboard:
     get:
       summary: Get Dashboard Metrics
@@ -2205,6 +2597,7 @@ components:
 
     LoginResponse:
       type: object
+      required: [admin_id, email, display_name, locale, csrf_token]
       properties:
         admin_id:
           type: string
@@ -2216,6 +2609,9 @@ components:
           type: string
         locale:
           type: string
+        csrf_token:
+          type: string
+          description: CSRF token for subsequent state-changing requests
 
     ChangePasswordRequest:
       type: object
@@ -2232,6 +2628,36 @@ components:
         confirm_password:
           type: string
           format: password
+
+    AdminProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        locale:
+          type: string
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        locale:
+          type: string
+          enum: [de, en]
 
     # --------------------------------------------------------------------------
     # Members
@@ -2857,6 +3283,122 @@ components:
             type: string
             format: uuid
           description: Optional filter to specific members
+
+    SettlementFilterPreview:
+      type: object
+      properties:
+        transaction_count:
+          type: integer
+        member_count:
+          type: integer
+        total_amount_cents:
+          type: integer
+
+    # --------------------------------------------------------------------------
+    # Terminals
+    # --------------------------------------------------------------------------
+    Terminal:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        device_id:
+          type: string
+        is_active:
+          type: boolean
+        last_sync_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_transaction_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTerminalRequest:
+      type: object
+      required: [name, device_id]
+      properties:
+        name:
+          type: string
+        device_id:
+          type: string
+
+    UpdateTerminalRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        is_active:
+          type: boolean
+
+    TerminalWithToken:
+      allOf:
+        - $ref: '#/components/schemas/Terminal'
+        - type: object
+          properties:
+            api_token:
+              type: string
+              description: API token for terminal authentication
+
+    # --------------------------------------------------------------------------
+    # Global Transactions
+    # --------------------------------------------------------------------------
+    GlobalTransaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        member_id:
+          type: string
+          format: uuid
+        member_name:
+          type: string
+        type:
+          type: string
+          enum: [purchase, correction]
+        amount_cents:
+          type: integer
+        description:
+          type: string
+        product_id:
+          type: string
+          format: uuid
+          nullable: true
+        product_name:
+          type: string
+          nullable: true
+        product_names:
+          type: string
+          nullable: true
+          description: JSON string with multilingual product names
+        created_at:
+          type: string
+          format: date-time
+        created_by_admin_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_by_terminal_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_settled:
+          type: boolean
+        settlement_date:
+          type: string
+          format: date
+          nullable: true
 
     # --------------------------------------------------------------------------
     # SEPA Configuration
