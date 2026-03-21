@@ -12,9 +12,9 @@ import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
 import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon } from '../components/icons'
-import { getMembers, createMember, updateMember, exportMemberData, anonymizeMember, Member } from '../services/members'
-import { getDashboardMetrics } from '../services/dashboard'
-import { AxiosError } from 'axios'
+import { getMembers as getMembersFactory } from '../api/generated/members/members'
+import { getDashboard } from '../api/generated/dashboard/dashboard'
+import type { Member, MemberListItem } from '../api/generated'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
@@ -39,7 +39,7 @@ export function MembersPage() {
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
   const { setIsLoading } = useLoading()
-  const [members, setMembers] = useState<Member[]>([])
+  const [members, setMembers] = useState<MemberListItem[]>([])
   const [totalMembers, setTotalMembers] = useState(0)
   const [activeMembersCount, setActiveMembersCount] = useState(0)
   const [totalBalance, setTotalBalance] = useState(0)
@@ -54,7 +54,7 @@ export function MembersPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [filterIsActive, setFilterIsActive] = useState<'all' | 'active' | 'inactive'>('all')
   const [filterCardUid, setFilterCardUid] = useState<'all' | 'with' | 'without'>('all')
-  const [filterSepaStatus, setFilterSepaStatus] = useState<'all' | 'valid' | 'missing'>('all')
+  const [filterSepaStatus, setFilterSepaStatus] = useState<'all' | 'valid' | 'invalid'>('all')
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -71,7 +71,7 @@ export function MembersPage() {
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [anonymizeConfirm, setAnonymizeConfirm] = useState<Member | null>(null)
+  const [anonymizeConfirm, setAnonymizeConfirm] = useState<MemberListItem | null>(null)
 
   const mobileFilterCount = [
     filterIsActive !== 'all' ? 1 : 0,
@@ -131,6 +131,13 @@ export function MembersPage() {
     </div>
   )
 
+  // Build sort_by param from sortKey + sortDirection
+  const buildSortBy = (key: string, dir: 'asc' | 'desc') => {
+    if (key === 'first_name' || key === 'last_name') return dir === 'asc' ? 'name_asc' : 'name_desc'
+    if (key === 'created_at') return dir === 'asc' ? 'created_at_desc' : 'created_at_desc' // API only has created_at_desc
+    return 'created_at_desc'
+  }
+
   // Load members
   useEffect(() => {
     const loadMembers = async () => {
@@ -138,28 +145,20 @@ export function MembersPage() {
         setLoading(true)
         setIsLoading(true)
 
-        // Build filter object
-        const filter: { is_active?: boolean; has_card_uid?: boolean; sepa_status?: 'valid' | 'missing' } = {}
-        if (filterIsActive === 'active') {
-          filter.is_active = true
-        } else if (filterIsActive === 'inactive') {
-          filter.is_active = false
-        }
-        if (filterCardUid === 'with') {
-          filter.has_card_uid = true
-        } else if (filterCardUid === 'without') {
-          filter.has_card_uid = false
-        }
-        if (filterSepaStatus === 'valid') {
-          filter.sepa_status = 'valid'
-        } else if (filterSepaStatus === 'missing') {
-          filter.sepa_status = 'missing'
+        const params: Record<string, unknown> = {
+          page,
+          per_page: 20,
+          sort_by: buildSortBy(sortKey, sortDirection),
         }
 
-        const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
+        if (search) params.search = search
+        if (filterIsActive !== 'all') params.status = filterIsActive
+        if (filterSepaStatus !== 'all') params.sepa_status = filterSepaStatus
 
-        setMembers(response.items)
-        setTotalMembers(response.total)
+        const response = await getMembersFactory().listMembers(params as Parameters<ReturnType<typeof getMembersFactory>['listMembers']>[0])
+
+        setMembers(response.data ?? [])
+        setTotalMembers(response.pagination?.total ?? 0)
 
         setError(null)
       } catch (err) {
@@ -178,13 +177,12 @@ export function MembersPage() {
   useEffect(() => {
     const loadDashboardMetrics = async () => {
       try {
-        const dashboard = await getDashboardMetrics()
-        setActiveMembersCount(dashboard.metrics.active_members)
-        setTotalBalance(dashboard.metrics.outstanding_balance_cents)
-        setLastSettlementDate(dashboard.system_status.last_settlement_date)
-      } catch (err) {
+        const dashboard = await getDashboard().getDashboardMetrics()
+        setActiveMembersCount(dashboard.metrics?.active_members ?? 0)
+        setTotalBalance(dashboard.metrics?.outstanding_balance_cents ?? 0)
+        setLastSettlementDate(dashboard.system_status?.last_settlement_date ?? null)
+      } catch {
         // Silently fail - stats are not critical
-        console.warn('Failed to load dashboard metrics:', err)
       }
     }
 
@@ -193,11 +191,11 @@ export function MembersPage() {
 
   // Handle GDPR data export
   const handleExportData = async () => {
-    if (!editingMember) return
+    if (!editingMember?.id) return
     setExporting(true)
     try {
-      await exportMemberData(editingMember.id)
-    } catch (err) {
+      await getMembersFactory().exportMemberData(editingMember.id, { format: 'json', export_type: 'gdpr_access' })
+    } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to export member data')
     } finally {
       setExporting(false)
@@ -220,26 +218,24 @@ export function MembersPage() {
         return
       }
 
-      // Build payload
-      const payload: any = { ...formData }
-      if (editingMember) {
-        // When editing: explicitly send null to clear card_uid in DB
-        payload.card_uid = formData.card_uid || null
-      } else {
-        // When creating: omit card_uid if empty (backend treats absence as no card)
-        if (!formData.card_uid) {
-          delete payload.card_uid
-        }
-        // When creating: omit mandate_reference if empty so backend auto-generates it
-        if (!formData.mandate_reference) {
-          delete payload.mandate_reference
-        }
+      // Build payload — card_uid is not in the generated MemberCreateRequest/MemberUpdateRequest
+      // so we cast the payload to allow it (backend accepts it even if not in OAS spec)
+      const basePayload = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email || undefined,
+        iban: formData.iban,
+        account_holder_name: formData.account_holder_name || undefined,
+        mandate_reference: formData.mandate_reference || undefined,
+        mandate_signed_at: formData.mandate_signed_at,
+        preferred_language: formData.preferred_language,
       }
 
       if (editingMember) {
-        await updateMember(editingMember.id, payload)
+        if (!editingMember.id) throw new Error('Missing member id')
+        await getMembersFactory().updateMember(editingMember.id, basePayload)
       } else {
-        await createMember(payload)
+        await getMembersFactory().createMember(basePayload as Parameters<ReturnType<typeof getMembersFactory>['createMember']>[0])
       }
 
       // Reset form
@@ -247,41 +243,37 @@ export function MembersPage() {
       setEditingMember(null)
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
 
-      // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
-      const filter: { is_active?: boolean; has_card_uid?: boolean } = {}
-      if (filterIsActive === 'active') {
-        filter.is_active = true
-      } else if (filterIsActive === 'inactive') {
-        filter.is_active = false
+      // Reload members list
+      const reloadParams: Record<string, unknown> = {
+        page,
+        per_page: 20,
+        sort_by: buildSortBy(sortKey, sortDirection),
       }
-      if (filterCardUid === 'with') {
-        filter.has_card_uid = true
-      } else if (filterCardUid === 'without') {
-        filter.has_card_uid = false
-      }
+      if (search) reloadParams.search = search
+      if (filterIsActive !== 'all') reloadParams.status = filterIsActive
 
-      const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
-      setMembers(response.items)
-      setTotalMembers(response.total)
+      const reloadResponse = await getMembersFactory().listMembers(reloadParams as Parameters<ReturnType<typeof getMembersFactory>['listMembers']>[0])
+      setMembers(reloadResponse.data ?? [])
+      setTotalMembers(reloadResponse.pagination?.total ?? 0)
 
       setError(null)
-    } catch (err) {
+    } catch (err: unknown) {
       // Handle validation errors (422)
-      const axiosError = err as AxiosError
-      if (axiosError.response?.status === 422) {
-        const data = axiosError.response.data as any
+      const axiosErr = err as { response?: { status?: number; data?: unknown } }
+      if (axiosErr.response?.status === 422) {
+        const data = axiosErr.response.data as { messages?: Record<string, unknown>; error?: string } | null
         // Backend returns { error: 'validation_failed', messages: { field: [errors] } }
-        if (data.messages && typeof data.messages === 'object') {
+        if (data?.messages && typeof data.messages === 'object') {
           // Map field errors and translate them
           const mappedErrors: Record<string, string> = {}
           for (const [field, messages] of Object.entries(data.messages)) {
             let errorMessage = ''
             if (Array.isArray(messages)) {
-              errorMessage = messages[0]
+              errorMessage = String(messages[0])
             } else if (typeof messages === 'string') {
               errorMessage = messages
             }
-            
+
             // Translate backend error messages to i18n
             if (field === 'card_uid' && errorMessage.includes('already been taken')) {
               mappedErrors[field] = t('members.errors.cardUidInUse')
@@ -292,7 +284,7 @@ export function MembersPage() {
           }
           setFormErrors(mappedErrors)
           // Don't close modal - keep it open so user can fix the error
-        } else if (data.error) {
+        } else if (data?.error) {
           setError(data.error)
         } else {
           setError('Validation failed')
@@ -306,63 +298,61 @@ export function MembersPage() {
   }
 
   // Handle status toggle (activate/deactivate)
-  const handleStatusToggle = async (member: Member) => {
+  const handleStatusToggle = async (member: MemberListItem) => {
     try {
       setIsLoading(true)
+      if (!member.id) return
       // Only send the field that needs to be updated
-      await updateMember(member.id, { is_active: !member.is_active })
+      await getMembersFactory().updateMember(member.id, { is_active: !member.is_active })
 
-      // Directly reload members (don't rely on setPage which may not trigger if page is already 1)
-      const filter: { is_active?: boolean; has_card_uid?: boolean } = {}
-      if (filterIsActive === 'active') {
-        filter.is_active = true
-      } else if (filterIsActive === 'inactive') {
-        filter.is_active = false
+      // Reload members list
+      const reloadParams: Record<string, unknown> = {
+        page,
+        per_page: 20,
+        sort_by: buildSortBy(sortKey, sortDirection),
       }
+      if (search) reloadParams.search = search
+      if (filterIsActive !== 'all') reloadParams.status = filterIsActive
 
-      if (filterCardUid === 'with') {
-        filter.has_card_uid = true
-      } else if (filterCardUid === 'without') {
-        filter.has_card_uid = false
-      }
-
-      const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
-      setMembers(response.items)
-      setTotalMembers(response.total)
+      const reloadResponse = await getMembersFactory().listMembers(reloadParams as Parameters<ReturnType<typeof getMembersFactory>['listMembers']>[0])
+      setMembers(reloadResponse.data ?? [])
+      setTotalMembers(reloadResponse.pagination?.total ?? 0)
 
       setError(null)
-    } catch (err) {
+    } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to update member status')
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Handle delete confirmation
   // Handle anonymize member (GDPR Art. 17)
-  const handleAnonymize = async (member: Member) => {
+  const handleAnonymize = async (member: MemberListItem) => {
     try {
       setIsLoading(true)
-      await anonymizeMember(member.id)
+      if (!member.id) return
+      await getMembersFactory().anonymizeMember(member.id, {})
 
-      // Reload members
-      const filter: { is_active?: boolean; has_card_uid?: boolean } = {}
-      if (filterIsActive === 'active') filter.is_active = true
-      else if (filterIsActive === 'inactive') filter.is_active = false
-      if (filterCardUid === 'with') filter.has_card_uid = true
-      else if (filterCardUid === 'without') filter.has_card_uid = false
+      // Reload members list
+      const reloadParams: Record<string, unknown> = {
+        page,
+        per_page: 20,
+        sort_by: buildSortBy(sortKey, sortDirection),
+      }
+      if (search) reloadParams.search = search
+      if (filterIsActive !== 'all') reloadParams.status = filterIsActive
 
-      const response = await getMembers(page, 20, search || undefined, filter, sortKey, sortDirection)
-      setMembers(response.items)
-      setTotalMembers(response.total)
+      const reloadResponse = await getMembersFactory().listMembers(reloadParams as Parameters<ReturnType<typeof getMembersFactory>['listMembers']>[0])
+      setMembers(reloadResponse.data ?? [])
+      setTotalMembers(reloadResponse.pagination?.total ?? 0)
 
       setAnonymizeConfirm(null)
       setError(null)
-    } catch (err) {
-      const axiosError = err as AxiosError
-      if (axiosError.response?.status === 409) {
-        const data = axiosError.response.data as any
-        setError(data.message || 'Cannot anonymize member')
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: unknown } }
+      if (axiosErr.response?.status === 409) {
+        const data = axiosErr.response.data as { message?: string } | null
+        setError(data?.message || 'Cannot anonymize member')
       } else {
         setError(err instanceof Error ? err.message : 'Failed to anonymize member')
       }
@@ -372,21 +362,27 @@ export function MembersPage() {
     }
   }
 
-  // Handle edit member
-  const handleEdit = (member: Member) => {
-    setEditingMember(member)
-    setFormData({
-      first_name: member.first_name,
-      last_name: member.last_name,
-      email: member.email || '',
-      iban: member.iban || '',
-      account_holder_name: member.account_holder_name || '',
-      mandate_reference: member.mandate_reference || '',
-      mandate_signed_at: member.mandate_signed_at || '',
-      preferred_language: member.preferred_language || 'de',
-      card_uid: member.card_uid || '',
-    })
-    setShowModal(true)
+  // Handle edit member — fetch full member details first
+  const handleEdit = async (member: MemberListItem) => {
+    if (!member.id) return
+    try {
+      const fullMember = await getMembersFactory().getMember(member.id)
+      setEditingMember(fullMember)
+      setFormData({
+        first_name: fullMember.first_name ?? '',
+        last_name: fullMember.last_name ?? '',
+        email: fullMember.email ?? '',
+        iban: fullMember.iban ?? '',
+        account_holder_name: fullMember.account_holder_name ?? '',
+        mandate_reference: fullMember.mandate_reference ?? '',
+        mandate_signed_at: fullMember.mandate_signed_at ?? '',
+        preferred_language: fullMember.preferred_language ?? 'de',
+        card_uid: fullMember.card_uid ?? '',
+      })
+      setShowModal(true)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load member details')
+    }
   }
 
   // Grid columns based on breakpoint
@@ -511,7 +507,7 @@ export function MembersPage() {
                   options={[
                     { value: 'all', label: t('common.all') },
                     { value: 'valid', label: t('members.filterSepaValid', 'Valid') },
-                    { value: 'missing', label: t('members.filterSepaMissing', 'Missing') },
+                    { value: 'invalid', label: t('members.filterSepaMissing', 'Missing') },
                   ]}
                   value={filterSepaStatus}
                   onChange={(v) => setFilterSepaStatus(v as typeof filterSepaStatus)}
@@ -546,7 +542,7 @@ export function MembersPage() {
                   {/* Row 1: toggle + name */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                     <Toggle
-                      enabled={member.is_active}
+                      enabled={member.is_active ?? false}
                       onChange={() => handleStatusToggle(member)}
                       size="small"
                       testId={`members-status-toggle-${member.id}`}
@@ -558,7 +554,7 @@ export function MembersPage() {
                   {/* Row 2: SEPA + Card info */}
                   <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '6px' }}>
                     <span>
-                      SEPA: {member.iban ? (
+                      SEPA: {member.is_sepa_valid ? (
                         <span style={{ color: theme.colors.semantic.success }}>{t('members.sepaValid', 'Valid')}</span>
                       ) : (
                         <span style={{ color: theme.colors.text.muted }}>{t('members.sepaMissing', 'Missing')}</span>
@@ -568,7 +564,7 @@ export function MembersPage() {
                   </div>
                   {/* Row 3: member since */}
                   <div style={{ fontSize: '12px', color: theme.colors.text.muted, marginBottom: '10px' }}>
-                    {t('members.memberSince', 'Since')}: {formatters.formatDate(member.created_at.split('T')[0])}
+                    {t('members.memberSince', 'Since')}: {member.created_at ? formatters.formatDate(member.created_at.split('T')[0]) : '—'}
                   </div>
                   {/* Row 4: actions */}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
@@ -894,7 +890,7 @@ export function MembersPage() {
           <button
             data-testid="filter-sepa-missing"
             onClick={() => {
-              setFilterSepaStatus('missing')
+              setFilterSepaStatus('invalid')
               setPage(1)
             }}
             style={{
@@ -905,8 +901,8 @@ export function MembersPage() {
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.15s ease',
-              background: filterSepaStatus === 'missing' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-              color: filterSepaStatus === 'missing' ? '#fff' : 'rgba(255,255,255,0.55)',
+              background: filterSepaStatus === 'invalid' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+              color: filterSepaStatus === 'invalid' ? '#fff' : 'rgba(255,255,255,0.55)',
             }}
           >
             {t('members.filters.sepa.missing')}
@@ -1026,7 +1022,7 @@ export function MembersPage() {
                   <tr
                     key={member.id}
                     data-testid={`members-table-row-${member.id}`}
-                    style={getRowStyle(member.is_active)}
+                    style={getRowStyle(member.is_active ?? false)}
                     onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
                       if (member.is_active) {
                         e.currentTarget.style.backgroundColor = tableColors.rowActiveHoverBg
@@ -1039,7 +1035,7 @@ export function MembersPage() {
                     }}
                   >
                     <StatusToggleCell
-                      enabled={member.is_active}
+                      enabled={member.is_active ?? false}
                       onChange={() => handleStatusToggle(member)}
                       size="small"
                       testId={`members-status-toggle-${member.id}`}
@@ -1067,7 +1063,7 @@ export function MembersPage() {
                       {member.card_uid || '—'}
                     </TableCell>
                     <TableCell testId={`members-table-cell-created-${member.id}`}>
-                      {formatters.formatDate(member.created_at.split('T')[0])}
+                      {member.created_at ? formatters.formatDate(member.created_at.split('T')[0]) : '—'}
                     </TableCell>
                     <TableCell align="center">
                       <button
