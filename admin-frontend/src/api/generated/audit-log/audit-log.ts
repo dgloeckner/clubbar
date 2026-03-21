@@ -70,7 +70,7 @@ const listAuditLog = (
     params?: ListAuditLogParams,
  options?: SecondParameter<typeof customInstance<ListAuditLog200>>,) => {
       return customInstance<ListAuditLog200>(
-      {url: `/audit-log`, method: 'GET',
+      {url: `/admin/audit-log`, method: 'GET',
         params
     },
       options);

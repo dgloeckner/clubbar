@@ -252,7 +252,7 @@ paths:
   # ============================================================================
   # MEMBERS
   # ============================================================================
-  /members:
+  /admin/members:
     get:
       tags: [Members]
       summary: List members
@@ -358,7 +358,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /members/{memberId}:
+  /admin/members/{memberId}:
     parameters:
       - $ref: '#/components/parameters/memberId'
 
@@ -433,7 +433,7 @@ paths:
   # Card UID is managed as a field on the member entity via PATCH /members/{memberId}.
   # Dedicated assign/remove endpoints not needed. See use-case-implementation-audit.md.
 
-  /members/{memberId}/transactions:
+  /admin/members/{memberId}/transactions:
     parameters:
       - $ref: '#/components/parameters/memberId'
 
@@ -518,7 +518,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /members/{memberId}/export:
+  /admin/members/{memberId}/export:
     parameters:
       - $ref: '#/components/parameters/memberId'
     post:
@@ -578,7 +578,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /members/{memberId}/anonymize:
+  /admin/members/{memberId}/anonymize:
     parameters:
       - $ref: '#/components/parameters/memberId'
     post:
@@ -653,7 +653,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /members/import:
+  /admin/members/import:
     post:
       tags: [Members]
       summary: Import members from CSV
@@ -698,7 +698,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /members/import/confirm:
+  /admin/members/import/confirm:
     post:
       tags: [Members]
       summary: Confirm member import
@@ -751,7 +751,7 @@ paths:
   # ============================================================================
   # TRANSACTIONS
   # ============================================================================
-  /transactions/export:
+  /admin/transactions/export:
     get:
       tags: [Transactions]
       summary: Export transactions as CSV
@@ -818,7 +818,7 @@ paths:
   # ============================================================================
   # PRODUCTS
   # ============================================================================
-  /products:
+  /admin/products:
     get:
       tags: [Products]
       summary: List products
@@ -911,7 +911,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /products/{productId}:
+  /admin/products/{productId}:
     parameters:
       - name: productId
         in: path
@@ -971,7 +971,7 @@ paths:
   # ============================================================================
   # CATEGORIES
   # ============================================================================
-  /categories:
+  /admin/categories:
     get:
       tags: [Products]
       summary: List categories
@@ -1025,7 +1025,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /categories/{categoryId}:
+  /admin/categories/{categoryId}:
     parameters:
       - name: categoryId
         in: path
@@ -1096,7 +1096,7 @@ paths:
   # ============================================================================
   # SETTLEMENTS
   # ============================================================================
-  /settlements:
+  /admin/settlements:
     get:
       tags: [Settlements]
       summary: List settlements
@@ -1185,7 +1185,7 @@ paths:
                 error: sepa_config_incomplete
                 message: SEPA configuration is incomplete
 
-  /settlements/preview:
+  /admin/settlements/preview:
     get:
       tags: [Settlements]
       summary: Preview unsettled transactions
@@ -1222,7 +1222,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /settlements/{settlementId}:
+  /admin/settlements/{settlementId}:
     parameters:
       - name: settlementId
         in: path
@@ -1257,7 +1257,7 @@ paths:
   # Settlements are created in final state (one-step with preview).
   # execution_date is validated at creation time. See use-case-implementation-audit.md.
 
-  /settlements/{settlementId}/cancel:
+  /admin/settlements/{settlementId}/cancel:
     parameters:
       - name: settlementId
         in: path
@@ -1296,7 +1296,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /settlements/{settlementId}/export/sepa-xml:
+  /admin/settlements/{settlementId}/export/sepa-xml:
     parameters:
       - name: settlementId
         in: path
@@ -1354,7 +1354,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /settlements/{settlementId}/export/csv:
+  /admin/settlements/{settlementId}/export/csv:
     parameters:
       - name: settlementId
         in: path
@@ -1404,7 +1404,7 @@ paths:
   # ============================================================================
   # SEPA CONFIGURATION
   # ============================================================================
-  /sepa-config:
+  /admin/sepa-config:
     get:
       tags: [SEPA Configuration]
       summary: Get SEPA configuration
@@ -1508,7 +1508,7 @@ paths:
   # ============================================================================
   # ADMIN USERS
   # ============================================================================
-  /admin-users:
+  /admin/admin-users:
     get:
       tags: [Admin Users]
       summary: List admin users
@@ -1571,7 +1571,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /admin-users/{adminUserId}:
+  /admin/admin-users/{adminUserId}:
     parameters:
       - name: adminUserId
         in: path
@@ -1618,7 +1618,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /admin-users/{adminUserId}/reset-password:
+  /admin/admin-users/{adminUserId}/reset-password:
     parameters:
       - name: adminUserId
         in: path
@@ -1653,28 +1653,7 @@ paths:
   # ============================================================================
   # REPORTS & DASHBOARD
   # ============================================================================
-  /dashboard:
-    get:
-      tags: [Reports]
-      summary: Get dashboard data
-      description: |
-        Retrieve dashboard overview data.
-
-        **Use Case**: UC-A80
-      operationId: getDashboard
-      security:
-        - sessionAuth: []
-      responses:
-        '200':
-          description: Dashboard data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Dashboard'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
-  /reports/{reportType}:
+  /admin/reports/{reportType}:
     parameters:
       - name: reportType
         in: path
@@ -1734,7 +1713,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /reports/{reportType}/export:
+  /admin/reports/{reportType}/export:
     parameters:
       - name: reportType
         in: path
@@ -1781,7 +1760,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /reports/member-ranking:
+  /admin/reports/member-ranking:
     get:
       tags: [Reports]
       summary: Get member ranking
@@ -1841,7 +1820,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /reports/terminal-activity:
+  /admin/reports/terminal-activity:
     get:
       tags: [Reports]
       summary: Get terminal activity
@@ -1889,7 +1868,7 @@ paths:
   # ============================================================================
   # AUDIT LOG
   # ============================================================================
-  /audit-log:
+  /admin/audit-log:
     get:
       tags: [Audit Log]
       summary: List audit log entries
@@ -1965,7 +1944,7 @@ paths:
   # UC-A70 (unknown cards) and UC-A71 (blocked cards) are deferred.
   # Endpoints kept in spec for future implementation.
   # ============================================================================
-  /unknown-cards:
+  /admin/unknown-cards:
     get:
       tags: [RFID Cards]
       summary: List unknown cards
@@ -1991,7 +1970,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /blocked-cards:
+  /admin/blocked-cards:
     get:
       tags: [RFID Cards]
       summary: List blocked cards
@@ -2055,7 +2034,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /blocked-cards/{cardUid}:
+  /admin/blocked-cards/{cardUid}:
     parameters:
       - name: cardUid
         in: path

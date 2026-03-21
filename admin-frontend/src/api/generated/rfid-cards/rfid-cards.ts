@@ -70,7 +70,7 @@ const listUnknownCards = (
     
  options?: SecondParameter<typeof customInstance<ListUnknownCards200>>,) => {
       return customInstance<ListUnknownCards200>(
-      {url: `/unknown-cards`, method: 'GET'
+      {url: `/admin/unknown-cards`, method: 'GET'
     },
       options);
     }
@@ -85,7 +85,7 @@ const listBlockedCards = (
     
  options?: SecondParameter<typeof customInstance<ListBlockedCards200>>,) => {
       return customInstance<ListBlockedCards200>(
-      {url: `/blocked-cards`, method: 'GET'
+      {url: `/admin/blocked-cards`, method: 'GET'
     },
       options);
     }
@@ -102,7 +102,7 @@ const blockCard = (
     blockCardBody: BlockCardBody,
  options?: SecondParameter<typeof customInstance<BlockedCard>>,) => {
       return customInstance<BlockedCard>(
-      {url: `/blocked-cards`, method: 'POST',
+      {url: `/admin/blocked-cards`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: blockCardBody
     },
@@ -119,7 +119,7 @@ const unblockCard = (
     cardUid: string,
  options?: SecondParameter<typeof customInstance<void>>,) => {
       return customInstance<void>(
-      {url: `/blocked-cards/${cardUid}`, method: 'DELETE'
+      {url: `/admin/blocked-cards/${cardUid}`, method: 'DELETE'
     },
       options);
     }

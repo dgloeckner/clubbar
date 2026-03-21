@@ -75,7 +75,7 @@ const listSettlements = (
     params?: ListSettlementsParams,
  options?: SecondParameter<typeof customInstance<ListSettlements200>>,) => {
       return customInstance<ListSettlements200>(
-      {url: `/settlements`, method: 'GET',
+      {url: `/admin/settlements`, method: 'GET',
         params
     },
       options);
@@ -99,7 +99,7 @@ const createSettlement = (
     settlementCreateRequest: SettlementCreateRequest,
  options?: SecondParameter<typeof customInstance<Settlement>>,) => {
       return customInstance<Settlement>(
-      {url: `/settlements`, method: 'POST',
+      {url: `/admin/settlements`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: settlementCreateRequest
     },
@@ -116,7 +116,7 @@ const previewSettlement = (
     params?: PreviewSettlementParams,
  options?: SecondParameter<typeof customInstance<SettlementPreview>>,) => {
       return customInstance<SettlementPreview>(
-      {url: `/settlements/preview`, method: 'GET',
+      {url: `/admin/settlements/preview`, method: 'GET',
         params
     },
       options);
@@ -132,7 +132,7 @@ const getSettlement = (
     settlementId: string,
  options?: SecondParameter<typeof customInstance<Settlement>>,) => {
       return customInstance<Settlement>(
-      {url: `/settlements/${settlementId}`, method: 'GET'
+      {url: `/admin/settlements/${settlementId}`, method: 'GET'
     },
       options);
     }
@@ -150,7 +150,7 @@ const cancelSettlement = (
     settlementId: string,
  options?: SecondParameter<typeof customInstance<Settlement>>,) => {
       return customInstance<Settlement>(
-      {url: `/settlements/${settlementId}/cancel`, method: 'DELETE'
+      {url: `/admin/settlements/${settlementId}/cancel`, method: 'DELETE'
     },
       options);
     }
@@ -175,7 +175,7 @@ const downloadSepaXml = (
     settlementId: string,
  options?: SecondParameter<typeof customInstance<Blob>>,) => {
       return customInstance<Blob>(
-      {url: `/settlements/${settlementId}/export/sepa-xml`, method: 'GET',
+      {url: `/admin/settlements/${settlementId}/export/sepa-xml`, method: 'GET',
         responseType: 'blob'
     },
       options);
@@ -196,7 +196,7 @@ const downloadSettlementCsv = (
     settlementId: string,
  options?: SecondParameter<typeof customInstance<Blob>>,) => {
       return customInstance<Blob>(
-      {url: `/settlements/${settlementId}/export/csv`, method: 'GET',
+      {url: `/admin/settlements/${settlementId}/export/csv`, method: 'GET',
         responseType: 'blob'
     },
       options);

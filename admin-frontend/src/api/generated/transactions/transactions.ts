@@ -74,7 +74,7 @@ const getMemberTransactions = (
     params?: GetMemberTransactionsParams,
  options?: SecondParameter<typeof customInstance<MemberTransactionHistory>>,) => {
       return customInstance<MemberTransactionHistory>(
-      {url: `/members/${memberId}/transactions`, method: 'GET',
+      {url: `/admin/members/${memberId}/transactions`, method: 'GET',
         params
     },
       options);
@@ -94,7 +94,7 @@ const createManualTransaction = (
     manualTransactionRequest: ManualTransactionRequest,
  options?: SecondParameter<typeof customInstance<Transaction>>,) => {
       return customInstance<Transaction>(
-      {url: `/members/${memberId}/transactions`, method: 'POST',
+      {url: `/admin/members/${memberId}/transactions`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: manualTransactionRequest
     },
@@ -111,7 +111,7 @@ const exportTransactions = (
     params: ExportTransactionsParams,
  options?: SecondParameter<typeof customInstance<Blob>>,) => {
       return customInstance<Blob>(
-      {url: `/transactions/export`, method: 'GET',
+      {url: `/admin/transactions/export`, method: 'GET',
         params,
         responseType: 'blob'
     },

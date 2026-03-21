@@ -46,7 +46,6 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type {
-  Dashboard,
   ExportReportParams,
   GetMemberRanking200,
   GetMemberRankingParams,
@@ -64,21 +63,6 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
   export const getReports = () => {
 /**
- * Retrieve dashboard overview data.
-
-**Use Case**: UC-A80
-
- * @summary Get dashboard data
- */
-const getDashboard = (
-    
- options?: SecondParameter<typeof customInstance<Dashboard>>,) => {
-      return customInstance<Dashboard>(
-      {url: `/dashboard`, method: 'GET'
-    },
-      options);
-    }
-  /**
  * Retrieve report data for analytics.
 
 **Use Case**: UC-A50
@@ -91,7 +75,7 @@ const getReport = (
     params?: GetReportParams,
  options?: SecondParameter<typeof customInstance<Report>>,) => {
       return customInstance<Report>(
-      {url: `/reports/${reportType}`, method: 'GET',
+      {url: `/admin/reports/${reportType}`, method: 'GET',
         params
     },
       options);
@@ -109,7 +93,7 @@ const exportReport = (
     params?: ExportReportParams,
  options?: SecondParameter<typeof customInstance<Blob>>,) => {
       return customInstance<Blob>(
-      {url: `/reports/${reportType}/export`, method: 'GET',
+      {url: `/admin/reports/${reportType}/export`, method: 'GET',
         params,
         responseType: 'blob'
     },
@@ -127,7 +111,7 @@ const getMemberRanking = (
     params?: GetMemberRankingParams,
  options?: SecondParameter<typeof customInstance<GetMemberRanking200>>,) => {
       return customInstance<GetMemberRanking200>(
-      {url: `/reports/member-ranking`, method: 'GET',
+      {url: `/admin/reports/member-ranking`, method: 'GET',
         params
     },
       options);
@@ -144,13 +128,12 @@ const getTerminalActivity = (
     params: GetTerminalActivityParams,
  options?: SecondParameter<typeof customInstance<TerminalActivityReport>>,) => {
       return customInstance<TerminalActivityReport>(
-      {url: `/reports/terminal-activity`, method: 'GET',
+      {url: `/admin/reports/terminal-activity`, method: 'GET',
         params
     },
       options);
     }
-  return {getDashboard,getReport,exportReport,getMemberRanking,getTerminalActivity}};
-export type GetDashboardResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['getDashboard']>>>
+  return {getReport,exportReport,getMemberRanking,getTerminalActivity}};
 export type GetReportResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['getReport']>>>
 export type ExportReportResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['exportReport']>>>
 export type GetMemberRankingResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['getMemberRanking']>>>

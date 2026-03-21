@@ -79,7 +79,7 @@ const listMembers = (
     params?: ListMembersParams,
  options?: SecondParameter<typeof customInstance<ListMembers200>>,) => {
       return customInstance<ListMembers200>(
-      {url: `/members`, method: 'GET',
+      {url: `/admin/members`, method: 'GET',
         params
     },
       options);
@@ -103,7 +103,7 @@ const createMember = (
     memberCreateRequest: MemberCreateRequest,
  options?: SecondParameter<typeof customInstance<Member>>,) => {
       return customInstance<Member>(
-      {url: `/members`, method: 'POST',
+      {url: `/admin/members`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: memberCreateRequest
     },
@@ -117,7 +117,7 @@ const getMember = (
     memberId: string,
  options?: SecondParameter<typeof customInstance<Member>>,) => {
       return customInstance<Member>(
-      {url: `/members/${memberId}`, method: 'GET'
+      {url: `/admin/members/${memberId}`, method: 'GET'
     },
       options);
     }
@@ -138,7 +138,7 @@ const updateMember = (
     memberUpdateRequest: MemberUpdateRequest,
  options?: SecondParameter<typeof customInstance<Member>>,) => {
       return customInstance<Member>(
-      {url: `/members/${memberId}`, method: 'PATCH',
+      {url: `/admin/members/${memberId}`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: memberUpdateRequest
     },
@@ -164,7 +164,7 @@ const exportMemberData = (
     exportMemberDataBody: ExportMemberDataBody,
  options?: SecondParameter<typeof customInstance<GdprExport | Blob>>,) => {
       return customInstance<GdprExport | Blob>(
-      {url: `/members/${memberId}/export`, method: 'POST',
+      {url: `/admin/members/${memberId}/export`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: exportMemberDataBody
     },
@@ -195,7 +195,7 @@ const anonymizeMember = (
     anonymizeMemberBody: AnonymizeMemberBody,
  options?: SecondParameter<typeof customInstance<AnonymizeMember200>>,) => {
       return customInstance<AnonymizeMember200>(
-      {url: `/members/${memberId}/anonymize`, method: 'POST',
+      {url: `/admin/members/${memberId}/anonymize`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: anonymizeMemberBody
     },
@@ -220,7 +220,7 @@ const importMembersPreview = (
 formData.append(`file`, importMembersPreviewBody.file);
 
       return customInstance<MemberImportPreview>(
-      {url: `/members/import`, method: 'POST',
+      {url: `/admin/members/import`, method: 'POST',
        data: formData
     },
       options);
@@ -237,7 +237,7 @@ const importMembersConfirm = (
     importMembersConfirmBody: ImportMembersConfirmBody,
  options?: SecondParameter<typeof customInstance<ImportMembersConfirm201>>,) => {
       return customInstance<ImportMembersConfirm201>(
-      {url: `/members/import/confirm`, method: 'POST',
+      {url: `/admin/members/import/confirm`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: importMembersConfirmBody
     },

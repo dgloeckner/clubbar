@@ -71,7 +71,7 @@ const getSepaConfig = (
     
  options?: SecondParameter<typeof customInstance<SepaConfig>>,) => {
       return customInstance<SepaConfig>(
-      {url: `/sepa-config`, method: 'GET'
+      {url: `/admin/sepa-config`, method: 'GET'
     },
       options);
     }
@@ -88,7 +88,7 @@ const createSepaConfig = (
     sepaConfigRequest: SepaConfigRequest,
  options?: SecondParameter<typeof customInstance<SepaConfig>>,) => {
       return customInstance<SepaConfig>(
-      {url: `/sepa-config`, method: 'POST',
+      {url: `/admin/sepa-config`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: sepaConfigRequest
     },
@@ -107,7 +107,7 @@ const updateSepaConfig = (
     sepaConfigUpdateRequest: SepaConfigUpdateRequest,
  options?: SecondParameter<typeof customInstance<SepaConfig>>,) => {
       return customInstance<SepaConfig>(
-      {url: `/sepa-config`, method: 'PATCH',
+      {url: `/admin/sepa-config`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: sepaConfigUpdateRequest
     },

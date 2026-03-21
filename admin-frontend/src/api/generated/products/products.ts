@@ -75,7 +75,7 @@ const listProducts = (
     params?: ListProductsParams,
  options?: SecondParameter<typeof customInstance<ListProducts200>>,) => {
       return customInstance<ListProducts200>(
-      {url: `/products`, method: 'GET',
+      {url: `/admin/products`, method: 'GET',
         params
     },
       options);
@@ -94,7 +94,7 @@ const createProduct = (
     productCreateRequest: ProductCreateRequest,
  options?: SecondParameter<typeof customInstance<Product>>,) => {
       return customInstance<Product>(
-      {url: `/products`, method: 'POST',
+      {url: `/admin/products`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: productCreateRequest
     },
@@ -107,7 +107,7 @@ const getProduct = (
     productId: string,
  options?: SecondParameter<typeof customInstance<Product>>,) => {
       return customInstance<Product>(
-      {url: `/products/${productId}`, method: 'GET'
+      {url: `/admin/products/${productId}`, method: 'GET'
     },
       options);
     }
@@ -123,7 +123,7 @@ const updateProduct = (
     productUpdateRequest: ProductUpdateRequest,
  options?: SecondParameter<typeof customInstance<Product>>,) => {
       return customInstance<Product>(
-      {url: `/products/${productId}`, method: 'PATCH',
+      {url: `/admin/products/${productId}`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: productUpdateRequest
     },
@@ -140,7 +140,7 @@ const listCategories = (
     
  options?: SecondParameter<typeof customInstance<ListCategories200>>,) => {
       return customInstance<ListCategories200>(
-      {url: `/categories`, method: 'GET'
+      {url: `/admin/categories`, method: 'GET'
     },
       options);
     }
@@ -155,7 +155,7 @@ const createCategory = (
     categoryCreateRequest: CategoryCreateRequest,
  options?: SecondParameter<typeof customInstance<Category>>,) => {
       return customInstance<Category>(
-      {url: `/categories`, method: 'POST',
+      {url: `/admin/categories`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: categoryCreateRequest
     },
@@ -173,7 +173,7 @@ const updateCategory = (
     categoryUpdateRequest: CategoryUpdateRequest,
  options?: SecondParameter<typeof customInstance<Category>>,) => {
       return customInstance<Category>(
-      {url: `/categories/${categoryId}`, method: 'PATCH',
+      {url: `/admin/categories/${categoryId}`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: categoryUpdateRequest
     },
@@ -192,7 +192,7 @@ const deleteCategory = (
     categoryId: string,
  options?: SecondParameter<typeof customInstance<void>>,) => {
       return customInstance<void>(
-      {url: `/categories/${categoryId}`, method: 'DELETE'
+      {url: `/admin/categories/${categoryId}`, method: 'DELETE'
     },
       options);
     }

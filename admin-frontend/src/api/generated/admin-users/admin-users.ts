@@ -71,7 +71,7 @@ const listAdminUsers = (
     
  options?: SecondParameter<typeof customInstance<ListAdminUsers200>>,) => {
       return customInstance<ListAdminUsers200>(
-      {url: `/admin-users`, method: 'GET'
+      {url: `/admin/admin-users`, method: 'GET'
     },
       options);
     }
@@ -89,7 +89,7 @@ const createAdminUser = (
     adminUserCreateRequest: AdminUserCreateRequest,
  options?: SecondParameter<typeof customInstance<AdminUserWithPassword>>,) => {
       return customInstance<AdminUserWithPassword>(
-      {url: `/admin-users`, method: 'POST',
+      {url: `/admin/admin-users`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: adminUserCreateRequest
     },
@@ -103,7 +103,7 @@ const updateAdminUser = (
     updateAdminUserBody: UpdateAdminUserBody,
  options?: SecondParameter<typeof customInstance<AdminUser>>,) => {
       return customInstance<AdminUser>(
-      {url: `/admin-users/${adminUserId}`, method: 'PATCH',
+      {url: `/admin/admin-users/${adminUserId}`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: updateAdminUserBody
     },
@@ -122,7 +122,7 @@ const resetAdminPassword = (
     adminUserId: string,
  options?: SecondParameter<typeof customInstance<AdminUserWithPassword>>,) => {
       return customInstance<AdminUserWithPassword>(
-      {url: `/admin-users/${adminUserId}/reset-password`, method: 'POST'
+      {url: `/admin/admin-users/${adminUserId}/reset-password`, method: 'POST'
     },
       options);
     }
