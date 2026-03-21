@@ -5,6 +5,7 @@
  * the localStorage + CSRF + i18n side effects that happen around them.
  */
 
+import axios from 'axios'
 import { getAuthentication } from '../api/generated/authentication/authentication'
 import { setCsrfToken } from '../api/client'
 import { changeLanguage } from '../i18n/config'
@@ -28,7 +29,7 @@ export function isAuthenticated(): boolean {
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 
-export interface LoginResult {
+export interface LoginSessionResult {
   success: boolean
   message: string
   data?: {
@@ -42,38 +43,31 @@ export interface LoginResult {
 export async function loginWithSession(credentials: {
   email: string
   password: string
-}): Promise<LoginResult> {
+}): Promise<LoginSessionResult> {
   try {
-    const response = await getAuthentication().login({ email: credentials.email, password: credentials.password })
+    const response = await getAuthentication().login(credentials)
 
-    if (response.admin_id) {
-      localStorage.setItem('admin_id', response.admin_id)
-      localStorage.setItem('email', response.email ?? '')
-      localStorage.setItem('display_name', response.display_name ?? '')
-      localStorage.setItem('locale', response.locale ?? 'de')
+    localStorage.setItem('admin_id', response.admin_id)
+    localStorage.setItem('email', response.email)
+    localStorage.setItem('display_name', response.display_name)
+    localStorage.setItem('locale', response.locale)
+    setCsrfToken(response.csrf_token)
+    changeLanguage(response.locale)
 
-      if (response.csrf_token) {
-        setCsrfToken(response.csrf_token)
-      }
-
-      const locale = response.locale || 'de'
-      changeLanguage(locale)
-
-      return {
-        success: true,
-        message: 'Login successful',
-        data: {
-          admin_id: response.admin_id,
-          email: response.email ?? '',
-          display_name: response.display_name ?? '',
-          locale,
-        },
-      }
+    return {
+      success: true,
+      message: 'Login successful',
+      data: {
+        admin_id: response.admin_id,
+        email: response.email,
+        display_name: response.display_name,
+        locale: response.locale,
+      },
     }
-
-    return { success: false, message: 'Login failed' }
-  } catch (error: any) {
-    const message = error.response?.data?.message || 'Login failed'
+  } catch (error: unknown) {
+    const message = axios.isAxiosError(error)
+      ? (error.response?.data?.message as string | undefined) ?? 'Login failed'
+      : 'Login failed'
     return { success: false, message }
   }
 }
@@ -90,12 +84,16 @@ export async function logoutWithSession(): Promise<void> {
     localStorage.removeItem('email')
     localStorage.removeItem('display_name')
     localStorage.removeItem('locale')
-    setCsrfToken(null)
+    setCsrfToken(null) // also removes 'csrf_token' from localStorage
   }
 }
 
 // ─── Profile update ───────────────────────────────────────────────────────────
 
+/**
+ * Wraps generated updateProfile(). Writes email/display_name/locale back to localStorage on success.
+ * Throws on API error — callers must handle exceptions.
+ */
 export async function updateProfileWithSession(
   data: UpdateProfileRequest
 ): Promise<AdminProfile> {
