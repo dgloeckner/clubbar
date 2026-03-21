@@ -51,8 +51,10 @@ function incrementPending() {
 }
 
 function decrementPending() {
+  const wasLoading = pendingRequests > 0
   pendingRequests = Math.max(0, pendingRequests - 1)
-  notifyLoadingState()
+  const isNowLoading = pendingRequests > 0
+  if (wasLoading !== isNowLoading) notifyLoadingState()
 }
 
 // ─── Axios instance ───────────────────────────────────────────────────────────
@@ -95,12 +97,6 @@ axiosInstance.interceptors.response.use(
         window.location.href = '/login'
       }
     }
-    if (error.response?.status === 403) {
-      console.error('Access forbidden')
-    }
-    if (error.response?.status === 500) {
-      console.error('Server error:', error.response.data)
-    }
     return Promise.reject(error)
   }
 )
@@ -123,8 +119,7 @@ export async function downloadFile(url: string, fallbackFilename: string): Promi
     const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
     if (match?.[1]) filename = match[1].replace(/['"]/g, '')
   }
-  const blob = new Blob([response.data])
-  const objectUrl = URL.createObjectURL(blob)
+  const objectUrl = URL.createObjectURL(response.data)
   const a = document.createElement('a')
   a.href = objectUrl
   a.download = filename
