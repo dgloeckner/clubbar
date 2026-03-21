@@ -5,13 +5,9 @@
  */
 
 import { useTranslation } from 'react-i18next'
+import type { SettlementFilterPreview } from '../../api/generated'
 import { theme } from '../../styles/design-system'
 import { useFormatters } from '../../hooks/useFormatters'
-export interface SettlementFilterPreview {
-  transaction_count?: number
-  member_count?: number
-  total_amount_cents?: number
-}
 
 interface TransactionSummary {
   member_id?: string

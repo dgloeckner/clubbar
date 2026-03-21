@@ -414,6 +414,8 @@ export function JournalPage() {
       } else {
         // The backend also accepts transaction_ids + settlement_date which are not
         // modelled in the generated SettlementCreateRequest type, so we use a cast.
+        // TODO: remove cast once transaction_ids is added to OAS SettlementCreateRequest schema
+        // and orval is re-run to include it in the generated type
         await getSettlements().createSettlement(
           ({
             settlement_type: 'sepa',
