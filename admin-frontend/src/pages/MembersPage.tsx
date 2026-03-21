@@ -14,7 +14,7 @@ import { useFormatters } from '../hooks/useFormatters'
 import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon } from '../components/icons'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
-import type { Member, MemberListItem } from '../api/generated'
+import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersSortBy, MemberCreateRequest } from '../api/generated'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
@@ -132,10 +132,9 @@ export function MembersPage() {
   )
 
   // Build sort_by param from sortKey + sortDirection
-  const buildSortBy = (key: string, dir: 'asc' | 'desc') => {
+  const buildSortBy = (key: string, dir: 'asc' | 'desc'): ListMembersSortBy => {
     if (key === 'first_name' || key === 'last_name') return dir === 'asc' ? 'name_asc' : 'name_desc'
-    if (key === 'created_at') return dir === 'asc' ? 'created_at_desc' : 'created_at_desc' // API only has created_at_desc
-    return 'created_at_desc'
+    return 'created_at_desc' // API only supports created_at_desc for date sorting
   }
 
   // Load members
@@ -145,17 +144,17 @@ export function MembersPage() {
         setLoading(true)
         setIsLoading(true)
 
-        const params: Record<string, unknown> = {
+        const params: ListMembersParams = {
           page,
           per_page: 20,
           sort_by: buildSortBy(sortKey, sortDirection),
         }
 
         if (search) params.search = search
-        if (filterIsActive !== 'all') params.status = filterIsActive
-        if (filterSepaStatus !== 'all') params.sepa_status = filterSepaStatus
+        if (filterIsActive !== 'all') params.status = filterIsActive as ListMembersStatus
+        if (filterSepaStatus !== 'all') params.sepa_status = filterSepaStatus as ListMembersSepaStatus
 
-        const response = await getMembersFactory().listMembers(params as Parameters<ReturnType<typeof getMembersFactory>['listMembers']>[0])
+        const response = await getMembersFactory().listMembers(params)
 
         setMembers(response.data ?? [])
         setTotalMembers(response.pagination?.total ?? 0)
@@ -189,12 +188,21 @@ export function MembersPage() {
     loadDashboardMetrics()
   }, [])
 
-  // Handle GDPR data export
+  // Handle GDPR data export — downloads a JSON file with the member's personal data
   const handleExportData = async () => {
     if (!editingMember?.id) return
     setExporting(true)
     try {
-      await getMembersFactory().exportMemberData(editingMember.id, { format: 'json', export_type: 'gdpr_access' })
+      const data = await getMembersFactory().exportMemberData(editingMember.id, { format: 'json', export_type: 'gdpr_access' })
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `gdpr-export-${editingMember.id}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to export member data')
     } finally {
@@ -235,7 +243,7 @@ export function MembersPage() {
         if (!editingMember.id) throw new Error('Missing member id')
         await getMembersFactory().updateMember(editingMember.id, basePayload)
       } else {
-        await getMembersFactory().createMember(basePayload as Parameters<ReturnType<typeof getMembersFactory>['createMember']>[0])
+        await getMembersFactory().createMember(basePayload as MemberCreateRequest)
       }
 
       // Reset form
@@ -244,15 +252,15 @@ export function MembersPage() {
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
 
       // Reload members list
-      const reloadParams: Record<string, unknown> = {
+      const reloadParams: ListMembersParams = {
         page,
         per_page: 20,
         sort_by: buildSortBy(sortKey, sortDirection),
       }
       if (search) reloadParams.search = search
-      if (filterIsActive !== 'all') reloadParams.status = filterIsActive
+      if (filterIsActive !== 'all') reloadParams.status = filterIsActive as ListMembersStatus
 
-      const reloadResponse = await getMembersFactory().listMembers(reloadParams as Parameters<ReturnType<typeof getMembersFactory>['listMembers']>[0])
+      const reloadResponse = await getMembersFactory().listMembers(reloadParams)
       setMembers(reloadResponse.data ?? [])
       setTotalMembers(reloadResponse.pagination?.total ?? 0)
 
@@ -306,15 +314,15 @@ export function MembersPage() {
       await getMembersFactory().updateMember(member.id, { is_active: !member.is_active })
 
       // Reload members list
-      const reloadParams: Record<string, unknown> = {
+      const reloadParams: ListMembersParams = {
         page,
         per_page: 20,
         sort_by: buildSortBy(sortKey, sortDirection),
       }
       if (search) reloadParams.search = search
-      if (filterIsActive !== 'all') reloadParams.status = filterIsActive
+      if (filterIsActive !== 'all') reloadParams.status = filterIsActive as ListMembersStatus
 
-      const reloadResponse = await getMembersFactory().listMembers(reloadParams as Parameters<ReturnType<typeof getMembersFactory>['listMembers']>[0])
+      const reloadResponse = await getMembersFactory().listMembers(reloadParams)
       setMembers(reloadResponse.data ?? [])
       setTotalMembers(reloadResponse.pagination?.total ?? 0)
 
@@ -334,15 +342,15 @@ export function MembersPage() {
       await getMembersFactory().anonymizeMember(member.id, {})
 
       // Reload members list
-      const reloadParams: Record<string, unknown> = {
+      const reloadParams: ListMembersParams = {
         page,
         per_page: 20,
         sort_by: buildSortBy(sortKey, sortDirection),
       }
       if (search) reloadParams.search = search
-      if (filterIsActive !== 'all') reloadParams.status = filterIsActive
+      if (filterIsActive !== 'all') reloadParams.status = filterIsActive as ListMembersStatus
 
-      const reloadResponse = await getMembersFactory().listMembers(reloadParams as Parameters<ReturnType<typeof getMembersFactory>['listMembers']>[0])
+      const reloadResponse = await getMembersFactory().listMembers(reloadParams)
       setMembers(reloadResponse.data ?? [])
       setTotalMembers(reloadResponse.pagination?.total ?? 0)
 
