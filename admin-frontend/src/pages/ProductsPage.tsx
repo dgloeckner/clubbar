@@ -13,7 +13,18 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { get, post, patch, del, onLoadingStateChange } from '../services/api'
+import axios from 'axios'
+import { getProducts } from '../api/generated/products/products'
+import { onLoadingStateChange, customInstance } from '../api/client'
+import type {
+  Product,
+  Category,
+  ProductCreateRequest,
+  ProductUpdateRequest,
+  ListProductsParams,
+  ListProductsSortBy,
+  ListProductsStatus,
+} from '../api/generated'
 import { CategorySelect } from '../components/forms/CategorySelect'
 import { IconSelect } from '../components/forms/IconSelect'
 import { LanguageTabsInput } from '../components/forms/LanguageTabsInput'
@@ -44,38 +55,30 @@ import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { useFormatters } from '../hooks/useFormatters'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 
-interface Product {
-  id: string
-  names: { [lang: string]: string }
-  descriptions?: { [lang: string]: string }
-  price_cents: number
-  category_id: string
-  is_active: boolean
-  icon_name?: string | null
+// Extend the generated Product type with fields not yet in OAS spec
+type ProductWithExtras = Product & {
   requires_dispenser?: boolean
-  created_at: string
-  updated_at: string
 }
 
-interface Category {
+// Extend Category to ensure required fields are non-optional at runtime
+type CategoryRuntime = Category & {
   id: string
   names: { [lang: string]: string }
   is_active: boolean
 }
-
 
 export function ProductsPage() {
   const { t, i18n } = useTranslation()
   const { formatPrice } = useFormatters()
   const breakpoint = useBreakpoint()
-  const [products, setProducts] = useState<Product[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
+  const [products, setProducts] = useState<ProductWithExtras[]>([])
+  const [categories, setCategories] = useState<CategoryRuntime[]>([])
   const [loading, setLoading] = useState(true)
   const [globalLoading, setGlobalLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [editingProduct, setEditingProduct] = useState<ProductWithExtras | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
   const [formData, setFormData] = useState({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
@@ -179,11 +182,17 @@ export function ProductsPage() {
 
   async function loadCategories() {
     try {
-      const response = await get<any>('/admin/categories')
-      const categoriesArray = (response as any).categories || []
+      const response = await getProducts().listCategories()
+      // Support both OAS-compliant { data: [...] } and legacy { categories: [...] } shapes
+      const raw = response as unknown as Record<string, unknown>
+      const categoriesArray: CategoryRuntime[] = (
+        (raw.data as CategoryRuntime[] | undefined) ??
+        (raw.categories as CategoryRuntime[] | undefined) ??
+        []
+      )
       setCategories(categoriesArray)
-    } catch (err: any) {
-      // Silently fail - categories are optional
+    } catch {
+      // Silently fail - categories are optional for display purposes
       setCategories([])
     }
   }
@@ -192,48 +201,56 @@ export function ProductsPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await get<any>('/admin/products', {
-        params: {
-          page: currentPage,
-          per_page: pageSize,
-          sort_by: `${sortKey}_${sortDirection}`,
-          ...(filterCategory && { category_id: filterCategory }),
-          ...(filterStatus !== 'all' && { status: filterStatus }),
-          ...(search && { search }),
-        },
-      })
-      console.log('Products API response:', response)
-      // API response uses 'items' array with pagination metadata
-      const items = (response as any).items || []
-      console.log(`Loaded ${items.length} products from API`)
-      console.log('Pagination info:', {
-        total: (response as any).total,
-        limit: (response as any).limit,
-        offset: (response as any).offset,
-        has_more: (response as any).has_more,
-      })
 
-      // Extract total from API response
-      const apiTotal = (response as any).total || items.length
+      const sortByValue = `${sortKey}_${sortDirection}` as ListProductsSortBy
+
+      const params: ListProductsParams = {
+        page: currentPage,
+        per_page: pageSize,
+        sort_by: sortByValue,
+      }
+      if (filterCategory) params.category_id = filterCategory
+      if (filterStatus !== 'all') params.status = filterStatus as ListProductsStatus
+      if (search) params.search = search
+
+      const response = await getProducts().listProducts(params)
+
+      // Support both OAS-compliant { data: [...], pagination: {...} } and legacy { items: [...], total: N }
+      const raw = response as unknown as Record<string, unknown>
+      const items: ProductWithExtras[] = (
+        (raw.data as ProductWithExtras[] | undefined) ??
+        (raw.items as ProductWithExtras[] | undefined) ??
+        []
+      )
+      const apiTotal: number = (
+        (response.pagination?.total) ??
+        (raw.total as number | undefined) ??
+        items.length
+      )
+
       setTotalItems(apiTotal)
       setProducts(items)
-    } catch (err: any) {
-      setError(err.message || 'Failed to load products')
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || err.message || 'Failed to load products')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load products')
+      }
       setProducts([])
     } finally {
       setLoading(false)
     }
   }
 
-  function openEditModal(product: Product) {
+  function openEditModal(product: ProductWithExtras) {
     setModalMode('edit')
     setEditingProduct(product)
     setFormData({
-      names: { de: product.names.de || '', en: product.names.en || '' },
-      price: (product.price_cents / 100).toFixed(2),
+      names: { de: product.names?.de || '', en: product.names?.en || '' },
+      price: ((product.price_cents ?? 0) / 100).toFixed(2),
       requiresDispenser: product.requires_dispenser || false,
     })
-    setSelectedCategory(product.category_id)
+    setSelectedCategory(product.category_id || '')
     setSelectedIcon(product.icon_name || null)
     setFormError(null)
     setShowModal(true)
@@ -263,18 +280,17 @@ export function ProductsPage() {
       // Filter out empty language names - backend requires all values to be non-empty
       const nonEmptyNames = Object.entries(formData.names)
         .filter(([, name]) => name.trim())
-        .reduce((acc, [lang, name]) => ({ ...acc, [lang]: name.trim() }), {})
-      const productData = {
+        .reduce((acc, [lang, name]) => ({ ...acc, [lang]: name.trim() }), {} as Record<string, string>)
+
+      const productData: ProductCreateRequest & { requires_dispenser?: boolean } = {
         names: nonEmptyNames,
         price_cents: priceCents,
         category_id: selectedCategory,
         icon_name: selectedIcon,
         requires_dispenser: formData.requiresDispenser,
       }
-      console.log('Creating product with:', productData)
 
-      const response = await post('/admin/products', productData)
-      console.log('Product created successfully:', response)
+      await getProducts().createProduct(productData as ProductCreateRequest)
 
       setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
       setSelectedCategory('')
@@ -282,15 +298,16 @@ export function ProductsPage() {
       setModalMode('create')
       setEditingProduct(null)
       setShowModal(false)
-      console.log('Form state reset, reloading products...')
 
       // Reload product list to show newly created product
       await loadProducts()
-      console.log('Products reloaded after creation')
-    } catch (err: any) {
-      console.error('Product creation error:', err)
-      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to create product'
-      setFormError(errorMsg)
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to create product'
+        setFormError(errorMsg)
+      } else {
+        setFormError(err instanceof Error ? err.message : 'Failed to create product')
+      }
     }
   }
 
@@ -318,15 +335,17 @@ export function ProductsPage() {
       // Filter out empty language names - backend requires all values to be non-empty
       const nonEmptyNames = Object.entries(formData.names)
         .filter(([, name]) => name.trim())
-        .reduce((acc, [lang, name]) => ({ ...acc, [lang]: name.trim() }), {})
+        .reduce((acc, [lang, name]) => ({ ...acc, [lang]: name.trim() }), {} as Record<string, string>)
 
-      await patch(`/admin/products/${editingProduct!.id}`, {
+      const updateData: ProductUpdateRequest & { requires_dispenser?: boolean } = {
         names: nonEmptyNames,
         price_cents: priceCents,
         category_id: selectedCategory,
         icon_name: selectedIcon,
         requires_dispenser: formData.requiresDispenser,
-      })
+      }
+
+      await getProducts().updateProduct(editingProduct!.id!, updateData as ProductUpdateRequest)
 
       setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
       setSelectedCategory('')
@@ -336,30 +355,35 @@ export function ProductsPage() {
       setShowModal(false)
       // Reload product list to reflect updated product
       await loadProducts()
-    } catch (err: any) {
-      console.error('Product update error:', err)
-      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update product'
-      setFormError(errorMsg)
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update product'
+        setFormError(errorMsg)
+      } else {
+        setFormError(err instanceof Error ? err.message : 'Failed to update product')
+      }
     }
   }
 
-  async function handleDelete(product: Product) {
-    const productName = getLocalizedName(product.names, i18n.language)
+  async function handleDelete(product: ProductWithExtras) {
+    const productName = getLocalizedName(product.names as Record<string, string>, i18n.language)
     setConfirmDialog({
       type: 'delete',
-      productId: product.id,
+      productId: product.id!,
       message: t('products.deleteConfirm', { name: productName }),
     })
   }
 
-  async function handleStatusToggle(product: Product) {
+  async function handleStatusToggle(product: ProductWithExtras) {
     try {
-      await patch(`/admin/products/${product.id}/status`, {
-        is_active: !product.is_active,
-      })
+      await getProducts().updateProduct(product.id!, { is_active: !product.is_active })
       await loadProducts()
-    } catch (err: any) {
-      setError(err.message || 'Failed to update product status')
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || err.message || 'Failed to update product status')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to update product status')
+      }
     }
   }
 
@@ -367,11 +391,16 @@ export function ProductsPage() {
     if (!confirmDialog) return
 
     try {
-      await del(`/admin/products/${confirmDialog.productId}`)
+      // deleteProduct is not in the OAS spec but exists in the backend
+      await customInstance<void>({ url: `/admin/products/${confirmDialog.productId}`, method: 'DELETE' })
       setConfirmDialog(null)
       await loadProducts()
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete product')
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || err.message || 'Failed to delete product')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to delete product')
+      }
       setConfirmDialog(null)
     }
   }
@@ -530,7 +559,7 @@ export function ProductsPage() {
                     { value: '', label: t('common.all') },
                     ...categories.map((c) => ({
                       value: c.id,
-                      label: getLocalizedName(c.names, i18n.language),
+                      label: getLocalizedName(c.names as Record<string, string>, i18n.language),
                     })),
                   ]}
                   value={filterCategory || ''}
@@ -554,7 +583,7 @@ export function ProductsPage() {
             <div data-testid="products-mobile-cards" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {products.map((product) => {
                 const category = categories.find((c) => c.id === product.category_id)
-                const categoryName = category ? getLocalizedName(category.names, i18n.language) : ''
+                const categoryName = category ? getLocalizedName(category.names as Record<string, string>, i18n.language) : ''
                 return (
                   <div
                     key={product.id}
@@ -569,16 +598,16 @@ export function ProductsPage() {
                     {/* Row 1: toggle + name + price */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                       <Toggle
-                        enabled={product.is_active}
+                        enabled={product.is_active ?? false}
                         onChange={() => handleStatusToggle(product)}
                         size="small"
                         testId={`products-status-toggle-${product.id}`}
                       />
                       <span style={{ flex: 1, fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}>
-                        {getLocalizedName(product.names, i18n.language)}
+                        {getLocalizedName(product.names as Record<string, string>, i18n.language)}
                       </span>
                       <span style={{ fontWeight: 600, color: '#e2e8f0', fontSize: '14px', whiteSpace: 'nowrap' }}>
-                        {formatPrice(product.price_cents)}
+                        {formatPrice(product.price_cents ?? 0)}
                       </span>
                     </div>
                     {/* Row 2: category */}
@@ -786,20 +815,20 @@ export function ProductsPage() {
               <tr
                 key={product.id}
                 data-testid={product.id}
-                style={getRowStyle(product.is_active)}
+                style={getRowStyle(product.is_active ?? false)}
                 onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => {
                   if (product.is_active) {
                     e.currentTarget.style.backgroundColor = tableColors.rowActiveHoverBg
                   }
                 }}
                 onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => {
-                  e.currentTarget.style.backgroundColor = product.is_active
+                  e.currentTarget.style.backgroundColor = (product.is_active ?? false)
                     ? tableColors.rowActiveBg
                     : tableColors.rowInactiveBg
                 }}
               >
                 <StatusToggleCell
-                  enabled={product.is_active}
+                  enabled={product.is_active ?? false}
                   onChange={() => handleStatusToggle(product)}
                   testId={`products-status-toggle-${product.id}`}
                 />
@@ -813,11 +842,11 @@ export function ProductsPage() {
                   }}
                 >
                   {(() => {
-                    const Icon = getProductIcon(product.icon_name)
+                    const Icon = getProductIcon(product.icon_name ?? null)
                     return <Icon size={20} data-testid={`products-table-cell-icon-${product.id}`} />
                   })()}
                   <span data-testid={`products-table-cell-name-${product.id}`} style={{ fontWeight: '500' }}>
-                    {getLocalizedName(product.names, i18n.language)}
+                    {getLocalizedName(product.names as Record<string, string>, i18n.language)}
                   </span>
                   {product.requires_dispenser && (
                     <Badge
@@ -829,13 +858,13 @@ export function ProductsPage() {
                   )}
                 </td>
                 <PriceCell
-                  priceCents={product.price_cents}
+                  priceCents={product.price_cents ?? 0}
                   testId={`products-table-cell-price-${product.id}`}
                 />
                 <BadgeCell
                   label={(() => {
                     const category = categories.find((c) => c.id === product.category_id)
-                    return category ? getLocalizedName(category.names, i18n.language) : ''
+                    return category ? getLocalizedName(category.names as Record<string, string>, i18n.language) : ''
                   })()}
                   testId={`products-table-cell-category-${product.id}`}
                 />

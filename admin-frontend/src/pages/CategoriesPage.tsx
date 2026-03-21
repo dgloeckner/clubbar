@@ -16,7 +16,13 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { get, post, patch, del } from '../services/api'
+import axios from 'axios'
+import { getProducts } from '../api/generated/products/products'
+import type {
+  Category,
+  CategoryCreateRequest,
+  CategoryUpdateRequest,
+} from '../api/generated'
 import { theme } from '../styles/design-system'
 import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { EditIcon, TrashIcon, PlusIcon } from '../components/icons'
@@ -42,12 +48,12 @@ import {
 } from '../styles/tableTokens'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 
-interface Category {
+// Runtime type with required fields
+type CategoryRuntime = Category & {
   id: string
   names: { [lang: string]: string }
   is_active: boolean
   product_count: number
-  icon_name?: string | null
   created_at: string
 }
 
@@ -55,12 +61,12 @@ export function CategoriesPage() {
   const { t, i18n } = useTranslation()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
-  const [categories, setCategories] = useState<Category[]>([])
+  const [categories, setCategories] = useState<CategoryRuntime[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<CategoryRuntime | null>(null)
   const [formData, setFormData] = useState<{ de: string; en: string }>({ de: '', en: '' })
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -144,10 +150,17 @@ export function CategoriesPage() {
     try {
       setLoading(true)
       setError(null)
-      // API returns { categories: [...] } directly (not wrapped in ApiResponse)
-      const response = await get<any>('/admin/categories')
-      // response IS the direct API response { categories: [...] }
-      let categoriesArray = (response as any).categories || []
+
+      const response = await getProducts().listCategories()
+
+      // Support both OAS-compliant { data: [...] } and legacy { categories: [...] } shapes
+      const raw = response as unknown as Record<string, unknown>
+      let categoriesArray: CategoryRuntime[] = (
+        (raw.data as CategoryRuntime[] | undefined) ??
+        (raw.categories as CategoryRuntime[] | undefined) ??
+        []
+      )
+
       if (Array.isArray(categoriesArray)) {
         // Apply filtering
         if (filterStatus === 'active') {
@@ -157,14 +170,12 @@ export function CategoriesPage() {
         }
 
         // Apply sorting
-        categoriesArray.sort((a: Category, b: Category) => {
-          let aVal: any = sortKey === 'name' ? a.names.de || a.names.en || '' : a.created_at
-          let bVal: any = sortKey === 'name' ? b.names.de || b.names.en || '' : b.created_at
+        categoriesArray.sort((a: CategoryRuntime, b: CategoryRuntime) => {
+          let aVal: string = sortKey === 'name' ? (a.names?.de || a.names?.en || '') : (a.created_at || '')
+          let bVal: string = sortKey === 'name' ? (b.names?.de || b.names?.en || '') : (b.created_at || '')
 
-          if (typeof aVal === 'string') {
-            aVal = aVal.toLowerCase()
-            bVal = (bVal as string).toLowerCase()
-          }
+          aVal = aVal.toLowerCase()
+          bVal = bVal.toLowerCase()
 
           if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
           if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
@@ -184,8 +195,12 @@ export function CategoriesPage() {
         setCategories([])
         setTotalItems(0)
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load categories')
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || err.message || 'Failed to load categories')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load categories')
+      }
       setCategories([])
       setTotalItems(0)
     } finally {
@@ -208,20 +223,20 @@ export function CategoriesPage() {
       // Filter out empty language names - backend requires all values to be non-empty
       const nonEmptyNames = Object.entries(formData)
         .filter(([, name]) => name.trim())
-        .reduce((acc, [lang, name]) => ({ ...acc, [lang]: name.trim() }), {})
+        .reduce((acc, [lang, name]) => ({ ...acc, [lang]: name.trim() }), {} as Record<string, string>)
 
       if (modalMode === 'create') {
-        const result = await post('/admin/categories', {
+        const createData: CategoryCreateRequest = {
           names: nonEmptyNames,
           icon_name: selectedIcon,
-        })
-        console.log('Category created:', result)
+        }
+        await getProducts().createCategory(createData)
       } else if (modalMode === 'edit' && selectedCategory) {
-        const result = await patch(`/admin/categories/${selectedCategory.id}`, {
+        const updateData: CategoryUpdateRequest = {
           names: nonEmptyNames,
           icon_name: selectedIcon,
-        })
-        console.log('Category updated:', result)
+        }
+        await getProducts().updateCategory(selectedCategory.id, updateData)
       }
 
       // Close modal immediately
@@ -231,24 +246,31 @@ export function CategoriesPage() {
 
       // Then reload categories
       await loadCategories()
-    } catch (err: any) {
-      console.error(`Error ${modalMode} category:`, err)
-      setFormError(err.message || `Failed to ${modalMode} category`)
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setFormError(err.response?.data?.message || err.message || `Failed to ${modalMode} category`)
+      } else {
+        setFormError(err instanceof Error ? err.message : `Failed to ${modalMode} category`)
+      }
     }
   }
 
-  async function handleStatusToggle(category: Category) {
+  async function handleStatusToggle(category: CategoryRuntime) {
     if (category.is_active) {
       // Deactivating is immediate (no confirmation)
       try {
-        await patch(`/admin/categories/${category.id}/status`, { is_active: false })
+        await getProducts().updateCategory(category.id, { is_active: false })
         await loadCategories()
-      } catch (err: any) {
-        setError(err.message || 'Failed to deactivate category')
+      } catch (err: unknown) {
+        if (axios.isAxiosError(err)) {
+          setError(err.response?.data?.message || err.message || 'Failed to deactivate category')
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to deactivate category')
+        }
       }
     } else {
       // Activating requires confirmation
-      const categoryName = getLocalizedName(category.names, i18n.language)
+      const categoryName = getLocalizedName(category.names as Record<string, string>, i18n.language)
       setConfirmDialog({
         type: 'status',
         categoryId: category.id,
@@ -257,13 +279,13 @@ export function CategoriesPage() {
     }
   }
 
-  async function handleDelete(category: Category) {
+  async function handleDelete(category: CategoryRuntime) {
     if (category.product_count > 0) {
       setError(t('categories.cannotDeleteWithProducts', { count: category.product_count }))
       return
     }
 
-    const categoryName = getLocalizedName(category.names, i18n.language)
+    const categoryName = getLocalizedName(category.names as Record<string, string>, i18n.language)
     setConfirmDialog({
       type: 'delete',
       categoryId: category.id,
@@ -276,11 +298,11 @@ export function CategoriesPage() {
 
     try {
       if (confirmDialog.type === 'delete') {
-        await del(`/admin/categories/${confirmDialog.categoryId}`)
+        await getProducts().deleteCategory(confirmDialog.categoryId)
       } else if (confirmDialog.type === 'status') {
         const category = categories.find((c) => c.id === confirmDialog.categoryId)
         if (category) {
-          await patch(`/admin/categories/${confirmDialog.categoryId}/status`, {
+          await getProducts().updateCategory(confirmDialog.categoryId, {
             is_active: !category.is_active,
           })
         }
@@ -288,8 +310,12 @@ export function CategoriesPage() {
 
       setConfirmDialog(null)
       await loadCategories()
-    } catch (err: any) {
-      setError(err.message || 'Failed to perform action')
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || err.message || 'Failed to perform action')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to perform action')
+      }
       setConfirmDialog(null)
     }
   }
@@ -382,7 +408,7 @@ export function CategoriesPage() {
           ) : (
             <div data-testid="categories-mobile-cards" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {categories.map((category) => {
-                const IconComponent = getCategoryIcon(category.icon_name)
+                const IconComponent = getCategoryIcon(category.icon_name ?? null)
                 return (
                   <div
                     key={category.id}
@@ -411,7 +437,7 @@ export function CategoriesPage() {
                         data-testid={`categories-table-cell-name-${category.id}`}
                         style={{ flex: 1, fontWeight: 600, color: '#e2e8f0', fontSize: '14px' }}
                       >
-                        {getLocalizedName(category.names, i18n.language)}
+                        {getLocalizedName(category.names as Record<string, string>, i18n.language)}
                       </span>
                     </div>
                     {/* Row 2: product count + actions */}
@@ -428,7 +454,7 @@ export function CategoriesPage() {
                           onClick={() => {
                             setModalMode('edit')
                             setSelectedCategory(category)
-                            setFormData({ de: category.names.de || '', en: category.names.en || '' })
+                            setFormData({ de: category.names?.de || '', en: category.names?.en || '' })
                             setSelectedIcon(category.icon_name || null)
                             setFormError(null)
                             setShowModal(true)
@@ -602,8 +628,8 @@ export function CategoriesPage() {
 
                       {/* Name */}
                       <IconCell
-                        icon={getCategoryIcon(category.icon_name)}
-                        label={getLocalizedName(category.names, i18n.language)}
+                        icon={getCategoryIcon(category.icon_name ?? null)}
+                        label={getLocalizedName(category.names as Record<string, string>, i18n.language)}
                         iconTestId={`categories-table-cell-icon-${category.id}`}
                         labelTestId={`categories-table-cell-name-${category.id}`}
                       />
@@ -622,7 +648,7 @@ export function CategoriesPage() {
                           onClick={() => {
                             setModalMode('edit')
                             setSelectedCategory(category)
-                            setFormData({ de: category.names.de || '', en: category.names.en || '' })
+                            setFormData({ de: category.names?.de || '', en: category.names?.en || '' })
                             setSelectedIcon(category.icon_name || null)
                             setFormError(null)
                             setShowModal(true)
