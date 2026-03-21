@@ -26,22 +26,15 @@ import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { SettlementStatusFilter } from '../components/forms/SettlementStatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
-import { onLoadingStateChange } from '../services/api'
-import {
-  getTransactions,
-  getTransactionTypeColor,
-  getAmountColor,
-  createCorrection,
-  type GlobalTransaction
-} from '../services/transactions'
-import {
-  createSettlement,
-  createSettlementByFilters,
-  getSettlementFilterPreview,
-  type SettlementFilterPreview,
-} from '../services/settlements'
+import { onLoadingStateChange } from '../api/client'
+import { getTransactions } from '../api/generated/transactions/transactions'
+import { getSettlements } from '../api/generated/settlements/settlements'
+import { getMembers } from '../api/generated/members/members'
+import { getTransactionTypeColor, getAmountColor } from '../utils/transactions'
+import { getCurrentLanguage } from '../i18n/config'
+import { getLocalizedName } from '../utils/i18n-helpers'
 import { SettlementConfirmModal } from '../components/modals/SettlementConfirmModal'
-import { getMembers, type Member } from '../services/members'
+import type { GlobalTransaction, SettlementFilterPreview, MemberListItem } from '../api/generated'
 import { theme } from '../styles/design-system'
 import {
   tableColors,
@@ -50,8 +43,50 @@ import {
   headerRowStyle,
 } from '../styles/tableTokens'
 
+// Local resolved type with non-optional fields for JSX safety
+interface ResolvedTransaction {
+  id: string
+  member_id: string
+  member_name: string
+  type: string
+  amount_cents: number
+  description: string
+  product_id: string | null
+  product_name: string | null
+  created_at: string
+  is_settled: boolean
+  settlement_date: string | null
+}
+
+function localizeTransactionItems(items: GlobalTransaction[]): ResolvedTransaction[] {
+  const lang = getCurrentLanguage()
+  return items.map((item) => {
+    let product_name: string | null = item.product_name ?? null
+    if (typeof item.product_names === 'string') {
+      try {
+        product_name = getLocalizedName(JSON.parse(item.product_names), lang)
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return {
+      id: item.id ?? '',
+      member_id: item.member_id ?? '',
+      member_name: item.member_name ?? '',
+      type: item.type ?? '',
+      amount_cents: item.amount_cents ?? 0,
+      description: item.description ?? '',
+      product_id: item.product_id ?? null,
+      product_name,
+      created_at: item.created_at ?? '',
+      is_settled: item.is_settled ?? !!item.settlement_date,
+      settlement_date: item.settlement_date ?? null,
+    }
+  })
+}
+
 interface JournalPageState {
-  transactions: GlobalTransaction[]
+  transactions: ResolvedTransaction[]
   totalItems: number
   loading: boolean
   error: string | null
@@ -96,7 +131,7 @@ export function JournalPage() {
 
   // Settlement confirm modal state
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
-  const [pendingTransactions, setPendingTransactions] = useState<GlobalTransaction[]>([])
+  const [pendingTransactions, setPendingTransactions] = useState<ResolvedTransaction[]>([])
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [settleAllPreview, setSettleAllPreview] = useState<SettlementFilterPreview | null>(null)
@@ -104,7 +139,7 @@ export function JournalPage() {
 
   // Correction modal state
   const [showCorrectionModal, setShowCorrectionModal] = useState(false)
-  const [members, setMembers] = useState<Member[]>([])
+  const [members, setMembers] = useState<MemberListItem[]>([])
   const [correctionForm, setCorrectionForm] = useState({
     memberId: '',
     amountCents: 0,
@@ -166,25 +201,25 @@ export function JournalPage() {
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }))
 
-      const result = await getTransactions(
-        currentPage,
-        pageSize,
-        dateFrom || undefined,
-        dateTo || undefined,
-        'all', // type - deprecated, always 'all' for now
-        undefined, // memberId - future enhancement
-        search || undefined,
-        sortKey,
-        sortDirection,
-        settlementStatus
-      )
+      const result = await getTransactions().listTransactions({
+        page: currentPage,
+        per_page: pageSize,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        search: search || undefined,
+        sort: sortKey as 'created_at' | 'amount' | 'type' | 'member',
+        order: sortDirection,
+        settlement_status: settlementStatus !== 'all' ? settlementStatus as 'open' | 'settled' : undefined,
+      })
+
+      const resolvedItems = localizeTransactionItems(result.items ?? [])
 
       // Only update state if component is still mounted
       if (isMountedRef.current) {
         setState((prev) => ({
           ...prev,
-          transactions: result.items,
-          totalItems: result.total,
+          transactions: resolvedItems,
+          totalItems: result.total ?? 0,
           loading: false,
         }))
       }
@@ -238,8 +273,8 @@ export function JournalPage() {
 
     // Load members for dropdown
     try {
-      const response = await getMembers(1, 100, undefined, {}, 'first_name', 'asc')
-      setMembers(response.items)
+      const response = await getMembers().listMembers({ page: 1, per_page: 100, sort_by: 'name_asc' })
+      setMembers(response.data ?? [])
     } catch (err) {
       setCorrectionError('Failed to load members')
     }
@@ -270,11 +305,10 @@ export function JournalPage() {
       setCorrectionLoading(true)
       setCorrectionError(null)
 
-      await createCorrection(
-        correctionForm.memberId,
-        correctionForm.amountCents,
-        correctionForm.reason
-      )
+      await getTransactions().createManualTransaction(correctionForm.memberId, {
+        amount_cents: correctionForm.amountCents,
+        notes: correctionForm.reason,
+      })
 
       // Close modal and reload transactions
       handleCorrectionModalClose()
@@ -330,11 +364,11 @@ export function JournalPage() {
   const handleSettleAll = async () => {
     setSettleAllLoading(true)
     try {
-      const preview = await getSettlementFilterPreview(
-        dateFrom || undefined,
-        dateTo || undefined,
-        search || undefined,
-      )
+      const preview = await getSettlements().previewSettlementByFilters({
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        search: search || undefined,
+      })
       if (preview.transaction_count === 0) {
         setState((prev) => ({ ...prev, error: t('journal.settlementNoOpen') }))
         return
@@ -370,18 +404,23 @@ export function JournalPage() {
       const executionDateStr = executionDate.toISOString().split('T')[0]
 
       if (settleAllPreview) {
-        await createSettlementByFilters(
-          today,
-          executionDateStr,
-          dateFrom || undefined,
-          dateTo || undefined,
-          search || undefined,
-        )
+        await getSettlements().createSettlementByFilters({
+          settlement_date: today,
+          execution_date: executionDateStr,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          search: search || undefined,
+        })
       } else {
-        await createSettlement(
-          pendingTransactions.map((tx) => tx.id),
-          today,
-          executionDateStr
+        // The backend also accepts transaction_ids + settlement_date which are not
+        // modelled in the generated SettlementCreateRequest type, so we use a cast.
+        await getSettlements().createSettlement(
+          ({
+            settlement_type: 'sepa',
+            settlement_date: today,
+            execution_date: executionDateStr,
+            transaction_ids: pendingTransactions.map((tx) => tx.id),
+          } as unknown) as Parameters<ReturnType<typeof getSettlements>['createSettlement']>[0]
         )
       }
 
