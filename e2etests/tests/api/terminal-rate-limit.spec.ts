@@ -7,13 +7,20 @@ import { TEST_CREDENTIALS } from '../../config/test-credentials';
  * Tests IP-based rate limiting on terminal sync endpoints.
  * Rate limit: 10 failed attempts per 15-minute window → 429.
  *
- * IMPORTANT: These tests must run serially (--workers=1) and require
- * an empty terminal_auth_attempts table. Run explicitly:
- *   npm test -- tests/api/terminal-rate-limit.spec.ts --workers=1
+ * IMPORTANT: These tests require special setup to run:
  *
- * To reset before local runs:
- *   docker compose exec database mysql -uclubbar -pclubbar clubbar \
- *     -e "TRUNCATE terminal_auth_attempts;"
+ *   1. Disable DISABLE_TERMINAL_RATE_LIMITING in docker-compose.yml, then restart:
+ *        docker compose up -d --force-recreate backend
+ *
+ *   2. Truncate the attempts table:
+ *        docker compose exec database mysql -uclubbar -pclubbar clubbar \
+ *          -e "TRUNCATE terminal_auth_attempts;"
+ *
+ *   3. Run serially (parallel workers would race the rate limit counter):
+ *        npm test -- tests/api/terminal-rate-limit.spec.ts --workers=1
+ *
+ * These tests are excluded from normal `npm test` runs (see playwright.config.ts testIgnore).
+ * They skip automatically if rate limiting appears to be disabled in the backend.
  */
 
 test.describe.configure({ mode: 'serial' });

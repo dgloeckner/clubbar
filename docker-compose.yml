@@ -56,6 +56,11 @@ services:
       APP_DEBUG: "false"
       APP_URL: http://localhost:8080
 
+      # Test configuration
+      # Disables terminal token rate limiting so parallel API tests don't hit 429.
+      # To run terminal-rate-limit.spec.ts, remove this line and restart the container.
+      DISABLE_TERMINAL_RATE_LIMITING: "true"
+
       # Database Configuration
       DB_HOST: database
       DB_PORT: 3306
