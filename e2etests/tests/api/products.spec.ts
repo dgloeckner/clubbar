@@ -434,8 +434,7 @@ test.describe('Products API', () => {
 
     // ── Schema: requires_dispenser field ─────────────────────────
     expect(activeInSync).toHaveProperty('requires_dispenser')
-    expect(typeof activeInSync.requires_dispenser).toBe('number')
-    expect([0, 1]).toContain(activeInSync.requires_dispenser)
+    expect(typeof activeInSync.requires_dispenser).toBe('boolean')
 
     // ── Schema: descriptions can be null or object ───────────────
     if (activeInSync.descriptions !== null) {

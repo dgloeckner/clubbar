@@ -451,7 +451,7 @@ paths:
                       amount_cents: 280
                       created_at: '2025-01-23T14:24:30Z'
       responses:
-        '200':
+        '201':
           description: Transactions accepted (some or all)
           content:
             application/json:
@@ -1282,6 +1282,11 @@ components:
             - validation_failed
             - rate_limit_exceeded
             - server_error
+            - authorization_header_missing
+            - invalid_authorization_format
+            - invalid_terminal_token
+            - terminal_inactive
+            - sepa_invalid
           description: Machine-readable error code
         message:
           type: string
