@@ -19,6 +19,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import axios from 'axios'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
@@ -36,22 +37,38 @@ import {
   tableSpacing,
   getRowStyle,
 } from '../styles/tableTokens'
-import {
-  getSettlements,
-  getSettlementStatus,
-  undoSettlement,
-  downloadTransactionsCsv,
-  Settlement,
-} from '../services/settlements'
-import { downloadFile } from '../services/api'
+import { getSettlements as getSettlementsFactory } from '../api/generated/settlements/settlements'
+import type { SettlementListItem, ListSettlementsParams } from '../api/generated'
+import { downloadFile } from '../api/client'
 
+
+/**
+ * Extended settlement list item — includes runtime fields returned by the backend
+ * that are not yet declared in the generated SettlementListItem schema.
+ */
+interface SettlementListItemExtended extends SettlementListItem {
+  transaction_count?: number
+  transaction_date_min?: string | null
+  transaction_date_max?: string | null
+  created_by_admin_name?: string | null
+  created_by_admin_id?: string | null
+}
+
+/**
+ * Derive settlement status from fields
+ */
+function getSettlementStatus(settlement: SettlementListItemExtended): 'active' | 'cancelled' | 'exported' {
+  if (settlement.is_cancelled) return 'cancelled'
+  if (settlement.exported_at !== null && settlement.exported_at !== undefined) return 'exported'
+  return 'active'
+}
 
 /**
  * Format a transaction date range for display.
  * Abbreviates the first date's year when both dates share the same year.
  * Examples: "15.01. – 28.02.2026" (same year), "15.12.2025 – 03.01.2026" (different year)
  */
-function formatDateRange(minStr: string | null, maxStr: string | null): string | null {
+function formatDateRange(minStr: string | null | undefined, maxStr: string | null | undefined): string | null {
   if (!minStr || !maxStr) return null
   const min = new Date(minStr)
   const max = new Date(maxStr)
@@ -77,7 +94,7 @@ export function SettlementsPage() {
   const { t } = useTranslation()
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
-  const [settlements, setSettlements] = useState<Settlement[]>([])
+  const [settlements, setSettlements] = useState<SettlementListItemExtended[]>([])
   const [totalItems, setTotalItems] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -134,21 +151,38 @@ export function SettlementsPage() {
       setLoading(true)
       setError(null)
 
-      const response = await getSettlements(
-        currentPage,
-        pageSize,
-        undefined,
-        dateFrom,
-        dateTo,
-        statusFilter,
-        sortKey,
-        sortOrder
-      )
+      // Build sort_by param: generated type only supports created_at_desc/asc, execution_date
+      const sortBy = sortKey === 'created_at'
+        ? (sortOrder === 'asc' ? 'created_at_asc' : 'created_at_desc')
+        : 'created_at_desc'
 
-      setSettlements(response.data)
-      setTotalItems(response.pagination.total)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load settlements')
+      const params: ListSettlementsParams & Record<string, unknown> = {
+        page: currentPage,
+        per_page: pageSize,
+        sort_by: sortBy,
+      }
+
+      if (dateFrom) params.date_from = dateFrom
+      if (dateTo) params.date_to = dateTo
+      if (statusFilter !== 'all') params.status = statusFilter
+      // Pass sort/order for backends that support the legacy format
+      if (sortKey === 'created_by') {
+        params.sort = sortKey
+        params.order = sortOrder
+      }
+
+      const response = await getSettlementsFactory().listSettlements(params)
+
+      setSettlements((response.data ?? []) as SettlementListItemExtended[])
+      setTotalItems(response.pagination?.total ?? 0)
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message ?? err.message)
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Failed to load settlements')
+      }
       setSettlements([])
       setTotalItems(0)
     } finally {
@@ -167,27 +201,61 @@ export function SettlementsPage() {
 
   const handleExportSepa = async (settlementId: string) => {
     try {
-      await downloadFile(`/admin/settlements/${settlementId}/export-sepa`, `sepa-${settlementId}.xml`)
+      const blob = await getSettlementsFactory().downloadSepaXml(settlementId)
+      const objectUrl = URL.createObjectURL(blob as unknown as Blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = `sepa-${settlementId}.xml`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
       // Reload list so status updates to "Exported"
       setTimeout(() => loadSettlements(), 500)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to export SEPA XML')
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message ?? err.message)
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Failed to export SEPA XML')
+      }
     }
   }
 
   const handleExportCsv = async (settlementId: string) => {
     try {
-      await downloadFile(`/admin/settlements/${settlementId}/export-csv`, `settlement-${settlementId}.csv`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to export CSV')
+      const blob = await getSettlementsFactory().downloadSettlementCsv(settlementId)
+      const objectUrl = URL.createObjectURL(blob as unknown as Blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = `settlement-${settlementId}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message ?? err.message)
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Failed to export CSV')
+      }
     }
   }
 
-  const handleExportTransactionsCsv = (settlementId: string) => {
+  const handleExportTransactionsCsv = async (settlementId: string) => {
     try {
-      downloadTransactionsCsv(settlementId)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to export transactions CSV')
+      await downloadFile(`/admin/settlements/${settlementId}/export-transactions`, `transactions-${settlementId}.csv`)
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message ?? err.message)
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Failed to export transactions CSV')
+      }
     }
   }
 
@@ -202,10 +270,16 @@ export function SettlementsPage() {
     try {
       setLoading(true)
       setError(null)
-      await undoSettlement(settlementId)
+      await getSettlementsFactory().cancelSettlement(settlementId)
       await loadSettlements()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to undo settlement')
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message ?? err.message)
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Failed to undo settlement')
+      }
     } finally {
       setLoading(false)
     }
@@ -214,7 +288,7 @@ export function SettlementsPage() {
   // Calculate total pages
   const totalPages = Math.ceil(totalItems / pageSize)
 
-  const status = (settlement: Settlement) => getSettlementStatus(settlement as any)
+  const status = (settlement: SettlementListItemExtended) => getSettlementStatus(settlement)
 
     return (
       <div data-testid="settlements-page">
@@ -292,7 +366,7 @@ export function SettlementsPage() {
                     {/* Row 1: date + status badge */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                       <span style={{ fontWeight: 600, color: theme.colors.text.primary, fontSize: '14px' }}>
-                        {formatters.formatDate(settlement.created_at)}
+                        {formatters.formatDate(settlement.created_at ?? '')}
                       </span>
                       <span
                         data-testid={`settlements-badge-status-${settlement.id}`}
@@ -330,14 +404,14 @@ export function SettlementsPage() {
                         marginBottom: '10px',
                       }}
                     >
-                      {formatters.formatPrice(settlement.total_amount_cents)}
+                      {formatters.formatPrice(settlement.total_amount_cents ?? 0)}
                     </div>
 
                     {/* Row 5: action buttons */}
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                       <button
                         data-testid={`settlements-export-sepa-btn-${settlement.id}`}
-                        onClick={() => handleExportSepa(settlement.id)}
+                        onClick={() => handleExportSepa(settlement.id ?? '')}
                         disabled={settlement.is_cancelled}
                         style={{
                           padding: '5px 10px',
@@ -354,7 +428,7 @@ export function SettlementsPage() {
                       </button>
                       <button
                         data-testid={`settlements-export-csv-btn-${settlement.id}`}
-                        onClick={() => handleExportCsv(settlement.id)}
+                        onClick={() => handleExportCsv(settlement.id ?? '')}
                         disabled={settlement.is_cancelled}
                         style={{
                           padding: '5px 10px',
@@ -371,7 +445,7 @@ export function SettlementsPage() {
                       </button>
                       <button
                         data-testid={`settlements-export-transactions-btn-${settlement.id}`}
-                        onClick={() => handleExportTransactionsCsv(settlement.id)}
+                        onClick={() => handleExportTransactionsCsv(settlement.id ?? '')}
                         disabled={settlement.is_cancelled}
                         style={{
                           padding: '5px 10px',
@@ -388,7 +462,7 @@ export function SettlementsPage() {
                       </button>
                       <button
                         data-testid={`settlements-undo-btn-${settlement.id}`}
-                        onClick={() => handleUndoSettlement(settlement.id)}
+                        onClick={() => handleUndoSettlement(settlement.id ?? '')}
                         disabled={settlement.is_cancelled}
                         style={{
                           padding: '5px 10px',
@@ -572,7 +646,7 @@ export function SettlementsPage() {
                             color: tableColors.cellText,
                           }}
                         >
-                          <div>{formatters.formatDate(settlement.created_at)}</div>
+                          <div>{formatters.formatDate(settlement.created_at ?? '')}</div>
                           {formatDateRange(settlement.transaction_date_min, settlement.transaction_date_max) && (
                             <div style={{ fontSize: 12, color: tableColors.cellSecondaryText }}>
                               {formatDateRange(settlement.transaction_date_min, settlement.transaction_date_max)}
@@ -621,7 +695,7 @@ export function SettlementsPage() {
                           }}
                         >
                           <span data-testid={`settlements-price-${settlement.id}`}>
-                            {formatters.formatPrice(settlement.total_amount_cents)}
+                            {formatters.formatPrice(settlement.total_amount_cents ?? 0)}
                           </span>
                         </td>
 
@@ -664,7 +738,7 @@ export function SettlementsPage() {
                             {/* Export SEPA XML */}
                             <button
                               data-testid={`settlements-export-sepa-btn-${settlement.id}`}
-                              onClick={() => handleExportSepa(settlement.id)}
+                              onClick={() => handleExportSepa(settlement.id ?? '')}
                               disabled={settlement.is_cancelled}
                               style={{
                                 padding: '4px 8px',
@@ -695,7 +769,7 @@ export function SettlementsPage() {
                             {/* Export CSV (aggregated) */}
                             <button
                               data-testid={`settlements-export-csv-btn-${settlement.id}`}
-                              onClick={() => handleExportCsv(settlement.id)}
+                              onClick={() => handleExportCsv(settlement.id ?? '')}
                               disabled={settlement.is_cancelled}
                               style={{
                                 padding: '4px 8px',
@@ -726,7 +800,7 @@ export function SettlementsPage() {
                             {/* Export Transactions CSV (detailed) */}
                             <button
                               data-testid={`settlements-export-transactions-btn-${settlement.id}`}
-                              onClick={() => handleExportTransactionsCsv(settlement.id)}
+                              onClick={() => handleExportTransactionsCsv(settlement.id ?? '')}
                               disabled={settlement.is_cancelled}
                               style={{
                                 padding: '4px 8px',
@@ -757,7 +831,7 @@ export function SettlementsPage() {
                             {/* Undo Settlement */}
                             <button
                               data-testid={`settlements-undo-btn-${settlement.id}`}
-                              onClick={() => handleUndoSettlement(settlement.id)}
+                              onClick={() => handleUndoSettlement(settlement.id ?? '')}
                               disabled={settlement.is_cancelled}
                               style={{
                                 padding: '4px 8px',
