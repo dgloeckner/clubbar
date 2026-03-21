@@ -232,7 +232,7 @@ CREATE TABLE settlement_items (
     settlement_id CHAR(36) NOT NULL,
     transaction_id CHAR(36) NOT NULL UNIQUE,
     member_id CHAR(36) NOT NULL,
-    amount_cents BIGINT UNSIGNED NOT NULL,
+    amount_cents BIGINT NOT NULL,
     INDEX idx_settlement_items_settlement (settlement_id),
     INDEX idx_settlement_items_transaction (transaction_id),
     INDEX idx_settlement_items_member (member_id),
