@@ -311,7 +311,9 @@ class ServiceFactory implements ContainerInterface
     {
         // Not cached via resolve() — returns a fresh instance with terminal-specific config.
         // Uses a different table and higher threshold than the login rate limiter.
-        return new RateLimitMiddleware($this->pdo, 'terminal_auth_attempts', 10, 15);
+        // Disabled via DISABLE_TERMINAL_RATE_LIMITING=true (e.g. in test environments).
+        $disabled = Env::get('DISABLE_TERMINAL_RATE_LIMITING', 'false') === 'true';
+        return new RateLimitMiddleware($this->pdo, 'terminal_auth_attempts', 10, 15, $disabled);
     }
 
     public function getTerminalOasValidator(): \Psr\Http\Server\MiddlewareInterface

@@ -18,10 +18,15 @@ class RateLimitMiddleware implements MiddlewareInterface
         private string $table = 'login_attempts',
         private int $maxAttempts = 5,
         private int $windowMinutes = 15,
+        private bool $disabled = false,
     ) {}
 
     public function process(Request $request, RequestHandlerInterface $handler): Response
     {
+        if ($this->disabled) {
+            return $handler->handle($request);
+        }
+
         $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
 
         $stmt = $this->pdo->prepare(
