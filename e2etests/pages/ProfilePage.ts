@@ -23,6 +23,7 @@ export class ProfilePage extends BasePage {
   private readonly languageOptionEn = () => this.page.locator('[data-testid="profile-locale-option-en"]')
   private readonly saveButton = () => this.page.locator('[data-testid="profile-save-button"]')
   private readonly successMessage = () => this.page.locator('[data-testid="profile-success"]')
+  private readonly currentPasswordInput = () => this.page.locator('[data-testid="password-current"]')
   private readonly newPasswordInput = () => this.page.locator('[data-testid="password-new"]')
   private readonly confirmPasswordInput = () => this.page.locator('[data-testid="password-confirm"]')
   private readonly changePasswordButton = () => this.page.locator('[data-testid="password-change-button"]')
@@ -135,6 +136,10 @@ export class ProfilePage extends BasePage {
   /**
    * PASSWORD FORM INTERACTIONS
    */
+
+  async fillCurrentPassword(password: string) {
+    await this.currentPasswordInput().fill(password)
+  }
 
   async fillNewPassword(password: string) {
     await this.newPasswordInput().fill(password)

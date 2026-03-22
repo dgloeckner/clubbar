@@ -46,6 +46,7 @@ test.describe('Profile Page', () => {
   })
 
   test('should reject mismatched passwords with error', async ({ authenticatedProfilePage }) => {
+    await authenticatedProfilePage.fillCurrentPassword('AnyValue1!')
     await authenticatedProfilePage.fillNewPassword('NewPassword123')
     await authenticatedProfilePage.fillConfirmPassword('DifferentPassword456')
     await authenticatedProfilePage.clickChangePassword()
@@ -53,6 +54,7 @@ test.describe('Profile Page', () => {
   })
 
   test('should reject weak password', async ({ authenticatedProfilePage }) => {
+    await authenticatedProfilePage.fillCurrentPassword('AnyValue1!')
     await authenticatedProfilePage.fillNewPassword('weak')
     await authenticatedProfilePage.fillConfirmPassword('weak')
     await authenticatedProfilePage.clickChangePassword()
