@@ -17,18 +17,25 @@
  */
 
 import { test } from '../../fixtures/auth.fixture'
+import { csrfHeaders } from '../../utils/csrf'
 
 const API_BASE = 'http://localhost:8080/api'
 
 test.describe('i18n Language Switching', () => {
-  test.beforeEach(async ({ page, authenticatedRequest }) => {
-    // Reset admin's locale to German via API before each test
-    await authenticatedRequest.patch(`${API_BASE}/auth/profile`, {
+  test.beforeEach(async ({ page }) => {
+    // Navigate to a page first so the page context has loaded cookies+localStorage
+    await page.goto('/members', { waitUntil: 'domcontentloaded' })
+
+    // Reset admin's locale to German via the existing browser session.
+    // Using page.request avoids a fresh login (which risks hitting the rate limiter
+    // when multiple tests run in parallel).
+    const headers = await csrfHeaders(page)
+    await page.request.patch(`${API_BASE}/auth/profile`, {
       data: { locale: 'de' },
+      headers,
     })
 
-    // Clear localStorage to ensure clean state (i18n reads from localStorage)
-    await page.goto('/members', { waitUntil: 'domcontentloaded' })
+    // Sync localStorage so the frontend picks up the reset locale
     await page.evaluate(() => {
       localStorage.setItem('adminLocale', 'de')
     })
