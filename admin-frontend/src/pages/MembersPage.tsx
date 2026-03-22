@@ -14,7 +14,7 @@ import { useFormatters } from '../hooks/useFormatters'
 import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon } from '../components/icons'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
-import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersSortBy, MemberCreateRequest } from '../api/generated'
+import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, ListMembersSortBy, MemberCreateRequest, MemberUpdateRequest } from '../api/generated'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
@@ -153,6 +153,7 @@ export function MembersPage() {
         if (search) params.search = search
         if (filterIsActive !== 'all') params.status = filterIsActive as ListMembersStatus
         if (filterSepaStatus !== 'all') params.sepa_status = filterSepaStatus as ListMembersSepaStatus
+        if (filterCardUid !== 'all') params.has_card_uid = filterCardUid as ListMembersHasCardUid
 
         const response = await getMembersFactory().listMembers(params)
 
@@ -226,24 +227,33 @@ export function MembersPage() {
         return
       }
 
-      // Build payload — card_uid is not in the generated MemberCreateRequest/MemberUpdateRequest
-      // so we cast the payload to allow it (backend accepts it even if not in OAS spec)
-      const basePayload = {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email || undefined,
-        iban: formData.iban,
-        account_holder_name: formData.account_holder_name || undefined,
-        mandate_reference: formData.mandate_reference || undefined,
-        mandate_signed_at: formData.mandate_signed_at,
-        preferred_language: formData.preferred_language,
-      }
-
       if (editingMember) {
         if (!editingMember.id) throw new Error('Missing member id')
-        await getMembersFactory().updateMember(editingMember.id, basePayload)
+        const updatePayload: MemberUpdateRequest = {
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          email: formData.email || null,
+          iban: formData.iban,
+          account_holder_name: formData.account_holder_name || null,
+          mandate_reference: formData.mandate_reference || undefined,
+          mandate_signed_at: formData.mandate_signed_at,
+          preferred_language: formData.preferred_language,
+          card_uid: formData.card_uid || null,
+        }
+        await getMembersFactory().updateMember(editingMember.id, updatePayload)
       } else {
-        await getMembersFactory().createMember(basePayload as MemberCreateRequest)
+        const createPayload: MemberCreateRequest = {
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          email: formData.email || undefined,
+          iban: formData.iban,
+          account_holder_name: formData.account_holder_name || undefined,
+          mandate_reference: formData.mandate_reference || undefined,
+          mandate_signed_at: formData.mandate_signed_at,
+          preferred_language: formData.preferred_language,
+          card_uid: formData.card_uid || undefined,
+        }
+        await getMembersFactory().createMember(createPayload)
       }
 
       // Reset form

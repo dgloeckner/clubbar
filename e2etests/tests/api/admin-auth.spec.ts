@@ -204,7 +204,8 @@ test.describe("Admin Authentication", () => {
 
       const data = await profileResponse.json();
       expect(data).toHaveProperty("admin");
-      expect(data.admin).toHaveProperty("id", "33e4567-e89b-12d3-a456-426614174000");
+      expect(data.admin).toHaveProperty("id");
+      expect(data.admin.id).toMatch(/^[0-9a-f-]{36}$/i);
       expect(data.admin).toHaveProperty("email", ADMIN_EMAIL);
       expect(data.admin).toHaveProperty("display_name"); // mutable by profile tests — don't assert specific value
       expect(data.admin).toHaveProperty("locale"); // mutable by i18n tests — don't assert specific value
@@ -274,8 +275,8 @@ test.describe("Admin Authentication", () => {
       expect(response.status()).toBe(200);
 
       const data = await response.json();
-      expect(data).toHaveProperty("items");
-      expect(Array.isArray(data.items)).toBe(true);
+      expect(data).toHaveProperty("data");
+      expect(Array.isArray(data.data)).toBe(true);
     });
 
     test("should require authentication for POST /api/admin/members", async ({

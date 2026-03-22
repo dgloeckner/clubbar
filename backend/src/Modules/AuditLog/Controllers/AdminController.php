@@ -18,8 +18,9 @@ class AdminController
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        $limit = (int) ($params['limit'] ?? 50);
-        $offset = (int) ($params['offset'] ?? 0);
+        $page = (int) ($params['page'] ?? 1);
+        $perPage = (int) ($params['per_page'] ?? $params['limit'] ?? 50);
+        $offset = isset($params['offset']) ? (int) $params['offset'] : ($page - 1) * $perPage;
 
         $nested = $params['filters'] ?? [];
 
@@ -53,7 +54,7 @@ class AdminController
             $filters['entity_id'] = $entityId;
         }
 
-        $result = $this->auditLogRepository->listWithFilters($limit, $offset, $filters);
+        $result = $this->auditLogRepository->listWithFilters($perPage, $offset, $filters);
 
         // Convert raw database rows to DTOs (Backend Pattern 004)
         $items = array_map(
@@ -61,11 +62,15 @@ class AdminController
             $result['items']
         );
 
+        $totalPages = $perPage > 0 ? (int) ceil($result['total'] / $perPage) : 1;
         return $this->json($response, [
-            'items' => $items,
-            'total' => $result['total'],
-            'limit' => $limit,
-            'offset' => $offset,
+            'data' => $items,
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total' => $result['total'],
+                'total_pages' => $totalPages,
+            ],
         ]);
     }
 

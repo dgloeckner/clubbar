@@ -44,7 +44,7 @@ test.describe('Admin Members Audit Logging', () => {
     const auditData = await auditResponse.json();
 
     // Find the audit entry for this specific member (most recent first)
-    const auditEntry = auditData.items.find((entry: any) => entry.entity_id === memberId);
+    const auditEntry = auditData.data.find((entry: any) => entry.entity_id === memberId);
     expect(auditEntry).toBeDefined();
     expect(auditEntry.action).toBe('create');
     expect(auditEntry.entity_type).toBe('member');
@@ -82,10 +82,10 @@ test.describe('Admin Members Audit Logging', () => {
     );
 
     const auditData = await auditResponse.json();
-    expect(auditData.items.length).toBeGreaterThan(0);
+    expect(auditData.data.length).toBeGreaterThan(0);
 
     // Find the update entry
-    const updateEntry = auditData.items.find((entry: any) => entry.action === 'update');
+    const updateEntry = auditData.data.find((entry: any) => entry.action === 'update');
     expect(updateEntry).toBeDefined();
     expect(updateEntry.old_values).toHaveProperty('preferred_language', 'en');
     expect(updateEntry.new_values).toHaveProperty('preferred_language', 'fr');
@@ -111,10 +111,10 @@ test.describe('Admin Members Audit Logging', () => {
     );
 
     const auditData = await auditResponse.json();
-    expect(auditData.items.length).toBeGreaterThan(0);
+    expect(auditData.data.length).toBeGreaterThan(0);
 
     // Verify IBAN is not present (or masked if it were in the input)
-    const createEntry = auditData.items[0];
+    const createEntry = auditData.data[0];
     expect(createEntry.new_values).toBeDefined();
     // IBANs would be masked by AuditService if provided
   });
@@ -143,9 +143,9 @@ test.describe('Admin Members Audit Logging', () => {
     );
 
     const auditData = await auditResponse.json();
-    expect(auditData.items.length).toBeGreaterThan(0);
+    expect(auditData.data.length).toBeGreaterThan(0);
 
-    const deleteEntry = auditData.items[0];
+    const deleteEntry = auditData.data[0];
     expect(deleteEntry.action).toBe('delete');
     expect(deleteEntry.old_values).toBeDefined();
     expect(deleteEntry.old_values.first_name).toBe('Delete');
@@ -176,9 +176,9 @@ test.describe('Admin Members Audit Logging', () => {
     );
 
     const auditData = await auditResponse.json();
-    expect(auditData.items.length).toBeGreaterThan(0);
+    expect(auditData.data.length).toBeGreaterThan(0);
 
-    const anonEntry = auditData.items[0];
+    const anonEntry = auditData.data[0];
     expect(anonEntry.action).toBe('anonymize');
     expect(anonEntry.old_values).toBeDefined();
     expect(anonEntry.new_values).toBeDefined();
@@ -192,11 +192,10 @@ test.describe('Admin Members Audit Logging', () => {
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
 
-    expect(body.items).toBeDefined();
-    expect(Array.isArray(body.items)).toBe(true);
-    expect(body.total).toBeGreaterThanOrEqual(0);
-    expect(body.limit).toBe(10);
-    expect(body.offset).toBe(0);
+    expect(body.data).toBeDefined();
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.pagination.total).toBeGreaterThanOrEqual(0);
+    expect(body.pagination.per_page).toBe(10);
   });
 
   // Test 7: Audit Log Filtering by Action
@@ -216,7 +215,7 @@ test.describe('Admin Members Audit Logging', () => {
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
 
-    body.items.forEach((entry: any) => {
+    body.data.forEach((entry: any) => {
       expect(entry.action).toBe('create');
     });
   });
@@ -228,7 +227,7 @@ test.describe('Admin Members Audit Logging', () => {
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
 
-    body.items.forEach((entry: any) => {
+    body.data.forEach((entry: any) => {
       expect(entry.entity_type).toBe('member');
     });
   });
@@ -244,7 +243,7 @@ test.describe('Admin Members Audit Logging', () => {
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
 
-    body.items.forEach((entry: any) => {
+    body.data.forEach((entry: any) => {
       expect(entry.created_at).toContain(today);
     });
   });
@@ -269,9 +268,9 @@ test.describe('Admin Members Audit Logging', () => {
     );
 
     const auditData = await auditResponse.json();
-    expect(auditData.items.length).toBeGreaterThan(0);
+    expect(auditData.data.length).toBeGreaterThan(0);
 
-    const entry = auditData.items[0];
+    const entry = auditData.data[0];
     expect(entry.admin_user_id).toBeDefined();
     // admin_user_name should be populated from the joined admin_users table
     expect(entry.admin_user_name).toBeDefined();
@@ -295,9 +294,9 @@ test.describe('Admin Members Audit Logging', () => {
     );
 
     const auditData = await auditResponse.json();
-    expect(auditData.items.length).toBeGreaterThan(0);
+    expect(auditData.data.length).toBeGreaterThan(0);
 
-    const entry = auditData.items[0];
+    const entry = auditData.data[0];
     expect(entry.ip_address).toBeDefined();
     expect(typeof entry.ip_address).toBe('string');
     expect(entry.user_agent).toBeDefined();

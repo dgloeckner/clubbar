@@ -5,6 +5,7 @@ import { test, expect } from '../../fixtures/auth.fixture';
  *
  * Tests the GET /api/admin/members endpoint per Admin API spec.
  * Returns paginated list of members with optional filters.
+ * Response shape: { data: MemberListItem[], pagination: { page, per_page, total, total_pages } }
  */
 
 test.describe('Admin Members List Endpoint', () => {
@@ -16,21 +17,22 @@ test.describe('Admin Members List Endpoint', () => {
 
     const body = await response.json();
 
-    // Validate response structure
-    expect(body.items).toBeDefined();
-    expect(Array.isArray(body.items)).toBeTruthy();
-    expect(body.items.length).toBeGreaterThan(0);
-    expect(typeof body.total).toBe('number');
-    expect(typeof body.limit).toBe('number');
-    expect(typeof body.offset).toBe('number');
-    expect(typeof body.has_more).toBe('boolean');
+    // Validate OAS-compliant response structure
+    expect(body.data).toBeDefined();
+    expect(Array.isArray(body.data)).toBeTruthy();
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(body.pagination).toBeDefined();
+    expect(typeof body.pagination.total).toBe('number');
+    expect(typeof body.pagination.page).toBe('number');
+    expect(typeof body.pagination.per_page).toBe('number');
+    expect(typeof body.pagination.total_pages).toBe('number');
   });
 
   test('GET /api/admin/members returns member objects with admin fields', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get('/api/admin/members');
     const body = await response.json();
 
-    const member = body.items[0];
+    const member = body.data[0];
 
     // Verify all required admin fields
     expect(member.id).toBeDefined();
@@ -46,48 +48,45 @@ test.describe('Admin Members List Endpoint', () => {
     expect(member.updated_at).toBeDefined();
   });
 
-  test('GET /api/admin/members respects limit parameter', async ({ authenticatedRequest }) => {
+  test('GET /api/admin/members respects per_page parameter', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get('/api/admin/members', {
-      params: { limit: 1 },
+      params: { per_page: 1 },
     });
 
     const body = await response.json();
 
-    expect(body.limit).toBe(1);
-    expect(body.items.length).toBeLessThanOrEqual(1);
+    expect(body.pagination.per_page).toBe(1);
+    expect(body.data.length).toBeLessThanOrEqual(1);
   });
 
-  test('GET /api/admin/members respects offset parameter', async ({ authenticatedRequest }) => {
+  test('GET /api/admin/members respects page parameter', async ({ authenticatedRequest }) => {
     // Use stable sort by id to ensure consistent ordering across paginated requests.
-    // Without an explicit sort, records with identical created_at timestamps (MySQL second
-    // precision) return in non-deterministic order, causing offset pagination to return
-    // the same record at different offsets.
-    const params = { limit: 1, sort: 'id', order: 'asc' };
+    const params = { per_page: 1, sort: 'id', order: 'asc' };
 
-    // Get first member
+    // Get first member (page 1)
     const response1 = await authenticatedRequest.get('/api/admin/members', {
-      params: { ...params, offset: 0 },
+      params: { ...params, page: 1 },
     });
 
     const body1 = await response1.json();
-    const firstMemberId = body1.items[0].id;
+    const firstMemberId = body1.data[0].id;
 
-    // Get second member
+    // Get second member (page 2)
     const response2 = await authenticatedRequest.get('/api/admin/members', {
-      params: { ...params, offset: 1 },
+      params: { ...params, page: 2 },
     });
 
     const body2 = await response2.json();
 
     // They should be different if multiple members exist
-    if (body1.total > 1) {
-      expect(body2.items[0].id).not.toBe(firstMemberId);
+    if (body1.pagination.total > 1) {
+      expect(body2.data[0].id).not.toBe(firstMemberId);
     }
   });
 
-  test('GET /api/admin/members rejects limit greater than 100', async ({ authenticatedRequest }) => {
+  test('GET /api/admin/members rejects per_page greater than 100', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get('/api/admin/members', {
-      params: { limit: 500 },
+      params: { per_page: 500 },
     });
 
     expect(response.status()).toBe(400);
@@ -99,12 +98,12 @@ test.describe('Admin Members List Endpoint', () => {
     expect(body.messages.limit).toBeDefined();
   });
 
-  test('GET /api/admin/members calculates has_more correctly', async ({ authenticatedRequest }) => {
+  test('GET /api/admin/members pagination totals are consistent', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get('/api/admin/members');
     const body = await response.json();
 
-    const hasMore = (body.offset + body.limit) < body.total;
-    expect(body.has_more).toBe(hasMore);
+    const { total, per_page, total_pages } = body.pagination;
+    expect(total_pages).toBe(Math.ceil(total / per_page));
   });
 
   test('GET /api/admin/members filters by is_active', async ({ authenticatedRequest }) => {
@@ -115,7 +114,7 @@ test.describe('Admin Members List Endpoint', () => {
     const body = await response.json();
 
     // All returned members should be active
-    for (const member of body.items) {
+    for (const member of body.data) {
       expect(member.is_active).toBe(true);
     }
   });
@@ -128,7 +127,7 @@ test.describe('Admin Members List Endpoint', () => {
     const body = await response.json();
 
     // All returned members should have German language preference
-    for (const member of body.items) {
+    for (const member of body.data) {
       expect(member.preferred_language).toBe('de');
     }
   });
@@ -137,7 +136,7 @@ test.describe('Admin Members List Endpoint', () => {
     const response = await authenticatedRequest.get('/api/admin/members');
     const body = await response.json();
 
-    const member = body.items[0];
+    const member = body.data[0];
 
     // Validate ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ)
     const iso8601Regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
@@ -152,9 +151,9 @@ test.describe('Admin Members List Endpoint', () => {
     expect(contentType).toContain('application/json');
   });
 
-  test('GET /api/admin/members with invalid limit returns 400', async ({ authenticatedRequest }) => {
+  test('GET /api/admin/members with invalid per_page returns 400', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get('/api/admin/members', {
-      params: { limit: 'invalid' },
+      params: { per_page: 'invalid' },
     });
 
     expect(response.status()).toBe(400);

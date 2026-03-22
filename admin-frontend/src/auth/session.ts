@@ -45,23 +45,31 @@ export async function loginWithSession(credentials: {
   password: string
 }): Promise<LoginSessionResult> {
   try {
-    const response = await getAuthentication().login(credentials)
+    const rawResponse = await getAuthentication().login(credentials)
+    // Backend returns {message, admin: {id, email, display_name, locale, last_login_at}, csrf_token}
+    // The orval-generated LoginResponse type uses flat field names (admin_id, email, ...) which
+    // don't match the actual response shape — access the real structure at runtime.
+    const r = rawResponse as unknown as {
+      admin: { id: string; email: string; display_name: string; locale: string }
+      csrf_token: string
+    }
+    const admin = r.admin
 
-    localStorage.setItem('admin_id', response.admin_id)
-    localStorage.setItem('email', response.email)
-    localStorage.setItem('display_name', response.display_name)
-    localStorage.setItem('locale', response.locale)
-    setCsrfToken(response.csrf_token)
-    changeLanguage(response.locale)
+    localStorage.setItem('admin_id', admin.id)
+    localStorage.setItem('email', admin.email)
+    localStorage.setItem('display_name', admin.display_name)
+    localStorage.setItem('locale', admin.locale)
+    setCsrfToken(r.csrf_token)
+    changeLanguage(admin.locale)
 
     return {
       success: true,
       message: 'Login successful',
       data: {
-        admin_id: response.admin_id,
-        email: response.email,
-        display_name: response.display_name,
-        locale: response.locale,
+        admin_id: admin.id,
+        email: admin.email,
+        display_name: admin.display_name,
+        locale: admin.locale,
       },
     }
   } catch (error: unknown) {
@@ -97,7 +105,11 @@ export async function logoutWithSession(): Promise<void> {
 export async function updateProfileWithSession(
   data: UpdateProfileRequest
 ): Promise<AdminProfile> {
-  const profile = await getAuthentication().updateProfile(data)
+  const rawResponse = await getAuthentication().updateProfile(data)
+  // Backend returns {message, admin: {id, email, display_name, locale, last_login_at}}
+  // Unwrap the admin object from the response wrapper.
+  const r = rawResponse as unknown as { admin: AdminProfile }
+  const profile = r.admin ?? rawResponse
   if (profile) {
     if (profile.email) localStorage.setItem('email', profile.email)
     if (profile.display_name) localStorage.setItem('display_name', profile.display_name)
@@ -106,7 +118,11 @@ export async function updateProfileWithSession(
   return profile
 }
 
-// Re-export getProfile for convenience (no side effects needed)
-export function getProfile() {
-  return getAuthentication().getProfile()
+// Re-export getProfile, unwrapping the backend's response envelope.
+export async function getProfile(): Promise<AdminProfile> {
+  const rawResponse = await getAuthentication().getProfile()
+  // Backend returns {admin: {id, email, display_name, locale, last_login_at}, csrf_token}
+  // Unwrap the admin object.
+  const r = rawResponse as unknown as { admin: AdminProfile }
+  return r.admin ?? rawResponse
 }

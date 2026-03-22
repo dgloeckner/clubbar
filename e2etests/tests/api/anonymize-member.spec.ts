@@ -77,10 +77,10 @@ test.describe('GDPR Member Anonymization', () => {
     );
     expect(auditResponse.ok()).toBeTruthy();
     const auditData = await auditResponse.json();
-    expect(auditData.items.length).toBeGreaterThanOrEqual(2); // at least create + anonymize
+    expect(auditData.data.length).toBeGreaterThanOrEqual(2); // at least create + anonymize
 
     // All non-anonymize entries should have old_values and new_values scrubbed
-    for (const entry of auditData.items) {
+    for (const entry of auditData.data) {
       if (entry.action !== 'anonymize') {
         expect(entry.old_values).toBeNull();
         expect(entry.new_values).toBeNull();
@@ -101,7 +101,7 @@ test.describe('GDPR Member Anonymization', () => {
     expect(auditResponse.ok()).toBeTruthy();
     const auditData = await auditResponse.json();
 
-    const anonymizeEntries = auditData.items.filter((e: any) => e.action === 'anonymize');
+    const anonymizeEntries = auditData.data.filter((e: any) => e.action === 'anonymize');
     expect(anonymizeEntries.length).toBe(1);
 
     const entry = anonymizeEntries[0];
@@ -224,7 +224,7 @@ test.describe('GDPR Member Anonymization', () => {
     expect(auditResponse.ok()).toBeTruthy();
     const auditData = await auditResponse.json();
 
-    for (const entry of auditData.items) {
+    for (const entry of auditData.data) {
       // old_values and new_values must not contain the original name or email
       const oldStr = JSON.stringify(entry.old_values);
       const newStr = JSON.stringify(entry.new_values);

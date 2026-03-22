@@ -287,6 +287,13 @@ paths:
             type: string
             enum: [all, valid, invalid]
             default: all
+        - name: has_card_uid
+          in: query
+          description: Filter by card UID presence
+          schema:
+            type: string
+            enum: [all, with, without]
+            default: all
         - name: search
           in: query
           description: Search in first name, last name, or card UID
@@ -2764,6 +2771,10 @@ components:
           type: string
           maxLength: 35
           description: Optional; defaults to UUID without hyphens
+        card_uid:
+          type: string
+          pattern: '^[0-9A-F]{8,20}$'
+          description: Optional RFID card UID
 
     MemberUpdateRequest:
       type: object
@@ -2796,6 +2807,11 @@ components:
           format: date
         is_active:
           type: boolean
+        card_uid:
+          type: string
+          pattern: '^[0-9A-F]{8,20}$'
+          nullable: true
+          description: RFID card UID (null to remove)
 
     MemberImportPreview:
       type: object

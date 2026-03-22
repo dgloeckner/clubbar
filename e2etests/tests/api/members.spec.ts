@@ -55,7 +55,7 @@ test.describe('Members API - Card UID Filter', () => {
     expect(responseWithCard.ok()).toBeTruthy();
     const dataWith = await responseWithCard.json();
 
-    const withCardIds = dataWith.items.map((m: any) => m.id);
+    const withCardIds = dataWith.data.map((m: any) => m.id);
     expect(withCardIds).toContain(memberWithData.id);
     expect(withCardIds).not.toContain(memberWithoutData.id);
 
@@ -64,7 +64,7 @@ test.describe('Members API - Card UID Filter', () => {
     expect(responseWithoutCard.ok()).toBeTruthy();
     const dataWithout = await responseWithoutCard.json();
 
-    const withoutCardIds = dataWithout.items.map((m: any) => m.id);
+    const withoutCardIds = dataWithout.data.map((m: any) => m.id);
     expect(withoutCardIds).not.toContain(memberWithData.id);
     expect(withoutCardIds).toContain(memberWithoutData.id);
   });

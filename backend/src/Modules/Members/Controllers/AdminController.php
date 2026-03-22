@@ -58,6 +58,14 @@ class AdminController
             $filters['is_active'] = filter_var($params['is_active'], FILTER_VALIDATE_BOOLEAN);
         }
 
+        // OAS: status=active|inactive (top-level param)
+        $statusParam = $params['status'] ?? null;
+        if ($statusParam === 'active') {
+            $filters['is_active'] = true;
+        } elseif ($statusParam === 'inactive') {
+            $filters['is_active'] = false;
+        }
+
         // Language filter
         if (isset($params['filters']['language'])) {
             $filters['language'] = $params['filters']['language'];
@@ -65,25 +73,33 @@ class AdminController
             $filters['language'] = $params['language'];
         }
 
-        // Card UID filter
-        if (isset($params['filters']['has_card_uid'])) {
-            $filters['has_card_uid'] = filter_var($params['filters']['has_card_uid'], FILTER_VALIDATE_BOOLEAN);
+        // Card UID filter — OAS: has_card_uid=with|without (top-level param)
+        $cardUidParam = $params['has_card_uid'] ?? $params['filters']['has_card_uid'] ?? null;
+        if ($cardUidParam === 'with' || $cardUidParam === 'true') {
+            $filters['has_card_uid'] = true;
+        } elseif ($cardUidParam === 'without' || $cardUidParam === 'false') {
+            $filters['has_card_uid'] = false;
         }
 
-        // SEPA status filter
-        if (isset($params['filters']['sepa_status']) && in_array($params['filters']['sepa_status'], ['valid', 'missing'], true)) {
-            $filters['sepa_status'] = $params['filters']['sepa_status'];
+        // SEPA status filter — OAS: sepa_status=valid|invalid (top-level param)
+        $sepaParam = $params['sepa_status'] ?? $params['filters']['sepa_status'] ?? null;
+        if ($sepaParam !== null && in_array($sepaParam, ['valid', 'invalid', 'missing'], true)) {
+            $filters['sepa_status'] = $sepaParam;
         }
 
         $result = $this->membersService->listMembers($limit, $offset, $filters, $sortKey, $sortOrder, $search);
 
-        // Add has_more field to pagination
-        $responseData = $result->toArray();
-        if (isset($responseData['pagination'])) {
-            $responseData['pagination']['has_more'] = ($offset + $limit) < $result->total;
-        }
-
-        return $this->json($response, $responseData);
+        $data = $result->toArray();
+        $totalPages = $limit > 0 ? (int) ceil($result->total / $limit) : 1;
+        return $this->json($response, [
+            'data' => $data['items'],
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $limit,
+                'total' => $result->total,
+                'total_pages' => $totalPages,
+            ],
+        ]);
     }
 
     public function store(Request $request, Response $response): Response

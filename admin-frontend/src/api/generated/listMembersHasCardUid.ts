@@ -46,32 +46,11 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export interface MemberCreateRequest {
-  /** @maxLength 100 */
-  first_name: string;
-  /** @maxLength 100 */
-  last_name: string;
-  email?: string;
-  /** ISO 639-1 language code */
-  preferred_language: string;
-  /**
-   * ISO 13616 IBAN
-   * @minLength 15
-   * @maxLength 34
-   */
-  iban: string;
-  /**
-   * Account holder name if different from member (for divergent payer)
-   * @maxLength 70
-   */
-  account_holder_name?: string;
-  /** Mandate signature date (not in future) */
-  mandate_signed_at: string;
-  /**
-   * Optional; defaults to UUID without hyphens
-   * @maxLength 35
-   */
-  mandate_reference?: string;
-  /** Optional RFID card UID */
-  card_uid?: string;
-}
+export type ListMembersHasCardUid = typeof ListMembersHasCardUid[keyof typeof ListMembersHasCardUid];
+
+
+export const ListMembersHasCardUid = {
+  all: 'all',
+  with: 'with',
+  without: 'without',
+} as const;

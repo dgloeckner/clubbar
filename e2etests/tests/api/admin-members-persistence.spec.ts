@@ -131,7 +131,7 @@ test.describe('Admin Members Database Persistence', () => {
     const listBody = await listRes.json();
 
     // The created member should be in the list
-    const found = listBody.items.find((m: any) => m.id === memberId);
+    const found = listBody.data.find((m: any) => m.id === memberId);
     expect(found).toBeDefined();
     expect(found.first_name).toBe('ListTest');
     expect(found.email).toBe('listtest@example.com');
@@ -228,7 +228,7 @@ test.describe('Admin Members Database Persistence', () => {
     const listRes = await authenticatedRequest.get('/api/admin/members?limit=100');
     const listBody = await listRes.json();
 
-    const found = listBody.items.find((m: any) => m.id === memberId);
+    const found = listBody.data.find((m: any) => m.id === memberId);
     expect(found.last_name).toBe('Updated');
   });
 
@@ -299,7 +299,7 @@ test.describe('Admin Members Database Persistence', () => {
     // Verify in list before delete
     let listRes = await authenticatedRequest.get('/api/admin/members?limit=100');
     let listBody = await listRes.json();
-    let found = listBody.items.find((m: any) => m.id === memberId);
+    let found = listBody.data.find((m: any) => m.id === memberId);
     expect(found).toBeDefined();
 
     // Delete member
@@ -308,7 +308,7 @@ test.describe('Admin Members Database Persistence', () => {
     // Verify not in list after delete
     listRes = await authenticatedRequest.get('/api/admin/members?limit=100');
     listBody = await listRes.json();
-    found = listBody.items.find((m: any) => m.id === memberId);
+    found = listBody.data.find((m: any) => m.id === memberId);
     expect(found).toBeUndefined();
   });
 
@@ -376,12 +376,12 @@ test.describe('Admin Members Database Persistence', () => {
     const listBody = await listRes.json();
 
     // German member should be in filtered list
-    const found1 = listBody.items.find((m: any) => m.id === id1);
+    const found1 = listBody.data.find((m: any) => m.id === id1);
     expect(found1).toBeDefined();
     expect(found1.preferred_language).toBe('de');
 
     // All items in filtered list should be German
-    for (const member of listBody.items) {
+    for (const member of listBody.data) {
       expect(member.preferred_language).toBe('de');
     }
   });
@@ -407,12 +407,12 @@ test.describe('Admin Members Database Persistence', () => {
 
     // All created members should be in list
     for (const id of ids) {
-      const found = listBody.items.find((m: any) => m.id === id);
+      const found = listBody.data.find((m: any) => m.id === id);
       expect(found).toBeDefined();
     }
 
     // Total should include them
-    expect(listBody.total).toBeGreaterThanOrEqual(ids.length);
+    expect(listBody.pagination.total).toBeGreaterThanOrEqual(ids.length);
   });
 
   // ============================================================================

@@ -68,4 +68,9 @@ export interface MemberUpdateRequest {
   mandate_reference?: string;
   mandate_signed_at?: string;
   is_active?: boolean;
+  /**
+   * RFID card UID (null to remove)
+   * @nullable
+   */
+  card_uid?: string | null;
 }

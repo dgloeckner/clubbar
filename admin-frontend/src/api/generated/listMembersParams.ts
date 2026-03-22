@@ -46,6 +46,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type { ListMembersBalance } from './listMembersBalance';
+import type { ListMembersHasCardUid } from './listMembersHasCardUid';
 import type { ListMembersSepaStatus } from './listMembersSepaStatus';
 import type { ListMembersSortBy } from './listMembersSortBy';
 import type { ListMembersStatus } from './listMembersStatus';
@@ -76,6 +77,10 @@ balance?: ListMembersBalance;
  * Filter by SEPA data validity
  */
 sepa_status?: ListMembersSepaStatus;
+/**
+ * Filter by card UID presence
+ */
+has_card_uid?: ListMembersHasCardUid;
 /**
  * Search in first name, last name, or card UID
  */

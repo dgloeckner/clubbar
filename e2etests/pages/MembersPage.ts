@@ -233,6 +233,9 @@ export class MembersPage extends BasePage {
     // Wait for the API response (POST 201 for create, PATCH 200 for edit).
     // This prevents race conditions where the subsequent search fires before
     // the backend has committed the new/updated member.
+    // Uses Promise.race with a 1s timeout to handle client-side validation
+    // that blocks the API call (e.g., invalid IBAN) — in that case no network
+    // request is made and we return after the timeout instead of waiting 15s.
     const responsePromise = this.page.waitForResponse(
       (resp) =>
         resp.url().includes('/api/admin/members') &&
@@ -241,7 +244,7 @@ export class MembersPage extends BasePage {
       { timeout: 15000 }
     )
     await this.formSubmitBtn().click()
-    await responsePromise
+    await Promise.race([responsePromise, this.page.waitForTimeout(1000)])
   }
 
   async cancelForm() {

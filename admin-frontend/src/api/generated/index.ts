@@ -123,6 +123,7 @@ export * from './listBlockedCards200';
 export * from './listCategories200';
 export * from './listMembers200';
 export * from './listMembersBalance';
+export * from './listMembersHasCardUid';
 export * from './listMembersParams';
 export * from './listMembersSepaStatus';
 export * from './listMembersSortBy';
