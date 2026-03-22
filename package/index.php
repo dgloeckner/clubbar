@@ -22,6 +22,7 @@ $_ENV['APP_URL'] = $config['app']['url'] ?? '';
 $_ENV['SESSION_MAX_AGE'] = (string) ($config['session']['max_age'] ?? 7200);
 $_ENV['SESSION_REGEN_INTERVAL'] = (string) ($config['session']['regeneration_interval'] ?? 900);
 $_ENV['API_TOKEN_TTL_DAYS'] = (string) ($config['api_token']['ttl_days'] ?? 90);
+$_ENV['TOTP_ENCRYPTION_KEY'] = $config['security']['totp_encryption_key'] ?? '';
 
 // --- Route request ---
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
