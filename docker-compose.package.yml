@@ -9,3 +9,4 @@ services:
       - ./docker/apache-package.conf:/opt/docker/etc/httpd/vhost.common.d/01-slim.conf:ro
     environment:
       WEB_DOCUMENT_ROOT: /app
+      APP_ENV: production
