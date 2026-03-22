@@ -16,7 +16,8 @@
 import { useEffect, useState } from 'react'
 import { theme, formatPrice, formatDate } from '../../styles/design-system'
 import { useLoading } from '../../context/LoadingContext'
-import { getMemberTransactionHistory, MemberTransactionHistory } from '../../services/transactions'
+import { getTransactions } from '../../api/generated/transactions/transactions'
+import type { MemberTransactionHistory } from '../../api/generated'
 
 type TransactionFilter = 'all' | 'purchase' | 'correction'
 
@@ -49,8 +50,8 @@ export function TransactionModal({
       try {
         setLoading(true)
         setIsLoading(true)
-        const history = await getMemberTransactionHistory(memberId, {
-          type: filter,
+        const history = await getTransactions().getMemberTransactions(memberId, {
+          type: filter === 'all' ? undefined : filter,
         })
 
         setTransactionHistory(history)
@@ -310,7 +311,7 @@ export function TransactionModal({
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {formatDate(transaction.date)}
+                        {formatDate(transaction.date ?? '')}
                       </td>
                       <td
                         data-testid="transaction-type"
@@ -353,14 +354,14 @@ export function TransactionModal({
                           textAlign: 'right',
                           fontFamily: 'JetBrains Mono, monospace',
                           color:
-                            transaction.amount_cents < 0
+                            (transaction.amount_cents ?? 0) < 0
                               ? theme.colors.semantic.success
                               : theme.colors.semantic.warning,
                           fontWeight: theme.typography.fontWeight.semibold,
                         }}
                       >
-                        {transaction.amount_cents < 0 ? '-' : '+'}
-                        {formatPrice(Math.abs(transaction.amount_cents))}
+                        {(transaction.amount_cents ?? 0) < 0 ? '-' : '+'}
+                        {formatPrice(Math.abs(transaction.amount_cents ?? 0))}
                       </td>
                       <td
                         data-testid="transaction-running-total"
@@ -369,15 +370,15 @@ export function TransactionModal({
                           textAlign: 'right',
                           fontFamily: 'JetBrains Mono, monospace',
                           color:
-                            transaction.running_total_cents > 0
+                            (transaction.running_total_cents ?? 0) > 0
                               ? theme.colors.semantic.success
-                              : transaction.running_total_cents < 0
+                              : (transaction.running_total_cents ?? 0) < 0
                                 ? theme.colors.semantic.warning
                                 : theme.colors.text.secondary,
                           fontWeight: theme.typography.fontWeight.semibold,
                         }}
                       >
-                        {formatPrice(transaction.running_total_cents)}
+                        {formatPrice(transaction.running_total_cents ?? 0)}
                       </td>
                     </tr>
                   ))}

@@ -4,8 +4,26 @@
  */
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { AuthState, LoginCredentials } from '../types'
-import { login as loginService, logout as logoutService, getCurrentSession, isAuthenticated } from '../services/auth'
+import {
+  loginWithSession,
+  logoutWithSession,
+  getCurrentSession,
+  isAuthenticated,
+} from '../auth/session'
+
+// UI-level types — not from generated schemas
+interface LoginCredentials {
+  email: string
+  password: string
+}
+
+interface AuthState {
+  isAuthenticated: boolean
+  adminId?: string
+  email?: string
+  displayName?: string
+  locale?: string
+}
 
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<boolean>
@@ -21,13 +39,10 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [auth, setAuth] = useState<AuthState>({
-    isAuthenticated: false,
-  })
+  const [auth, setAuth] = useState<AuthState>({ isAuthenticated: false })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
 
-  // Check authentication on mount
   useEffect(() => {
     const session = getCurrentSession()
     if (isAuthenticated()) {
@@ -46,7 +61,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoading(true)
     setError(undefined)
     try {
-      const response = await loginService(credentials)
+      const response = await loginWithSession(credentials)
       if (response.success && response.data) {
         setAuth({
           isAuthenticated: true,
@@ -56,10 +71,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
           locale: response.data.locale,
         })
         return true
-      } else {
-        setError(response.message)
-        return false
       }
+      setError(response.message)
+      return false
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed'
       setError(message)
@@ -72,10 +86,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const handleLogout = async () => {
     setLoading(true)
     try {
-      await logoutService()
-      setAuth({
-        isAuthenticated: false,
-      })
+      await logoutWithSession()
+      setAuth({ isAuthenticated: false })
       setError(undefined)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Logout failed'
@@ -96,13 +108,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-/**
- * Hook to use AuthContext
- */
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider')
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider')
   return context
 }

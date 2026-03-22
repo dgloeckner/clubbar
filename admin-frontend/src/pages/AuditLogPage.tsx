@@ -8,7 +8,9 @@ import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useLoading } from '../context/LoadingContext'
-import { getAuditLogs, getAvailableActions, getAvailableEntityTypes, AuditLogEntry } from '../services/audit-log'
+import { getAuditLog } from '../api/generated/audit-log/audit-log'
+import type { AuditLogEntry, ListAuditLogParams } from '../api/generated'
+import { ListAuditLogAction, ListAuditLogEntityType } from '../api/generated'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -120,23 +122,23 @@ export function AuditLogPage() {
         setLoading(true)
         setIsLoading(true)
 
-        const response = await getAuditLogs({
+        const params: ListAuditLogParams = {
           page,
           per_page: perPage,
           date_from: dateFrom || undefined,
           date_to: dateTo || undefined,
           admin_user_id: selectedAdmin || undefined,
-          action: selectedAction || undefined,
-          entity_type: selectedEntityType || undefined,
+          action: (selectedAction as ListAuditLogParams['action']) || undefined,
+          entity_type: (selectedEntityType as ListAuditLogParams['entity_type']) || undefined,
           search: searchText || undefined,
-        })
+        }
+        const response = await getAuditLog().listAuditLog(params)
 
-        setEntries(response.items)
-        setTotalEntries(response.total)
+        setEntries(response.data ?? [])
+        setTotalEntries(response.pagination?.total ?? 0)
         setError(null)
-      } catch (err) {
+      } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to load audit log')
-        console.error('Failed to load audit logs:', err)
       } finally {
         setLoading(false)
         setIsLoading(false)
@@ -152,8 +154,8 @@ export function AuditLogPage() {
     // For now, extract from loaded entries
     const adminSet = new Map<string, string>()
     entries.forEach(entry => {
-      if (entry.admin_user_id && entry.admin_user_name) {
-        adminSet.set(entry.admin_user_id, entry.admin_user_name)
+      if (entry.admin_user_id && entry.admin_user_email) {
+        adminSet.set(entry.admin_user_id, entry.admin_user_email)
       }
     })
     setAdmins(Array.from(adminSet.entries()).map(([id, email]) => ({ id, email })))
@@ -224,7 +226,7 @@ export function AuditLogPage() {
             style={selectStyle}
           >
             <option value="">{t('auditLog.allActions')}</option>
-            {getAvailableActions().map(action => (
+            {Object.values(ListAuditLogAction).map(action => (
               <option key={action} value={action}>{action}</option>
             ))}
           </select>
@@ -240,7 +242,7 @@ export function AuditLogPage() {
             style={selectStyle}
           >
             <option value="">{t('auditLog.allEntityTypes')}</option>
-            {getAvailableEntityTypes().map(type => (
+            {Object.values(ListAuditLogEntityType).map(type => (
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
@@ -311,7 +313,7 @@ export function AuditLogPage() {
   const renderMobileCards = () => (
     <div data-testid="audit-log-mobile-cards" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '0 4px' }}>
       {entries.map((entry) => {
-        const badgeStyle = getActionBadgeStyle(entry.action)
+        const badgeStyle = getActionBadgeStyle(entry.action ?? '')
         const isExpanded = expandedCardId === entry.id
         const hasDetails = !!(entry.old_values || entry.new_values)
 
@@ -329,7 +331,7 @@ export function AuditLogPage() {
             {/* Row 1: Timestamp (left) + Action badge (right) */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <span style={{ fontSize: '13px', color: theme.colors.text.secondary }}>
-                {formatDateTime(entry.created_at)}
+                {formatDateTime(entry.created_at ?? '')}
               </span>
               <span style={{
                 padding: '3px 8px',
@@ -346,7 +348,7 @@ export function AuditLogPage() {
             {/* Row 2: Admin user name + Entity type */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <span style={{ fontSize: '14px', fontWeight: 500, color: theme.colors.text.primary }}>
-                {entry.admin_user_name || (entry.action === 'login_failed' ? t('auditLog.failedLogin') : '\u2014')}
+                {entry.admin_user_email || (entry.action === 'login_failed' ? t('auditLog.failedLogin') : '\u2014')}
               </span>
               <span style={{ fontSize: '12px', color: theme.colors.text.secondary }}>
                 {entry.entity_type || '\u2014'}
@@ -369,7 +371,7 @@ export function AuditLogPage() {
               {hasDetails && (
                 <button
                   data-testid={`audit-log-expand-button-${entry.id}`}
-                  onClick={() => setExpandedCardId(isExpanded ? null : entry.id)}
+                  onClick={() => setExpandedCardId(isExpanded ? null : (entry.id ?? null))}
                   style={{
                     background: 'transparent',
                     border: 'none',
@@ -421,10 +423,10 @@ export function AuditLogPage() {
             <React.Fragment key={`row-${entry.id}`}>
               <tr data-testid={`audit-log-table-row-${entry.id}`} style={getRowStyle(true)}>
                 <td style={{ padding: '12px 16px' }} data-testid={`audit-log-timestamp-${entry.id}`}>
-                  {formatDateTime(entry.created_at)}
+                  {formatDateTime(entry.created_at ?? '')}
                 </td>
                 <td style={{ padding: '12px 16px' }} data-testid={`audit-log-admin-${entry.id}`}>
-                  {entry.admin_user_name || (entry.action === 'login_failed' ? t('auditLog.failedLogin') : '\u2014')}
+                  {entry.admin_user_email || (entry.action === 'login_failed' ? t('auditLog.failedLogin') : '\u2014')}
                 </td>
                 <td style={{ padding: '12px 16px' }} data-testid={`audit-log-action-${entry.id}`}>
                   <span style={{
@@ -448,7 +450,7 @@ export function AuditLogPage() {
                 <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                   <button
                     data-testid={`audit-log-expand-button-${entry.id}`}
-                    onClick={() => setExpandedRowId(expandedRowId === entry.id ? null : entry.id)}
+                    onClick={() => setExpandedRowId(expandedRowId === entry.id ? null : (entry.id ?? null))}
                     style={{
                       background: 'transparent',
                       border: 'none',

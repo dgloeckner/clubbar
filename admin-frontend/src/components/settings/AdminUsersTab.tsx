@@ -7,7 +7,10 @@ import { theme, formatRelativeDate } from '../../styles/design-system'
 import { Toggle } from '../common/Toggle'
 import { Badge } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
-import { AdminUser } from '../../types'
+import type { AdminUser as GeneratedAdminUser } from '../../api/generated'
+
+// Required fields that are always present in the API response
+type AdminUser = GeneratedAdminUser & { id: string; email: string; display_name: string; locale: string; is_active: boolean; created_at: string }
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useTranslation } from 'react-i18next'
 

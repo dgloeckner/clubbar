@@ -16,20 +16,224 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts'
-import {
-  getReport,
-  getMemberRanking,
-  getTerminalActivity,
-  exportReport,
-  type ReportType,
-  type GroupBy,
-  type ReportResponse,
-  type MemberRankingResponse,
-  type TerminalActivityResponse,
-  type ReportParams,
-  type MemberRankingParams,
-  type TerminalActivityParams,
-} from '../services/reports'
+import { getReports } from '../api/generated/reports/reports'
+
+// ─── Local Types (UI-facing, mapped from generated API types) ─────────────────
+
+type ReportType = 'revenue' | 'consumption' | 'transactions'
+type GroupBy = 'category' | 'product' | 'member' | 'day' | 'week' | 'month' | 'year'
+
+interface ReportParams {
+  date_from?: string
+  date_to?: string
+  group_by?: GroupBy
+}
+
+interface ReportRow {
+  dimension: string
+  revenue_cents: number
+  quantity: number
+  count: number
+  percentage: number
+}
+
+interface ReportMetadata {
+  total_revenue_cents: number
+  total_quantity: number
+  total_count: number
+  avg_transaction_cents: number
+  date_from: string
+  date_to: string
+  group_by: GroupBy
+  report_type: ReportType
+}
+
+interface ReportResponse {
+  metadata: ReportMetadata
+  rows: ReportRow[]
+}
+
+interface MemberRankingParams {
+  date_from?: string
+  date_to?: string
+  limit?: number
+  anonymize?: boolean
+}
+
+interface MemberRankingRow {
+  rank: number
+  member_id: string | null
+  member_name: string
+  total_amount_cents: number
+  transaction_count: number
+}
+
+interface MemberRankingResponse {
+  rows: MemberRankingRow[]
+  metadata: {
+    date_from: string
+    date_to: string
+    limit: number
+    anonymized: boolean
+    total_members: number
+  }
+}
+
+interface TerminalActivityParams {
+  date_from: string
+  date_to: string
+}
+
+interface TerminalSession {
+  date: string
+  start_time: string | null
+  end_time: string | null
+  transaction_count: number
+  revenue_cents: number
+}
+
+interface HourlyBucket {
+  hour: number
+  transaction_count: number
+  revenue_cents: number
+}
+
+interface TerminalSummary {
+  terminal_id: string
+  terminal_name: string
+  transaction_count: number
+  revenue_cents: number
+  last_sync: string | null
+}
+
+interface TerminalActivityResponse {
+  sessions: TerminalSession[]
+  hourly_distribution: HourlyBucket[]
+  terminal_summaries: TerminalSummary[]
+  metadata: {
+    date_from: string
+    date_to: string
+    total_transactions: number
+    total_revenue_cents: number
+  }
+}
+
+// ─── API Wrappers (map generated client responses to local types) ─────────────
+
+async function getReport(reportType: ReportType, params: ReportParams = {}): Promise<ReportResponse> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = (await getReports().getReport(reportType, params as any)) as any
+  if (raw && 'summary' in raw && 'data' in raw) {
+    return {
+      metadata: {
+        total_revenue_cents: raw.summary?.total_revenue_cents ?? 0,
+        total_quantity: raw.summary?.total_quantity ?? 0,
+        total_count: raw.summary?.transaction_count ?? 0,
+        avg_transaction_cents: raw.summary?.avg_transaction_cents ?? 0,
+        date_from: raw.metadata?.filters?.date_from ?? params.date_from ?? '',
+        date_to: raw.metadata?.filters?.date_to ?? params.date_to ?? '',
+        group_by: raw.metadata?.filters?.group_by ?? params.group_by ?? 'month',
+        report_type: reportType,
+      },
+      rows: (raw.data ?? []).map((row: any) => ({
+        dimension: row.dimension ?? '',
+        revenue_cents: row.revenue_cents ?? 0,
+        quantity: row.quantity ?? 0,
+        count: row.count ?? 0,
+        percentage: row.percent_of_total ?? row.percentage ?? 0,
+      })),
+    }
+  }
+  return raw as ReportResponse
+}
+
+async function getMemberRanking(params: MemberRankingParams = {}): Promise<MemberRankingResponse> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = (await getReports().getMemberRanking(params as any)) as any
+  if (raw && 'data' in raw && Array.isArray(raw.data)) {
+    return {
+      rows: raw.data.map((row: any) => ({
+        rank: row.rank ?? 0,
+        member_id: row.member_id ?? null,
+        member_name: row.member_name ?? '',
+        total_amount_cents: row.total_amount_cents ?? 0,
+        transaction_count: row.transaction_count ?? 0,
+      })),
+      metadata: raw.metadata ?? {
+        date_from: params.date_from ?? '',
+        date_to: params.date_to ?? '',
+        limit: params.limit ?? 25,
+        anonymized: params.anonymize ?? false,
+        total_members: raw.data.length,
+      },
+    }
+  }
+  if (raw && 'rows' in raw) return raw as MemberRankingResponse
+  return raw as MemberRankingResponse
+}
+
+async function getTerminalActivity(params: TerminalActivityParams): Promise<TerminalActivityResponse> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = (await getReports().getTerminalActivity(params)) as any
+  if (raw && 'sessions' in raw) {
+    return {
+      sessions: (raw.sessions ?? []).map((s: any) => ({
+        date: s.date ?? '',
+        start_time: s.start_time ?? null,
+        end_time: s.end_time ?? null,
+        transaction_count: s.transaction_count ?? 0,
+        revenue_cents: s.revenue_cents ?? 0,
+      })),
+      hourly_distribution: (raw.hourly_distribution ?? []).map((b: any) => ({
+        hour: b.hour ?? 0,
+        transaction_count: b.transaction_count ?? 0,
+        revenue_cents: b.revenue_cents ?? 0,
+      })),
+      terminal_summaries: (raw.terminals ?? raw.terminal_summaries ?? []).map((t: any) => ({
+        terminal_id: t.id ?? t.terminal_id ?? '',
+        terminal_name: t.name ?? t.terminal_name ?? '',
+        transaction_count: t.transaction_count ?? 0,
+        revenue_cents: t.revenue_cents ?? 0,
+        last_sync: t.last_sync_at ?? t.last_sync ?? null,
+      })),
+      metadata: raw.metadata ?? {
+        date_from: params.date_from,
+        date_to: params.date_to,
+        total_transactions: (raw.sessions ?? []).reduce((sum: number, s: any) => sum + (s.transaction_count ?? 0), 0),
+        total_revenue_cents: (raw.sessions ?? []).reduce((sum: number, s: any) => sum + (s.revenue_cents ?? 0), 0),
+      },
+    }
+  }
+  return raw as TerminalActivityResponse
+}
+
+async function exportReport(
+  reportType: ReportType | 'member-ranking' | 'terminal-activity',
+  params: Record<string, string | number | boolean | undefined> = {}
+): Promise<void> {
+  // Use the generated export endpoint (returns Blob) and trigger download
+  if (reportType === 'member-ranking' || reportType === 'terminal-activity') {
+    // These don't have a dedicated generated export; fall through to manual URL trigger
+    const query = Object.entries({ ...params, format: 'csv' })
+      .filter(([, v]) => v !== undefined && v !== '')
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+      .join('&')
+    const url = `/api/admin/reports/${reportType}?${query}`
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `report-${reportType}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    return
+  }
+  // For standard report types, use generated client
+  const blob = await getReports().exportReport(reportType, { ...params, format: 'csv' } as any)
+  const objectUrl = URL.createObjectURL(blob as Blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = `report-${reportType}-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(objectUrl)
+}
 import { theme } from '../styles/design-system'
 import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'

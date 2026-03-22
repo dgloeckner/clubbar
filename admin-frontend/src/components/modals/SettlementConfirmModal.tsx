@@ -5,20 +5,19 @@
  */
 
 import { useTranslation } from 'react-i18next'
+import type { SettlementFilterPreview } from '../../api/generated'
 import { theme } from '../../styles/design-system'
 import { useFormatters } from '../../hooks/useFormatters'
-import type { GlobalTransaction } from '../../services/transactions'
 
-export interface SettlementFilterPreview {
-  transaction_count: number
-  member_count: number
-  total_amount_cents: number
+interface TransactionSummary {
+  member_id?: string
+  amount_cents?: number
 }
 
 export interface SettlementConfirmModalProps {
   isOpen: boolean
   /** Provide either transactions (settle-selected) or preview (settle-all) */
-  transactions?: GlobalTransaction[]
+  transactions?: TransactionSummary[]
   preview?: SettlementFilterPreview
   onConfirm: () => void
   onCancel: () => void
@@ -46,7 +45,7 @@ export function SettlementConfirmModal({
 
   const transactionCount = preview?.transaction_count ?? transactions?.length ?? 0
   const memberCount = preview?.member_count ?? new Set(transactions?.map((tx) => tx.member_id) ?? []).size
-  const totalCents = preview?.total_amount_cents ?? transactions?.reduce((sum, tx) => sum + tx.amount_cents, 0) ?? 0
+  const totalCents = preview?.total_amount_cents ?? transactions?.reduce((sum, tx) => sum + (tx.amount_cents ?? 0), 0) ?? 0
 
   const today = new Date()
   const executionDate = new Date()

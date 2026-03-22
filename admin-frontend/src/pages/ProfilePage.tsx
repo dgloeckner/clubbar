@@ -8,7 +8,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
-import { getProfile, updateProfile, changePassword, AdminProfile } from '../services/auth'
+import { getAuthentication } from '../api/generated/authentication/authentication'
+import { getProfile, updateProfileWithSession } from '../auth/session'
+import type { AdminProfile } from '../api/generated'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { changeLanguage } from '../i18n/config'
 
@@ -26,6 +28,7 @@ export function ProfilePage() {
   const [locale, setLocale] = useState<'de' | 'en'>('de')
 
   // Password form
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordError, setPasswordError] = useState<string | null>(null)
@@ -41,9 +44,9 @@ export function ProfilePage() {
       setLoading(true)
       const data = await getProfile()
       setProfile(data)
-      setEmail(data.email)
-      setDisplayName(data.display_name)
-      setLocale((data.locale as 'de' | 'en') || 'de')
+      setEmail(data.email ?? '')
+      setDisplayName(data.display_name ?? '')
+      setLocale((data.locale as 'de' | 'en') ?? 'de')
     } catch (err) {
       setError(t('errors.generic'))
     } finally {
@@ -55,9 +58,9 @@ export function ProfilePage() {
     changeLanguage(newLocale)  // Update i18n and localStorage immediately
     setLocale(newLocale)       // Update local state
     try {
-      await updateProfile({ locale: newLocale })  // Persist to backend
-    } catch (error) {
-      console.error('Failed to save language preference:', error)
+      await updateProfileWithSession({ locale: newLocale })  // Persist to backend
+    } catch {
+      // locale preference save failed — non-critical
     }
   }
 
@@ -67,7 +70,7 @@ export function ProfilePage() {
       setError(null)
       setSuccess(null)
 
-      const updated = await updateProfile({
+      const updated = await updateProfileWithSession({
         email,
         display_name: displayName,
         locale,
@@ -78,8 +81,11 @@ export function ProfilePage() {
 
       // Clear success after 3 seconds
       setTimeout(() => setSuccess(null), 3000)
-    } catch (err: any) {
-      setError(err.response?.data?.message || t('profile.saveFailed'))
+    } catch (err: unknown) {
+      const message = err instanceof Error && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? t('profile.saveFailed')
+        : t('profile.saveFailed')
+      setError(message)
     } finally {
       setSaving(false)
     }
@@ -90,6 +96,10 @@ export function ProfilePage() {
     setPasswordSuccess(null)
 
     // Validate
+    if (!currentPassword) {
+      setPasswordError(t('validation.required'))
+      return
+    }
     if (!newPassword) {
       setPasswordError(t('validation.required'))
       return
@@ -109,19 +119,23 @@ export function ProfilePage() {
 
     try {
       setChangingPassword(true)
-      await changePassword({
+      await getAuthentication().changePassword({
+        current_password: currentPassword,
         new_password: newPassword,
-        new_password_confirmation: confirmPassword,
+        confirm_password: confirmPassword,
       })
 
       setPasswordSuccess(t('profile.passwordChanged'))
+      setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
 
       // Clear success after 3 seconds
       setTimeout(() => setPasswordSuccess(null), 3000)
-    } catch (err: any) {
-      const message = err.response?.data?.message || t('profile.saveFailed')
+    } catch (err: unknown) {
+      const message = err instanceof Error && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message ?? t('profile.saveFailed')
+        : t('profile.saveFailed')
       setPasswordError(message)
     } finally {
       setChangingPassword(false)
@@ -289,6 +303,17 @@ export function ProfilePage() {
             {passwordSuccess}
           </div>
         )}
+
+        <div style={{ marginBottom: theme.spacing.lg }}>
+          <label style={labelStyle}>{t('profile.currentPassword', 'Current Password')}</label>
+          <input
+            data-testid="password-current"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
 
         <div style={{ marginBottom: theme.spacing.lg }}>
           <label style={labelStyle}>{t('profile.newPassword')}</label>

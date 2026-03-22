@@ -4,7 +4,8 @@ import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
-import { getDashboardMetrics, DashboardResponse } from '../services/dashboard'
+import { getDashboard } from '../api/generated/dashboard/dashboard'
+import type { DashboardResponse } from '../api/generated'
 import { StatCard } from '../components/common/StatCard'
 import { UsersIcon, ReceiptIcon, BookIcon } from '../components/icons'
 import { HomeIcon } from '../components/icons/HomeIcon'
@@ -28,7 +29,7 @@ export function DashboardPage() {
         setLoading(true)
         setIsLoading(true)
       }
-      const response = await getDashboardMetrics()
+      const response = await getDashboard().getDashboardMetrics()
       setData(response)
       setError(null)
     } catch (err) {
@@ -72,7 +73,11 @@ export function DashboardPage() {
 
   if (!data) return null
 
-  const { metrics, recent_transactions, terminal_status, system_status, alerts } = data
+  const metrics = data.metrics ?? {}
+  const recent_transactions = data.recent_transactions ?? []
+  const terminal_status = data.terminal_status ?? []
+  const system_status = data.system_status ?? {}
+  const alerts = data.alerts ?? {}
 
   const statusColor = (status: string) => {
     switch (status) {
@@ -130,19 +135,19 @@ export function DashboardPage() {
         <StatCard
           icon={<UsersIcon />}
           label={t('dashboard.activeMembers')}
-          value={metrics.active_members}
+          value={metrics.active_members ?? 0}
           color="blue"
         />
         <StatCard
           icon={<ReceiptIcon />}
           label={t('dashboard.outstandingBalance')}
-          value={formatPrice(metrics.outstanding_balance_cents)}
-          color={metrics.outstanding_balance_cents > 0 ? 'orange' : 'green'}
+          value={formatPrice(metrics.outstanding_balance_cents ?? 0)}
+          color={(metrics.outstanding_balance_cents ?? 0) > 0 ? 'orange' : 'green'}
         />
         <StatCard
           icon={<HomeIcon />}
           label={t('dashboard.terminals')}
-          value={`${metrics.active_terminals}/${metrics.terminal_count}`}
+          value={`${metrics.active_terminals ?? 0}/${metrics.terminal_count ?? 0}`}
           color="blue"
         />
       </div>
@@ -157,19 +162,19 @@ export function DashboardPage() {
         <StatCard
           icon={<BookIcon />}
           label={t('dashboard.todaysRevenue')}
-          value={formatPrice(metrics.todays_revenue_cents)}
+          value={formatPrice(metrics.todays_revenue_cents ?? 0)}
           color="green"
         />
         <StatCard
           icon={<BookIcon />}
           label={t('dashboard.wtdRevenue')}
-          value={formatPrice(metrics.wtd_revenue_cents)}
+          value={formatPrice((metrics as any).wtd_revenue_cents ?? 0)}
           color="green"
         />
         <StatCard
           icon={<BookIcon />}
           label={t('dashboard.mtdRevenue')}
-          value={formatPrice(metrics.mtd_revenue_cents)}
+          value={formatPrice((metrics as any).mtd_revenue_cents ?? 0)}
           color="green"
         />
       </div>
@@ -311,9 +316,9 @@ export function DashboardPage() {
               gap: theme.spacing.md,
               padding: theme.spacing.md,
               borderRadius: theme.borderRadius.sm,
-              background: alerts.sepa_issues.severity === 'none'
+              background: alerts.sepa_issues?.severity === 'none'
                 ? 'rgba(34, 197, 94, 0.1)'
-                : alerts.sepa_issues.severity === 'warning'
+                : alerts.sepa_issues?.severity === 'warning'
                   ? 'rgba(249, 115, 22, 0.1)'
                   : 'rgba(239, 68, 68, 0.1)',
             }}>
@@ -321,15 +326,15 @@ export function DashboardPage() {
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                background: severityColor(alerts.sepa_issues.severity),
+                background: severityColor(alerts.sepa_issues?.severity ?? 'none'),
                 flexShrink: 0,
               }} />
               <span data-testid="dashboard-sepa-alert-message" style={{
                 fontSize: theme.typography.fontSize.sm,
                 color: theme.colors.text.primary,
               }}>
-                {alerts.sepa_issues.count > 0
-                  ? t('dashboard.membersNeedSepaData', { count: alerts.sepa_issues.count })
+                {(alerts.sepa_issues?.count ?? 0) > 0
+                  ? t('dashboard.membersNeedSepaData', { count: alerts.sepa_issues?.count })
                   : t('dashboard.allSepaValid')
                 }
               </span>

@@ -8,11 +8,30 @@ import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useLoading } from '../context/LoadingContext'
-import { getSepaConfig, updateSepaConfig } from '../services/sepa-config'
-import { getAdminUsers, createAdminUser, updateAdminUser, deactivateAdminUser, reactivateAdminUser, resetAdminPassword } from '../services/admin-users'
-import { getTerminals, createTerminal, updateTerminal, rotateTerminalToken, revokeTerminalAccess } from '../services/terminals'
-import { SepaConfig, UpdateSepaConfigRequest, AdminUser, Terminal } from '../types'
-import { AxiosError } from 'axios'
+import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
+import { getAdminUsers } from '../api/generated/admin-users/admin-users'
+import { getTerminals } from '../api/generated/terminals/terminals'
+import type { SepaConfig as GeneratedSepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
+
+// Extended SEPA config type: includes payment_reference_prefix returned by the backend
+// but not modelled in the generated OpenAPI type (field is read-only / not in update request)
+type SepaConfig = GeneratedSepaConfig & { payment_reference_prefix?: string }
+
+// Required fields that are always present in the API responses
+type AdminUser = GeneratedAdminUser & { id: string; email: string; display_name: string; locale: string; is_active: boolean; created_at: string }
+type Terminal = GeneratedTerminal & { id: string; name: string; is_active: boolean }
+
+// Local type for SEPA config form (includes payment_reference_prefix not in generated SepaConfigUpdateRequest)
+interface UpdateSepaConfigRequest {
+  creditor_id?: string
+  creditor_name?: string
+  creditor_iban?: string
+  creditor_address_street?: string
+  creditor_address_city?: string
+  creditor_address_country?: string
+  payment_reference_prefix?: string
+}
+import axios from 'axios'
 import { SepaConfigTab } from '../components/settings/SepaConfigTab'
 import { AdminUsersTab } from '../components/settings/AdminUsersTab'
 import { CreateAdminModal } from '../components/modals/CreateAdminModal'
@@ -107,7 +126,17 @@ export function SettingsPage() {
       try {
         setLoading(true)
         setIsLoading(true)
-        const config = await getSepaConfig()
+        let config: SepaConfig | null = null
+        try {
+          const result = await getSepaConfiguration().getSepaConfig()
+          config = result as SepaConfig
+        } catch (err: unknown) {
+          if (axios.isAxiosError(err) && err.response?.status === 404) {
+            config = null
+          } else {
+            throw err
+          }
+        }
 
         if (config) {
           setExistingConfig(config)
@@ -126,8 +155,7 @@ export function SettingsPage() {
         }
 
         setError(null)
-      } catch (err) {
-        console.error('Failed to load SEPA config:', err)
+      } catch (err: unknown) {
         setError('Failed to load settings')
       } finally {
         setLoading(false)
@@ -155,10 +183,10 @@ export function SettingsPage() {
   const loadAdminUsers = async () => {
     try {
       setAdminUsersLoading(true)
-      const response = await getAdminUsers(1, 500, 'all')
-      setAdminUsers(response.data || [])
-    } catch (err) {
-      console.error('Failed to load admin users:', err)
+      const response = await getAdminUsers().listAdminUsers()
+      setAdminUsers((response.data || []) as AdminUser[])
+    } catch (err: unknown) {
+      // silently fail — list will remain empty
     } finally {
       setAdminUsersLoading(false)
     }
@@ -167,10 +195,10 @@ export function SettingsPage() {
   const loadTerminals = async () => {
     try {
       setTerminalsLoading(true)
-      const response = await getTerminals(1, 500)
-      setTerminals(response.data || [])
-    } catch (err) {
-      console.error('Failed to load terminals:', err)
+      const response = await getTerminals().listTerminals({ per_page: 500 })
+      setTerminals((response.data || []) as Terminal[])
+    } catch (err: unknown) {
+      // silently fail — list will remain empty
     } finally {
       setTerminalsLoading(false)
     }
@@ -178,18 +206,17 @@ export function SettingsPage() {
 
   const handleCreateAdmin = async () => {
     try {
-      const result = await createAdminUser({
+      const result = await getAdminUsers().createAdminUser({
         email: createAdminFormData.email,
         display_name: createAdminFormData.display_name,
         locale: createAdminFormData.locale,
       })
-      setGeneratedPassword(result.password)
+      setGeneratedPassword(result.password ?? null)
       setShowPasswordModal(true)
       setShowCreateAdminModal(false)
       setCreateAdminFormData({ email: '', display_name: '', locale: 'de' })
       await loadAdminUsers()
-    } catch (err) {
-      console.error('Failed to create admin user:', err)
+    } catch (err: unknown) {
       setError('Failed to create admin user')
     }
   }
@@ -197,7 +224,7 @@ export function SettingsPage() {
   const handleUpdateAdmin = async () => {
     if (!editingAdmin) return
     try {
-      await updateAdminUser(editingAdmin.id, {
+      await getAdminUsers().updateAdminUser(editingAdmin.id!, {
         email: editAdminFormData.email || undefined,
         display_name: editAdminFormData.display_name || undefined,
         locale: editAdminFormData.locale || undefined,
@@ -206,8 +233,7 @@ export function SettingsPage() {
       setEditingAdmin(null)
       setEditAdminFormData({ email: '', display_name: '', locale: 'de' })
       await loadAdminUsers()
-    } catch (err) {
-      console.error('Failed to update admin user:', err)
+    } catch (err: unknown) {
       setError('Failed to update admin user')
     }
   }
@@ -221,45 +247,41 @@ export function SettingsPage() {
     const id = deactivateConfirm
     setDeactivateConfirm(null)
     try {
-      await deactivateAdminUser(id)
+      await getAdminUsers().updateAdminUser(id, { is_active: false })
       await loadAdminUsers()
-    } catch (err) {
-      console.error('Failed to deactivate admin user:', err)
+    } catch (err: unknown) {
       setError('Failed to deactivate admin user')
     }
   }
 
   const handleReactivateAdmin = async (id: string) => {
     try {
-      await reactivateAdminUser(id)
+      await getAdminUsers().updateAdminUser(id, { is_active: true })
       await loadAdminUsers()
-    } catch (err) {
-      console.error('Failed to reactivate admin user:', err)
+    } catch (err: unknown) {
       setError('Failed to reactivate admin user')
     }
   }
 
   const handleResetPassword = async (id: string) => {
     try {
-      const result = await resetAdminPassword(id)
-      setGeneratedPassword(result.password)
+      const result = await getAdminUsers().resetAdminPassword(id)
+      setGeneratedPassword(result.password ?? null)
       setShowPasswordModal(true)
-    } catch (err) {
-      console.error('Failed to reset password:', err)
+    } catch (err: unknown) {
       setError('Failed to reset password')
     }
   }
 
   const handleCreateTerminal = async () => {
     try {
-      const result = await createTerminal(createTerminalFormData)
-      setGeneratedToken(result.api_token)
+      const result = await getTerminals().createTerminal(createTerminalFormData)
+      setGeneratedToken(result.api_token ?? null)
       setShowTokenModal(true)
       setShowCreateTerminalModal(false)
       setCreateTerminalFormData({ name: '', device_id: '' })
       await loadTerminals()
-    } catch (err) {
-      console.error('Failed to create terminal:', err)
+    } catch (err: unknown) {
       setError('Failed to create terminal')
     }
   }
@@ -267,13 +289,12 @@ export function SettingsPage() {
   const handleUpdateTerminal = async () => {
     if (!editingTerminal) return
     try {
-      await updateTerminal(editingTerminal.id, { name: editTerminalFormData.name })
+      await getTerminals().updateTerminal(editingTerminal.id!, { name: editTerminalFormData.name })
       setShowEditTerminalModal(false)
       setEditingTerminal(null)
       setEditTerminalFormData({ name: '' })
       await loadTerminals()
-    } catch (err) {
-      console.error('Failed to update terminal:', err)
+    } catch (err: unknown) {
       setError('Failed to update terminal')
     }
   }
@@ -284,10 +305,9 @@ export function SettingsPage() {
 
   const handleReactivateTerminal = async (id: string) => {
     try {
-      await updateTerminal(id, { is_active: true })
+      await getTerminals().updateTerminal(id, { is_active: true })
       await loadTerminals()
-    } catch (err) {
-      console.error('Failed to reactivate terminal:', err)
+    } catch (err: unknown) {
       setError('Failed to reactivate terminal')
     }
   }
@@ -306,17 +326,16 @@ export function SettingsPage() {
     setTerminalConfirmAction(null)
     try {
       if (type === 'deactivate') {
-        await updateTerminal(id, { is_active: false })
+        await getTerminals().updateTerminal(id, { is_active: false })
       } else if (type === 'rotate') {
-        const result = await rotateTerminalToken(id)
-        setGeneratedToken(result.api_token)
+        const result = await getTerminals().rotateTerminalToken(id)
+        setGeneratedToken(result.api_token ?? null)
         setShowTokenModal(true)
       } else if (type === 'revoke') {
-        await revokeTerminalAccess(id)
+        await getTerminals().revokeTerminalAccess(id)
       }
       await loadTerminals()
-    } catch (err) {
-      console.error(`Failed to ${type} terminal:`, err)
+    } catch (err: unknown) {
       setError(`Failed to ${type} terminal`)
     }
   }
@@ -404,7 +423,27 @@ export function SettingsPage() {
       setError(null)
       setSuccessMessage(null)
 
-      const result = await updateSepaConfig(formData)
+      let result: SepaConfig
+      if (!existingConfig) {
+        // Create initial SEPA config (POST) — requires creditor_id
+        result = (await getSepaConfiguration().createSepaConfig({
+          creditor_id: formData.creditor_id ?? '',
+          creditor_name: formData.creditor_name ?? '',
+          creditor_iban: formData.creditor_iban ?? '',
+          creditor_address_street: formData.creditor_address_street ?? '',
+          creditor_address_city: formData.creditor_address_city ?? '',
+          creditor_address_country: formData.creditor_address_country ?? '',
+        })) as SepaConfig
+      } else {
+        // Update existing SEPA config (PATCH)
+        result = (await getSepaConfiguration().updateSepaConfig({
+          creditor_name: formData.creditor_name,
+          creditor_iban: formData.creditor_iban,
+          creditor_address_street: formData.creditor_address_street,
+          creditor_address_city: formData.creditor_address_city,
+          creditor_address_country: formData.creditor_address_country,
+        })) as SepaConfig
+      }
       setExistingConfig(result)
       setOriginalFormData(formData)
       setFieldErrors({})
@@ -414,33 +453,34 @@ export function SettingsPage() {
       setTimeout(() => {
         setSuccessMessage(null)
       }, 5000)
-    } catch (err) {
-      const axiosError = err as AxiosError
-      console.error('Failed to save SEPA config:', err)
-
-      // Handle validation errors (422)
-      if (axiosError.response?.status === 422) {
-        const data = axiosError.response.data as any
-        if (data.errors && typeof data.errors === 'object') {
-          // Map field errors
-          const mappedErrors: Record<string, string> = {}
-          for (const [field, messages] of Object.entries(data.errors)) {
-            if (Array.isArray(messages)) {
-              mappedErrors[field] = messages[0]
-            } else if (typeof messages === 'string') {
-              mappedErrors[field] = messages
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        // Handle validation errors (422)
+        if (err.response?.status === 422) {
+          const data = err.response.data as Record<string, unknown>
+          if (data.errors && typeof data.errors === 'object') {
+            // Map field errors
+            const mappedErrors: Record<string, string> = {}
+            for (const [field, messages] of Object.entries(data.errors as Record<string, unknown>)) {
+              if (Array.isArray(messages)) {
+                mappedErrors[field] = messages[0] as string
+              } else if (typeof messages === 'string') {
+                mappedErrors[field] = messages
+              }
             }
+            setFieldErrors(mappedErrors)
+            setError('Please fix validation errors')
+          } else if (typeof data.message === 'string') {
+            setError(data.message)
+          } else {
+            setError('Validation failed')
           }
-          setFieldErrors(mappedErrors)
-          setError('Please fix validation errors')
-        } else if (data.message) {
-          setError(data.message)
+        } else if (err.response?.status === 400) {
+          const data = err.response.data as Record<string, unknown>
+          setError(typeof data.message === 'string' ? data.message : 'Invalid request')
         } else {
-          setError('Validation failed')
+          setError('Failed to save SEPA configuration. Please try again.')
         }
-      } else if (axiosError.response?.status === 400) {
-        const data = axiosError.response.data as any
-        setError(data.message || 'Invalid request')
       } else {
         setError('Failed to save SEPA configuration. Please try again.')
       }
