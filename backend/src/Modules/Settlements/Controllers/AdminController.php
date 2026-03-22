@@ -190,6 +190,22 @@ class AdminController
         return $response->withStatus(204);
     }
 
+    public function cancel(Request $request, Response $response, array $args): Response
+    {
+        $id = $args['id'];
+        $adminId = $request->getAttribute('admin_user_id');
+        $body = $request->getParsedBody() ?? [];
+
+        $this->settlementsService->cancelSettlement($id, $adminId, $body['reason'] ?? null);
+
+        $settlement = $this->settlementsService->getSettlement($id);
+        if (!$settlement) {
+            return $this->json($response, ['error' => 'not_found', 'message' => 'Settlement not found'], 404);
+        }
+
+        return $this->json($response, $settlement->toArray());
+    }
+
     public function exportSepa(Request $request, Response $response, array $args): Response
     {
         $id = $args['id'];

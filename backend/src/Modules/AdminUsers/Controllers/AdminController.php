@@ -107,6 +107,7 @@ class AdminController
             'email' => ['nullable', 'email'],
             'display_name' => ['nullable', 'string', 'max:100'],
             'locale' => ['nullable', 'string', 'in:de,en,fr'],
+            'is_active' => ['nullable', 'boolean'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }

@@ -39,7 +39,7 @@ test.describe('Members GDPR Export Button (UC-DSGVO-01)', () => {
 
     // Verify download triggered
     const download = await downloadPromise
-    expect(download.suggestedFilename()).toMatch(/^member-export-.*\.json$/)
+    expect(download.suggestedFilename()).toMatch(/^gdpr-export-.*\.json$/)
 
     // Verify downloaded content is valid JSON with expected structure
     const path = await download.path()

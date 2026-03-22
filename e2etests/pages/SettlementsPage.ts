@@ -109,9 +109,9 @@ export class SettlementsPage extends BasePage {
   async undoSettlement(settlementId: string) {
     const responsePromise = this.page.waitForResponse(
       (resp) =>
-        resp.url().includes(`/api/admin/settlements/${settlementId}`) &&
+        resp.url().includes(`/api/admin/settlements/${settlementId}/cancel`) &&
         resp.request().method() === 'DELETE' &&
-        resp.status() === 204
+        resp.status() === 200
     )
     await this.page.getByTestId(`settlements-undo-btn-${settlementId}`).click()
     // Custom confirm dialog should appear

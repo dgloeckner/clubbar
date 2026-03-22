@@ -37,7 +37,6 @@ class MembersService {
     if (network == null) return;
     try {
       final unsynced = await _transactionsRepository.getUnsyncedTransactions();
-      if (unsynced.isEmpty) return;
       final payload = unsynced
           .map((t) => {
                 'id': t.id,

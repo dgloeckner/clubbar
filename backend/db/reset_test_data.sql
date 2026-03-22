@@ -53,7 +53,7 @@ INSERT INTO sepa_config (id) VALUES (1);
 -- Hash generated with: password_hash('password123', PASSWORD_BCRYPT, ['cost' => 12])
 INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, created_at, updated_at)
 VALUES (
-    '33e4567-e89b-12d3-a456-426614174000',
+    '123e4567-e89b-12d3-a456-426614174000',
     'admin@example.com',
     '$2y$12$Pp5DqCBrNhBDThRmWYwPlegkBrYSDKxoGguH1K2XnUlVzQxoUPygG',
     'Admin User',

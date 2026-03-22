@@ -112,6 +112,7 @@ return function (App $app): void {
         $group->get('/settlements', [SettlementsAdminController::class, 'index']);
         $group->get('/settlements/{id}', [SettlementsAdminController::class, 'show']);
         $group->delete('/settlements/{id}', [SettlementsAdminController::class, 'destroy']);
+        $group->delete('/settlements/{id}/cancel', [SettlementsAdminController::class, 'cancel']);
         $group->get('/settlements/{id}/export-sepa', [SettlementsAdminController::class, 'exportSepa']);
         $group->get('/settlements/{id}/export-csv', [SettlementsAdminController::class, 'exportCsv']);
         $group->get('/settlements/{id}/export-transactions', [SettlementsAdminController::class, 'exportTransactionsCsv']);

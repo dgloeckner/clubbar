@@ -60,6 +60,14 @@ class AdminUsersService
 
     public function updateAdminUser(string $id, array $validated, ?string $currentAdminId = null): ?AdminUserDto
     {
+        if (array_key_exists('is_active', $validated)) {
+            if ($validated['is_active']) {
+                return $this->reactivateAdminUser($id, $currentAdminId);
+            } else {
+                return $this->deactivateAdminUser($id, $currentAdminId ?? '');
+            }
+        }
+
         $data = [];
         if (isset($validated['email'])) $data['email'] = $validated['email'];
         if (isset($validated['display_name'])) $data['display_name'] = $validated['display_name'];
