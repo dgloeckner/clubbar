@@ -132,6 +132,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
 
+            // Generate a fresh TOTP encryption key for this installation
+            $totpKey = bin2hex(random_bytes(32));
+
             try {
                 $testPdo = new PDO(
                     sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $dbHost, $dbPort, $dbName),
@@ -161,6 +164,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ],
                     'api_token' => [
                         'ttl_days' => 90,
+                    ],
+                    'security' => [
+                        'totp_encryption_key' => $totpKey,
                     ],
                 ], true) . ";\n";
 
