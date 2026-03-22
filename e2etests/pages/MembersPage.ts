@@ -230,7 +230,18 @@ export class MembersPage extends BasePage {
   }
 
   async submitForm() {
+    // Wait for the API response (POST 201 for create, PATCH 200 for edit).
+    // This prevents race conditions where the subsequent search fires before
+    // the backend has committed the new/updated member.
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/members') &&
+        (resp.request().method() === 'POST' || resp.request().method() === 'PATCH') &&
+        (resp.status() === 200 || resp.status() === 201),
+      { timeout: 15000 }
+    )
     await this.formSubmitBtn().click()
+    await responsePromise
   }
 
   async cancelForm() {
