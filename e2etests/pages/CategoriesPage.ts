@@ -267,7 +267,10 @@ export class CategoriesPage extends BasePage {
 
   async toggleCategoryStatus(categoryId: string) {
     const responsePromise = this.page.waitForResponse(
-      (r) => r.url().includes(`/admin/categories/${categoryId}/status`) && r.request().method() === 'PATCH',
+      (r) => {
+        const url = new URL(r.url())
+        return url.pathname.endsWith(`/admin/categories/${categoryId}`) && r.request().method() === 'PATCH'
+      },
       { timeout: 10000 }
     )
     await this.page.getByTestId(`categories-status-toggle-${categoryId}`).click()
