@@ -9,7 +9,10 @@ import { Toggle } from '../common/Toggle'
 import { Badge } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
-import { Terminal } from '../../types'
+import type { Terminal as GeneratedTerminal } from '../../api/generated'
+
+// Required fields that are always present in the API response
+type Terminal = GeneratedTerminal & { id: string; name: string; is_active: boolean }
 
 export interface TerminalsTabProps {
   terminals: Terminal[]

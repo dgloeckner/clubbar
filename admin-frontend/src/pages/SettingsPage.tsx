@@ -11,7 +11,26 @@ import { useLoading } from '../context/LoadingContext'
 import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
 import { getAdminUsers } from '../api/generated/admin-users/admin-users'
 import { getTerminals } from '../api/generated/terminals/terminals'
-import { SepaConfig, UpdateSepaConfigRequest, AdminUser, Terminal } from '../types'
+import type { SepaConfig as GeneratedSepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
+
+// Extended SEPA config type: includes payment_reference_prefix returned by the backend
+// but not modelled in the generated OpenAPI type (field is read-only / not in update request)
+type SepaConfig = GeneratedSepaConfig & { payment_reference_prefix?: string }
+
+// Required fields that are always present in the API responses
+type AdminUser = GeneratedAdminUser & { id: string; email: string; display_name: string; locale: string; is_active: boolean; created_at: string }
+type Terminal = GeneratedTerminal & { id: string; name: string; is_active: boolean }
+
+// Local type for SEPA config form (includes payment_reference_prefix not in generated SepaConfigUpdateRequest)
+interface UpdateSepaConfigRequest {
+  creditor_id?: string
+  creditor_name?: string
+  creditor_iban?: string
+  creditor_address_street?: string
+  creditor_address_city?: string
+  creditor_address_country?: string
+  payment_reference_prefix?: string
+}
 import axios from 'axios'
 import { SepaConfigTab } from '../components/settings/SepaConfigTab'
 import { AdminUsersTab } from '../components/settings/AdminUsersTab'

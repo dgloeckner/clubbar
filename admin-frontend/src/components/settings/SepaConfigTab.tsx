@@ -9,7 +9,18 @@ import { CharacterCounter } from '../forms/CharacterCounter'
 import { ValidationIndicator } from '../forms/ValidationIndicator'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useTranslation } from 'react-i18next'
-import { UpdateSepaConfigRequest, SepaConfig } from '../../types'
+import type { SepaConfig } from '../../api/generated'
+
+// Local form type includes payment_reference_prefix (not in generated SepaConfigUpdateRequest)
+interface UpdateSepaConfigRequest {
+  creditor_id?: string
+  creditor_name?: string
+  creditor_iban?: string
+  creditor_address_street?: string
+  creditor_address_city?: string
+  creditor_address_country?: string
+  payment_reference_prefix?: string
+}
 
 export interface SepaConfigTabProps {
   config: SepaConfig | null
