@@ -26,4 +26,9 @@ return [
     'api_token' => [
         'ttl_days' => 90,
     ],
+    'security' => [
+        // 64-char hex string (32 bytes). Generated automatically by install.php.
+        // To regenerate manually: openssl rand -hex 32
+        'totp_encryption_key' => '',
+    ],
 ];
