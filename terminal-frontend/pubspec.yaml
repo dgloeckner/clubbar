@@ -15,7 +15,7 @@ dependencies:
 
   # Database & ORM (compatible versions - drift_dev requires older sqlite3)
   drift: ^2.32.0
-  sqlite3_flutter_libs: ^0.5.41
+  sqlite3_flutter_libs: ^0.6.0
   sqflite_common: ^2.5.6
   sqflite_common_ffi: ^2.4.0+2 # Compatible with drift_dev
 
