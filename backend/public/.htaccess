@@ -1,7 +1,7 @@
 RewriteEngine On
 
-# Pass Authorization header to PHP (Apache strips it by default for CGI/FastCGI)
-SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+# Pass Authorization header to PHP (stripped by Apache mod_headers/CGI by default)
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
 # Block dotfiles
 RedirectMatch 403 /\.(.*)$

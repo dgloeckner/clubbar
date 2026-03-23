@@ -130,51 +130,48 @@ class _ProductCardState extends State<ProductCard>
                 ),
               ),
             ),
-            // Counter badge and minus button — vertically centered in a row
+            // Minus button — top-left, large touch target
+            if (isInCart && widget.onDecrement != null)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: GestureDetector(
+                  onTap: widget.onDecrement,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xff1e293b),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xff3b82f6), width: 1.5),
+                    ),
+                    child: const Icon(
+                      Icons.remove,
+                      color: Color(0xff94a3b8),
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            // Count badge — top-right
             if (isInCart)
               Positioned(
-                top: 10,
-                right: 10,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (widget.onDecrement != null)
-                      GestureDetector(
-                        onTap: widget.onDecrement,
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: const Color(0xff1e293b),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xff3b82f6), width: 1),
-                          ),
-                          child: const Icon(
-                            Icons.remove,
-                            color: Color(0xff94a3b8),
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                    if (widget.onDecrement != null)
-                      const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xff3b82f6),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        '${widget.quantity}x',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: AppFontSizes.lg,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xff3b82f6),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    '${widget.quantity}x',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: AppFontSizes.lg,
+                      fontWeight: FontWeight.w700,
                     ),
-                  ],
+                  ),
                 ),
               ),
           ],

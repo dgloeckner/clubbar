@@ -158,6 +158,7 @@ class MemberBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
           ),
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               const Center(
                 child: Icon(
@@ -169,22 +170,23 @@ class MemberBar extends StatelessWidget {
               // Badge with item count
               if (itemCount > 0)
                 Positioned(
-                  top: 2,
-                  right: 2,
+                  top: -4,
+                  right: -4,
                   child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: const BoxDecoration(
-                      color: Color(0xffEF4444),
-                      shape: BoxShape.circle,
+                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xffEF4444),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Center(
                       child: Text(
                         itemCount.toString(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white,
-                          fontSize: AppFontSizes.xs,
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
+                          height: 1.2,
                         ),
                       ),
                     ),

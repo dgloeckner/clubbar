@@ -10,7 +10,7 @@ import { StatCard } from '../components/common/StatCard'
 import { UsersIcon, ReceiptIcon, BookIcon } from '../components/icons'
 import { HomeIcon } from '../components/icons/HomeIcon'
 
-const AUTO_REFRESH_INTERVAL = 60_000 // 60 seconds per UC-A80
+const AUTO_REFRESH_INTERVAL = 10_000 // 10 seconds
 
 export function DashboardPage() {
   const { t } = useTranslation()
@@ -98,33 +98,6 @@ export function DashboardPage() {
 
   return (
     <div data-testid="dashboard-page" style={{ padding: isMobile ? `${theme.spacing.sm} 0` : theme.spacing['2xl'], maxWidth: '1200px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.xl }}>
-        <h1 data-testid="dashboard-title" style={{
-          fontSize: theme.typography.fontSize['2xl'],
-          fontWeight: theme.typography.fontWeight.bold,
-          color: theme.colors.text.primary,
-          margin: 0,
-        }}>
-          {t('dashboard.title')}
-        </h1>
-        <button
-          data-testid="dashboard-refresh-button"
-          onClick={() => fetchDashboard()}
-          style={{
-            background: theme.colors.bg.card,
-            border: `1px solid ${theme.colors.border.light}`,
-            borderRadius: theme.borderRadius.sm,
-            padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
-            color: theme.colors.text.secondary,
-            cursor: 'pointer',
-            fontSize: theme.typography.fontSize.sm,
-          }}
-        >
-          {t('dashboard.refreshNow')}
-        </button>
-      </div>
-
       {/* Metrics Row */}
       <div data-testid="dashboard-metrics" style={{
         display: 'grid',
