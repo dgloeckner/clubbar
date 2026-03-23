@@ -224,11 +224,15 @@ void main() async {
   // Initialize window manager for desktop (Linux/macOS/Windows)
   try {
     await windowManager.ensureInitialized();
-    await windowManager.waitUntilReadyToShow();
-    if (configService.fullscreen) {
-      await windowManager.setFullScreen(true);
-    }
-    await windowManager.show();
+    // NOTE: waitUntilReadyToShow() in 0.4+ takes a callback — it is no longer async.
+    // The callback executes asynchronously relative to the rest of main(), so runApp()
+    // will proceed concurrently with window setup. This is expected and correct.
+    windowManager.waitUntilReadyToShow(null, () async {
+      if (configService.fullscreen) {
+        await windowManager.setFullScreen(true);
+      }
+      await windowManager.show();
+    });
   } catch (e) {
     // Window manager not available (mobile platform or plugin issue)
   }

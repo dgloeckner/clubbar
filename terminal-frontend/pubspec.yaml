@@ -46,7 +46,7 @@ dependencies:
   uuid: ^4.5.3
 
   # Desktop window management (macOS/Linux/Windows)
-  window_manager: ^0.3.9
+  window_manager: ^0.5.1
 
   # Audio feedback
   audioplayers: ^6.6.0
