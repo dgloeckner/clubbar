@@ -21,10 +21,10 @@ dependencies:
 
   # Networking
   http: ^1.6.0
-  chopper: ^8.0.0
+  chopper: ^8.5.1
 
   # JSON serialization
-  json_annotation: ^4.9.0
+  json_annotation: ^4.11.0
 
   # State Management
   provider: ^6.1.5+1
@@ -34,22 +34,22 @@ dependencies:
 
   # Animations & UI
   confetti: ^0.8.0
-  flutter_svg: ^2.0.0
+  flutter_svg: ^2.2.4
 
   # Date/Time (immutable)
   intl: ^0.20.2
 
   # Logging
-  logger: ^2.6.2
+  logger: ^2.7.0
 
   # UUID generation
-  uuid: ^4.5.2
+  uuid: ^4.5.3
 
   # Desktop window management (macOS/Linux/Windows)
   window_manager: ^0.3.9
 
   # Audio feedback
-  audioplayers: ^6.5.1
+  audioplayers: ^6.6.0
 
   # Platform-specific paths (ADR-0019)
   path_provider: ^2.1.0
@@ -64,9 +64,9 @@ dev_dependencies:
 
   # Code Generation
   drift_dev: ^2.30.1
-  build_runner: ^2.10.5
+  build_runner: ^2.13.1
   swagger_dart_code_generator: 4.1.1
-  json_serializable: ^6.8.0
+  json_serializable: ^6.13.1
   chopper_generator: ^8.0.0
 
   # Testing (note: flutter_test pins test_api, use compatible test version)
