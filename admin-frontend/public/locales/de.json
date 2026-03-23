@@ -375,6 +375,8 @@
     "createAdminUser": "Admin-Benutzer erstellen",
     "user": "Benutzer",
     "resetPassword": "Passwort zurücksetzen",
+    "reset2fa": "2FA zurücksetzen",
+    "reset2faConfirm": "2FA für diesen Admin-Benutzer zurücksetzen? Der Benutzer muss sich beim nächsten Login erneut einrichten.",
     "noAdminUsers": "Keine Admin-Benutzer gefunden",
     "loadingSepa": "Lade SEPA-Konfiguration...",
     "saving": "Speichert...",

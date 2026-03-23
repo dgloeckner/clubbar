@@ -375,6 +375,8 @@
     "createAdminUser": "Create Admin User",
     "user": "User",
     "resetPassword": "Reset Password",
+    "reset2fa": "Reset 2FA",
+    "reset2faConfirm": "Reset 2FA for this admin user? They will need to re-enroll on next login.",
     "noAdminUsers": "No admin users found",
     "loadingSepa": "Loading SEPA configuration...",
     "saving": "Saving...",
