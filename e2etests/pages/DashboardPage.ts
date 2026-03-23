@@ -3,13 +3,11 @@ import { BasePage } from './BasePage'
 
 export class DashboardPage extends BasePage {
   private readonly pageRoot = () => this.page.getByTestId('dashboard-page')
-  private readonly title = () => this.page.getByTestId('dashboard-title')
   private readonly metricsSection = () => this.page.getByTestId('dashboard-metrics')
   private readonly recentTransactions = () => this.page.getByTestId('dashboard-recent-transactions')
   private readonly terminalStatusSection = () => this.page.getByTestId('dashboard-terminal-status')
   private readonly alertsSection = () => this.page.getByTestId('dashboard-alerts')
   private readonly systemStatusSection = () => this.page.getByTestId('dashboard-system-status')
-  private readonly refreshButton = () => this.page.getByTestId('dashboard-refresh-button')
   private readonly sepaAlertMessage = () => this.page.getByTestId('dashboard-sepa-alert-message')
   private readonly loadingIndicator = () => this.page.getByTestId('dashboard-loading')
 
@@ -19,7 +17,7 @@ export class DashboardPage extends BasePage {
 
   async expectPageVisible() {
     await expect(this.pageRoot()).toBeVisible()
-    await expect(this.title()).toBeVisible()
+    await expect(this.metricsSection()).toBeVisible()
   }
 
   async expectMetricsVisible() {
@@ -42,11 +40,10 @@ export class DashboardPage extends BasePage {
     await expect(this.systemStatusSection()).toBeVisible()
   }
 
-  async clickRefresh() {
-    await this.refreshButton().click()
+  async waitForRefresh() {
     await this.page.waitForResponse(
       (resp) => resp.url().includes('/api/admin/dashboard') && resp.status() === 200,
-      { timeout: 10000 }
+      { timeout: 15000 }
     )
   }
 

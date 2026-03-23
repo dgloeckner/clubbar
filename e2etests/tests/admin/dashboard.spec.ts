@@ -57,9 +57,9 @@ test.describe('Admin Dashboard Page (UC-A80)', () => {
     await authenticatedDashboardPage.expectSystemStatusField('database-health')
   })
 
-  test('refresh button fetches new data', async ({ authenticatedDashboardPage }) => {
+  test('dashboard auto-refreshes data', async ({ authenticatedDashboardPage }) => {
     await authenticatedDashboardPage.expectPageVisible()
-    await authenticatedDashboardPage.clickRefresh()
+    await authenticatedDashboardPage.waitForRefresh()
     await authenticatedDashboardPage.expectMetricsVisible()
   })
 
