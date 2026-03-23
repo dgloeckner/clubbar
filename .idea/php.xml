@@ -61,6 +61,9 @@
       <path value="$PROJECT_DIR$/backend/vendor/league/openapi-psr7-validator" />
       <path value="$PROJECT_DIR$/backend/vendor/league/uri-interfaces" />
       <path value="$PROJECT_DIR$/backend/vendor/devizzent/cebe-php-openapi" />
+      <path value="$PROJECT_DIR$/backend/vendor/chillerlan/php-qrcode" />
+      <path value="$PROJECT_DIR$/backend/vendor/chillerlan/php-settings-container" />
+      <path value="$PROJECT_DIR$/backend/vendor/robthree/twofactorauth" />
     </include_path>
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.3">
