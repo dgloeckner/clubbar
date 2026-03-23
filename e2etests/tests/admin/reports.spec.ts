@@ -109,6 +109,21 @@ test.describe('Reports Page', () => {
       const response = await responsePromise
       expect(response.status()).toBe(200)
     })
+
+    test('should trigger CSV export download when export button is clicked', async ({ page }) => {
+      await waitForReportLoaded(page)
+      const exportResponsePromise = page.waitForResponse(
+        (resp) =>
+          resp.url().includes('/reports/revenue/export') &&
+          resp.status() === 200,
+        { timeout: 15000 }
+      )
+      await page.getByTestId('report-export-csv').click()
+      const exportResponse = await exportResponsePromise
+      expect(exportResponse.status()).toBe(200)
+      const contentType = exportResponse.headers()['content-type']
+      expect(contentType).toMatch(/csv|octet-stream/)
+    })
   })
 
   test.describe('Date Filter', () => {
