@@ -95,6 +95,7 @@ return function (App $app): void {
         $group->get('/transactions', [TransactionsAdminController::class, 'getTransactions']);
         $group->get('/transactions/export', [TransactionsAdminController::class, 'exportTransactions']);
         $group->get('/members/{memberId}/transactions', [TransactionsAdminController::class, 'getTransactionHistory']);
+        $group->post('/members/{memberId}/transactions', [TransactionsAdminController::class, 'recordCorrection']);
         $group->post('/members/{memberId}/transactions/correction', [TransactionsAdminController::class, 'recordCorrection']);
         $group->post('/members/{memberId}/transactions/correct', [TransactionsAdminController::class, 'recordCorrection']);
 

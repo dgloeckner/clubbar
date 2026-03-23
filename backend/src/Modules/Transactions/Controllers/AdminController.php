@@ -76,9 +76,14 @@ class AdminController
         $body = $request->getParsedBody() ?? [];
         $adminId = $request->getAttribute('admin_user_id');
 
+        // Accept both 'notes' (OAS spec) and 'reason' (legacy alias)
+        if (isset($body['notes']) && !isset($body['reason'])) {
+            $body['reason'] = $body['notes'];
+        }
+
         if (!$this->validator->validate($body, [
             'amount_cents' => ['required', 'integer'],
-            'reason' => ['required', 'string', 'max:255'],
+            'reason' => ['required', 'string', 'max:500'],
         ])) {
             return $this->json($response, [
                 'error' => 'validation_failed',

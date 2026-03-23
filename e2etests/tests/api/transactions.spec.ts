@@ -650,9 +650,9 @@ test.describe('Manual Corrections Endpoint', () => {
     expect(body.error).toBe('not_found');
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct rejects reason exceeding 255 chars', async ({ authenticatedRequest }) => {
+  test('POST /api/admin/members/{id}/transactions/correct rejects reason exceeding 500 chars', async ({ authenticatedRequest }) => {
     const member = await createMember(authenticatedRequest);
-    const longReason = 'A'.repeat(256);
+    const longReason = 'A'.repeat(501);
 
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
