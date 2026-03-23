@@ -72,8 +72,8 @@ class ReportsService
         $summaryParams = $params; // same filters
         $summaryStmt = $this->db->prepare(
             "SELECT COALESCE(SUM(t.amount_cents), 0) as total_revenue_cents,
-                    COUNT(*) as total_quantity,
-                    COUNT(DISTINCT t.id) as transaction_count
+                    COUNT(DISTINCT t.id) as transaction_count,
+                    COUNT(DISTINCT t.member_id) as unique_member_count
              FROM transactions t
              LEFT JOIN products p ON t.product_id = p.id
              WHERE {$where}"
@@ -82,8 +82,8 @@ class ReportsService
         $summary = $summaryStmt->fetch();
 
         $totalRevenueCents = (int) $summary['total_revenue_cents'];
-        $totalQuantity = (int) $summary['total_quantity'];
         $transactionCount = (int) $summary['transaction_count'];
+        $uniqueMemberCount = (int) $summary['unique_member_count'];
         $avgTransactionCents = $transactionCount > 0 ? (int) round($totalRevenueCents / $transactionCount) : 0;
 
         // Build GROUP BY and dimension SELECT
@@ -103,19 +103,21 @@ class ReportsService
         $countStmt->execute($params);
         $total = (int) $countStmt->fetchColumn();
 
+        // Consumption report is sorted by count (popularity), others by revenue
+        $orderBy = $reportType === 'consumption' ? 'count DESC' : 'revenue_cents DESC';
+
         // Get grouped data with pagination
         $offset = ($page - 1) * $perPage;
         $dataStmt = $this->db->prepare(
             "SELECT {$dimensionSelect} as dimension,
                     SUM(t.amount_cents) as revenue_cents,
-                    COUNT(*) as quantity,
                     COUNT(DISTINCT t.id) as count
              FROM transactions t
              LEFT JOIN products p ON t.product_id = p.id
              {$joins}
              WHERE {$where}
              GROUP BY {$groupByClause}
-             ORDER BY revenue_cents DESC
+             ORDER BY {$orderBy}
              LIMIT {$perPage} OFFSET {$offset}"
         );
         $dataStmt->execute($params);
@@ -128,7 +130,6 @@ class ReportsService
             $data[] = new ReportRowDto(
                 dimension: (string) $row['dimension'],
                 revenueCents: $revCents,
-                quantity: (int) $row['quantity'],
                 count: (int) $row['count'],
                 percentOfTotal: $pct,
             );
@@ -144,7 +145,7 @@ class ReportsService
                 'product_ids' => $productIds,
             ]),
             totalRevenueCents: $totalRevenueCents,
-            totalQuantity: $totalQuantity,
+            uniqueMemberCount: $uniqueMemberCount,
             transactionCount: $transactionCount,
             avgTransactionCents: $avgTransactionCents,
             data: $data,
@@ -167,13 +168,12 @@ class ReportsService
         $report = $this->getReport($reportType, $dateFrom, $dateTo, $groupBy, null, null, 1, 10000);
 
         $lines = [];
-        $lines[] = implode(',', ['Dimension', 'Revenue (cents)', 'Quantity', 'Count', '% of Total']);
+        $lines[] = implode(',', ['Dimension', 'Revenue (cents)', 'Count', '% of Total']);
         foreach ($report->data as $row) {
             $arr = $row->toArray();
             $lines[] = implode(',', [
                 '"' . str_replace('"', '""', $arr['dimension']) . '"',
                 $arr['revenue_cents'],
-                $arr['quantity'],
                 $arr['count'],
                 $arr['percent_of_total'],
             ]);
