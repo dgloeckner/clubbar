@@ -539,6 +539,27 @@ export class SettingsPage {
   }
 
   /**
+   * Click reset 2FA button for admin user by email and confirm via ConfirmDialog.
+   */
+  async clickReset2faButton(email: string) {
+    const adminId = await this.getAdminUserIdByEmail(email)
+    if (!adminId) {
+      throw new Error(`Admin user with email ${email} not found`)
+    }
+
+    await this.page.getByTestId(`settings-admin-reset-2fa-button-${adminId}`).click()
+    // Wait for confirm dialog
+    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible({ timeout: 5000 })
+    // Set up response watcher before confirming
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/api/auth/2fa/reset') && resp.request().method() === 'POST' && resp.status() === 200,
+      { timeout: 10000 }
+    )
+    await this.page.getByTestId('confirm-dialog-ok').click()
+    await responsePromise
+  }
+
+  /**
    * Click toggle to deactivate admin user by email and confirm via ConfirmDialog modal.
    * The Toggle click triggers ConfirmDialog. Waits for the admin users list to reload after deactivation.
    */

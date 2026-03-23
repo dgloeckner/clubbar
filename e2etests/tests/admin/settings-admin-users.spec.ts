@@ -281,6 +281,56 @@ test.describe('Admin Users Management', () => {
   })
 
   /**
+   * Test: Reset 2FA for admin user
+   *
+   * E2E Verification Flow:
+   * 1. Create admin user (no 2FA enrolled — newly created users have no TOTP)
+   * 2. Click Reset 2FA button
+   * 3. Confirm dialog appears
+   * 4. Confirm action
+   * 5. Verify API call succeeded (POST /api/auth/2fa/reset returns 200)
+   * 6. Verify admin still exists in table
+   *
+   * Pattern 001: Unique test data per test
+   * Pattern 008: Use expect() for assertions
+   */
+  test('should reset 2FA for admin user', async ({ authenticatedSettingsPage }) => {
+    // Arrange: Navigate to admin users tab and create admin
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickAdminUsersTab()
+
+    const testData = generateTestAdminUser()
+
+    // Set up interceptor for admin users list refresh
+    const adminUsersLoaded = authenticatedSettingsPage.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/admin-users') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+    )
+
+    // Create admin
+    await authenticatedSettingsPage.clickCreateAdminButton()
+    await authenticatedSettingsPage.fillCreateAdminForm(testData)
+    await authenticatedSettingsPage.clickCreateAdminConfirm()
+    await authenticatedSettingsPage.waitForPasswordModal()
+    await authenticatedSettingsPage.closePasswordModal()
+    await adminUsersLoaded
+
+    // Verify admin was created
+    const createdAdmin = await authenticatedSettingsPage.getAdminUserByEmail(testData.email)
+    expect(createdAdmin).not.toBeNull()
+
+    // Act: Reset 2FA — confirm dialog appears, confirm it, verify API call succeeds
+    await authenticatedSettingsPage.clickReset2faButton(testData.email)
+
+    // Assert: Admin still exists in table after reset
+    const adminAfterReset = await authenticatedSettingsPage.getAdminUserByEmail(testData.email)
+    expect(adminAfterReset).not.toBeNull()
+    expect(adminAfterReset?.email).toContain(testData.email)
+  })
+
+  /**
    * Test: Deactivate and reactivate admin user
    *
    * E2E Verification Flow:
