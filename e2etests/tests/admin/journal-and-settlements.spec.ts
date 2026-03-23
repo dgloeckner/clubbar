@@ -211,9 +211,9 @@ test.describe('Journal & Settlements', () => {
     expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/55[,.]00/)
     expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Aktiv')
 
-    // ── Export summary CSV ────────────────────────────────────────────
-    const csvSummary = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}/export/csv`)
-    expect(csvSummary.status()).toBe(200)
+    // ── Export summary CSV (via UI button) ───────────────────────────
+    const csvSummary = await settlementsPage.clickExportCsv(settlementId)
+    expect(csvSummary.headers()['content-type']).toContain('csv')
     const csvText = await csvSummary.text()
     const csvLines = csvText.trim().split('\n')
     expect(csvLines[0]).toBe('Member Name;Email;IBAN;Amount EUR')
@@ -221,9 +221,9 @@ test.describe('Journal & Settlements', () => {
     expect(csvText).toContain('Ruderer')
     expect(csvText).toContain('Steuermann')
 
-    // ── Export detail CSV ─────────────────────────────────────────────
-    const csvDetail = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}/export-transactions`)
-    expect(csvDetail.status()).toBe(200)
+    // ── Export transactions CSV (via UI button) ───────────────────────
+    const csvDetail = await settlementsPage.clickExportTransactionsCsv(settlementId)
+    expect(csvDetail.headers()['content-type']).toContain('csv')
     const detailText = await csvDetail.text()
     expect(detailText.split('\n')[0]).toContain('transaction_type')
     expect(detailText.split('\n')[0]).toContain('product_name')
@@ -231,7 +231,7 @@ test.describe('Journal & Settlements', () => {
     expect(detailText).toContain(`${prefix}2`)
     expect(detailText).toContain(`${prefix}Bier`)
 
-    // ── Export SEPA XML ───────────────────────────────────────────────
+    // ── Export SEPA XML (via UI button) ──────────────────────────────
     // Re-apply SEPA config right before export to guard against parallel test contamination
     // (sepa_config is a singleton row shared across all tests)
     const reConfigResp = await authenticatedRequest.put('/api/admin/sepa-config', {
@@ -239,8 +239,7 @@ test.describe('Journal & Settlements', () => {
     })
     expect(reConfigResp.status()).toBe(200)
 
-    const sepaResp = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}/export/sepa-xml`)
-    expect(sepaResp.status()).toBe(200)
+    const sepaResp = await settlementsPage.clickExportSepa(settlementId)
     expect(sepaResp.headers()['content-type']).toContain('xml')
 
     const xml = await sepaResp.text()

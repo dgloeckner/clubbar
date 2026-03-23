@@ -101,6 +101,40 @@ export class SettlementsPage extends BasePage {
   }
 
   /**
+   * Click the "Export SEPA XML" button and wait for the download response.
+   * Returns the Response so tests can assert on content-type and body.
+   */
+  async clickExportSepa(settlementId: string): Promise<import('@playwright/test').Response> {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/export/sepa-xml') && resp.status() === 200
+    )
+    await this.page.getByTestId(`settlements-export-sepa-btn-${settlementId}`).click()
+    return responsePromise
+  }
+
+  /**
+   * Click the "Export CSV" (summary) button and wait for the download response.
+   */
+  async clickExportCsv(settlementId: string): Promise<import('@playwright/test').Response> {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/export/csv') && resp.status() === 200
+    )
+    await this.page.getByTestId(`settlements-export-csv-btn-${settlementId}`).click()
+    return responsePromise
+  }
+
+  /**
+   * Click the "Export Transactions CSV" button and wait for the download response.
+   */
+  async clickExportTransactionsCsv(settlementId: string): Promise<import('@playwright/test').Response> {
+    const responsePromise = this.page.waitForResponse(
+      (resp) => resp.url().includes('/export-transactions') && resp.status() === 200
+    )
+    await this.page.getByTestId(`settlements-export-transactions-btn-${settlementId}`).click()
+    return responsePromise
+  }
+
+  /**
    * Click the undo button for a settlement, confirm via the custom ConfirmDialog modal,
    * and wait for the settlement list to reload.
    *
