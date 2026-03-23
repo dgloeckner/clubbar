@@ -20,6 +20,15 @@ if (file_exists($envFile)) {
 $config = new AppConfig();
 $logger = new Logger($config->logDir, $config->debug ? 'DEBUG' : 'INFO');
 
+// Configure session lifetime and cookie parameters globally before any session_start()
+ini_set('session.gc_maxlifetime', (string) $config->sessionMaxAge);
+session_set_cookie_params([
+    'lifetime' => $config->sessionMaxAge,
+    'path'     => '/',
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
+
 $pdo = new PDO(
     sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', Env::get('DB_HOST'), Env::get('DB_NAME')),
     Env::get('DB_USER'),
