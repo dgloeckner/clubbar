@@ -20,6 +20,7 @@ export interface AdminUsersTabProps {
   onCreateUser: () => void
   onEditUser: (admin: AdminUser) => void
   onResetPassword: (id: string) => void
+  onReset2fa: (id: string) => void
   onDeactivateUser: (id: string) => void
   onReactivateUser: (id: string) => void
 }
@@ -31,6 +32,7 @@ export function AdminUsersTab({
   onCreateUser,
   onEditUser,
   onResetPassword,
+  onReset2fa,
   onDeactivateUser,
   onReactivateUser,
 }: AdminUsersTabProps) {
@@ -193,6 +195,31 @@ export function AdminUsersTab({
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                      </svg>
+                    </button>
+
+                    {/* Reset 2FA Button */}
+                    <button
+                      data-testid={`settings-admin-reset-2fa-button-${admin.id}`}
+                      onClick={() => onReset2fa(admin.id)}
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.colors.text.secondary,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: `all ${theme.transitions.default}`,
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="5" y="11" width="14" height="10" rx="2" ry="2" />
+                        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                        <line x1="12" y1="15" x2="12" y2="17" />
                       </svg>
                     </button>
                   </div>
@@ -377,6 +404,41 @@ export function AdminUsersTab({
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                            </svg>
+                          </button>
+                        </Tooltip>
+
+                        {/* Reset 2FA Button */}
+                        <Tooltip content={t('settings.reset2fa')} position="top">
+                          <button
+                            data-testid={`settings-admin-reset-2fa-button-${admin.id}`}
+                            onClick={() => onReset2fa(admin.id)}
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              background: 'transparent',
+                              color: theme.colors.text.secondary,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: `all ${theme.transitions.default}`,
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)'
+                              e.currentTarget.style.color = 'rgb(139, 92, 246)'
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'transparent'
+                              e.currentTarget.style.color = theme.colors.text.secondary
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="5" y="11" width="14" height="10" rx="2" ry="2" />
+                              <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                              <line x1="12" y1="15" x2="12" y2="17" />
                             </svg>
                           </button>
                         </Tooltip>

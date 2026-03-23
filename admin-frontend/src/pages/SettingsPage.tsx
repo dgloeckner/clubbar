@@ -11,6 +11,7 @@ import { useLoading } from '../context/LoadingContext'
 import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
 import { getAdminUsers } from '../api/generated/admin-users/admin-users'
 import { getTerminals } from '../api/generated/terminals/terminals'
+import { reset2fa } from '../api/auth-management'
 import type { SepaConfig as GeneratedSepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
 
 // Extended SEPA config type: includes payment_reference_prefix returned by the backend
@@ -104,6 +105,7 @@ export function SettingsPage() {
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null)
+  const [reset2faConfirm, setReset2faConfirm] = useState<string | null>(null)
 
   // Terminal State
   const [terminals, setTerminals] = useState<Terminal[]>([])
@@ -270,6 +272,21 @@ export function SettingsPage() {
       setShowPasswordModal(true)
     } catch (err: unknown) {
       setError('Failed to reset password')
+    }
+  }
+
+  const handleReset2fa = (id: string) => {
+    setReset2faConfirm(id)
+  }
+
+  const handleReset2faConfirmed = async () => {
+    if (!reset2faConfirm) return
+    const id = reset2faConfirm
+    setReset2faConfirm(null)
+    try {
+      await reset2fa(id)
+    } catch (err: unknown) {
+      setError('Failed to reset 2FA')
     }
   }
 
@@ -624,6 +641,7 @@ export function SettingsPage() {
             setShowEditAdminModal(true)
           }}
           onResetPassword={handleResetPassword}
+          onReset2fa={handleReset2fa}
           onDeactivateUser={handleDeactivateAdmin}
           onReactivateUser={handleReactivateAdmin}
         />
@@ -704,6 +722,15 @@ export function SettingsPage() {
         variant="danger"
         onConfirm={handleDeactivateAdminConfirmed}
         onCancel={() => setDeactivateConfirm(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={!!reset2faConfirm}
+        message={t('settings.reset2faConfirm')}
+        confirmLabel={t('common.confirm')}
+        variant="danger"
+        onConfirm={handleReset2faConfirmed}
+        onCancel={() => setReset2faConfirm(null)}
       />
 
       <CreateTerminalModal
