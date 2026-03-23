@@ -8,7 +8,6 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Status | Summary |
 |------|--------|---------|
-| [E2E Coverage Gaps](./2026-03-23-e2e-coverage-gaps.md) | Not Started | Fix broken export URLs in 3 test files, fix meaningless assertions, add UI-driven export/correction/confirm tests |
 | [Reset 2FA Button](./2026-03-23-reset-2fa-button.md) | Completed | Add "Reset 2FA" icon button to AdminUsersTab with confirm dialog, API helper, E2E test |
 | [TOTP + Session Bug Fixes](./2026-03-23-totp-session-bugfixes.md) | Not Started | Fix SESSION_MAX_AGE not applied to PHP session engine; fix frontend enrollment flow showing dashboard instead of QR code |
 | [Install TOTP Key Generation](./2026-03-22-install-totp-key-generation.md) | Completed | Auto-generate TOTP_ENCRYPTION_KEY in package installer (config.sample, install.php, index.php) |
@@ -22,6 +21,7 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Completed | Summary |
 |------|-----------|---------|
+| [E2E Coverage Gaps](./2026-03-23-e2e-coverage-gaps.md) | 2026-03-23 | Fix broken export URLs in 3 test files, fix meaningless assertions, add UI-driven export/correction/confirm tests |
 | [Mandatory TOTP 2FA](./2026-03-22-totp-2fa.md) | 2026-03-22 | Mandatory TOTP 2FA for all admins: backend, OAS, frontend, E2E tests (364 passing) |
 | [Security Critical Fixes](./2026-03-17-security-critical-fixes.md) | 2026-03-17 | C1 timing attack, C2 wildcard CORS, C3 APP_DEBUG=true — all fixed |
 | [Terminal Auth Rate Limiting](../docs/superpowers/plans/2026-03-17-terminal-rate-limiting.md) | 2026-03-17 | IP-based rate limiting on terminal sync endpoints — 10 failures/15 min → 429 |
