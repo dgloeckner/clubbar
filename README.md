@@ -146,6 +146,32 @@ For terminal app deployment on Raspberry Pi or Linux, see the **[Terminal Instal
 
 ---
 
+## Security
+
+### Admin Panel
+
+- **Mandatory two-factor authentication (TOTP)** — Every admin account must enroll a TOTP authenticator app on first login. 2FA cannot be bypassed.
+- **Back up your TOTP secret** — During enrollment, a manual backup key is shown below the QR code. Store it in a password manager. Without it, losing access to your authenticator app requires direct database recovery.
+- **Use HTTPS in production** — Admin credentials and session cookies must be transmitted over TLS. See the [Deployment Guide](./docs/deployment.md) for certificate setup.
+- **Sessions expire** — Admin sessions time out after 2 hours of inactivity.
+
+### Terminal
+
+- **Bearer token authentication** — Each terminal authenticates with a unique, revocable API token. Tokens can be rotated from the Admin Panel without affecting other terminals.
+- **Network isolation** — The terminal and the optional token dispenser communicate over local WiFi only; no internet access is required after initial setup.
+- **Physical security** — RFID cards are member identifiers. Keep the terminal in a supervised area — an unattended, unlocked terminal allows transactions on any tapped card.
+
+### Recommended Authenticator Apps
+
+| App | Platform | Notes |
+|-----|----------|-------|
+| [Aegis](https://getaegis.app/) | Android | Open source, encrypted local backups |
+| [Raivo OTP](https://raivo-otp.com/) | iOS | Open source, iCloud backup |
+| [Google Authenticator](https://support.google.com/accounts/answer/1066447) | Android & iOS | Simple, widely used |
+| [Authy](https://authy.com/) | Android & iOS | Multi-device sync |
+
+---
+
 ## Development Setup
 
 For local development using Docker Compose, see **[DEV_SETUP.md](./DEV_SETUP.md)**.
