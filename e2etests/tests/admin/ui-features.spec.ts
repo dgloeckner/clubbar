@@ -8,6 +8,8 @@
 import { test, expect } from '../../fixtures/pageObjects'
 import { MainLayoutPage } from '../../pages/MainLayoutPage'
 import { MembersPage } from '../../pages/MembersPage'
+import { generateTotp } from '../../utils/totp'
+import { TEST_CREDENTIALS } from '../../config/test-credentials'
 
 test.describe('Navigation', () => {
   test('should navigate to products page via nav tab', async ({ authenticatedMembersPage, page }) => {
@@ -41,6 +43,12 @@ test.describe('User Badge & Logout', () => {
     await page.locator('[data-testid="login-email-input"]').fill('admin@example.com')
     await page.locator('[data-testid="login-password-input"]').fill('password123')
     await page.locator('[data-testid="login-submit-button"]').click()
+
+    // MFA step: login now requires TOTP verification
+    await expect(page.locator('[data-testid="mfa-code-input"]')).toBeVisible({ timeout: 5000 })
+    await page.locator('[data-testid="mfa-code-input"]').fill(generateTotp(TEST_CREDENTIALS.totp.adminSecret))
+    await page.locator('[data-testid="mfa-submit-button"]').click()
+
     await page.waitForURL('**/dashboard', { timeout: 10000 })
 
     const layout = new MainLayoutPage(page)
