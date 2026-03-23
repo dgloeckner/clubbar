@@ -1,5 +1,6 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
+import { generateTotp } from "../../utils/totp";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -13,34 +14,83 @@ const NONEXISTENT_EMAIL = "doesnotexist@example.com";
  *
  * Tests for Pattern 013: Admin Session Authentication
  * Validates login, logout, session management, and protected endpoint access.
+ *
+ * TOTP Note:
+ * The seeded admin (admin@example.com) has TOTP pre-enrolled. Login therefore
+ * returns { requiresMfa: true } rather than { message: "Login successful" }
+ * directly. The login() helper below completes the MFA step automatically so
+ * that other test sections can obtain a fully-authenticated session.
  */
 
 test.describe("Admin Authentication", () => {
-  // Helper function to login and return cookies + CSRF token
+  /**
+   * Fully authenticate as admin (including TOTP MFA) and return the session
+   * cookie string and CSRF token needed for subsequent requests.
+   *
+   * Handles all three login outcomes:
+   *  - requiresMfa: true  → complete MFA with TOTP code
+   *  - requiresTotpSetup  → not expected for the seeded admin; throws
+   *  - direct success     → use csrf_token from login response
+   */
   async function login(
     request: APIRequestContext,
     email: string,
-    password: string
+    password: string,
+    totpSecret?: string,
   ): Promise<{ cookieString: string; csrfToken: string }> {
     const loginResponse = await request.post(`${API_BASE}/auth/login`, {
       data: { email, password },
     });
 
-    // Extract session cookie from Set-Cookie header
+    // Extract session cookie (present on login response regardless of TOTP state)
     const setCookieHeader = loginResponse.headers()["set-cookie"];
-    const cookieString = Array.isArray(setCookieHeader)
+    let cookieString = (Array.isArray(setCookieHeader)
       ? setCookieHeader[0]
-      : setCookieHeader || "";
+      : setCookieHeader || "").split(";")[0];
 
-    // Extract CSRF token from login response
     const loginData = await loginResponse.json();
-    const csrfToken = loginData.csrf_token || '';
 
-    return { cookieString, csrfToken };
+    // TOTP MFA verification required
+    if (loginData.requiresMfa) {
+      const secret = totpSecret ?? TEST_CREDENTIALS.totp.adminSecret;
+      const code = generateTotp(secret);
+
+      const mfaResponse = await request.post(`${API_BASE}/auth/mfa`, {
+        data: { code },
+        headers: { cookie: cookieString },
+      });
+
+      if (!mfaResponse.ok()) {
+        const body = await mfaResponse.text();
+        throw new Error(`MFA verification failed (${mfaResponse.status()}): ${body}`);
+      }
+
+      // Session is regenerated after MFA — capture updated cookie
+      const mfaSetCookie = mfaResponse.headers()["set-cookie"];
+      if (mfaSetCookie) {
+        const newCookie = (Array.isArray(mfaSetCookie) ? mfaSetCookie[0] : mfaSetCookie).split(";")[0];
+        if (newCookie) cookieString = newCookie;
+      }
+
+      const mfaData = await mfaResponse.json();
+      return { cookieString, csrfToken: mfaData.csrf_token || "" };
+    }
+
+    // First-time TOTP setup required — unexpected for the seeded admin
+    if (loginData.requiresTotpSetup) {
+      throw new Error(
+        `login() called for an unenrolled user (${email}). ` +
+          "Complete TOTP enrollment before using this helper, " +
+          "or use loginAs() from utils/csrf.ts which handles enrollment automatically."
+      );
+    }
+
+    // Plain login (no TOTP)
+    return { cookieString, csrfToken: loginData.csrf_token || "" };
   }
 
   test.describe("POST /api/auth/login", () => {
-    test("should login successfully with correct credentials", async ({
+    test("should return requiresMfa for enrolled admin credentials", async ({
       request,
     }) => {
       const response = await request.post(`${API_BASE}/auth/login`, {
@@ -53,14 +103,11 @@ test.describe("Admin Authentication", () => {
       expect(response.status()).toBe(200);
 
       const data = await response.json();
-      expect(data).toHaveProperty("message", "Login successful");
-      expect(data.admin).toHaveProperty("id");
-      expect(data.admin).toHaveProperty("email", ADMIN_EMAIL);
-      expect(data.admin).toHaveProperty("display_name");
-      expect(data.admin).toHaveProperty("locale"); // mutable by i18n tests — don't assert specific value
-      expect(["de", "en"]).toContain(data.admin.locale); // but must be a valid locale
+      // Seeded admin is pre-enrolled; login must not grant full session yet
+      expect(data).toHaveProperty("requiresMfa", true);
+      expect(data).not.toHaveProperty("message", "Login successful");
 
-      // Verify session cookie is set
+      // Session cookie must be set so the MFA step can be linked to this session
       const setCookieHeader = response.headers()["set-cookie"];
       expect(setCookieHeader).toBeTruthy();
       expect(setCookieHeader).toContain("_session");
@@ -94,34 +141,86 @@ test.describe("Admin Authentication", () => {
       const data = await response.json();
       expect(data).toHaveProperty("error", "invalid_credentials");
     });
+  });
 
+  test.describe("POST /api/auth/mfa", () => {
+    test("should complete login with valid TOTP code", async ({ request }) => {
+      // Step 1: Initial login
+      const loginResponse = await request.post(`${API_BASE}/auth/login`, {
+        data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+      });
+      expect(loginResponse.status()).toBe(200);
+      const loginData = await loginResponse.json();
+      expect(loginData.requiresMfa).toBe(true);
+
+      const setCookieHeader = loginResponse.headers()["set-cookie"];
+      const cookieString = Array.isArray(setCookieHeader)
+        ? setCookieHeader[0]
+        : setCookieHeader || "";
+
+      // Step 2: Complete MFA
+      const code = generateTotp(TEST_CREDENTIALS.totp.adminSecret);
+      const mfaResponse = await request.post(`${API_BASE}/auth/mfa`, {
+        data: { code },
+        headers: { cookie: cookieString },
+      });
+
+      expect(mfaResponse.status()).toBe(200);
+
+      const mfaData = await mfaResponse.json();
+      expect(mfaData).toHaveProperty("message", "Login successful");
+      expect(mfaData.admin).toHaveProperty("id");
+      expect(mfaData.admin).toHaveProperty("email", ADMIN_EMAIL);
+      expect(mfaData.admin).toHaveProperty("display_name");
+      expect(mfaData.admin).toHaveProperty("locale");
+      expect(["de", "en"]).toContain(mfaData.admin.locale);
+      expect(mfaData).toHaveProperty("csrf_token");
+    });
+
+    test("should reject invalid TOTP code with 401", async ({ request }) => {
+      // Step 1: Initial login
+      const loginResponse = await request.post(`${API_BASE}/auth/login`, {
+        data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+      });
+      const loginData = await loginResponse.json();
+      expect(loginData.requiresMfa).toBe(true);
+
+      const setCookieHeader = loginResponse.headers()["set-cookie"];
+      const cookieString = Array.isArray(setCookieHeader)
+        ? setCookieHeader[0]
+        : setCookieHeader || "";
+
+      // Step 2: Submit obviously wrong code
+      const mfaResponse = await request.post(`${API_BASE}/auth/mfa`, {
+        data: { code: "000000" },
+        headers: { cookie: cookieString },
+      });
+
+      expect(mfaResponse.status()).toBe(401);
+    });
+
+    test("should reject MFA call without a pending login session", async ({
+      request,
+    }) => {
+      const mfaResponse = await request.post(`${API_BASE}/auth/mfa`, {
+        data: { code: "123456" },
+        // No cookie — no pending session
+      });
+
+      expect(mfaResponse.status()).toBe(401);
+    });
   });
 
   test.describe("POST /api/auth/logout", () => {
     test("should logout successfully with valid session", async ({
       request,
     }) => {
-      // First login
-      const loginResponse = await request.post(`${API_BASE}/auth/login`, {
-        data: {
-          email: ADMIN_EMAIL,
-          password: ADMIN_PASSWORD,
-        },
-      });
+      const { cookieString, csrfToken } = await login(request, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-      const setCookieHeader = loginResponse.headers()["set-cookie"];
-      const cookieString = Array.isArray(setCookieHeader)
-        ? setCookieHeader[0]
-        : setCookieHeader;
-
-      const loginData = await loginResponse.json();
-      const csrfToken = loginData.csrf_token || '';
-
-      // Then logout with session
       const logoutResponse = await request.post(`${API_BASE}/auth/logout`, {
         headers: {
           cookie: cookieString,
-          'X-CSRF-Token': csrfToken,
+          "X-CSRF-Token": csrfToken,
         },
       });
 
@@ -141,35 +240,16 @@ test.describe("Admin Authentication", () => {
     });
 
     test("should invalidate session after logout", async ({ request }) => {
-      // Login
-      const loginResponse = await request.post(`${API_BASE}/auth/login`, {
-        data: {
-          email: ADMIN_EMAIL,
-          password: ADMIN_PASSWORD,
-        },
-      });
-
-      const setCookieHeader = loginResponse.headers()["set-cookie"];
-      const cookieString = Array.isArray(setCookieHeader)
-        ? setCookieHeader[0]
-        : setCookieHeader;
-
-      const loginData = await loginResponse.json();
-      const csrfToken = loginData.csrf_token || '';
+      const { cookieString, csrfToken } = await login(request, ADMIN_EMAIL, ADMIN_PASSWORD);
 
       // Logout
       await request.post(`${API_BASE}/auth/logout`, {
-        headers: {
-          cookie: cookieString,
-          'X-CSRF-Token': csrfToken,
-        },
+        headers: { cookie: cookieString, "X-CSRF-Token": csrfToken },
       });
 
       // Try to use the old session
       const profileResponse = await request.get(`${API_BASE}/auth/profile`, {
-        headers: {
-          cookie: cookieString,
-        },
+        headers: { cookie: cookieString },
       });
 
       expect(profileResponse.status()).toBe(401);
@@ -180,24 +260,10 @@ test.describe("Admin Authentication", () => {
     test("should return admin profile with valid session", async ({
       request,
     }) => {
-      // Login
-      const loginResponse = await request.post(`${API_BASE}/auth/login`, {
-        data: {
-          email: ADMIN_EMAIL,
-          password: ADMIN_PASSWORD,
-        },
-      });
+      const { cookieString } = await login(request, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-      const setCookieHeader = loginResponse.headers()["set-cookie"];
-      const cookieString = Array.isArray(setCookieHeader)
-        ? setCookieHeader[0]
-        : setCookieHeader;
-
-      // Get profile
       const profileResponse = await request.get(`${API_BASE}/auth/profile`, {
-        headers: {
-          cookie: cookieString,
-        },
+        headers: { cookie: cookieString },
       });
 
       expect(profileResponse.status()).toBe(200);
@@ -207,9 +273,9 @@ test.describe("Admin Authentication", () => {
       expect(data.admin).toHaveProperty("id");
       expect(data.admin.id).toMatch(/^[0-9a-f-]{36}$/i);
       expect(data.admin).toHaveProperty("email", ADMIN_EMAIL);
-      expect(data.admin).toHaveProperty("display_name"); // mutable by profile tests — don't assert specific value
-      expect(data.admin).toHaveProperty("locale"); // mutable by i18n tests — don't assert specific value
-      expect(["de", "en"]).toContain(data.admin.locale); // but must be a valid locale
+      expect(data.admin).toHaveProperty("display_name");
+      expect(data.admin).toHaveProperty("locale");
+      expect(["de", "en"]).toContain(data.admin.locale);
       expect(data.admin).toHaveProperty("last_login_at");
     });
 
@@ -252,24 +318,10 @@ test.describe("Admin Authentication", () => {
     test("should allow authenticated access to GET /api/admin/members", async ({
       request,
     }) => {
-      // Login
-      const loginResponse = await request.post(`${API_BASE}/auth/login`, {
-        data: {
-          email: ADMIN_EMAIL,
-          password: ADMIN_PASSWORD,
-        },
-      });
+      const { cookieString } = await login(request, ADMIN_EMAIL, ADMIN_PASSWORD);
 
-      const setCookieHeader = loginResponse.headers()["set-cookie"];
-      const cookieString = Array.isArray(setCookieHeader)
-        ? setCookieHeader[0]
-        : setCookieHeader;
-
-      // Access protected endpoint
       const response = await request.get(`${API_BASE}/admin/members`, {
-        headers: {
-          cookie: cookieString,
-        },
+        headers: { cookie: cookieString },
       });
 
       expect(response.status()).toBe(200);
@@ -323,18 +375,7 @@ test.describe("Admin Authentication", () => {
     test("should maintain session across multiple requests", async ({
       request,
     }) => {
-      // Login
-      const loginResponse = await request.post(`${API_BASE}/auth/login`, {
-        data: {
-          email: ADMIN_EMAIL,
-          password: ADMIN_PASSWORD,
-        },
-      });
-
-      const setCookieHeader = loginResponse.headers()["set-cookie"];
-      const cookieString = Array.isArray(setCookieHeader)
-        ? setCookieHeader[0]
-        : setCookieHeader;
+      const { cookieString } = await login(request, ADMIN_EMAIL, ADMIN_PASSWORD);
 
       // Make multiple requests with same session
       const profile1 = await request.get(`${API_BASE}/auth/profile`, {
@@ -351,29 +392,10 @@ test.describe("Admin Authentication", () => {
         headers: { cookie: cookieString },
       });
       expect(profile2.status()).toBe(200);
-
-      // All requests should succeed with the same session
-      expect(profile1.status()).toBe(200);
-      expect(members.status()).toBe(200);
-      expect(profile2.status()).toBe(200);
     });
 
     test("should expire session after logout", async ({ request }) => {
-      // Login
-      const loginResponse = await request.post(`${API_BASE}/auth/login`, {
-        data: {
-          email: ADMIN_EMAIL,
-          password: ADMIN_PASSWORD,
-        },
-      });
-
-      const setCookieHeader = loginResponse.headers()["set-cookie"];
-      const cookieString = Array.isArray(setCookieHeader)
-        ? setCookieHeader[0]
-        : setCookieHeader;
-
-      const loginData = await loginResponse.json();
-      const csrfToken = loginData.csrf_token || '';
+      const { cookieString, csrfToken } = await login(request, ADMIN_EMAIL, ADMIN_PASSWORD);
 
       // Verify session works
       let profileResponse = await request.get(`${API_BASE}/auth/profile`, {
@@ -383,7 +405,7 @@ test.describe("Admin Authentication", () => {
 
       // Logout
       const logoutResponse = await request.post(`${API_BASE}/auth/logout`, {
-        headers: { cookie: cookieString, 'X-CSRF-Token': csrfToken },
+        headers: { cookie: cookieString, "X-CSRF-Token": csrfToken },
       });
       expect(logoutResponse.status()).toBe(200);
 
@@ -404,4 +426,23 @@ test.describe("Admin Authentication", () => {
       expect(response.status()).toBe(404);
     });
   });
+
+  test.describe("Session Cookie", () => {
+    test("login Set-Cookie includes Max-Age matching SESSION_MAX_AGE", async ({ playwright }) => {
+      const ctx = await playwright.request.newContext()
+      try {
+        const resp = await ctx.post(`${API_BASE}/auth/login`, {
+          data: {
+            email: TEST_CREDENTIALS.admin.email,
+            password: TEST_CREDENTIALS.admin.password,
+          },
+        })
+        // Admin is TOTP-enrolled, so we get requiresMfa — but the cookie is still set
+        const setCookie = resp.headers()["set-cookie"] ?? ""
+        expect(setCookie).toMatch(/Max-Age=7200/i)
+      } finally {
+        await ctx.dispose()
+      }
+    })
+  })
 });
