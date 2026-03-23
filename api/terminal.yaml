@@ -59,10 +59,10 @@ info:
   version: 1.0.0
   contact:
     name: Club Bar Project
-    url: https://github.com/clubbar/clubbar
+    url: https://github.com/dgloeckner/clubbar
   license:
     name: TBD
-    url: https://github.com/clubbar/clubbar/blob/main/LICENSE
+    url: https://github.com/dgloeckner/clubbar/blob/main/LICENSE
 
 servers:
   - url: https://api.example.com/api
