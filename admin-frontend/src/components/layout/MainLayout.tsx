@@ -340,6 +340,15 @@ export function MainLayout({ children }: MainLayoutProps) {
           Club Bar Admin &copy; 2026 — Open Source POS System
           {' · '}
           <span data-testid="app-version">{import.meta.env.VITE_APP_VERSION || 'dev'}</span>
+          {' · '}
+          <a
+            href="https://github.com/dgloeckner/clubbar"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'inherit', opacity: 0.5, textDecoration: 'none' }}
+          >
+            github.com/dgloeckner/clubbar
+          </a>
         </footer>
       )}
 

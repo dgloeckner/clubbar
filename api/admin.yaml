@@ -46,7 +46,7 @@ info:
   version: 1.0.0
   contact:
     name: Club Bar
-    url: https://github.com/clubbar/clubbar
+    url: https://github.com/dgloeckner/clubbar
 
 servers:
   - url: /api
