@@ -8,5 +8,8 @@ services:
     platform: linux/amd64
     environment:
       APP_ENV: test
+      # Fixed test key matching the encrypted TOTP secret in backend/db/seed.sql
+      # (63 zero bytes + 0x01, hex-encoded). Never use in production.
+      TOTP_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000001"
     volumes:
       - ./api:/api:ro

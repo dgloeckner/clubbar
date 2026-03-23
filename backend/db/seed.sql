@@ -15,14 +15,19 @@
 --   Email:    admin@example.com
 --   Password: password123
 --   Hash:     password_hash('password123', PASSWORD_BCRYPT, ['cost' => 12])
+--   TOTP secret: JBSWY3DPEHPK3PXP (base32)
+--   Encrypted with TOTP_ENCRYPTION_KEY=0000...0001 (63 zeros + 1), IV=0x00*16
+--   Matches TEST_CREDENTIALS.totp.adminSecret in e2etests/config/test-credentials.ts
 -- ---------------------------------------------------------------------------
-INSERT IGNORE INTO admin_users (id, email, password_hash, display_name, locale, is_active, created_at, updated_at)
+INSERT IGNORE INTO admin_users (id, email, password_hash, display_name, locale, is_active, totp_secret, totp_enabled, created_at, updated_at)
 VALUES (
     '123e4567-e89b-12d3-a456-426614174000',
     'admin@example.com',
     '$2y$12$Pp5DqCBrNhBDThRmWYwPlegkBrYSDKxoGguH1K2XnUlVzQxoUPygG',
     'Admin User',
     'de',
+    1,
+    'AAAAAAAAAAAAAAAAAAAAAA==:HfdK5XMmHZlKgJl97MSpvKrDR62kRrN9FWvhGO62PQM=',
     1,
     NOW(),
     NOW()
