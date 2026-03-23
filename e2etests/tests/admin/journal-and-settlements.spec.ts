@@ -58,11 +58,11 @@ test.describe('Journal & Settlements', () => {
     await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(3)
 
     const row0 = await journalPage.getTransactionRow(0)
-    expect(row0.date).toBeTruthy()
+    expect(row0.date).toMatch(/\d{2}[./]\d{2}[./]\d{4}/)
     // Accept both English and German transaction type labels
     expect(['correction', 'korrektur']).toContain(row0.type.toLowerCase())
     expect(row0.member).toContain(`${prefix}A`)
-    expect(row0.amount).toBeTruthy()
+    expect(row0.amount).toMatch(/[\d.,]+/)
 
     // ── Product name in Details column for purchase transaction ───────
     await journalPage.search(`${prefix}B`)
@@ -199,7 +199,7 @@ test.describe('Journal & Settlements', () => {
     expect(await journalPage.getSelectedTransactionCount()).toBe(4)
 
     const settlementId = await journalPage.concludeSettlement()
-    expect(settlementId).toBeTruthy()
+    expect(settlementId).toMatch(/^[0-9a-f-]{36}$/) // UUID format
 
     // ── Verify on Settlements page ────────────────────────────────────
     const settlementsPage = new SettlementsPage(page)
@@ -212,7 +212,7 @@ test.describe('Journal & Settlements', () => {
     expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Aktiv')
 
     // ── Export summary CSV ────────────────────────────────────────────
-    const csvSummary = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}/export-csv`)
+    const csvSummary = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}/export/csv`)
     expect(csvSummary.status()).toBe(200)
     const csvText = await csvSummary.text()
     const csvLines = csvText.trim().split('\n')
@@ -239,7 +239,7 @@ test.describe('Journal & Settlements', () => {
     })
     expect(reConfigResp.status()).toBe(200)
 
-    const sepaResp = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}/export-sepa`)
+    const sepaResp = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}/export/sepa-xml`)
     expect(sepaResp.status()).toBe(200)
     expect(sepaResp.headers()['content-type']).toContain('xml')
 
@@ -359,7 +359,7 @@ test.describe('Journal & Settlements', () => {
     expect(stats.members).toBe(2)
 
     const settlementId = await journalPage.confirmOpenSettlement()
-    expect(settlementId).toBeTruthy()
+    expect(settlementId).toMatch(/^[0-9a-f-]{36}$/) // UUID format
     await expect(page).toHaveURL(/\/settlements/)
 
     // ── Verify settlement on Settlements page ─────────────────────────

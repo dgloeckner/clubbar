@@ -247,7 +247,7 @@ test.describe('Admin Panel Walkthrough', () => {
     const sepaBtn = page.locator('[data-testid^="settlements-export-sepa-btn-"]').first();
     if (await sepaBtn.isVisible()) {
       const responsePromise = page.waitForResponse(
-        resp => resp.url().includes('/export-sepa')
+        resp => resp.url().includes('/export/sepa-xml')
       );
       await sepaBtn.click();
       await responsePromise;

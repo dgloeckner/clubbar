@@ -8,6 +8,7 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Status | Summary |
 |------|--------|---------|
+| [E2E Coverage Gaps](./2026-03-23-e2e-coverage-gaps.md) | Not Started | Fix broken export URLs in 3 test files, fix meaningless assertions, add UI-driven export/correction/confirm tests |
 | [Reset 2FA Button](./2026-03-23-reset-2fa-button.md) | Completed | Add "Reset 2FA" icon button to AdminUsersTab with confirm dialog, API helper, E2E test |
 | [TOTP + Session Bug Fixes](./2026-03-23-totp-session-bugfixes.md) | Not Started | Fix SESSION_MAX_AGE not applied to PHP session engine; fix frontend enrollment flow showing dashboard instead of QR code |
 | [Install TOTP Key Generation](./2026-03-22-install-totp-key-generation.md) | Completed | Auto-generate TOTP_ENCRYPTION_KEY in package installer (config.sample, install.php, index.php) |

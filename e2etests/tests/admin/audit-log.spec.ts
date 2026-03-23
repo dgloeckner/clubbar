@@ -256,9 +256,12 @@ test.describe('UC-A81: Audit Log', () => {
         // First timestamp should be different now (or same if only 1 page)
         const firstTimestampAfter = await authenticatedAuditLogPage.getTimestamp(0)
 
-        // Verify sort was applied (timestamps should be in different order)
-        // This is a soft check - they might be the same if only 1-2 entries
-        expect([firstTimestampBefore, firstTimestampAfter]).toBeTruthy()
+        // Verify sort interaction completed without crashing; timestamps are readable strings.
+        // (Both may be equal when ≤2 audit entries exist — that is acceptable.)
+        expect(typeof firstTimestampBefore).toBe('string')
+        expect(firstTimestampBefore!.length).toBeGreaterThan(0)
+        expect(typeof firstTimestampAfter).toBe('string')
+        expect(firstTimestampAfter!.length).toBeGreaterThan(0)
       }
     })
   })

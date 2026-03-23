@@ -128,20 +128,6 @@ test.describe('Admin Frontend - Categories Page', () => {
   })
 
   /**
-   * UC-A44: Edit Category
-   */
-  test.describe('UC-A44: Edit Category', () => {
-    test.beforeEach(async ({ authenticatedCategoriesPage }) => {
-      // Create a test category for edit tests
-      const categoryName = `Editable ${Date.now()}`
-      await authenticatedCategoriesPage.createCategory({
-        de: categoryName,
-      })
-    })
-
-  })
-
-  /**
    * UC-A44: Activate/Deactivate Category
    */
   test.describe('UC-A44: Activate/Deactivate Category', () => {
@@ -178,9 +164,10 @@ test.describe('Admin Frontend - Categories Page', () => {
       await authenticatedCategoriesPage.clickStatusToggleExpectingDialog(categoryId!)
       await authenticatedCategoriesPage.expectConfirmDialogVisible()
 
-      // Verify dialog has a message
+      // Verify dialog has a meaningful message (translated, so check length only)
       const message = await authenticatedCategoriesPage.getConfirmMessage()
       expect(message).toBeTruthy()
+      expect(message!.length).toBeGreaterThan(5)
 
       // Cancel — status should remain Inactive
       await authenticatedCategoriesPage.cancelStatusChange()
@@ -212,6 +199,7 @@ test.describe('Admin Frontend - Categories Page', () => {
 
         const message = await authenticatedCategoriesPage.getConfirmMessage()
         expect(message).toBeTruthy()
+        expect(message!.length).toBeGreaterThan(5)
 
         // Cancel delete
         await authenticatedCategoriesPage.cancelDelete()

@@ -380,16 +380,16 @@ test.describe('Settlements API', () => {
    * SEPA XML Export Tests (4 tests)
    */
   test.describe('SEPA XML Export', () => {
-    test('F1: GET /settlements/{id}/export-sepa requires settlement ID', async ({ authenticatedRequest }) => {
+    test('F1: GET /settlements/{id}/export/sepa-xml requires settlement ID', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.get(
-        '/api/admin/settlements/invalid-uuid-12345678901234567890/export-sepa',
+        '/api/admin/settlements/invalid-uuid-12345678901234567890/export/sepa-xml',
       );
 
       // Accept either 404 (not found) or 422 (validation error for invalid UUID)
       expect([404, 422]).toContain(response.status());
     });
 
-    test('F2: GET /settlements/{id}/export-sepa returns XML when available', async ({ authenticatedRequest }) => {
+    test('F2: GET /settlements/{id}/export/sepa-xml returns XML when available', async ({ authenticatedRequest }) => {
       const listResponse = await authenticatedRequest.get('/api/admin/settlements?type=sepa');
       const listData = await listResponse.json();
 
@@ -398,7 +398,7 @@ test.describe('Settlements API', () => {
       }
 
       const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${listData.data[0].id}/export-sepa`,
+        `/api/admin/settlements/${listData.data[0].id}/export/sepa-xml`,
       );
 
       expect([200, 409, 422]).toContain(response.status());
@@ -408,7 +408,7 @@ test.describe('Settlements API', () => {
       }
     });
 
-    test('F3: GET /settlements/{id}/export-sepa returns correct content type', async ({ authenticatedRequest }) => {
+    test('F3: GET /settlements/{id}/export/sepa-xml returns correct content type', async ({ authenticatedRequest }) => {
       const listResponse = await authenticatedRequest.get('/api/admin/settlements?type=sepa');
       const listData = await listResponse.json();
 
@@ -417,7 +417,7 @@ test.describe('Settlements API', () => {
       }
 
       const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${listData.data[0].id}/export-sepa`,
+        `/api/admin/settlements/${listData.data[0].id}/export/sepa-xml`,
       );
 
       if (response.status() === 200) {
@@ -426,8 +426,8 @@ test.describe('Settlements API', () => {
       }
     });
 
-    test('F4: GET /settlements/{id}/export-sepa requires authentication', async ({ request }) => {
-      const response = await request.get('/api/admin/settlements/test-id/export-sepa');
+    test('F4: GET /settlements/{id}/export/sepa-xml requires authentication', async ({ request }) => {
+      const response = await request.get('/api/admin/settlements/test-id/export/sepa-xml');
 
       expect([301, 302, 401, 403]).toContain(response.status());
     });
@@ -437,7 +437,7 @@ test.describe('Settlements API', () => {
    * CSV Export Tests (3 tests)
    */
   test.describe('CSV Export', () => {
-    test('G1: GET /settlements/{id}/export-csv generates CSV file', async ({ authenticatedRequest }) => {
+    test('G1: GET /settlements/{id}/export/csv generates CSV file', async ({ authenticatedRequest }) => {
       const listResponse = await authenticatedRequest.get('/api/admin/settlements');
       const listData = await listResponse.json();
 
@@ -445,13 +445,13 @@ test.describe('Settlements API', () => {
         test.skip();
       }
 
-      const response = await authenticatedRequest.get(`/api/admin/settlements/${listData.data[0].id}/export-csv`);
+      const response = await authenticatedRequest.get(`/api/admin/settlements/${listData.data[0].id}/export/csv`);
 
       expect(response.status()).toBe(200);
       expect(response.headers()['content-type']).toContain('csv');
     });
 
-    test('G2: GET /settlements/{id}/export-csv has correct format', async ({ authenticatedRequest }) => {
+    test('G2: GET /settlements/{id}/export/csv has correct format', async ({ authenticatedRequest }) => {
       const listResponse = await authenticatedRequest.get('/api/admin/settlements');
       const listData = await listResponse.json();
 
@@ -459,7 +459,7 @@ test.describe('Settlements API', () => {
         test.skip();
       }
 
-      const response = await authenticatedRequest.get(`/api/admin/settlements/${listData.data[0].id}/export-csv`);
+      const response = await authenticatedRequest.get(`/api/admin/settlements/${listData.data[0].id}/export/csv`);
 
       expect(response.status()).toBe(200);
       const csv = await response.text();
@@ -467,7 +467,7 @@ test.describe('Settlements API', () => {
       expect(csv).toContain(';');
     });
 
-    test('G3: GET /settlements/{id}/export-csv formats amounts correctly', async ({ authenticatedRequest }) => {
+    test('G3: GET /settlements/{id}/export/csv formats amounts correctly', async ({ authenticatedRequest }) => {
       const listResponse = await authenticatedRequest.get('/api/admin/settlements');
       const listData = await listResponse.json();
 
@@ -478,7 +478,7 @@ test.describe('Settlements API', () => {
       }
 
       const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlementWithItems.id}/export-csv`,
+        `/api/admin/settlements/${settlementWithItems.id}/export/csv`,
       );
 
       expect(response.status()).toBe(200);
