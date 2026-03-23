@@ -32,6 +32,15 @@ class AdminSessionAuth implements MiddlewareInterface
             return $this->unauthorized();
         }
 
+        // Block access for authenticated-but-not-enrolled users, except on setup/confirm routes
+        if (($_SESSION['totp_setup_required'] ?? false) === true) {
+            $path = $request->getUri()->getPath();
+            $exempted = ['/api/auth/2fa/setup', '/api/auth/2fa/confirm'];
+            if (!in_array($path, $exempted, true)) {
+                return $this->totpSetupRequired();
+            }
+        }
+
         // Attach admin data to request attributes
         $request = $request->withAttribute('admin_user_id', $adminId);
         $request = $request->withAttribute('admin_user', $admin);
@@ -43,6 +52,16 @@ class AdminSessionAuth implements MiddlewareInterface
     {
         $response = new Response(401);
         $response->getBody()->write(json_encode(['error' => 'admin_not_authenticated']));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    private function totpSetupRequired(): ResponseInterface
+    {
+        $response = new Response(403);
+        $response->getBody()->write(json_encode([
+            'error' => 'totp_setup_required',
+            'message' => 'Two-factor authentication setup is required before accessing the admin panel.',
+        ]));
         return $response->withHeader('Content-Type', 'application/json');
     }
 }

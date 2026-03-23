@@ -5,8 +5,10 @@
     "license": "AGPL-3.0-or-later",
     "require": {
         "php": ">=8.3",
+        "chillerlan/php-qrcode": "^6.0",
         "digitick/sepa-xml": "^3.0",
         "league/openapi-psr7-validator": "^0.22.0",
+        "robthree/twofactorauth": "^3.0",
         "slim/psr7": "^1.0",
         "slim/slim": "^4.0",
         "symfony/yaml": "^7.0"

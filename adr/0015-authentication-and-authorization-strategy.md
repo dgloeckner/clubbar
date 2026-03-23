@@ -66,21 +66,26 @@ RFID card scans identify which member is making a purchase. This is **not authen
 
 ### Admin Panel Authentication
 
-Session-based authentication with secure cookies:
+Session-based authentication with secure cookies and mandatory TOTP second factor:
 
 | Aspect | Decision |
 |--------|----------|
-| Credential | Email + password |
+| Credential | Email + password + TOTP code (mandatory) |
 | Password Storage | bcrypt with cost factor 12+ |
+| Second Factor | TOTP (RFC 6238) via authenticator app; mandatory for all admin users |
 | Session Storage | Server-side (PHP sessions in database or files) |
-| Session ID | Regenerated on login (prevent fixation) |
+| Session ID | Regenerated on login and after MFA verification (prevent fixation) |
 | Cookie Attributes | `HttpOnly`, `Secure`, `SameSite=Lax` |
 | Session Lifetime | 2 hours idle timeout; 24 hours absolute |
 | Multi-device | Allowed; sessions tracked per device |
 
+See [ADR-0026](./0026-mandatory-totp-two-factor-authentication.md) for the TOTP implementation decision.
+
 ### Admin Authorization
 
-All admin users have full access: CRUD all entities, settlements, GDPR workflows, user management, audit log. Access is controlled by `is_active` flag on the admin user account.
+All admin users have full access: CRUD all entities, settlements, GDPR workflows, user management, audit log. Access is controlled by `is_active` flag and mandatory 2FA enrollment (`totp_enabled`) on the admin user account.
+
+New admin accounts cannot access any admin functionality until TOTP enrollment is complete. The `AdminSessionAuth` middleware enforces this: authenticated sessions with `totp_enabled = 0` are blocked from all endpoints except `/api/auth/2fa/setup` and `/api/auth/2fa/confirm`.
 
 ### Authentication Flow Diagrams
 
@@ -110,17 +115,30 @@ sequenceDiagram
 
     A->>B: POST /api/auth/login<br/>{email, password}
     B->>B: Verify password (bcrypt)
-    alt Credentials Valid
-        B->>B: session_regenerate_id()
-        B->>B: Store user_id, role in session
-        B-->>A: 200 OK + Set-Cookie (session)
-    else Invalid
+    alt Invalid credentials
         B->>B: Log failed attempt
         B-->>A: 401 Unauthorized
+    else totp_enabled = 1
+        B->>B: session_regenerate_id()<br/>Store mfa_pending_user_id in session
+        B-->>A: 200 { requiresMfa: true }
+        A->>B: POST /api/auth/mfa<br/>{code: "123456"}
+        B->>B: Verify TOTP code
+        B->>B: session_regenerate_id()<br/>Store admin_user_id in session
+        B-->>A: 200 OK + Set-Cookie + admin profile
+    else totp_enabled = 0 (new/reset account)
+        B->>B: session_regenerate_id()<br/>Store admin_user_id + totp_setup_required in session
+        B-->>A: 200 { requiresTotpSetup: true } + admin profile
+        A->>A: Show mandatory 2FA setup screen
+        A->>B: POST /api/auth/2fa/setup
+        B-->>A: 200 { qrCode, secret }
+        A->>B: POST /api/auth/2fa/confirm<br/>{code: "123456"}
+        B->>B: Persist totp_secret, set totp_enabled = 1<br/>Clear totp_setup_required from session
+        B-->>A: 200 OK
+        A->>A: Redirect to admin panel
     end
 
     A->>B: GET /api/members<br/>Cookie: session_id
-    B->>B: Validate session, check role
+    B->>B: Validate session<br/>Check totp_setup_required not set
     B-->>A: 200 OK + data
 ```
 
@@ -150,14 +168,15 @@ sequenceDiagram
 ### Negative
 
 - **Token rotation is manual**: No automatic token refresh; requires admin intervention
-- **No MFA**: Single-factor authentication for admin panel
 - **Session state**: Server must store session data (minor complexity)
+- **Mandatory 2FA adds onboarding friction**: New admins must install an authenticator app before first access
 
 ### Mitigations
 
 - Token rotation documented in admin guide
 - Rate limiting on login endpoint prevents brute force (see ADR-0017)
 - Session timeout limits exposure window
+- TOTP is widely supported (Google Authenticator, Bitwarden, 1Password, Aegis, etc.); onboarding friction is low
 
 ## Alternatives Considered
 
@@ -182,6 +201,8 @@ sequenceDiagram
 - [ADR-0014](./0014-rfid-scanning-integration.md): RFID Scanning Integration
 - [ADR-0016](./0016-transport-security.md): Transport Security (HTTPS/TLS)
 - [ADR-0017](./0017-input-validation-injection-prevention.md): Input Validation and Injection Prevention
+- [ADR-0025](./0025-session-fixation-protection.md): Session Fixation Protection
+- [ADR-0026](./0026-mandatory-totp-two-factor-authentication.md): Mandatory TOTP Two-Factor Authentication
 
 ## References
 

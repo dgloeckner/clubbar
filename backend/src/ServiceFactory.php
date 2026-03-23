@@ -26,6 +26,7 @@ use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Shared\Services\AuditService;
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Auth\Services\TokenService;
+use App\Modules\Auth\Services\TotpService;
 use App\Modules\Products\Services\CategoriesService;
 use App\Shared\Services\HealthCheckService;
 use App\Modules\Members\Services\MembersService;
@@ -217,6 +218,11 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(AuthService::class, fn() => new AuthService($this->getAdminUsersRepository(), $this->logger));
     }
 
+    public function getTotpService(): TotpService
+    {
+        return $this->resolve(TotpService::class, fn() => new TotpService());
+    }
+
     public function getAdminUsersService(): AdminUsersService
     {
         return $this->resolve(AdminUsersService::class, fn() => new AdminUsersService($this->getAdminUsersRepository(), $this->getAuditService()));
@@ -343,6 +349,8 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(AuthController::class, fn() => new AuthController(
             $this->getAuthService(),
             $this->getAdminUsersService(),
+            $this->getAdminUsersRepository(),
+            $this->getTotpService(),
             $this->getAuditService(),
             $this->getValidator(),
             $this->pdo,

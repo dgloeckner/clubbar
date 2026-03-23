@@ -20,4 +20,6 @@ enum AuditAction: string
     case SETTLEMENT_CREATE = 'settlement_create';
     case SETTLEMENT_CANCEL = 'settlement_cancel';
     case SETTLEMENT_EXPORT = 'settlement_export';
+    case TOTP_ENROLLED = 'totp_enrolled';
+    case TOTP_RESET = 'totp_reset';
 }

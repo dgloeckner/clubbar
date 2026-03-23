@@ -8,6 +8,8 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Status | Summary |
 |------|--------|---------|
+| [TOTP + Session Bug Fixes](./2026-03-23-totp-session-bugfixes.md) | Not Started | Fix SESSION_MAX_AGE not applied to PHP session engine; fix frontend enrollment flow showing dashboard instead of QR code |
+| [Install TOTP Key Generation](./2026-03-22-install-totp-key-generation.md) | Completed | Auto-generate TOTP_ENCRYPTION_KEY in package installer (config.sample, install.php, index.php) |
 | [Backend Security Review](./2026-03-17-backend-security-review.md) | In Progress | C1/C2/C3/H4 done; H3/H6/M3 this sprint; H1/H2/H5/M1/M2/M4/L1–L4 next sprint |
 | [GDPR Anonymization Fix](./2026-03-08-gdpr-anonymization-fix.md) | Not Started | Fix anonymization: NULL instead of DELETED, audit log scrubbing, pre-deletion checks, E2E tests |
 | [CI Pipeline Refactoring](./2026-03-07-ci-pipeline-refactoring.md) | In Progress | Restructure CI: job dependencies, caching, dedup, lint gate, fix silent failures |
@@ -18,6 +20,7 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Completed | Summary |
 |------|-----------|---------|
+| [Mandatory TOTP 2FA](./2026-03-22-totp-2fa.md) | 2026-03-22 | Mandatory TOTP 2FA for all admins: backend, OAS, frontend, E2E tests (364 passing) |
 | [Security Critical Fixes](./2026-03-17-security-critical-fixes.md) | 2026-03-17 | C1 timing attack, C2 wildcard CORS, C3 APP_DEBUG=true — all fixed |
 | [Terminal Auth Rate Limiting](../docs/superpowers/plans/2026-03-17-terminal-rate-limiting.md) | 2026-03-17 | IP-based rate limiting on terminal sync endpoints — 10 failures/15 min → 429 |
 | [install.php Security Hardening](./2026-03-17-install-php-security-hardening.md) | 2026-03-17 | Fix Env::get() precedence bug, remove key from query param, block install.php via .htaccess |

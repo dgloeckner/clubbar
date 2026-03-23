@@ -32,14 +32,20 @@ return function (App $app): void {
     // Public health check
     $app->get('/api/health', [HealthController::class, 'check']);
 
-    // Auth endpoints (login is public, rest require session)
+    // Auth endpoints (login and mfa are public, rest require session)
     $app->post('/api/auth/login', [AuthController::class, 'login'])->add(RateLimitMiddleware::class);
+    $app->post('/api/auth/mfa', [AuthController::class, 'mfa']);
 
     $app->group('/api/auth', function (RouteCollectorProxy $group) {
         $group->post('/logout', [AuthController::class, 'logout']);
         $group->get('/profile', [AuthController::class, 'profile']);
         $group->patch('/profile', [AuthController::class, 'updateProfile']);
         $group->patch('/change-password', [AuthController::class, 'changePassword']);
+        // 2FA setup/confirm: accessible even with totp_setup_required (see AdminSessionAuth)
+        $group->post('/2fa/setup', [AuthController::class, 'setup2fa']);
+        $group->post('/2fa/confirm', [AuthController::class, 'confirm2fa']);
+        // 2FA reset: requires full authenticated session
+        $group->post('/2fa/reset', [AuthController::class, 'reset2fa']);
     })->add(CsrfMiddleware::class)->add(AdminSessionAuth::class);
 
     // Terminal sync endpoints (token auth)

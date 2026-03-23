@@ -51,13 +51,17 @@ INSERT INTO sepa_config (id) VALUES (1);
 -- Email: admin@example.com
 -- Password: password123
 -- Hash generated with: password_hash('password123', PASSWORD_BCRYPT, ['cost' => 12])
-INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, created_at, updated_at)
+-- TOTP secret: JBSWY3DPEHPK3PXP (base32) — encrypted with fixed test key 0000...0001
+-- To regenerate: openssl with AES-256-CBC, IV=0x00*16, key=0x00*31+0x01
+INSERT INTO admin_users (id, email, password_hash, display_name, locale, is_active, totp_secret, totp_enabled, created_at, updated_at)
 VALUES (
     '123e4567-e89b-12d3-a456-426614174000',
     'admin@example.com',
     '$2y$12$Pp5DqCBrNhBDThRmWYwPlegkBrYSDKxoGguH1K2XnUlVzQxoUPygG',
     'Admin User',
     'de',
+    1,
+    'AAAAAAAAAAAAAAAAAAAAAA==:HfdK5XMmHZlKgJl97MSpvKrDR62kRrN9FWvhGO62PQM=',
     1,
     NOW(),
     NOW()
