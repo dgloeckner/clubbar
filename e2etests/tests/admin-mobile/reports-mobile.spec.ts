@@ -51,10 +51,9 @@ test.describe('Reports Page - Mobile', () => {
       await expect(page.getByTestId('report-tabs')).toBeVisible()
     })
 
-    test('should display all five tab buttons on mobile', async ({ page }) => {
+    test('should display four tab buttons on mobile', async ({ page }) => {
       await expect(page.getByTestId('report-tab-revenue')).toBeVisible()
       await expect(page.getByTestId('report-tab-consumption')).toBeVisible()
-      await expect(page.getByTestId('report-tab-transactions')).toBeVisible()
       await expect(page.getByTestId('report-tab-member-ranking')).toBeVisible()
       await expect(page.getByTestId('report-tab-terminal-activity')).toBeVisible()
     })
@@ -111,7 +110,7 @@ test.describe('Reports Page - Mobile', () => {
       await waitForReportLoaded(page)
 
       await expect(page.getByTestId('report-summary-revenue')).toBeVisible()
-      await expect(page.getByTestId('report-summary-quantity')).toBeVisible()
+      await expect(page.getByTestId('report-summary-unique-members')).toBeVisible()
       await expect(page.getByTestId('report-summary-count')).toBeVisible()
       await expect(page.getByTestId('report-summary-avg')).toBeVisible()
     })
@@ -120,27 +119,27 @@ test.describe('Reports Page - Mobile', () => {
       await waitForReportLoaded(page)
 
       const revenueCard = page.getByTestId('report-summary-revenue')
-      const quantityCard = page.getByTestId('report-summary-quantity')
+      const uniqueMembersCard = page.getByTestId('report-summary-unique-members')
       const countCard = page.getByTestId('report-summary-count')
       const avgCard = page.getByTestId('report-summary-avg')
 
-      const [revenueBox, quantityBox, countBox, avgBox] = await Promise.all([
+      const [revenueBox, uniqueMembersBox, countBox, avgBox] = await Promise.all([
         revenueCard.boundingBox(),
-        quantityCard.boundingBox(),
+        uniqueMembersCard.boundingBox(),
         countCard.boundingBox(),
         avgCard.boundingBox(),
       ])
 
-      // In a 2-column layout: revenue and quantity are side by side (same Y)
+      // In a 2-column layout: revenue and unique-members are side by side (same Y)
       // count and avg are on the next row (same Y, different from first row)
       expect(revenueBox).not.toBeNull()
-      expect(quantityBox).not.toBeNull()
+      expect(uniqueMembersBox).not.toBeNull()
       expect(countBox).not.toBeNull()
       expect(avgBox).not.toBeNull()
 
-      if (revenueBox && quantityBox && countBox && avgBox) {
-        // First row: revenue and quantity should be at roughly the same Y
-        expect(Math.abs(revenueBox.y - quantityBox.y)).toBeLessThan(10)
+      if (revenueBox && uniqueMembersBox && countBox && avgBox) {
+        // First row: revenue and unique-members should be at roughly the same Y
+        expect(Math.abs(revenueBox.y - uniqueMembersBox.y)).toBeLessThan(10)
         // Second row: count and avg should be at roughly the same Y
         expect(Math.abs(countBox.y - avgBox.y)).toBeLessThan(10)
         // First and second rows should be at different Y positions
@@ -153,11 +152,6 @@ test.describe('Reports Page - Mobile', () => {
     test('should switch to Consumption tab on mobile', async ({ page }) => {
       await page.getByTestId('report-tab-consumption').click()
       // Filter inputs still visible after tab switch
-      await expect(page.getByTestId('report-filter-date-from')).toBeVisible()
-    })
-
-    test('should switch to Transactions tab on mobile', async ({ page }) => {
-      await page.getByTestId('report-tab-transactions').click()
       await expect(page.getByTestId('report-filter-date-from')).toBeVisible()
     })
 

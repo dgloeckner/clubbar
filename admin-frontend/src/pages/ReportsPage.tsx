@@ -32,14 +32,13 @@ interface ReportParams {
 interface ReportRow {
   dimension: string
   revenue_cents: number
-  quantity: number
   count: number
   percentage: number
 }
 
 interface ReportMetadata {
   total_revenue_cents: number
-  total_quantity: number
+  unique_member_count: number
   total_count: number
   avg_transaction_cents: number
   date_from: string
@@ -127,7 +126,7 @@ async function getReport(reportType: ReportType, params: ReportParams = {}): Pro
     return {
       metadata: {
         total_revenue_cents: raw.summary?.total_revenue_cents ?? 0,
-        total_quantity: raw.summary?.total_quantity ?? 0,
+        unique_member_count: raw.summary?.unique_member_count ?? 0,
         total_count: raw.summary?.transaction_count ?? 0,
         avg_transaction_cents: raw.summary?.avg_transaction_cents ?? 0,
         date_from: raw.metadata?.filters?.date_from ?? params.date_from ?? '',
@@ -138,7 +137,6 @@ async function getReport(reportType: ReportType, params: ReportParams = {}): Pro
       rows: (raw.data ?? []).map((row: any) => ({
         dimension: row.dimension ?? '',
         revenue_cents: row.revenue_cents ?? 0,
-        quantity: row.quantity ?? 0,
         count: row.count ?? 0,
         percentage: row.percent_of_total ?? row.percentage ?? 0,
       })),
@@ -458,7 +456,7 @@ function FilterSelect({ value, onChange, options, testId, label, minWidth = 80 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-type TabId = 'revenue' | 'consumption' | 'transactions' | 'member-ranking' | 'terminal-activity'
+type TabId = 'revenue' | 'consumption' | 'member-ranking' | 'terminal-activity'
 
 export function ReportsPage() {
   const { t, i18n } = useTranslation()
@@ -494,7 +492,7 @@ export function ReportsPage() {
   // ─── Load data ───────────────────────────────────────────────────────────
 
   const loadReport = useCallback(async () => {
-    if (activeTab !== 'revenue' && activeTab !== 'consumption' && activeTab !== 'transactions') return
+    if (activeTab !== 'revenue' && activeTab !== 'consumption') return
     setReportLoading(true)
     setReportError(null)
     try {
@@ -543,7 +541,7 @@ export function ReportsPage() {
 
   // Load data when tab changes
   useEffect(() => {
-    if (activeTab === 'revenue' || activeTab === 'consumption' || activeTab === 'transactions') {
+    if (activeTab === 'revenue' || activeTab === 'consumption') {
       loadReport()
     } else if (activeTab === 'member-ranking') {
       loadRanking()
@@ -555,7 +553,7 @@ export function ReportsPage() {
   // ─── Event handlers ───────────────────────────────────────────────────────
 
   const handleApplyFilter = () => {
-    if (activeTab === 'revenue' || activeTab === 'consumption' || activeTab === 'transactions') {
+    if (activeTab === 'revenue' || activeTab === 'consumption') {
       loadReport()
     } else if (activeTab === 'member-ranking') {
       loadRanking()
@@ -570,7 +568,7 @@ export function ReportsPage() {
         date_from: dateFrom,
         date_to: dateTo,
       }
-      if (activeTab === 'revenue' || activeTab === 'consumption' || activeTab === 'transactions') {
+      if (activeTab === 'revenue' || activeTab === 'consumption') {
         params.group_by = groupBy
         await exportReport(activeTab as ReportType, params)
       } else if (activeTab === 'member-ranking') {
@@ -675,10 +673,12 @@ export function ReportsPage() {
 
   const renderStandardReport = () => {
     const locale = i18n.language === 'de' ? 'de-DE' : 'en-US'
+    const isConsumption = activeTab === 'consumption'
     const chartData =
       reportData?.rows.map((row) => ({
         label: row.dimension,
         revenue: row.revenue_cents / 100,
+        count: row.count,
       })) ?? []
 
     return (
@@ -762,9 +762,9 @@ export function ReportsPage() {
                 isMobile={isMobile}
               />
               <SummaryCard
-                testId="report-summary-quantity"
-                label={t('reports.summaryQuantity')}
-                value={reportData.metadata.total_quantity.toLocaleString(locale)}
+                testId="report-summary-unique-members"
+                label={t('reports.summaryUniqueMembers')}
+                value={reportData.metadata.unique_member_count.toLocaleString(locale)}
                 color="#3b82f6"
                 isMobile={isMobile}
               />
@@ -786,7 +786,9 @@ export function ReportsPage() {
 
             {/* Chart */}
             <div data-testid="report-chart" style={cardStyle}>
-              <h3 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('reports.chartTitle')}</h3>
+              <h3 style={{ margin: 0, marginBottom: theme.spacing.lg }}>
+                {isConsumption ? t('reports.chartTitleConsumption') : t('reports.chartTitle')}
+              </h3>
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={isMobile ? 160 : 220}>
                   <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
@@ -801,8 +803,8 @@ export function ReportsPage() {
                       tick={{ fill: theme.colors.text.muted, fontSize: 10 }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(v: number) => formatters.formatPrice(v * 100)}
-                      width={80}
+                      tickFormatter={isConsumption ? (v: number) => String(v) : (v: number) => formatters.formatPrice(v * 100)}
+                      width={isConsumption ? 40 : 80}
                     />
                     <Tooltip
                       contentStyle={{
@@ -814,10 +816,12 @@ export function ReportsPage() {
                       formatter={(value?: number, name?: string) => {
                         if (name === 'revenue' && value != null)
                           return [formatters.formatPrice(value * 100), t('reports.summaryRevenue')]
+                        if (name === 'count' && value != null)
+                          return [value, t('reports.summaryCount')]
                         return [value ?? 0, name ?? '']
                       }}
                     />
-                    <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    <Bar dataKey={isConsumption ? 'count' : 'revenue'} fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -846,7 +850,6 @@ export function ReportsPage() {
                       <tr style={headerRowStyle}>
                         <th style={headerCellBaseStyle}>{t('reports.colDimension')}</th>
                         <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('reports.colRevenue')}</th>
-                        <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('reports.colQuantity')}</th>
                         <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('reports.colCount')}</th>
                         <th style={{ ...headerCellBaseStyle, textAlign: 'right' }}>{t('reports.colPercentage')}</th>
                       </tr>
@@ -870,9 +873,6 @@ export function ReportsPage() {
                             }}
                           >
                             {formatters.formatPrice(row.revenue_cents)}
-                          </td>
-                          <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right' }}>
-                            {row.quantity.toLocaleString(locale)}
                           </td>
                           <td style={{ padding: tableSpacing.cellPadding, textAlign: 'right' }}>
                             {row.count.toLocaleString(locale)}
@@ -1297,13 +1297,6 @@ export function ReportsPage() {
           {t('reports.tabConsumption')}
         </button>
         <button
-          data-testid="report-tab-transactions"
-          onClick={() => setActiveTab('transactions')}
-          style={tabStyle('transactions')}
-        >
-          {t('reports.tabTransactions')}
-        </button>
-        <button
           data-testid="report-tab-member-ranking"
           onClick={() => setActiveTab('member-ranking')}
           style={tabStyle('member-ranking')}
@@ -1320,8 +1313,7 @@ export function ReportsPage() {
       </div>
 
       {/* Tab Content */}
-      {(activeTab === 'revenue' || activeTab === 'consumption' || activeTab === 'transactions') &&
-        renderStandardReport()}
+      {(activeTab === 'revenue' || activeTab === 'consumption') && renderStandardReport()}
       {activeTab === 'member-ranking' && renderMemberRanking()}
       {activeTab === 'terminal-activity' && renderTerminalActivity()}
     </div>

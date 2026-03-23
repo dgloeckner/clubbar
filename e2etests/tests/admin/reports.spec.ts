@@ -47,10 +47,9 @@ test.describe('Reports Page', () => {
       await expect(page.getByTestId('reports-page')).toBeVisible()
     })
 
-    test('should display all five tab buttons', async ({ page }) => {
+    test('should display four tab buttons', async ({ page }) => {
       await expect(page.getByTestId('report-tab-revenue')).toBeVisible()
       await expect(page.getByTestId('report-tab-consumption')).toBeVisible()
-      await expect(page.getByTestId('report-tab-transactions')).toBeVisible()
       await expect(page.getByTestId('report-tab-member-ranking')).toBeVisible()
       await expect(page.getByTestId('report-tab-terminal-activity')).toBeVisible()
     })
@@ -69,7 +68,7 @@ test.describe('Reports Page', () => {
     test('should display all four summary cards on revenue tab', async ({ page }) => {
       await waitForReportLoaded(page)
       await expect(page.getByTestId('report-summary-revenue')).toBeVisible()
-      await expect(page.getByTestId('report-summary-quantity')).toBeVisible()
+      await expect(page.getByTestId('report-summary-unique-members')).toBeVisible()
       await expect(page.getByTestId('report-summary-count')).toBeVisible()
       await expect(page.getByTestId('report-summary-avg')).toBeVisible()
     })
@@ -180,17 +179,6 @@ test.describe('Reports Page', () => {
       await waitForReportLoaded(page)
     })
 
-    test('should switch to transactions tab and load data', async ({ page }) => {
-      const responsePromise = page.waitForResponse(
-        (resp) => resp.url().includes('/reports/transactions') && resp.status() === 200
-      )
-      await page.getByTestId('report-tab-transactions').click()
-      const response = await responsePromise
-
-      expect(response.status()).toBe(200)
-      await waitForReportLoaded(page)
-    })
-
     test('should switch to member ranking tab and load data', async ({ page }) => {
       const responsePromise = page.waitForResponse(
         (resp) => resp.url().includes('/reports/member-ranking') && resp.status() === 200
@@ -213,18 +201,18 @@ test.describe('Reports Page', () => {
       await waitForTerminalLoaded(page)
     })
 
-    test('should hide revenue content when switching to consumption tab', async ({ page }) => {
+    test('consumption tab should load data with count-based chart', async ({ page }) => {
       await waitForReportLoaded(page)
 
-      // Switch to consumption tab (set up listener BEFORE click to avoid race condition)
       const responsePromise = page.waitForResponse(
         (resp) => resp.url().includes('/reports/consumption') && resp.status() === 200
       )
       await page.getByTestId('report-tab-consumption').click()
       await responsePromise
 
-      // Filters and summary cards should still be visible (shared across standard tabs)
+      // Filters and chart should still be visible
       await expect(page.getByTestId('report-filter-date-from')).toBeVisible()
+      await expect(page.getByTestId('report-chart')).toBeVisible()
     })
   })
 
@@ -241,7 +229,7 @@ test.describe('Reports Page', () => {
     test('should display summary cards on consumption tab', async ({ page }) => {
       await waitForReportLoaded(page)
       await expect(page.getByTestId('report-summary-revenue')).toBeVisible()
-      await expect(page.getByTestId('report-summary-quantity')).toBeVisible()
+      await expect(page.getByTestId('report-summary-unique-members')).toBeVisible()
     })
 
     test('should display chart on consumption tab', async ({ page }) => {
@@ -252,27 +240,6 @@ test.describe('Reports Page', () => {
     test('should display export button on consumption tab', async ({ page }) => {
       await waitForReportLoaded(page)
       await expect(page.getByTestId('report-export-csv')).toBeVisible()
-    })
-  })
-
-  test.describe('Transactions Tab', () => {
-    test.beforeEach(async ({ page }) => {
-      // Set up listener BEFORE clicking to avoid race condition
-      const responsePromise = page.waitForResponse(
-        (resp) => resp.url().includes('/reports/transactions') && resp.status() === 200
-      )
-      await page.getByTestId('report-tab-transactions').click()
-      await responsePromise
-    })
-
-    test('should display summary cards on transactions tab', async ({ page }) => {
-      await waitForReportLoaded(page)
-      await expect(page.getByTestId('report-summary-count')).toBeVisible()
-    })
-
-    test('should display data table on transactions tab', async ({ page }) => {
-      await waitForReportLoaded(page)
-      await expect(page.getByTestId('report-table')).toBeVisible()
     })
   })
 

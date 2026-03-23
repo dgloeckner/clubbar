@@ -10,7 +10,7 @@ class ReportDto
         public readonly string $reportType,
         public readonly array $filters,
         public readonly int $totalRevenueCents,
-        public readonly int $totalQuantity,
+        public readonly int $uniqueMemberCount,
         public readonly int $transactionCount,
         public readonly int $avgTransactionCents,
         /** @var ReportRowDto[] */
@@ -30,7 +30,7 @@ class ReportDto
             ],
             'summary' => [
                 'total_revenue_cents' => $this->totalRevenueCents,
-                'total_quantity' => $this->totalQuantity,
+                'unique_member_count' => $this->uniqueMemberCount,
                 'transaction_count' => $this->transactionCount,
                 'avg_transaction_cents' => $this->avgTransactionCents,
             ],

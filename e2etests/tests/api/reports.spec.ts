@@ -45,7 +45,7 @@ test.describe("Reports API", () => {
 
     // Verify summary fields
     expect(body.summary).toHaveProperty("total_revenue_cents");
-    expect(body.summary).toHaveProperty("total_quantity");
+    expect(body.summary).toHaveProperty("unique_member_count");
     expect(body.summary).toHaveProperty("transaction_count");
     expect(body.summary).toHaveProperty("avg_transaction_cents");
 
@@ -77,22 +77,28 @@ test.describe("Reports API", () => {
     expect(Array.isArray(body.data)).toBe(true);
   });
 
-  test("GET /api/admin/reports/transactions grouped by day returns correct schema", async ({
+  test("GET /api/admin/reports/consumption sorted by count descending", async ({
     authenticatedRequest,
   }) => {
     const response = await authenticatedRequest.get(
-      `${API_BASE}/admin/reports/transactions?group_by=day`
+      `${API_BASE}/admin/reports/consumption?group_by=product&date_from=2020-01-01&date_to=2030-12-31`
     );
 
     expect(response.status()).toBe(200);
     const body = await response.json();
 
     expect(body).toHaveProperty("metadata");
-    expect(body.metadata).toHaveProperty("report_type", "transactions");
+    expect(body.metadata).toHaveProperty("report_type", "consumption");
     expect(body).toHaveProperty("summary");
     expect(body).toHaveProperty("data");
-    expect(body).toHaveProperty("pagination");
     expect(Array.isArray(body.data)).toBe(true);
+
+    // Verify rows are sorted by count descending
+    if (body.data.length > 1) {
+      for (let i = 0; i < body.data.length - 1; i++) {
+        expect(body.data[i].count).toBeGreaterThanOrEqual(body.data[i + 1].count);
+      }
+    }
   });
 
   // ========== DATA ROW FIELDS ==========
@@ -112,14 +118,12 @@ test.describe("Reports API", () => {
       const row = body.data[0];
       expect(row).toHaveProperty("dimension");
       expect(row).toHaveProperty("revenue_cents");
-      expect(row).toHaveProperty("quantity");
       expect(row).toHaveProperty("count");
       expect(row).toHaveProperty("percent_of_total");
 
       // Verify types
       expect(typeof row.dimension).toBe("string");
       expect(typeof row.revenue_cents).toBe("number");
-      expect(typeof row.quantity).toBe("number");
       expect(typeof row.count).toBe("number");
       expect(typeof row.percent_of_total).toBe("number");
     }
