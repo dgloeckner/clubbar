@@ -26,4 +26,11 @@ export const TEST_CREDENTIALS = {
     deviceId: 'test-device-001',
     name: 'Test Terminal',
   },
+
+  // TOTP secrets for two-factor authentication tests
+  totp: {
+    // Pre-enrolled test admin TOTP secret (base32). Matches the AES-encrypted value
+    // in reset_test_data.sql, which uses TOTP_ENCRYPTION_KEY=0000...0001.
+    adminSecret: 'JBSWY3DPEHPK3PXP',
+  },
 } as const;

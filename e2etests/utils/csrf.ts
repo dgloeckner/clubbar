@@ -11,6 +11,8 @@
  */
 
 import type { Page, APIRequestContext, Playwright } from '@playwright/test'
+import { TEST_CREDENTIALS } from '../config/test-credentials'
+import { generateTotp } from './totp'
 
 const API_BASE = 'http://localhost:8080/api'
 
@@ -73,6 +75,16 @@ class CsrfAwareContext {
  * The returned context automatically includes session cookies and CSRF token
  * on all mutation requests.
  *
+ * Handles all three login outcomes transparently:
+ *  - `{ message: "Login successful" }` — plain login, no TOTP involved
+ *  - `{ requiresMfa: true }`           — TOTP verification required
+ *  - `{ requiresTotpSetup: true }`     — first-time TOTP enrollment required
+ *
+ * For the `requiresMfa` case, the TOTP code is generated from
+ * TEST_CREDENTIALS.totp.adminSecret (the seeded admin's secret). Tests that
+ * login as other users must enroll them first or use this helper after
+ * confirming TOTP setup on their behalf.
+ *
  * Usage:
  *   const ctx = await loginAs(playwright, email, password)
  *   const resp = await ctx.patch('/api/auth/change-password', { data: { ... } })
@@ -82,8 +94,11 @@ export async function loginAs(
   playwright: Playwright,
   email: string,
   password: string,
+  totpSecret?: string,
 ): Promise<CsrfAwareContext> {
   const ctx = await playwright.request.newContext()
+
+  // Step 1: Initial login
   const loginResponse = await ctx.post(`${API_BASE}/auth/login`, {
     data: { email, password },
   })
@@ -94,7 +109,58 @@ export async function loginAs(
   }
 
   const loginData = await loginResponse.json()
-  const csrfToken = loginData.csrf_token || ''
 
+  // Step 2a: TOTP verification required — user is already enrolled
+  if (loginData.requiresMfa) {
+    const secret = totpSecret ?? TEST_CREDENTIALS.totp.adminSecret
+    const code = generateTotp(secret)
+
+    const mfaResponse = await ctx.post(`${API_BASE}/auth/mfa`, {
+      data: { code },
+    })
+
+    if (!mfaResponse.ok()) {
+      const body = await mfaResponse.text()
+      throw new Error(`MFA verification failed (${mfaResponse.status()}): ${body}`)
+    }
+
+    const mfaData = await mfaResponse.json()
+    const csrfToken = mfaData.csrf_token ?? ''
+    return new CsrfAwareContext(ctx, csrfToken)
+  }
+
+  // Step 2b: TOTP setup required — user is not yet enrolled
+  if (loginData.requiresTotpSetup) {
+    // The session cookie is stored in ctx; subsequent calls are automatically authenticated
+    const setupResponse = await ctx.post(`${API_BASE}/auth/2fa/setup`, {
+      headers: { 'X-CSRF-Token': loginData.csrf_token ?? '' },
+    })
+
+    if (!setupResponse.ok()) {
+      const body = await setupResponse.text()
+      throw new Error(`TOTP setup failed (${setupResponse.status()}): ${body}`)
+    }
+
+    const setupData = await setupResponse.json()
+    const enrollSecret = totpSecret ?? setupData.secret
+    const code = generateTotp(enrollSecret)
+
+    const confirmResponse = await ctx.post(`${API_BASE}/auth/2fa/confirm`, {
+      data: { code },
+      headers: { 'X-CSRF-Token': loginData.csrf_token ?? '' },
+    })
+
+    if (!confirmResponse.ok()) {
+      const body = await confirmResponse.text()
+      throw new Error(`TOTP confirm failed (${confirmResponse.status()}): ${body}`)
+    }
+
+    // After enrollment the session is fully authenticated; csrf_token came from the login response
+    const csrfToken = loginData.csrf_token ?? ''
+    return new CsrfAwareContext(ctx, csrfToken)
+  }
+
+  // Step 2c: Plain login (no TOTP) — legacy or test-only path
+  const csrfToken = loginData.csrf_token ?? ''
   return new CsrfAwareContext(ctx, csrfToken)
 }

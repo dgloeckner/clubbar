@@ -1,5 +1,6 @@
 import { test as base, APIRequestContext } from "@playwright/test";
 import { TEST_CREDENTIALS } from "../config/test-credentials";
+import { generateTotp } from "../utils/totp";
 import {
   createTestMember,
   createSyncTransaction,
@@ -210,24 +211,75 @@ export const test = base.extend<AuthFixtures>({
       },
     });
 
-    // Verify login succeeded
+    // Verify login succeeded (200 is expected for all outcomes: success, requiresMfa, requiresTotpSetup)
     if (!loginResponse.ok()) {
       const errorBody = await loginResponse.text();
       throw new Error(`Admin login failed with status ${loginResponse.status()}: ${errorBody}`);
     }
 
-    // Extract session cookie from Set-Cookie header
+    // Extract session cookie from Set-Cookie header (present on login response regardless of TOTP state)
     const setCookieHeader = loginResponse.headers()["set-cookie"];
     let fullCookieString = Array.isArray(setCookieHeader)
       ? setCookieHeader[0]
       : setCookieHeader || "";
 
     // Extract just the name=value part (remove expires, path, httponly, etc.)
-    const cookieString = fullCookieString.split(";")[0];
+    let cookieString = fullCookieString.split(";")[0];
 
-    // Extract CSRF token from login response
     const loginData = await loginResponse.json();
-    const csrfToken = loginData.csrf_token || '';
+    let csrfToken = loginData.csrf_token || '';
+
+    // Handle TOTP MFA: user is enrolled and verification is required
+    if (loginData.requiresMfa) {
+      const code = generateTotp(TEST_CREDENTIALS.totp.adminSecret);
+      const mfaResponse = await freshRequest.post(`${API_BASE}/auth/mfa`, {
+        data: { code },
+        headers: { cookie: cookieString },
+      });
+
+      if (!mfaResponse.ok()) {
+        const errorBody = await mfaResponse.text();
+        throw new Error(`TOTP MFA verification failed with status ${mfaResponse.status()}: ${errorBody}`);
+      }
+
+      // Session is regenerated after successful MFA — capture the new cookie
+      const mfaSetCookie = mfaResponse.headers()["set-cookie"];
+      if (mfaSetCookie) {
+        const newCookie = (Array.isArray(mfaSetCookie) ? mfaSetCookie[0] : mfaSetCookie).split(';')[0];
+        if (newCookie) cookieString = newCookie;
+      }
+
+      const mfaData = await mfaResponse.json();
+      csrfToken = mfaData.csrf_token || '';
+    }
+
+    // Handle TOTP setup required: user is not yet enrolled
+    if (loginData.requiresTotpSetup) {
+      const setupResponse = await freshRequest.post(`${API_BASE}/auth/2fa/setup`, {
+        headers: { cookie: cookieString, 'X-CSRF-Token': loginData.csrf_token || '' },
+      });
+
+      if (!setupResponse.ok()) {
+        const errorBody = await setupResponse.text();
+        throw new Error(`TOTP setup failed with status ${setupResponse.status()}: ${errorBody}`);
+      }
+
+      const setupData = await setupResponse.json();
+      const code = generateTotp(setupData.secret);
+
+      const confirmResponse = await freshRequest.post(`${API_BASE}/auth/2fa/confirm`, {
+        data: { code },
+        headers: { cookie: cookieString, 'X-CSRF-Token': loginData.csrf_token || '' },
+      });
+
+      if (!confirmResponse.ok()) {
+        const errorBody = await confirmResponse.text();
+        throw new Error(`TOTP confirm failed with status ${confirmResponse.status()}: ${errorBody}`);
+      }
+
+      // Session is now fully authenticated; CSRF token was issued at login
+      csrfToken = loginData.csrf_token || '';
+    }
 
     if (!cookieString) {
       // Fallback: try headersArray() which preserves duplicate headers

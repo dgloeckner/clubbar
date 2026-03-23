@@ -1,22 +1,40 @@
 import { test, expect } from '../../fixtures/auth.fixture';
+import { TEST_CREDENTIALS } from '../../config/test-credentials';
+import { generateTotp } from '../../utils/totp';
 
 const API_BASE = 'http://localhost:8080/api';
 
 test.describe('CSRF Protection', () => {
   test('POST to admin endpoint without CSRF token returns 403', async ({ playwright }) => {
-    // Login fresh to get session
+    // Login fresh to get session, completing TOTP MFA to obtain a fully-authenticated session
     const freshRequest = await playwright.request.newContext({
       baseURL: API_BASE,
       storageState: { cookies: [], origins: [] },
     });
 
     const loginResponse = await freshRequest.post(`${API_BASE}/auth/login`, {
-      data: { email: 'admin@example.com', password: 'password123' },
+      data: { email: TEST_CREDENTIALS.admin.email, password: TEST_CREDENTIALS.admin.password },
     });
     expect(loginResponse.ok()).toBeTruthy();
 
-    const setCookieHeader = loginResponse.headersArray().find(h => h.name.toLowerCase() === 'set-cookie');
-    const cookieString = setCookieHeader?.value.split(';')[0] || '';
+    let loginCookieHeader = loginResponse.headersArray().find(h => h.name.toLowerCase() === 'set-cookie');
+    let cookieString = loginCookieHeader?.value.split(';')[0] || '';
+    const loginData = await loginResponse.json();
+
+    // Complete MFA if required (seeded admin is enrolled)
+    if (loginData.requiresMfa) {
+      const code = generateTotp(TEST_CREDENTIALS.totp.adminSecret);
+      const mfaResponse = await freshRequest.post(`${API_BASE}/auth/mfa`, {
+        data: { code },
+        headers: { cookie: cookieString },
+      });
+      // Session is regenerated after MFA — capture updated cookie
+      const mfaSetCookie = mfaResponse.headers()['set-cookie'];
+      if (mfaSetCookie) {
+        const newCookie = (Array.isArray(mfaSetCookie) ? mfaSetCookie[0] : mfaSetCookie).split(';')[0];
+        if (newCookie) cookieString = newCookie;
+      }
+    }
 
     // POST without CSRF token should fail
     const response = await freshRequest.post(`${API_BASE}/admin/categories`, {
