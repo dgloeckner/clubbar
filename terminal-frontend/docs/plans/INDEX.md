@@ -20,6 +20,12 @@
 
 ## Completed Plans
 
+### Dependency Upgrade 2026-03-23 (COMPLETED ✅)
+- **Location:** `docs/plans/2026-03-23-dependency-upgrade.md`
+- **Completion Date:** 2026-03-23
+- **Key changes:** go_router 12→17, window_manager 0.3→0.5 (callback init), sqlite3 2→3, drift 2.32, audioplayers 6.6, build_runner 2.13
+- **Test Results:** 321/321 tests passing (✅), 14 pre-existing analyzer issues (no new issues)
+
 ### Phase 1-2: Project Setup & Data Access (Phases completed - see earlier history)
 - Flutter project setup
 - Core models and Drift ORM
