@@ -22,6 +22,140 @@ interface UpdateSepaConfigRequest {
   payment_reference_prefix?: string
 }
 
+function FormField({
+  label,
+  fieldKey,
+  value,
+  type = 'text',
+  placeholder = '',
+  disabled = false,
+  helperText,
+  monospace = false,
+  maxLength,
+  showCharCounter = false,
+  showValidation = false,
+  fieldErrors,
+  onFieldChange,
+  validateIban,
+}: {
+  label: string
+  fieldKey: keyof UpdateSepaConfigRequest
+  value: string | null | undefined
+  type?: string
+  placeholder?: string
+  disabled?: boolean
+  helperText?: string
+  monospace?: boolean
+  maxLength?: number
+  showCharCounter?: boolean
+  showValidation?: boolean
+  fieldErrors: Record<string, string>
+  onFieldChange: (field: keyof UpdateSepaConfigRequest, value: string) => void
+  validateIban: (iban: string) => boolean
+}) {
+  const normalizedValue = value ?? ''
+  const hasError = !!fieldErrors[fieldKey]
+  const errorMessage = fieldErrors[fieldKey]
+
+  return (
+    <div
+      style={{
+        marginBottom: theme.spacing.lg,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: theme.spacing.sm,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: theme.spacing.md,
+        }}
+      >
+        <label
+          style={{
+            fontSize: theme.typography.fontSize.sm,
+            fontWeight: theme.typography.fontWeight.medium,
+            color: theme.colors.text.primary,
+          }}
+        >
+          {label}
+        </label>
+        <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
+          {showCharCounter && maxLength && (
+            <CharacterCounter
+              currentLength={normalizedValue.length}
+              maxLength={maxLength}
+              testId={`settings-sepa-char-counter-${fieldKey}`}
+            />
+          )}
+          {showValidation && fieldKey === 'creditor_iban' && (
+            <ValidationIndicator
+              isValid={validateIban(normalizedValue)}
+              show={normalizedValue.length > 0}
+              testId={`settings-sepa-validation-${fieldKey}`}
+            />
+          )}
+        </div>
+      </div>
+
+      <input
+        type={type}
+        disabled={disabled}
+        placeholder={placeholder}
+        value={normalizedValue}
+        onChange={(e) => onFieldChange(fieldKey, e.target.value)}
+        data-testid={`settings-sepa-input-${fieldKey}`}
+        style={{
+          padding: `${theme.spacing.md} ${theme.spacing.md}`,
+          border: `1px solid ${hasError ? theme.colors.semantic.danger : theme.colors.border.light}`,
+          borderRadius: theme.borderRadius.md,
+          fontSize: theme.typography.fontSize.sm,
+          fontFamily: monospace ? 'monospace' : theme.typography.fontFamily.base,
+          backgroundColor: disabled ? theme.colors.bg.tertiary : theme.colors.bg.primary,
+          color: disabled ? theme.colors.text.secondary : theme.colors.text.primary,
+          cursor: disabled ? 'not-allowed' : 'auto',
+          transition: `all ${theme.transitions.default}`,
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.borderColor = hasError ? theme.colors.semantic.danger : theme.colors.semantic.primary
+          e.currentTarget.style.boxShadow = `0 0 0 3px ${hasError ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)'}`
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderColor = hasError ? theme.colors.semantic.danger : theme.colors.border.light
+          e.currentTarget.style.boxShadow = 'none'
+        }}
+      />
+
+      {helperText && (
+        <p
+          style={{
+            margin: 0,
+            fontSize: theme.typography.fontSize.xs,
+            color: theme.colors.text.secondary,
+          }}
+        >
+          {helperText}
+        </p>
+      )}
+
+      {errorMessage && (
+        <p
+          style={{
+            margin: 0,
+            fontSize: theme.typography.fontSize.xs,
+            color: theme.colors.semantic.danger,
+          }}
+        >
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export interface SepaConfigTabProps {
   config: SepaConfig | null
   loading: boolean
@@ -53,137 +187,6 @@ export function SepaConfigTab({
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const isCreditorIdSet = !!config
-
-  // Form field component
-  const FormField = ({
-    label,
-    fieldKey,
-    value,
-    type = 'text',
-    placeholder = '',
-    disabled = false,
-    helperText,
-    monospace = false,
-    maxLength,
-    showCharCounter = false,
-    showValidation = false,
-  }: {
-    label: string
-    fieldKey: keyof UpdateSepaConfigRequest
-    value: string | null | undefined
-    type?: string
-    placeholder?: string
-    disabled?: boolean
-    helperText?: string
-    monospace?: boolean
-    maxLength?: number
-    showCharCounter?: boolean
-    showValidation?: boolean
-  }) => {
-    // Normalize value to empty string if null or undefined
-    const normalizedValue = value ?? ''
-
-    const hasError = !!fieldErrors[fieldKey]
-    const errorMessage = fieldErrors[fieldKey]
-
-    return (
-      <div
-        style={{
-          marginBottom: theme.spacing.lg,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: theme.spacing.sm,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: theme.spacing.md,
-          }}
-        >
-          <label
-            style={{
-              fontSize: theme.typography.fontSize.sm,
-              fontWeight: theme.typography.fontWeight.medium,
-              color: theme.colors.text.primary,
-            }}
-          >
-            {label}
-          </label>
-          <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
-            {showCharCounter && maxLength && (
-              <CharacterCounter
-                currentLength={normalizedValue.length}
-                maxLength={maxLength}
-                testId={`settings-sepa-char-counter-${fieldKey}`}
-              />
-            )}
-            {showValidation && fieldKey === 'creditor_iban' && (
-              <ValidationIndicator
-                isValid={validateIban(normalizedValue)}
-                show={normalizedValue.length > 0}
-                testId={`settings-sepa-validation-${fieldKey}`}
-              />
-            )}
-          </div>
-        </div>
-
-        <input
-          type={type}
-          disabled={disabled}
-          placeholder={placeholder}
-          value={normalizedValue}
-          onChange={(e) => onFieldChange(fieldKey, e.target.value)}
-          data-testid={`settings-sepa-input-${fieldKey}`}
-          style={{
-            padding: `${theme.spacing.md} ${theme.spacing.md}`,
-            border: `1px solid ${hasError ? theme.colors.semantic.danger : theme.colors.border.light}`,
-            borderRadius: theme.borderRadius.md,
-            fontSize: theme.typography.fontSize.sm,
-            fontFamily: monospace ? 'monospace' : theme.typography.fontFamily.base,
-            backgroundColor: disabled ? theme.colors.bg.tertiary : theme.colors.bg.primary,
-            color: disabled ? theme.colors.text.secondary : theme.colors.text.primary,
-            cursor: disabled ? 'not-allowed' : 'auto',
-            transition: `all ${theme.transitions.default}`,
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = hasError ? theme.colors.semantic.danger : theme.colors.semantic.primary
-            e.currentTarget.style.boxShadow = `0 0 0 3px ${hasError ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.1)'}`
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = hasError ? theme.colors.semantic.danger : theme.colors.border.light
-            e.currentTarget.style.boxShadow = 'none'
-          }}
-        />
-
-        {helperText && (
-          <p
-            style={{
-              margin: 0,
-              fontSize: theme.typography.fontSize.xs,
-              color: theme.colors.text.secondary,
-            }}
-          >
-            {helperText}
-          </p>
-        )}
-
-        {errorMessage && (
-          <p
-            style={{
-              margin: 0,
-              fontSize: theme.typography.fontSize.xs,
-              color: theme.colors.semantic.danger,
-            }}
-          >
-            {errorMessage}
-          </p>
-        )}
-      </div>
-    )
-  }
 
   if (loading) {
     return (
@@ -271,6 +274,9 @@ export function SepaConfigTab({
             helperText={t('settings.sepaHelpers.creditorId')}
             maxLength={35}
             showCharCounter={true}
+            fieldErrors={fieldErrors}
+            onFieldChange={onFieldChange}
+            validateIban={validateIban}
           />
 
           {/* Creditor Name Field */}
@@ -282,6 +288,9 @@ export function SepaConfigTab({
             helperText={t('settings.sepaHelpers.creditorName')}
             maxLength={70}
             showCharCounter={true}
+            fieldErrors={fieldErrors}
+            onFieldChange={onFieldChange}
+            validateIban={validateIban}
           />
 
           {/* Creditor IBAN Field */}
@@ -293,6 +302,9 @@ export function SepaConfigTab({
             monospace={true}
             helperText={t('settings.sepaHelpers.creditorIban')}
             showValidation={true}
+            fieldErrors={fieldErrors}
+            onFieldChange={onFieldChange}
+            validateIban={validateIban}
           />
 
           {/* Street Address Field */}
@@ -304,6 +316,9 @@ export function SepaConfigTab({
             helperText={t('settings.sepaHelpers.street')}
             maxLength={70}
             showCharCounter={true}
+            fieldErrors={fieldErrors}
+            onFieldChange={onFieldChange}
+            validateIban={validateIban}
           />
 
           {/* City Field */}
@@ -315,6 +330,9 @@ export function SepaConfigTab({
             helperText={t('settings.sepaHelpers.city')}
             maxLength={70}
             showCharCounter={true}
+            fieldErrors={fieldErrors}
+            onFieldChange={onFieldChange}
+            validateIban={validateIban}
           />
 
           {/* Country Code Field */}
@@ -324,6 +342,9 @@ export function SepaConfigTab({
             value={formData.creditor_address_country}
             placeholder={t('settings.sepaPlaceholders.country')}
             helperText={t('settings.sepaHelpers.country')}
+            fieldErrors={fieldErrors}
+            onFieldChange={onFieldChange}
+            validateIban={validateIban}
           />
 
           {/* Payment Reference Prefix Field - spans both columns */}
@@ -336,6 +357,9 @@ export function SepaConfigTab({
               helperText={t('settings.sepaHelpers.paymentPrefix')}
               maxLength={100}
               showCharCounter={true}
+              fieldErrors={fieldErrors}
+              onFieldChange={onFieldChange}
+              validateIban={validateIban}
             />
           </div>
         </div>
