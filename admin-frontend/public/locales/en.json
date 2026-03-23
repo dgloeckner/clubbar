@@ -80,7 +80,20 @@
     "loggingIn": "Logging in...",
     "loginFailed": "Login failed",
     "logout": "Logout",
-    "logoutConfirm": "Are you sure you want to logout?"
+    "logoutConfirm": "Are you sure you want to logout?",
+    "mfaTitle": "Two-Factor Authentication",
+    "mfaInstruction": "Enter the 6-digit code from your authenticator app.",
+    "mfaCode": "Authenticator Code",
+    "mfaSubmit": "Verify",
+    "mfaSubmitting": "Verifying...",
+    "mfaInvalidCode": "Invalid or expired code.",
+    "setupTitle": "Set Up Two-Factor Authentication",
+    "setupInstruction": "Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code to confirm.",
+    "setupManualKey": "Manual entry key",
+    "setupCodeLabel": "Confirmation Code",
+    "setupConfirm": "Enable 2FA",
+    "setupConfirming": "Enabling...",
+    "setupFetchError": "Could not load QR code. Please refresh and try again."
   },
   "validation": {
     "required": "Required",
