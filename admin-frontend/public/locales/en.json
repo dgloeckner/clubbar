@@ -93,7 +93,18 @@
     "setupCodeLabel": "Confirmation Code",
     "setupConfirm": "Enable 2FA",
     "setupConfirming": "Enabling...",
-    "setupFetchError": "Could not load QR code. Please refresh and try again."
+    "setupFetchError": "Could not load QR code. Please refresh and try again.",
+    "setupInfoAriaLabel": "More information about two-factor authentication",
+    "setupInfoClose": "Got it",
+    "setupInfoModalTitle": "About Two-Factor Authentication",
+    "setupInfoWhatTitle": "What is this app for?",
+    "setupInfoWhatText": "This admin panel manages members, products, and bookings for your club. Access is protected by a password and additionally secured with Two-Factor Authentication (2FA).",
+    "setupInfoQrTitle": "What is the QR code for?",
+    "setupInfoQrText": "The QR code contains a secret key that you scan once into your authenticator app. The app uses it to generate a new, unique 6-digit code every 30 seconds.",
+    "setupInfoFutureTitle": "How do future logins work?",
+    "setupInfoFutureText": "Each time you log in, you first enter your email address and password. You will then be asked for a 6-digit code — simply open your authenticator app to get it.",
+    "setupInfoKeepTitle": "What should you keep safe?",
+    "setupInfoKeepText": "Store the manual key (shown below the QR code) in a safe place, e.g. a password manager. If you ever lose access to your authenticator app, you will need this key to recover your account."
   },
   "validation": {
     "required": "Required",

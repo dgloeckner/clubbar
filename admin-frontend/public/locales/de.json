@@ -93,7 +93,18 @@
     "setupCodeLabel": "Bestätigungscode",
     "setupConfirm": "2FA aktivieren",
     "setupConfirming": "Wird aktiviert...",
-    "setupFetchError": "QR-Code konnte nicht geladen werden. Bitte Seite neu laden."
+    "setupFetchError": "QR-Code konnte nicht geladen werden. Bitte Seite neu laden.",
+    "setupInfoAriaLabel": "Mehr Informationen zur Zwei-Faktor-Authentifizierung",
+    "setupInfoClose": "Verstanden",
+    "setupInfoModalTitle": "Über die Zwei-Faktor-Authentifizierung",
+    "setupInfoWhatTitle": "Wozu dient diese App?",
+    "setupInfoWhatText": "Diese Admin-Oberfläche verwaltet Mitglieder, Produkte und Buchungen Ihres Vereins. Der Zugang ist passwortgeschützt und durch Zwei-Faktor-Authentifizierung (2FA) zusätzlich abgesichert.",
+    "setupInfoQrTitle": "Wozu dient der QR-Code?",
+    "setupInfoQrText": "Der QR-Code enthält einen geheimen Schlüssel, den Sie einmalig in Ihre Authenticator-App einlesen. Die App erzeugt daraus alle 30 Sekunden einen neuen, einmaligen 6-stelligen Code.",
+    "setupInfoFutureTitle": "Wie funktionieren zukünftige Anmeldungen?",
+    "setupInfoFutureText": "Bei jeder Anmeldung geben Sie zunächst E-Mail-Adresse und Passwort ein. Anschließend werden Sie nach dem 6-stelligen Code gefragt – den entnehmen Sie einfach Ihrer Authenticator-App.",
+    "setupInfoKeepTitle": "Was müssen Sie sicher aufbewahren?",
+    "setupInfoKeepText": "Bewahren Sie den manuellen Schlüssel (unterhalb des QR-Codes angezeigt) an einem sicheren Ort auf, z. B. in einem Passwortmanager. Falls Sie den Zugang zu Ihrer Authenticator-App verlieren, benötigen Sie diesen Schlüssel zur Wiederherstellung."
   },
   "validation": {
     "required": "Pflichtfeld",

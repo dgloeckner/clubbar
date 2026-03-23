@@ -3,7 +3,7 @@
  * Handles email/password login, MFA verification, and first-time TOTP enrollment.
  */
 
-import { useState, useEffect, FormEvent, ReactNode } from 'react'
+import { useState, useEffect, useRef, FormEvent, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { LoginForm } from '../components/forms/LoginForm'
@@ -15,7 +15,18 @@ import { theme } from '../styles/design-system'
 
 // ─── Shared card wrapper (logo + title) ──────────────────────────────────────
 
-function AuthCard({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+function AuthCard({
+  title,
+  subtitle,
+  onInfo,
+  children,
+}: {
+  title: string
+  subtitle: string
+  onInfo?: () => void
+  children: ReactNode
+}) {
+  const { t } = useTranslation()
   return (
     <div
       style={{
@@ -43,12 +54,152 @@ function AuthCard({ title, subtitle, children }: { title: string; subtitle: stri
           >
             {title}
           </h1>
-          <p style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.secondary, margin: 0 }}>
-            {subtitle}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: theme.spacing.xs }}>
+            <p style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.secondary, margin: 0 }}>
+              {subtitle}
+            </p>
+            {onInfo && (
+              <button
+                type="button"
+                onClick={onInfo}
+                aria-label={t('auth.setupInfoAriaLabel')}
+                style={{
+                  flexShrink: 0,
+                  marginTop: '1px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '0 2px',
+                  color: theme.colors.semantic.info,
+                  fontSize: theme.typography.fontSize.base,
+                  lineHeight: 1,
+                  opacity: 0.8,
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.8' }}
+              >
+                ⓘ
+              </button>
+            )}
+          </div>
         </div>
         {children}
       </Card>
+    </div>
+  )
+}
+
+// ─── TOTP info modal ──────────────────────────────────────────────────────────
+
+function TotpInfoModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
+  const closeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    closeRef.current?.focus()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const sections = [
+    { title: t('auth.setupInfoWhatTitle'),   text: t('auth.setupInfoWhatText') },
+    { title: t('auth.setupInfoQrTitle'),     text: t('auth.setupInfoQrText') },
+    { title: t('auth.setupInfoFutureTitle'), text: t('auth.setupInfoFutureText') },
+    { title: t('auth.setupInfoKeepTitle'),   text: t('auth.setupInfoKeepText') },
+  ]
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="totp-info-title"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+        padding: theme.spacing.lg,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: theme.colors.bg.secondary,
+          borderRadius: theme.borderRadius.lg,
+          padding: theme.spacing.xl,
+          maxWidth: '480px',
+          width: '100%',
+          boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2
+          id="totp-info-title"
+          style={{
+            margin: 0,
+            marginBottom: theme.spacing.xl,
+            fontSize: theme.typography.fontSize.lg,
+            fontWeight: theme.typography.fontWeight.semibold,
+            color: theme.colors.text.primary,
+          }}
+        >
+          {t('auth.setupInfoModalTitle')}
+        </h2>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>
+          {sections.map((s) => (
+            <div key={s.title}>
+              <p
+                style={{
+                  margin: 0,
+                  marginBottom: theme.spacing.xs,
+                  fontSize: theme.typography.fontSize.sm,
+                  fontWeight: theme.typography.fontWeight.semibold,
+                  color: theme.colors.text.primary,
+                }}
+              >
+                {s.title}
+              </p>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: theme.typography.fontSize.sm,
+                  color: theme.colors.text.secondary,
+                  lineHeight: theme.typography.lineHeight.normal,
+                }}
+              >
+                {s.text}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <button
+          ref={closeRef}
+          type="button"
+          onClick={onClose}
+          style={{
+            marginTop: theme.spacing.xl,
+            width: '100%',
+            padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+            background: theme.colors.semantic.primary,
+            border: 'none',
+            borderRadius: theme.borderRadius.md,
+            color: 'white',
+            cursor: 'pointer',
+            fontSize: theme.typography.fontSize.sm,
+            fontWeight: theme.typography.fontWeight.semibold,
+          }}
+        >
+          {t('auth.setupInfoClose')}
+        </button>
+      </div>
     </div>
   )
 }
@@ -131,6 +282,7 @@ function TotpSetupStep() {
   const [code, setCode] = useState('')
   const [localError, setLocalError] = useState<string>()
   const [fetchError, setFetchError] = useState<string>()
+  const [showInfo, setShowInfo] = useState(false)
 
   useEffect(() => {
     setupTotp()
@@ -153,7 +305,9 @@ function TotpSetupStep() {
   }
 
   return (
-    <AuthCard title={t('auth.setupTitle')} subtitle={t('auth.setupInstruction')}>
+    <>
+      {showInfo && <TotpInfoModal onClose={() => setShowInfo(false)} />}
+      <AuthCard title={t('auth.setupTitle')} subtitle={t('auth.setupInstruction')} onInfo={() => setShowInfo(true)}>
       {fetchError && <ErrorBanner message={fetchError} />}
 
       {qrCode && (
@@ -204,7 +358,8 @@ function TotpSetupStep() {
           {loading ? t('auth.setupConfirming') : t('auth.setupConfirm')}
         </Button>
       </form>
-    </AuthCard>
+      </AuthCard>
+    </>
   )
 }
 
