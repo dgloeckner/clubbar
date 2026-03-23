@@ -125,10 +125,10 @@ export class CategoriesPage extends BasePage {
   }
 
   async getCategoryStatus(categoryId: string): Promise<string> {
-    // Toggle component stores state in data-checked attribute
+    // Toggle component stores state via aria-checked attribute
     const isActive = await this.page
       .getByTestId(`categories-status-toggle-${categoryId}`)
-      .getAttribute('data-checked')
+      .getAttribute('aria-checked')
     return isActive === 'true' ? 'Active' : 'Inactive'
   }
 
@@ -288,6 +288,20 @@ export class CategoriesPage extends BasePage {
   async cancelStatusChange() {
     await this.confirmCancelBtn().click()
     await this.expectConfirmDialogHidden()
+  }
+
+  async confirmStatusChange(categoryId: string) {
+    const responsePromise = this.page.waitForResponse(
+      (r) => {
+        const url = new URL(r.url())
+        return url.pathname.endsWith(`/admin/categories/${categoryId}`) && r.request().method() === 'PATCH'
+      },
+      { timeout: 10000 }
+    )
+    await this.confirmOkBtn().click()
+    await this.expectConfirmDialogHidden()
+    await responsePromise
+    await this.waitForLoadingToComplete()
   }
 
   /**

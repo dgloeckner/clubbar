@@ -176,6 +176,28 @@ test.describe('Admin Frontend - Categories Page', () => {
       const statusAfterCancel = await authenticatedCategoriesPage.getCategoryStatus(categoryId!)
       expect(statusAfterCancel).toBe('Inactive')
     })
+
+    test('should activate category when confirm dialog is confirmed', async ({ authenticatedCategoriesPage }) => {
+      const categoryName = `ActConfirm ${Date.now()}`
+      await authenticatedCategoriesPage.createCategory({ de: categoryName })
+
+      const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+      expect(categoryId).toBeTruthy()
+
+      // Deactivate first (immediate, no dialog)
+      await authenticatedCategoriesPage.toggleCategoryStatus(categoryId!)
+      await authenticatedCategoriesPage.expectConfirmDialogHidden()
+      expect(await authenticatedCategoriesPage.getCategoryStatus(categoryId!)).toBe('Inactive')
+
+      // Activate: shows confirm dialog
+      await authenticatedCategoriesPage.clickStatusToggleExpectingDialog(categoryId!)
+      await authenticatedCategoriesPage.expectConfirmDialogVisible()
+
+      // Confirm → category becomes Active
+      await authenticatedCategoriesPage.confirmStatusChange(categoryId!)
+      const status = await authenticatedCategoriesPage.getCategoryStatus(categoryId!)
+      expect(status).toBe('Active')
+    })
   })
 
   /**
@@ -205,6 +227,34 @@ test.describe('Admin Frontend - Categories Page', () => {
         await authenticatedCategoriesPage.cancelDelete()
         await authenticatedCategoriesPage.expectConfirmDialogHidden()
       }
+    })
+
+    test('should delete category when confirm dialog is confirmed', async ({ page, authenticatedCategoriesPage }) => {
+      const categoryName = `ConfirmDel ${Date.now()}`
+      await authenticatedCategoriesPage.createCategory({ de: categoryName })
+
+      const categoryId = await authenticatedCategoriesPage.findCategoryByName(categoryName)
+      expect(categoryId).toBeTruthy()
+
+      // Trigger delete → confirm dialog appears
+      await authenticatedCategoriesPage.deleteCategory(categoryId!)
+      await authenticatedCategoriesPage.expectConfirmDialogVisible()
+
+      // Capture DELETE response before clicking OK
+      const deleteResponsePromise = page.waitForResponse(
+        (resp) => resp.url().includes(`/api/admin/categories/${categoryId}`) && resp.request().method() === 'DELETE'
+      )
+
+      // Confirm delete
+      await page.getByTestId('confirm-dialog-ok').click()
+
+      // Wait for the DELETE to complete
+      const deleteResp = await deleteResponsePromise
+      expect(deleteResp.status()).toBe(204)
+
+      // Poll until the category disappears from the list (React re-render after loadCategories())
+      await expect.poll(() => authenticatedCategoriesPage.findCategoryByName(categoryName), { timeout: 10000 })
+        .toBeNull()
     })
 
     test('should cancel delete and keep category', async ({ authenticatedCategoriesPage }) => {
