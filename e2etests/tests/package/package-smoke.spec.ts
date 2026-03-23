@@ -92,7 +92,8 @@ test.describe('Package: API through front controller', () => {
     });
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
-    expect(body.message).toBe('Login successful');
+    // Fresh install: admin has no TOTP enrolled yet, so login triggers setup flow
+    expect(body.requiresTotpSetup).toBe(true);
   });
 });
 
