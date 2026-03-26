@@ -17,7 +17,8 @@ export async function uploadMandateDocument(
 
   const response = await adminAxios.post<MandateDocumentInfo>(
     `/admin/members/${memberId}/mandate-document`,
-    formData
+    formData,
+    { headers: { 'Content-Type': undefined } }
   )
   return response.data
 }

@@ -7,6 +7,7 @@ import {
   uploadMandateDocument,
 } from '../api/mandateDocument'
 import { useTranslation } from 'react-i18next'
+import { theme } from '../styles/design-system'
 
 interface Props {
   memberId: string
@@ -41,9 +42,7 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
   const [originalSize, setOriginalSize] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const raw = e.target.files?.[0]
-    if (!raw) return
+  async function processFile(raw: File) {
     setError(null)
     setOriginalSize(raw.size)
 
@@ -65,11 +64,14 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
 
       // Compress images (not PDFs)
       if (processedFile.type !== 'application/pdf') {
-        processedFile = await imageCompression(processedFile, {
+        const name = processedFile.name
+        const compressed = await imageCompression(processedFile, {
           maxSizeMB: 2,
           maxWidthOrHeight: 2000,
           useWebWorker: true,
         })
+        // browser-image-compression drops the filename; restore it
+        processedFile = new File([compressed], name, { type: compressed.type })
       }
 
       setSelectedFile(processedFile)
@@ -80,6 +82,18 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
 
     // Reset input so the same file can be re-selected if cancelled
     if (inputRef.current) inputRef.current.value = ''
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.files?.[0]
+    if (!raw) return
+    await processFile(raw)
+  }
+
+  async function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
+    e.preventDefault()
+    const file = e.dataTransfer.files?.[0]
+    if (file) await processFile(file)
   }
 
   async function handleUpload() {
@@ -116,17 +130,17 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
   return (
     <div
       style={{
-        borderTop: '1px solid #e2e8f0',
-        paddingTop: '16px',
-        marginTop: '8px',
+        borderTop: `1px solid ${theme.colors.border.light}`,
+        paddingTop: theme.spacing.lg,
+        marginTop: theme.spacing.sm,
       }}
       data-testid="mandate-document-section"
     >
       <div
         style={{
           fontSize: '11px',
-          fontWeight: 600,
-          color: '#64748b',
+          fontWeight: theme.typography.fontWeight.semibold,
+          color: theme.colors.text.muted,
           letterSpacing: '0.05em',
           textTransform: 'uppercase',
           marginBottom: '10px',
@@ -138,11 +152,11 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
       {error && (
         <div
           style={{
-            color: '#dc2626',
-            fontSize: '12px',
-            marginBottom: '8px',
+            color: theme.colors.semantic.danger,
+            fontSize: theme.typography.fontSize.xs,
+            marginBottom: theme.spacing.sm,
             padding: '6px 10px',
-            background: '#fef2f2',
+            background: theme.badges.danger.bg,
             borderRadius: '4px',
           }}
           data-testid="mandate-document-error"
@@ -156,14 +170,16 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
         <label
           style={{
             display: 'block',
-            border: '2px dashed #cbd5e1',
-            borderRadius: '8px',
+            border: `2px dashed ${theme.colors.border.light}`,
+            borderRadius: theme.borderRadius.sm,
             padding: '20px',
             textAlign: 'center',
             cursor: 'pointer',
-            color: '#94a3b8',
+            color: theme.colors.text.secondary,
           }}
           data-testid="mandate-document-dropzone"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
         >
           <input
             ref={inputRef}
@@ -174,7 +190,7 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
             data-testid="mandate-document-input"
           />
           <div style={{ fontSize: '24px', marginBottom: '6px' }}>📎</div>
-          <div style={{ fontSize: '13px', fontWeight: 500, color: '#475569', marginBottom: '4px' }}>
+          <div style={{ fontSize: theme.typography.fontSize.sm, fontWeight: theme.typography.fontWeight.medium, color: theme.colors.text.primary, marginBottom: '4px' }}>
             {t('mandateDocument.dropzone')}
           </div>
           <div style={{ fontSize: '11px' }}>JPEG · PNG · HEIC · PDF</div>
@@ -185,10 +201,10 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
       {(state === 'selected' || state === 'uploading') && selectedFile && (
         <div
           style={{
-            border: '2px solid #3b82f6',
-            borderRadius: '8px',
-            padding: '12px',
-            background: '#eff6ff',
+            border: `2px solid ${theme.colors.semantic.primary}`,
+            borderRadius: theme.borderRadius.sm,
+            padding: theme.spacing.md,
+            background: theme.badges.info.bg,
           }}
           data-testid="mandate-document-preview"
         >
@@ -197,34 +213,34 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
               {selectedFile.type === 'application/pdf' ? '📄' : '🖼️'}
             </div>
             <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e40af' }}>
+              <div style={{ fontSize: theme.typography.fontSize.sm, fontWeight: theme.typography.fontWeight.semibold, color: theme.colors.text.primary }}>
                 {selectedFile.name}
               </div>
-              <div style={{ fontSize: '11px', color: '#64748b' }}>
+              <div style={{ fontSize: '11px', color: theme.colors.text.muted }}>
                 {formatBytes(originalSize)} → {formatBytes(selectedFile.size)}{' '}
                 {selectedFile.type !== 'application/pdf' && `(${t('mandateDocument.compressed')})`}
               </div>
               {selectedFile.type !== 'application/pdf' && (
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                <div style={{ fontSize: '11px', color: theme.colors.text.secondary }}>
                   {t('mandateDocument.willConvert')}
                 </div>
               )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: theme.spacing.sm }}>
             <button
               onClick={handleUpload}
               disabled={state === 'uploading'}
               style={{
                 flex: 1,
-                padding: '8px',
-                background: state === 'uploading' ? '#93c5fd' : '#3b82f6',
+                padding: theme.spacing.sm,
+                background: state === 'uploading' ? 'rgba(59, 130, 246, 0.5)' : theme.colors.semantic.primary,
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
                 cursor: state === 'uploading' ? 'wait' : 'pointer',
-                fontSize: '13px',
-                fontWeight: 500,
+                fontSize: theme.typography.fontSize.sm,
+                fontWeight: theme.typography.fontWeight.medium,
               }}
               data-testid="mandate-document-upload-btn"
             >
@@ -235,12 +251,12 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
                 onClick={handleCancel}
                 style={{
                   padding: '8px 12px',
-                  background: '#f1f5f9',
-                  color: '#64748b',
-                  border: 'none',
+                  background: theme.colors.bg.secondary,
+                  color: theme.colors.text.secondary,
+                  border: `1px solid ${theme.colors.border.light}`,
                   borderRadius: '6px',
                   cursor: 'pointer',
-                  fontSize: '13px',
+                  fontSize: theme.typography.fontSize.sm,
                 }}
                 data-testid="mandate-document-cancel-btn"
               >
@@ -255,39 +271,30 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
       {state === 'stored' && mandateDoc && (
         <div
           style={{
-            border: '1px solid #bbf7d0',
-            borderRadius: '8px',
-            padding: '12px',
-            background: '#f0fdf4',
+            border: `1px solid rgba(34, 197, 94, 0.3)`,
+            borderRadius: theme.borderRadius.sm,
+            padding: theme.spacing.md,
+            background: theme.badges.success.bg,
           }}
           data-testid="mandate-document-stored"
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <div style={{ fontSize: '28px' }}>📄</div>
-            <div>
-              <div
-                style={{ fontSize: '13px', fontWeight: 600, color: '#166534' }}
-                data-testid="mandate-document-filename"
-              >
-                {mandateDoc.original_filename}
-              </div>
-              <div style={{ fontSize: '11px', color: '#64748b' }}>
-                {formatBytes(mandateDoc.file_size_bytes)} · {t('mandateDocument.uploaded')}{' '}
-                {formatDate(mandateDoc.uploaded_at)}
-              </div>
-            </div>
+          <div style={{ fontSize: '11px', color: theme.colors.text.muted, marginBottom: '10px' }}
+            data-testid="mandate-document-filename"
+          >
+            {t('mandateDocument.uploaded')} {formatDate(mandateDoc.uploaded_at)}
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: theme.spacing.sm }}>
             <button
               onClick={() => openMandateDocument(memberId)}
               style={{
                 flex: 1,
-                padding: '8px',
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                padding: theme.spacing.sm,
+                background: theme.colors.bg.secondary,
+                color: theme.colors.text.primary,
+                border: `1px solid ${theme.colors.border.light}`,
                 borderRadius: '6px',
                 cursor: 'pointer',
-                fontSize: '13px',
+                fontSize: theme.typography.fontSize.sm,
               }}
               data-testid="mandate-document-view-btn"
             >
@@ -297,12 +304,12 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
               onClick={handleReplace}
               style={{
                 padding: '8px 12px',
-                background: '#fef2f2',
-                color: '#dc2626',
-                border: '1px solid #fecaca',
+                background: theme.badges.danger.bg,
+                color: theme.colors.semantic.danger,
+                border: `1px solid rgba(239, 68, 68, 0.3)`,
                 borderRadius: '6px',
                 cursor: 'pointer',
-                fontSize: '13px',
+                fontSize: theme.typography.fontSize.sm,
               }}
               data-testid="mandate-document-replace-btn"
             >
