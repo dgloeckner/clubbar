@@ -50,7 +50,7 @@ class MandateDocumentService
                 "Unsupported file type '{$mimeType}'. Allowed: JPEG, PNG, PDF."
             );
         }
-        if ($uploadedFile->getSize() > self::MAX_FILE_SIZE) {
+        if (($uploadedFile->getSize() ?? 0) > self::MAX_FILE_SIZE) {
             throw new \InvalidArgumentException('File exceeds the 10 MB size limit.');
         }
 
@@ -68,7 +68,9 @@ class MandateDocumentService
         }
 
         $absolutePath = $storageDir . '/' . $memberId . '.pdf';
-        file_put_contents($absolutePath, $content);
+        if (file_put_contents($absolutePath, $content) === false) {
+            throw new \RuntimeException('Failed to write mandate document to storage.');
+        }
 
         $originalFilename = $uploadedFile->getClientFilename() ?? 'mandate.pdf';
         $fileSizeBytes    = strlen($content);
