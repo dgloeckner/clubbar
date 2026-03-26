@@ -757,15 +757,13 @@ paths:
 
   /admin/members/{memberId}/mandate-document:
     parameters:
-      - name: memberId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
+      - $ref: '#/components/parameters/memberId'
     post:
       summary: Upload or replace mandate document
       tags: [Members]
+      operationId: uploadMandateDocument
+      security:
+        - sessionAuth: []
       requestBody:
         required: true
         content:
@@ -794,6 +792,9 @@ paths:
     get:
       summary: Stream the stored mandate PDF
       tags: [Members]
+      operationId: getMandateDocument
+      security:
+        - sessionAuth: []
       responses:
         '200':
           description: PDF file
@@ -809,6 +810,9 @@ paths:
     delete:
       summary: Delete mandate document (GDPR)
       tags: [Members]
+      operationId: deleteMandateDocument
+      security:
+        - sessionAuth: []
       responses:
         '204':
           description: Deleted
