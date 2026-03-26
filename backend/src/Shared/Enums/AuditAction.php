@@ -22,4 +22,6 @@ enum AuditAction: string
     case SETTLEMENT_EXPORT = 'settlement_export';
     case TOTP_ENROLLED = 'totp_enrolled';
     case TOTP_RESET = 'totp_reset';
+    case MANDATE_DOCUMENT_UPLOAD = 'mandate_document_upload';
+    case MANDATE_DOCUMENT_DELETE = 'mandate_document_delete';
 }
