@@ -8,6 +8,7 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Shared\Validation\Validator;
 use App\Modules\Settlements\Services\SepaConfigService;
+use App\Modules\Members\Services\MandateDocumentService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -17,6 +18,7 @@ class AdminController
         private MembersService $membersService,
         private Validator $validator,
         private SepaConfigService $sepaConfigService,
+        private MandateDocumentService $mandateDocumentService,
     ) {}
 
     public function index(Request $request, Response $response): Response
@@ -143,9 +145,13 @@ class AdminController
     public function show(Request $request, Response $response, array $args): Response
     {
         $memberId = $args['memberId'];
-        $member = $this->membersService->getMember($memberId);
+        $member   = $this->membersService->getMember($memberId);
+        $doc      = $this->mandateDocumentService->findByMemberId($memberId);
 
-        return $this->json($response, $member->toArray());
+        $data                     = $member->toArray();
+        $data['mandate_document'] = $doc?->toArray();
+
+        return $this->json($response, $data);
     }
 
     public function update(Request $request, Response $response, array $args): Response
@@ -207,7 +213,10 @@ class AdminController
     public function anonymize(Request $request, Response $response, array $args): Response
     {
         $memberId = $args['memberId'];
-        $adminId = $request->getAttribute('admin_user_id');
+        $adminId  = $request->getAttribute('admin_user_id');
+
+        // GDPR: delete mandate document before anonymizing member record
+        $this->mandateDocumentService->deleteForMember($memberId, $adminId);
 
         $member = $this->membersService->anonymizeMember($memberId, $adminId);
 
