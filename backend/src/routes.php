@@ -76,6 +76,7 @@ return function (App $app): void {
         $group->delete('/members/{memberId}', [MembersAdminController::class, 'destroy']);
         $group->post('/members/{memberId}/export', [MembersAdminController::class, 'export']);
         $group->post('/members/{memberId}/anonymize', [MembersAdminController::class, 'anonymize']);
+        $group->get('/sepa-mandate-template', [MembersAdminController::class, 'downloadMandateTemplate']);
 
         // Categories
         $group->get('/categories', [ProductsAdminController::class, 'listCategories']);

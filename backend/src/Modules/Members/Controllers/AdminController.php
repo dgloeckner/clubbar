@@ -7,6 +7,7 @@ namespace App\Modules\Members\Controllers;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Shared\Validation\Validator;
+use App\Modules\Settlements\Services\SepaConfigService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -15,6 +16,7 @@ class AdminController
     public function __construct(
         private MembersService $membersService,
         private Validator $validator,
+        private SepaConfigService $sepaConfigService,
     ) {}
 
     public function index(Request $request, Response $response): Response
@@ -210,6 +212,15 @@ class AdminController
         $member = $this->membersService->anonymizeMember($memberId, $adminId);
 
         return $this->json($response, $member->toArray());
+    }
+
+    public function downloadMandateTemplate(Request $request, Response $response): Response
+    {
+        $pdf = $this->sepaConfigService->generateMandateTemplatePdf();
+        $response->getBody()->write($pdf);
+        return $response
+            ->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition', 'attachment; filename="sepa-mandate-template.pdf"');
     }
 
     private function json(Response $response, mixed $data, int $status = 200): Response
