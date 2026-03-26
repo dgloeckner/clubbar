@@ -221,6 +221,26 @@ All extracted fields are editable in place. The confidence badge is display-only
 
 ---
 
+## Internationalisation
+
+All new UI strings go through `i18next` (de/en locale files at `admin-frontend/public/locales/`). New keys to add to both `de.json` and `en.json`:
+
+| Key (under `members` namespace) | EN | DE |
+|---|---|---|
+| `newFromScan` | `New from scan` | `Neu aus Scan` |
+| `extracting` | `Uploading & extracting…` | `Hochladen & Extrahieren…` |
+| `extractionComplete` | `Extraction complete` | `Extraktion abgeschlossen` |
+| `extractionFailed` | `Extraction failed — check LLM config` | `Extraktion fehlgeschlagen — LLM-Konfiguration prüfen` |
+| `extractedValue` | `Extracted from scan` | `Aus Scan extrahiert` |
+| `discardExtracted` | `Discard extracted values` | `Extrahierte Werte verwerfen` |
+| `notFoundInScan` | `Not found in scan` | `Nicht im Scan gefunden` |
+| `extractionReviewHint` | `Fields pre-filled from scan. Review before saving.` | `Felder aus Scan vorausgefüllt. Bitte vor dem Speichern prüfen.` |
+| `confidenceHigh` | `High` | `Hoch` |
+| `confidenceMedium` | `Medium` | `Mittel` |
+| `confidenceLow` | `Low` | `Niedrig` |
+
+---
+
 ## Testing
 
 ### PHPUnit unit tests
