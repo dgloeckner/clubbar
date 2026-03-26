@@ -1,0 +1,114 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Members\Controllers;
+
+use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Members\Services\MandateDocumentService;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+
+class MandateDocumentController
+{
+    public function __construct(
+        private MandateDocumentService $mandateDocumentService,
+        private MembersRepository $membersRepository,
+    ) {}
+
+    /**
+     * POST /admin/members/{memberId}/mandate-document
+     * Upload or replace a mandate document. Returns 200 on success (upsert).
+     */
+    public function upload(Request $request, Response $response, array $args): Response
+    {
+        $memberId = $args['memberId'];
+        $adminId  = $request->getAttribute('admin_user_id');
+
+        if ($adminId === null) {
+            return $this->json($response, ['error' => 'unauthorized', 'message' => 'Not authenticated'], 401);
+        }
+
+        if (!$this->membersRepository->exists($memberId)) {
+            return $this->json($response, ['error' => 'not_found', 'message' => 'Member not found'], 404);
+        }
+
+        $files = $request->getUploadedFiles();
+        if (empty($files['file'])) {
+            return $this->json($response, [
+                'error'    => 'validation_error',
+                'messages' => ['file' => ['A file is required']],
+            ], 422);
+        }
+
+        $uploadedFile = $files['file'];
+        if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
+            return $this->json($response, [
+                'error'    => 'validation_error',
+                'messages' => ['file' => ['File upload failed (error code: ' . $uploadedFile->getError() . ')']],
+            ], 422);
+        }
+
+        try {
+            $doc = $this->mandateDocumentService->upload($memberId, $uploadedFile, $adminId);
+        } catch (\InvalidArgumentException $e) {
+            return $this->json($response, [
+                'error'    => 'validation_error',
+                'messages' => ['file' => [$e->getMessage()]],
+            ], 422);
+        }
+
+        return $this->json($response, $doc->toArray());
+    }
+
+    /**
+     * GET /admin/members/{memberId}/mandate-document
+     * Stream the stored PDF inline.
+     * Returns 404 for both "member not found" and "member has no document" —
+     * a single neutral message to avoid leaking member existence.
+     */
+    public function download(Request $request, Response $response, array $args): Response
+    {
+        $memberId = $args['memberId'];
+
+        $filePath = $this->mandateDocumentService->getAbsoluteFilePath($memberId);
+        if ($filePath === null) {
+            return $this->json($response, ['error' => 'not_found', 'message' => 'No mandate document found'], 404);
+        }
+
+        $response->getBody()->write((string) file_get_contents($filePath));
+        return $response
+            ->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition', 'inline; filename="mandate.pdf"')
+            ->withHeader('Content-Length', (string) filesize($filePath));
+    }
+
+    /**
+     * DELETE /admin/members/{memberId}/mandate-document
+     * Delete document file and DB record (GDPR / manual removal).
+     */
+    public function delete(Request $request, Response $response, array $args): Response
+    {
+        $memberId = $args['memberId'];
+        $adminId  = $request->getAttribute('admin_user_id');
+
+        if (!$this->membersRepository->exists($memberId)) {
+            return $this->json($response, ['error' => 'not_found', 'message' => 'Member not found'], 404);
+        }
+
+        $doc = $this->mandateDocumentService->findByMemberId($memberId);
+        if ($doc === null) {
+            return $this->json($response, ['error' => 'not_found', 'message' => 'No mandate document for this member'], 404);
+        }
+
+        $this->mandateDocumentService->deleteForMember($memberId, $adminId);
+
+        return $response->withStatus(204);
+    }
+
+    private function json(Response $response, mixed $data, int $status = 200): Response
+    {
+        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+    }
+}
