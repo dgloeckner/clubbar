@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Members\DTOs;
 
+use App\Shared\Utils\DateFormatter;
+
 final readonly class MandateDocumentDto
 {
     public function __construct(
@@ -16,7 +18,7 @@ final readonly class MandateDocumentDto
     public static function fromRow(array $row): self
     {
         return new self(
-            uploadedAt: \App\Shared\Utils\DateFormatter::toUtcIso($row['updated_at']),
+            uploadedAt: DateFormatter::toUtcIso($row['updated_at']),
             fileSizeBytes: (int) $row['file_size_bytes'],
             originalFilename: $row['original_filename'],
             extractionStatus: $row['extraction_status'] ?? null,

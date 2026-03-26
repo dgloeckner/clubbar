@@ -26,46 +26,35 @@ class MandateDocumentRepository
 
     /**
      * Insert on first upload, update on replacement.
+     * Uses INSERT ... ON DUPLICATE KEY UPDATE for atomic race-condition-safe operation.
      */
     public function upsert(array $data): array
     {
-        $existing = $this->findByMemberId($data['member_id']);
+        $id = $this->generateUuid();
 
-        if ($existing !== null) {
-            $stmt = $this->db->prepare(
-                'UPDATE mandate_documents
-                 SET file_path             = :file_path,
-                     original_filename     = :original_filename,
-                     file_size_bytes       = :file_size_bytes,
-                     uploaded_by_admin_id  = :uploaded_by_admin_id,
-                     extraction_status     = NULL,
-                     extracted_data        = NULL
-                 WHERE member_id = :member_id'
-            );
-            $stmt->execute([
-                'file_path'            => $data['file_path'],
-                'original_filename'    => $data['original_filename'],
-                'file_size_bytes'      => $data['file_size_bytes'],
-                'uploaded_by_admin_id' => $data['uploaded_by_admin_id'],
-                'member_id'            => $data['member_id'],
-            ]);
-        } else {
-            $id = $this->generateUuid();
-            $stmt = $this->db->prepare(
-                'INSERT INTO mandate_documents
-                     (id, member_id, file_path, original_filename, file_size_bytes, uploaded_by_admin_id)
-                 VALUES
-                     (:id, :member_id, :file_path, :original_filename, :file_size_bytes, :uploaded_by_admin_id)'
-            );
-            $stmt->execute([
-                'id'                   => $id,
-                'member_id'            => $data['member_id'],
-                'file_path'            => $data['file_path'],
-                'original_filename'    => $data['original_filename'],
-                'file_size_bytes'      => $data['file_size_bytes'],
-                'uploaded_by_admin_id' => $data['uploaded_by_admin_id'],
-            ]);
-        }
+        $stmt = $this->db->prepare(
+            'INSERT INTO mandate_documents
+                 (id, member_id, file_path, original_filename, file_size_bytes, uploaded_by_admin_id)
+             VALUES
+                 (:id, :member_id, :file_path, :original_filename, :file_size_bytes, :uploaded_by_admin_id)
+             ON DUPLICATE KEY UPDATE
+                 file_path             = VALUES(file_path),
+                 original_filename     = VALUES(original_filename),
+                 file_size_bytes       = VALUES(file_size_bytes),
+                 uploaded_by_admin_id  = VALUES(uploaded_by_admin_id),
+                 extraction_status     = NULL,
+                 extracted_data        = NULL'
+        );
+        $stmt->execute([
+            'id'                   => $id,
+            'member_id'            => $data['member_id'],
+            'file_path'            => $data['file_path'],
+            'original_filename'    => $data['original_filename'],
+            'file_size_bytes'      => $data['file_size_bytes'],
+            'uploaded_by_admin_id' => $data['uploaded_by_admin_id'],
+        ]);
+
+        $this->logger->info('Mandate document upserted', ['member_id' => $data['member_id']]);
 
         return (array) $this->findByMemberId($data['member_id']);
     }
@@ -76,7 +65,11 @@ class MandateDocumentRepository
             'DELETE FROM mandate_documents WHERE member_id = :member_id'
         );
         $stmt->execute(['member_id' => $memberId]);
-        return $stmt->rowCount() > 0;
+        $deleted = $stmt->rowCount() > 0;
+        if ($deleted) {
+            $this->logger->info('Mandate document deleted', ['member_id' => $memberId]);
+        }
+        return $deleted;
     }
 
     private function generateUuid(): string
