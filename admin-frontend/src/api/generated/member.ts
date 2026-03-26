@@ -46,6 +46,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
+import type { MandateDocumentInfo } from '../mandateDocument';
+
 export interface Member {
   id?: string;
   /**
@@ -89,4 +91,6 @@ export interface Member {
   deleted_at?: string | null;
   created_at?: string;
   updated_at?: string;
+  /** @nullable */
+  mandate_document?: MandateDocumentInfo | null;
 }
