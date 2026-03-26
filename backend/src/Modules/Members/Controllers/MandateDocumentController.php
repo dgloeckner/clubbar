@@ -25,10 +25,6 @@ class MandateDocumentController
         $memberId = $args['memberId'];
         $adminId  = $request->getAttribute('admin_user_id');
 
-        if ($adminId === null) {
-            return $this->json($response, ['error' => 'unauthorized', 'message' => 'Not authenticated'], 401);
-        }
-
         if (!$this->membersRepository->exists($memberId)) {
             return $this->json($response, ['error' => 'not_found', 'message' => 'Member not found'], 404);
         }
