@@ -36,7 +36,7 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
   const [state, setState] = useState<ComponentState>(
     initialDocument ? 'stored' : 'idle'
   )
-  const [document, setDocument] = useState<MandateDocumentInfo | null>(initialDocument)
+  const [mandateDoc, setMandateDoc] = useState<MandateDocumentInfo | null>(initialDocument)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [originalSize, setOriginalSize] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
@@ -89,7 +89,7 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
 
     try {
       const doc = await uploadMandateDocument(memberId, selectedFile)
-      setDocument(doc)
+      setMandateDoc(doc)
       setSelectedFile(null)
       setState('stored')
     } catch (err: unknown) {
@@ -104,12 +104,13 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
   function handleCancel() {
     setSelectedFile(null)
     setError(null)
-    setState(document ? 'stored' : 'idle')
+    setState(mandateDoc ? 'stored' : 'idle')
   }
 
   function handleReplace() {
     setState('idle')
     setSelectedFile(null)
+    setError(null)
   }
 
   return (
@@ -251,7 +252,7 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
       )}
 
       {/* ── Stored: document info ── */}
-      {state === 'stored' && document && (
+      {state === 'stored' && mandateDoc && (
         <div
           style={{
             border: '1px solid #bbf7d0',
@@ -268,11 +269,11 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
                 style={{ fontSize: '13px', fontWeight: 600, color: '#166534' }}
                 data-testid="mandate-document-filename"
               >
-                {document.original_filename}
+                {mandateDoc.original_filename}
               </div>
               <div style={{ fontSize: '11px', color: '#64748b' }}>
-                {formatBytes(document.file_size_bytes)} · {t('mandateDocument.uploaded')}{' '}
-                {formatDate(document.uploaded_at)}
+                {formatBytes(mandateDoc.file_size_bytes)} · {t('mandateDocument.uploaded')}{' '}
+                {formatDate(mandateDoc.uploaded_at)}
               </div>
             </div>
           </div>
