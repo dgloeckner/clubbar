@@ -650,4 +650,11 @@ export class MembersPage extends BasePage {
       this.page.locator('[data-testid^="members-table-cell-name-"]').filter({ hasText: firstName })
     ).not.toBeVisible()
   }
+
+  private readonly sepaTemplateDownloadButton = () =>
+    this.page.getByTestId('members-sepa-template-download-button')
+
+  async clickSepaTemplateDownloadButton(): Promise<void> {
+    await this.sepaTemplateDownloadButton().click()
+  }
 }
