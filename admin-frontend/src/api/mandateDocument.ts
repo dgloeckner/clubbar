@@ -1,11 +1,8 @@
 import { adminAxios } from './client'
+import type { MandateDocument } from './generated/mandateDocument'
 
-export interface MandateDocumentInfo {
-  uploaded_at: string
-  file_size_bytes: number
-  original_filename: string
-  extraction_status: string | null
-}
+// Re-export generated type under the name used by components and tests.
+export type MandateDocumentInfo = MandateDocument
 
 /**
  * Upload or replace a mandate document for a member.

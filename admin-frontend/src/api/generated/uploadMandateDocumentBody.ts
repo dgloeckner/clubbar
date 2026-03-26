@@ -46,32 +46,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export interface MemberUpdateRequest {
-  /** @maxLength 100 */
-  first_name?: string;
-  /** @maxLength 100 */
-  last_name?: string;
-  /** @nullable */
-  email?: string | null;
-  preferred_language?: string;
-  /**
-   * @minLength 15
-   * @maxLength 34
-   */
-  iban?: string;
-  /**
-   * @maxLength 70
-   * @nullable
-   */
-  account_holder_name?: string | null;
-  /** @maxLength 35 */
-  mandate_reference?: string;
-  mandate_signed_at?: string;
-  is_active?: boolean;
-  /**
-   * RFID card UID (null to remove)
-   * @nullable
-   * @pattern ^[0-9A-F]{8,20}$
-   */
-  card_uid?: string | null;
-}
+export type UploadMandateDocumentBody = {
+  /** JPEG, PNG, or PDF (max 10 MB; HEIC converted to JPEG client-side) */
+  file: Blob;
+};

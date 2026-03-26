@@ -1550,9 +1550,9 @@ export function MembersPage() {
               </div>
             </form>
 
-            {editingMember && (
+            {editingMember && editingMember.id && (
               <MandateDocumentSection
-                memberId={editingMember.id!}
+                memberId={editingMember.id}
                 initialDocument={editingMember.mandate_document ?? null}
               />
             )}

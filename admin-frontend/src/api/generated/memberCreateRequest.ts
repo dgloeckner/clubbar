@@ -72,6 +72,9 @@ export interface MemberCreateRequest {
    * @maxLength 35
    */
   mandate_reference?: string;
-  /** Optional RFID card UID */
+  /**
+   * Optional RFID card UID
+   * @pattern ^[0-9A-F]{8,20}$
+   */
   card_uid?: string;
 }
