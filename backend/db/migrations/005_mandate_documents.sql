@@ -2,6 +2,14 @@
 -- One scanned SEPA mandate PDF per member.
 -- extraction_status/extracted_data are placeholders for future LLM extraction.
 
+-- Extend audit_log action enum with mandate document actions
+ALTER TABLE audit_log MODIFY COLUMN action ENUM(
+    'create','update','delete','anonymize','login','logout','login_failed',
+    'export','settlement_create','settlement_cancel','settlement_export',
+    'activate','deactivate','reorder','totp_enrolled','totp_reset',
+    'mandate_document_upload','mandate_document_delete'
+) NOT NULL;
+
 CREATE TABLE mandate_documents (
     id               CHAR(36)            NOT NULL,
     member_id        CHAR(36)            NOT NULL,
