@@ -67,7 +67,7 @@ class MandateDocumentController
      * Returns 404 for both "member not found" and "member has no document" —
      * a single neutral message to avoid leaking member existence.
      */
-    public function download(Request $_request, Response $response, array $args): Response
+    public function download(Request $request, Response $response, array $args): Response
     {
         $memberId = $args['memberId'];
 
