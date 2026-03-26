@@ -551,5 +551,18 @@
   "confirmDialog": {
     "title": "Confirmation",
     "areYouSure": "Are you sure?"
+  },
+  "mandateDocument": {
+    "title": "SEPA Mandate Document",
+    "dropzone": "Drop file here or click to browse",
+    "compressed": "compressed",
+    "willConvert": "Will be converted to PDF",
+    "upload": "Upload",
+    "uploading": "Uploading…",
+    "view": "View",
+    "replace": "Replace",
+    "uploaded": "Uploaded",
+    "processingError": "Could not process file.",
+    "uploadError": "Upload failed."
   }
 }

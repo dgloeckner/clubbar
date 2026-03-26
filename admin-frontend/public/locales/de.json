@@ -551,5 +551,18 @@
   "confirmDialog": {
     "title": "Bestätigung",
     "areYouSure": "Sind Sie sicher?"
+  },
+  "mandateDocument": {
+    "title": "SEPA-Mandat Dokument",
+    "dropzone": "Datei hier ablegen oder klicken",
+    "compressed": "komprimiert",
+    "willConvert": "Wird zu PDF konvertiert",
+    "upload": "Hochladen",
+    "uploading": "Wird hochgeladen…",
+    "view": "Ansehen",
+    "replace": "Ersetzen",
+    "uploaded": "Hochgeladen",
+    "processingError": "Datei konnte nicht verarbeitet werden.",
+    "uploadError": "Upload fehlgeschlagen."
   }
 }
