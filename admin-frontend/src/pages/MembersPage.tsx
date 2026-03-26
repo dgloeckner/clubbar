@@ -26,6 +26,7 @@ import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { validateIban } from '../utils/iban'
 import { ValidationIndicator } from '../components/forms/ValidationIndicator'
 import { downloadFile } from '../api/client'
+import { MandateDocumentSection } from '../components/MandateDocumentSection'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -1548,6 +1549,13 @@ export function MembersPage() {
                 </div>
               </div>
             </form>
+
+            {editingMember && editingMember.id && (
+              <MandateDocumentSection
+                memberId={editingMember.id}
+                initialDocument={editingMember.mandate_document ?? null}
+              />
+            )}
           </div>
         </div>
       )}

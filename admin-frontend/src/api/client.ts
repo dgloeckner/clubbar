@@ -130,3 +130,6 @@ export async function downloadFile(url: string, fallbackFilename: string): Promi
 }
 
 export default axiosInstance
+
+// Named export for file upload and streaming API calls
+export { axiosInstance as adminAxios }

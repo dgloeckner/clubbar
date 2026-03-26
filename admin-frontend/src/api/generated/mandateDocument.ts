@@ -45,33 +45,18 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { MandateDocumentExtractionStatus } from './mandateDocumentExtractionStatus';
 
-export interface MemberUpdateRequest {
-  /** @maxLength 100 */
-  first_name?: string;
-  /** @maxLength 100 */
-  last_name?: string;
-  /** @nullable */
-  email?: string | null;
-  preferred_language?: string;
+export interface MandateDocument {
+  /** When the document was last uploaded or replaced */
+  uploaded_at: string;
+  /** Size of the stored PDF in bytes */
+  file_size_bytes: number;
+  /** Original filename as provided by the client */
+  original_filename: string;
   /**
-   * @minLength 15
-   * @maxLength 34
-   */
-  iban?: string;
-  /**
-   * @maxLength 70
+   * LLM extraction status; null if extraction has never been attempted
    * @nullable
    */
-  account_holder_name?: string | null;
-  /** @maxLength 35 */
-  mandate_reference?: string;
-  mandate_signed_at?: string;
-  is_active?: boolean;
-  /**
-   * RFID card UID (null to remove)
-   * @nullable
-   * @pattern ^[0-9A-F]{8,20}$
-   */
-  card_uid?: string | null;
+  extraction_status?: MandateDocumentExtractionStatus;
 }

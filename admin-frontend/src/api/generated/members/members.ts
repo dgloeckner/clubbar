@@ -55,10 +55,12 @@ import type {
   ImportMembersPreviewBody,
   ListMembers200,
   ListMembersParams,
+  MandateDocument,
   Member,
   MemberCreateRequest,
   MemberImportPreview,
-  MemberUpdateRequest
+  MemberUpdateRequest,
+  UploadMandateDocumentBody
 } from './..';
 
 import { customInstance } from '../../client';
@@ -243,7 +245,57 @@ const importMembersConfirm = (
     },
       options);
     }
-  return {listMembers,createMember,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm}};
+  /**
+ * @summary Upload or replace mandate document
+ */
+const uploadMandateDocument = (
+    memberId: string,
+    uploadMandateDocumentBody: UploadMandateDocumentBody,
+ options?: SecondParameter<typeof customInstance<MandateDocument>>,) => {const formData = new FormData();
+formData.append(`file`, uploadMandateDocumentBody.file);
+
+      return customInstance<MandateDocument>(
+      {url: `/admin/members/${memberId}/mandate-document`, method: 'POST',
+       data: formData
+    },
+      options);
+    }
+  /**
+ * @summary Stream the stored mandate PDF
+ */
+const getMandateDocument = (
+    memberId: string,
+ options?: SecondParameter<typeof customInstance<Blob>>,) => {
+      return customInstance<Blob>(
+      {url: `/admin/members/${memberId}/mandate-document`, method: 'GET',
+        responseType: 'blob'
+    },
+      options);
+    }
+  /**
+ * @summary Delete mandate document (GDPR)
+ */
+const deleteMandateDocument = (
+    memberId: string,
+ options?: SecondParameter<typeof customInstance<void>>,) => {
+      return customInstance<void>(
+      {url: `/admin/members/${memberId}/mandate-document`, method: 'DELETE'
+    },
+      options);
+    }
+  /**
+ * @summary Download SEPA mandate template PDF
+ */
+const getAdminSepaMandateTemplate = (
+    
+ options?: SecondParameter<typeof customInstance<Blob>>,) => {
+      return customInstance<Blob>(
+      {url: `/admin/sepa-mandate-template`, method: 'GET',
+        responseType: 'blob'
+    },
+      options);
+    }
+  return {listMembers,createMember,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm,uploadMandateDocument,getMandateDocument,deleteMandateDocument,getAdminSepaMandateTemplate}};
 export type ListMembersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listMembers']>>>
 export type CreateMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['createMember']>>>
 export type GetMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['getMember']>>>
@@ -252,3 +304,7 @@ export type ExportMemberDataResult = NonNullable<Awaited<ReturnType<ReturnType<t
 export type AnonymizeMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['anonymizeMember']>>>
 export type ImportMembersPreviewResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['importMembersPreview']>>>
 export type ImportMembersConfirmResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['importMembersConfirm']>>>
+export type UploadMandateDocumentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['uploadMandateDocument']>>>
+export type GetMandateDocumentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['getMandateDocument']>>>
+export type DeleteMandateDocumentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['deleteMandateDocument']>>>
+export type GetAdminSepaMandateTemplateResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['getAdminSepaMandateTemplate']>>>

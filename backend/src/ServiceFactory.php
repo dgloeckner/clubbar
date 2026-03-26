@@ -13,6 +13,7 @@ use App\Shared\Validation\Validator;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Products\Repositories\CategoriesRepository;
+use App\Modules\Members\Repositories\MandateDocumentRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
@@ -29,6 +30,7 @@ use App\Modules\Auth\Services\TokenService;
 use App\Modules\Auth\Services\TotpService;
 use App\Modules\Products\Services\CategoriesService;
 use App\Shared\Services\HealthCheckService;
+use App\Modules\Members\Services\MandateDocumentService;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
@@ -44,6 +46,7 @@ use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminController;
 use App\Shared\Controllers\HealthController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
+use App\Modules\Members\Controllers\MandateDocumentController;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
 use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
@@ -85,6 +88,7 @@ class ServiceFactory implements ContainerInterface
 
         // Members
         MembersAdminController::class => 'getMembersAdminController',
+        MandateDocumentController::class => 'getMandateDocumentController',
         MembersSyncController::class => 'getMembersSyncController',
 
         // Products
@@ -176,6 +180,11 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(MembersRepository::class, fn() => new MembersRepository($this->pdo, $this->logger));
     }
 
+    public function getMandateDocumentRepository(): MandateDocumentRepository
+    {
+        return $this->resolve(MandateDocumentRepository::class, fn() => new MandateDocumentRepository($this->pdo, $this->logger));
+    }
+
     public function getProductsRepository(): ProductsRepository
     {
         return $this->resolve(ProductsRepository::class, fn() => new ProductsRepository($this->pdo, $this->logger));
@@ -236,6 +245,14 @@ class ServiceFactory implements ContainerInterface
     public function getMembersService(): MembersService
     {
         return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService(), $this->getAuditLogRepository()));
+    }
+
+    public function getMandateDocumentService(): MandateDocumentService
+    {
+        return $this->resolve(MandateDocumentService::class, fn() => new MandateDocumentService(
+            $this->getMandateDocumentRepository(),
+            $this->getAuditService(),
+        ));
     }
 
     public function getProductsService(): ProductsService
@@ -364,7 +381,20 @@ class ServiceFactory implements ContainerInterface
 
     public function getMembersAdminController(): MembersAdminController
     {
-        return $this->resolve(MembersAdminController::class, fn() => new MembersAdminController($this->getMembersService(), $this->getValidator(), $this->getSepaConfigService()));
+        return $this->resolve(MembersAdminController::class, fn() => new MembersAdminController(
+            $this->getMembersService(),
+            $this->getValidator(),
+            $this->getSepaConfigService(),
+            $this->getMandateDocumentService(),
+        ));
+    }
+
+    public function getMandateDocumentController(): MandateDocumentController
+    {
+        return $this->resolve(MandateDocumentController::class, fn() => new MandateDocumentController(
+            $this->getMandateDocumentService(),
+            $this->getMembersRepository(),
+        ));
     }
 
     public function getProductsAdminController(): ProductsAdminController

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Shared\Controllers\HealthController;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
+use App\Modules\Members\Controllers\MandateDocumentController;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
 use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
@@ -77,6 +78,11 @@ return function (App $app): void {
         $group->post('/members/{memberId}/export', [MembersAdminController::class, 'export']);
         $group->post('/members/{memberId}/anonymize', [MembersAdminController::class, 'anonymize']);
         $group->get('/sepa-mandate-template', [MembersAdminController::class, 'downloadMandateTemplate']);
+
+        // Mandate documents
+        $group->post('/members/{memberId}/mandate-document', [MandateDocumentController::class, 'upload']);
+        $group->get('/members/{memberId}/mandate-document', [MandateDocumentController::class, 'download']);
+        $group->delete('/members/{memberId}/mandate-document', [MandateDocumentController::class, 'delete']);
 
         // Categories
         $group->get('/categories', [ProductsAdminController::class, 'listCategories']);
