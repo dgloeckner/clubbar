@@ -25,6 +25,7 @@ import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { validateIban } from '../utils/iban'
 import { ValidationIndicator } from '../components/forms/ValidationIndicator'
+import { downloadFile } from '../api/client'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -403,6 +404,14 @@ export function MembersPage() {
     }
   }
 
+  const handleDownloadSepaTemplate = async () => {
+    try {
+      await downloadFile('/admin/sepa-mandate-template', 'sepa-mandate-template.pdf')
+    } catch {
+      setError(t('members.sepaTemplateError', 'SEPA configuration is incomplete. Please configure creditor details in Settings first.'))
+    }
+  }
+
   // Grid columns based on breakpoint
   const gridColumns =
     breakpoint === 'desktop' || breakpoint === 'tablet'
@@ -451,32 +460,55 @@ export function MembersPage() {
             {totalMembers} {t('members.title')} {t('common.found')}
           </p>
         </div>
-        <button
-          data-testid="members-create-button"
-          onClick={() => {
-            setEditingMember(null)
-            setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
-            setFormErrors({})
-            setShowModal(true)
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '7px',
-            padding: '10px 20px',
-            borderRadius: '8px',
-            border: 'none',
-            background: '#3b82f6',
-            color: '#fff',
-            fontSize: '14px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            transition: 'background 0.15s',
-          }}
-        >
-          <PlusIcon size={18} />
-          {t('common.add')}
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            data-testid="members-sepa-template-download-button"
+            onClick={handleDownloadSepaTemplate}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'transparent',
+              color: '#fff',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background 0.15s',
+            }}
+          >
+            <DownloadIcon size={18} />
+            {t('members.downloadSepaTemplate', 'SEPA Template')}
+          </button>
+          <button
+            data-testid="members-create-button"
+            onClick={() => {
+              setEditingMember(null)
+              setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
+              setFormErrors({})
+              setShowModal(true)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: 'none',
+              background: '#3b82f6',
+              color: '#fff',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background 0.15s',
+            }}
+          >
+            <PlusIcon size={18} />
+            {t('common.add')}
+          </button>
+        </div>
       </div>
 
       {isMobile ? (
