@@ -43,21 +43,22 @@ class ExtractionService
         $rawJson = $this->client->extractFromImage($base64, $processedMime, $prompt);
         $result  = $this->parseResponse($rawJson);
 
-        // Refine IBAN when confidence is low and the value is a plausible German IBAN.
-        // Clear format-invalid first-pass readings (e.g. letters embedded by the model)
-        // rather than passing garbled strings into the refinement pipeline.
-        $fields = $result->fields;
+        // Refine IBAN when confidence is low.
+        // Garbled first-pass readings (letters embedded mid-string) are treated as
+        // null — they cannot be passed as "previous reading" to the refinement prompt —
+        // but we still attempt a fresh focused re-read rather than giving up entirely.
+        $fields    = $result->fields;
         $ibanValue = $fields['iban']['value'] ?? null;
-        if (($fields['iban']['confidence'] ?? null) === 'low' && $ibanValue !== null) {
-            if (!preg_match('/^DE\d{20}$/', $ibanValue)) {
-                // Garbled reading — reset to null rather than surfacing invalid data
-                $fields['iban'] = ['value' => null, 'confidence' => null];
-                $result = new ExtractionResult($fields);
-            } else {
-                [$refinedValue, $refinedConf] = $this->refineIban($base64, $processedMime, $ibanValue);
-                $fields['iban'] = ['value' => $refinedValue, 'confidence' => $refinedConf];
-                $result = new ExtractionResult($fields);
-            }
+        $ibanConf  = $fields['iban']['confidence'] ?? null;
+
+        if ($ibanConf === 'low' && $ibanValue !== null) {
+            $isPlausible = (bool) preg_match('/^DE\d{20}$/', $ibanValue);
+            // Garbled reading: treat as if the first pass returned nothing, then do a
+            // focused fresh re-read (refineIban with null skips the "previous reading" hint)
+            $prevForRefinement = $isPlausible ? $ibanValue : null;
+            [$refinedValue, $refinedConf] = $this->refineIban($base64, $processedMime, $prevForRefinement);
+            $fields['iban'] = ['value' => $refinedValue, 'confidence' => $refinedConf];
+            $result = new ExtractionResult($fields);
         }
 
         return $result;
@@ -82,21 +83,28 @@ class ExtractionService
      *                      If the chosen value passes mod-97 → medium, else low.
      *   - >5 candidates → too ambiguous, stay low.
      *
-     * Silently falls back to ['prevIban', 'low'] on any error.
+     * Silently falls back to [prevIban|null, 'low'] on any error.
      *
-     * @return array{0: string, 1: string}
+     * @param  string|null $prevIban  The first-pass reading, or null when the first
+     *                                pass returned a garbled/format-invalid string.
+     *                                When null, stages 1 and 2 use a fresh prompt
+     *                                without a "previous reading" hint.
+     * @return array{0: string|null, 1: string}
      */
-    private function refineIban(string $base64, string $mimeType, string $prevIban): array
+    private function refineIban(string $base64, string $mimeType, ?string $prevIban): array
     {
         // Stage 1: first-pass value is already mathematically valid
-        if ($this->verifyIbanMod97($prevIban)) {
+        if ($prevIban !== null && $this->verifyIbanMod97($prevIban)) {
             return [$prevIban, 'medium'];
         }
 
-        // Stage 2: second visual pass with checksum-failure hint
+        // Stage 2: second visual pass — with checksum-failure hint if we have a
+        // previous reading, or a fresh focused read if the first pass was garbled
         $stage2Iban = $prevIban;
         try {
-            $prompt  = $this->buildIbanRefinementPrompt($prevIban);
+            $prompt  = $prevIban !== null
+                ? $this->buildIbanRefinementPrompt($prevIban)
+                : $this->buildIbanFreshReadPrompt();
             $rawJson = $this->client->extractFromImage($base64, $mimeType, $prompt);
             $newIban = $this->parseIbanReading($rawJson);
 
@@ -133,6 +141,26 @@ class ExtractionService
         }
 
         return [$stage2Iban, 'low'];
+    }
+
+    /**
+     * Build a focused IBAN-only prompt for when the first-pass reading was garbled.
+     * No "previous reading" hint is given to avoid anchoring the model on bad data.
+     */
+    private function buildIbanFreshReadPrompt(): string
+    {
+        return <<<'PROMPT'
+Look at the handwritten IBAN field in this SEPA mandate form image.
+
+Read only the member's own bank account IBAN (the handwritten field, NOT the pre-printed
+Creditor Identifier / Gläubiger-Identifikationsnummer which contains letter codes like "BZZ").
+
+German IBANs: DE + 2 check digits + 8-digit BLZ + 10-digit account number = exactly 22 characters,
+all digits after DE. Common confusion pairs: 1↔7, 2↔8, 0↔6, 3↔8, 5↔6.
+
+Return ONLY valid JSON, no markdown, no explanation:
+{"iban": "DE..."}
+PROMPT;
     }
 
     /**
