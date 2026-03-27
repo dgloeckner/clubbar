@@ -207,7 +207,8 @@
     "anonymizeMember": "Mitglied anonymisieren",
     "anonymizeConfirm": "Alle persönlichen Daten von {{name}} werden unwiderruflich gelöscht (DSGVO Art. 17). Diese Aktion kann nicht rückgängig gemacht werden.",
     "anonymizeSuccess": "Mitglied wurde anonymisiert",
-    "anonymizeButton": "Anonymisieren"
+    "anonymizeButton": "Anonymisieren",
+    "newFromScan": "Neu aus Scan"
   },
   "products": {
     "title": "Produkte",
@@ -563,6 +564,16 @@
     "replace": "Ersetzen",
     "uploaded": "Hochgeladen",
     "processingError": "Datei konnte nicht verarbeitet werden.",
-    "uploadError": "Upload fehlgeschlagen."
+    "uploadError": "Upload fehlgeschlagen.",
+    "uploadingAndExtracting": "Hochladen & Extrahieren…",
+    "extractionComplete": "Extraktion abgeschlossen",
+    "extractionFailed": "Extraktion fehlgeschlagen — LLM-Konfiguration prüfen",
+    "extractedValue": "Aus Scan extrahiert",
+    "discardExtracted": "Extrahierte Werte verwerfen",
+    "notFoundInScan": "Nicht im Scan gefunden",
+    "extractionReviewHint": "Felder aus Scan vorausgefüllt. Bitte vor dem Speichern prüfen.",
+    "confidenceHigh": "Hoch",
+    "confidenceMedium": "Mittel",
+    "confidenceLow": "Niedrig"
   }
 }

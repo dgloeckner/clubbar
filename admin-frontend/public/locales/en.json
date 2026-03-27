@@ -207,7 +207,8 @@
     "anonymizeMember": "Anonymize Member",
     "anonymizeConfirm": "All personal data of {{name}} will be permanently deleted (GDPR Art. 17). This action cannot be undone.",
     "anonymizeSuccess": "Member has been anonymized",
-    "anonymizeButton": "Anonymize"
+    "anonymizeButton": "Anonymize",
+    "newFromScan": "New from scan"
   },
   "products": {
     "title": "Products",
@@ -563,6 +564,16 @@
     "replace": "Replace",
     "uploaded": "Uploaded",
     "processingError": "Could not process file.",
-    "uploadError": "Upload failed."
+    "uploadError": "Upload failed.",
+    "uploadingAndExtracting": "Uploading & extracting…",
+    "extractionComplete": "Extraction complete",
+    "extractionFailed": "Extraction failed — check LLM config",
+    "extractedValue": "Extracted from scan",
+    "discardExtracted": "Discard extracted values",
+    "notFoundInScan": "Not found in scan",
+    "extractionReviewHint": "Fields pre-filled from scan. Review before saving.",
+    "confidenceHigh": "High",
+    "confidenceMedium": "Medium",
+    "confidenceLow": "Low"
   }
 }
