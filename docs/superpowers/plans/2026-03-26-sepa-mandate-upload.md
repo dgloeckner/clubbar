@@ -1,6 +1,6 @@
 # SEPA Mandate Document Upload — Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Allow admins to upload scanned SEPA mandate documents for existing members, with client-side image compression and server-side PDF conversion via dompdf.
 
@@ -53,14 +53,14 @@
 - Create: `backend/db/migrations/005_mandate_documents.sql`
 - Create: `backend/storage/mandates/.gitkeep`
 
-- [ ] **Step 1: Create storage directory**
+- [x] **Step 1: Create storage directory**
 
 ```bash
 mkdir -p /Users/dg/dev/frgs-vereinsbar/backend/storage/mandates
 touch /Users/dg/dev/frgs-vereinsbar/backend/storage/mandates/.gitkeep
 ```
 
-- [ ] **Step 2: Write migration**
+- [x] **Step 2: Write migration**
 
 ```sql
 -- 005_mandate_documents.sql
@@ -89,7 +89,7 @@ CREATE TABLE mandate_documents (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-- [ ] **Step 3: Run migration in Docker**
+- [x] **Step 3: Run migration in Docker**
 
 ```bash
 docker compose exec backend php /app/db/migrate.php
@@ -97,7 +97,7 @@ docker compose exec backend php /app/db/migrate.php
 
 Expected: `Applied: 005_mandate_documents.sql`
 
-- [ ] **Step 4: Verify table exists**
+- [x] **Step 4: Verify table exists**
 
 ```bash
 docker compose exec database mysql -u root -proot vereinsbar -e "DESCRIBE mandate_documents;"
@@ -105,7 +105,7 @@ docker compose exec database mysql -u root -proot vereinsbar -e "DESCRIBE mandat
 
 Expected: table with all 10 columns listed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/db/migrations/005_mandate_documents.sql backend/storage/mandates/.gitkeep
@@ -119,7 +119,7 @@ git commit -m "feat(backend): add mandate_documents migration and storage direct
 **Files:**
 - Modify: `backend/src/Shared/Enums/AuditAction.php`
 
-- [ ] **Step 1: Add two new cases**
+- [x] **Step 1: Add two new cases**
 
 Open `backend/src/Shared/Enums/AuditAction.php` and add after the last existing case:
 
@@ -138,7 +138,7 @@ Final file should end with:
 }
 ```
 
-- [ ] **Step 2: Verify PHP syntax**
+- [x] **Step 2: Verify PHP syntax**
 
 ```bash
 docker compose exec backend php -l /app/src/Shared/Enums/AuditAction.php
@@ -146,7 +146,7 @@ docker compose exec backend php -l /app/src/Shared/Enums/AuditAction.php
 
 Expected: `No syntax errors detected`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/src/Shared/Enums/AuditAction.php
@@ -162,7 +162,7 @@ git commit -m "feat(backend): add MANDATE_DOCUMENT_UPLOAD and MANDATE_DOCUMENT_D
 **Files:**
 - Create: `backend/src/Modules/Members/DTOs/MandateDocumentDto.php`
 
-- [ ] **Step 1: Write the DTO**
+- [x] **Step 1: Write the DTO**
 
 ```php
 <?php
@@ -202,7 +202,7 @@ final readonly class MandateDocumentDto
 }
 ```
 
-- [ ] **Step 2: Verify syntax**
+- [x] **Step 2: Verify syntax**
 
 ```bash
 docker compose exec backend php -l /app/src/Modules/Members/DTOs/MandateDocumentDto.php
@@ -217,7 +217,7 @@ Expected: `No syntax errors detected`
 **Files:**
 - Create: `backend/src/Modules/Members/Repositories/MandateDocumentRepository.php`
 
-- [ ] **Step 1: Write the repository**
+- [x] **Step 1: Write the repository**
 
 ```php
 <?php
@@ -312,7 +312,7 @@ class MandateDocumentRepository
 }
 ```
 
-- [ ] **Step 2: Verify syntax**
+- [x] **Step 2: Verify syntax**
 
 ```bash
 docker compose exec backend php -l /app/src/Modules/Members/Repositories/MandateDocumentRepository.php
@@ -320,7 +320,7 @@ docker compose exec backend php -l /app/src/Modules/Members/Repositories/Mandate
 
 Expected: `No syntax errors detected`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/src/Modules/Members/DTOs/MandateDocumentDto.php \
@@ -337,7 +337,7 @@ git commit -m "feat(backend): add MandateDocumentDto and MandateDocumentReposito
 **Files:**
 - Create: `backend/src/Modules/Members/Services/MandateDocumentService.php`
 
-- [ ] **Step 1: Write the service**
+- [x] **Step 1: Write the service**
 
 ```php
 <?php
@@ -516,7 +516,7 @@ HTML;
 }
 ```
 
-- [ ] **Step 2: Verify syntax**
+- [x] **Step 2: Verify syntax**
 
 ```bash
 docker compose exec backend php -l /app/src/Modules/Members/Services/MandateDocumentService.php
@@ -524,7 +524,7 @@ docker compose exec backend php -l /app/src/Modules/Members/Services/MandateDocu
 
 Expected: `No syntax errors detected`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/src/Modules/Members/Services/MandateDocumentService.php
@@ -540,7 +540,7 @@ git commit -m "feat(backend): add MandateDocumentService with dompdf image-to-PD
 **Files:**
 - Create: `backend/src/Modules/Members/Controllers/MandateDocumentController.php`
 
-- [ ] **Step 1: Write the controller**
+- [x] **Step 1: Write the controller**
 
 ```php
 <?php
@@ -655,7 +655,7 @@ class MandateDocumentController
 }
 ```
 
-- [ ] **Step 2: Verify syntax**
+- [x] **Step 2: Verify syntax**
 
 ```bash
 docker compose exec backend php -l /app/src/Modules/Members/Controllers/MandateDocumentController.php
@@ -671,7 +671,7 @@ Expected: `No syntax errors detected`
 - Modify: `backend/src/ServiceFactory.php`
 - Modify: `backend/src/routes.php`
 
-- [ ] **Step 1: Add imports to ServiceFactory.php**
+- [x] **Step 1: Add imports to ServiceFactory.php**
 
 In the imports section, alongside the other Members imports, add:
 
@@ -681,7 +681,7 @@ use App\Modules\Members\Services\MandateDocumentService;
 use App\Modules\Members\Controllers\MandateDocumentController;
 ```
 
-- [ ] **Step 2: Add FQCN_MAP entry**
+- [x] **Step 2: Add FQCN_MAP entry**
 
 In the `FQCN_MAP` constant, inside the `// Members` comment block, add:
 
@@ -689,7 +689,7 @@ In the `FQCN_MAP` constant, inside the `// Members` comment block, add:
 MandateDocumentController::class => 'getMandateDocumentController',
 ```
 
-- [ ] **Step 3: Add getter methods**
+- [x] **Step 3: Add getter methods**
 
 After `getMembersRepository()`, add:
 
@@ -725,7 +725,7 @@ public function getMandateDocumentController(): MandateDocumentController
 }
 ```
 
-- [ ] **Step 4: Verify ServiceFactory syntax**
+- [x] **Step 4: Verify ServiceFactory syntax**
 
 ```bash
 docker compose exec backend php -l /app/src/ServiceFactory.php
@@ -733,7 +733,7 @@ docker compose exec backend php -l /app/src/ServiceFactory.php
 
 Expected: `No syntax errors detected`
 
-- [ ] **Step 5: Add routes to routes.php**
+- [x] **Step 5: Add routes to routes.php**
 
 In `routes.php`, inside the `/api/admin` group after the existing `anonymize` and `export` member routes, add:
 
@@ -756,7 +756,7 @@ $group->get('/members/{memberId}/mandate-document', [MandateDocumentController::
 $group->delete('/members/{memberId}/mandate-document', [MandateDocumentController::class, 'delete']);
 ```
 
-- [ ] **Step 6: Verify routes syntax**
+- [x] **Step 6: Verify routes syntax**
 
 ```bash
 docker compose exec backend php -l /app/src/routes.php
@@ -764,7 +764,7 @@ docker compose exec backend php -l /app/src/routes.php
 
 Expected: `No syntax errors detected`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/src/Modules/Members/Controllers/MandateDocumentController.php \
@@ -782,7 +782,7 @@ git commit -m "feat(backend): add MandateDocumentController, wire ServiceFactory
 
 The `show()` method must include `mandate_document` in the response. The `anonymize()` method must delete the document before anonymizing.
 
-- [ ] **Step 1: Inject MandateDocumentService into AdminController**
+- [x] **Step 1: Inject MandateDocumentService into AdminController**
 
 Change the constructor from:
 
@@ -808,7 +808,7 @@ public function __construct(
 ) {}
 ```
 
-- [ ] **Step 2: Extend show() to include mandate_document**
+- [x] **Step 2: Extend show() to include mandate_document**
 
 Replace the existing `show()` method body. Note: `membersService->getMember()` throws if the member does not exist (same behaviour as before this change — no regression):
 
@@ -827,7 +827,7 @@ public function show(Request $request, Response $response, array $args): Respons
 }
 ```
 
-- [ ] **Step 3: Extend anonymize() to delete document**
+- [x] **Step 3: Extend anonymize() to delete document**
 
 Replace the existing `anonymize()` method body:
 
@@ -846,7 +846,7 @@ public function anonymize(Request $request, Response $response, array $args): Re
 }
 ```
 
-- [ ] **Step 4: Update getMembersAdminController in ServiceFactory**
+- [x] **Step 4: Update getMembersAdminController in ServiceFactory**
 
 The constructor now requires a 4th argument. Find `getMembersAdminController()` in `ServiceFactory.php` and update it to inject `$this->getMandateDocumentService()`:
 
@@ -862,7 +862,7 @@ public function getMembersAdminController(): MembersAdminController
 }
 ```
 
-- [ ] **Step 5: Restart PHP-FPM and verify app boots**
+- [x] **Step 5: Restart PHP-FPM and verify app boots**
 
 ```bash
 docker compose exec backend supervisorctl restart php-fpm:php-fpmd
@@ -872,7 +872,7 @@ curl -s http://localhost:8080/api/health | jq .
 
 Expected: `{ "status": "ok" }`
 
-- [ ] **Step 6: Smoke-test the endpoints exist**
+- [x] **Step 6: Smoke-test the endpoints exist**
 
 ```bash
 # Should return 401 (not 404) — routes are registered
@@ -883,7 +883,7 @@ curl -s -o /dev/null -w "%{http_code}" -X DELETE http://localhost:8080/api/admin
 
 Expected: `401` for all three.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add backend/src/Modules/Members/Controllers/AdminController.php \
@@ -900,7 +900,7 @@ git commit -m "feat(backend): extend AdminController show/anonymize with mandate
 **Files:**
 - Modify: `api/admin.yaml`
 
-- [ ] **Step 1: Add MandateDocument component schema**
+- [x] **Step 1: Add MandateDocument component schema**
 
 In the `components/schemas` section, add:
 
@@ -929,7 +929,7 @@ MandateDocument:
       description: LLM extraction status; null if extraction has never been attempted
 ```
 
-- [ ] **Step 2: Add mandate_document field to Member response schema**
+- [x] **Step 2: Add mandate_document field to Member response schema**
 
 Find the `Member` (or `MemberAdmin`) schema in `components/schemas` and add:
 
@@ -941,7 +941,7 @@ mandate_document:
     - $ref: '#/components/schemas/MandateDocument'
 ```
 
-- [ ] **Step 3: Add the 3 new endpoint definitions**
+- [x] **Step 3: Add the 3 new endpoint definitions**
 
 After the `POST /admin/members/{memberId}/anonymize` definition, add:
 
@@ -1009,7 +1009,7 @@ After the `POST /admin/members/{memberId}/anonymize` definition, add:
         $ref: '#/components/responses/NotFound'
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add api/admin.yaml
@@ -1026,7 +1026,7 @@ git commit -m "feat(oas): add MandateDocument schema and mandate-document endpoi
 - Modify: `admin-frontend/src/api/client.ts`
 - Create: `admin-frontend/src/api/mandateDocument.ts`
 
-- [ ] **Step 1: Export adminAxios from client.ts**
+- [x] **Step 1: Export adminAxios from client.ts**
 
 At the end of `client.ts`, after the `downloadFile` export, add:
 
@@ -1036,7 +1036,7 @@ At the end of `client.ts`, after the `downloadFile` export, add:
 export { axiosInstance as adminAxios }
 ```
 
-- [ ] **Step 2: Create mandateDocument.ts**
+- [x] **Step 2: Create mandateDocument.ts**
 
 ```typescript
 import { adminAxios } from './client'
@@ -1082,13 +1082,13 @@ export async function deleteMandateDocument(memberId: string): Promise<void> {
 }
 ```
 
-- [ ] **Step 3: Install npm packages**
+- [x] **Step 3: Install npm packages**
 
 ```bash
 cd admin-frontend && npm install browser-image-compression heic2any
 ```
 
-- [ ] **Step 4: Verify build compiles**
+- [x] **Step 4: Verify build compiles**
 
 ```bash
 cd admin-frontend && npm run type-check
@@ -1096,7 +1096,7 @@ cd admin-frontend && npm run type-check
 
 Expected: no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add admin-frontend/src/api/client.ts \
@@ -1115,7 +1115,7 @@ git commit -m "feat(frontend): add mandate document API client and install compr
 
 The component has three internal states: `idle` (no file selected), `selected` (file chosen, not yet uploaded), `stored` (document already on server).
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 ```tsx
 import React, { useRef, useState } from 'react'
@@ -1436,7 +1436,7 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
 }
 ```
 
-- [ ] **Step 2: Add i18n keys**
+- [x] **Step 2: Add i18n keys**
 
 Open `admin-frontend/src/locales/de.json` (and `en.json`). Add the following under a `mandateDocument` key:
 
@@ -1474,7 +1474,7 @@ For `en.json`:
 }
 ```
 
-- [ ] **Step 3: Type-check**
+- [x] **Step 3: Type-check**
 
 ```bash
 cd admin-frontend && npm run type-check
@@ -1482,7 +1482,7 @@ cd admin-frontend && npm run type-check
 
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add admin-frontend/src/components/MandateDocumentSection.tsx \
@@ -1499,7 +1499,7 @@ git commit -m "feat(frontend): add MandateDocumentSection component"
 
 The `MandateDocumentSection` must appear at the bottom of the **edit** modal (not the create modal). The full member response from `GET /admin/members/{memberId}` already includes `mandate_document` after our backend change.
 
-- [ ] **Step 1: Import the component**
+- [x] **Step 1: Import the component**
 
 At the top of `MembersPage.tsx`, add:
 
@@ -1507,7 +1507,7 @@ At the top of `MembersPage.tsx`, add:
 import { MandateDocumentSection } from '../components/MandateDocumentSection'
 ```
 
-- [ ] **Step 2: Update the Member type to include mandate_document**
+- [x] **Step 2: Update the Member type to include mandate_document**
 
 First, import `MandateDocumentInfo` at the top of `MembersPage.tsx`:
 
@@ -1521,7 +1521,7 @@ Then find the local `Member` type or interface definition and add the field usin
 mandate_document: MandateDocumentInfo | null
 ```
 
-- [ ] **Step 3: Add the section to the edit modal**
+- [x] **Step 3: Add the section to the edit modal**
 
 Locate the section inside the modal that is only shown when `editingMember` is set (the SEPA status indicator area). After the SEPA status badge but before the form's submit buttons, add:
 
@@ -1534,7 +1534,7 @@ Locate the section inside the modal that is only shown when `editingMember` is s
 )}
 ```
 
-- [ ] **Step 4: Type-check and build**
+- [x] **Step 4: Type-check and build**
 
 ```bash
 cd admin-frontend && npm run type-check && npm run build
@@ -1542,7 +1542,7 @@ cd admin-frontend && npm run type-check && npm run build
 
 Expected: no errors, build succeeds.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add admin-frontend/src/pages/MembersPage.tsx
@@ -1563,13 +1563,13 @@ git commit -m "feat(frontend): integrate MandateDocumentSection into member edit
 
 These are static binary fixtures committed to the repo. Create them once with:
 
-- [ ] **Step 1: Create fixture directory**
+- [x] **Step 1: Create fixture directory**
 
 ```bash
 mkdir -p e2etests/fixtures/files
 ```
 
-- [ ] **Step 2: Generate fixtures with Node.js**
+- [x] **Step 2: Generate fixtures with Node.js**
 
 Run this script from the project root to create minimal valid test files:
 
@@ -1620,7 +1620,7 @@ console.log('Fixtures created in', dir);
 "
 ```
 
-- [ ] **Step 3: Create large JPEG fixture using ImageMagick**
+- [x] **Step 3: Create large JPEG fixture using ImageMagick**
 
 The large fixture must be a **valid JPEG** (dompdf will try to render it server-side). Use ImageMagick:
 
@@ -1641,13 +1641,13 @@ file e2etests/fixtures/files/test-mandate-large.jpg   # should say "JPEG image"
 wc -c e2etests/fixtures/files/test-mandate-large.jpg  # should be ≥ 500000 bytes
 ```
 
-- [ ] **Step 4: Add HEIC fixture note**
+- [x] **Step 4: Add HEIC fixture note**
 
 HEIC files cannot be generated programmatically without platform-native tools. For CI:
 - Save `e2etests/fixtures/files/test-mandate.heic` from an iPhone photo, or
 - Skip the HEIC test on CI (mark with `test.skip` if file absent).
 
-- [ ] **Step 5: Commit fixtures**
+- [x] **Step 5: Commit fixtures**
 
 ```bash
 git add e2etests/fixtures/files/
@@ -1661,7 +1661,7 @@ git commit -m "test(e2e): add mandate document test fixtures"
 **Files:**
 - Create: `e2etests/tests/admin/mandate-document.spec.ts`
 
-- [ ] **Step 1: Write the failing tests first**
+- [x] **Step 1: Write the failing tests first**
 
 ```typescript
 import { test, expect } from '../../fixtures/pageObjects'
@@ -1979,7 +1979,7 @@ test.describe('Mandate Document API', () => {
 })
 ```
 
-- [ ] **Step 2: Run tests (expect failures — backend not yet deployed)**
+- [x] **Step 2: Run tests (expect failures — backend not yet deployed)**
 
 ```bash
 cd e2etests && npm test -- tests/admin/mandate-document.spec.ts --workers=1
@@ -1987,7 +1987,7 @@ cd e2etests && npm test -- tests/admin/mandate-document.spec.ts --workers=1
 
 Expected: tests fail with connection errors if backend not running, or 401 if auth not configured — verify the test structure itself runs without syntax errors.
 
-- [ ] **Step 3: Restart PHP and run tests for real**
+- [x] **Step 3: Restart PHP and run tests for real**
 
 ```bash
 docker compose exec backend supervisorctl restart php-fpm:php-fpmd
@@ -1997,7 +1997,7 @@ cd e2etests && npm test -- tests/admin/mandate-document.spec.ts --workers=4
 
 Expected: all tests pass.
 
-- [ ] **Step 4: Run full test suite to check for regressions**
+- [x] **Step 4: Run full test suite to check for regressions**
 
 ```bash
 cd e2etests && npm test -- --workers=4
@@ -2005,7 +2005,7 @@ cd e2etests && npm test -- --workers=4
 
 Expected: all existing tests still pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add e2etests/tests/admin/mandate-document.spec.ts
