@@ -53,8 +53,8 @@ Extract the following fields and return ONLY valid JSON in this exact format —
 Rules:
 - confidence must be "high", "medium", or "low"
 - Use null for value AND confidence when a field is absent, blank, or illegible
-- For IBAN: remove all spaces
-- For mandate_signed_at: use YYYY-MM-DD format only
+- For iban: extract the member's own bank account IBAN — this is typically handwritten by the member in the "IBAN" field. Do NOT extract the Creditor Identifier (CI / Gläubiger-Identifikationsnummer), which is a separate pre-printed field filled in by the organisation; it can be recognised by embedded letter codes such as "BZZ" or "ZZZ" within the number. The member's IBAN contains only digits after the 2-letter country code and 2 check digits. Return your best reading and remove all spaces.
+- For mandate_signed_at: extract the date from the "Mandatsdatum" field in the SEPA mandate section (not the signature date in section 3). The date may be written in various formats such as 1.4., 01.04., 1.4.26, 01.04.26, 1.4.2026, or 01.04.2026 — always convert to YYYY-MM-DD. For 2-digit years assume 2000+. If only day and month are present without a year, set value to null.
 PROMPT;
     }
 
