@@ -109,6 +109,7 @@ test.describe('POST /api/admin/mandate-document/extract — LLM configured', () 
           },
         },
         headers: await csrfHeaders(page),
+        timeout: 60000,
       }
     )
     expect(resp.status()).toBe(200)
@@ -172,6 +173,7 @@ test.describe('Mandate upload — extraction field in response', () => {
           },
         },
         headers: await csrfHeaders(page),
+        timeout: 60000,
       }
     )
     expect(resp.status()).toBe(200)
@@ -223,6 +225,7 @@ test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-
           },
         },
         headers: await csrfHeaders(page),
+        timeout: 60000,
       }
     )
     expect(resp.status()).toBe(200)
