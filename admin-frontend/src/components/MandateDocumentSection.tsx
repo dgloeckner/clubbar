@@ -6,12 +6,14 @@ import {
   openMandateDocument,
   uploadMandateDocument,
 } from '../api/mandateDocument'
+import type { ExtractionResult } from '../api/generated/extractionResult'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 
 interface Props {
   memberId: string
   initialDocument: MandateDocumentInfo | null
+  onExtractionComplete?: (extraction: ExtractionResult) => void
 }
 
 type ComponentState = 'idle' | 'selected' | 'uploading' | 'stored'
@@ -30,7 +32,7 @@ function formatDate(iso: string): string {
   })
 }
 
-export function MandateDocumentSection({ memberId, initialDocument }: Props) {
+export function MandateDocumentSection({ memberId, initialDocument, onExtractionComplete }: Props) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -106,6 +108,11 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
       setMandateDoc(doc)
       setSelectedFile(null)
       setState('stored')
+
+      // Notify parent if LLM extraction produced results
+      if (doc.extraction && onExtractionComplete) {
+        onExtractionComplete(doc.extraction)
+      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { messages?: { file?: string[] } } } })
@@ -126,6 +133,10 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
     setSelectedFile(null)
     setError(null)
   }
+
+  const uploadLabel = state === 'uploading'
+    ? t('mandateDocument.uploadingAndExtracting')
+    : t('mandateDocument.upload')
 
   return (
     <div
@@ -244,7 +255,7 @@ export function MandateDocumentSection({ memberId, initialDocument }: Props) {
               }}
               data-testid="mandate-document-upload-btn"
             >
-              {state === 'uploading' ? t('mandateDocument.uploading') : t('mandateDocument.upload')}
+              {uploadLabel}
             </button>
             {state !== 'uploading' && (
               <button
