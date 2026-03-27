@@ -165,7 +165,7 @@ Rules:
 - confidence must be "high", "medium", or "low"
 - Use null for value AND confidence when a field is absent, blank, or illegible
 - For handwritten fields (iban, account_holder_name, mandate_signed_at): use "low" confidence whenever any character could plausibly be misread (e.g. 1/7, 0/6, 1/9, n/m). Only use "high" when every character is completely unambiguous.
-- For iban: extract the member's own bank account IBAN — this is typically handwritten by the member in the "IBAN" field. Do NOT extract the Creditor Identifier (CI / Gläubiger-Identifikationsnummer), which is a separate pre-printed field filled in by the organisation; it can be recognised by embedded letter codes such as "BZZ" or "ZZZ" within the number. German IBANs always start with "DE", followed by exactly 2 check digits, then an 8-digit Bankleitzahl (BLZ), then a 10-digit account number — total 22 characters, all digits after "DE". Common handwriting confusions: 1↔7, 0↔6, 3↔8, 5↔6. If the reading has fewer or more than 22 characters, set confidence to "low". Remove all spaces and return uppercase.
+- For iban: extract the member's own bank account IBAN — this is typically handwritten by the member in the "IBAN" field. Do NOT extract the Creditor Identifier (CI / Gläubiger-Identifikationsnummer), which is a separate pre-printed field filled in by the organisation; it can be recognised by embedded letter codes such as "BZZ" or "ZZZ" within the number. German IBANs always start with "DE", followed by exactly 2 check digits, then an 8-digit Bankleitzahl (BLZ), then a 10-digit account number — total 22 characters, all digits after "DE". Common handwriting confusions: 1↔7, 2↔8, 0↔6, 3↔8, 5↔6. If the reading has fewer or more than 22 characters, set confidence to "low". Remove all spaces and return uppercase.
 - For mandate_signed_at: extract the date from the "Mandatsdatum" field in the SEPA mandate section (not the signature date in section 3). The date may be written in various formats such as 1.4., 01.04., 1.4.26, 01.04.26, 1.4.2026, or 01.04.2026 — always convert to YYYY-MM-DD. For 2-digit years assume 2000+. If only day and month are present without a year, set value to null.
 - For name fields (first_name, last_name, account_holder_name): return in standard title case (e.g. "Müller", "Max", "Mandy Müller") regardless of whether the handwriting uses all-caps or all-lowercase. Do not return ALL CAPS names.
 PROMPT;
@@ -184,7 +184,7 @@ A previous reading gave: {$prevIban}
 This reading does NOT pass the IBAN mod-97 checksum (verified externally), so at least one digit is wrong.
 
 German IBANs: DE + 2 check digits + 8-digit BLZ + 10-digit account number = exactly 22 characters.
-Common handwriting confusion pairs that could explain the error: 1↔7, 0↔6, 3↔8, 5↔6
+Common handwriting confusion pairs that could explain the error: 1↔7, 2↔8, 0↔6, 3↔8, 5↔6
 
 Re-read each digit of the IBAN field carefully, focusing on digits that could match a confusion pair.
 Return your single best corrected reading.
