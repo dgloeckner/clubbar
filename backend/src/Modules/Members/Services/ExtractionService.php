@@ -43,12 +43,21 @@ class ExtractionService
         $rawJson = $this->client->extractFromImage($base64, $processedMime, $prompt);
         $result  = $this->parseResponse($rawJson);
 
-        // Refine IBAN when confidence is low and a value was extracted
+        // Refine IBAN when confidence is low and the value is a plausible German IBAN.
+        // Clear format-invalid first-pass readings (e.g. letters embedded by the model)
+        // rather than passing garbled strings into the refinement pipeline.
         $fields = $result->fields;
-        if (($fields['iban']['confidence'] ?? null) === 'low' && ($fields['iban']['value'] ?? null) !== null) {
-            [$refinedValue, $refinedConf] = $this->refineIban($base64, $processedMime, $fields['iban']['value']);
-            $fields['iban'] = ['value' => $refinedValue, 'confidence' => $refinedConf];
-            $result = new ExtractionResult($fields);
+        $ibanValue = $fields['iban']['value'] ?? null;
+        if (($fields['iban']['confidence'] ?? null) === 'low' && $ibanValue !== null) {
+            if (!preg_match('/^DE\d{20}$/', $ibanValue)) {
+                // Garbled reading — reset to null rather than surfacing invalid data
+                $fields['iban'] = ['value' => null, 'confidence' => null];
+                $result = new ExtractionResult($fields);
+            } else {
+                [$refinedValue, $refinedConf] = $this->refineIban($base64, $processedMime, $ibanValue);
+                $fields['iban'] = ['value' => $refinedValue, 'confidence' => $refinedConf];
+                $result = new ExtractionResult($fields);
+            }
         }
 
         return $result;
