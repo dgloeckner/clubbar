@@ -88,6 +88,7 @@ services:
       # Empty value disables extraction silently — no errors, no extraction badges.
       # Example root .env: LLM_API_KEY=sk-ant-...
       LLM_PROVIDER: "${LLM_PROVIDER:-anthropic}"
+      LLM_MODEL: "${LLM_MODEL:-}"
       LLM_API_KEY: "${LLM_API_KEY:-}"
     ports:
       - "8080:80"
