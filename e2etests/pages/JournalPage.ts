@@ -45,6 +45,14 @@ export class JournalPage extends BasePage {
   private readonly settlementConfirmTxCount = () => this.page.getByTestId('journal-settlement-confirm-transaction-count')
   private readonly settlementConfirmMemberCount = () => this.page.getByTestId('journal-settlement-confirm-member-count')
 
+  // Correction modal elements (test IDs from JournalPage.tsx)
+  private readonly createCorrectionBtn = () => this.page.getByTestId('journal-create-correction-btn')
+  private readonly correctionModal = () => this.page.getByTestId('journal-correction-modal')
+  private readonly correctionMemberSelect = () => this.page.getByTestId('journal-correction-member-select')
+  private readonly correctionAmountInput = () => this.page.getByTestId('journal-correction-amount-input')
+  private readonly correctionReasonInput = () => this.page.getByTestId('journal-correction-reason-input')
+  private readonly correctionSubmitBtn = () => this.page.getByTestId('journal-correction-submit-btn')
+
   constructor(page: Page) {
     super(page)
   }
@@ -329,5 +337,51 @@ export class JournalPage extends BasePage {
 
   async expectTransactionRowVisible(transactionId: string) {
     await expect(this.page.getByTestId(`journal-table-row-${transactionId}`)).toBeVisible()
+  }
+
+  /**
+   * CORRECTION MODAL
+   * Opens the "Create Correction" modal from the journal toolbar.
+   */
+  async openCorrectionModal() {
+    await this.createCorrectionBtn().click()
+    await expect(this.correctionModal()).toBeVisible()
+    // Wait for member options to load (modal fetches members asynchronously)
+    await expect(this.correctionMemberSelect().locator('option').nth(1)).toBeAttached({ timeout: 10000 })
+  }
+
+  /**
+   * Fill the correction form.
+   * NOTE: amountEur is in euros (e.g. 7.50) — the input field displays EUR
+   * because JournalPage.tsx renders: value={correctionForm.amountCents / 100}
+   * The backend will receive amount_cents = amountEur * 100.
+   */
+  async fillCorrectionForm(params: {
+    memberId: string
+    amountEur: number
+    reason: string
+  }) {
+    await this.correctionMemberSelect().selectOption(params.memberId)
+    await this.correctionAmountInput().fill(String(params.amountEur))
+    await this.correctionReasonInput().fill(params.reason)
+  }
+
+  /**
+   * Submit the correction form and wait for the API response (201 Created).
+   * Returns the Response so tests can assert on body content.
+   */
+  async submitCorrectionForm(): Promise<import('@playwright/test').Response> {
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/admin/members/') &&
+        resp.url().includes('/transactions') &&
+        resp.status() === 201
+    )
+    await this.correctionSubmitBtn().click()
+    return responsePromise
+  }
+
+  async expectCorrectionModalHidden() {
+    await expect(this.correctionModal()).toBeHidden()
   }
 }

@@ -20,8 +20,8 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 4 : undefined,
   reporter: process.env.CI
-    ? [['github'], ['list'], ['html']]
-    : [['html'], ['./reporters/subtitle-reporter.ts']],
+    ? [['github'], ['list'], ['html'], ['json', { outputFile: 'results/latest.json' }]]
+    : [['html'], ['./reporters/subtitle-reporter.ts'], ['json', { outputFile: 'results/latest.json' }]],
 
   use: {
     baseURL: process.env.API_URL || 'http://localhost:8080',

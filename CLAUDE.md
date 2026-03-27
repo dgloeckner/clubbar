@@ -264,9 +264,13 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
 
 6. **Playwright Test Execution (Default: 4 Workers)**
    ```bash
+   # BEFORE running tests: check for existing results first (avoid re-running if nothing changed)
+   cat e2etests/results/latest.json | jq '.stats'  # exists after any test run
+   git diff --stat HEAD  # if clean + latest.json exists = use existing report, don't re-run
+
    cd e2etests
 
-   # Default: Run tests with 4 workers (parallel execution for speed)
+   # Default: Run tests with 4 workers (auto-saves results to e2etests/results/latest.json)
    npm test
    # Equivalent to:
    npm test -- --workers=4
@@ -274,11 +278,16 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    # Run with explicit worker count
    npm test -- --workers=4
    npm test -- --workers=2
+
+   # Analyze results after run
+   cat e2etests/results/latest.json | jq '.stats'
+   cat e2etests/results/latest.json | jq '.suites[].tests[] | select(.status=="fail") | {title, error: .errors[0].message}'
    ```
    - **Default**: 4 workers balance speed and stability for most test suites
    - **When to use 4 workers**: Normal test runs, CI/CD pipelines, regression testing
    - **Why parallel**: Reduces execution time from 90+ seconds to 20-30 seconds
    - **Test isolation required**: Tests must follow E2E Testing Patterns (001-004) for safe parallel execution
+   - **`results/latest.json`**: Auto-saved on every run — always check this before re-running tests
 
 7. **Debugging Parallel Test Failures (Serial: 1 Worker)**
    ```bash

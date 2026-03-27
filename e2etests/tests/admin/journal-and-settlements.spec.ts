@@ -536,4 +536,46 @@ test.describe('Journal & Settlements', () => {
     expect(batchResult.rejected.errors[0].transaction_id).toBe(batchInvalidTxnId)
     expect(batchResult.rejected.errors[0].error).toBe('sepa_invalid')
   })
+
+  test('journal: create correction via UI modal', async ({
+    page,
+    testTransactions,
+  }) => {
+    const ts = Date.now()
+    const prefix = `CorrUI${ts}`
+
+    // Create a member with SEPA data so they appear in the correction member picker
+    const member = await testTransactions.createMember(`${prefix}First`, `${prefix}Last`)
+
+    const journalPage = new JournalPage(page)
+    await journalPage.navigate()
+    await journalPage.waitForPageLoad()
+
+    // Get baseline count for this member before creating correction
+    await journalPage.search(`${prefix}Last`)
+    await journalPage.waitForTableToLoad()
+    const countBefore = await journalPage.getTransactionCount()
+
+    // Open correction modal, fill form, submit
+    await journalPage.openCorrectionModal()
+    await journalPage.fillCorrectionForm({
+      memberId: member.id,
+      amountEur: 7.50,   // input displays EUR; backend stores 750 cents
+      reason: `${prefix} UI correction test`,
+    })
+    const response = await journalPage.submitCorrectionForm()
+
+    // Verify API response
+    const body = await response.json()
+    expect(body.transaction_type).toBe('correction')
+    expect(body.amount_cents).toBe(750)
+
+    // Modal should close after successful submission
+    await journalPage.expectCorrectionModalHidden()
+
+    // New correction should appear in the journal for this member
+    await journalPage.waitForTableToLoad()
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 })
+      .toBe(countBefore + 1)
+  })
 })
