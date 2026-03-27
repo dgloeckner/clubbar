@@ -175,6 +175,8 @@ jobs:
 
       - name: Start services
         uses: hoverkraft-tech/compose-action@v2.0.2
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         with:
           compose-file: |
             ./docker-compose.yml
@@ -236,6 +238,7 @@ jobs:
         env:
           CI: true
           ADMIN_URL: http://localhost:5173
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
 
       - name: Upload test report
         if: always()

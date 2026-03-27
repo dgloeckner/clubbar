@@ -72,12 +72,23 @@ services:
       SESSION_MAX_AGE: 7200
       SESSION_REGEN_INTERVAL: 900
       API_TOKEN_TTL_DAYS: 90
+      # Fixed dev key for encrypting TOTP secrets at rest.
+      # Matches the key used to pre-encrypt the test admin's TOTP secret in
+      # backend/db/seed.sql. Safe to commit — dev-only, never used in production.
+      TOTP_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000001"
 
       # CORS — local dev: allow admin (5173) and terminal (5174) frontends. Never use * in production.
       CORS_ORIGINS: "http://localhost:5173,http://localhost:5174"
 
       # Installation
       INSTALL_KEY: dev-install-key-x
+
+      # LLM Extraction (optional)
+      # Set LLM_API_KEY in a root-level .env file or in your shell environment.
+      # Empty value disables extraction silently — no errors, no extraction badges.
+      # Example root .env: LLM_API_KEY=sk-ant-...
+      LLM_PROVIDER: "${LLM_PROVIDER:-anthropic}"
+      LLM_API_KEY: "${LLM_API_KEY:-}"
     ports:
       - "8080:80"
     volumes:
