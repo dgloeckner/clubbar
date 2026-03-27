@@ -1,6 +1,6 @@
 -- 005_mandate_documents.sql
 -- One scanned SEPA mandate PDF per member.
--- extraction_status/extracted_data are placeholders for future LLM extraction.
+-- extraction_status/extracted_data store LLM extraction results.
 
 -- Extend audit_log action enum with mandate document actions
 ALTER TABLE audit_log MODIFY COLUMN action ENUM(
@@ -16,7 +16,7 @@ CREATE TABLE mandate_documents (
     file_path        VARCHAR(255)        NOT NULL,
     original_filename VARCHAR(255)       NOT NULL,
     file_size_bytes  INT UNSIGNED        NOT NULL,
-    extraction_status ENUM('pending','completed','failed') NULL DEFAULT NULL,
+    extraction_status ENUM('completed','failed') NULL DEFAULT NULL,
     extracted_data   JSON                NULL,
     uploaded_by_admin_id CHAR(36)        NOT NULL,
     created_at       TIMESTAMP           NOT NULL DEFAULT CURRENT_TIMESTAMP,

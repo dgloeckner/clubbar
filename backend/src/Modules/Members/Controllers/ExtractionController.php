@@ -68,7 +68,7 @@ class ExtractionController
         try {
             $result = $this->extractionService->extract($bytes, $mimeType);
             return $this->json($response, $result->toArray());
-        } catch (\RuntimeException) {
+        } catch (\Throwable) {
             return $this->json($response, [
                 'error'   => 'extraction_failed',
                 'message' => 'Extraction failed. Check server logs for details.',

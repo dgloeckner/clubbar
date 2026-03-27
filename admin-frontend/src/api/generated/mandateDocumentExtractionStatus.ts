@@ -54,7 +54,6 @@ export type MandateDocumentExtractionStatus = typeof MandateDocumentExtractionSt
 
 
 export const MandateDocumentExtractionStatus = {
-  pending: 'pending',
   completed: 'completed',
   failed: 'failed',
 } as const;

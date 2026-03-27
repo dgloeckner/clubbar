@@ -2865,7 +2865,7 @@ components:
         extraction_status:
           type: string
           nullable: true
-          enum: [pending, completed, failed]
+          enum: [completed, failed]
           description: LLM extraction status; null if extraction has never been attempted
         extraction:
           nullable: true
