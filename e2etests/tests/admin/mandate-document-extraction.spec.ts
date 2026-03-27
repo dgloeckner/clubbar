@@ -118,14 +118,14 @@ test.describe('Upload returns extraction field in response', () => {
 test.describe('UI — extraction review banner and New from scan button', () => {
   test('extraction review banner is not visible by default on Members page', async ({ page }) => {
     await page.goto('/members')
-    await page.waitForSelector('[data-testid="members-page"]')
+    await expect(page.locator('[data-testid="members-page"]')).toBeVisible({ timeout: 5000 })
 
     await expect(page.locator('[data-testid="extraction-review-banner"]')).not.toBeVisible()
   })
 
   test('"New from scan" button is visible on Members page', async ({ page }) => {
     await page.goto('/members')
-    await page.waitForSelector('[data-testid="members-page"]')
+    await expect(page.locator('[data-testid="members-page"]')).toBeVisible({ timeout: 5000 })
 
     await expect(page.locator('[data-testid="members-new-from-scan-button"]')).toBeVisible()
   })
