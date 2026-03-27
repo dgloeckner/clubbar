@@ -14,6 +14,9 @@ class AppConfig
     public readonly string $logDir;
     public readonly string $installKey;
     public readonly string $appUrl;
+    public readonly ?string $llmProvider;
+    public readonly ?string $llmApiKey;
+    public readonly ?string $llmModel;
 
     public function __construct()
     {
@@ -25,6 +28,9 @@ class AppConfig
         $this->logDir               = __DIR__ . '/../../../logs';
         $this->installKey           = Env::get('INSTALL_KEY', '');
         $this->appUrl               = Env::get('APP_URL', 'http://localhost:8080');
+        $this->llmProvider          = Env::get('LLM_PROVIDER', '') ?: null;
+        $this->llmApiKey            = Env::get('LLM_API_KEY', '') ?: null;
+        $this->llmModel             = Env::get('LLM_MODEL', '') ?: null;
     }
 
     public function isProduction(): bool
