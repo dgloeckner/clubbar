@@ -55,35 +55,195 @@ class ExtractionService
     }
 
     /**
-     * Refine a low-confidence IBAN reading using mod-97 as a quality gate.
+     * Refine a low-confidence IBAN reading using a three-stage pipeline.
      *
-     * 1. If the first-pass value already passes mod-97 → ['value', 'medium'].
-     * 2. Otherwise, re-query the LLM on the full image with the checksum-failure hint.
-     *    If the new reading passes mod-97 → ['newValue', 'medium'].
-     * 3. Silently falls back to ['prevIban', 'low'] on any error or no improvement.
+     * Stage 1 — mod-97 fast path:
+     *   If the first-pass value already passes mod-97 → ['value', 'medium'].
+     *
+     * Stage 2 — second visual pass:
+     *   Re-query the LLM with a checksum-failure hint.
+     *   If the new reading passes mod-97 → ['newValue', 'medium'].
+     *
+     * Stage 3 — brute-force arbitration:
+     *   Enumerate all ≤2-position confusion-pair substitutions of the stage-2
+     *   reading.  Collect those that pass mod-97.
+     *   - 0 candidates → stay low.
+     *   - 1 candidate  → use it (medium).
+     *   - 2–5 candidates → ask the LLM to identify which one matches the image.
+     *                      If the chosen value passes mod-97 → medium, else low.
+     *   - >5 candidates → too ambiguous, stay low.
+     *
+     * Silently falls back to ['prevIban', 'low'] on any error.
      *
      * @return array{0: string, 1: string}
      */
     private function refineIban(string $base64, string $mimeType, string $prevIban): array
     {
-        // Fast path: first-pass value is already mathematically valid
+        // Stage 1: first-pass value is already mathematically valid
         if ($this->verifyIbanMod97($prevIban)) {
             return [$prevIban, 'medium'];
         }
 
+        // Stage 2: second visual pass with checksum-failure hint
+        $stage2Iban = $prevIban;
         try {
             $prompt  = $this->buildIbanRefinementPrompt($prevIban);
             $rawJson = $this->client->extractFromImage($base64, $mimeType, $prompt);
             $newIban = $this->parseIbanReading($rawJson);
 
-            if ($newIban !== null && $this->verifyIbanMod97($newIban)) {
-                return [$newIban, 'medium'];
+            if ($newIban !== null) {
+                if ($this->verifyIbanMod97($newIban)) {
+                    return [$newIban, 'medium'];
+                }
+                $stage2Iban = $newIban; // use improved reading for stage 3
             }
         } catch (\Throwable) {
-            // Never fail because of the refinement pass
+            // Stage 2 failed — continue to stage 3 with original reading
         }
 
-        return [$prevIban, 'low'];
+        // Stage 3: brute-force confusion-pair substitutions, then LLM arbitration
+        try {
+            $candidates = $this->bruteForceIbanCandidates($stage2Iban);
+
+            if (count($candidates) === 0) {
+                return [$stage2Iban, 'low'];
+            }
+
+            if (count($candidates) === 1) {
+                return [$candidates[0], 'medium'];
+            }
+
+            if (count($candidates) <= 5) {
+                $chosen = $this->arbitrateIbanCandidates($base64, $mimeType, $candidates);
+                if ($chosen !== null && $this->verifyIbanMod97($chosen)) {
+                    return [$chosen, 'medium'];
+                }
+            }
+        } catch (\Throwable) {
+            // Never fail because of stage 3
+        }
+
+        return [$stage2Iban, 'low'];
+    }
+
+    /**
+     * Generate all German IBANs reachable from $iban by substituting ≤2 digits
+     * using the handwriting confusion pairs, filtering to those passing mod-97.
+     *
+     * Confusion pairs (bidirectional): 1↔7, 2↔8, 0↔6, 3↔8, 5↔6
+     *
+     * @return string[]
+     */
+    private function bruteForceIbanCandidates(string $iban): array
+    {
+        $alternatives = [
+            '0' => ['6'],
+            '1' => ['7'],
+            '2' => ['8'],
+            '3' => ['8'],
+            '5' => ['6'],
+            '6' => ['0', '5'],
+            '7' => ['1'],
+            '8' => ['2', '3'],
+        ];
+
+        $digits = str_split($iban);
+        // Positions that have at least one confusion-pair alternative
+        $ambiguous = [];
+        foreach ($digits as $i => $d) {
+            if (isset($alternatives[$d])) {
+                $ambiguous[] = [$i, $alternatives[$d]];
+            }
+        }
+
+        $candidates = [];
+
+        // Try substituting 1, then 2 positions
+        for ($numSubs = 1; $numSubs <= 2; $numSubs++) {
+            foreach ($this->combinations($ambiguous, $numSubs) as $selected) {
+                $this->expandSubstitutions($digits, $selected, 0, function (array $candidate) use (&$candidates) {
+                    $s = implode('', $candidate);
+                    if ($this->verifyIbanMod97($s) && !in_array($s, $candidates, true)) {
+                        $candidates[] = $s;
+                    }
+                });
+            }
+        }
+
+        sort($candidates);
+        return $candidates;
+    }
+
+    /**
+     * Ask the LLM to identify which candidate IBAN matches the handwritten field.
+     *
+     * @param  string[] $candidates  2–5 valid-checksum IBAN candidates
+     * @return string|null  the chosen IBAN, or null if unparseable
+     */
+    private function arbitrateIbanCandidates(string $base64, string $mimeType, array $candidates): ?string
+    {
+        $list    = implode("\n", array_map(fn($i, $c) => ($i + 1) . ". $c", array_keys($candidates), $candidates));
+        $prompt  = $this->buildIbanArbitrationPrompt($list);
+        $rawJson = $this->client->extractFromImage($base64, $mimeType, $prompt);
+
+        $json = preg_replace('/^```json?\s*/m', '', $rawJson) ?? $rawJson;
+        $json = preg_replace('/^```\s*$/m', '', $json) ?? $json;
+        $json = trim($json);
+
+        $data = json_decode($json, true);
+        if (!is_array($data) || !isset($data['iban']) || !is_string($data['iban'])) {
+            return null;
+        }
+
+        $chosen = strtoupper(str_replace(' ', '', $data['iban']));
+        return in_array($chosen, $candidates, true) ? $chosen : null;
+    }
+
+    /**
+     * Recursive helper: expand one substitution position at a time.
+     *
+     * @param array<int,string>               $digits    current digit array
+     * @param array<int,array{int,string[]}>  $selected  remaining positions to substitute
+     * @param int                             $idx       position within $selected
+     * @param callable                        $emit      called with each fully-expanded candidate
+     */
+    private function expandSubstitutions(array $digits, array $selected, int $idx, callable $emit): void
+    {
+        if ($idx >= count($selected)) {
+            $emit($digits);
+            return;
+        }
+        [$pos, $alts] = $selected[$idx];
+        foreach ($alts as $alt) {
+            $next       = $digits;
+            $next[$pos] = $alt;
+            $this->expandSubstitutions($next, $selected, $idx + 1, $emit);
+        }
+    }
+
+    /**
+     * Return all k-element combinations from $items (no repetition).
+     *
+     * @param  array<int,mixed> $items
+     * @return array<int,array<int,mixed>>
+     */
+    private function combinations(array $items, int $k): array
+    {
+        if ($k === 0) {
+            return [[]];
+        }
+        if ($k > count($items)) {
+            return [];
+        }
+        $result = [];
+        $first  = array_shift($items);
+        foreach ($this->combinations($items, $k - 1) as $combo) {
+            $result[] = array_merge([$first], $combo);
+        }
+        foreach ($this->combinations($items, $k) as $combo) {
+            $result[] = $combo;
+        }
+        return $result;
     }
 
     /**
@@ -190,6 +350,26 @@ Re-read each digit of the IBAN field carefully, focusing on digits that could ma
 Return your single best corrected reading.
 
 Return ONLY valid JSON, no markdown, no explanation:
+{"iban": "DE..."}
+PROMPT;
+    }
+
+    /**
+     * Build the stage-3 prompt that presents 2–5 mathematically valid IBAN
+     * candidates and asks the LLM to choose which one matches the handwriting.
+     */
+    private function buildIbanArbitrationPrompt(string $candidateList): string
+    {
+        return <<<PROMPT
+Look at the handwritten IBAN field in this SEPA mandate form image.
+
+All of the following IBANs pass the mod-97 checksum and differ from each other
+only in digits that are commonly confused in handwriting (1↔7, 2↔8, 0↔6, 3↔8, 5↔6).
+Exactly one of them matches what is written:
+
+{$candidateList}
+
+Re-read the IBAN field carefully. Return ONLY valid JSON, no markdown, no explanation:
 {"iban": "DE..."}
 PROMPT;
     }
