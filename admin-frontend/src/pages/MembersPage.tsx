@@ -3,7 +3,7 @@
  * Member management (list, create, edit, delete)
  */
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/common/StatCard'
 import { theme } from '../styles/design-system'
@@ -27,6 +27,8 @@ import { validateIban } from '../utils/iban'
 import { ValidationIndicator } from '../components/forms/ValidationIndicator'
 import { downloadFile } from '../api/client'
 import { MandateDocumentSection } from '../components/MandateDocumentSection'
+import { extractMandateDocument, ExtractionResult } from '../api/extractMandateDocument'
+import { uploadMandateDocument } from '../api/mandateDocument'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -69,6 +71,11 @@ export function MembersPage() {
     card_uid: '',
   })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  const [extractedFields, setExtractedFields] = useState<ExtractionResult | null>(null)
+  const [preExtractionFormData, setPreExtractionFormData] = useState<typeof formData | null>(null)
+  const [scanFile, setScanFile] = useState<File | null>(null)
+  const [scanExtracting, setScanExtracting] = useState(false)
+  const scanInputRef = useRef<HTMLInputElement>(null)
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -255,12 +262,24 @@ export function MembersPage() {
           preferred_language: formData.preferred_language,
           card_uid: formData.card_uid || undefined,
         }
-        await getMembersFactory().createMember(createPayload)
+        const newMember = await getMembersFactory().createMember(createPayload)
+        const newMemberId = newMember?.id
+        if (scanFile && newMemberId) {
+          try {
+            await uploadMandateDocument(newMemberId, scanFile)
+          } catch {
+            // Document upload failed but member was created — non-fatal
+          }
+          setScanFile(null)
+        }
       }
 
       // Reset form
       setShowModal(false)
       setEditingMember(null)
+      setExtractedFields(null)
+      setPreExtractionFormData(null)
+      setScanFile(null)
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
 
       // Reload members list
@@ -413,6 +432,102 @@ export function MembersPage() {
     }
   }
 
+  function handleExtractionComplete(extraction: ExtractionResult) {
+    setPreExtractionFormData({ ...formData })
+    setExtractedFields(extraction)
+
+    const updates: Partial<typeof formData> = {}
+    const f = extraction.fields
+    if (f.first_name?.value)          updates.first_name           = f.first_name.value
+    if (f.last_name?.value)           updates.last_name            = f.last_name.value
+    if (f.email?.value)               updates.email                = f.email.value
+    if (f.iban?.value)                updates.iban                 = f.iban.value
+    if (f.account_holder_name?.value) updates.account_holder_name  = f.account_holder_name.value
+    if (f.mandate_signed_at?.value)   updates.mandate_signed_at    = f.mandate_signed_at.value
+
+    setFormData(prev => ({ ...prev, ...updates }))
+  }
+
+  function handleDiscardExtracted() {
+    if (preExtractionFormData) {
+      setFormData(preExtractionFormData)
+    }
+    setExtractedFields(null)
+    setPreExtractionFormData(null)
+  }
+
+  async function handleNewFromScan(file: File) {
+    setScanExtracting(true)
+    setScanFile(file)
+    try {
+      const result = await extractMandateDocument(file)
+      setEditingMember(null)
+      const initialForm = { first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' }
+      setFormData({
+        ...initialForm,
+        first_name:           result.fields.first_name?.value           ?? '',
+        last_name:            result.fields.last_name?.value            ?? '',
+        email:                result.fields.email?.value                ?? '',
+        iban:                 result.fields.iban?.value                 ?? '',
+        account_holder_name:  result.fields.account_holder_name?.value  ?? '',
+        mandate_signed_at:    result.fields.mandate_signed_at?.value    ?? '',
+      })
+      setExtractedFields(result)
+      setPreExtractionFormData(null)
+      setFormErrors({})
+      setShowModal(true)
+    } catch {
+      setError(t('mandateDocument.extractionFailed'))
+      setScanFile(null)
+    } finally {
+      setScanExtracting(false)
+    }
+  }
+
+  function confidenceBadge(fieldName: keyof ExtractionResult['fields']) {
+    if (!extractedFields) return null
+    const field = extractedFields.fields[fieldName]
+    if (!field?.confidence) return null
+    const styles: Record<string, React.CSSProperties> = {
+      high:   { background: 'rgba(34,197,94,0.15)',  color: '#86efac', border: '1px solid rgba(34,197,94,0.3)'  },
+      medium: { background: 'rgba(234,179,8,0.15)',  color: '#fde047', border: '1px solid rgba(234,179,8,0.3)'  },
+      low:    { background: 'rgba(239,68,68,0.15)',   color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)'  },
+    }
+    const labels: Record<string, string> = {
+      high:   t('mandateDocument.confidenceHigh'),
+      medium: t('mandateDocument.confidenceMedium'),
+      low:    t('mandateDocument.confidenceLow'),
+    }
+    return (
+      <span style={{
+        ...styles[field.confidence],
+        borderRadius: '4px',
+        padding: '2px 6px',
+        fontSize: '10px',
+        fontWeight: 700,
+        flexShrink: 0,
+        whiteSpace: 'nowrap',
+      }}>
+        ● {labels[field.confidence]}
+      </span>
+    )
+  }
+
+  function isExtracted(fieldName: keyof ExtractionResult['fields']): boolean {
+    return !!(extractedFields?.fields[fieldName]?.value)
+  }
+
+  function extractedFieldStyle(fieldName: keyof ExtractionResult['fields']): React.CSSProperties {
+    if (!isExtracted(fieldName)) return {}
+    const conf = extractedFields?.fields[fieldName]?.confidence
+    return {
+      background: conf === 'low' ? 'rgba(239,68,68,0.1)' : 'rgba(234,179,8,0.08)',
+      border: conf === 'low'
+        ? '1px solid rgba(239,68,68,0.4)'
+        : '1px solid rgba(234,179,8,0.4)',
+    }
+  }
+
   // Grid columns based on breakpoint
   const gridColumns =
     breakpoint === 'desktop' || breakpoint === 'tablet'
@@ -462,6 +577,39 @@ export function MembersPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
+          <input
+            ref={scanInputRef}
+            type="file"
+            accept="image/*,.pdf"
+            style={{ display: 'none' }}
+            data-testid="members-scan-input"
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (file) await handleNewFromScan(file)
+              if (scanInputRef.current) scanInputRef.current.value = ''
+            }}
+          />
+          <button
+            data-testid="members-new-from-scan-button"
+            onClick={() => scanInputRef.current?.click()}
+            disabled={scanExtracting}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '7px',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'transparent',
+              color: scanExtracting ? 'rgba(255,255,255,0.4)' : '#fff',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: scanExtracting ? 'wait' : 'pointer',
+            }}
+          >
+            <DownloadIcon size={18} />
+            {scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
+          </button>
           <button
             data-testid="members-sepa-template-download-button"
             onClick={handleDownloadSepaTemplate}
@@ -1192,7 +1340,7 @@ export function MembersPage() {
             justifyContent: 'center',
             zIndex: 1100,
           }}
-          onClick={() => setShowModal(false)}
+          onClick={() => { setShowModal(false); setExtractedFields(null); setPreExtractionFormData(null); setScanFile(null) }}
         >
           <div
             data-testid="members-form-modal-content"
@@ -1251,70 +1399,82 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.firstName')} *
                 </label>
-                <input
-                  data-testid="members-form-first-name-input"
-                  type="text"
-                  required
-                  value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  placeholder="Max"
-                  maxLength={100}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    data-testid="members-form-first-name-input"
+                    type="text"
+                    required
+                    value={formData.first_name}
+                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                    placeholder="Max"
+                    maxLength={100}
+                    style={{
+                      flex: 1,
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      boxSizing: 'border-box',
+                      ...extractedFieldStyle('first_name'),
+                    }}
+                  />
+                  {confidenceBadge('first_name')}
+                </div>
               </div>
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.lastName')} *
                 </label>
-                <input
-                  data-testid="members-form-last-name-input"
-                  type="text"
-                  required
-                  value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  placeholder="Mustermann"
-                  maxLength={100}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    data-testid="members-form-last-name-input"
+                    type="text"
+                    required
+                    value={formData.last_name}
+                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                    placeholder="Mustermann"
+                    maxLength={100}
+                    style={{
+                      flex: 1,
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      boxSizing: 'border-box',
+                      ...extractedFieldStyle('last_name'),
+                    }}
+                  />
+                  {confidenceBadge('last_name')}
+                </div>
               </div>
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.email')}
                 </label>
-                <input
-                  data-testid="members-form-email-input"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="max@example.com"
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    data-testid="members-form-email-input"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="max@example.com"
+                    style={{
+                      flex: 1,
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      boxSizing: 'border-box',
+                      ...extractedFieldStyle('email'),
+                    }}
+                  />
+                  {confidenceBadge('email')}
+                </div>
               </div>
 
               <div>
@@ -1370,26 +1530,30 @@ export function MembersPage() {
                     testId="members-form-iban-validation"
                   />
                 </label>
-                <input
-                  data-testid="members-form-iban-input"
-                  type="text"
-                  required
-                  value={formData.iban}
-                  onChange={(e) => { setFormData({ ...formData, iban: e.target.value.replace(/\s/g, '').toUpperCase() }); if (formErrors.iban) setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban'))) }}
-                  placeholder="DE89370400440532013000"
-                  minLength={15}
-                  maxLength={34}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${formErrors.iban ? theme.colors.semantic.danger : theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                    fontFamily: 'monospace',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    data-testid="members-form-iban-input"
+                    type="text"
+                    required
+                    value={formData.iban}
+                    onChange={(e) => { setFormData({ ...formData, iban: e.target.value.replace(/\s/g, '').toUpperCase() }); if (formErrors.iban) setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban'))) }}
+                    placeholder="DE89370400440532013000"
+                    minLength={15}
+                    maxLength={34}
+                    style={{
+                      flex: 1,
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${formErrors.iban ? theme.colors.semantic.danger : theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      boxSizing: 'border-box',
+                      fontFamily: 'monospace',
+                      ...extractedFieldStyle('iban'),
+                    }}
+                  />
+                  {confidenceBadge('iban')}
+                </div>
                 {formErrors.iban && (
                   <p data-testid="members-form-iban-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
                     {formErrors.iban}
@@ -1401,23 +1565,27 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.accountHolderName')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
                 </label>
-                <input
-                  data-testid="members-form-account-holder-name-input"
-                  type="text"
-                  value={formData.account_holder_name}
-                  onChange={(e) => setFormData({ ...formData, account_holder_name: e.target.value })}
-                  placeholder={t('members.accountHolderPlaceholder')}
-                  maxLength={70}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    data-testid="members-form-account-holder-name-input"
+                    type="text"
+                    value={formData.account_holder_name}
+                    onChange={(e) => setFormData({ ...formData, account_holder_name: e.target.value })}
+                    placeholder={t('members.accountHolderPlaceholder')}
+                    maxLength={70}
+                    style={{
+                      flex: 1,
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      boxSizing: 'border-box',
+                      ...extractedFieldStyle('account_holder_name'),
+                    }}
+                  />
+                  {confidenceBadge('account_holder_name')}
+                </div>
                 <span style={{ fontSize: '12px', color: theme.colors.text.secondary, marginTop: '4px', display: 'block' }}>
                   {t('members.accountHolderHint')}
                 </span>
@@ -1454,23 +1622,27 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.mandateSignedAt')} <span style={{ color: theme.colors.semantic.danger }}>*</span> <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')})</span>
                 </label>
-                <input
-                  data-testid="members-form-mandate-date-input"
-                  type="date"
-                  required
-                  value={formData.mandate_signed_at}
-                  onChange={(e) => setFormData({ ...formData, mandate_signed_at: e.target.value })}
-                  max={new Date().toISOString().split('T')[0]}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    data-testid="members-form-mandate-date-input"
+                    type="date"
+                    required
+                    value={formData.mandate_signed_at}
+                    onChange={(e) => setFormData({ ...formData, mandate_signed_at: e.target.value })}
+                    max={new Date().toISOString().split('T')[0]}
+                    style={{
+                      flex: 1,
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      boxSizing: 'border-box',
+                      ...extractedFieldStyle('mandate_signed_at'),
+                    }}
+                  />
+                  {confidenceBadge('mandate_signed_at')}
+                </div>
               </div>
 
               <div style={{ gridColumn: '1 / -1' }}>
@@ -1484,6 +1656,44 @@ export function MembersPage() {
                   required
                 />
               </div>
+
+              {extractedFields && (
+                <div
+                  style={{
+                    gridColumn: '1 / -1',
+                    background: 'rgba(124,58,237,0.1)',
+                    border: '1px solid rgba(124,58,237,0.3)',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    fontSize: '12px',
+                    color: '#c4b5fd',
+                    marginBottom: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                  }}
+                  data-testid="extraction-review-banner"
+                >
+                  <span>✦ {t('mandateDocument.extractionReviewHint')}</span>
+                  <button
+                    onClick={handleDiscardExtracted}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(124,58,237,0.4)',
+                      borderRadius: '4px',
+                      color: '#c4b5fd',
+                      fontSize: '11px',
+                      padding: '3px 8px',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                    data-testid="discard-extracted-btn"
+                  >
+                    {t('mandateDocument.discardExtracted')}
+                  </button>
+                </div>
+              )}
 
               <div style={{ gridColumn: '1 / -1', display: 'flex', gap: theme.spacing.lg, justifyContent: editingMember ? 'space-between' : 'flex-end', marginTop: theme.spacing.lg }}>
                 {editingMember && (
@@ -1516,7 +1726,7 @@ export function MembersPage() {
                   <button
                     data-testid="members-form-cancel-button"
                     type="button"
-                    onClick={() => setShowModal(false)}
+                    onClick={() => { setShowModal(false); setExtractedFields(null); setPreExtractionFormData(null); setScanFile(null) }}
                     style={{
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                       background: 'transparent',
@@ -1554,6 +1764,7 @@ export function MembersPage() {
               <MandateDocumentSection
                 memberId={editingMember.id}
                 initialDocument={editingMember.mandate_document ?? null}
+                onExtractionComplete={handleExtractionComplete}
               />
             )}
           </div>
