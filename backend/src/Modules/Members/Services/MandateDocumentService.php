@@ -8,6 +8,7 @@ use App\Modules\Members\DTOs\MandateDocumentDto;
 use App\Modules\Members\Repositories\MandateDocumentRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -20,29 +21,27 @@ class MandateDocumentService
 
     public function __construct(
         private MandateDocumentRepository $mandateDocumentRepository,
-        private AuditService $auditService,
+        private AuditService              $auditService,
+        private Logger                    $logger,
+        private ?ExtractionService        $extractionService = null,
     ) {}
 
-    /**
-     * Absolute path to the mandates storage directory.
-     * Located at backend/storage/mandates/ — outside the web root (public/).
-     */
     public function getStorageDir(): string
     {
-        // __DIR__ = backend/src/Modules/Members/Services
         return dirname(__DIR__, 4) . '/storage/mandates';
     }
 
     /**
      * Upload or replace a member's mandate document.
-     * Converts images to PDF via dompdf. Idempotent (upsert).
+     * If ExtractionService is configured, extraction runs synchronously on the original bytes.
+     * Extraction failure is non-fatal — upload still succeeds.
      *
      * @throws \InvalidArgumentException on validation failure
      */
     public function upload(
-        string $memberId,
+        string              $memberId,
         UploadedFileInterface $uploadedFile,
-        ?string $adminId,
+        ?string             $adminId,
     ): MandateDocumentDto {
         $mimeType = $uploadedFile->getClientMediaType() ?? '';
         if (!in_array($mimeType, self::ALLOWED_MIME_TYPES, true)) {
@@ -56,8 +55,9 @@ class MandateDocumentService
 
         $stream = $uploadedFile->getStream();
         $stream->rewind();
-        $content = (string) $stream->getContents();
+        $originalBytes = (string) $stream->getContents(); // keep original for LLM extraction
 
+        $content = $originalBytes;
         if ($mimeType !== 'application/pdf') {
             $content = $this->convertImageToPdf($content, $mimeType);
         }
@@ -92,6 +92,29 @@ class MandateDocumentService
             newValues:   ['original_filename' => $originalFilename, 'file_size_bytes' => $fileSizeBytes],
             adminUserId: $adminId,
         );
+
+        // Run extraction on original bytes (not the dompdf-converted PDF).
+        // Silently skipped when ExtractionService is null (LLM not configured).
+        if ($this->extractionService !== null) {
+            try {
+                $extractionResult = $this->extractionService->extract($originalBytes, $mimeType);
+                $this->mandateDocumentRepository->updateExtraction(
+                    $memberId,
+                    'completed',
+                    $extractionResult->toArray(),
+                );
+                $row['extraction_status'] = 'completed';
+                $row['extracted_data']    = json_encode($extractionResult->toArray());
+            } catch (\Throwable $e) {
+                $this->logger->error('Mandate document extraction failed', [
+                    'member_id' => $memberId,
+                    'error'     => $e->getMessage(),
+                ]);
+                $this->mandateDocumentRepository->updateExtraction($memberId, 'failed', null);
+                $row['extraction_status'] = 'failed';
+                $row['extracted_data']    = null;
+            }
+        }
 
         return MandateDocumentDto::fromRow($row);
     }
