@@ -72,6 +72,25 @@ class MandateDocumentRepository
         return $deleted;
     }
 
+    /**
+     * Write LLM extraction results after a successful upload.
+     * Called only by MandateDocumentService — never clears extraction on its own.
+     */
+    public function updateExtraction(string $memberId, string $status, ?array $data): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE mandate_documents
+                SET extraction_status = :status,
+                    extracted_data    = :data
+              WHERE member_id = :member_id'
+        );
+        $stmt->execute([
+            'member_id' => $memberId,
+            'status'    => $status,
+            'data'      => $data !== null ? json_encode($data, JSON_UNESCAPED_UNICODE) : null,
+        ]);
+    }
+
     private function generateUuid(): string
     {
         // Matches the cryptographically-secure pattern used in all other repositories
