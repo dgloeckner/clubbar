@@ -47,7 +47,11 @@ use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminControlle
 use App\Shared\Controllers\HealthController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
 use App\Modules\Members\Controllers\MandateDocumentController;
+use App\Modules\Members\Controllers\ExtractionController;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
+use App\Modules\Members\Contracts\LlmClientInterface;
+use App\Modules\Members\Factories\LlmClientFactory;
+use App\Modules\Members\Services\ExtractionService;
 use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
 use App\Modules\Settlements\Controllers\AdminController as SettlementsAdminController;
@@ -89,6 +93,7 @@ class ServiceFactory implements ContainerInterface
         // Members
         MembersAdminController::class => 'getMembersAdminController',
         MandateDocumentController::class => 'getMandateDocumentController',
+        ExtractionController::class => 'getExtractionController',
         MembersSyncController::class => 'getMembersSyncController',
 
         // Products
@@ -252,6 +257,29 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(MandateDocumentService::class, fn() => new MandateDocumentService(
             $this->getMandateDocumentRepository(),
             $this->getAuditService(),
+            $this->logger,
+            $this->getExtractionService(),
+        ));
+    }
+
+    public function getLlmClientFactory(): LlmClientFactory
+    {
+        return $this->resolve(LlmClientFactory::class, fn() => new LlmClientFactory($this->config));
+    }
+
+    public function getExtractionService(): ?ExtractionService
+    {
+        $client = $this->getLlmClientFactory()->create();
+        if ($client === null) {
+            return null;
+        }
+        return $this->resolve(ExtractionService::class, fn() => new ExtractionService($client));
+    }
+
+    public function getExtractionController(): ExtractionController
+    {
+        return $this->resolve(ExtractionController::class, fn() => new ExtractionController(
+            $this->getExtractionService(),
         ));
     }
 

@@ -6,6 +6,7 @@ use App\Shared\Controllers\HealthController;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
 use App\Modules\Members\Controllers\MandateDocumentController;
+use App\Modules\Members\Controllers\ExtractionController;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
 use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
@@ -83,6 +84,7 @@ return function (App $app): void {
         $group->post('/members/{memberId}/mandate-document', [MandateDocumentController::class, 'upload']);
         $group->get('/members/{memberId}/mandate-document', [MandateDocumentController::class, 'download']);
         $group->delete('/members/{memberId}/mandate-document', [MandateDocumentController::class, 'delete']);
+        $group->post('/mandate-document/extract', [ExtractionController::class, 'extract']);
 
         // Categories
         $group->get('/categories', [ProductsAdminController::class, 'listCategories']);
