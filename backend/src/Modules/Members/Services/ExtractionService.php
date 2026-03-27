@@ -105,7 +105,7 @@ class ExtractionService
             $prompt  = $prevIban !== null
                 ? $this->buildIbanRefinementPrompt($prevIban)
                 : $this->buildIbanFreshReadPrompt();
-            $rawJson = $this->client->extractFromImage($base64, $mimeType, $prompt);
+            $rawJson = $this->client->extractFromImage($base64, $mimeType, $prompt, '{"iban": "DE');
             $newIban = $this->parseIbanReading($rawJson);
 
             if ($newIban !== null) {
@@ -221,7 +221,7 @@ PROMPT;
     {
         $list    = implode("\n", array_map(fn($i, $c) => ($i + 1) . ". $c", array_keys($candidates), $candidates));
         $prompt  = $this->buildIbanArbitrationPrompt($list);
-        $rawJson = $this->client->extractFromImage($base64, $mimeType, $prompt);
+        $rawJson = $this->client->extractFromImage($base64, $mimeType, $prompt, '{"iban": "DE');
 
         $json = preg_replace('/^```json?\s*/m', '', $rawJson) ?? $rawJson;
         $json = preg_replace('/^```\s*$/m', '', $json) ?? $json;

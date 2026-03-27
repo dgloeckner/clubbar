@@ -13,31 +13,42 @@ class AnthropicClient implements LlmClientInterface
         private string $model,
     ) {}
 
-    public function extractFromImage(string $base64, string $mimeType, string $prompt): string
+    public function extractFromImage(string $base64, string $mimeType, string $prompt, string $assistantPrefill = ''): string
     {
         // Anthropic supports both images and PDFs natively via different content types.
         $contentType = $mimeType === 'application/pdf' ? 'document' : 'image';
 
+        $messages = [[
+            'role'    => 'user',
+            'content' => [
+                [
+                    'type'   => $contentType,
+                    'source' => [
+                        'type'       => 'base64',
+                        'media_type' => $mimeType,
+                        'data'       => $base64,
+                    ],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $prompt,
+                ],
+            ],
+        ]];
+
+        // Assistant prefilling: add a partial assistant turn so the model continues
+        // directly from the given text without any preamble.
+        if ($assistantPrefill !== '') {
+            $messages[] = [
+                'role'    => 'assistant',
+                'content' => $assistantPrefill,
+            ];
+        }
+
         $payload = [
             'model'      => $this->model,
             'max_tokens' => 1024,
-            'messages'   => [[
-                'role'    => 'user',
-                'content' => [
-                    [
-                        'type'   => $contentType,
-                        'source' => [
-                            'type'       => 'base64',
-                            'media_type' => $mimeType,
-                            'data'       => $base64,
-                        ],
-                    ],
-                    [
-                        'type' => 'text',
-                        'text' => $prompt,
-                    ],
-                ],
-            ]],
+            'messages'   => $messages,
         ];
 
         $ch = curl_init('https://api.anthropic.com/v1/messages');
@@ -69,6 +80,9 @@ class AnthropicClient implements LlmClientInterface
             throw new \RuntimeException("Anthropic API error {$httpCode}: {$msg}");
         }
 
-        return (string) ($body['content'][0]['text'] ?? '');
+        // The API returns only the completion after the prefill; prepend it back
+        // so callers receive the full response text they expect.
+        $text = (string) ($body['content'][0]['text'] ?? '');
+        return $assistantPrefill !== '' ? $assistantPrefill . $text : $text;
     }
 }
