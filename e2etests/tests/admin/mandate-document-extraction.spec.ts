@@ -203,9 +203,8 @@ test.describe('Mandate upload — extraction field in response', () => {
 // Exact values are asserted only for fields read with high confidence across
 // multiple runs.  IBAN and mandate_signed_at use pattern assertions:
 //
-//   IBAN: handwriting is ambiguous — exact digits vary across runs.
-//         We assert the CI-avoidance rule works (starts with DE, no embedded
-//         letters after position 4) and the value is non-null.
+//   IBAN: exact value asserted — Kästchen layout + extended thinking pipeline
+//         (mod-97 validation + brute-force refinement) makes this reliable.
 //
 //   mandate_signed_at: actual date on form is 2026-04-01.  The form now uses
 //         individual digit boxes (Kästchen) with pre-printed dots separating
@@ -241,9 +240,8 @@ test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-
     expect(f.email.value).toBe('max@mueller.de')
     expect(f.account_holder_name.value).toBe('Mandy Müller')
 
-    // IBAN — assert CI-avoidance rule: non-null, starts with DE, no letters after position 4
-    expect(f.iban.value).not.toBeNull()
-    expect(f.iban.value).toMatch(/^DE\d{2}[0-9]+$/)
+    // IBAN — assert exact value
+    expect(f.iban.value).toBe('DE02100100100006820101')
 
     // mandate_signed_at — assert exact date (Kästchen layout makes all digits unambiguous)
     expect(f.mandate_signed_at.value).toBe('2026-04-01')
