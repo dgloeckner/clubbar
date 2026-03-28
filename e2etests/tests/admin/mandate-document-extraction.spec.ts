@@ -248,6 +248,40 @@ test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-
   })
 })
 
+// ── Golden values — sepa-form-2.jpg fixture ───────────────────────────────────
+
+test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-form-2.jpg)', () => {
+  test('extracts correct values from sepa-form-2.jpg', async ({ page }) => {
+    test.skip(!LLM_CONFIGURED, 'LLM_API_KEY not set — skipping golden extraction test')
+    test.setTimeout(180000)
+    await page.goto('http://localhost:5173/members')
+    const resp = await page.request.post(
+      'http://localhost:8080/api/admin/mandate-document/extract',
+      {
+        multipart: {
+          file: {
+            name: 'sepa-form-2.jpg',
+            mimeType: 'image/jpeg',
+            buffer: readFileSync(resolve(FIXTURE_DIR, 'sepa-form-2.jpg')),
+          },
+        },
+        headers: await csrfHeaders(page),
+        timeout: 150000,
+      }
+    )
+    expect(resp.status()).toBe(200)
+    const body = await resp.json()
+    const f = body.fields
+
+    expect(f.first_name.value).toBe('Susi')
+    expect(f.last_name.value).toBe('Sommerfrische')
+    expect(f.email.value).toBe('bliblablub@gmail.com')
+    expect(f.account_holder_name.value).toBeNull()
+    expect(f.iban.value).toBe('DE02370502990000684712')
+    expect(f.mandate_signed_at.value).toBe('2026-05-03')
+  })
+})
+
 // ── UI — extraction review banner and New from scan button ────────────────────
 
 test.describe('UI — extraction review banner and New from scan button', () => {
