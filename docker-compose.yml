@@ -43,6 +43,12 @@ services:
       WEB_DOCUMENT_ROOT: /app/public
       SSL_MODE: "off"
 
+      # PHP-FPM Worker Pool
+      # Default is 5 workers — too few when LLM extraction tests (up to 3 min each)
+      # run in parallel with the rest of the suite (4 Playwright workers).
+      FPM_PM_MAX_CHILDREN: "15"
+      FPM_PM_MAX_SPARE_SERVERS: "10"
+
       # PHP Configuration
       PHP_MEMORY_LIMIT: "256M"
       PHP_MAX_EXECUTION_TIME: "99"
