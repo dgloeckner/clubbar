@@ -60,6 +60,11 @@ body {
   margin-bottom: 10px;
 }
 
+.iban-grid { border-collapse: collapse; margin-bottom: 6px; }
+.iban-cell { border: 1px solid #94a3b8; width: 24px; height: 24px; }
+.iban-gap  { width: 8px; }
+.date-sep  { width: 10px; text-align: center; vertical-align: middle; font-size: 11pt; font-weight: bold; color: #94a3b8; }
+
 .sig-table { width: 100%; border-collapse: collapse; }
 .sig-cell {
   border: 1px solid #94a3b8;
@@ -130,7 +135,9 @@ body {
 <tr>
   <td style="width:28%; vertical-align:top; padding-right:6px;">
     <div class="field-label">PLZ *</div>
-    <div class="field-box"></div>
+    <table class="iban-grid" cellspacing="0" cellpadding="0">
+    <tr><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td></tr>
+    </table>
   </td>
   <td style="width:72%; vertical-align:top; padding-left:6px;">
     <div class="field-label">Ort *</div>
@@ -146,8 +153,22 @@ body {
   {{CREDITOR_ID}} &middot; {{CREDITOR}}, {{ADDRESS}}
 </div>
 
-<div class="field-label">IBAN * <span class="field-optional">(SEPA)</span></div>
-<div class="field-box"></div>
+<div class="field-label">IBAN * <span class="field-optional">(SEPA &middot; je ein Zeichen pro K&auml;stchen)</span></div>
+<table class="iban-grid" cellspacing="0" cellpadding="0">
+<tr>
+  <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
+  <td class="iban-gap"></td>
+  <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
+  <td class="iban-gap"></td>
+  <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
+  <td class="iban-gap"></td>
+  <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
+  <td class="iban-gap"></td>
+  <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
+  <td class="iban-gap"></td>
+  <td class="iban-cell"></td><td class="iban-cell"></td>
+</tr>
+</table>
 
 <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:2px;">
 <tr>
@@ -156,8 +177,16 @@ body {
     <div class="field-box"></div>
   </td>
   <td class="two-col-right">
-    <div class="field-label">Mandatsdatum * <span class="field-optional">(SEPA)</span></div>
-    <div class="field-box"></div>
+    <div class="field-label">Mandatsdatum * <span class="field-optional">(SEPA &middot; TT.MM.JJJJ)</span></div>
+    <table class="iban-grid" cellspacing="0" cellpadding="0">
+    <tr>
+      <td class="iban-cell"></td><td class="iban-cell"></td>
+      <td class="date-sep">.</td>
+      <td class="iban-cell"></td><td class="iban-cell"></td>
+      <td class="date-sep">.</td>
+      <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
+    </tr>
+    </table>
   </td>
 </tr>
 </table>

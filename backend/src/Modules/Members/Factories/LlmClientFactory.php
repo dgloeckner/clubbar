@@ -28,7 +28,8 @@ class LlmClientFactory
         return match ($this->config->llmProvider) {
             'anthropic' => new AnthropicClient(
                 $this->config->llmApiKey,
-                $this->config->llmModel ?? 'claude-haiku-4-5-20251001',
+                $this->config->llmModel ?? 'claude-sonnet-4-6',
+                $this->config->llmThinkingBudget,
             ),
             'openai' => new OpenAiClient(
                 $this->config->llmApiKey,

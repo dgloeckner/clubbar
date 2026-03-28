@@ -11,6 +11,7 @@ class AnthropicClient implements LlmClientInterface
     public function __construct(
         private string $apiKey,
         private string $model,
+        private int    $thinkingBudget = 0,
     ) {}
 
     public function extractFromImage(string $base64, string $mimeType, string $prompt, string $assistantPrefill = ''): string
@@ -36,9 +37,10 @@ class AnthropicClient implements LlmClientInterface
             ],
         ]];
 
-        // Assistant prefilling: add a partial assistant turn so the model continues
-        // directly from the given text without any preamble.
-        if ($assistantPrefill !== '') {
+        $usingThinking = $this->thinkingBudget >= 1024;
+
+        // Assistant prefilling is incompatible with extended thinking — skip it.
+        if (!$usingThinking && $assistantPrefill !== '') {
             $messages[] = [
                 'role'    => 'assistant',
                 'content' => $assistantPrefill,
@@ -47,16 +49,25 @@ class AnthropicClient implements LlmClientInterface
 
         $payload = [
             'model'      => $this->model,
-            'max_tokens' => 1024,
+            'max_tokens' => $usingThinking ? $this->thinkingBudget + 2048 : 1024,
             'messages'   => $messages,
         ];
+
+        if ($usingThinking) {
+            $payload['thinking'] = [
+                'type'         => 'enabled',
+                'budget_tokens' => $this->thinkingBudget,
+            ];
+        }
 
         $ch = curl_init('https://api.anthropic.com/v1/messages');
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => json_encode($payload),
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_TIMEOUT        => $usingThinking ? 180 : 30,
+            // Force HTTP/1.1 to avoid HTTP/2 stream issues in Docker environments.
+            CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_1_1,
             CURLOPT_HTTPHEADER     => [
                 'Content-Type: application/json',
                 'x-api-key: ' . $this->apiKey,
@@ -80,9 +91,16 @@ class AnthropicClient implements LlmClientInterface
             throw new \RuntimeException("Anthropic API error {$httpCode}: {$msg}");
         }
 
-        // The API returns only the completion after the prefill; prepend it back
-        // so callers receive the full response text they expect.
-        $text = (string) ($body['content'][0]['text'] ?? '');
-        return $assistantPrefill !== '' ? $assistantPrefill . $text : $text;
+        // With thinking enabled the response contains multiple blocks (thinking + text).
+        // Find the first text block; prepend prefill only when thinking is off.
+        $text = '';
+        foreach ((array) ($body['content'] ?? []) as $block) {
+            if (($block['type'] ?? '') === 'text') {
+                $text = (string) ($block['text'] ?? '');
+                break;
+            }
+        }
+
+        return (!$usingThinking && $assistantPrefill !== '') ? $assistantPrefill . $text : $text;
     }
 }

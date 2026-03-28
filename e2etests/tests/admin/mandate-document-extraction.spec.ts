@@ -97,6 +97,7 @@ test.describe('POST /api/admin/mandate-document/extract — LLM not configured',
 test.describe('POST /api/admin/mandate-document/extract — LLM configured', () => {
   test('returns 200 with per-field extraction result', async ({ page }) => {
     test.skip(!LLM_CONFIGURED, 'LLM_API_KEY not set — skipping positive extraction test')
+    test.setTimeout(180000) // Extended thinking can take up to 2–3 minutes
     await page.goto('http://localhost:5173/members')
     const resp = await page.request.post(
       'http://localhost:8080/api/admin/mandate-document/extract',
@@ -109,7 +110,7 @@ test.describe('POST /api/admin/mandate-document/extract — LLM configured', () 
           },
         },
         headers: await csrfHeaders(page),
-        timeout: 60000,
+        timeout: 150000,
       }
     )
     expect(resp.status()).toBe(200)
@@ -159,6 +160,7 @@ test.describe('Mandate upload — extraction field in response', () => {
 
   test('response includes completed extraction when LLM configured', async ({ page }) => {
     test.skip(!LLM_CONFIGURED, 'LLM_API_KEY not set — skipping positive extraction test')
+    test.setTimeout(180000) // Extended thinking can take up to 2–3 minutes
     await page.goto('http://localhost:5173/members')
     const memberId = await createTestMember(page)
 
@@ -173,7 +175,7 @@ test.describe('Mandate upload — extraction field in response', () => {
           },
         },
         headers: await csrfHeaders(page),
-        timeout: 60000,
+        timeout: 150000,
       }
     )
     expect(resp.status()).toBe(200)
@@ -205,14 +207,15 @@ test.describe('Mandate upload — extraction field in response', () => {
 //         We assert the CI-avoidance rule works (starts with DE, no embedded
 //         letters after position 4) and the value is non-null.
 //
-//   mandate_signed_at: actual date on form is 2026-04-01.  The model
-//         consistently reads the day as "09" due to handwriting ambiguity,
-//         but year and month are correct.  We assert YYYY-MM-DD format and
-//         that the year-month prefix matches.
+//   mandate_signed_at: actual date on form is 2026-04-01.  The form now uses
+//         individual digit boxes (Kästchen) with pre-printed dots separating
+//         day/month/year, so the full date should be consistently readable.
+//         We assert YYYY-MM-DD format and the correct year-month-day.
 
 test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-form.jpg)', () => {
   test('extracts correct values from sepa-form.jpg', async ({ page }) => {
     test.skip(!LLM_CONFIGURED, 'LLM_API_KEY not set — skipping golden extraction test')
+    test.setTimeout(180000) // Extended thinking can take up to 2–3 minutes
     await page.goto('http://localhost:5173/members')
     const resp = await page.request.post(
       'http://localhost:8080/api/admin/mandate-document/extract',
@@ -225,7 +228,7 @@ test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-
           },
         },
         headers: await csrfHeaders(page),
-        timeout: 60000,
+        timeout: 150000,
       }
     )
     expect(resp.status()).toBe(200)
@@ -242,9 +245,8 @@ test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-
     expect(f.iban.value).not.toBeNull()
     expect(f.iban.value).toMatch(/^DE\d{2}[0-9]+$/)
 
-    // mandate_signed_at — assert format and correct year-month (day ambiguous in handwriting)
-    expect(f.mandate_signed_at.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    expect(f.mandate_signed_at.value).toMatch(/^2026-04-/)
+    // mandate_signed_at — assert exact date (Kästchen layout makes all digits unambiguous)
+    expect(f.mandate_signed_at.value).toBe('2026-04-01')
   })
 })
 

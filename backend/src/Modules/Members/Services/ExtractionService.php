@@ -43,18 +43,20 @@ class ExtractionService
         $rawJson = $this->client->extractFromImage($base64, $processedMime, $prompt);
         $result  = $this->parseResponse($rawJson);
 
-        // Refine IBAN when confidence is low.
-        // Garbled first-pass readings (letters embedded mid-string) are treated as
-        // null — they cannot be passed as "previous reading" to the refinement prompt —
-        // but we still attempt a fresh focused re-read rather than giving up entirely.
+        // Always validate the IBAN with mod-97, regardless of model-reported confidence.
+        // The model may return "medium" or even "high" confidence on a wrong reading —
+        // mod-97 is a hard mathematical check that cannot be fooled.
+        // Refinement runs whenever the reading is absent, fails checksum, or is garbled.
         $fields    = $result->fields;
         $ibanValue = $fields['iban']['value'] ?? null;
-        $ibanConf  = $fields['iban']['confidence'] ?? null;
 
-        if ($ibanConf === 'low' && $ibanValue !== null) {
-            $isPlausible = (bool) preg_match('/^DE\d{20}$/', $ibanValue);
-            // Garbled reading: treat as if the first pass returned nothing, then do a
-            // focused fresh re-read (refineIban with null skips the "previous reading" hint)
+        $needsRefinement = $ibanValue === null
+            || !$this->verifyIbanMod97($ibanValue);
+
+        if ($needsRefinement) {
+            $isPlausible = $ibanValue !== null && (bool) preg_match('/^DE\d{20}$/', $ibanValue);
+            // Garbled or wrong reading: pass it as hint only if it has the right format,
+            // so the refinement prompt can tell the model "this specific reading is wrong".
             $prevForRefinement = $isPlausible ? $ibanValue : null;
             [$refinedValue, $refinedConf] = $this->refineIban($base64, $processedMime, $prevForRefinement);
             $fields['iban'] = ['value' => $refinedValue, 'confidence' => $refinedConf];
@@ -70,8 +72,8 @@ class ExtractionService
      * Stage 1 — mod-97 fast path:
      *   If the first-pass value already passes mod-97 → ['value', 'medium'].
      *
-     * Stage 2 — second visual pass:
-     *   Re-query the LLM with a checksum-failure hint.
+     * Stage 2 — second visual pass (fresh read, no hint):
+     *   Re-query the LLM with a clean prompt to avoid anchoring on the wrong reading.
      *   If the new reading passes mod-97 → ['newValue', 'medium'].
      *
      * Stage 3 — brute-force arbitration:
@@ -98,13 +100,11 @@ class ExtractionService
             return [$prevIban, 'medium'];
         }
 
-        // Stage 2: second visual pass — with checksum-failure hint if we have a
-        // previous reading, or a fresh focused read if the first pass was garbled
+        // Stage 2: always a completely fresh focused read — never anchor on the
+        // wrong first-pass value, as that biases extended reasoning toward bad digits.
         $stage2Iban = $prevIban;
         try {
-            $prompt  = $prevIban !== null
-                ? $this->buildIbanRefinementPrompt($prevIban)
-                : $this->buildIbanFreshReadPrompt();
+            $prompt  = $this->buildIbanFreshReadPrompt();
             $rawJson = $this->client->extractFromImage($base64, $mimeType, $prompt, '{"iban": "DE');
             $newIban = $this->parseIbanReading($rawJson);
 
@@ -118,9 +118,19 @@ class ExtractionService
             // Stage 2 failed — continue to stage 3 with original reading
         }
 
-        // Stage 3: brute-force confusion-pair substitutions, then LLM arbitration
+        // Stage 3: brute-force confusion-pair substitutions, then LLM arbitration.
+        // 1-substitution pass runs first — a unique 1-sub fix is the strongest signal
+        // and avoids being diluted by the larger 2-sub candidate pool.
         try {
-            $candidates = $this->bruteForceIbanCandidates($stage2Iban);
+            $singles = $this->bruteForceIbanCandidates($stage2Iban, 1);
+
+            if (count($singles) === 1) {
+                return [$singles[0], 'medium'];
+            }
+
+            // No unique single fix — expand to 2-substitution candidates.
+            $doubles    = $this->bruteForceIbanCandidates($stage2Iban, 2);
+            $candidates = array_values(array_unique(array_merge($singles, $doubles)));
 
             if (count($candidates) === 0) {
                 return [$stage2Iban, 'low'];
@@ -150,28 +160,21 @@ class ExtractionService
     private function buildIbanFreshReadPrompt(): string
     {
         return <<<'PROMPT'
-Look at the handwritten IBAN field in this SEPA mandate form image.
-
-Read only the member's own bank account IBAN (the handwritten field, NOT the pre-printed
-Creditor Identifier / Gläubiger-Identifikationsnummer which contains letter codes like "BZZ").
-
-German IBANs: DE + 2 check digits + 8-digit BLZ + 10-digit account number = exactly 22 characters,
-all digits after DE. Common confusion pairs: 1↔7, 2↔8, 0↔6, 3↔8, 5↔6.
-
-Return ONLY valid JSON, no markdown, no explanation:
-{"iban": "DE..."}
+Extract the member's handwritten IBAN from this SEPA mandate form.
+The IBAN is written in individual boxes (Kästchen). Ignore the pre-printed Creditor Identifier (CI) — it contains letter codes like "ZZZ".
+Return ONLY valid JSON: {"iban": "DE..."}
 PROMPT;
     }
 
     /**
-     * Generate all German IBANs reachable from $iban by substituting ≤2 digits
-     * using the handwriting confusion pairs, filtering to those passing mod-97.
+     * Generate all German IBANs reachable from $iban by substituting exactly
+     * $maxSubs digits using handwriting confusion pairs, filtering to those passing mod-97.
      *
      * Confusion pairs (bidirectional): 1↔7, 2↔8, 0↔6, 3↔8, 5↔6
      *
      * @return string[]
      */
-    private function bruteForceIbanCandidates(string $iban): array
+    private function bruteForceIbanCandidates(string $iban, int $maxSubs): array
     {
         $alternatives = [
             '0' => ['6'],
@@ -195,16 +198,13 @@ PROMPT;
 
         $candidates = [];
 
-        // Try substituting 1, then 2 positions
-        for ($numSubs = 1; $numSubs <= 2; $numSubs++) {
-            foreach ($this->combinations($ambiguous, $numSubs) as $selected) {
-                $this->expandSubstitutions($digits, $selected, 0, function (array $candidate) use (&$candidates) {
-                    $s = implode('', $candidate);
-                    if ($this->verifyIbanMod97($s) && !in_array($s, $candidates, true)) {
-                        $candidates[] = $s;
-                    }
-                });
-            }
+        foreach ($this->combinations($ambiguous, $maxSubs) as $selected) {
+            $this->expandSubstitutions($digits, $selected, 0, function (array $candidate) use (&$candidates) {
+                $s = implode('', $candidate);
+                if ($this->verifyIbanMod97($s) && !in_array($s, $candidates, true)) {
+                    $candidates[] = $s;
+                }
+            });
         }
 
         sort($candidates);
@@ -284,70 +284,25 @@ PROMPT;
     }
 
     /**
-     * Enhance image quality before sending to the LLM.
+     * Prepare image bytes for the LLM.
      *
-     * Uses GD (universally available, crash-free) to:
-     *  - Convert to grayscale
-     *  - Boost contrast
-     *  - Sharpen
-     *  - Downsample to max 1500px wide (sufficient for LLM OCR, reduces tokens)
-     *
-     * Falls back to original bytes on any failure.
+     * For PDFs the bytes are sent as-is (Anthropic handles them natively).
+     * For images we send the original bytes without any GD processing:
+     * modern vision models read natural-resolution colour images well, and
+     * resampling + JPEG re-encoding degrades the fine detail in Kästchen
+     * (individual character boxes) that is critical for IBAN recognition.
      *
      * @return array{0: string, 1: string} [bytes, mimeType]
      */
     private function enhanceImage(string $bytes, string $mimeType): array
     {
-        if (!extension_loaded('gd')) {
-            return [$bytes, $mimeType];
-        }
-
-        try {
-            $src = @imagecreatefromstring($bytes);
-            if ($src === false) {
-                return [$bytes, $mimeType];
-            }
-
-            $w = imagesx($src);
-            $h = imagesy($src);
-
-            // Downsample to max 1500px wide — reduces LLM token cost and memory usage
-            if ($w > 1500) {
-                $newH = (int) round($h * 1500 / $w);
-                $dst  = imagecreatetruecolor(1500, $newH);
-                imagecopyresampled($dst, $src, 0, 0, 0, 0, 1500, $newH, $w, $h);
-                imagedestroy($src);
-                $src = $dst;
-                $w   = 1500;
-                $h   = $newH;
-            }
-
-            // Grayscale — removes colour noise, uniform ink representation
-            imagefilter($src, IMG_FILTER_GRAYSCALE);
-
-            // Gentle contrast boost — just enough to distinguish ink from paper
-            // without over-amplifying pre-printed fields relative to handwriting
-            imagefilter($src, IMG_FILTER_CONTRAST, -10);
-
-            // Sharpen — makes thin strokes (e.g. "1" vs "9") more distinct
-            imagefilter($src, IMG_FILTER_SHARPEN);
-
-            ob_start();
-            imagejpeg($src, null, 92);
-            $result = ob_get_clean();
-            imagedestroy($src);
-
-            return [$result ?: $bytes, 'image/jpeg'];
-        } catch (\Throwable) {
-            return [$bytes, $mimeType];
-        }
+        return [$bytes, $mimeType];
     }
 
     private function buildPrompt(): string
     {
         return <<<'PROMPT'
-You are extracting data from a scanned SEPA direct debit mandate form.
-Extract the following fields and return ONLY valid JSON in this exact format — no markdown, no explanation, no additional text:
+Extract data from this scanned SEPA mandate form. Return ONLY valid JSON, no markdown, no explanation:
 {
   "fields": {
     "first_name":          {"value": "...", "confidence": "high"},
@@ -358,38 +313,14 @@ Extract the following fields and return ONLY valid JSON in this exact format —
     "mandate_signed_at":   {"value": "YYYY-MM-DD", "confidence": "high"}
   }
 }
-Rules:
-- confidence must be "high", "medium", or "low"
-- Use null for value AND confidence when a field is absent, blank, or illegible
-- For handwritten fields (iban, account_holder_name, mandate_signed_at): use "low" confidence whenever any character could plausibly be misread (e.g. 1/7, 0/6, 1/9, n/m). Only use "high" when every character is completely unambiguous.
-- For iban: extract the member's own bank account IBAN — this is typically handwritten by the member in the "IBAN" field. Do NOT extract the Creditor Identifier (CI / Gläubiger-Identifikationsnummer), which is a separate pre-printed field filled in by the organisation; it can be recognised by embedded letter codes such as "BZZ" or "ZZZ" within the number. German IBANs always start with "DE", followed by exactly 2 check digits, then an 8-digit Bankleitzahl (BLZ), then a 10-digit account number — total 22 characters, all digits after "DE". Common handwriting confusions: 1↔7, 2↔8, 0↔6, 3↔8, 5↔6. If the reading has fewer or more than 22 characters, set confidence to "low". Remove all spaces and return uppercase.
-- For mandate_signed_at: extract the date from the "Mandatsdatum" field in the SEPA mandate section (not the signature date in section 3). The date may be written in various formats such as 1.4., 01.04., 1.4.26, 01.04.26, 1.4.2026, or 01.04.2026 — always convert to YYYY-MM-DD. For 2-digit years assume 2000+. If only day and month are present without a year, set value to null.
-- For name fields (first_name, last_name, account_holder_name): return in standard title case (e.g. "Müller", "Max", "Mandy Müller") regardless of whether the handwriting uses all-caps or all-lowercase. Do not return ALL CAPS names.
+
+- confidence: "high" = every character certain; "medium" = mostly clear; "low" = uncertain characters
+- Use null for value AND confidence when a field is absent or illegible
+- iban: extract the member's handwritten IBAN from the individual boxes (Kästchen), NOT the pre-printed Creditor Identifier (CI) which contains letter codes like "ZZZ"
+- mandate_signed_at: use the date in the "Mandatsdatum" field (individual boxes with pre-printed dots), not the signature date. Format: YYYY-MM-DD
 PROMPT;
     }
 
-    /**
-     * Build the second-pass prompt that informs the model its first reading failed
-     * the IBAN mod-97 checksum and asks for a corrected single reading.
-     */
-    private function buildIbanRefinementPrompt(string $prevIban): string
-    {
-        return <<<PROMPT
-Look at the handwritten IBAN field in this SEPA mandate form image.
-
-A previous reading gave: {$prevIban}
-This reading does NOT pass the IBAN mod-97 checksum (verified externally), so at least one digit is wrong.
-
-German IBANs: DE + 2 check digits + 8-digit BLZ + 10-digit account number = exactly 22 characters.
-Common handwriting confusion pairs that could explain the error: 1↔7, 2↔8, 0↔6, 3↔8, 5↔6
-
-Re-read each digit of the IBAN field carefully, focusing on digits that could match a confusion pair.
-Return your single best corrected reading.
-
-Return ONLY valid JSON, no markdown, no explanation:
-{"iban": "DE..."}
-PROMPT;
-    }
 
     /**
      * Build the stage-3 prompt that presents 2–5 mathematically valid IBAN
@@ -398,15 +329,15 @@ PROMPT;
     private function buildIbanArbitrationPrompt(string $candidateList): string
     {
         return <<<PROMPT
-Look at the handwritten IBAN field in this SEPA mandate form image.
+Look at the member's handwritten IBAN Kästchen (22 individual boxes, grouped 4+4+4+4+4+2) on this SEPA mandate form.
 
-All of the following IBANs pass the mod-97 checksum and differ from each other
-only in digits that are commonly confused in handwriting (1↔7, 2↔8, 0↔6, 3↔8, 5↔6).
-Exactly one of them matches what is written:
+All of the following IBANs pass the mod-97 checksum. They differ only in a few boxes.
+Exactly one matches what is written:
 
 {$candidateList}
 
-Re-read the IBAN field carefully. Return ONLY valid JSON, no markdown, no explanation:
+Examine the differing boxes carefully and return the matching IBAN.
+Return ONLY valid JSON, no markdown, no explanation:
 {"iban": "DE..."}
 PROMPT;
     }

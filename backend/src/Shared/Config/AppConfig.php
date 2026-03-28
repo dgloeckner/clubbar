@@ -17,6 +17,7 @@ class AppConfig
     public readonly ?string $llmProvider;
     public readonly ?string $llmApiKey;
     public readonly ?string $llmModel;
+    public readonly int     $llmThinkingBudget;
 
     public function __construct()
     {
@@ -31,6 +32,7 @@ class AppConfig
         $this->llmProvider          = Env::get('LLM_PROVIDER', '') ?: null;
         $this->llmApiKey            = Env::get('LLM_API_KEY', '') ?: null;
         $this->llmModel             = Env::get('LLM_MODEL', '') ?: null;
+        $this->llmThinkingBudget    = (int) Env::get('LLM_THINKING_BUDGET', '0');
     }
 
     public function isProduction(): bool
