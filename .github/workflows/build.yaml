@@ -315,7 +315,7 @@ jobs:
             [ "$fname" = "index.html" ] && continue
             cp -r "$f" "dist/package/$fname"
           done
-          cp package/index.php package/install.php package/.htaccess package/config.sample.php package/README.txt dist/package/
+          cp package/index.php package/install.php package/deploy.php package/.htaccess package/config.sample.php package/README.txt dist/package/
           chmod 777 dist/package/
 
       - name: Start services
