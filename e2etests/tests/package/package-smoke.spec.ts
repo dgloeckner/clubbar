@@ -14,6 +14,7 @@ import { test, expect } from '@playwright/test';
 
 const PACKAGE_URL = process.env.PACKAGE_URL || 'http://localhost:8080';
 const CI_INSTALL_KEY = 'ci-package-install-key-0000';
+const CI_DEPLOY_SECRET = 'ci-deploy-secret-0000';
 
 test.describe('Package: Install Wizard', () => {
   test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
@@ -118,8 +119,6 @@ test.describe('Package: SPA serving', () => {
 test.describe.serial('Package: Deploy Runner', () => {
   test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
 
-  const CI_DEPLOY_SECRET = 'ci-deploy-secret-0000';
-
   test('deploy.php returns 403 with wrong key', async ({ request }) => {
     const response = await request.get(
       `${PACKAGE_URL}/deploy.php?key=wrong-key`
@@ -129,7 +128,7 @@ test.describe.serial('Package: Deploy Runner', () => {
     expect(body.ok).toBe(false);
   });
 
-  test('deploy.php runs migrations and self-destructs', async ({ request }) => {
+  test('deploy.php runs migrations successfully', async ({ request }) => {
     const response = await request.get(
       `${PACKAGE_URL}/deploy.php?key=${CI_DEPLOY_SECRET}`
     );
@@ -139,13 +138,16 @@ test.describe.serial('Package: Deploy Runner', () => {
     expect(Array.isArray(body.results)).toBe(true);
     const statuses = (body.results as Array<{ status: string }>).map(r => r.status);
     expect(statuses).not.toContain('FAIL');
+    // At least one migration must have run or been skipped on a fresh CI DB
     expect(statuses).toContain('DONE');
+  });
 
-    // Script self-destructs — second call must return 404
-    const second = await request.get(
+  test('deploy.php self-destructs after use', async ({ request }) => {
+    // deploy.php was called in the previous test — must be gone now
+    const response = await request.get(
       `${PACKAGE_URL}/deploy.php?key=${CI_DEPLOY_SECRET}`
     );
-    expect(second.status()).toBe(404);
+    expect(response.status()).toBe(404);
   });
 
   test('.deploy-secret is not accessible via HTTP', async ({ request }) => {

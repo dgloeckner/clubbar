@@ -366,7 +366,7 @@ jobs:
           PACKAGE_TEST: '1'
 
       - name: Clean test artifacts from package
-        run: rm -f dist/package/config.php dist/package/.installer-data dist/package/backend/storage/install.lock
+        run: rm -f dist/package/config.php dist/package/.installer-data dist/package/.deploy-secret dist/package/backend/storage/install.lock
 
       - name: Create package ZIP
         id: package
