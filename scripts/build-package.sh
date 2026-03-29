@@ -67,6 +67,9 @@ cp    "$PROJECT_ROOT/backend/db/MigrationRunner.php" "$PKG_DIR/backend/db/"
 cp -R "$PROJECT_ROOT/backend/db/migrations"  "$PKG_DIR/backend/db/migrations"
 cp -R "$PROJECT_ROOT/backend/vendor"         "$PKG_DIR/backend/vendor"
 cp    "$PROJECT_ROOT/backend/bootstrap.php"  "$PKG_DIR/backend/bootstrap.php"
+if [ -f "$PROJECT_ROOT/backend/VERSION" ]; then
+  cp    "$PROJECT_ROOT/backend/VERSION"      "$PKG_DIR/backend/VERSION"
+fi
 
 # ------------------------------------------------------------------
 # 4. Create writable directories
@@ -74,15 +77,21 @@ cp    "$PROJECT_ROOT/backend/bootstrap.php"  "$PKG_DIR/backend/bootstrap.php"
 echo "--- Creating writable directories..."
 mkdir -p "$PKG_DIR/backend/storage"
 mkdir -p "$PKG_DIR/backend/logs"
+chmod -R 777 "$PKG_DIR/backend/storage" "$PKG_DIR/backend/logs"
+chmod 777 "$PKG_DIR"
 
 # ------------------------------------------------------------------
 # 5. Build admin frontend
 # ------------------------------------------------------------------
-echo "--- Building admin frontend..."
-cd "$PROJECT_ROOT/admin-frontend"
-npm ci
-npm run build
-cd "$PROJECT_ROOT"
+if [ -f "$PROJECT_ROOT/admin-frontend/dist/index.html" ]; then
+  echo "--- Admin frontend already built, skipping npm build..."
+else
+  echo "--- Building admin frontend..."
+  cd "$PROJECT_ROOT/admin-frontend"
+  npm ci
+  npm run build
+  cd "$PROJECT_ROOT"
+fi
 
 # ------------------------------------------------------------------
 # 6. Copy built frontend to dist/package/assets

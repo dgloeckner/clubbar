@@ -285,38 +285,17 @@ jobs:
           key: composer-no-dev-${{ hashFiles('backend/composer.lock') }}
           restore-keys: composer-no-dev-
 
-      - name: Install backend dependencies (production)
-        run: composer install --no-dev --optimize-autoloader --no-interaction
-        working-directory: backend
-
       - name: Download admin frontend build
         uses: actions/download-artifact@v4
         with:
           name: admin-frontend-dist
           path: admin-frontend/dist/
 
-      - name: Write version file
-        run: echo "${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}" > backend/VERSION
-
       - name: Assemble package
         run: |
-          mkdir -p dist/package/backend/db
-          cp -r backend/src backend/vendor dist/package/backend/
-          cp backend/bootstrap.php backend/VERSION dist/package/backend/
-          cp backend/db/MigrationRunner.php dist/package/backend/db/
-          cp -r backend/db/migrations dist/package/backend/db/migrations
-          mkdir -p dist/package/backend/storage dist/package/backend/logs
-          chmod -R 777 dist/package/backend/storage dist/package/backend/logs
-          cp -r admin-frontend/dist/assets dist/package/assets
-          cp admin-frontend/dist/index.html dist/package/spa.html
-          for f in admin-frontend/dist/*; do
-            fname="$(basename "$f")"
-            [ "$fname" = "assets" ] && continue
-            [ "$fname" = "index.html" ] && continue
-            cp -r "$f" "dist/package/$fname"
-          done
-          cp package/index.php package/install.php package/deploy.php package/.htaccess package/config.sample.php package/README.txt dist/package/
-          chmod 777 dist/package/
+          VERSION="${{ github.event.release.tag_name || format('dev-{0}', github.sha) }}"
+          echo "$VERSION" > backend/VERSION
+          ./scripts/build-package.sh "$VERSION"
 
       - name: Start services
         uses: hoverkraft-tech/compose-action@v2.0.2
