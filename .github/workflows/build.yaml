@@ -378,6 +378,7 @@ jobs:
   build-terminal:
     needs: [lint, test-backend]
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -464,6 +465,7 @@ jobs:
     needs: [test-package]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
 
     steps:
       - name: Download package artifact
@@ -487,6 +489,9 @@ jobs:
           lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
             sftp://home277820902.1and1-data.host:22 << 'LFTP'
           set sftp:auto-confirm yes
+          set net:timeout 30
+          set net:max-retries 3
+          set net:reconnect-interval-base 5
           mirror --reverse --delete --verbose \
             --exclude '^config\.php$' \
             --exclude '^\.installer-data$' \
@@ -499,6 +504,6 @@ jobs:
 
       - name: Run migrations
         run: |
-          RESPONSE=$(curl -sf "${{ secrets.IONOS_SITE_URL }}/deploy.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}")
+          RESPONSE=$(curl -sf --max-time 120 "${{ secrets.IONOS_SITE_URL }}/deploy.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}")
           echo "$RESPONSE" | jq .
           [ "$(echo "$RESPONSE" | jq -r '.ok')" = "true" ]
