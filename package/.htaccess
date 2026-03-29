@@ -4,6 +4,11 @@ Options -MultiViews
 <Files ".installer-data">
     Require all denied
 </Files>
+
+<Files ".deploy-secret">
+    Require all denied
+</Files>
+
 RewriteEngine On
 RewriteBase /
 
