@@ -31,4 +31,13 @@ return [
         // To regenerate manually: openssl rand -hex 32
         'totp_encryption_key' => '',
     ],
+    'llm' => [
+        // Optional: enables AI-powered mandate document extraction.
+        // Leave provider empty (or omit this section) to disable extraction silently.
+        // Supported providers: 'anthropic', 'openai'
+        'provider' => '',
+        'api_key' => '',
+        'model' => '',  // defaults: claude-haiku-4-5-20251001 (anthropic) / gpt-4o-mini (openai)
+        'thinking_budget' => 0,
+    ],
 ];
