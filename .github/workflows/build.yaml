@@ -472,7 +472,9 @@ jobs:
           name: ${{ needs.test-package.outputs.artifact }}
 
       - name: Unzip package
-        run: unzip "${{ needs.test-package.outputs.artifact }}" -d dist/package/
+        run: |
+          mkdir -p dist/package/
+          unzip "${{ needs.test-package.outputs.artifact }}" -d dist/package/
 
       - name: Write deploy secret
         run: echo -n "${{ secrets.IONOS_DEPLOY_SECRET }}" > dist/package/.deploy-secret

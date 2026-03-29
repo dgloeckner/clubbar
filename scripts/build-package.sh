@@ -80,6 +80,11 @@ mkdir -p "$PKG_DIR/backend/logs"
 chmod -R 777 "$PKG_DIR/backend/storage" "$PKG_DIR/backend/logs"
 chmod 777 "$PKG_DIR"
 
+# Defense-in-depth: block direct HTTP access to storage and logs
+# (primary protection is the RewriteRule ^backend/ in .htaccess)
+printf 'Require all denied\n' > "$PKG_DIR/backend/storage/.htaccess"
+printf 'Require all denied\n' > "$PKG_DIR/backend/logs/.htaccess"
+
 # ------------------------------------------------------------------
 # 5. Build admin frontend
 # ------------------------------------------------------------------
