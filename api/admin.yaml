@@ -2844,6 +2844,8 @@ components:
               $ref: '#/components/schemas/ExtractionField'
             mandate_signed_at:
               $ref: '#/components/schemas/ExtractionField'
+            card_uid:
+              $ref: '#/components/schemas/ExtractionField'
 
     MandateDocument:
       type: object

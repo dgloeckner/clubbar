@@ -14,5 +14,6 @@ export interface ExtractionResult {
     iban: ExtractionField
     account_holder_name: ExtractionField
     mandate_signed_at: ExtractionField
+    card_uid: ExtractionField
   }
 }

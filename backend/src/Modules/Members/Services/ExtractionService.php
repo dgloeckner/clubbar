@@ -16,6 +16,7 @@ class ExtractionService
         'iban',
         'account_holder_name',
         'mandate_signed_at',
+        'card_uid',
     ];
 
     public function __construct(
@@ -310,7 +311,8 @@ Extract data from this scanned SEPA mandate form. Return ONLY valid JSON, no mar
     "email":               {"value": "...", "confidence": "high"},
     "iban":                {"value": "...", "confidence": "high"},
     "account_holder_name": {"value": "...", "confidence": "high"},
-    "mandate_signed_at":   {"value": "YYYY-MM-DD", "confidence": "high"}
+    "mandate_signed_at":   {"value": "YYYY-MM-DD", "confidence": "high"},
+    "card_uid":            {"value": "...", "confidence": "high"}
   }
 }
 
@@ -318,6 +320,7 @@ Extract data from this scanned SEPA mandate form. Return ONLY valid JSON, no mar
 - Use null for value AND confidence when a field is absent or illegible
 - iban: extract the member's handwritten IBAN from the individual boxes (Kästchen), NOT the pre-printed Creditor Identifier (CI) which contains letter codes like "ZZZ"
 - mandate_signed_at: use the date in the "Mandatsdatum" field (individual boxes with pre-printed dots), not the signature date. Format: YYYY-MM-DD
+- card_uid: uppercase hex string from the "Chip-ID" or "Karten-ID" field (e.g. "A1B2C3D4"); null if absent
 PROMPT;
     }
 

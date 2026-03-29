@@ -444,6 +444,7 @@ export function MembersPage() {
     if (f.iban?.value)                updates.iban                 = f.iban.value
     if (f.account_holder_name?.value) updates.account_holder_name  = f.account_holder_name.value
     if (f.mandate_signed_at?.value)   updates.mandate_signed_at    = f.mandate_signed_at.value
+    if (f.card_uid?.value)            updates.card_uid             = f.card_uid.value.toUpperCase().replace(/[^0-9A-F]/g, '')
 
     setFormData(prev => ({ ...prev, ...updates }))
   }
@@ -471,6 +472,7 @@ export function MembersPage() {
         iban:                 result.fields.iban?.value                 ?? '',
         account_holder_name:  result.fields.account_holder_name?.value  ?? '',
         mandate_signed_at:    result.fields.mandate_signed_at?.value    ?? '',
+        card_uid:             (result.fields.card_uid?.value ?? '').toUpperCase().replace(/[^0-9A-F]/g, ''),
       })
       setExtractedFields(result)
       setPreExtractionFormData(null)
@@ -1484,31 +1486,35 @@ export function MembersPage() {
                     ({t('common.requiredForTerminal')})
                   </span>
                 </label>
-                <input
-                  data-testid="member-form-card-uid"
-                  type="text"
-                  value={formData.card_uid}
-                  onChange={(e) => {
-                    const value = e.target.value.toUpperCase().replace(/[^0-9A-F]/g, '')
-                    setFormData({ ...formData, card_uid: value })
-                    // Clear error when user starts typing
-                    if (formErrors.card_uid) {
-                      setFormErrors({ ...formErrors, card_uid: '' })
-                    }
-                  }}
-                  placeholder={t('members.form.cardUidPlaceholder')}
-                  maxLength={20}
-                  style={{
-                    width: '100%',
-                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                    background: theme.colors.bg.input,
-                    border: `1px solid ${formErrors.card_uid ? theme.colors.semantic.danger : theme.colors.border.light}`,
-                    borderRadius: theme.borderRadius.md,
-                    color: theme.colors.text.primary,
-                    boxSizing: 'border-box',
-                    fontFamily: 'monospace',
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    data-testid="member-form-card-uid"
+                    type="text"
+                    value={formData.card_uid}
+                    onChange={(e) => {
+                      const value = e.target.value.toUpperCase().replace(/[^0-9A-F]/g, '')
+                      setFormData({ ...formData, card_uid: value })
+                      // Clear error when user starts typing
+                      if (formErrors.card_uid) {
+                        setFormErrors({ ...formErrors, card_uid: '' })
+                      }
+                    }}
+                    placeholder={t('members.form.cardUidPlaceholder')}
+                    maxLength={20}
+                    style={{
+                      flex: 1,
+                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${formErrors.card_uid ? theme.colors.semantic.danger : theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      boxSizing: 'border-box',
+                      fontFamily: 'monospace',
+                      ...extractedFieldStyle('card_uid'),
+                    }}
+                  />
+                  {confidenceBadge('card_uid')}
+                </div>
                 {formData.card_uid && !/^[0-9A-F]{8,20}$/.test(formData.card_uid) && (
                   <p data-testid="member-form-card-uid-format-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
                     {t('members.validation.invalidCardUid')}
