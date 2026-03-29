@@ -333,6 +333,9 @@ jobs:
       - name: Write installer data for package tests
         run: echo -n '{"key":"ci-package-install-key-0000","completed_step":0}' > dist/package/.installer-data
 
+      - name: Write deploy secret for package tests
+        run: echo -n 'ci-deploy-secret-0000' > dist/package/.deploy-secret
+
       - name: Wait for backend
         run: |
           for i in $(seq 1 30); do

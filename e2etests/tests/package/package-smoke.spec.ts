@@ -114,3 +114,42 @@ test.describe('Package: SPA serving', () => {
     expect(html).toContain('<div id="root">');
   });
 });
+
+test.describe.serial('Package: Deploy Runner', () => {
+  test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
+
+  const CI_DEPLOY_SECRET = 'ci-deploy-secret-0000';
+
+  test('deploy.php returns 403 with wrong key', async ({ request }) => {
+    const response = await request.get(
+      `${PACKAGE_URL}/deploy.php?key=wrong-key`
+    );
+    expect(response.status()).toBe(403);
+    const body = await response.json();
+    expect(body.ok).toBe(false);
+  });
+
+  test('deploy.php runs migrations and self-destructs', async ({ request }) => {
+    const response = await request.get(
+      `${PACKAGE_URL}/deploy.php?key=${CI_DEPLOY_SECRET}`
+    );
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.results)).toBe(true);
+    const statuses = (body.results as Array<{ status: string }>).map(r => r.status);
+    expect(statuses).not.toContain('FAIL');
+    expect(statuses).toContain('DONE');
+
+    // Script self-destructs — second call must return 404
+    const second = await request.get(
+      `${PACKAGE_URL}/deploy.php?key=${CI_DEPLOY_SECRET}`
+    );
+    expect(second.status()).toBe(404);
+  });
+
+  test('.deploy-secret is not accessible via HTTP', async ({ request }) => {
+    const response = await request.get(`${PACKAGE_URL}/.deploy-secret`);
+    expect(response.status()).toBe(403);
+  });
+});
