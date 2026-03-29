@@ -21,6 +21,7 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Completed | Summary |
 |------|-----------|---------|
+| [IONOS Integration Deployment](../docs/superpowers/plans/2026-03-29-ionos-deployment.md) | 2026-03-29 | Self-destructing deploy.php migration runner + deploy-integration CI job |
 | [SEPA Mandate LLM Extraction](../docs/superpowers/plans/2026-03-27-sepa-mandate-extraction.md) | 2026-03-27 | LLM extraction of member fields from mandate scans; Anthropic/OpenAI via cURL; confidence badges; create-member-from-scan flow |
 | [SEPA Mandate Upload](../docs/superpowers/plans/2026-03-26-sepa-mandate-upload.md) | 2026-03-27 | Upload scanned mandate documents per member (JPEG/PNG/HEIC/PDF), client-side compression, server-side PDF conversion, view/replace/delete, GDPR anonymization integration |
 | [E2E Coverage Gaps](./2026-03-23-e2e-coverage-gaps.md) | 2026-03-23 | Fix broken export URLs in 3 test files, fix meaningless assertions, add UI-driven export/correction/confirm tests |
