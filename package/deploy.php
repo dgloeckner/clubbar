@@ -43,8 +43,12 @@ if ($storedKey === '' || !hash_equals($storedKey, $providedKey)) {
 
 // Key is valid — schedule cleanup of both files regardless of what happens next
 register_shutdown_function(function () use ($secretFile, $scriptPath): void {
-    @unlink($secretFile);
-    @unlink($scriptPath);
+    if (!@unlink($secretFile)) {
+        error_log('[deploy.php] WARNING: could not delete .deploy-secret');
+    }
+    if (!@unlink($scriptPath)) {
+        error_log('[deploy.php] WARNING: could not self-delete deploy.php');
+    }
 });
 
 // Load config
@@ -55,6 +59,12 @@ if (!file_exists($configFile)) {
 }
 
 $config = require $configFile;
+
+if (!is_array($config) || !isset($config['db'])) {
+    http_response_code(500);
+    echo json_encode(['ok' => false, 'error' => 'config.php returned unexpected value.']);
+    exit;
+}
 
 // Load autoloader
 $autoload = __DIR__ . '/backend/vendor/autoload.php';
