@@ -485,19 +485,21 @@ jobs:
         run: sudo apt-get install -y lftp
 
       - name: Test SFTP connectivity
+        timeout-minutes: 2
         run: |
           echo "::group::DNS resolution"
-          host home277820902.1and1-data.host || echo "DNS resolution failed"
+          timeout 10 host home277820902.1and1-data.host || echo "::warning::DNS resolution failed or timed out"
           echo "::endgroup::"
           echo "::group::SSH port check"
-          timeout 15 bash -c 'echo > /dev/tcp/home277820902.1and1-data.host/22' 2>&1 && echo "Port 22 reachable" || echo "Port 22 unreachable"
+          timeout 10 bash -c 'echo > /dev/tcp/home277820902.1and1-data.host/22' 2>&1 && echo "Port 22 reachable" || echo "::warning::Port 22 unreachable or timed out"
           echo "::endgroup::"
           echo "::group::SFTP auth test"
-          lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
-            sftp://home277820902.1and1-data.host:22 -e "set sftp:auto-confirm yes; set net:timeout 15; ls; bye" 2>&1 || echo "SFTP auth/listing failed"
+          timeout 30 lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
+            sftp://home277820902.1and1-data.host:22 -e "set sftp:auto-confirm yes; set net:timeout 10; ls; bye" 2>&1 || echo "::warning::SFTP auth/listing failed or timed out"
           echo "::endgroup::"
 
       - name: Upload via SFTP
+        timeout-minutes: 5
         run: |
           echo "Package contents to upload:"
           find dist/package/ -maxdepth 2 -type f | head -30
