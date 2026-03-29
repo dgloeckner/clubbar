@@ -74,18 +74,29 @@ if ($action === 'extract') {
 
     $extractDir = __DIR__;
     $excluded   = ['config.php', '.installer-data', '.deploy-secret'];
+    $preservedPrefixes = ['backend/storage', 'backend/logs'];
     $extracted  = 0;
     $skipped    = 0;
+    $packageFiles = [];
 
     for ($i = 0; $i < $zip->numFiles; $i++) {
         $name = $zip->getNameIndex($i);
+        $packageFiles[$name] = true;
+
         // Skip excluded files at root level
         if (in_array($name, $excluded, true)) {
             $skipped++;
             continue;
         }
-        // Skip backend/storage and backend/logs (preserve server state)
-        if (str_starts_with($name, 'backend/storage') || str_starts_with($name, 'backend/logs')) {
+        // Skip preserved directories (server state)
+        $preserve = false;
+        foreach ($preservedPrefixes as $prefix) {
+            if (str_starts_with($name, $prefix)) {
+                $preserve = true;
+                break;
+            }
+        }
+        if ($preserve) {
             $skipped++;
             continue;
         }
@@ -97,7 +108,57 @@ if ($action === 'extract') {
     $zip->close();
     @unlink($zipFile);
 
-    echo json_encode(['ok' => true, 'action' => 'extract', 'extracted' => $extracted, 'skipped' => $skipped]);
+    // Remove files that are no longer in the package
+    $deleted = 0;
+    $protectedPrefixes = array_merge($preservedPrefixes, ['python_libs']);
+    $protectedFiles = array_merge($excluded, [
+        '.deploy-package.zip', '.deploy-secret', '.htaccess',
+        'deploy.php', 'install.php', 'config.sample.php',
+    ]);
+
+    $iter = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($extractDir, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+
+    foreach ($iter as $fileInfo) {
+        $fullPath = $fileInfo->getPathname();
+        $relativePath = ltrim(substr($fullPath, strlen($extractDir)), '/');
+
+        // Never delete protected files or directories
+        if (in_array($relativePath, $protectedFiles, true)) {
+            continue;
+        }
+        // Never delete inside preserved/protected directories
+        $inProtected = false;
+        foreach ($protectedPrefixes as $prefix) {
+            if (str_starts_with($relativePath, $prefix)) {
+                $inProtected = true;
+                break;
+            }
+        }
+        if ($inProtected) {
+            continue;
+        }
+
+        if ($fileInfo->isDir()) {
+            // Remove empty directories not in the package
+            if (!(new \FilesystemIterator($fullPath))->valid()) {
+                @rmdir($fullPath);
+            }
+        } elseif (!isset($packageFiles[$relativePath])) {
+            @unlink($fullPath);
+            $deleted++;
+        }
+    }
+
+    echo json_encode([
+        'ok' => true,
+        'action' => 'extract',
+        'extracted' => $extracted,
+        'skipped' => $skipped,
+        'deleted' => $deleted,
+    ]);
     exit;
 }
 
