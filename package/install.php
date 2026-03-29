@@ -122,6 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $dbName = trim($_POST['db_name'] ?? '');
             $dbUser = trim($_POST['db_user'] ?? '');
             $dbPass = $_POST['db_pass'] ?? '';
+            $llmProvider = trim($_POST['llm_provider'] ?? '');
+            $llmApiKey   = trim($_POST['llm_api_key'] ?? '');
+            $llmModel    = trim($_POST['llm_model'] ?? '');
 
             if (empty($dbName)) {
                 $error = 'Database name is required.';
@@ -134,6 +137,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Generate a fresh TOTP encryption key for this installation
             $totpKey = bin2hex(random_bytes(32));
+
+            // Preserve existing TOTP key if re-running step 2 on an already-installed instance
+            if (file_exists($configFile)) {
+                $existingConfig = require $configFile;
+                if (!empty($existingConfig['security']['totp_encryption_key'])) {
+                    $totpKey = $existingConfig['security']['totp_encryption_key'];
+                }
+            }
 
             try {
                 $testPdo = new PDO(
@@ -167,6 +178,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ],
                     'security' => [
                         'totp_encryption_key' => $totpKey,
+                    ],
+                    'llm' => [
+                        'provider' => $llmProvider,
+                        'api_key'  => $llmApiKey,
+                        'model'    => $llmModel,
+                        'thinking_budget' => 0,
                     ],
                 ], true) . ";\n";
 
@@ -547,12 +564,16 @@ function renderStep2(bool $isUpdate): void
     $updateParam = $isUpdate ? '&update=1' : '';
 
     // Pre-fill from existing config if available
-    $defaults = ['host' => 'localhost', 'port' => 3306, 'name' => '', 'user' => '', 'pass' => ''];
+    $dbDefaults  = ['host' => 'localhost', 'port' => 3306, 'name' => '', 'user' => '', 'pass' => ''];
+    $llmDefaults = ['provider' => '', 'api_key' => '', 'model' => ''];
     $configFile = __DIR__ . '/config.php';
     if (file_exists($configFile)) {
         $config = require $configFile;
         if (isset($config['db'])) {
-            $defaults = array_merge($defaults, $config['db']);
+            $dbDefaults = array_merge($dbDefaults, $config['db']);
+        }
+        if (isset($config['llm'])) {
+            $llmDefaults = array_merge($llmDefaults, $config['llm']);
         }
     }
     ?>
@@ -562,28 +583,54 @@ function renderStep2(bool $isUpdate): void
         <input type="hidden" name="step" value="2">
         <label>
             Host
-            <input type="text" name="db_host" value="<?php echo htmlspecialchars((string)$defaults['host']); ?>" required>
+            <input type="text" name="db_host" value="<?php echo htmlspecialchars((string)$dbDefaults['host']); ?>" required>
         </label>
         <label>
             Port
-            <input type="number" name="db_port" value="<?php echo (int)$defaults['port']; ?>" required>
+            <input type="number" name="db_port" value="<?php echo (int)$dbDefaults['port']; ?>" required>
         </label>
         <label>
             Database Name
-            <input type="text" name="db_name" value="<?php echo htmlspecialchars((string)$defaults['name']); ?>" required>
+            <input type="text" name="db_name" value="<?php echo htmlspecialchars((string)$dbDefaults['name']); ?>" required>
         </label>
         <label>
             Username
-            <input type="text" name="db_user" value="<?php echo htmlspecialchars((string)$defaults['user']); ?>" required>
+            <input type="text" name="db_user" value="<?php echo htmlspecialchars((string)$dbDefaults['user']); ?>" required>
         </label>
         <label>
             Password
-            <input type="password" name="db_pass" value="<?php echo htmlspecialchars((string)$defaults['pass']); ?>">
+            <input type="password" name="db_pass" value="<?php echo htmlspecialchars((string)$dbDefaults['pass']); ?>">
         </label>
         <div class="btn-row">
             <button type="button" onclick="testConnection()" class="btn btn-secondary" id="testBtn">Test Connection</button>
             <span id="testResult"></span>
         </div>
+
+        <hr style="margin: 24px 0;">
+        <h3 style="margin-bottom: 8px; font-size: 16px; color: #374151;">LLM Extraction <small style="font-weight:400; color:#6b7280;">(optional)</small></h3>
+        <p style="font-size: 13px; color: #6b7280; margin-bottom: 16px;">
+            Enables AI-powered extraction of member data from scanned mandate PDFs/images.
+            Leave <em>Provider</em> blank to disable this feature silently.
+        </p>
+        <label>
+            Provider
+            <select name="llm_provider" style="display:block;width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:6px;margin-top:4px;font-size:14px;color:#1f2937;background:#fff;">
+                <option value="" <?php echo $llmDefaults['provider'] === '' ? 'selected' : ''; ?>>Disabled</option>
+                <option value="anthropic" <?php echo $llmDefaults['provider'] === 'anthropic' ? 'selected' : ''; ?>>Anthropic (Claude)</option>
+                <option value="openai" <?php echo $llmDefaults['provider'] === 'openai' ? 'selected' : ''; ?>>OpenAI (GPT)</option>
+            </select>
+        </label>
+        <label>
+            API Key
+            <input type="password" name="llm_api_key" value="<?php echo htmlspecialchars((string)$llmDefaults['api_key']); ?>"
+                   placeholder="sk-ant-... or sk-...">
+        </label>
+        <label>
+            Model <small>(optional — leave blank for provider default)</small>
+            <input type="text" name="llm_model" value="<?php echo htmlspecialchars((string)$llmDefaults['model']); ?>"
+                   placeholder="claude-haiku-4-5-20251001 / gpt-4o-mini">
+        </label>
+
         <button type="submit" class="btn">Save &amp; Continue</button>
     </form>
     <script>
