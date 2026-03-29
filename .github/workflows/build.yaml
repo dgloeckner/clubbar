@@ -473,15 +473,24 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ needs.test-package.outputs.artifact }}
+          path: dist/download/
 
       - name: Prepare upload files
         run: |
-          echo "Downloaded artifact contents:"
-          ls -la
+          echo "Downloaded contents:"
+          ls -laR dist/download/
+          # Find the ZIP file regardless of name
+          ZIP_FILE=$(find dist/download/ -name '*.zip' -type f | head -1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "::error::No ZIP file found in downloaded artifact"
+            echo "Full working directory:"
+            find . -maxdepth 3 -type f
+            exit 1
+          fi
+          echo "Found ZIP: $ZIP_FILE ($(du -h "$ZIP_FILE" | cut -f1))"
           mkdir -p dist/upload/
-          cp "${{ needs.test-package.outputs.artifact }}" dist/upload/.deploy-package.zip
+          cp "$ZIP_FILE" dist/upload/.deploy-package.zip
           echo -n "${{ secrets.IONOS_DEPLOY_SECRET }}" > dist/upload/.deploy-secret
-          echo "Upload files:"
           ls -la dist/upload/
 
       - name: Install lftp
