@@ -474,78 +474,44 @@ jobs:
         with:
           name: ${{ needs.test-package.outputs.artifact }}
 
-      - name: Unzip package
+      - name: Prepare upload files
         run: |
-          mkdir -p dist/package/
-          unzip "${{ needs.test-package.outputs.artifact }}" -d dist/package/
-
-      - name: Write deploy secret
-        run: echo -n "${{ secrets.IONOS_DEPLOY_SECRET }}" > dist/package/.deploy-secret
+          mkdir -p dist/upload/
+          cp "${{ needs.test-package.outputs.artifact }}" dist/upload/.deploy-package.zip
+          echo -n "${{ secrets.IONOS_DEPLOY_SECRET }}" > dist/upload/.deploy-secret
 
       - name: Install lftp
         run: sudo apt-get install -y lftp
 
-      - name: Test SFTP connectivity
-        timeout-minutes: 2
+      - name: Upload ZIP via SFTP
+        timeout-minutes: 3
         run: |
-          echo "::group::Secret validation"
-          USER="${{ secrets.IONOS_SFTP_USER }}"
-          PASS="${{ secrets.IONOS_SFTP_PASSWORD }}"
-          if [ -z "$USER" ]; then
-            echo "::error::IONOS_SFTP_USER is empty or not set"
-          else
-            echo "IONOS_SFTP_USER is set (${#USER} chars, starts with '${USER:0:3}...')"
-          fi
-          if [ -z "$PASS" ]; then
-            echo "::error::IONOS_SFTP_PASSWORD is empty or not set"
-          else
-            echo "IONOS_SFTP_PASSWORD is set (${#PASS} chars, starts with '${PASS:0:3}...')"
-          fi
-          echo "::endgroup::"
-          echo "::group::DNS resolution"
-          timeout 10 host home277820902.1and1-data.host || echo "::warning::DNS resolution failed or timed out"
-          echo "::endgroup::"
-          echo "::group::SSH port check"
-          timeout 10 bash -c 'echo > /dev/tcp/home277820902.1and1-data.host/22' 2>&1 && echo "Port 22 reachable" || echo "::warning::Port 22 unreachable or timed out"
-          echo "::endgroup::"
-          echo "::group::SFTP auth test"
-          timeout 30 lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
-            sftp://home277820902.1and1-data.host:22 -e "set sftp:auto-confirm yes; set net:timeout 10; ls; bye" 2>&1 || echo "::warning::SFTP auth/listing failed or timed out"
-          echo "::endgroup::"
-
-      - name: Upload via SFTP
-        timeout-minutes: 5
-        run: |
-          echo "Package contents to upload:"
-          find dist/package/ -maxdepth 2 -type f | head -30
-          echo "---"
-          du -sh dist/package/
-          echo "Starting lftp mirror..."
-          lftp -d -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
+          echo "Uploading $(du -h dist/upload/.deploy-package.zip | cut -f1) ZIP..."
+          lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
             sftp://home277820902.1and1-data.host:22 << 'LFTP'
           set sftp:auto-confirm yes
           set net:timeout 30
           set net:max-retries 3
           set net:reconnect-interval-base 5
-          set cmd:trace true
-          mirror --reverse --delete --verbose \
-            --exclude '^config\.php$' \
-            --exclude '^\.installer-data$' \
-            --exclude '^backend/storage' \
-            --exclude '^backend/logs' \
-            --exclude '^python_libs' \
-            dist/package/ /
+          put dist/upload/.deploy-package.zip
+          put dist/upload/.deploy-secret
           bye
           LFTP
-          echo "lftp exit code: $?"
+
+      - name: Extract package on server
+        timeout-minutes: 2
+        run: |
+          echo "Extracting package..."
+          RESPONSE=$(curl -sf --max-time 120 \
+            "${{ secrets.IONOS_SITE_URL }}/deploy.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}&action=extract")
+          echo "$RESPONSE" | jq .
+          [ "$(echo "$RESPONSE" | jq -r '.ok')" = "true" ]
 
       - name: Run migrations
+        timeout-minutes: 2
         run: |
-          echo "Calling deploy.php..."
-          RESPONSE=$(curl -svf --max-time 120 "${{ secrets.IONOS_SITE_URL }}/deploy.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}" 2>&1) || {
-            echo "curl failed with exit code $?"
-            echo "$RESPONSE"
-            exit 1
-          }
-          echo "$RESPONSE" | tail -n1 | jq .
-          [ "$(echo "$RESPONSE" | tail -n1 | jq -r '.ok')" = "true" ]
+          echo "Running migrations..."
+          RESPONSE=$(curl -sf --max-time 120 \
+            "${{ secrets.IONOS_SITE_URL }}/deploy.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}")
+          echo "$RESPONSE" | jq .
+          [ "$(echo "$RESPONSE" | jq -r '.ok')" = "true" ]

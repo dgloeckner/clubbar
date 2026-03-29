@@ -41,15 +41,65 @@ if ($storedKey === '' || !hash_equals($storedKey, $providedKey)) {
     exit;
 }
 
-// Key is valid — schedule cleanup of both files regardless of what happens next
-register_shutdown_function(function () use ($secretFile, $scriptPath): void {
-    if (!@unlink($secretFile)) {
-        error_log('[deploy.php] WARNING: could not delete .deploy-secret');
+// Key is valid — schedule cleanup (skip for extract action, since migrate still needs the secret)
+$action = (string) ($_GET['action'] ?? 'migrate');
+
+if ($action !== 'extract') {
+    register_shutdown_function(function () use ($secretFile, $scriptPath): void {
+        if (!@unlink($secretFile)) {
+            error_log('[deploy.php] WARNING: could not delete .deploy-secret');
+        }
+        if (!@unlink($scriptPath)) {
+            error_log('[deploy.php] WARNING: could not self-delete deploy.php');
+        }
+    });
+}
+
+// Unzip package if present
+$zipFile = __DIR__ . '/.deploy-package.zip';
+
+if ($action === 'extract') {
+    if (!file_exists($zipFile)) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => '.deploy-package.zip not found on server.']);
+        exit;
     }
-    if (!@unlink($scriptPath)) {
-        error_log('[deploy.php] WARNING: could not self-delete deploy.php');
+
+    $zip = new ZipArchive();
+    if ($zip->open($zipFile) !== true) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to open ZIP archive.']);
+        exit;
     }
-});
+
+    $extractDir = __DIR__;
+    $excluded   = ['config.php', '.installer-data', '.deploy-secret'];
+    $extracted  = 0;
+    $skipped    = 0;
+
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $name = $zip->getNameIndex($i);
+        // Skip excluded files at root level
+        if (in_array($name, $excluded, true)) {
+            $skipped++;
+            continue;
+        }
+        // Skip backend/storage and backend/logs (preserve server state)
+        if (str_starts_with($name, 'backend/storage') || str_starts_with($name, 'backend/logs')) {
+            $skipped++;
+            continue;
+        }
+        // Extract file
+        $zip->extractTo($extractDir, $name);
+        $extracted++;
+    }
+
+    $zip->close();
+    @unlink($zipFile);
+
+    echo json_encode(['ok' => true, 'action' => 'extract', 'extracted' => $extracted, 'skipped' => $skipped]);
+    exit;
+}
 
 // Load config
 if (!file_exists($configFile)) {
