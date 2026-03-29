@@ -487,6 +487,20 @@ jobs:
       - name: Test SFTP connectivity
         timeout-minutes: 2
         run: |
+          echo "::group::Secret validation"
+          USER="${{ secrets.IONOS_SFTP_USER }}"
+          PASS="${{ secrets.IONOS_SFTP_PASSWORD }}"
+          if [ -z "$USER" ]; then
+            echo "::error::IONOS_SFTP_USER is empty or not set"
+          else
+            echo "IONOS_SFTP_USER is set (${#USER} chars, starts with '${USER:0:3}...')"
+          fi
+          if [ -z "$PASS" ]; then
+            echo "::error::IONOS_SFTP_PASSWORD is empty or not set"
+          else
+            echo "IONOS_SFTP_PASSWORD is set (${#PASS} chars, starts with '${PASS:0:3}...')"
+          fi
+          echo "::endgroup::"
           echo "::group::DNS resolution"
           timeout 10 host home277820902.1and1-data.host || echo "::warning::DNS resolution failed or timed out"
           echo "::endgroup::"
