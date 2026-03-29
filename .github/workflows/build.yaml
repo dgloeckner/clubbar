@@ -484,7 +484,7 @@ jobs:
 
       - name: Upload via SFTP
         run: |
-          lftp -u "acc1206117549,${{ secrets.IONOS_PASSWORD }}" \
+          lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
             sftp://home277820902.1and1-data.host:22 << 'LFTP'
           set sftp:auto-confirm yes
           mirror --reverse --delete --verbose \
