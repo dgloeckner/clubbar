@@ -131,18 +131,34 @@ else
 fi
 
 # ------------------------------------------------------------------
-# 7. Copy package files (index.php, install.php, .htaccess, etc.)
+# 7. Write package metadata
+# ------------------------------------------------------------------
+echo "--- Writing package metadata..."
+BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+GIT_SHA=$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+cat > "$PKG_DIR/package.json" <<PKGJSON
+{
+  "name": "clubbar",
+  "version": "$VERSION",
+  "build_date": "$BUILD_DATE",
+  "git_sha": "$GIT_SHA",
+  "min_php": "8.3"
+}
+PKGJSON
+
+# ------------------------------------------------------------------
+# 8. Copy package files (index.php, install.php, .htaccess, etc.)
 # ------------------------------------------------------------------
 echo "--- Copying package files..."
 cp "$PROJECT_ROOT/package/index.php"         "$PKG_DIR/index.php"
 cp "$PROJECT_ROOT/package/install.php"       "$PKG_DIR/install.php"
-cp "$PROJECT_ROOT/package/deploy.php"        "$PKG_DIR/deploy.php"
+cp "$PROJECT_ROOT/package/upgrade.php"       "$PKG_DIR/upgrade.php"
 cp "$PROJECT_ROOT/package/.htaccess"         "$PKG_DIR/.htaccess"
 cp "$PROJECT_ROOT/package/config.sample.php" "$PKG_DIR/config.sample.php"
 cp "$PROJECT_ROOT/package/README.txt"        "$PKG_DIR/README.txt"
 
 # ------------------------------------------------------------------
-# 8. Create ZIP archive
+# 9. Create ZIP archive
 # ------------------------------------------------------------------
 ARCHIVE="clubbar-${VERSION}.zip"
 echo "--- Creating archive: $ARCHIVE"
@@ -150,7 +166,7 @@ cd "$PKG_DIR"
 zip -r "$DIST_DIR/$ARCHIVE" . -q
 
 # ------------------------------------------------------------------
-# 9. Summary
+# 10. Summary
 # ------------------------------------------------------------------
 ARCHIVE_PATH="$DIST_DIR/$ARCHIVE"
 ARCHIVE_SIZE=$(du -h "$ARCHIVE_PATH" | cut -f1)

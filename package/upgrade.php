@@ -3,13 +3,13 @@
 declare(strict_types=1);
 
 /**
- * Club Bar Deploy / Upgrade Wizard
+ * Club Bar Upgrade Wizard
  *
  * Provides two interfaces:
  *
  * 1. **Web wizard** (browser) — admin-friendly step-by-step upgrade:
- *    - Key gate (paste deploy secret from .deploy-secret file)
- *    - Upload ZIP package
+ *    - Key gate (paste upgrade secret from .upgrade-secret file)
+ *    - Upload ZIP package (with version validation — no downgrades)
  *    - Extract & clean up stale files
  *    - Run database migrations
  *    - Done
@@ -19,14 +19,14 @@ declare(strict_types=1);
  *    - GET/POST ?key=<secret>&action=migrate  → run migrations, self-destruct
  *
  * Security:
- * - .deploy-secret file holds the one-time key (uploaded by CI or generated on first access)
+ * - .upgrade-secret file holds the one-time key (uploaded by CI or generated on first access)
  * - hash_equals() prevents timing attacks
- * - Self-destructs .deploy-secret and deploy.php after successful migration
+ * - Self-destructs .upgrade-secret and upgrade.php after successful migration
  */
 
-$secretFile = __DIR__ . '/.deploy-secret';
+$secretFile = __DIR__ . '/.upgrade-secret';
 $configFile = __DIR__ . '/config.php';
-$zipFile    = __DIR__ . '/.deploy-package.zip';
+$zipFile    = __DIR__ . '/.upgrade-package.zip';
 $scriptPath = __FILE__;
 
 // --- Detect mode: API (has ?action= or ?key= without session) vs Web wizard ---
@@ -44,30 +44,30 @@ session_start();
 // Handle reset
 if (isset($_GET['action']) && $_GET['action'] === 'reset') {
     session_destroy();
-    header('Location: deploy.php');
+    header('Location: upgrade.php');
     exit;
 }
 
 // --- Deploy secret gate ---
-// If .deploy-secret doesn't exist yet, generate one (same pattern as install.php)
+// If .upgrade-secret doesn't exist yet, generate one (same pattern as install.php)
 if (!file_exists($secretFile)) {
     $secret = bin2hex(random_bytes(16));
     file_put_contents($secretFile, $secret);
 }
 
-if (empty($_SESSION['deploy_key_verified'])) {
+if (empty($_SESSION['upgrade_key_verified'])) {
     $keyError = null;
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deploy_key'])) {
-        $provided = trim($_POST['deploy_key']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upgrade_key'])) {
+        $provided = trim($_POST['upgrade_key']);
         $stored   = trim((string) file_get_contents($secretFile));
         if ($stored !== '' && hash_equals($stored, $provided)) {
-            $_SESSION['deploy_key_verified'] = true;
+            $_SESSION['upgrade_key_verified'] = true;
         } else {
-            $keyError = 'Invalid deploy key. Check the contents of .deploy-secret on your server.';
+            $keyError = 'Invalid upgrade key. Check the contents of .upgrade-secret on your server.';
         }
     }
 
-    if (empty($_SESSION['deploy_key_verified'])) {
+    if (empty($_SESSION['upgrade_key_verified'])) {
         renderKeyGate($keyError);
         exit;
     }
@@ -111,6 +111,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
             $testZip->close();
+
+            // Version check — prevent downgrades
+            $currentVersion = readPackageVersion(__DIR__);
+            $packageVersion = readZipPackageVersion($_FILES['package']['tmp_name']);
+            $versionResult  = compareVersions($currentVersion, $packageVersion);
+
+            if ($versionResult === 'downgrade') {
+                $error = 'Downgrade not allowed. Installed version is '
+                    . htmlspecialchars($currentVersion)
+                    . ', but the uploaded package is '
+                    . htmlspecialchars($packageVersion) . '.';
+                break;
+            }
+            if ($versionResult === 'same') {
+                $error = 'The uploaded package (' . htmlspecialchars($packageVersion)
+                    . ') is the same version as the installed one. No upgrade needed.';
+                break;
+            }
+
+            // Store version info in session for display
+            $_SESSION['version_info'] = [
+                'current' => $currentVersion,
+                'package' => $packageVersion,
+                'result'  => $versionResult,
+            ];
 
             if (!move_uploaded_file($_FILES['package']['tmp_name'], $zipFile)) {
                 $error = 'Failed to save uploaded file. Check directory permissions.';
@@ -170,7 +195,7 @@ function handleApiMode(string $secretFile, string $configFile, string $zipFile, 
     $storedKey = trim((string) file_get_contents($secretFile));
     if ($storedKey === '' || !hash_equals($storedKey, $providedKey)) {
         http_response_code(403);
-        echo json_encode(['ok' => false, 'error' => 'Invalid deploy key.']);
+        echo json_encode(['ok' => false, 'error' => 'Invalid upgrade key.']);
         return;
     }
 
@@ -183,6 +208,25 @@ function handleApiMode(string $secretFile, string $configFile, string $zipFile, 
     }
 
     if ($action === 'extract') {
+        // Version check (skip with ?force=1 for CI)
+        if (empty($_GET['force'])) {
+            $baseDir = dirname($scriptPath);
+            $currentVersion = readPackageVersion($baseDir);
+            $packageVersion = readZipPackageVersion($zipFile);
+            $versionResult  = compareVersions($currentVersion, $packageVersion);
+
+            if ($versionResult === 'downgrade') {
+                http_response_code(409);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => 'Downgrade not allowed.',
+                    'current_version' => $currentVersion,
+                    'package_version' => $packageVersion,
+                ]);
+                return;
+            }
+        }
+
         $result = extractPackage($zipFile, dirname($scriptPath));
         http_response_code($result['ok'] ? 200 : 500);
         echo json_encode($result);
@@ -199,10 +243,73 @@ function handleApiMode(string $secretFile, string $configFile, string $zipFile, 
 // Core Logic (shared between API and wizard)
 // ============================================================================
 
+function readPackageVersion(string $dir): ?string
+{
+    // Try package.json first (new format)
+    $metaFile = $dir . '/package.json';
+    if (file_exists($metaFile)) {
+        $meta = json_decode((string) file_get_contents($metaFile), true);
+        if (is_array($meta) && isset($meta['version'])) {
+            return $meta['version'];
+        }
+    }
+    // Fallback to backend/VERSION
+    $versionFile = $dir . '/backend/VERSION';
+    if (file_exists($versionFile)) {
+        return trim((string) file_get_contents($versionFile));
+    }
+    return null;
+}
+
+function readZipPackageVersion(string $zipFile): ?string
+{
+    $zip = new ZipArchive();
+    if ($zip->open($zipFile) !== true) {
+        return null;
+    }
+
+    // Try package.json first
+    $metaJson = $zip->getFromName('package.json');
+    if ($metaJson !== false) {
+        $meta = json_decode($metaJson, true);
+        if (is_array($meta) && isset($meta['version'])) {
+            $zip->close();
+            return $meta['version'];
+        }
+    }
+
+    // Fallback to backend/VERSION
+    $version = $zip->getFromName('backend/VERSION');
+    $zip->close();
+    return $version !== false ? trim($version) : null;
+}
+
+/**
+ * Compare versions. Returns:
+ *  - 'upgrade' if package is newer
+ *  - 'same' if identical
+ *  - 'downgrade' if package is older
+ *  - 'unknown' if either version is missing or non-comparable (e.g. dev builds)
+ */
+function compareVersions(?string $current, ?string $package): string
+{
+    if ($current === null || $package === null) {
+        return 'unknown';
+    }
+    // Dev builds (e.g. "dev-abc123") can't be meaningfully compared
+    if (str_starts_with($current, 'dev') || str_starts_with($package, 'dev')) {
+        return 'unknown';
+    }
+    $cmp = version_compare($package, $current);
+    if ($cmp > 0) return 'upgrade';
+    if ($cmp === 0) return 'same';
+    return 'downgrade';
+}
+
 function extractPackage(string $zipFile, string $extractDir): array
 {
     if (!file_exists($zipFile)) {
-        return ['ok' => false, 'error' => '.deploy-package.zip not found on server.'];
+        return ['ok' => false, 'error' => '.upgrade-package.zip not found on server.'];
     }
 
     $zip = new ZipArchive();
@@ -210,7 +317,7 @@ function extractPackage(string $zipFile, string $extractDir): array
         return ['ok' => false, 'error' => 'Failed to open ZIP archive.'];
     }
 
-    $excluded         = ['config.php', '.installer-data', '.deploy-secret'];
+    $excluded         = ['config.php', '.installer-data', '.upgrade-secret'];
     $preservedPrefixes = ['backend/storage', 'backend/logs'];
     $extracted  = 0;
     $skipped    = 0;
@@ -248,8 +355,8 @@ function extractPackage(string $zipFile, string $extractDir): array
     $deleted = 0;
     $protectedPrefixes = array_merge($preservedPrefixes, ['python_libs']);
     $protectedFiles = array_merge($excluded, [
-        '.deploy-package.zip', '.deploy-secret', '.htaccess',
-        'deploy.php', 'install.php', 'config.sample.php',
+        '.upgrade-package.zip', '.upgrade-secret', '.htaccess',
+        'upgrade.php', 'install.php', 'config.sample.php',
     ]);
 
     $iter = new RecursiveIteratorIterator(
@@ -360,7 +467,7 @@ function renderKeyGate(?string $error): void
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Club Bar - Deploy</title>
+        <title>Club Bar - Upgrade</title>
         <style><?php echo getStyles(); ?></style>
     </head>
     <body>
@@ -370,14 +477,14 @@ function renderKeyGate(?string $error): void
                 <div class="error"><?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
             <div class="card">
-                <h2>Deploy Key Required</h2>
-                <p>A deploy key has been written to <code>.deploy-secret</code> in your document root.</p>
+                <h2>Upgrade Key Required</h2>
+                <p>A upgrade key has been written to <code>.upgrade-secret</code> in your document root.</p>
                 <p>Open the file via <strong>FTP</strong>, <strong>cPanel File Manager</strong>, or <strong>SSH</strong> and copy its contents, then paste below.</p>
-                <form method="post" action="deploy.php">
+                <form method="post" action="upgrade.php">
                     <label>
-                        Deploy Key
-                        <input type="text" name="deploy_key" required autofocus autocomplete="off"
-                               placeholder="Paste the contents of .deploy-secret">
+                        Upgrade Key
+                        <input type="text" name="upgrade_key" required autofocus autocomplete="off"
+                               placeholder="Paste the contents of .upgrade-secret">
                     </label>
                     <button type="submit" class="btn">Verify &amp; Continue</button>
                 </form>
@@ -396,12 +503,12 @@ function renderPage(string $step, ?string $error): void
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Club Bar - Deploy</title>
+        <title>Club Bar - Upgrade</title>
         <style><?php echo getStyles(); ?></style>
     </head>
     <body>
         <div class="container">
-            <h1>Club Bar Deploy</h1>
+            <h1>Club Bar Upgrade</h1>
 
             <div class="steps">
                 <?php for ($i = 1; $i <= 4; $i++): ?>
@@ -505,8 +612,20 @@ function renderStep1(): void
 
 function renderStep2(): void
 {
+    $versionInfo = $_SESSION['version_info'] ?? null;
     ?>
     <h2>Step 2: Extract Package</h2>
+    <?php if ($versionInfo && $versionInfo['current'] && $versionInfo['package']): ?>
+        <div class="version-info">
+            <strong><?php echo htmlspecialchars($versionInfo['current']); ?></strong>
+            &#8594;
+            <strong><?php echo htmlspecialchars($versionInfo['package']); ?></strong>
+        </div>
+    <?php elseif ($versionInfo && $versionInfo['package']): ?>
+        <div class="version-info">
+            Installing version <strong><?php echo htmlspecialchars($versionInfo['package']); ?></strong>
+        </div>
+    <?php endif; ?>
     <p>The package has been uploaded. Click below to extract it and update all files.</p>
     <p class="hint">Your <code>config.php</code>, database, logs, and storage will be preserved.</p>
     <form method="post" action="?step=2">
@@ -739,6 +858,16 @@ code {
     color: #9ca3af;
     margin-top: 4px;
     margin-bottom: 0;
+}
+.version-info {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1a56db;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 16px;
+    text-align: center;
 }
 .reset-link a { color: #9ca3af; }
 @media (max-width: 640px) {

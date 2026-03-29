@@ -116,21 +116,21 @@ test.describe('Package: SPA serving', () => {
   });
 });
 
-test.describe.serial('Package: Deploy Runner', () => {
+test.describe.serial('Package: Upgrade Runner', () => {
   test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
 
-  test('deploy.php returns 403 with wrong key', async ({ request }) => {
+  test('upgrade.php returns 403 with wrong key', async ({ request }) => {
     const response = await request.get(
-      `${PACKAGE_URL}/deploy.php?key=wrong-key`
+      `${PACKAGE_URL}/upgrade.php?key=wrong-key`
     );
     expect(response.status()).toBe(403);
     const body = await response.json();
     expect(body.ok).toBe(false);
   });
 
-  test('deploy.php runs migrations successfully', async ({ request }) => {
+  test('upgrade.php runs migrations successfully', async ({ request }) => {
     const response = await request.get(
-      `${PACKAGE_URL}/deploy.php?key=${CI_DEPLOY_SECRET}`
+      `${PACKAGE_URL}/upgrade.php?key=${CI_DEPLOY_SECRET}`
     );
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
@@ -142,20 +142,20 @@ test.describe.serial('Package: Deploy Runner', () => {
     expect(statuses).toContain('DONE');
   });
 
-  test('deploy.php self-destructs after use', async ({ request }) => {
-    // deploy.php was called in the previous test — must be gone now.
+  test('upgrade.php self-destructs after use', async ({ request }) => {
+    // upgrade.php was called in the previous test — must be gone now.
     // .htaccess catch-all serves the SPA (200 HTML) for missing files, so we
     // cannot assert a specific status code. Instead verify the response is not
-    // a JSON deploy-script response, which proves deploy.php no longer runs.
+    // a JSON upgrade-script response, which proves upgrade.php no longer runs.
     const response = await request.get(
-      `${PACKAGE_URL}/deploy.php?key=${CI_DEPLOY_SECRET}`
+      `${PACKAGE_URL}/upgrade.php?key=${CI_DEPLOY_SECRET}`
     );
     const contentType = response.headers()['content-type'] ?? '';
     expect(contentType).not.toContain('application/json');
   });
 
-  test('.deploy-secret is not accessible via HTTP', async ({ request }) => {
-    const response = await request.get(`${PACKAGE_URL}/.deploy-secret`);
+  test('.upgrade-secret is not accessible via HTTP', async ({ request }) => {
+    const response = await request.get(`${PACKAGE_URL}/.upgrade-secret`);
     expect(response.status()).toBe(403);
   });
 });

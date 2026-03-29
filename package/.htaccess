@@ -5,7 +5,7 @@ Options -MultiViews
     Require all denied
 </Files>
 
-<Files ".deploy-secret">
+<Files ".upgrade-secret">
     Require all denied
 </Files>
 

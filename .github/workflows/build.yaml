@@ -312,7 +312,7 @@ jobs:
         run: echo -n '{"key":"ci-package-install-key-0000","completed_step":0}' > dist/package/.installer-data
 
       - name: Write deploy secret for package tests
-        run: echo -n 'ci-deploy-secret-0000' > dist/package/.deploy-secret
+        run: echo -n 'ci-deploy-secret-0000' > dist/package/.upgrade-secret
 
       - name: Wait for backend
         run: |
@@ -344,7 +344,7 @@ jobs:
           PACKAGE_TEST: '1'
 
       - name: Clean test artifacts from package
-        run: rm -f dist/package/config.php dist/package/.installer-data dist/package/.deploy-secret dist/package/backend/storage/install.lock
+        run: rm -f dist/package/config.php dist/package/.installer-data dist/package/.upgrade-secret dist/package/backend/storage/install.lock
 
       - name: Create package ZIP
         id: package
@@ -489,8 +489,8 @@ jobs:
           fi
           echo "Found ZIP: $ZIP_FILE ($(du -h "$ZIP_FILE" | cut -f1))"
           mkdir -p dist/upload/
-          cp "$ZIP_FILE" dist/upload/.deploy-package.zip
-          echo -n "${{ secrets.IONOS_DEPLOY_SECRET }}" > dist/upload/.deploy-secret
+          cp "$ZIP_FILE" dist/upload/.upgrade-package.zip
+          echo -n "${{ secrets.IONOS_DEPLOY_SECRET }}" > dist/upload/.upgrade-secret
           ls -la dist/upload/
 
       - name: Install lftp
@@ -499,15 +499,15 @@ jobs:
       - name: Upload ZIP via SFTP
         timeout-minutes: 3
         run: |
-          echo "Uploading $(du -h dist/upload/.deploy-package.zip | cut -f1) ZIP..."
+          echo "Uploading $(du -h dist/upload/.upgrade-package.zip | cut -f1) ZIP..."
           lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
             sftp://home277820902.1and1-data.host:22 << 'LFTP'
           set sftp:auto-confirm yes
           set net:timeout 30
           set net:max-retries 3
           set net:reconnect-interval-base 5
-          put dist/upload/.deploy-package.zip
-          put dist/upload/.deploy-secret
+          put dist/upload/.upgrade-package.zip
+          put dist/upload/.upgrade-secret
           bye
           LFTP
 
@@ -516,7 +516,7 @@ jobs:
         run: |
           echo "Extracting package..."
           RESPONSE=$(curl -sf --max-time 120 \
-            "${{ secrets.IONOS_SITE_URL }}/deploy.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}&action=extract")
+            "${{ secrets.IONOS_SITE_URL }}/upgrade.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}&action=extract&force=1")
           echo "$RESPONSE" | jq .
           [ "$(echo "$RESPONSE" | jq -r '.ok')" = "true" ]
 
@@ -525,6 +525,6 @@ jobs:
         run: |
           echo "Running migrations..."
           RESPONSE=$(curl -sf --max-time 120 \
-            "${{ secrets.IONOS_SITE_URL }}/deploy.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}")
+            "${{ secrets.IONOS_SITE_URL }}/upgrade.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}")
           echo "$RESPONSE" | jq .
           [ "$(echo "$RESPONSE" | jq -r '.ok')" = "true" ]
