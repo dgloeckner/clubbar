@@ -261,6 +261,8 @@ jobs:
     needs: [test-e2e]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      artifact: ${{ steps.package.outputs.artifact }}
 
     steps:
       - uses: actions/checkout@v4
@@ -480,3 +482,45 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.package.outputs.artifact }}
+
+  deploy-integration:
+    name: Deploy to Integration
+    needs: [test-package]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.test-package.outputs.artifact }}
+
+      - name: Unzip package
+        run: unzip "${{ needs.test-package.outputs.artifact }}" -d dist/package/
+
+      - name: Write deploy secret
+        run: echo -n "${{ secrets.IONOS_DEPLOY_SECRET }}" > dist/package/.deploy-secret
+
+      - name: Install lftp
+        run: sudo apt-get install -y lftp
+
+      - name: Upload via SFTP
+        run: |
+          lftp -u "acc1206117549,${{ secrets.IONOS_PASSWORD }}" \
+            sftp://home277820902.1and1-data.host:22 << 'LFTP'
+          set sftp:auto-confirm yes
+          mirror --reverse --delete --verbose \
+            --exclude '^config\.php$' \
+            --exclude '^\.installer-data$' \
+            --exclude '^backend/storage' \
+            --exclude '^backend/logs' \
+            --exclude '^python_libs' \
+            dist/package/ /
+          bye
+          LFTP
+
+      - name: Run migrations
+        run: |
+          RESPONSE=$(curl -sf "${{ secrets.IONOS_SITE_URL }}/deploy.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}")
+          echo "$RESPONSE" | jq .
+          [ "$(echo "$RESPONSE" | jq -r '.ok')" = "true" ]
