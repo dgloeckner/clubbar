@@ -476,9 +476,13 @@ jobs:
 
       - name: Prepare upload files
         run: |
+          echo "Downloaded artifact contents:"
+          ls -la
           mkdir -p dist/upload/
           cp "${{ needs.test-package.outputs.artifact }}" dist/upload/.deploy-package.zip
           echo -n "${{ secrets.IONOS_DEPLOY_SECRET }}" > dist/upload/.deploy-secret
+          echo "Upload files:"
+          ls -la dist/upload/
 
       - name: Install lftp
         run: sudo apt-get install -y lftp
