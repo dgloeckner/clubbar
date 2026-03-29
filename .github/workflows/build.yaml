@@ -491,6 +491,8 @@ jobs:
           mkdir -p dist/upload/
           cp "$ZIP_FILE" dist/upload/.upgrade-package.zip
           echo -n "${{ secrets.IONOS_DEPLOY_SECRET }}" > dist/upload/.upgrade-secret
+          # Extract upgrade.php from ZIP so we can upload it alongside
+          unzip -o "$ZIP_FILE" upgrade.php -d dist/upload/
           ls -la dist/upload/
 
       - name: Install lftp
@@ -506,6 +508,7 @@ jobs:
           set net:timeout 30
           set net:max-retries 3
           set net:reconnect-interval-base 5
+          put dist/upload/upgrade.php
           put dist/upload/.upgrade-package.zip
           put dist/upload/.upgrade-secret
           bye
