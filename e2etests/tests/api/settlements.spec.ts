@@ -92,6 +92,60 @@ test.describe('Settlements API', () => {
 
       expect([301, 302, 401, 403]).toContain(response.status());
     });
+
+    test('A6: POST /sepa-config saves config (initial setup method used by frontend)', async ({ authenticatedRequest }) => {
+      const timestamp = Date.now();
+      const response = await authenticatedRequest.post('/api/admin/sepa-config', {
+        data: {
+          creditor_id: 'DE98ZZZ09999999999',
+          creditor_name: `Post Test Org ${timestamp}`,
+          creditor_iban: 'DE89370400440532013000',
+          creditor_address_street: 'Musterstraße 1',
+          creditor_address_city: 'Berlin',
+          creditor_address_country: 'DE',
+          payment_reference_prefix: 'RUDERBAR',
+        },
+      });
+
+      expect(response.status()).toBe(200);
+      const body = await response.json();
+      expect(body.is_configured).toBe(true);
+      expect(body.creditor_name).toContain('Post Test Org');
+    });
+
+    test('A7: PATCH /sepa-config updates config without creditor_id (update method used by frontend)', async ({ authenticatedRequest }) => {
+      const timestamp = Date.now();
+      const response = await authenticatedRequest.patch('/api/admin/sepa-config', {
+        data: {
+          creditor_name: `Patch Test Org ${timestamp}`,
+          creditor_iban: 'DE89370400440532013000',
+          creditor_address_street: 'Musterstraße 2',
+          creditor_address_city: 'Frankfurt',
+          creditor_address_country: 'DE',
+        },
+      });
+
+      expect(response.status()).toBe(200);
+      const body = await response.json();
+      expect(body.creditor_name).toContain('Patch Test Org');
+      expect(body.is_configured).toBe(true);
+    });
+
+    test('A8: POST /sepa-config requires creditor_id (initial setup)', async ({ authenticatedRequest }) => {
+      const response = await authenticatedRequest.post('/api/admin/sepa-config', {
+        data: {
+          creditor_name: 'Missing ID Org',
+          creditor_iban: 'DE89370400440532013000',
+          creditor_address_street: 'Test Street',
+          creditor_address_city: 'Berlin',
+          creditor_address_country: 'DE',
+        },
+      });
+
+      expect(response.status()).toBe(422);
+      const body = await response.json();
+      expect(body.error).toBe('validation_failed');
+    });
   });
 
   /**

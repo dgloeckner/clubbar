@@ -135,7 +135,9 @@ return function (App $app): void {
 
         // SEPA config
         $group->get('/sepa-config', [SepaConfigController::class, 'show']);
+        $group->post('/sepa-config', [SepaConfigController::class, 'update']);
         $group->put('/sepa-config', [SepaConfigController::class, 'update']);
+        $group->patch('/sepa-config', [SepaConfigController::class, 'update']);
 
         // Reports
         $group->get('/reports/member-ranking', [ReportsAdminController::class, 'memberRanking']);
