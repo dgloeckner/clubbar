@@ -122,6 +122,7 @@ fi
 echo "--- Copying package files..."
 cp "$PROJECT_ROOT/package/index.php"         "$PKG_DIR/index.php"
 cp "$PROJECT_ROOT/package/install.php"       "$PKG_DIR/install.php"
+cp "$PROJECT_ROOT/package/deploy.php"        "$PKG_DIR/deploy.php"
 cp "$PROJECT_ROOT/package/.htaccess"         "$PKG_DIR/.htaccess"
 cp "$PROJECT_ROOT/package/config.sample.php" "$PKG_DIR/config.sample.php"
 cp "$PROJECT_ROOT/package/README.txt"        "$PKG_DIR/README.txt"
