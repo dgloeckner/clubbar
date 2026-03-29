@@ -3,77 +3,214 @@
 declare(strict_types=1);
 
 /**
- * Club Bar Deploy Runner
+ * Club Bar Deploy / Upgrade Wizard
  *
- * Uploaded by CI on each deployment alongside a .deploy-secret file.
- * Runs pending database migrations, returns JSON, then self-destructs.
+ * Provides two interfaces:
  *
- * Usage: GET /deploy.php?key=<IONOS_DEPLOY_SECRET>
- * Returns: {"ok": true, "results": [...]} or {"ok": false, "error": "..."}
+ * 1. **Web wizard** (browser) — admin-friendly step-by-step upgrade:
+ *    - Key gate (paste deploy secret from .deploy-secret file)
+ *    - Upload ZIP package
+ *    - Extract & clean up stale files
+ *    - Run database migrations
+ *    - Done
+ *
+ * 2. **API mode** (CI/CD) — JSON endpoints for automated deployments:
+ *    - GET/POST ?key=<secret>&action=extract  → extract uploaded ZIP
+ *    - GET/POST ?key=<secret>&action=migrate  → run migrations, self-destruct
  *
  * Security:
- * - hash_equals() prevents timing attacks on key comparison
- * - Returns 403 immediately if .deploy-secret is missing or key is wrong
- * - Registers shutdown cleanup ONLY after successful key validation
- * - Self-destructs unconditionally after validation succeeds
+ * - .deploy-secret file holds the one-time key (uploaded by CI or generated on first access)
+ * - hash_equals() prevents timing attacks
+ * - Self-destructs .deploy-secret and deploy.php after successful migration
  */
-
-header('Content-Type: application/json');
 
 $secretFile = __DIR__ . '/.deploy-secret';
 $configFile = __DIR__ . '/config.php';
+$zipFile    = __DIR__ . '/.deploy-package.zip';
 $scriptPath = __FILE__;
 
-// Validate key before doing anything else
-$providedKey = (string) ($_GET['key'] ?? '');
+// --- Detect mode: API (has ?action= or ?key= without session) vs Web wizard ---
+$apiAction = $_GET['action'] ?? null;
+$apiKey    = $_GET['key'] ?? null;
 
+if ($apiAction !== null || ($apiKey !== null && !isset($_GET['step']))) {
+    handleApiMode($secretFile, $configFile, $zipFile, $scriptPath);
+    exit;
+}
+
+// --- Web wizard mode ---
+session_start();
+
+// Handle reset
+if (isset($_GET['action']) && $_GET['action'] === 'reset') {
+    session_destroy();
+    header('Location: deploy.php');
+    exit;
+}
+
+// --- Deploy secret gate ---
+// If .deploy-secret doesn't exist yet, generate one (same pattern as install.php)
 if (!file_exists($secretFile)) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'error' => 'No deploy secret on server.']);
-    exit;
+    $secret = bin2hex(random_bytes(16));
+    file_put_contents($secretFile, $secret);
 }
 
-$storedKey = trim((string) file_get_contents($secretFile));
-
-if ($storedKey === '' || !hash_equals($storedKey, $providedKey)) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'error' => 'Invalid deploy key.']);
-    exit;
-}
-
-// Key is valid — schedule cleanup (skip for extract action, since migrate still needs the secret)
-$action = (string) ($_GET['action'] ?? 'migrate');
-
-if ($action !== 'extract') {
-    register_shutdown_function(function () use ($secretFile, $scriptPath): void {
-        if (!@unlink($secretFile)) {
-            error_log('[deploy.php] WARNING: could not delete .deploy-secret');
+if (empty($_SESSION['deploy_key_verified'])) {
+    $keyError = null;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deploy_key'])) {
+        $provided = trim($_POST['deploy_key']);
+        $stored   = trim((string) file_get_contents($secretFile));
+        if ($stored !== '' && hash_equals($stored, $provided)) {
+            $_SESSION['deploy_key_verified'] = true;
+        } else {
+            $keyError = 'Invalid deploy key. Check the contents of .deploy-secret on your server.';
         }
-        if (!@unlink($scriptPath)) {
-            error_log('[deploy.php] WARNING: could not self-delete deploy.php');
-        }
-    });
-}
+    }
 
-// Unzip package if present
-$zipFile = __DIR__ . '/.deploy-package.zip';
-
-if ($action === 'extract') {
-    if (!file_exists($zipFile)) {
-        http_response_code(404);
-        echo json_encode(['ok' => false, 'error' => '.deploy-package.zip not found on server.']);
+    if (empty($_SESSION['deploy_key_verified'])) {
+        renderKeyGate($keyError);
         exit;
+    }
+}
+
+// --- Step routing ---
+$step  = $_GET['step'] ?? ($_POST['step'] ?? '1');
+$error = null;
+$result = null;
+
+// --- Handle POST actions ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    switch ($step) {
+        case '1': // Upload ZIP
+            if (!isset($_FILES['package']) || $_FILES['package']['error'] !== UPLOAD_ERR_OK) {
+                $uploadErrors = [
+                    UPLOAD_ERR_INI_SIZE   => 'File exceeds server upload_max_filesize (' . ini_get('upload_max_filesize') . ').',
+                    UPLOAD_ERR_FORM_SIZE  => 'File exceeds form size limit.',
+                    UPLOAD_ERR_PARTIAL    => 'File was only partially uploaded.',
+                    UPLOAD_ERR_NO_FILE    => 'No file was selected.',
+                    UPLOAD_ERR_NO_TMP_DIR => 'Server missing temporary folder.',
+                    UPLOAD_ERR_CANT_WRITE => 'Server failed to write file to disk.',
+                ];
+                $code = $_FILES['package']['error'] ?? UPLOAD_ERR_NO_FILE;
+                $error = $uploadErrors[$code] ?? 'Upload failed (error code ' . $code . ').';
+                break;
+            }
+
+            // Validate it's a ZIP
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime  = $finfo->file($_FILES['package']['tmp_name']);
+            if (!in_array($mime, ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'])) {
+                $error = 'Please upload a .zip file (got: ' . htmlspecialchars($mime) . ').';
+                break;
+            }
+
+            // Verify it's a valid ZIP
+            $testZip = new ZipArchive();
+            if ($testZip->open($_FILES['package']['tmp_name']) !== true) {
+                $error = 'The uploaded file is not a valid ZIP archive.';
+                break;
+            }
+            $testZip->close();
+
+            if (!move_uploaded_file($_FILES['package']['tmp_name'], $zipFile)) {
+                $error = 'Failed to save uploaded file. Check directory permissions.';
+                break;
+            }
+
+            header('Location: ?step=2');
+            exit;
+
+        case '2': // Extract
+            $result = extractPackage($zipFile, __DIR__);
+            if ($result['ok']) {
+                $_SESSION['extract_result'] = $result;
+                header('Location: ?step=3');
+                exit;
+            } else {
+                $error = $result['error'];
+            }
+            break;
+
+        case '3': // Migrate
+            $result = runMigrations($configFile);
+            if ($result['ok']) {
+                $_SESSION['migration_result'] = $result;
+                // Clean up deploy secret (self-destruct like CI mode)
+                @unlink($secretFile);
+                header('Location: ?step=4');
+                exit;
+            } else {
+                $error = $result['error'];
+            }
+            break;
+    }
+}
+
+// --- Render ---
+renderPage($step, $error);
+
+// ============================================================================
+// API Mode (CI/CD — JSON responses)
+// ============================================================================
+
+function handleApiMode(string $secretFile, string $configFile, string $zipFile, string $scriptPath): void
+{
+    header('Content-Type: application/json');
+
+    $providedKey = (string) ($_GET['key'] ?? '');
+    $action      = (string) ($_GET['action'] ?? 'migrate');
+
+    // Validate key
+    if (!file_exists($secretFile)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'No deploy secret on server.']);
+        return;
+    }
+
+    $storedKey = trim((string) file_get_contents($secretFile));
+    if ($storedKey === '' || !hash_equals($storedKey, $providedKey)) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Invalid deploy key.']);
+        return;
+    }
+
+    // Schedule cleanup only for migrate (extract still needs the secret)
+    if ($action !== 'extract') {
+        register_shutdown_function(function () use ($secretFile, $scriptPath): void {
+            @unlink($secretFile);
+            @unlink($scriptPath);
+        });
+    }
+
+    if ($action === 'extract') {
+        $result = extractPackage($zipFile, dirname($scriptPath));
+        http_response_code($result['ok'] ? 200 : 500);
+        echo json_encode($result);
+        return;
+    }
+
+    // Default: migrate
+    $result = runMigrations($configFile);
+    http_response_code($result['ok'] ? 200 : 500);
+    echo json_encode($result);
+}
+
+// ============================================================================
+// Core Logic (shared between API and wizard)
+// ============================================================================
+
+function extractPackage(string $zipFile, string $extractDir): array
+{
+    if (!file_exists($zipFile)) {
+        return ['ok' => false, 'error' => '.deploy-package.zip not found on server.'];
     }
 
     $zip = new ZipArchive();
     if ($zip->open($zipFile) !== true) {
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => 'Failed to open ZIP archive.']);
-        exit;
+        return ['ok' => false, 'error' => 'Failed to open ZIP archive.'];
     }
 
-    $extractDir = __DIR__;
-    $excluded   = ['config.php', '.installer-data', '.deploy-secret'];
+    $excluded         = ['config.php', '.installer-data', '.deploy-secret'];
     $preservedPrefixes = ['backend/storage', 'backend/logs'];
     $extracted  = 0;
     $skipped    = 0;
@@ -83,12 +220,11 @@ if ($action === 'extract') {
         $name = $zip->getNameIndex($i);
         $packageFiles[$name] = true;
 
-        // Skip excluded files at root level
         if (in_array($name, $excluded, true)) {
             $skipped++;
             continue;
         }
-        // Skip preserved directories (server state)
+
         $preserve = false;
         foreach ($preservedPrefixes as $prefix) {
             if (str_starts_with($name, $prefix)) {
@@ -100,7 +236,7 @@ if ($action === 'extract') {
             $skipped++;
             continue;
         }
-        // Extract file
+
         $zip->extractTo($extractDir, $name);
         $extracted++;
     }
@@ -108,7 +244,7 @@ if ($action === 'extract') {
     $zip->close();
     @unlink($zipFile);
 
-    // Remove files that are no longer in the package
+    // Remove stale files not in the package
     $deleted = 0;
     $protectedPrefixes = array_merge($preservedPrefixes, ['python_libs']);
     $protectedFiles = array_merge($excluded, [
@@ -122,14 +258,13 @@ if ($action === 'extract') {
     );
 
     foreach ($iter as $fileInfo) {
-        $fullPath = $fileInfo->getPathname();
+        $fullPath     = $fileInfo->getPathname();
         $relativePath = ltrim(substr($fullPath, strlen($extractDir)), '/');
 
-        // Never delete protected files or directories
         if (in_array($relativePath, $protectedFiles, true)) {
             continue;
         }
-        // Never delete inside preserved/protected directories
+
         $inProtected = false;
         foreach ($protectedPrefixes as $prefix) {
             if (str_starts_with($relativePath, $prefix)) {
@@ -142,7 +277,6 @@ if ($action === 'extract') {
         }
 
         if ($fileInfo->isDir()) {
-            // Remove empty directories not in the package
             if (!(new \FilesystemIterator($fullPath))->valid()) {
                 @rmdir($fullPath);
             }
@@ -152,75 +286,465 @@ if ($action === 'extract') {
         }
     }
 
-    echo json_encode([
-        'ok' => true,
-        'action' => 'extract',
+    return [
+        'ok'        => true,
+        'action'    => 'extract',
         'extracted' => $extracted,
-        'skipped' => $skipped,
-        'deleted' => $deleted,
-    ]);
-    exit;
+        'skipped'   => $skipped,
+        'deleted'   => $deleted,
+    ];
 }
 
-// Load config
-if (!file_exists($configFile)) {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'config.php not found. Run the installer first.']);
-    exit;
-}
-
-$config = require $configFile;
-
-if (!is_array($config) || !isset($config['db'])) {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'config.php returned unexpected value.']);
-    exit;
-}
-
-// Load autoloader
-$autoload = __DIR__ . '/backend/vendor/autoload.php';
-if (!file_exists($autoload)) {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'backend/vendor/autoload.php not found.']);
-    exit;
-}
-
-require $autoload;
-
-// Run migrations
-try {
-    $pdo = new PDO(
-        sprintf(
-            'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
-            $config['db']['host'],
-            (int) ($config['db']['port'] ?? 3306),
-            $config['db']['name']
-        ),
-        $config['db']['user'],
-        $config['db']['pass'],
-        [
-            PDO::ATTR_ERRMODE        => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]
-    );
-
-    $runner  = new \App\Db\MigrationRunner($pdo);
-    $results = $runner->migrate(__DIR__ . '/backend/db/migrations', 'deploy');
-
-    $failed = array_filter($results, fn($r) => ($r['status'] ?? '') === 'FAIL');
-
-    if ($failed) {
-        http_response_code(500);
-        echo json_encode([
-            'ok'      => false,
-            'error'   => 'Migration failed.',
-            'results' => array_values($results),
-        ]);
-        exit;
+function runMigrations(string $configFile): array
+{
+    if (!file_exists($configFile)) {
+        return ['ok' => false, 'error' => 'config.php not found. Run the installer first.'];
     }
 
-    echo json_encode(['ok' => true, 'results' => array_values($results)]);
-} catch (\Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    $config = require $configFile;
+    if (!is_array($config) || !isset($config['db'])) {
+        return ['ok' => false, 'error' => 'config.php returned unexpected value.'];
+    }
+
+    $autoload = dirname($configFile) . '/backend/vendor/autoload.php';
+    if (!file_exists($autoload)) {
+        return ['ok' => false, 'error' => 'backend/vendor/autoload.php not found.'];
+    }
+
+    require_once $autoload;
+
+    try {
+        $pdo = new PDO(
+            sprintf(
+                'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+                $config['db']['host'],
+                (int) ($config['db']['port'] ?? 3306),
+                $config['db']['name']
+            ),
+            $config['db']['user'],
+            $config['db']['pass'],
+            [
+                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]
+        );
+
+        $runner  = new \App\Db\MigrationRunner($pdo);
+        $results = $runner->migrate(dirname($configFile) . '/backend/db/migrations', 'deploy');
+
+        $failed = array_filter($results, fn($r) => ($r['status'] ?? '') === 'FAIL');
+
+        if ($failed) {
+            return [
+                'ok'      => false,
+                'error'   => 'Migration failed.',
+                'results' => array_values($results),
+            ];
+        }
+
+        return ['ok' => true, 'results' => array_values($results)];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+// ============================================================================
+// Web Wizard Rendering
+// ============================================================================
+
+function renderKeyGate(?string $error): void
+{
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Club Bar - Deploy</title>
+        <style><?php echo getStyles(); ?></style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Club Bar</h1>
+            <?php if ($error): ?>
+                <div class="error"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
+            <div class="card">
+                <h2>Deploy Key Required</h2>
+                <p>A deploy key has been written to <code>.deploy-secret</code> in your document root.</p>
+                <p>Open the file via <strong>FTP</strong>, <strong>cPanel File Manager</strong>, or <strong>SSH</strong> and copy its contents, then paste below.</p>
+                <form method="post" action="deploy.php">
+                    <label>
+                        Deploy Key
+                        <input type="text" name="deploy_key" required autofocus autocomplete="off"
+                               placeholder="Paste the contents of .deploy-secret">
+                    </label>
+                    <button type="submit" class="btn">Verify &amp; Continue</button>
+                </form>
+            </div>
+        </div>
+    </body>
+    </html>
+    <?php
+}
+
+function renderPage(string $step, ?string $error): void
+{
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Club Bar - Deploy</title>
+        <style><?php echo getStyles(); ?></style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Club Bar Deploy</h1>
+
+            <div class="steps">
+                <?php for ($i = 1; $i <= 4; $i++): ?>
+                    <span class="step <?php echo $i == (int)$step ? 'active' : ($i < (int)$step ? 'done' : ''); ?>">
+                        <?php echo $i; ?>
+                    </span>
+                <?php endfor; ?>
+            </div>
+
+            <?php if ($error): ?>
+                <div class="error"><?php echo htmlspecialchars($error); ?></div>
+            <?php endif; ?>
+
+            <div class="card">
+            <?php
+            switch ($step) {
+                case '1': renderStep1(); break;
+                case '2': renderStep2(); break;
+                case '3': renderStep3(); break;
+                case '4': renderStep4(); break;
+                default:  renderStep1(); break;
+            }
+            ?>
+            </div>
+            <p class="reset-link"><small><a href="?action=reset">Start over</a></small></p>
+        </div>
+    </body>
+    </html>
+    <?php
+}
+
+function renderStep1(): void
+{
+    $maxUpload = ini_get('upload_max_filesize');
+    $maxPost   = ini_get('post_max_size');
+    $hasZip    = extension_loaded('zip');
+    ?>
+    <h2>Step 1: Upload Package</h2>
+    <p>Upload the Club Bar release <code>.zip</code> file you downloaded from GitHub.</p>
+
+    <?php if (!$hasZip): ?>
+        <div class="error">The PHP <code>zip</code> extension is not loaded. Contact your hosting provider to enable it.</div>
+    <?php else: ?>
+        <form method="post" action="?step=1" enctype="multipart/form-data" id="uploadForm">
+            <input type="hidden" name="step" value="1">
+            <div class="upload-area" id="dropZone">
+                <div class="upload-icon">&#128230;</div>
+                <p><strong>Drag &amp; drop</strong> your .zip file here, or click to browse</p>
+                <p class="upload-hint">Max upload size: <?php echo htmlspecialchars($maxUpload); ?> (upload_max_filesize), <?php echo htmlspecialchars($maxPost); ?> (post_max_size)</p>
+                <input type="file" name="package" accept=".zip" required id="fileInput" class="file-input">
+            </div>
+            <div id="fileInfo" class="file-info" style="display:none"></div>
+            <button type="submit" class="btn" id="uploadBtn" disabled>Upload &amp; Continue</button>
+        </form>
+        <script>
+        (function() {
+            var dropZone = document.getElementById('dropZone');
+            var fileInput = document.getElementById('fileInput');
+            var fileInfo = document.getElementById('fileInfo');
+            var uploadBtn = document.getElementById('uploadBtn');
+            var form = document.getElementById('uploadForm');
+
+            dropZone.addEventListener('click', function() { fileInput.click(); });
+
+            dropZone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+            dropZone.addEventListener('dragleave', function() {
+                dropZone.classList.remove('drag-over');
+            });
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                if (e.dataTransfer.files.length > 0) {
+                    fileInput.files = e.dataTransfer.files;
+                    showFile(e.dataTransfer.files[0]);
+                }
+            });
+
+            fileInput.addEventListener('change', function() {
+                if (fileInput.files.length > 0) showFile(fileInput.files[0]);
+            });
+
+            function showFile(file) {
+                var sizeMB = (file.size / 1024 / 1024).toFixed(1);
+                fileInfo.innerHTML = '&#128196; <strong>' + file.name + '</strong> (' + sizeMB + ' MB)';
+                fileInfo.style.display = 'block';
+                uploadBtn.disabled = false;
+            }
+
+            form.addEventListener('submit', function() {
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Uploading...';
+            });
+        })();
+        </script>
+    <?php endif; ?>
+    <?php
+}
+
+function renderStep2(): void
+{
+    ?>
+    <h2>Step 2: Extract Package</h2>
+    <p>The package has been uploaded. Click below to extract it and update all files.</p>
+    <p class="hint">Your <code>config.php</code>, database, logs, and storage will be preserved.</p>
+    <form method="post" action="?step=2">
+        <input type="hidden" name="step" value="2">
+        <button type="submit" class="btn" id="extractBtn"
+                onclick="this.disabled=true;this.textContent='Extracting...';this.form.submit();">
+            Extract &amp; Update Files
+        </button>
+    </form>
+    <?php
+}
+
+function renderStep3(): void
+{
+    $result = $_SESSION['extract_result'] ?? null;
+    ?>
+    <h2>Step 3: Database Migrations</h2>
+    <?php if ($result): ?>
+        <div class="success">
+            Files updated: <strong><?php echo $result['extracted']; ?></strong> extracted,
+            <strong><?php echo $result['skipped']; ?></strong> preserved,
+            <strong><?php echo $result['deleted']; ?></strong> stale files removed.
+        </div>
+    <?php endif; ?>
+    <p>Click below to run any pending database migrations.</p>
+    <form method="post" action="?step=3">
+        <input type="hidden" name="step" value="3">
+        <button type="submit" class="btn" id="migrateBtn"
+                onclick="this.disabled=true;this.textContent='Running migrations...';this.form.submit();">
+            Run Migrations
+        </button>
+    </form>
+    <?php
+}
+
+function renderStep4(): void
+{
+    $result = $_SESSION['migration_result'] ?? null;
+    $migrations = $result['results'] ?? [];
+    ?>
+    <h2>Deploy Complete!</h2>
+    <?php if ($migrations): ?>
+        <div class="success">
+            <?php echo count($migrations); ?> migration(s) applied successfully.
+        </div>
+    <?php else: ?>
+        <div class="success">Database is up to date — no migrations needed.</div>
+    <?php endif; ?>
+    <p>Club Bar has been updated successfully.</p>
+    <a href="/" class="btn">Go to Admin Panel</a>
+    <?php
+}
+
+// ============================================================================
+// Styles (matches install.php design)
+// ============================================================================
+
+function getStyles(): string
+{
+    return <<<'CSS'
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #f3f4f6;
+    color: #1f2937;
+    line-height: 1.6;
+}
+.container {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+h1 {
+    text-align: center;
+    margin-bottom: 24px;
+    color: #1a56db;
+    font-size: 28px;
+    letter-spacing: -0.5px;
+}
+h2 {
+    margin-bottom: 12px;
+    font-size: 20px;
+    color: #111827;
+}
+p {
+    margin-bottom: 16px;
+    color: #4b5563;
+}
+.hint {
+    font-size: 13px;
+    color: #6b7280;
+}
+.card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 28px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+    margin-bottom: 20px;
+}
+.steps {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.step {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.2s, color 0.2s;
+}
+.step.active {
+    background: #1a56db;
+    color: #fff;
+    box-shadow: 0 0 0 3px rgba(26,86,219,0.2);
+}
+.step.done {
+    background: #16a34a;
+    color: #fff;
+}
+label {
+    display: block;
+    margin-bottom: 16px;
+    font-weight: 500;
+    font-size: 14px;
+    color: #374151;
+}
+input[type="text"],
+input[type="password"] {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    margin-top: 4px;
+    font-size: 14px;
+    color: #1f2937;
+    background: #fff;
+    transition: border-color 0.15s;
+}
+input:focus {
+    outline: none;
+    border-color: #1a56db;
+    box-shadow: 0 0 0 3px rgba(26,86,219,0.1);
+}
+.btn {
+    display: inline-block;
+    padding: 10px 24px;
+    background: #1a56db;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    margin-top: 8px;
+    transition: background 0.15s;
+}
+.btn:hover { background: #1e40af; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+.success {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #16a34a;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+.upload-area {
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-bottom: 16px;
+}
+.upload-area:hover, .upload-area.drag-over {
+    border-color: #1a56db;
+    background: #eff6ff;
+}
+.upload-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+}
+.upload-hint {
+    font-size: 12px;
+    color: #9ca3af;
+}
+.file-input {
+    display: none;
+}
+.file-info {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #16a34a;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+a { color: #1a56db; }
+a:hover { text-decoration: underline; }
+code {
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 13px;
+}
+.reset-link {
+    text-align: center;
+    color: #9ca3af;
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+.reset-link a { color: #9ca3af; }
+@media (max-width: 640px) {
+    .container { margin: 20px auto; }
+    .card { padding: 20px; }
+    h1 { font-size: 24px; }
+}
+CSS;
 }
