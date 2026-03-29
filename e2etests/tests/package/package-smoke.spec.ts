@@ -143,11 +143,15 @@ test.describe.serial('Package: Deploy Runner', () => {
   });
 
   test('deploy.php self-destructs after use', async ({ request }) => {
-    // deploy.php was called in the previous test — must be gone now
+    // deploy.php was called in the previous test — must be gone now.
+    // .htaccess catch-all serves the SPA (200 HTML) for missing files, so we
+    // cannot assert a specific status code. Instead verify the response is not
+    // a JSON deploy-script response, which proves deploy.php no longer runs.
     const response = await request.get(
       `${PACKAGE_URL}/deploy.php?key=${CI_DEPLOY_SECRET}`
     );
-    expect(response.status()).toBe(404);
+    const contentType = response.headers()['content-type'] ?? '';
+    expect(contentType).not.toContain('application/json');
   });
 
   test('.deploy-secret is not accessible via HTTP', async ({ request }) => {
