@@ -484,14 +484,33 @@ jobs:
       - name: Install lftp
         run: sudo apt-get install -y lftp
 
+      - name: Test SFTP connectivity
+        run: |
+          echo "::group::DNS resolution"
+          host home277820902.1and1-data.host || echo "DNS resolution failed"
+          echo "::endgroup::"
+          echo "::group::SSH port check"
+          timeout 15 bash -c 'echo > /dev/tcp/home277820902.1and1-data.host/22' 2>&1 && echo "Port 22 reachable" || echo "Port 22 unreachable"
+          echo "::endgroup::"
+          echo "::group::SFTP auth test"
+          lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
+            sftp://home277820902.1and1-data.host:22 -e "set sftp:auto-confirm yes; set net:timeout 15; ls; bye" 2>&1 || echo "SFTP auth/listing failed"
+          echo "::endgroup::"
+
       - name: Upload via SFTP
         run: |
-          lftp -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
+          echo "Package contents to upload:"
+          find dist/package/ -maxdepth 2 -type f | head -30
+          echo "---"
+          du -sh dist/package/
+          echo "Starting lftp mirror..."
+          lftp -d -u "${{ secrets.IONOS_SFTP_USER }},${{ secrets.IONOS_SFTP_PASSWORD }}" \
             sftp://home277820902.1and1-data.host:22 << 'LFTP'
           set sftp:auto-confirm yes
           set net:timeout 30
           set net:max-retries 3
           set net:reconnect-interval-base 5
+          set cmd:trace true
           mirror --reverse --delete --verbose \
             --exclude '^config\.php$' \
             --exclude '^\.installer-data$' \
@@ -501,9 +520,15 @@ jobs:
             dist/package/ /
           bye
           LFTP
+          echo "lftp exit code: $?"
 
       - name: Run migrations
         run: |
-          RESPONSE=$(curl -sf --max-time 120 "${{ secrets.IONOS_SITE_URL }}/deploy.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}")
-          echo "$RESPONSE" | jq .
-          [ "$(echo "$RESPONSE" | jq -r '.ok')" = "true" ]
+          echo "Calling deploy.php..."
+          RESPONSE=$(curl -svf --max-time 120 "${{ secrets.IONOS_SITE_URL }}/deploy.php?key=${{ secrets.IONOS_DEPLOY_SECRET }}" 2>&1) || {
+            echo "curl failed with exit code $?"
+            echo "$RESPONSE"
+            exit 1
+          }
+          echo "$RESPONSE" | tail -n1 | jq .
+          [ "$(echo "$RESPONSE" | tail -n1 | jq -r '.ok')" = "true" ]
