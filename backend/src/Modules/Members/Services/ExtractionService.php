@@ -201,7 +201,13 @@ Extract these fields from the form text:
 - city
 - accountHolderName (the "Kontoinhaber" field — may differ from member name)
 - cardUid (uppercase hex from "Chip-ID" / "Karten-ID" field, e.g. "A1B2C3D4"; null if absent)
-- iban (German DE + 20 digits = 22 chars total; may be split — reconstruct it)
+- iban (German IBAN: always exactly 22 characters — "DE" + 20 digits.
+  The IBAN is written in individual cells and OCR often splits it across
+  multiple lines or appends stray digits to nearby form labels (e.g. the
+  Mandatsdatum line). Scan ALL lines for digit tokens and reconstruct the
+  full 22-char IBAN. If your candidate is shorter than 22 chars, look for
+  the missing digits on adjacent lines — especially at the end of label
+  lines immediately after the IBAN section.)
 - mandateDate (normalize to DD.MM.YYYY)
 
 For each field, assign a confidence level based on the minimum OCR confidence score
