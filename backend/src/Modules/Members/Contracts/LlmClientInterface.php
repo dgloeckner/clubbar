@@ -17,4 +17,12 @@ interface LlmClientInterface
      * @throws \RuntimeException on API or network failure
      */
     public function extractFromImage(string $base64, string $mimeType, string $prompt, string $assistantPrefill = ''): string;
+
+    /**
+     * Send a plain-text user message with a system prompt to the LLM.
+     * No image involved. Returns the raw text content of the model response.
+     *
+     * @throws \RuntimeException on API or network failure
+     */
+    public function extractFromText(string $userMessage, string $systemPrompt): string;
 }
