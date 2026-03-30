@@ -18,6 +18,7 @@ class AppConfig
     public readonly ?string $llmApiKey;
     public readonly ?string $llmModel;
     public readonly int     $llmThinkingBudget;
+    public readonly ?string $googleVisionKey;
 
     public function __construct()
     {
@@ -33,6 +34,7 @@ class AppConfig
         $this->llmApiKey            = Env::get('LLM_API_KEY', '') ?: null;
         $this->llmModel             = Env::get('LLM_MODEL', '') ?: null;
         $this->llmThinkingBudget    = (int) Env::get('LLM_THINKING_BUDGET', '0');
+        $this->googleVisionKey      = Env::get('GCLOUD_VISION_API', '') ?: null;
     }
 
     public function isProduction(): bool
