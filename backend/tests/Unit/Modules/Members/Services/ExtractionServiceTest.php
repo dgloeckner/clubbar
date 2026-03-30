@@ -5,90 +5,217 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Members\Services;
 
 use App\Modules\Members\Contracts\LlmClientInterface;
+use App\Modules\Members\Contracts\VisionClientInterface;
 use App\Modules\Members\Services\ExtractionService;
 use PHPUnit\Framework\TestCase;
 
 class ExtractionServiceTest extends TestCase
 {
-    private function makeService(string $llmResponse): ExtractionService
+    /** Minimal Vision API response with one paragraph of two words */
+    private function visionResponse(string $word1, float $conf1, string $word2, float $conf2): array
     {
-        $mockClient = $this->createMock(LlmClientInterface::class);
-        $mockClient->method('extractFromImage')->willReturn($llmResponse);
-        return new ExtractionService($mockClient);
+        $makeWord = fn(string $text, float $conf) => [
+            'symbols' => array_map(
+                fn($ch) => ['text' => $ch, 'confidence' => $conf],
+                str_split($text)
+            ),
+        ];
+        return [
+            'responses' => [[
+                'fullTextAnnotation' => [
+                    'pages' => [[
+                        'blocks' => [[
+                            'paragraphs' => [[
+                                'words' => [$makeWord($word1, $conf1), $makeWord($word2, $conf2)],
+                            ]],
+                        ]],
+                    ]],
+                ],
+            ]],
+        ];
     }
 
-    private function fullResponse(array $overrides = []): string
+    private function makeService(array $visionResult, string $llmResponse): ExtractionService
+    {
+        $vision = $this->createMock(VisionClientInterface::class);
+        $vision->method('recognize')->willReturn($visionResult);
+
+        $llm = $this->createMock(LlmClientInterface::class);
+        $llm->method('extractFromText')->willReturn($llmResponse);
+
+        return new ExtractionService($vision, $llm);
+    }
+
+    private function fullLlmResponse(array $overrides = []): string
     {
         $fields = array_merge([
-            'first_name'           => ['value' => 'Max',                    'confidence' => 'high'],
-            'last_name'            => ['value' => 'Mustermann',             'confidence' => 'high'],
-            'email'                => ['value' => 'max@example.com',        'confidence' => 'medium'],
-            'iban'                 => ['value' => 'DE89370400440532013000', 'confidence' => 'high'],
-            'account_holder_name'  => ['value' => 'Max Mustermann',         'confidence' => 'medium'],
-            'mandate_signed_at'    => ['value' => '2026-01-15',             'confidence' => 'high'],
+            'firstName'         => ['value' => 'Max',                    'confidence' => 'high'],
+            'lastName'          => ['value' => 'Mustermann',             'confidence' => 'high'],
+            'email'             => ['value' => 'max@example.com',        'confidence' => 'medium'],
+            'street'            => ['value' => 'Hauptstraße 1',          'confidence' => 'high'],
+            'zipCode'           => ['value' => '12345',                  'confidence' => 'high'],
+            'city'              => ['value' => 'Berlin',                 'confidence' => 'high'],
+            'accountHolderName' => ['value' => 'Max Mustermann',         'confidence' => 'medium'],
+            'cardUid'           => ['value' => 'A1B2C3D4',               'confidence' => 'high'],
+            'iban'              => ['value' => 'DE89370400440532013000', 'confidence' => 'high'],
+            'mandateDate'       => ['value' => '15.01.2026',             'confidence' => 'high'],
         ], $overrides);
-        return json_encode(['fields' => $fields]);
+        return json_encode($fields);
     }
 
-    public function test_extract_parses_all_fields_with_confidence(): void
+    public function test_extract_parses_all_fields(): void
     {
-        $service = $this->makeService($this->fullResponse());
-        $result  = $service->extract('fake-bytes', 'image/jpeg');
+        $service = $this->makeService(
+            $this->visionResponse('Max', 0.95, 'Mustermann', 0.90),
+            $this->fullLlmResponse()
+        );
 
-        $this->assertSame('Max',                    $result->fields['first_name']['value']);
-        $this->assertSame('high',                   $result->fields['first_name']['confidence']);
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
+        $this->assertSame('Max',              $result->fields['first_name']['value']);
+        $this->assertSame('high',             $result->fields['first_name']['confidence']);
+        $this->assertSame('Hauptstraße 1',    $result->fields['street']['value']);
+        $this->assertSame('12345',            $result->fields['zip_code']['value']);
+        $this->assertSame('Berlin',           $result->fields['city']['value']);
+        $this->assertSame('A1B2C3D4',         $result->fields['card_uid']['value']);
+        $this->assertSame('2026-01-15',       $result->fields['mandate_signed_at']['value']);
+    }
+
+    public function test_extract_iban_checksum_valid_sets_confidence_high_and_checksumValid_true(): void
+    {
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.5, 'y', 0.5),
+            $this->fullLlmResponse(['iban' => ['value' => 'DE89370400440532013000', 'confidence' => 'low']])
+        );
+
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
         $this->assertSame('DE89370400440532013000', $result->fields['iban']['value']);
-        $this->assertSame('medium',                 $result->fields['account_holder_name']['confidence']);
+        $this->assertSame('high',                   $result->fields['iban']['confidence']);
+        $this->assertTrue($result->fields['iban']['checksumValid']);
     }
 
-    public function test_extract_handles_markdown_wrapped_json(): void
+    public function test_extract_iban_checksum_fails_sets_low_and_checksumValid_false(): void
     {
-        $wrapped = "```json\n" . $this->fullResponse() . "\n```";
-        $service = $this->makeService($wrapped);
-        $result  = $service->extract('fake-bytes', 'image/jpeg');
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.5, 'y', 0.5),
+            $this->fullLlmResponse(['iban' => ['value' => 'DE89370400440532013001', 'confidence' => 'high']])
+        );
 
-        $this->assertSame('Max', $result->fields['first_name']['value']);
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
+        $this->assertSame('low',  $result->fields['iban']['confidence']);
+        $this->assertFalse($result->fields['iban']['checksumValid']);
     }
 
-    public function test_extract_sets_null_for_missing_fields(): void
+    public function test_extract_mandate_date_normalized_from_dd_mm_yyyy(): void
     {
-        // LLM only returns some fields — missing ones default to null/null
-        $partial = json_encode(['fields' => [
-            'first_name' => ['value' => 'Anna', 'confidence' => 'high'],
-        ]]);
-        $service = $this->makeService($partial);
-        $result  = $service->extract('fake-bytes', 'image/jpeg');
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.9, 'y', 0.9),
+            $this->fullLlmResponse(['mandateDate' => ['value' => '03.05.2026', 'confidence' => 'high']])
+        );
+
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
+        $this->assertSame('2026-05-03', $result->fields['mandate_signed_at']['value']);
+        $this->assertSame('high',       $result->fields['mandate_signed_at']['confidence']);
+    }
+
+    public function test_extract_mandate_date_invalid_format_sets_low_confidence(): void
+    {
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.9, 'y', 0.9),
+            $this->fullLlmResponse(['mandateDate' => ['value' => 'not-a-date', 'confidence' => 'high']])
+        );
+
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
+        $this->assertSame('low', $result->fields['mandate_signed_at']['confidence']);
+    }
+
+    public function test_extract_email_without_at_sign_sets_low_confidence(): void
+    {
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.9, 'y', 0.9),
+            $this->fullLlmResponse(['email' => ['value' => 'notanemail', 'confidence' => 'high']])
+        );
+
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
+        $this->assertSame('low', $result->fields['email']['confidence']);
+    }
+
+    public function test_extract_zip_code_non_5_digits_sets_low_confidence(): void
+    {
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.9, 'y', 0.9),
+            $this->fullLlmResponse(['zipCode' => ['value' => '1234', 'confidence' => 'high']])
+        );
+
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
+        $this->assertSame('low', $result->fields['zip_code']['confidence']);
+    }
+
+    public function test_extract_needs_review_true_when_any_field_low(): void
+    {
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.9, 'y', 0.9),
+            $this->fullLlmResponse(['firstName' => ['value' => 'X', 'confidence' => 'low']])
+        );
+
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
+        $this->assertTrue($result->needsReview);
+    }
+
+    public function test_extract_needs_review_false_when_all_high_or_medium(): void
+    {
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.9, 'y', 0.9),
+            $this->fullLlmResponse()
+        );
+
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
+        $this->assertFalse($result->needsReview);
+    }
+
+    public function test_extract_handles_null_fields(): void
+    {
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.9, 'y', 0.9),
+            json_encode(['firstName' => ['value' => 'Anna', 'confidence' => 'high']])
+        );
+
+        $result = $service->extract('fake-bytes', 'image/jpeg');
 
         $this->assertSame('Anna', $result->fields['first_name']['value']);
         $this->assertNull($result->fields['last_name']['value']);
         $this->assertNull($result->fields['last_name']['confidence']);
     }
 
-    public function test_extract_normalises_unknown_confidence_to_null(): void
+    public function test_extract_throws_on_pdf_mime_type(): void
     {
-        $response = $this->fullResponse([
-            'first_name' => ['value' => 'Max', 'confidence' => 'very_high'],
-        ]);
-        $service = $this->makeService($response);
-        $result  = $service->extract('fake-bytes', 'image/jpeg');
+        $vision = $this->createMock(VisionClientInterface::class);
+        $vision->expects($this->never())->method('recognize');
+        $llm = $this->createMock(LlmClientInterface::class);
 
-        $this->assertNull($result->fields['first_name']['confidence']);
+        $service = new ExtractionService($vision, $llm);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/PDF/');
+        $service->extract('fake-bytes', 'application/pdf');
     }
 
-    public function test_extract_throws_on_invalid_json(): void
+    public function test_extract_throws_on_invalid_json_from_llm(): void
     {
-        $service = $this->makeService('This is not JSON');
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.9, 'y', 0.9),
+            'this is not json'
+        );
+
         $this->expectException(\RuntimeException::class);
         $service->extract('fake-bytes', 'image/jpeg');
-    }
-
-    public function test_to_array_returns_fields_key(): void
-    {
-        $service = $this->makeService($this->fullResponse());
-        $result  = $service->extract('fake-bytes', 'image/jpeg');
-        $arr     = $result->toArray();
-
-        $this->assertArrayHasKey('fields', $arr);
-        $this->assertArrayHasKey('first_name', $arr['fields']);
     }
 }
