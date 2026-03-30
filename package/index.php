@@ -27,6 +27,7 @@ $_ENV['LLM_PROVIDER']        = $config['llm']['provider'] ?? '';
 $_ENV['LLM_API_KEY']         = $config['llm']['api_key'] ?? '';
 $_ENV['LLM_MODEL']           = $config['llm']['model'] ?? '';
 $_ENV['LLM_THINKING_BUDGET'] = (string) ($config['llm']['thinking_budget'] ?? 0);
+$_ENV['GCLOUD_VISION_API']   = $config['vision']['api_key'] ?? '';
 
 // --- Route request ---
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);

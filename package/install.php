@@ -122,9 +122,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $dbName = trim($_POST['db_name'] ?? '');
             $dbUser = trim($_POST['db_user'] ?? '');
             $dbPass = $_POST['db_pass'] ?? '';
-            $llmProvider = trim($_POST['llm_provider'] ?? '');
-            $llmApiKey   = trim($_POST['llm_api_key'] ?? '');
-            $llmModel    = trim($_POST['llm_model'] ?? '');
+            $llmProvider   = trim($_POST['llm_provider'] ?? '');
+            $llmApiKey     = trim($_POST['llm_api_key'] ?? '');
+            $llmModel      = trim($_POST['llm_model'] ?? '');
+            $visionApiKey  = trim($_POST['vision_api_key'] ?? '');
 
             if (empty($dbName)) {
                 $error = 'Database name is required.';
@@ -184,6 +185,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'api_key'  => $llmApiKey,
                         'model'    => $llmModel,
                         'thinking_budget' => 0,
+                    ],
+                    'vision' => [
+                        'api_key' => $visionApiKey,
                     ],
                 ], true) . ";\n";
 
@@ -565,7 +569,8 @@ function renderStep2(bool $isUpdate): void
 
     // Pre-fill from existing config if available
     $dbDefaults  = ['host' => 'localhost', 'port' => 3306, 'name' => '', 'user' => '', 'pass' => ''];
-    $llmDefaults = ['provider' => '', 'api_key' => '', 'model' => ''];
+    $llmDefaults    = ['provider' => '', 'api_key' => '', 'model' => ''];
+    $visionDefaults = ['api_key' => ''];
     $configFile = __DIR__ . '/config.php';
     if (file_exists($configFile)) {
         $config = require $configFile;
@@ -574,6 +579,9 @@ function renderStep2(bool $isUpdate): void
         }
         if (isset($config['llm'])) {
             $llmDefaults = array_merge($llmDefaults, $config['llm']);
+        }
+        if (isset($config['vision'])) {
+            $visionDefaults = array_merge($visionDefaults, $config['vision']);
         }
     }
     ?>
@@ -607,11 +615,19 @@ function renderStep2(bool $isUpdate): void
         </div>
 
         <hr style="margin: 24px 0;">
-        <h3 style="margin-bottom: 8px; font-size: 16px; color: #374151;">LLM Extraction <small style="font-weight:400; color:#6b7280;">(optional)</small></h3>
+        <h3 style="margin-bottom: 8px; font-size: 16px; color: #374151;">Mandate Scan Extraction <small style="font-weight:400; color:#6b7280;">(optional)</small></h3>
         <p style="font-size: 13px; color: #6b7280; margin-bottom: 16px;">
-            Enables AI-powered extraction of member data from scanned mandate PDFs/images.
-            Leave <em>Provider</em> blank to disable this feature silently.
+            Enables AI-powered extraction of member data from scanned SEPA mandate images.
+            Requires both a Google Cloud Vision API key (for OCR) and an LLM provider key (for field extraction).
+            Leave either field blank to disable this feature silently.
         </p>
+        <label>
+            Google Cloud Vision API Key
+            <input type="password" name="vision_api_key" value="<?php echo htmlspecialchars((string)$visionDefaults['api_key']); ?>"
+                   placeholder="AIza...">
+        </label>
+
+        <h4 style="margin: 16px 0 8px; font-size: 14px; color: #374151; font-weight: 600;">LLM Provider</h4>
         <label>
             Provider
             <select name="llm_provider" style="display:block;width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:6px;margin-top:4px;font-size:14px;color:#1f2937;background:#fff;">
