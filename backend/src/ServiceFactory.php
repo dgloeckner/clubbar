@@ -51,6 +51,7 @@ use App\Modules\Members\Controllers\ExtractionController;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
 use App\Modules\Members\Contracts\LlmClientInterface;
 use App\Modules\Members\Factories\LlmClientFactory;
+use App\Modules\Members\Factories\VisionClientFactory;
 use App\Modules\Members\Services\ExtractionService;
 use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
@@ -267,13 +268,24 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(LlmClientFactory::class, fn() => new LlmClientFactory($this->config));
     }
 
+    public function getVisionClientFactory(): VisionClientFactory
+    {
+        return $this->resolve(VisionClientFactory::class, fn() => new VisionClientFactory($this->config));
+    }
+
     public function getExtractionService(): ?ExtractionService
     {
-        $client = $this->getLlmClientFactory()->create();
-        if ($client === null) {
+        $visionClient = $this->getVisionClientFactory()->create();
+        if ($visionClient === null) {
             return null;
         }
-        return $this->resolve(ExtractionService::class, fn() => new ExtractionService($client));
+
+        $llmClient = $this->getLlmClientFactory()->create();
+        if ($llmClient === null) {
+            return null;
+        }
+
+        return $this->resolve(ExtractionService::class, fn() => new ExtractionService($visionClient, $llmClient));
     }
 
     public function getExtractionController(): ExtractionController
