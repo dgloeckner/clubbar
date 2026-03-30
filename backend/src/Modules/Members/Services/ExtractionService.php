@@ -320,7 +320,7 @@ Extract data from this scanned SEPA mandate form. Return ONLY valid JSON, no mar
 - Use null for value AND confidence when a field is absent or illegible
 - iban: extract the member's handwritten IBAN from the individual boxes (Kästchen), NOT the pre-printed Creditor Identifier (CI) which contains letter codes like "ZZZ"
 - mandate_signed_at: use the date in the "Mandatsdatum" field (individual boxes with pre-printed dots), not the signature date. Format: YYYY-MM-DD
-- card_uid: uppercase hex string from the "Chip-ID" or "Karten-ID" field (e.g. "A1B2C3D4"); null if absent
+- card_uid: uppercase hex string (digits 0-9 and letters A-F only) from the "Chip-ID" or "Karten-ID" field (e.g. "A1B2C3D4"); null if absent or if any character is illegible — do NOT substitute placeholder characters (P, X, ?, etc.) for unreadable digits
 PROMPT;
     }
 

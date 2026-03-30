@@ -38,6 +38,14 @@ import {
   getRowStyle,
 } from '../styles/tableTokens'
 
+function normalizeCardUid(raw: string | null | undefined): string {
+  if (!raw) return ''
+  // Strip common separators (hyphens, spaces, colons), then remove non-hex chars
+  const cleaned = raw.toUpperCase().replace(/[\s\-:]/g, '').replace(/[^0-9A-F]/g, '')
+  // Only use the result if it has enough hex chars to be a plausible UID (≥4)
+  return cleaned.length >= 4 ? cleaned : ''
+}
+
 export function MembersPage() {
   const { t } = useTranslation()
   const formatters = useFormatters()
@@ -441,10 +449,13 @@ export function MembersPage() {
     if (f.first_name?.value)          updates.first_name           = f.first_name.value
     if (f.last_name?.value)           updates.last_name            = f.last_name.value
     if (f.email?.value)               updates.email                = f.email.value
-    if (f.iban?.value)                updates.iban                 = f.iban.value
+    if (f.iban?.value)                updates.iban                 = f.iban.value.replace(/\s/g, '').toUpperCase()
     if (f.account_holder_name?.value) updates.account_holder_name  = f.account_holder_name.value
     if (f.mandate_signed_at?.value)   updates.mandate_signed_at    = f.mandate_signed_at.value
-    if (f.card_uid?.value)            updates.card_uid             = f.card_uid.value.toUpperCase().replace(/[^0-9A-F]/g, '')
+    if (f.card_uid?.value) {
+      const normalized = normalizeCardUid(f.card_uid.value)
+      if (normalized) updates.card_uid = normalized
+    }
 
     setFormData(prev => ({ ...prev, ...updates }))
   }
@@ -469,10 +480,10 @@ export function MembersPage() {
         first_name:           result.fields.first_name?.value           ?? '',
         last_name:            result.fields.last_name?.value            ?? '',
         email:                result.fields.email?.value                ?? '',
-        iban:                 result.fields.iban?.value                 ?? '',
+        iban:                 (result.fields.iban?.value ?? '').replace(/\s/g, '').toUpperCase(),
         account_holder_name:  result.fields.account_holder_name?.value  ?? '',
         mandate_signed_at:    result.fields.mandate_signed_at?.value    ?? '',
-        card_uid:             (result.fields.card_uid?.value ?? '').toUpperCase().replace(/[^0-9A-F]/g, ''),
+        card_uid:             normalizeCardUid(result.fields.card_uid?.value),
       })
       setExtractedFields(result)
       setPreExtractionFormData(null)
