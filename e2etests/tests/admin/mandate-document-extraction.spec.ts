@@ -5,7 +5,7 @@ import { csrfHeaders } from '../../utils/csrf'
 import type { Page } from '@playwright/test'
 
 const FIXTURE_DIR = resolve(__dirname, '../../fixtures/files')
-const LLM_CONFIGURED = !!process.env.LLM_API_KEY
+const EXTRACTION_CONFIGURED = !!process.env.GCLOUD_VISION_API && !!process.env.LLM_API_KEY
 
 // Helper: create an isolated member and return its id
 async function createTestMember(page: Page): Promise<string> {
@@ -51,7 +51,7 @@ test.describe('POST /api/admin/mandate-document/extract — auth and validation'
   test('returns 422 when no file provided (LLM configured)', async ({ page }) => {
     // The controller checks LLM config before file presence, so 422 only applies
     // when LLM is configured. Without LLM the endpoint returns 409 first.
-    test.skip(!LLM_CONFIGURED, 'LLM_API_KEY not set — endpoint returns 409 before reaching file validation')
+    test.skip(!EXTRACTION_CONFIGURED, 'GCLOUD_VISION_API or LLM_API_KEY not set — endpoint returns 409 before reaching file validation')
     await page.goto('http://localhost:5173/members')
     const resp = await page.request.post(
       'http://localhost:8080/api/admin/mandate-document/extract',
@@ -66,7 +66,7 @@ test.describe('POST /api/admin/mandate-document/extract — auth and validation'
 // These tests verify behaviour when no LLM API key is present.
 // Skipped when LLM_API_KEY is set (endpoint returns 200, not 409).
 
-test.describe('POST /api/admin/mandate-document/extract — LLM not configured', () => {
+test.describe('POST /api/admin/mandate-document/extract — Extraction not configured', () => {
   test('returns 409 when LLM not configured', async ({ page }) => {
     await page.goto('http://localhost:5173/members')
     const resp = await page.request.post(
@@ -88,7 +88,7 @@ test.describe('POST /api/admin/mandate-document/extract — LLM not configured',
     test.skip(resp.status() !== 409, 'Backend has LLM configured — endpoint returns non-409')
     expect(resp.status()).toBe(409)
     const body = await resp.json()
-    expect(body.error).toBe('llm_not_configured')
+    expect(body.error).toBe('extraction_not_configured')
   })
 })
 
@@ -99,8 +99,8 @@ test.describe('POST /api/admin/mandate-document/extract — LLM not configured',
 
 test.describe('POST /api/admin/mandate-document/extract — LLM configured', () => {
   test('returns 200 with per-field extraction result', async ({ page }) => {
-    test.skip(!LLM_CONFIGURED, 'LLM_API_KEY not set — skipping positive extraction test')
-    test.setTimeout(180000) // Extended thinking can take up to 2–3 minutes
+    test.skip(!EXTRACTION_CONFIGURED, 'GCLOUD_VISION_API or LLM_API_KEY not set — skipping positive extraction test')
+    test.setTimeout(30000) // Extended thinking can take up to 2–3 minutes
     await page.goto('http://localhost:5173/members')
     const resp = await page.request.post(
       'http://localhost:8080/api/admin/mandate-document/extract',
@@ -113,7 +113,7 @@ test.describe('POST /api/admin/mandate-document/extract — LLM configured', () 
           },
         },
         headers: await csrfHeaders(page),
-        timeout: 150000,
+        timeout: 25000,
       }
     )
     expect(resp.status()).toBe(200)
@@ -130,6 +130,11 @@ test.describe('POST /api/admin/mandate-document/extract — LLM configured', () 
       if (f.value !== null) expect(typeof f.value).toBe('string')
       if (f.confidence !== null) expect(['high', 'medium', 'low']).toContain(f.confidence)
     }
+
+    expect(body).toHaveProperty('needsReview')
+    expect(typeof body.needsReview).toBe('boolean')
+    expect(body.fields.iban).toHaveProperty('checksumValid')
+    expect(typeof body.fields.iban.checksumValid).toBe('boolean')
   })
 })
 
@@ -173,8 +178,8 @@ test.describe('Mandate upload — extraction field in response', () => {
   })
 
   test('response includes completed extraction when LLM configured', async ({ page }) => {
-    test.skip(!LLM_CONFIGURED, 'LLM_API_KEY not set — skipping positive extraction test')
-    test.setTimeout(180000) // Extended thinking can take up to 2–3 minutes
+    test.skip(!EXTRACTION_CONFIGURED, 'GCLOUD_VISION_API or LLM_API_KEY not set — skipping positive extraction test')
+    test.setTimeout(30000) // Extended thinking can take up to 2–3 minutes
     await page.goto('http://localhost:5173/members')
     const memberId = await createTestMember(page)
 
@@ -189,7 +194,7 @@ test.describe('Mandate upload — extraction field in response', () => {
           },
         },
         headers: await csrfHeaders(page),
-        timeout: 150000,
+        timeout: 25000,
       }
     )
     expect(resp.status()).toBe(200)
@@ -227,8 +232,8 @@ test.describe('Mandate upload — extraction field in response', () => {
 
 test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-form.jpg)', () => {
   test('extracts correct values from sepa-form.jpg', async ({ page }) => {
-    test.skip(!LLM_CONFIGURED, 'LLM_API_KEY not set — skipping golden extraction test')
-    test.setTimeout(180000) // Extended thinking can take up to 2–3 minutes
+    test.skip(!EXTRACTION_CONFIGURED, 'GCLOUD_VISION_API or LLM_API_KEY not set — skipping golden extraction test')
+    test.setTimeout(30000) // Extended thinking can take up to 2–3 minutes
     await page.goto('http://localhost:5173/members')
     const resp = await page.request.post(
       'http://localhost:8080/api/admin/mandate-document/extract',
@@ -241,7 +246,7 @@ test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-
           },
         },
         headers: await csrfHeaders(page),
-        timeout: 150000,
+        timeout: 25000,
       }
     )
     expect(resp.status()).toBe(200)
@@ -266,8 +271,8 @@ test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-
 
 test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-form-2.jpg)', () => {
   test('extracts correct values from sepa-form-2.jpg', async ({ page }) => {
-    test.skip(!LLM_CONFIGURED, 'LLM_API_KEY not set — skipping golden extraction test')
-    test.setTimeout(180000)
+    test.skip(!EXTRACTION_CONFIGURED, 'GCLOUD_VISION_API or LLM_API_KEY not set — skipping golden extraction test')
+    test.setTimeout(30000)
     await page.goto('http://localhost:5173/members')
     const resp = await page.request.post(
       'http://localhost:8080/api/admin/mandate-document/extract',
@@ -280,7 +285,7 @@ test.describe('POST /api/admin/mandate-document/extract — golden values (sepa-
           },
         },
         headers: await csrfHeaders(page),
-        timeout: 150000,
+        timeout: 25000,
       }
     )
     expect(resp.status()).toBe(200)
