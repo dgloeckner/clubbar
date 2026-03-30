@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class ExtractionController
 {
-    private const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
+    private const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'];
 
     public function __construct(
         private ?ExtractionService $extractionService,
@@ -32,8 +32,8 @@ class ExtractionController
     {
         if ($this->extractionService === null) {
             return $this->json($response, [
-                'error'   => 'llm_not_configured',
-                'message' => 'LLM extraction is not configured.',
+                'error'   => 'extraction_not_configured',
+                'message' => 'Extraction is not configured. Set GCLOUD_VISION_API and LLM_API_KEY.',
             ], 409);
         }
 
@@ -57,7 +57,7 @@ class ExtractionController
         if (!in_array($mimeType, self::ALLOWED_MIME_TYPES, true)) {
             return $this->json($response, [
                 'error'    => 'validation_error',
-                'messages' => ['file' => ["Unsupported file type '{$mimeType}'. Allowed: JPEG, PNG, PDF."]],
+                'messages' => ['file' => ["Unsupported file type '{$mimeType}'. Allowed: JPEG, PNG."]],
             ], 422);
         }
 
