@@ -61,9 +61,20 @@ class ExtractionService
 
     private function buildResult(string $rawJson): ExtractionResult
     {
+        // Strip markdown code fences first (models sometimes wrap output in ```json ... ```)
         $json = preg_replace('/^```json?\s*/m', '', $rawJson) ?? $rawJson;
         $json = preg_replace('/^```\s*$/m', '', $json) ?? $json;
         $json = trim($json);
+
+        // If the result still isn't pure JSON, find the outermost { ... } block.
+        // This handles models that prepend reasoning/analysis text before the JSON object.
+        if (!str_starts_with($json, '{')) {
+            $start = strpos($json, '{');
+            $end   = strrpos($json, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $json = substr($json, $start, $end - $start + 1);
+            }
+        }
 
         $data = json_decode($json, true);
         if (!is_array($data)) {
