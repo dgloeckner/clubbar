@@ -65,7 +65,7 @@ export interface MemberCreateRequest {
    * @maxLength 70
    */
   account_holder_name?: string;
-  /** Mandate signature date (not in future) */
+  /** Mandate signature date */
   mandate_signed_at: string;
   /**
    * Optional; defaults to UUID without hyphens
