@@ -109,9 +109,20 @@ class ExtractionService
         // IBAN: MOD-97 checksum (ISO 13616) is authoritative
         $ibanValue = $fields['iban']['value'] ?? null;
         if ($ibanValue !== null && strlen($ibanValue) === 22 && str_starts_with($ibanValue, 'DE')) {
-            $valid                    = $this->verifyIbanMod97($ibanValue);
-            $fields['iban']['checksumValid'] = $valid;
-            $fields['iban']['confidence']    = $valid ? 'high' : 'low';
+            if ($this->verifyIbanMod97($ibanValue)) {
+                $fields['iban']['checksumValid'] = true;
+                $fields['iban']['confidence']    = 'high';
+            } else {
+                $corrected = $this->attemptIbanCorrection($ibanValue);
+                if ($corrected !== null) {
+                    $fields['iban']['value']         = $corrected;
+                    $fields['iban']['checksumValid'] = true;
+                    $fields['iban']['confidence']    = 'medium';
+                } else {
+                    $fields['iban']['checksumValid'] = false;
+                    $fields['iban']['confidence']    = 'low';
+                }
+            }
         } else {
             $fields['iban']['checksumValid'] = false;
             if ($ibanValue !== null) {
@@ -142,6 +153,29 @@ class ExtractionService
         }
 
         return $fields;
+    }
+
+    /**
+     * Try single-digit visual-lookalike substitutions on a failed IBAN.
+     * Returns the corrected IBAN if exactly one substitution yields a valid
+     * MOD-97 checksum, or null when the result is ambiguous or uncorrectable.
+     */
+    private function attemptIbanCorrection(string $iban): ?string
+    {
+        // Common handwriting confusions on printed forms
+        $lookalikes = ['0' => ['9'], '1' => ['7'], '7' => ['1'], '9' => ['0'], '6' => ['8'], '8' => ['6']];
+
+        $candidates = [];
+        for ($i = 0; $i < strlen($iban); $i++) {
+            foreach ($lookalikes[$iban[$i]] ?? [] as $alt) {
+                $candidate = substr($iban, 0, $i) . $alt . substr($iban, $i + 1);
+                if ($this->verifyIbanMod97($candidate)) {
+                    $candidates[] = $candidate;
+                }
+            }
+        }
+
+        return count($candidates) === 1 ? $candidates[0] : null;
     }
 
     private function computeNeedsReview(array $fields): bool

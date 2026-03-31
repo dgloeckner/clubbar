@@ -97,6 +97,8 @@ class ExtractionServiceTest extends TestCase
 
     public function test_extract_iban_checksum_fails_sets_low_and_checksumValid_false(): void
     {
+        // DE89370400440532013001 has last digit 1 instead of 0 — not correctable via
+        // visual lookalikes (1→0 is not a handwriting confusion pair), so stays low.
         $service = $this->makeService(
             $this->visionResponse('x', 0.5, 'y', 0.5),
             $this->fullLlmResponse(['iban' => ['value' => 'DE89370400440532013001', 'confidence' => 'high']])
@@ -105,6 +107,40 @@ class ExtractionServiceTest extends TestCase
         $result = $service->extract('fake-bytes', 'image/jpeg');
 
         $this->assertSame('low',  $result->fields['iban']['confidence']);
+        $this->assertFalse($result->fields['iban']['checksumValid']);
+    }
+
+    public function test_extract_iban_single_digit_misread_is_auto_corrected(): void
+    {
+        // Real OCR misread from sepa-form.jpg: '7' read instead of '1' at position 4.
+        // DE02700100100006820101 fails MOD-97; brute-force finds the unique fix.
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.5, 'y', 0.5),
+            $this->fullLlmResponse(['iban' => ['value' => 'DE02700100100006820101', 'confidence' => 'low']])
+        );
+
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
+        $this->assertSame('DE02100100100006820101', $result->fields['iban']['value']);
+        $this->assertSame('medium',                 $result->fields['iban']['confidence']);
+        $this->assertTrue($result->fields['iban']['checksumValid']);
+        $this->assertFalse($result->needsReview);
+    }
+
+    public function test_extract_iban_ambiguous_correction_stays_low(): void
+    {
+        // When brute-force finds 0 or 2+ valid substitutions it must not auto-correct.
+        // DE89370400440532013001 has no single-lookalike substitution that yields a
+        // valid IBAN, so it stays low/invalid — no correction applied.
+        $service = $this->makeService(
+            $this->visionResponse('x', 0.5, 'y', 0.5),
+            $this->fullLlmResponse(['iban' => ['value' => 'DE89370400440532013001', 'confidence' => 'high']])
+        );
+
+        $result = $service->extract('fake-bytes', 'image/jpeg');
+
+        $this->assertSame('DE89370400440532013001', $result->fields['iban']['value']);
+        $this->assertSame('low',                    $result->fields['iban']['confidence']);
         $this->assertFalse($result->fields['iban']['checksumValid']);
     }
 
