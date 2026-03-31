@@ -2967,7 +2967,7 @@ components:
         mandate_signed_at:
           type: string
           format: date
-          description: Mandate signature date
+          description: Mandate signature date (not in future)
         mandate_reference:
           type: string
           maxLength: 35
