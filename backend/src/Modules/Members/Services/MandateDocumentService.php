@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Members\Services;
 
+use App\Modules\Members\Contracts\ExtractionServiceInterface;
 use App\Modules\Members\DTOs\MandateDocumentDto;
 use App\Modules\Members\Repositories\MandateDocumentRepository;
 use App\Shared\Enums\AuditAction;
@@ -20,10 +21,10 @@ class MandateDocumentService
     private const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
     public function __construct(
-        private MandateDocumentRepository $mandateDocumentRepository,
-        private AuditService              $auditService,
-        private Logger                    $logger,
-        private ?ExtractionService        $extractionService = null,
+        private MandateDocumentRepository  $mandateDocumentRepository,
+        private AuditService               $auditService,
+        private Logger                     $logger,
+        private ?ExtractionServiceInterface $extractionService = null,
     ) {}
 
     public function getStorageDir(): string

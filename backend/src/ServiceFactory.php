@@ -49,9 +49,11 @@ use App\Modules\Members\Controllers\AdminController as MembersAdminController;
 use App\Modules\Members\Controllers\MandateDocumentController;
 use App\Modules\Members\Controllers\ExtractionController;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
+use App\Modules\Members\Contracts\ExtractionServiceInterface;
 use App\Modules\Members\Contracts\LlmClientInterface;
 use App\Modules\Members\Factories\LlmClientFactory;
 use App\Modules\Members\Factories\VisionClientFactory;
+use App\Modules\Members\Services\DirectExtractionService;
 use App\Modules\Members\Services\ExtractionService;
 use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
@@ -273,19 +275,21 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(VisionClientFactory::class, fn() => new VisionClientFactory($this->config));
     }
 
-    public function getExtractionService(): ?ExtractionService
+    public function getExtractionService(): ?ExtractionServiceInterface
     {
-        $visionClient = $this->getVisionClientFactory()->create();
-        if ($visionClient === null) {
-            return null;
-        }
-
         $llmClient = $this->getLlmClientFactory()->create();
         if ($llmClient === null) {
             return null;
         }
 
-        return $this->resolve(ExtractionService::class, fn() => new ExtractionService($visionClient, $llmClient));
+        $visionClient = $this->getVisionClientFactory()->create();
+        if ($visionClient !== null) {
+            // Full Vision OCR pipeline: Google Vision → OcrPreprocessor → LLM text extraction
+            return $this->resolve(ExtractionService::class, fn() => new ExtractionService($visionClient, $llmClient));
+        }
+
+        // Direct vision pipeline: image sent straight to the LLM's vision capability
+        return $this->resolve(DirectExtractionService::class, fn() => new DirectExtractionService($llmClient));
     }
 
     public function getExtractionController(): ExtractionController

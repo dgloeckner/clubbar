@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Members\Services;
 
+use App\Modules\Members\Contracts\ExtractionServiceInterface;
 use App\Modules\Members\Contracts\LlmClientInterface;
 use App\Modules\Members\Contracts\VisionClientInterface;
 use App\Modules\Members\ValueObjects\ExtractionResult;
 
-class ExtractionService
+class ExtractionService implements ExtractionServiceInterface
 {
     /** Maps LLM camelCase field names to internal snake_case keys */
     private const FIELD_MAP = [

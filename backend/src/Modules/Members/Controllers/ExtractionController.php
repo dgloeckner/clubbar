@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Members\Controllers;
 
-use App\Modules\Members\Services\ExtractionService;
+use App\Modules\Members\Contracts\ExtractionServiceInterface;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -13,7 +13,7 @@ class ExtractionController
     private const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'];
 
     public function __construct(
-        private ?ExtractionService $extractionService,
+        private ?ExtractionServiceInterface $extractionService,
     ) {}
 
     /**
@@ -33,7 +33,7 @@ class ExtractionController
         if ($this->extractionService === null) {
             return $this->json($response, [
                 'error'   => 'extraction_not_configured',
-                'message' => 'Extraction is not configured. Set GCLOUD_VISION_API and LLM_API_KEY.',
+                'message' => 'Extraction is not configured. Set LLM_API_KEY (and optionally GCLOUD_VISION_API for the Vision OCR pipeline).',
             ], 409);
         }
 

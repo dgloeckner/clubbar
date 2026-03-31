@@ -25,7 +25,7 @@ class OpenAiClient implements LlmClientInterface
 
         $payload = [
             'model'           => $this->model,
-            'max_tokens'      => 1024,
+            'max_tokens'      => 2048,
             'response_format' => ['type' => 'json_object'],
             'messages'        => [[
                 'role'    => 'user',

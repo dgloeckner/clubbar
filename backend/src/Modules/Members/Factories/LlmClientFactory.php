@@ -33,7 +33,7 @@ class LlmClientFactory
             ),
             'openai' => new OpenAiClient(
                 $this->config->llmApiKey,
-                $this->config->llmModel ?? 'gpt-4o-mini',
+                $this->config->llmModel ?? 'gpt-4o',
             ),
             default => throw new \RuntimeException(
                 "Unknown LLM_PROVIDER: '{$this->config->llmProvider}'. Valid values: anthropic, openai"
