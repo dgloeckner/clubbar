@@ -570,14 +570,14 @@ export function MembersPage() {
       </div>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
-        <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', gap: '12px' }}>
+        <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: '26px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>{t('members.title')}</h1>
           <p data-testid="members-count-summary" style={{ margin: '4px 0 0', fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>
             {totalMembers} {t('members.title')} {t('common.found')}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: isMobile ? '6px' : '8px', flexShrink: 0 }}>
           <input
             ref={scanInputRef}
             type="file"
@@ -594,11 +594,12 @@ export function MembersPage() {
             data-testid="members-new-from-scan-button"
             onClick={() => scanInputRef.current?.click()}
             disabled={scanExtracting}
+            title={scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '7px',
-              padding: '10px 20px',
+              padding: isMobile ? '10px' : '10px 20px',
               borderRadius: '8px',
               border: '1px solid rgba(255,255,255,0.15)',
               background: 'transparent',
@@ -609,16 +610,17 @@ export function MembersPage() {
             }}
           >
             <DownloadIcon size={18} />
-            {scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan')}
+            {!isMobile && (scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan'))}
           </button>
           <button
             data-testid="members-sepa-template-download-button"
             onClick={handleDownloadSepaTemplate}
+            title={t('members.downloadSepaTemplate', 'SEPA Template')}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '7px',
-              padding: '10px 20px',
+              padding: isMobile ? '10px' : '10px 20px',
               borderRadius: '8px',
               border: '1px solid rgba(255,255,255,0.15)',
               background: 'transparent',
@@ -630,7 +632,7 @@ export function MembersPage() {
             }}
           >
             <DownloadIcon size={18} />
-            {t('members.downloadSepaTemplate', 'SEPA Template')}
+            {!isMobile && t('members.downloadSepaTemplate', 'SEPA Template')}
           </button>
           <button
             data-testid="members-create-button"
@@ -640,11 +642,12 @@ export function MembersPage() {
               setFormErrors({})
               setShowModal(true)
             }}
+            title={t('common.add')}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: '7px',
-              padding: '10px 20px',
+              padding: isMobile ? '10px' : '10px 20px',
               borderRadius: '8px',
               border: 'none',
               background: '#3b82f6',
@@ -656,7 +659,7 @@ export function MembersPage() {
             }}
           >
             <PlusIcon size={18} />
-            {t('common.add')}
+            {!isMobile && t('common.add')}
           </button>
         </div>
       </div>
