@@ -1646,6 +1646,7 @@ export function MembersPage() {
                     required
                     value={formData.mandate_signed_at}
                     onChange={(e) => setFormData({ ...formData, mandate_signed_at: e.target.value })}
+                    max={new Date().toISOString().split('T')[0]}
                     style={{
                       flex: 1,
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
