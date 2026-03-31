@@ -526,19 +526,8 @@ export function MembersPage() {
     )
   }
 
-  function isExtracted(fieldName: keyof ExtractionResult['fields']): boolean {
-    return !!(extractedFields?.fields[fieldName]?.value)
-  }
-
-  function extractedFieldStyle(fieldName: keyof ExtractionResult['fields']): React.CSSProperties {
-    if (!isExtracted(fieldName)) return {}
-    const conf = extractedFields?.fields[fieldName]?.confidence
-    return {
-      background: conf === 'low' ? 'rgba(239,68,68,0.1)' : 'rgba(234,179,8,0.08)',
-      border: conf === 'low'
-        ? '1px solid rgba(239,68,68,0.4)'
-        : '1px solid rgba(234,179,8,0.4)',
-    }
+  function extractedFieldStyle(_fieldName: keyof ExtractionResult['fields']): React.CSSProperties {
+    return {}
   }
 
   // Grid columns based on breakpoint
