@@ -18,6 +18,7 @@ Club Bar is a complete point-of-sale solution designed for sports clubs, communi
 |-----------|----------|
 | Unreliable network at venue | **Offline-first** — Terminal works without internet |
 | Manual billing is error-prone | **RFID identification** — Tap card, select products, done |
+| Tedious member onboarding | **Scan & extract** — Upload a signed SEPA form, AI reads the fields, admin just confirms |
 | Spreadsheet accounting chaos | **Automated SEPA settlement** — Generate bank-ready XML |
 | GDPR compliance concerns | **Privacy by design** — Anonymization workflows built-in |
 | Expensive POS hardware | **Commodity hardware** — Runs on any tablet or Raspberry Pi with a USB RFID reader |
@@ -91,6 +92,7 @@ flowchart TB
 
 ### For Administrators
 - **Member management** — CRUD, RFID assignment, GDPR export/anonymization
+- **Scan-to-onboard** — Upload a signed SEPA mandate form and let AI extract member data (name, IBAN, mandate date) automatically. Supports **Anthropic (Claude)** and **OpenAI (GPT-4o)** as LLM providers — just set an API key in `.env` and go
 - **Product catalog** — Categories, multilingual names, prices in cents
 - **Settlement workflow** — Preview, finalize, export SEPA XML or CSV
 - **Audit trail** — Complete history of all administrative actions
@@ -100,6 +102,7 @@ flowchart TB
 - **Immutable transactions** — Append-only ledger, corrections via reverse entries
 - **Idempotent sync** — Client-generated UUIDs prevent duplicates
 - **SEPA Direct Debit** — pain.008.001.02 XML generation with mandate handling
+- **LLM-powered data extraction** — Scanned SEPA mandate forms are read by vision AI (Anthropic Claude or OpenAI GPT-4o) to extract IBAN, name, and mandate date with per-field confidence scores
 
 ### Optional: Token Dispenser Integration
 
