@@ -24,24 +24,21 @@ class OpenAiClient implements LlmClientInterface
         }
 
         $payload = [
-            'model'           => $this->model,
-            'max_tokens'      => 2048,
-            'response_format' => ['type' => 'json_object'],
-            'messages'        => [[
-                'role'    => 'user',
-                'content' => [
+            'model'                 => $this->model,
+            'max_completion_tokens' => 2048,
+            'response_format'       => ['type' => 'json_object'],
+            'messages'              => [
+                // System message first — instructions processed before image inspection.
+                // Mixing prompt with the image in the user turn degrades vision accuracy.
+                ['role' => 'system', 'content' => $prompt],
+                ['role' => 'user',   'content' => [
                     [
                         'type'      => 'image_url',
-                        'image_url' => [
-                            'url' => "data:{$mimeType};base64,{$base64}",
-                        ],
+                        'image_url' => ['url' => "data:{$mimeType};base64,{$base64}"],
                     ],
-                    [
-                        'type' => 'text',
-                        'text' => $prompt,
-                    ],
-                ],
-            ]],
+                    ['type' => 'text', 'text' => 'Extract all fields from this form.'],
+                ]],
+            ],
         ];
 
         $ch = curl_init('https://api.openai.com/v1/chat/completions');
@@ -77,10 +74,10 @@ class OpenAiClient implements LlmClientInterface
     public function extractFromText(string $userMessage, string $systemPrompt): string
     {
         $payload = [
-            'model'           => $this->model,
-            'max_tokens'      => 1024,
-            'response_format' => ['type' => 'json_object'],
-            'messages'        => [
+            'model'                 => $this->model,
+            'max_completion_tokens' => 1024,
+            'response_format'       => ['type' => 'json_object'],
+            'messages'              => [
                 ['role' => 'system', 'content' => $systemPrompt],
                 ['role' => 'user',   'content' => $userMessage],
             ],
