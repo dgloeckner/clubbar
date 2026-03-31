@@ -395,3 +395,82 @@ test.describe('UI — scan-to-create: form pre-fill with mock extraction', () =>
     ).toBeVisible({ timeout: 10000 })
   })
 })
+
+// ── UI — scan-to-create: future mandate date corrected by admin ───────────────
+//
+// When extraction returns a future mandate_signed_at date, the admin must
+// correct it manually before the form can be submitted.  This test verifies
+// the full flow: future date pre-filled → admin corrects → member created.
+
+test.describe('UI — scan-to-create: future mandate date corrected by admin', () => {
+  test('admin corrects future mandate date and creates member', async ({ page }) => {
+    const ts = Date.now()
+    const mockFirstName = `FutureDate${ts}`
+    const mockLastName = 'TestUser'
+    const mockIban = 'DE89370400440532013000'
+
+    // Compute a date 3 months in the future (always in the future regardless of when test runs)
+    const futureDate = new Date()
+    futureDate.setMonth(futureDate.getMonth() + 3)
+    const futureDateStr = futureDate.toISOString().split('T')[0]
+
+    // The corrected date the admin will manually enter
+    const correctedDate = '2025-01-15'
+
+    // Mock extraction returning a future mandate date
+    await page.route('**/api/admin/mandate-document/extract', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fields: {
+            first_name: { value: mockFirstName, confidence: 'high' },
+            last_name: { value: mockLastName, confidence: 'high' },
+            email: { value: `futuredate-${ts}@example.com`, confidence: 'high' },
+            iban: { value: mockIban, confidence: 'high' },
+            account_holder_name: { value: null, confidence: null },
+            mandate_signed_at: { value: futureDateStr, confidence: 'high' },
+            card_uid: { value: null, confidence: null },
+          },
+        }),
+      })
+    })
+
+    await page.goto('/members')
+    await expect(page.locator('[data-testid="members-page"]')).toBeVisible({ timeout: 5000 })
+
+    // Trigger scan with a fake file
+    await page.locator('[data-testid="members-scan-input"]').setInputFiles({
+      name: 'mandate.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from('fake-jpeg-data'),
+    })
+
+    // Form opens with the future date pre-filled
+    await expect(page.locator('[data-testid="members-form-modal"]')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('[data-testid="members-form-mandate-date-input"]')).toHaveValue(futureDateStr)
+
+    // Admin corrects the mandate date to a valid past date
+    await page.fill('[data-testid="members-form-mandate-date-input"]', correctedDate)
+    await expect(page.locator('[data-testid="members-form-mandate-date-input"]')).toHaveValue(correctedDate)
+
+    // Submit — verify member is created (E2E: frontend → API → backend)
+    const createResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/members') &&
+        resp.request().method() === 'POST' &&
+        resp.status() === 201,
+      { timeout: 10000 }
+    )
+    await page.locator('[data-testid="members-form-submit-button"]').click()
+    await createResponse
+
+    // Form closes after successful creation
+    await expect(page.locator('[data-testid="members-form-modal"]')).not.toBeVisible({ timeout: 5000 })
+
+    // Member appears in the list
+    await expect(
+      page.locator('[data-testid^="members-table-cell-name-"]').filter({ hasText: mockFirstName })
+    ).toBeVisible({ timeout: 10000 })
+  })
+})
