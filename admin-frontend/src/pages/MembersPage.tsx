@@ -471,9 +471,12 @@ export function MembersPage() {
   async function handleNewFromScan(file: File) {
     setScanExtracting(true)
     setScanFile(file)
+    setEditingMember(null)
+    setExtractedFields(null)
+    setFormErrors({})
+    setShowModal(true)
     try {
       const result = await extractMandateDocument(file)
-      setEditingMember(null)
       const initialForm = { first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' }
       setFormData({
         ...initialForm,
@@ -487,11 +490,10 @@ export function MembersPage() {
       })
       setExtractedFields(result)
       setPreExtractionFormData(null)
-      setFormErrors({})
-      setShowModal(true)
     } catch {
       setError(t('mandateDocument.extractionFailed'))
       setScanFile(null)
+      setShowModal(false)
     } finally {
       setScanExtracting(false)
     }
@@ -1359,9 +1361,28 @@ export function MembersPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            <style>{`@keyframes members-spin { to { transform: rotate(360deg); } }`}</style>
+
             <h2 data-testid="members-form-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
               {editingMember ? t('members.editMember') : t('members.createMember')}
             </h2>
+
+            {/* Scan loading pane */}
+            {scanExtracting && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: '16px' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  border: '3px solid rgba(196,181,253,0.2)',
+                  borderTopColor: '#c4b5fd',
+                  borderRadius: '50%',
+                  animation: 'members-spin 0.8s linear infinite',
+                }} />
+                <p style={{ margin: 0, color: theme.colors.text.secondary, fontSize: theme.typography.fontSize.sm }}>
+                  {t('mandateDocument.uploadingAndExtracting')}
+                </p>
+              </div>
+            )}
 
             {/* SEPA Status Indicator */}
             {editingMember && (
@@ -1396,7 +1417,7 @@ export function MembersPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
+            <form onSubmit={handleSubmit} style={{ display: scanExtracting ? 'none' : 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: theme.spacing.lg, columnGap: theme.spacing.xl }}>
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.firstName')} *
