@@ -528,9 +528,6 @@ export function MembersPage() {
     )
   }
 
-  function extractedFieldStyle(_fieldName: keyof ExtractionResult['fields']): React.CSSProperties {
-    return {}
-  }
 
   // Grid columns based on breakpoint
   const gridColumns =
@@ -1439,7 +1436,6 @@ export function MembersPage() {
                       borderRadius: theme.borderRadius.md,
                       color: theme.colors.text.primary,
                       boxSizing: 'border-box',
-                      ...extractedFieldStyle('first_name'),
                     }}
                   />
                   {confidenceBadge('first_name')}
@@ -1467,7 +1463,6 @@ export function MembersPage() {
                       borderRadius: theme.borderRadius.md,
                       color: theme.colors.text.primary,
                       boxSizing: 'border-box',
-                      ...extractedFieldStyle('last_name'),
                     }}
                   />
                   {confidenceBadge('last_name')}
@@ -1493,7 +1488,6 @@ export function MembersPage() {
                       borderRadius: theme.borderRadius.md,
                       color: theme.colors.text.primary,
                       boxSizing: 'border-box',
-                      ...extractedFieldStyle('email'),
                     }}
                   />
                   {confidenceBadge('email')}
@@ -1531,7 +1525,6 @@ export function MembersPage() {
                       color: theme.colors.text.primary,
                       boxSizing: 'border-box',
                       fontFamily: 'monospace',
-                      ...extractedFieldStyle('card_uid'),
                     }}
                   />
                   {confidenceBadge('card_uid')}
@@ -1576,7 +1569,6 @@ export function MembersPage() {
                       color: theme.colors.text.primary,
                       boxSizing: 'border-box',
                       fontFamily: 'monospace',
-                      ...extractedFieldStyle('iban'),
                     }}
                   />
                   {confidenceBadge('iban')}
@@ -1608,7 +1600,6 @@ export function MembersPage() {
                       borderRadius: theme.borderRadius.md,
                       color: theme.colors.text.primary,
                       boxSizing: 'border-box',
-                      ...extractedFieldStyle('account_holder_name'),
                     }}
                   />
                   {confidenceBadge('account_holder_name')}
@@ -1665,7 +1656,6 @@ export function MembersPage() {
                       borderRadius: theme.borderRadius.md,
                       color: theme.colors.text.primary,
                       boxSizing: 'border-box',
-                      ...extractedFieldStyle('mandate_signed_at'),
                     }}
                   />
                   {confidenceBadge('mandate_signed_at')}
