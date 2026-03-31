@@ -40,7 +40,7 @@ class OcrPreprocessorTest extends TestCase
 
         $result = (new OcrPreprocessor())->flatten($response);
 
-        $this->assertSame('Susi(0.59) Sommerfrische(0.91)', $result);
+        $this->assertSame('[P1] Susi(0.59) Sommerfrische(0.91)', $result);
     }
 
     public function test_flatten_multiple_paragraphs_separated_by_newline(): void
@@ -52,7 +52,7 @@ class OcrPreprocessorTest extends TestCase
 
         $result = (new OcrPreprocessor())->flatten($response);
 
-        $this->assertSame("Max(0.95)\nMüller(0.88)", $result);
+        $this->assertSame("[P1] Max(0.95)\n[P2] Müller(0.88)", $result);
     }
 
     public function test_flatten_word_confidence_is_min_of_symbol_confidences(): void
@@ -80,7 +80,7 @@ class OcrPreprocessorTest extends TestCase
 
         $result = (new OcrPreprocessor())->flatten($response);
 
-        $this->assertSame('DE89(0.72)', $result);
+        $this->assertSame('[P1] DE89(0.72)', $result);
     }
 
     public function test_flatten_empty_response_returns_empty_string(): void
@@ -90,16 +90,17 @@ class OcrPreprocessorTest extends TestCase
         $this->assertSame('', $result);
     }
 
-    public function test_flatten_skips_empty_paragraphs(): void
+    public function test_flatten_skips_empty_paragraphs_but_counts_them(): void
     {
+        // Empty paragraphs consume a number so the LLM can see gaps in position.
         $response = $this->buildVisionResponse([
             [['Max', 0.95]],
-            [],  // empty paragraph — no words
+            [],  // empty paragraph — skipped in output but P2 is consumed
             [['Müller', 0.88]],
         ]);
 
         $result = (new OcrPreprocessor())->flatten($response);
 
-        $this->assertSame("Max(0.95)\nMüller(0.88)", $result);
+        $this->assertSame("[P1] Max(0.95)\n[P3] Müller(0.88)", $result);
     }
 }

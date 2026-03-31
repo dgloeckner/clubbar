@@ -18,9 +18,11 @@ class OcrPreprocessor
         $pages = $visionResponse['responses'][0]['fullTextAnnotation']['pages'] ?? [];
 
         $lines = [];
+        $paragraphIndex = 0;
         foreach ($pages as $page) {
             foreach ($page['blocks'] ?? [] as $block) {
                 foreach ($block['paragraphs'] ?? [] as $paragraph) {
+                    $paragraphIndex++;
                     $words = [];
                     foreach ($paragraph['words'] ?? [] as $word) {
                         $symbols = $word['symbols'] ?? [];
@@ -32,7 +34,7 @@ class OcrPreprocessor
                         $words[] = sprintf('%s(%.2f)', $text, $minConf);
                     }
                     if (!empty($words)) {
-                        $lines[] = implode(' ', $words);
+                        $lines[] = sprintf('[P%d] %s', $paragraphIndex, implode(' ', $words));
                     }
                 }
             }

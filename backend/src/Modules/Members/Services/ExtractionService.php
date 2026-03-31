@@ -189,8 +189,11 @@ class ExtractionService
         return <<<'PROMPT'
 You are a data extraction service for SEPA direct debit mandate forms.
 
+Each line is one OCR paragraph, prefixed with its absolute paragraph index [Pn].
 Each word is annotated with its lowest character-level OCR confidence score in
 parentheses, e.g. Susi(0.59).
+Paragraphs with consecutive or near-consecutive indices are spatially close on
+the page; a gap in indices means there were empty paragraphs between them.
 
 Extract these fields from the form text:
 - firstName
@@ -202,12 +205,11 @@ Extract these fields from the form text:
 - accountHolderName (the "Kontoinhaber" field — may differ from member name)
 - cardUid (uppercase hex from "Chip-ID" / "Karten-ID" field, e.g. "A1B2C3D4"; null if absent)
 - iban (German IBAN: always exactly 22 characters — "DE" + 20 digits.
-  The IBAN is written in individual cells and OCR often splits it across
-  multiple lines or appends stray digits to nearby form labels (e.g. the
-  Mandatsdatum line). Scan ALL lines for digit tokens and reconstruct the
-  full 22-char IBAN. If your candidate is shorter than 22 chars, look for
-  the missing digits on adjacent lines — especially at the end of label
-  lines immediately after the IBAN section.)
+  The IBAN is written in individual cells; OCR splits it across consecutive
+  paragraphs. Collect all digit-only tokens from paragraphs immediately
+  following the IBAN label paragraph and reconstruct exactly 22 characters.
+  Digit-only paragraphs near the Mandatsdatum label belong to the date, not
+  the IBAN — use paragraph proximity to the IBAN label to decide.)
 - mandateDate (normalize to DD.MM.YYYY)
 
 For each field, assign a confidence level based on the minimum OCR confidence score
