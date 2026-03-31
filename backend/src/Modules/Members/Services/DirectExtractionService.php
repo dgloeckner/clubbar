@@ -10,6 +10,19 @@ use App\Modules\Members\ValueObjects\ExtractionResult;
 
 class DirectExtractionService implements ExtractionServiceInterface
 {
+    /**
+     * Visually similar digit/letter pairs that handwriting and vision models commonly confuse.
+     * Used during IBAN repair instead of asking the LLM for alternatives.
+     */
+    private const LOOKALIKES = [
+        '0' => ['9'],
+        '1' => ['7'],
+        '6' => ['8'],
+        '7' => ['1'],
+        '8' => ['6'],
+        '9' => ['0'],
+    ];
+
     /** Maps LLM camelCase field names to internal snake_case keys (IBAN handled separately) */
     private const FIELD_MAP = [
         'firstName'         => 'first_name',
@@ -132,7 +145,7 @@ class DirectExtractionService implements ExtractionServiceInterface
     }
 
     /**
-     * Try substituting character alternatives at positions with the given confidences.
+     * Try substituting lookalike characters at positions with the given confidences.
      * Returns the corrected IBAN if exactly one substitution yields a valid MOD-97 checksum,
      * or null when the result is ambiguous (0 or 2+ passing candidates).
      */
@@ -145,13 +158,9 @@ class DirectExtractionService implements ExtractionServiceInterface
                 continue;
             }
             $pos  = (int) ($char['position'] ?? -1);
-            $alts = is_array($char['alternatives'] ?? null) ? $char['alternatives'] : [];
+            $alts = self::LOOKALIKES[$char['value'] ?? ''] ?? [];
 
             foreach ($alts as $alt) {
-                $alt = (string) $alt;
-                if (strlen($alt) !== 1) {
-                    continue;
-                }
                 $candidate = substr($base, 0, $pos) . $alt . substr($base, $pos + 1);
                 if (strlen($candidate) === 22 && $this->verifyIbanMod97($candidate)) {
                     $candidates[] = $candidate;
@@ -277,9 +286,9 @@ For the IBAN (German format: "DE" + 20 digits = exactly 22 characters):
   {
     "iban": {
       "characters": [
-        { "position": 0, "value": "D", "confidence": "high", "alternatives": [] },
-        { "position": 1, "value": "E", "confidence": "high", "alternatives": [] },
-        { "position": 4, "value": "7", "confidence": "low", "alternatives": ["1", "4"] },
+        { "position": 0, "value": "D", "confidence": "high" },
+        { "position": 1, "value": "E", "confidence": "high" },
+        { "position": 4, "value": "7", "confidence": "low" },
         ...all 22 positions...
       ]
     }
@@ -289,9 +298,6 @@ For each IBAN character:
   - "position": 0-indexed position in the IBAN (0 = "D", 1 = "E", 2–3 = check digits, 4–21 = account digits)
   - "value": your best-read character
   - "confidence": as defined above
-  - "alternatives": list of plausible alternative readings, most likely first
-    (leave empty [] when confidence is "high")
-  Common visual confusions for IBAN digits: 1↔7, 0↔9, 6↔8.
 
 Ignore form labels, printed instructions, boilerplate text, and the Creditor Identifier
 line (which contains "ZZZ"). Focus only on the handwritten or filled-in values.
@@ -308,8 +314,8 @@ Respond with ONLY a valid JSON object — no explanation, no markdown fences:
   "cardUid":           { "value": "...", "confidence": "high|medium|low" },
   "iban": {
     "characters": [
-      { "position": 0,  "value": "D", "confidence": "high", "alternatives": [] },
-      { "position": 1,  "value": "E", "confidence": "high", "alternatives": [] },
+      { "position": 0,  "value": "D", "confidence": "high" },
+      { "position": 1,  "value": "E", "confidence": "high" },
       ...all 22 positions...
     ]
   },

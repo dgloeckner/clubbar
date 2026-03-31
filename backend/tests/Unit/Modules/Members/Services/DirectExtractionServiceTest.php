@@ -20,10 +20,9 @@ class DirectExtractionServiceTest extends TestCase
         $chars = [];
         for ($i = 0; $i < strlen($iban); $i++) {
             $chars[$i] = [
-                'position'     => $i,
-                'value'        => $iban[$i],
-                'confidence'   => 'high',
-                'alternatives' => [],
+                'position'   => $i,
+                'value'      => $iban[$i],
+                'confidence' => 'high',
             ];
         }
         foreach ($overrides as $pos => $data) {
@@ -133,11 +132,12 @@ class DirectExtractionServiceTest extends TestCase
         $this->assertTrue($result->fields['iban']['checksumValid']);
     }
 
-    public function test_extract_iban_repairs_low_confidence_character_with_valid_alternative(): void
+    public function test_extract_iban_repairs_low_confidence_character_via_lookalike_table(): void
     {
         // Real OCR misread: '7' at position 4 should be '1' (DE02100100100006820101 is valid)
+        // The lookalike table maps 7→1, so the backend finds the correction without LLM alternatives
         $chars = $this->makeChars('DE02700100100006820101', [
-            4 => ['value' => '7', 'confidence' => 'low', 'alternatives' => ['1']],
+            4 => ['value' => '7', 'confidence' => 'low'],
         ]);
         $service = new DirectExtractionService($this->mockLlm($this->fullResponse($chars)));
 
@@ -149,11 +149,12 @@ class DirectExtractionServiceTest extends TestCase
         $this->assertFalse($result->needsReview);
     }
 
-    public function test_extract_iban_repairs_medium_confidence_character_with_valid_alternative(): void
+    public function test_extract_iban_repairs_medium_confidence_character_via_lookalike_table(): void
     {
         // Same repair but character has medium confidence instead of low
+        // The lookalike table maps 7→1, so the backend finds the correction without LLM alternatives
         $chars = $this->makeChars('DE02700100100006820101', [
-            4 => ['value' => '7', 'confidence' => 'medium', 'alternatives' => ['1']],
+            4 => ['value' => '7', 'confidence' => 'medium'],
         ]);
         $service = new DirectExtractionService($this->mockLlm($this->fullResponse($chars)));
 
@@ -165,11 +166,11 @@ class DirectExtractionServiceTest extends TestCase
         $this->assertFalse($result->needsReview);
     }
 
-    public function test_extract_iban_stays_low_when_alternative_does_not_fix_mod97(): void
+    public function test_extract_iban_stays_low_when_lookalike_does_not_fix_mod97(): void
     {
-        // '5' at position 21 doesn't fix the checksum
+        // Position 21 has value '1' (low confidence); lookalike tries '7' → still invalid MOD-97
         $chars = $this->makeChars('DE89370400440532013001', [
-            21 => ['confidence' => 'low', 'alternatives' => ['5']],
+            21 => ['confidence' => 'low'],
         ]);
         $service = new DirectExtractionService($this->mockLlm($this->fullResponse($chars)));
 
@@ -181,9 +182,9 @@ class DirectExtractionServiceTest extends TestCase
         $this->assertTrue($result->needsReview);
     }
 
-    public function test_extract_iban_stays_low_when_no_alternatives_and_base_invalid(): void
+    public function test_extract_iban_stays_low_when_no_low_confidence_chars_and_base_invalid(): void
     {
-        // Invalid base, all characters high confidence but no alternatives → no repair
+        // Invalid base, all characters high confidence → repair not attempted (only tries low/medium)
         $chars   = $this->makeChars('DE89370400440532013001');
         $service = new DirectExtractionService($this->mockLlm($this->fullResponse($chars)));
 
