@@ -33,9 +33,11 @@ class DirectExtractionService implements ExtractionServiceInterface
      *  2. LLM vision           — reads form image, returns per-character IBAN confidence
      *  3. IBAN assembly        — reconstructs IBAN from characters array
      *  4. MOD-97 validation    — validates checksum; repairs via lookalike substitutions
-     *                            (depth ≤ 2, low/medium-confidence positions only)
-     *  5. Post-validation      — date format, email, zip code hard checks
-     *  6. needsReview flag     — true when any field is "low" or IBAN repair is ambiguous
+     *                            (depth ≤ 3, low/medium-confidence positions only)
+     *  5. Enhance fallback     — if IBAN still invalid: grayscale + contrast boost + sharpen,
+     *                            retry LLM once (helps faint-ink scans; skipped on GD failure)
+     *  6. Post-validation      — date format, email, zip code hard checks
+     *  7. needsReview flag     — true when any field is "low" or IBAN repair is ambiguous
      *
      * @throws \RuntimeException when mimeType is PDF, or LLM returns unparseable JSON
      */
@@ -47,9 +49,49 @@ class DirectExtractionService implements ExtractionServiceInterface
             );
         }
 
-        $bytes   = ImageOrientationFixer::fix($bytes);
+        $bytes  = ImageOrientationFixer::fix($bytes);
+        $result = $this->attemptExtraction($bytes, $mimeType);
+
+        if (!($result->fields['iban']['checksumValid'] ?? false)) {
+            $enhanced = $this->enhanceForOcr($bytes);
+            if ($enhanced !== null) {
+                $result2 = $this->attemptExtraction($enhanced, 'image/jpeg');
+                if ($result2->fields['iban']['checksumValid'] ?? false) {
+                    return $result2;
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    private function attemptExtraction(string $bytes, string $mimeType): ExtractionResult
+    {
         $rawJson = $this->llm->extractFromImage(base64_encode($bytes), $mimeType, $this->buildSystemPrompt());
         return $this->buildResult($rawJson);
+    }
+
+    /**
+     * Apply grayscale + contrast boost + sharpen to improve legibility of faint-ink scans.
+     * Returns null when GD cannot decode the image (unsupported format or corrupt bytes).
+     */
+    private function enhanceForOcr(string $bytes): ?string
+    {
+        $img = @imagecreatefromstring($bytes);
+        if (!$img) {
+            return null;
+        }
+
+        imagefilter($img, IMG_FILTER_GRAYSCALE);
+        imagefilter($img, IMG_FILTER_CONTRAST, -30);
+        $sharpen = [[0, -1, 0], [-1, 5, -1], [0, -1, 0]];
+        imageconvolution($img, $sharpen, 1, 0);
+
+        ob_start();
+        imagejpeg($img, null, 95);
+        $result = ob_get_clean();
+
+        return ($result !== false && $result !== '') ? $result : null;
     }
 
     private function buildResult(string $rawJson): ExtractionResult
@@ -124,7 +166,7 @@ class DirectExtractionService implements ExtractionServiceInterface
             ];
         }
 
-        // Repair using low- and medium-confidence positions, depth ≤ 2
+        // Repair using low- and medium-confidence positions, depth ≤ 3
         $candidates = IbanRepair::repair($base, $characters);
 
         return match (count($candidates)) {

@@ -301,6 +301,86 @@ class DirectExtractionServiceTest extends TestCase
         $this->assertTrue($result->fields['iban']['checksumValid']);
     }
 
+    public function test_extract_iban_repairs_three_simultaneous_low_confidence_misreads(): void
+    {
+        // DE02700700700006820101: positions 4, 7, 10 each read '7' (should be '1').
+        // Neither depth-1 nor depth-2 finds a valid IBAN; depth-3 finds the unique fix.
+        $chars = $this->makeChars('DE02700700700006820101', [
+            4  => ['value' => '7', 'confidence' => 'low'],
+            7  => ['value' => '7', 'confidence' => 'low'],
+            10 => ['value' => '7', 'confidence' => 'low'],
+        ]);
+        $service = new DirectExtractionService($this->mockLlm($this->fullResponse($chars)));
+
+        $result = $service->extract('fake', 'image/jpeg');
+
+        $this->assertSame('DE02100100100006820101', $result->fields['iban']['value']);
+        $this->assertSame('medium',                 $result->fields['iban']['confidence']);
+        $this->assertTrue($result->fields['iban']['checksumValid']);
+        $this->assertFalse($result->needsReview);
+        $this->assertEmpty($result->ibanCandidates);
+    }
+
+    // ─── Enhance fallback ────────────────────────────────────────────────────
+
+    /** Create a minimal valid JPEG in memory (10×10 white image). */
+    private function makeMinimalJpeg(): string
+    {
+        $gd = imagecreatetruecolor(10, 10);
+        ob_start();
+        imagejpeg($gd, null, 90);
+        return (string) ob_get_clean();
+    }
+
+    public function test_enhance_fallback_retries_when_first_iban_invalid_and_enhanced_succeeds(): void
+    {
+        // First LLM call: all-high-confidence invalid IBAN (no repair possible).
+        // Second LLM call (on enhanced image): valid IBAN.
+        $invalidChars = $this->makeChars('DE89370400440532013001');
+        $validChars   = $this->makeChars('DE89370400440532013000');
+
+        $llm = $this->createMock(LlmClientInterface::class);
+        $llm->method('extractFromImage')->willReturnOnConsecutiveCalls(
+            $this->fullResponse($invalidChars),
+            $this->fullResponse($validChars),
+        );
+
+        $service = new DirectExtractionService($llm);
+        $result  = $service->extract($this->makeMinimalJpeg(), 'image/jpeg');
+
+        $this->assertSame('DE89370400440532013000', $result->fields['iban']['value']);
+        $this->assertTrue($result->fields['iban']['checksumValid']);
+    }
+
+    public function test_enhance_fallback_returns_original_when_enhanced_also_fails(): void
+    {
+        // Both calls return the same invalid IBAN — original result is preserved.
+        $invalidChars = $this->makeChars('DE89370400440532013001');
+
+        $llm = $this->createMock(LlmClientInterface::class);
+        $llm->method('extractFromImage')->willReturn($this->fullResponse($invalidChars));
+
+        $service = new DirectExtractionService($llm);
+        $result  = $service->extract($this->makeMinimalJpeg(), 'image/jpeg');
+
+        $this->assertFalse($result->fields['iban']['checksumValid']);
+        $this->assertSame('DE89370400440532013001', $result->fields['iban']['value']);
+    }
+
+    public function test_enhance_fallback_not_triggered_when_first_iban_valid(): void
+    {
+        // Valid IBAN on first call — LLM is invoked exactly once.
+        $chars = $this->makeChars('DE89370400440532013000');
+
+        $llm = $this->createMock(LlmClientInterface::class);
+        $llm->expects($this->once())->method('extractFromImage')->willReturn($this->fullResponse($chars));
+
+        $service = new DirectExtractionService($llm);
+        $result  = $service->extract($this->makeMinimalJpeg(), 'image/jpeg');
+
+        $this->assertTrue($result->fields['iban']['checksumValid']);
+    }
+
     public function test_extract_iban_candidates_populated_when_repair_is_ambiguous(): void
     {
         // Two low-confidence positions that each individually repair to a valid IBAN

@@ -96,6 +96,26 @@ class IbanRepairTest extends TestCase
         $this->assertSame('DE02100100100006820101', $candidates[0]);
     }
 
+    // ─── repair — triple substitution (depth 3) ──────────────────────────────
+
+    public function test_repair_depth3_fixes_three_simultaneous_misreads(): void
+    {
+        // DE02100100100006820101 — corrupt positions 4, 7, 10 (all '1' → '7'):
+        // DE02700700700006820101 — neither depth-1 nor depth-2 finds the fix alone,
+        // but depth-3 substituting all three '7'→'1' yields the valid IBAN.
+        $base       = 'DE02700700700006820101';
+        $characters = $this->makeChars($base, [
+            4  => ['confidence' => 'low'],
+            7  => ['confidence' => 'low'],
+            10 => ['confidence' => 'low'],
+        ]);
+
+        $candidates = IbanRepair::repair($base, $characters);
+
+        $this->assertCount(1, $candidates);
+        $this->assertSame('DE02100100100006820101', $candidates[0]);
+    }
+
     // ─── repair — unrepairable cases ─────────────────────────────────────────
 
     public function test_repair_returns_empty_when_no_fix_found(): void

@@ -7,9 +7,10 @@ namespace App\Modules\Members\Services;
 /**
  * IBAN lookalike-repair utility (ISO 7064 MOD-97 checksum).
  *
- * Tries single and double character substitutions using visually similar digit
- * pairs to recover from OCR or handwriting misreads. The maximum repair depth
- * is 2 — beyond that the false-positive risk outweighs the benefit.
+ * Tries single, double, and triple character substitutions using visually similar
+ * digit pairs to recover from OCR or handwriting misreads. The maximum repair
+ * depth is 3 — safe when per-character confidence filtering limits the candidate
+ * pool; the false-positive risk is acceptable at depth 3 with ≤4 uncertain positions.
  *
  * Usage:
  *   // With per-character confidence (DirectExtractionService):
@@ -34,13 +35,13 @@ class IbanRepair
     ];
 
     /** Maximum number of simultaneous substitutions to attempt. */
-    private const MAX_DEPTH = 2;
+    private const MAX_DEPTH = 3;
 
     /**
      * Attempt to repair an invalid 22-character German IBAN.
      *
      * When $characters is provided, only positions with 'low' or 'medium' confidence
-     * are tried, and $maxDepth defaults to 2 (safe because the candidate pool is small).
+     * are tried, and $maxDepth defaults to 3 (safe because the candidate pool is small).
      *
      * Without $characters, all 22 positions are candidates. In that case the caller
      * should pass $maxDepth = 1, because depth-2 with all positions open creates
