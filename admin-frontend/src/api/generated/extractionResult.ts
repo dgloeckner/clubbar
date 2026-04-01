@@ -11,9 +11,19 @@ export interface ExtractionResult {
     first_name: ExtractionField
     last_name: ExtractionField
     email: ExtractionField
+    street: ExtractionField
+    zip_code: ExtractionField
+    city: ExtractionField
     iban: ExtractionField
     account_holder_name: ExtractionField
     mandate_signed_at: ExtractionField
     card_uid: ExtractionField
   }
+  /** True when any field is low-confidence or ibanCandidates is non-empty */
+  needsReview?: boolean
+  /**
+   * Two or more valid IBAN alternatives when MOD-97 repair is ambiguous.
+   * The first is pre-selected in fields.iban.value. Absent when unambiguous.
+   */
+  ibanCandidates?: string[]
 }

@@ -43,7 +43,8 @@ test.describe('Mandate Document API', () => {
     expect(body).toHaveProperty('uploaded_at')
     expect(body).toHaveProperty('file_size_bytes')
     expect(body.original_filename).toBe('test-mandate.jpg')
-    expect(body.extraction_status).toBeNull()
+    // extraction_status is null when extraction is not configured, or a status string when it is
+    expect([null, 'pending', 'completed', 'failed']).toContain(body.extraction_status)
   })
 
   // ── Upload: PNG ───────────────────────────────────────────────────────────
@@ -295,6 +296,7 @@ test.describe('Mandate Document API', () => {
     expect(doc).toHaveProperty('uploaded_at')
     expect(doc).toHaveProperty('file_size_bytes')
     expect(doc.original_filename).toBe('test-mandate.pdf')
-    expect(doc.extraction_status).toBeNull()
+    // extraction_status is null when extraction is not configured, or a status string when it is
+    expect([null, 'pending', 'completed', 'failed']).toContain(doc.extraction_status)
   })
 })

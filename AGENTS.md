@@ -609,7 +609,52 @@ cat results.json | jq '.suites[].tests[] | select(.status=="fail") | .error'
 
 ---
 
-## Integration with Superpowers Skills
+## GitHub Actions Pipeline Monitoring
+
+**Skill**: `monitor-github-pipeline`
+
+**When to invoke**: Immediately after every `git push` to a remote — the pipeline starts automatically and the agent should offer to monitor it.
+
+### Overview
+
+After pushing to the remote, GitHub Actions runs a pipeline that builds the backend, executes all tests, creates a deployment package, and deploys to the integration environment.
+
+### Trigger Behavior
+
+After every push (including pushes made via `commit-commands:commit-push-pr`), the agent **must** invoke the `monitor-github-pipeline` skill, which handles:
+
+1. **Ask the user** whether to monitor the pipeline
+2. **Poll `gh` API** every 20 seconds until the run completes
+3. **Report progress** (job names, elapsed time) while waiting
+4. **On success**: report outcome and stop
+5. **On failure**: analyze logs, classify the root cause, propose and implement a fix, push, and re-monitor
+
+### Pipeline Anatomy
+
+| Stage | What it does |
+|---|---|
+| **Build** | `composer install`, compile assets, lint checks |
+| **Test** | PHPUnit unit tests + Playwright E2E tests |
+| **Package** | Create deployment artifact |
+| **Deploy** | Push artifact to integration environment |
+
+### Key Commands
+
+```bash
+# Find the latest run for current branch
+gh run list --branch "$(git rev-parse --abbrev-ref HEAD)" --limit 1
+
+# Poll a specific run
+gh run view <RUN_ID> --json status,conclusion,url
+
+# Get failed job logs
+gh run view <RUN_ID> --log-failed
+
+# Re-run failed jobs only (use sparingly — fix root cause instead)
+gh run rerun <RUN_ID> --failed
+```
+
+### Integration with Superpowers Skills
 
 **How AGENTS.md complements superpowers**:
 
@@ -623,6 +668,7 @@ cat results.json | jq '.suites[].tests[] | select(.status=="fail") | .error'
 | `verification-before-completion` | JSON reporter verification commands |
 | `dispatching-parallel-agents` | Parallel test execution pattern |
 | `subagent-driven-development` | Test isolation debugging workflow |
+| `monitor-github-pipeline` | Post-push pipeline monitoring, failure analysis, and auto-fix loop |
 
 **Key principle**: Superpowers skills define **how to work**, AGENTS.md defines **project-specific commands and workflows**.
 
@@ -799,6 +845,9 @@ docker compose exec backend cat /app/logs/$TODAY.log | \
 ❌ **Querying Context7 for info in project patterns**: Project patterns are the source of truth for project conventions
 ❌ **Making >3 Context7 calls per question**: Use best available info after 3 calls; don't over-query
 ❌ **Ignoring Context7 library best practices**: Combining project patterns + library best practices = highest quality code
+❌ **Not offering to monitor the pipeline after a push**: Always invoke `monitor-github-pipeline` skill after every push
+❌ **Re-running the pipeline without fixing the root cause**: Fix the code, then push — don't blindly retry
+❌ **Expanding scope when fixing CI failures**: Only fix what caused the pipeline to fail
 
 ---
 
@@ -817,3 +866,4 @@ docker compose exec backend cat /app/logs/$TODAY.log | \
 4. **Correlate across stack**: Test results + backend logs + HTTP codes = complete picture
 5. **Invoke superpowers skills**: For TDD, debugging, planning workflows
 6. **Query Context7 before implementing**: Get library-specific best practices BEFORE writing unfamiliar code; reduces trial-and-error and improves code quality
+7. **Monitor the pipeline after every push**: Invoke `monitor-github-pipeline` skill — ask, poll, analyze, fix, repeat

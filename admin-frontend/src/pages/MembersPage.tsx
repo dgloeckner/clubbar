@@ -1581,6 +1581,54 @@ export function MembersPage() {
                     {formErrors.iban}
                   </p>
                 )}
+                {extractedFields?.ibanCandidates && extractedFields.ibanCandidates.length > 1 && (
+                  <div
+                    data-testid="members-form-iban-candidates"
+                    style={{
+                      marginTop: theme.spacing.sm,
+                      padding: '10px 12px',
+                      background: 'rgba(234,179,8,0.08)',
+                      border: '1px solid rgba(234,179,8,0.35)',
+                      borderRadius: theme.borderRadius.md,
+                    }}
+                  >
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#fde047', marginBottom: '8px' }}>
+                      {t('mandateDocument.ibanCandidates')}
+                    </div>
+                    {extractedFields.ibanCandidates.map(candidate => (
+                      <button
+                        key={candidate}
+                        type="button"
+                        data-testid={`members-form-iban-candidate-${candidate}`}
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, iban: candidate }))
+                          if (formErrors.iban) setFormErrors(prev => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban')))
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          width: '100%',
+                          padding: '5px 8px',
+                          marginBottom: '3px',
+                          background: formData.iban === candidate ? 'rgba(37,99,235,0.2)' : 'transparent',
+                          border: `1px solid ${formData.iban === candidate ? 'rgba(37,99,235,0.5)' : 'transparent'}`,
+                          borderRadius: theme.borderRadius.sm,
+                          color: theme.colors.text.primary,
+                          fontFamily: 'monospace',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <span style={{ fontSize: '10px', color: formData.iban === candidate ? '#93c5fd' : theme.colors.text.secondary }}>
+                          {formData.iban === candidate ? '●' : '○'}
+                        </span>
+                        {candidate}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
