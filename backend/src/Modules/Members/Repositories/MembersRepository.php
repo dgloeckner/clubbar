@@ -15,23 +15,38 @@ class MembersRepository
         private Logger $logger,
     ) {}
 
+    private const MANDATE_DOC_SELECT = ', (md.id IS NOT NULL) AS has_mandate_document';
+    private const MANDATE_DOC_JOIN = ' LEFT JOIN mandate_documents md ON md.member_id = m.id';
+
     public function findById(string $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM members WHERE id = ? AND deleted_at IS NULL');
+        $stmt = $this->db->prepare(
+            'SELECT m.*' . self::MANDATE_DOC_SELECT
+            . ' FROM members m' . self::MANDATE_DOC_JOIN
+            . ' WHERE m.id = ? AND m.deleted_at IS NULL'
+        );
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
 
     public function findByIdIncludingDeleted(string $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM members WHERE id = ?');
+        $stmt = $this->db->prepare(
+            'SELECT m.*' . self::MANDATE_DOC_SELECT
+            . ' FROM members m' . self::MANDATE_DOC_JOIN
+            . ' WHERE m.id = ?'
+        );
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
 
     public function findAll(): array
     {
-        return $this->db->query('SELECT * FROM members ORDER BY created_at DESC')->fetchAll();
+        return $this->db->query(
+            'SELECT m.*' . self::MANDATE_DOC_SELECT
+            . ' FROM members m' . self::MANDATE_DOC_JOIN
+            . ' ORDER BY m.created_at DESC'
+        )->fetchAll();
     }
 
     public function findModifiedSince(int $sinceTimestamp): array
@@ -44,9 +59,10 @@ class MembersRepository
         // This enables the terminal to remove deleted items from local cache
         // Use > (not >=) to avoid re-syncing items at exactly the cursor timestamp
         $stmt = $this->db->prepare(
-            'SELECT * FROM members
-             WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
-             ORDER BY COALESCE(updated_at, deleted_at) ASC'
+            'SELECT m.*' . self::MANDATE_DOC_SELECT
+            . ' FROM members m' . self::MANDATE_DOC_JOIN
+            . ' WHERE m.updated_at > ? OR (m.deleted_at > ? AND m.deleted_at IS NOT NULL)'
+            . ' ORDER BY COALESCE(m.updated_at, m.deleted_at) ASC'
         );
         $stmt->execute([$sinceDate, $sinceDate]);
         return $stmt->fetchAll();
@@ -143,52 +159,54 @@ class MembersRepository
 
     public function listPaginated(int $limit, int $offset, array $filters = [], string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $search = null): array
     {
-        $where = ['deleted_at IS NULL'];
+        $where = ['m.deleted_at IS NULL'];
         $params = [];
 
         if (isset($filters['is_active'])) {
-            $where[] = 'is_active = ?';
+            $where[] = 'm.is_active = ?';
             $params[] = $filters['is_active'] ? 1 : 0;
         }
         if (isset($filters['language'])) {
-            $where[] = 'preferred_language = ?';
+            $where[] = 'm.preferred_language = ?';
             $params[] = $filters['language'];
         }
         // Card UID filter
         if (isset($filters['has_card_uid'])) {
             if ($filters['has_card_uid']) {
-                $where[] = 'card_uid IS NOT NULL';
+                $where[] = 'm.card_uid IS NOT NULL';
             } else {
-                $where[] = 'card_uid IS NULL';
+                $where[] = 'm.card_uid IS NULL';
             }
         }
-        // SEPA status filter (is_sepa_valid = !empty(iban) && !empty(mandate_reference))
+        // SEPA status filter: valid = IBAN + mandate_reference + mandate_signed_at + mandate document
         if (isset($filters['sepa_status'])) {
             if ($filters['sepa_status'] === 'valid') {
-                $where[] = "(iban IS NOT NULL AND iban != '' AND mandate_reference IS NOT NULL AND mandate_reference != '')";
+                $where[] = "(m.iban IS NOT NULL AND m.iban != '' AND m.mandate_reference IS NOT NULL AND m.mandate_reference != '' AND m.mandate_signed_at IS NOT NULL AND md.id IS NOT NULL)";
             } else {
-                $where[] = "(iban IS NULL OR iban = '' OR mandate_reference IS NULL OR mandate_reference = '')";
+                $where[] = "(m.iban IS NULL OR m.iban = '' OR m.mandate_reference IS NULL OR m.mandate_reference = '' OR m.mandate_signed_at IS NULL OR md.id IS NULL)";
             }
         }
         if ($search) {
             $escaped = SafeQuery::escapeLike($search);
-            $where[] = "(CONCAT(first_name, ' ', last_name) LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)";
+            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR m.first_name LIKE ? OR m.last_name LIKE ? OR m.email LIKE ?)";
             $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$escaped}%", "%{$escaped}%"]);
         }
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $columnMap = ['id' => 'id', 'first_name' => 'first_name', 'last_name' => 'last_name', 'balance' => 'balance_cents', 'created_at' => 'created_at'];
+        $columnMap = ['id' => 'm.id', 'first_name' => 'm.first_name', 'last_name' => 'm.last_name', 'balance' => 'm.balance_cents', 'created_at' => 'm.created_at'];
         $col = SafeQuery::column($sortKey, array_keys($columnMap));
         $sortColumn = $columnMap[$col];
         $dir = SafeQuery::direction($sortOrder);
 
-        $countStmt = $this->db->prepare("SELECT COUNT(*) FROM members {$whereClause}");
+        $fromClause = 'FROM members m' . self::MANDATE_DOC_JOIN;
+
+        $countStmt = $this->db->prepare("SELECT COUNT(*) {$fromClause} {$whereClause}");
         $countStmt->execute($params);
         $total = (int) $countStmt->fetchColumn();
 
         $dataParams = array_merge($params, [$limit, $offset]);
-        $stmt = $this->db->prepare("SELECT * FROM members {$whereClause} ORDER BY {$sortColumn} {$dir} LIMIT ? OFFSET ?");
+        $stmt = $this->db->prepare("SELECT m.*" . self::MANDATE_DOC_SELECT . " {$fromClause} {$whereClause} ORDER BY {$sortColumn} {$dir} LIMIT ? OFFSET ?");
         $stmt->execute($dataParams);
         $items = $stmt->fetchAll();
 

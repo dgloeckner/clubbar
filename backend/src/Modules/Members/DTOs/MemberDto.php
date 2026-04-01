@@ -28,7 +28,7 @@ final readonly class MemberDto
             lastName: $row['last_name'] ?? null,
             preferredLanguage: $row['preferred_language'],
             isActive: (bool) $row['is_active'],
-            isSepaValid: !empty($row['iban']) && !empty($row['mandate_reference']),
+            isSepaValid: !empty($row['iban']) && !empty($row['mandate_reference']) && !empty($row['mandate_signed_at']) && !empty($row['has_mandate_document']),
             deletedAt: $row['deleted_at'] ?? null,
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],

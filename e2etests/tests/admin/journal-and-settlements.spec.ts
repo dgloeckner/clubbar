@@ -2,6 +2,8 @@ import { test, expect } from '../../fixtures/auth.fixture'
 import { JournalPage } from '../../pages/JournalPage'
 import { SettlementsPage } from '../../pages/SettlementsPage'
 import { generateUUID, createTestMember, createSepaInvalidMember } from '../../utils/transactions'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 
 /**
  * Journal & Settlements E2E Tests (Consolidated)
@@ -417,7 +419,19 @@ test.describe('Journal & Settlements', () => {
     const validResp = await authenticatedRequest.post('http://localhost:8080/api/admin/members', { data: validData })
     expect(validResp.status()).toBe(201)
     const validMember = await validResp.json()
-    expect(validMember.is_sepa_valid).toBeTruthy()
+
+    // Upload mandate document so member becomes SEPA-valid
+    const mandateFile = readFileSync(resolve(__dirname, '../../fixtures/files/test-mandate.jpg'))
+    const mandateResp = await authenticatedRequest.post(
+      `http://localhost:8080/api/admin/members/${validMember.id}/mandate-document`,
+      { multipart: { file: { name: 'test-mandate.jpg', mimeType: 'image/jpeg', buffer: mandateFile } } }
+    )
+    expect(mandateResp.status()).toBe(200)
+
+    // Re-fetch member to get updated is_sepa_valid (now includes mandate document check)
+    const refetchResp = await authenticatedRequest.get(`http://localhost:8080/api/admin/members/${validMember.id}`)
+    const refetchedMember = await refetchResp.json()
+    expect(refetchedMember.is_sepa_valid).toBeTruthy()
 
     // ── Correction rejected: member without IBAN ────────────────────
     const corrNoIban = await authenticatedRequest.post(

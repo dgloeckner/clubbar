@@ -38,7 +38,7 @@ final readonly class MemberAdminDto
             phone: $row['phone'] ?? null,
             preferredLanguage: $row['preferred_language'],
             isActive: (bool) $row['is_active'],
-            isSepaValid: !empty($row['iban']) && !empty($row['mandate_reference']),
+            isSepaValid: !empty($row['iban']) && !empty($row['mandate_reference']) && !empty($row['mandate_signed_at']) && !empty($row['has_mandate_document']),
             ibanMasked: $iban ? substr($iban, 0, 2) . '****' . substr($iban, -4) : null,
             iban: $iban,
             accountHolderName: $row['account_holder_name'] ?? null,
