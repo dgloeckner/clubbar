@@ -1361,7 +1361,14 @@ export function MembersPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <style>{`@keyframes members-spin { to { transform: rotate(360deg); } }`}</style>
+            <style>{`
+              @keyframes members-spin { to { transform: rotate(360deg); } }
+              @media (max-width: 768px) {
+                .field-with-badge { flex-wrap: wrap; }
+                .field-with-badge > input,
+                .field-with-badge > select { width: 100%; min-width: 0; }
+              }
+            `}</style>
 
             <h2 data-testid="members-form-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
               {editingMember ? t('members.editMember') : t('members.createMember')}
@@ -1422,7 +1429,7 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.firstName')} *
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <input
                     data-testid="members-form-first-name-input"
                     type="text"
@@ -1449,7 +1456,7 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.lastName')} *
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <input
                     data-testid="members-form-last-name-input"
                     type="text"
@@ -1476,7 +1483,7 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.email')}
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <input
                     data-testid="members-form-email-input"
                     type="email"
@@ -1504,7 +1511,7 @@ export function MembersPage() {
                     ({t('common.requiredForTerminal')})
                   </span>
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <input
                     data-testid="member-form-card-uid"
                     type="text"
@@ -1553,7 +1560,7 @@ export function MembersPage() {
                     testId="members-form-iban-validation"
                   />
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <input
                     data-testid="members-form-iban-input"
                     type="text"
@@ -1635,7 +1642,7 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.accountHolderName')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <input
                     data-testid="members-form-account-holder-name-input"
                     type="text"
@@ -1691,7 +1698,7 @@ export function MembersPage() {
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                   {t('members.mandateSignedAt')} <span style={{ color: theme.colors.semantic.danger }}>*</span> <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')})</span>
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <input
                     data-testid="members-form-mandate-date-input"
                     type="date"
@@ -1739,6 +1746,7 @@ export function MembersPage() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    flexWrap: 'wrap',
                     gap: '8px',
                   }}
                   data-testid="extraction-review-banner"
