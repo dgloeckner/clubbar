@@ -11,7 +11,7 @@ import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
-import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon } from '../components/icons'
+import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ScanIcon } from '../components/icons'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
 import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, ListMembersSortBy, MemberCreateRequest, MemberUpdateRequest } from '../api/generated'
@@ -609,7 +609,7 @@ export function MembersPage() {
               cursor: scanExtracting ? 'wait' : 'pointer',
             }}
           >
-            <DownloadIcon size={18} />
+            <ScanIcon size={18} />
             {!isMobile && (scanExtracting ? t('mandateDocument.uploadingAndExtracting') : t('members.newFromScan'))}
           </button>
           <button
