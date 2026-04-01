@@ -50,6 +50,7 @@ class ExtractionService implements ExtractionServiceInterface
             );
         }
 
+        $bytes          = ImageOrientationFixer::fix($bytes);
         $visionResponse = $this->vision->recognize($bytes);
         $compactText    = (new OcrPreprocessor())->flatten($visionResponse);
         $rawJson        = $this->llm->extractFromText(
@@ -99,10 +100,12 @@ class ExtractionService implements ExtractionServiceInterface
             $fields[$snakeKey] = ['value' => $value, 'confidence' => $confidence];
         }
 
-        $fields      = $this->postValidate($fields);
-        $needsReview = $this->computeNeedsReview($fields);
+        $fields         = $this->postValidate($fields);
+        $ibanCandidates = $fields['iban']['candidates'] ?? [];
+        unset($fields['iban']['candidates']);
+        $needsReview = $this->computeNeedsReview($fields, $ibanCandidates);
 
-        return new ExtractionResult($fields, $needsReview);
+        return new ExtractionResult($fields, $needsReview, $ibanCandidates);
     }
 
     private function postValidate(array $fields): array
@@ -110,18 +113,26 @@ class ExtractionService implements ExtractionServiceInterface
         // IBAN: MOD-97 checksum (ISO 13616) is authoritative
         $ibanValue = $fields['iban']['value'] ?? null;
         if ($ibanValue !== null && strlen($ibanValue) === 22 && str_starts_with($ibanValue, 'DE')) {
-            if ($this->verifyIbanMod97($ibanValue)) {
+            if (IbanRepair::verifyMod97($ibanValue)) {
                 $fields['iban']['checksumValid'] = true;
                 $fields['iban']['confidence']    = 'high';
             } else {
-                $corrected = $this->attemptIbanCorrection($ibanValue);
-                if ($corrected !== null) {
-                    $fields['iban']['value']         = $corrected;
+                // No per-character confidence in this pipeline — try all positions at depth 1
+                // only. Depth 2 with all positions open creates too many false positives.
+                $candidates = IbanRepair::repair($ibanValue, null, 1);
+                if (count($candidates) === 0) {
+                    $fields['iban']['checksumValid'] = false;
+                    $fields['iban']['confidence']    = 'low';
+                } elseif (count($candidates) === 1) {
+                    $fields['iban']['value']         = $candidates[0];
                     $fields['iban']['checksumValid'] = true;
                     $fields['iban']['confidence']    = 'medium';
                 } else {
-                    $fields['iban']['checksumValid'] = false;
+                    // Ambiguous repair — surface all candidates for user selection
+                    $fields['iban']['value']         = $candidates[0];
+                    $fields['iban']['checksumValid'] = true;
                     $fields['iban']['confidence']    = 'low';
+                    $fields['iban']['candidates']    = $candidates;
                 }
             }
         } else {
@@ -156,67 +167,17 @@ class ExtractionService implements ExtractionServiceInterface
         return $fields;
     }
 
-    /**
-     * Try single-digit visual-lookalike substitutions on a failed IBAN.
-     * Returns the corrected IBAN if exactly one substitution yields a valid
-     * MOD-97 checksum, or null when the result is ambiguous or uncorrectable.
-     */
-    private function attemptIbanCorrection(string $iban): ?string
+    private function computeNeedsReview(array $fields, array $ibanCandidates = []): bool
     {
-        // Common handwriting confusions on printed forms
-        $lookalikes = ['0' => ['9'], '1' => ['7'], '7' => ['1'], '9' => ['0'], '6' => ['8'], '8' => ['6']];
-
-        $candidates = [];
-        for ($i = 0; $i < strlen($iban); $i++) {
-            foreach ($lookalikes[$iban[$i]] ?? [] as $alt) {
-                $candidate = substr($iban, 0, $i) . $alt . substr($iban, $i + 1);
-                if ($this->verifyIbanMod97($candidate)) {
-                    $candidates[] = $candidate;
-                }
-            }
+        if (!empty($ibanCandidates)) {
+            return true;
         }
-
-        return count($candidates) === 1 ? $candidates[0] : null;
-    }
-
-    private function computeNeedsReview(array $fields): bool
-    {
         foreach ($fields as $field) {
             if (($field['confidence'] ?? null) === 'low') {
                 return true;
             }
         }
         return false;
-    }
-
-    /**
-     * Verify an IBAN using the mod-97 algorithm (ISO 7064).
-     */
-    private function verifyIbanMod97(string $iban): bool
-    {
-        if (strlen($iban) < 4) {
-            return false;
-        }
-
-        $rearranged = substr($iban, 4) . substr($iban, 0, 4);
-        $numeric    = '';
-
-        foreach (str_split($rearranged) as $char) {
-            if (ctype_alpha($char)) {
-                $numeric .= (string) (ord(strtoupper($char)) - 55);
-            } elseif (ctype_digit($char)) {
-                $numeric .= $char;
-            } else {
-                return false;
-            }
-        }
-
-        $remainder = 0;
-        foreach (str_split($numeric, 9) as $chunk) {
-            $remainder = (int) (($remainder . $chunk) % 97);
-        }
-
-        return $remainder === 1;
     }
 
     private function buildSystemPrompt(): string

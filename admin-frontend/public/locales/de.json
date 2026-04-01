@@ -574,6 +574,7 @@
     "extractionReviewHint": "Felder aus Scan vorausgefüllt. Bitte vor dem Speichern prüfen.",
     "confidenceHigh": "Hoch",
     "confidenceMedium": "Mittel",
-    "confidenceLow": "Niedrig"
+    "confidenceLow": "Niedrig",
+    "ibanCandidates": "Mehrere mögliche IBANs erkannt — bitte die richtige auswählen:"
   }
 }

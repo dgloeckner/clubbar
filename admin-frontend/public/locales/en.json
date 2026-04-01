@@ -574,6 +574,7 @@
     "extractionReviewHint": "Fields pre-filled from scan. Review before saving.",
     "confidenceHigh": "High",
     "confidenceMedium": "Medium",
-    "confidenceLow": "Low"
+    "confidenceLow": "Low",
+    "ibanCandidates": "Multiple IBAN candidates found — please select the correct one:"
   }
 }

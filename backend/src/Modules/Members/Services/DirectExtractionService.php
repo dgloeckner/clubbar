@@ -10,19 +10,6 @@ use App\Modules\Members\ValueObjects\ExtractionResult;
 
 class DirectExtractionService implements ExtractionServiceInterface
 {
-    /**
-     * Visually similar digit/letter pairs that handwriting and vision models commonly confuse.
-     * Used during IBAN repair instead of asking the LLM for alternatives.
-     */
-    private const LOOKALIKES = [
-        '0' => ['9'],
-        '1' => ['7'],
-        '6' => ['8'],
-        '7' => ['1'],
-        '8' => ['6'],
-        '9' => ['0'],
-    ];
-
     /** Maps LLM camelCase field names to internal snake_case keys (IBAN handled separately) */
     private const FIELD_MAP = [
         'firstName'         => 'first_name',
@@ -42,11 +29,13 @@ class DirectExtractionService implements ExtractionServiceInterface
      * Extract SEPA mandate fields by sending the image directly to the LLM's vision API.
      *
      * Pipeline:
-     *  1. LLM vision — reads form image directly, returns per-character IBAN confidence
-     *  2. IBAN assembly — reconstructs IBAN from characters array
-     *  3. MOD-97 validation — validates checksum; repairs if exactly one alternative fixes it
-     *  4. Post-validation — date format, email, zip code hard checks
-     *  5. needsReview flag — true when any field has confidence "low"
+     *  1. EXIF auto-rotation   — corrects phone images that are physically sideways
+     *  2. LLM vision           — reads form image, returns per-character IBAN confidence
+     *  3. IBAN assembly        — reconstructs IBAN from characters array
+     *  4. MOD-97 validation    — validates checksum; repairs via lookalike substitutions
+     *                            (depth ≤ 2, low/medium-confidence positions only)
+     *  5. Post-validation      — date format, email, zip code hard checks
+     *  6. needsReview flag     — true when any field is "low" or IBAN repair is ambiguous
      *
      * @throws \RuntimeException when mimeType is PDF, or LLM returns unparseable JSON
      */
@@ -58,6 +47,7 @@ class DirectExtractionService implements ExtractionServiceInterface
             );
         }
 
+        $bytes   = ImageOrientationFixer::fix($bytes);
         $rawJson = $this->llm->extractFromImage(base64_encode($bytes), $mimeType, $this->buildSystemPrompt());
         return $this->buildResult($rawJson);
     }
@@ -98,11 +88,14 @@ class DirectExtractionService implements ExtractionServiceInterface
         }
 
         // IBAN uses the characters-based schema — parse and repair separately
-        $fields['iban'] = $this->parseIban($data['iban'] ?? null);
+        $ibanResult     = $this->parseIban($data['iban'] ?? null);
+        $ibanCandidates = $ibanResult['candidates'] ?? [];
+        unset($ibanResult['candidates']);
+        $fields['iban'] = $ibanResult;
 
         $fields = $this->postValidate($fields);
 
-        return new ExtractionResult($fields, $this->computeNeedsReview($fields));
+        return new ExtractionResult($fields, $this->computeNeedsReview($fields, $ibanCandidates), $ibanCandidates);
     }
 
     private function parseIban(mixed $ibanEntry): array
@@ -122,8 +115,8 @@ class DirectExtractionService implements ExtractionServiceInterface
             return ['value' => ($base !== '' ? $base : null), 'confidence' => 'low', 'checksumValid' => false];
         }
 
-        // Base passes MOD-97 — use minimum character confidence as overall confidence
-        if ($this->verifyIbanMod97($base)) {
+        // Perfect read — confidence = minimum across all character confidences
+        if (IbanRepair::verifyMod97($base)) {
             return [
                 'value'        => $base,
                 'confidence'   => $this->computeMinConfidence($characters),
@@ -131,49 +124,24 @@ class DirectExtractionService implements ExtractionServiceInterface
             ];
         }
 
-        // Repair: try low-confidence character alternatives first, then medium
-        $repaired = $this->attemptRepair($base, $characters, ['low']);
-        if ($repaired === null) {
-            $repaired = $this->attemptRepair($base, $characters, ['low', 'medium']);
-        }
+        // Repair using low- and medium-confidence positions, depth ≤ 2
+        $candidates = IbanRepair::repair($base, $characters);
 
-        if ($repaired !== null) {
-            return ['value' => $repaired, 'confidence' => 'medium', 'checksumValid' => true];
-        }
-
-        return ['value' => $base, 'confidence' => 'low', 'checksumValid' => false];
-    }
-
-    /**
-     * Try substituting lookalike characters at positions with the given confidences.
-     * Returns the corrected IBAN if exactly one substitution yields a valid MOD-97 checksum,
-     * or null when the result is ambiguous (0 or 2+ passing candidates).
-     */
-    private function attemptRepair(string $base, array $characters, array $targetConfidences): ?string
-    {
-        $candidates = [];
-
-        foreach ($characters as $char) {
-            if (!in_array($char['confidence'] ?? null, $targetConfidences, true)) {
-                continue;
-            }
-            $pos  = (int) ($char['position'] ?? -1);
-            $alts = self::LOOKALIKES[$char['value'] ?? ''] ?? [];
-
-            foreach ($alts as $alt) {
-                $candidate = substr($base, 0, $pos) . $alt . substr($base, $pos + 1);
-                if (strlen($candidate) === 22 && $this->verifyIbanMod97($candidate)) {
-                    $candidates[] = $candidate;
-                }
-            }
-        }
-
-        return count($candidates) === 1 ? $candidates[0] : null;
+        return match (count($candidates)) {
+            0       => ['value' => $base, 'confidence' => 'low', 'checksumValid' => false],
+            1       => ['value' => $candidates[0], 'confidence' => 'medium', 'checksumValid' => true],
+            default => [
+                'value'        => $candidates[0],
+                'confidence'   => 'low',
+                'checksumValid' => true,
+                'candidates'   => $candidates,
+            ],
+        };
     }
 
     /**
      * Compute the minimum confidence level across all IBAN characters.
-     * Returns 'low' if any character is 'low', 'medium' if any is 'medium', 'high' if all are 'high'.
+     * Returns 'low' if any is 'low', 'medium' if any is 'medium', 'high' if all are 'high'.
      */
     private function computeMinConfidence(array $characters): string
     {
@@ -201,13 +169,11 @@ class DirectExtractionService implements ExtractionServiceInterface
             }
         }
 
-        // email: must contain @
         $email = $fields['email']['value'] ?? null;
         if ($email !== null && !str_contains($email, '@')) {
             $fields['email']['confidence'] = 'low';
         }
 
-        // zip_code: German = exactly 5 digits
         $zip = $fields['zip_code']['value'] ?? null;
         if ($zip !== null && !preg_match('/^\d{5}$/', $zip)) {
             $fields['zip_code']['confidence'] = 'low';
@@ -216,40 +182,17 @@ class DirectExtractionService implements ExtractionServiceInterface
         return $fields;
     }
 
-    private function computeNeedsReview(array $fields): bool
+    private function computeNeedsReview(array $fields, array $ibanCandidates = []): bool
     {
+        if (!empty($ibanCandidates)) {
+            return true;
+        }
         foreach ($fields as $field) {
             if (($field['confidence'] ?? null) === 'low') {
                 return true;
             }
         }
         return false;
-    }
-
-    /**
-     * Verify an IBAN using the mod-97 algorithm (ISO 7064).
-     */
-    private function verifyIbanMod97(string $iban): bool
-    {
-        if (strlen($iban) < 4) {
-            return false;
-        }
-        $rearranged = substr($iban, 4) . substr($iban, 0, 4);
-        $numeric    = '';
-        foreach (str_split($rearranged) as $char) {
-            if (ctype_alpha($char)) {
-                $numeric .= (string) (ord(strtoupper($char)) - 55);
-            } elseif (ctype_digit($char)) {
-                $numeric .= $char;
-            } else {
-                return false;
-            }
-        }
-        $remainder = 0;
-        foreach (str_split($numeric, 9) as $chunk) {
-            $remainder = (int) (($remainder . $chunk) % 97);
-        }
-        return $remainder === 1;
     }
 
     private function buildSystemPrompt(): string
@@ -297,7 +240,8 @@ For the IBAN (German format: "DE" + 20 digits = exactly 22 characters):
 For each IBAN character:
   - "position": 0-indexed position in the IBAN (0 = "D", 1 = "E", 2–3 = check digits, 4–21 = account digits)
   - "value": your best-read character
-  - "confidence": as defined above
+  - "confidence": as defined above — for visually ambiguous pairs (1 vs 7, 0 vs 6, 0 vs 9, 6 vs 8),
+    only use "high" when you are certain the character cannot be the lookalike; otherwise use "medium"
 
 Ignore form labels, printed instructions, boilerplate text, and the Creditor Identifier
 line (which contains "ZZZ"). Focus only on the handwritten or filled-in values.

@@ -64,6 +64,11 @@
       <path value="$PROJECT_DIR$/backend/vendor/chillerlan/php-qrcode" />
       <path value="$PROJECT_DIR$/backend/vendor/chillerlan/php-settings-container" />
       <path value="$PROJECT_DIR$/backend/vendor/robthree/twofactorauth" />
+      <path value="$PROJECT_DIR$/backend/vendor/dompdf/dompdf" />
+      <path value="$PROJECT_DIR$/backend/vendor/sabberworm/php-css-parser" />
+      <path value="$PROJECT_DIR$/backend/vendor/masterminds/html5" />
+      <path value="$PROJECT_DIR$/backend/vendor/phenx/php-font-lib" />
+      <path value="$PROJECT_DIR$/backend/vendor/phenx/php-svg-lib" />
     </include_path>
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.3">

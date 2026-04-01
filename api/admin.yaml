@@ -2838,6 +2838,12 @@ components:
               $ref: '#/components/schemas/ExtractionField'
             email:
               $ref: '#/components/schemas/ExtractionField'
+            street:
+              $ref: '#/components/schemas/ExtractionField'
+            zip_code:
+              $ref: '#/components/schemas/ExtractionField'
+            city:
+              $ref: '#/components/schemas/ExtractionField'
             iban:
               $ref: '#/components/schemas/ExtractionField'
             account_holder_name:
@@ -2846,6 +2852,19 @@ components:
               $ref: '#/components/schemas/ExtractionField'
             card_uid:
               $ref: '#/components/schemas/ExtractionField'
+        needsReview:
+          type: boolean
+          description: >
+            True when any field has confidence "low" or when ibanCandidates is
+            non-empty (ambiguous IBAN repair — user must select the correct IBAN).
+        ibanCandidates:
+          type: array
+          items:
+            type: string
+          description: >
+            Two or more valid IBAN alternatives when MOD-97 repair is ambiguous.
+            The first candidate is pre-selected in fields.iban.value. Empty or
+            absent when the IBAN is unambiguous.
 
     MandateDocument:
       type: object

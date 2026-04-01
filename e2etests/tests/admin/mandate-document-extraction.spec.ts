@@ -121,7 +121,11 @@ test.describe('POST /api/admin/mandate-document/extract — LLM configured', () 
 
     // Response shape: { fields: { first_name: { value, confidence }, ... } }
     expect(body).toHaveProperty('fields')
-    const expectedFields = ['first_name', 'last_name', 'email', 'iban', 'account_holder_name', 'mandate_signed_at', 'card_uid']
+    const expectedFields = [
+      'first_name', 'last_name', 'email',
+      'street', 'zip_code', 'city',
+      'iban', 'account_holder_name', 'mandate_signed_at', 'card_uid',
+    ]
     for (const field of expectedFields) {
       expect(body.fields).toHaveProperty(field)
       const f = body.fields[field]
@@ -135,6 +139,19 @@ test.describe('POST /api/admin/mandate-document/extract — LLM configured', () 
     expect(typeof body.needsReview).toBe('boolean')
     expect(body.fields.iban).toHaveProperty('checksumValid')
     expect(typeof body.fields.iban.checksumValid).toBe('boolean')
+
+    // ibanCandidates, when present, must be a non-empty array of 22-char DE IBANs
+    if (body.ibanCandidates !== undefined) {
+      expect(Array.isArray(body.ibanCandidates)).toBe(true)
+      expect(body.ibanCandidates.length).toBeGreaterThan(1)
+      for (const candidate of body.ibanCandidates) {
+        expect(typeof candidate).toBe('string')
+        expect(candidate).toHaveLength(22)
+        expect(candidate.startsWith('DE')).toBe(true)
+      }
+      // When candidates are present, needsReview must be true
+      expect(body.needsReview).toBe(true)
+    }
   })
 })
 
@@ -204,13 +221,20 @@ test.describe('Mandate upload — extraction field in response', () => {
     expect(body.extraction).not.toBeNull()
     expect(body.extraction).toHaveProperty('fields')
 
-    const expectedFields = ['first_name', 'last_name', 'email', 'iban', 'account_holder_name', 'mandate_signed_at', 'card_uid']
+    const expectedFields = [
+      'first_name', 'last_name', 'email',
+      'street', 'zip_code', 'city',
+      'iban', 'account_holder_name', 'mandate_signed_at', 'card_uid',
+    ]
     for (const field of expectedFields) {
       expect(body.extraction.fields).toHaveProperty(field)
       const f = body.extraction.fields[field]
       expect(f).toHaveProperty('value')
       expect(f).toHaveProperty('confidence')
     }
+
+    expect(body.extraction).toHaveProperty('needsReview')
+    expect(typeof body.extraction.needsReview).toBe('boolean')
   })
 })
 
@@ -334,7 +358,13 @@ test.describe('UI — scan-to-create: form pre-fill with mock extraction', () =>
     // Use last 8 hex digits of timestamp for a unique, test-run-isolated card UID
     const mockCardUid = ts.toString(16).toUpperCase().slice(-8).padStart(8, '0')
 
-    // Set up route mock BEFORE navigating so it's active when the upload fires
+    // Set up route mocks BEFORE navigating so they're active when the scan fires.
+    // The upload mock prevents the backend from running LLM extraction on the fake
+    // JPEG file (which would delay form close by 3–30 s depending on LLM latency).
+    await page.route('**/api/admin/members/*/mandate-document', async (route) => {
+      if (route.request().method() !== 'POST') { await route.continue(); return }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+    })
     await page.route('**/api/admin/mandate-document/extract', async (route) => {
       await route.fulfill({
         status: 200,
@@ -417,6 +447,11 @@ test.describe('UI — scan-to-create: future mandate date corrected by admin', (
     // The corrected date the admin will manually enter
     const correctedDate = '2025-01-15'
 
+    // Mock upload to avoid LLM extraction on the fake JPEG (avoids 3-30s backend latency)
+    await page.route('**/api/admin/members/*/mandate-document', async (route) => {
+      if (route.request().method() !== 'POST') { await route.continue(); return }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+    })
     // Mock extraction returning a future mandate date
     await page.route('**/api/admin/mandate-document/extract', async (route) => {
       await route.fulfill({
@@ -464,6 +499,168 @@ test.describe('UI — scan-to-create: future mandate date corrected by admin', (
     )
     await page.locator('[data-testid="members-form-submit-button"]').click()
     await createResponse
+
+    // Form closes after successful creation
+    await expect(page.locator('[data-testid="members-form-modal"]')).not.toBeVisible({ timeout: 5000 })
+
+    // Member appears in the list
+    await expect(
+      page.locator('[data-testid^="members-table-cell-name-"]').filter({ hasText: mockFirstName })
+    ).toBeVisible({ timeout: 10000 })
+  })
+})
+
+// ── UI — IBAN candidates picker ───────────────────────────────────────────────
+//
+// When the extraction backend returns ibanCandidates (ambiguous repair), the UI
+// renders a picker so the admin can choose the correct IBAN.  These tests use
+// route mocks so they run without a real LLM configured.
+
+test.describe('UI — IBAN candidates picker', () => {
+  test('shows picker when ibanCandidates returned and clicking a candidate updates the IBAN field', async ({ page }) => {
+    const ts = Date.now()
+    const mockFirstName = `IbanPicker${ts}`
+    const candidate1 = 'DE02100100100006820101'
+    const candidate2 = 'DE89370400440532013000'
+
+    await page.route('**/api/admin/mandate-document/extract', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fields: {
+            first_name: { value: mockFirstName, confidence: 'high' },
+            last_name: { value: 'Picker', confidence: 'high' },
+            email: { value: `picker-${ts}@example.com`, confidence: 'high' },
+            iban: { value: candidate1, confidence: 'low' },
+            account_holder_name: { value: null, confidence: null },
+            mandate_signed_at: { value: '2024-06-15', confidence: 'high' },
+            card_uid: { value: null, confidence: null },
+          },
+          needsReview: true,
+          ibanCandidates: [candidate1, candidate2],
+        }),
+      })
+    })
+
+    await page.goto('/members')
+    await expect(page.locator('[data-testid="members-page"]')).toBeVisible({ timeout: 5000 })
+
+    await page.locator('[data-testid="members-scan-input"]').setInputFiles({
+      name: 'mandate.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from('fake-jpeg-data'),
+    })
+
+    await expect(page.locator('[data-testid="members-form-modal"]')).toBeVisible({ timeout: 5000 })
+
+    // Picker container is visible
+    await expect(page.locator('[data-testid="members-form-iban-candidates"]')).toBeVisible()
+
+    // Both candidate buttons are visible
+    await expect(page.locator(`[data-testid="members-form-iban-candidate-${candidate1}"]`)).toBeVisible()
+    await expect(page.locator(`[data-testid="members-form-iban-candidate-${candidate2}"]`)).toBeVisible()
+
+    // Clicking candidate2 updates the IBAN input
+    await page.locator(`[data-testid="members-form-iban-candidate-${candidate2}"]`).click()
+    await expect(page.locator('[data-testid="members-form-iban-input"]')).toHaveValue(candidate2)
+  })
+
+  test('does not show picker when extraction returns no ibanCandidates', async ({ page }) => {
+    const ts = Date.now()
+
+    await page.route('**/api/admin/mandate-document/extract', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fields: {
+            first_name: { value: `NoPicker${ts}`, confidence: 'high' },
+            last_name: { value: 'User', confidence: 'high' },
+            email: { value: `nopicker-${ts}@example.com`, confidence: 'high' },
+            iban: { value: 'DE89370400440532013000', confidence: 'high' },
+            account_holder_name: { value: null, confidence: null },
+            mandate_signed_at: { value: '2024-06-15', confidence: 'high' },
+            card_uid: { value: null, confidence: null },
+          },
+          needsReview: false,
+        }),
+      })
+    })
+
+    await page.goto('/members')
+    await expect(page.locator('[data-testid="members-page"]')).toBeVisible({ timeout: 5000 })
+
+    await page.locator('[data-testid="members-scan-input"]').setInputFiles({
+      name: 'mandate.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from('fake-jpeg-data'),
+    })
+
+    await expect(page.locator('[data-testid="members-form-modal"]')).toBeVisible({ timeout: 5000 })
+
+    // Picker must not be shown
+    await expect(page.locator('[data-testid="members-form-iban-candidates"]')).not.toBeVisible()
+  })
+
+  test('user selects candidate IBAN and creates member end-to-end', async ({ page }) => {
+    const ts = Date.now()
+    const mockFirstName = `CandidateE2E${ts}`
+    const candidate1 = 'DE02100100100006820101'
+    const candidate2 = 'DE89370400440532013000'
+
+    // Mock upload to avoid LLM extraction on the fake JPEG (avoids 3-30s backend latency)
+    await page.route('**/api/admin/members/*/mandate-document', async (route) => {
+      if (route.request().method() !== 'POST') { await route.continue(); return }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+    })
+    await page.route('**/api/admin/mandate-document/extract', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fields: {
+            first_name: { value: mockFirstName, confidence: 'high' },
+            last_name: { value: 'CandidateUser', confidence: 'high' },
+            email: { value: `cand-${ts}@example.com`, confidence: 'high' },
+            iban: { value: candidate1, confidence: 'low' },
+            account_holder_name: { value: null, confidence: null },
+            mandate_signed_at: { value: '2024-06-15', confidence: 'high' },
+            card_uid: { value: null, confidence: null },
+          },
+          needsReview: true,
+          ibanCandidates: [candidate1, candidate2],
+        }),
+      })
+    })
+
+    await page.goto('/members')
+    await expect(page.locator('[data-testid="members-page"]')).toBeVisible({ timeout: 5000 })
+
+    await page.locator('[data-testid="members-scan-input"]').setInputFiles({
+      name: 'mandate.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.from('fake-jpeg-data'),
+    })
+
+    await expect(page.locator('[data-testid="members-form-modal"]')).toBeVisible({ timeout: 5000 })
+
+    // Select the second candidate
+    await page.locator(`[data-testid="members-form-iban-candidate-${candidate2}"]`).click()
+    await expect(page.locator('[data-testid="members-form-iban-input"]')).toHaveValue(candidate2)
+
+    // Submit — verify member is created with the selected IBAN
+    const createResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/members') &&
+        resp.request().method() === 'POST' &&
+        resp.status() === 201,
+      { timeout: 10000 }
+    )
+    await page.locator('[data-testid="members-form-submit-button"]').click()
+    const response = await createResponse
+    const body = await response.json()
+    expect(body.iban).toBe(candidate2)
 
     // Form closes after successful creation
     await expect(page.locator('[data-testid="members-form-modal"]')).not.toBeVisible({ timeout: 5000 })

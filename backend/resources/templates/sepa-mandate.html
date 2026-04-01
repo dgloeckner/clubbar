@@ -8,75 +8,83 @@ body {
   font-family: Arial, sans-serif;
   font-size: 10pt;
   color: #111;
-  padding: 15mm 18mm;
+  padding: 12mm 14mm;
 }
 
 .header-table { width: 100%; }
-.header-app-name { font-size: 20pt; font-weight: bold; color: #1d4ed8; }
-.header-creditor { font-size: 9pt; color: #555; margin-top: 2px; }
-.header-title { text-align: right; font-size: 14pt; font-weight: bold; }
+.header-app-name { font-size: 22pt; font-weight: bold; color: #1d4ed8; }
+.header-creditor { font-size: 9pt; color: #555; margin-top: 3px; }
+.header-title { text-align: right; font-size: 15pt; font-weight: bold; vertical-align: middle; }
 
 .intro-box {
   border: 1px solid #cbd5e1;
   background-color: #f0f4ff;
-  padding: 7px 10px;
-  font-size: 8.5pt;
+  padding: 9px 12px;
+  font-size: 9pt;
   color: #334155;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   text-align: center;
+  line-height: 1.5;
 }
-.hint { font-size: 8pt; color: #64748b; font-style: italic; margin-bottom: 12px; }
+.hint { font-size: 8.5pt; color: #64748b; font-style: italic; margin-bottom: 14px; }
 
 .section-header {
   background-color: #2563eb;
   color: #fff;
-  font-size: 10.5pt;
+  font-size: 11pt;
   font-weight: bold;
-  padding: 5px 10px;
-  margin-bottom: 8px;
+  padding: 6px 10px;
+  margin-top: 14px;
+  margin-bottom: 10px;
 }
 
-.field-label { font-size: 8.5pt; font-weight: bold; margin-bottom: 2px; }
-.field-optional { font-weight: normal; font-size: 8pt; color: #64748b; }
-.field-box { border: 1px solid #94a3b8; height: 24px; width: 100%; margin-bottom: 6px; }
+.field-label { font-size: 9pt; font-weight: bold; margin-bottom: 3px; }
+.field-optional { font-weight: normal; font-size: 8.5pt; color: #64748b; }
+.field-box { border: 1px solid #94a3b8; height: 46px; width: 100%; margin-bottom: 10px; }
 
-.two-col-left { width: 49%; vertical-align: top; padding-right: 6px; }
-.two-col-right { width: 49%; vertical-align: top; padding-left: 6px; }
+.two-col-left { width: 49%; vertical-align: top; padding-right: 8px; }
+.two-col-right { width: 49%; vertical-align: top; padding-left: 8px; }
 
 .creditor-box {
   background-color: #eff6ff;
   border: 1px solid #bfdbfe;
-  padding: 5px 10px;
-  margin-bottom: 8px;
+  padding: 7px 12px;
+  margin-bottom: 10px;
   font-size: 9pt;
+  line-height: 1.5;
 }
 .creditor-box-label { font-weight: bold; color: #1d4ed8; margin-bottom: 2px; }
 
 .legal-box {
   border: 1px solid #e2e8f0;
-  padding: 7px;
-  font-size: 8.5pt;
-  line-height: 1.4;
-  margin-bottom: 10px;
+  padding: 10px 12px;
+  font-size: 9pt;
+  line-height: 1.6;
+  margin-bottom: 14px;
 }
 
-.iban-grid { border-collapse: collapse; margin-bottom: 6px; }
-.iban-cell { border: 1px solid #94a3b8; width: 24px; height: 24px; }
-.iban-gap  { width: 8px; }
-.date-sep  { width: 10px; text-align: center; vertical-align: middle; font-size: 11pt; font-weight: bold; color: #94a3b8; }
+/* IBAN group boxes — 6 groups: DE+2 / 4 / 4 / 4 / 4 / 2
+   Content width = 210mm - 14mm - 14mm = 182mm
+   5 gaps × 2mm = 10mm → 172mm for 22 chars → 4-char = 31mm, 2-char = 16mm */
+.iban-group-box { border: 1px solid #94a3b8; height: 46px; }
+
+/* Date group boxes — DD . MM . YYYY */
+.date-sep { width: 14px; text-align: center; vertical-align: bottom;
+            font-size: 14pt; font-weight: bold; color: #94a3b8;
+            padding-bottom: 4px; }
 
 .sig-table { width: 100%; border-collapse: collapse; }
 .sig-cell {
   border: 1px solid #94a3b8;
-  height: 44px;
-  padding: 3px 6px;
+  height: 80px;
+  padding: 4px 8px;
   vertical-align: bottom;
-  font-size: 8pt;
+  font-size: 8.5pt;
   color: #94a3b8;
   width: 50%;
 }
 
-.footer-table { width: 100%; margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 5px; }
+.footer-table { width: 100%; margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 6px; }
 .footer-text { font-size: 8pt; color: #94a3b8; }
 .footer-right { text-align: right; font-size: 8pt; color: #94a3b8; }
 </style>
@@ -92,7 +100,7 @@ body {
   <td class="header-title">Mitglieds-Anmeldung</td>
 </tr>
 </table>
-<hr style="border:0; border-top:2px solid #2563eb; margin:8px 0 10px;">
+<hr style="border:0; border-top:2px solid #2563eb; margin:10px 0 12px;">
 
 <div class="intro-box">
 {{APP_NAME}} ist das bargeldlose Kassensystem von {{CREDITOR}}. Mitglieder zahlen Leistungen, die &uuml;ber das
@@ -100,9 +108,9 @@ body {
 </div>
 <div class="hint">Bitte in Druckbuchstaben ausf&uuml;llen &middot; Pflichtfelder sind mit * markiert</div>
 
-<div class="section-header">1 &nbsp; Pers&ouml;nliche Daten</div>
+<div class="section-header" style="margin-top:0;">1 &nbsp; Pers&ouml;nliche Daten</div>
 
-<table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:2px;">
+<table width="100%" cellspacing="0" cellpadding="0">
 <tr>
   <td class="two-col-left">
     <div class="field-label">Vorname *</div>
@@ -115,14 +123,14 @@ body {
 </tr>
 </table>
 
-<table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:2px;">
+<table width="100%" cellspacing="0" cellpadding="0">
 <tr>
   <td class="two-col-left">
     <div class="field-label">E-Mail *</div>
     <div class="field-box"></div>
   </td>
   <td class="two-col-right">
-    <div class="field-label">Karten-UID * <span class="field-optional">(&uuml;r Terminal-Zugang)</span></div>
+    <div class="field-label">Karten-UID * <span class="field-optional">(f&uuml;r Terminal-Zugang)</span></div>
     <div class="field-box"></div>
   </td>
 </tr>
@@ -131,15 +139,13 @@ body {
 <div class="field-label">Stra&szlig;e &amp; Hausnummer *</div>
 <div class="field-box"></div>
 
-<table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:8px;">
+<table width="100%" cellspacing="0" cellpadding="0">
 <tr>
-  <td style="width:28%; vertical-align:top; padding-right:6px;">
+  <td style="width:26%; vertical-align:top; padding-right:8px;">
     <div class="field-label">PLZ *</div>
-    <table class="iban-grid" cellspacing="0" cellpadding="0">
-    <tr><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td></tr>
-    </table>
+    <div class="field-box"></div>
   </td>
-  <td style="width:72%; vertical-align:top; padding-left:6px;">
+  <td style="width:74%; vertical-align:top; padding-left:8px;">
     <div class="field-label">Ort *</div>
     <div class="field-box"></div>
   </td>
@@ -153,44 +159,45 @@ body {
   {{CREDITOR_ID}} &middot; {{CREDITOR}}, {{ADDRESS}}
 </div>
 
-<div class="field-label">IBAN * <span class="field-optional">(SEPA &middot; je ein Zeichen pro K&auml;stchen)</span></div>
-<table class="iban-grid" cellspacing="0" cellpadding="0">
+<div class="field-label">IBAN * <span class="field-optional">(DE + 20 Ziffern)</span></div>
+<table style="width:182mm;" cellspacing="0" cellpadding="0" style="margin-bottom:10px;">
 <tr>
-  <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
-  <td class="iban-gap"></td>
-  <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
-  <td class="iban-gap"></td>
-  <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
-  <td class="iban-gap"></td>
-  <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
-  <td class="iban-gap"></td>
-  <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
-  <td class="iban-gap"></td>
-  <td class="iban-cell"></td><td class="iban-cell"></td>
+  <td style="width:31mm;"><div class="iban-group-box"></div></td>
+  <td style="width:2mm;"></td>
+  <td style="width:31mm;"><div class="iban-group-box"></div></td>
+  <td style="width:2mm;"></td>
+  <td style="width:31mm;"><div class="iban-group-box"></div></td>
+  <td style="width:2mm;"></td>
+  <td style="width:31mm;"><div class="iban-group-box"></div></td>
+  <td style="width:2mm;"></td>
+  <td style="width:31mm;"><div class="iban-group-box"></div></td>
+  <td style="width:2mm;"></td>
+  <td style="width:16mm;"><div class="iban-group-box"></div></td>
 </tr>
 </table>
+<div style="height:10px;"></div>
 
-<table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:2px;">
+<table width="100%" cellspacing="0" cellpadding="0">
 <tr>
   <td class="two-col-left">
     <div class="field-label">Kontoinhaber <span class="field-optional">(optional)</span></div>
     <div class="field-box"></div>
   </td>
   <td class="two-col-right">
-    <div class="field-label">Mandatsdatum * <span class="field-optional">(SEPA &middot; TT.MM.JJJJ)</span></div>
-    <table class="iban-grid" cellspacing="0" cellpadding="0">
+    <div class="field-label">Mandatsdatum * <span class="field-optional">(TT.MM.JJJJ)</span></div>
+    <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
     <tr>
-      <td class="iban-cell"></td><td class="iban-cell"></td>
+      <td style="width:52px;"><div class="iban-group-box"></div></td>
       <td class="date-sep">.</td>
-      <td class="iban-cell"></td><td class="iban-cell"></td>
+      <td style="width:52px;"><div class="iban-group-box"></div></td>
       <td class="date-sep">.</td>
-      <td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td><td class="iban-cell"></td>
+      <td style="width:84px;"><div class="iban-group-box"></div></td>
     </tr>
     </table>
   </td>
 </tr>
 </table>
-<div style="font-size:8pt; color:#64748b; margin-bottom:8px;">Nur ausf&uuml;llen, wenn Kontoinhaber vom Mitglied abweicht (z.B. Elternteil zahlt f&uuml;r Kind)</div>
+<div style="font-size:8.5pt; color:#64748b; margin-bottom:4px;">Nur ausf&uuml;llen, wenn Kontoinhaber vom Mitglied abweicht (z.B. Elternteil zahlt f&uuml;r Kind)</div>
 
 <div class="section-header">3 &nbsp; Einzugsvollmacht &amp; Unterschrift</div>
 
