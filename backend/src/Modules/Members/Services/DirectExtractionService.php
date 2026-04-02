@@ -262,7 +262,7 @@ Fields to extract:
   - zipCode
   - city
   - accountHolderName (the "Kontoinhaber" field — may differ from the member name)
-  - cardUid (uppercase hex from "Chip-ID" / "Karten-ID" field; null if absent)
+  - cardUid (uppercase hex string, digits 0-9 and letters A-F only, from "Chip-ID" / "Karten-ID" field, e.g. "A1B2C3D4"; null if absent or if any character is illegible — do NOT substitute placeholder characters like P, X, ?, etc. for unreadable digits)
   - mandateDate (the signature date; normalize to DD.MM.YYYY)
 
 For the IBAN (German format: "DE" + 20 digits = exactly 22 characters):

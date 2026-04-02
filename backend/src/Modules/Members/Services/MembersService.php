@@ -97,7 +97,7 @@ class MembersService
     public function createMember(
         string $firstName,
         string $lastName,
-        string $email,
+        ?string $email,
         ?string $phone,
         ?string $cardUid,
         SupportedLanguage $language,

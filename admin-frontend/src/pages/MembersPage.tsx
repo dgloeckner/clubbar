@@ -42,8 +42,8 @@ function normalizeCardUid(raw: string | null | undefined): string {
   if (!raw) return ''
   // Strip common separators (hyphens, spaces, colons), then remove non-hex chars
   const cleaned = raw.toUpperCase().replace(/[\s\-:]/g, '').replace(/[^0-9A-F]/g, '')
-  // Only use the result if it has enough hex chars to be a plausible UID (≥4)
-  return cleaned.length >= 4 ? cleaned : ''
+  // Only use the result if it has enough hex chars to be a valid UID (≥8, matching backend min:8)
+  return cleaned.length >= 8 ? cleaned : ''
 }
 
 export function MembersPage() {

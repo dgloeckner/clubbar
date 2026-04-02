@@ -199,7 +199,7 @@ Extract these fields from the form text:
 - zipCode
 - city
 - accountHolderName (the "Kontoinhaber" field — may differ from member name)
-- cardUid (uppercase hex from "Chip-ID" / "Karten-ID" field, e.g. "A1B2C3D4"; null if absent)
+- cardUid (uppercase hex string, digits 0-9 and letters A-F only, from "Chip-ID" / "Karten-ID" field, e.g. "A1B2C3D4"; null if absent or if any character is illegible — do NOT substitute placeholder characters like P, X, ?, etc. for unreadable digits)
 - iban (German IBAN: always exactly 22 characters — "DE" + 20 digits.
   The IBAN is written in individual cells; OCR splits it across consecutive
   paragraphs. Collect all digit-only tokens from paragraphs immediately

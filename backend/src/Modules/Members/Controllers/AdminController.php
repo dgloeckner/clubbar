@@ -114,7 +114,7 @@ class AdminController
         if (!$this->validator->validate($body, [
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
-            'email' => ['required', 'email'],
+            'email' => ['nullable', 'email'],
             'preferred_language' => ['required', 'string', 'in:de,en,fr'],
             'account_holder_name' => ['nullable', 'string', 'max:70'],
             'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/', 'unique:members,card_uid'],
@@ -128,7 +128,7 @@ class AdminController
         $member = $this->membersService->createMember(
             firstName: $body['first_name'],
             lastName: $body['last_name'],
-            email: $body['email'],
+            email: ($body['email'] ?? null) ?: null,
             phone: $body['phone'] ?? null,
             cardUid: $body['card_uid'] ?? null,
             language: $language,
