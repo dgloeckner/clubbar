@@ -169,7 +169,25 @@ class MandateDocumentService
 
     private function convertImageToPdf(string $imageContent, string $mimeType): string
     {
-        $base64  = base64_encode($imageContent);
+        // Fix EXIF orientation before embedding — phone cameras store pixels in
+        // landscape order with an EXIF tag for display rotation. Dompdf ignores
+        // EXIF, so without this the image appears rotated 90° in the PDF.
+        $fixedContent = ImageOrientationFixer::fix($imageContent);
+
+        // After orientation fix, the MIME type may have changed to JPEG.
+        // Detect actual image dimensions to choose portrait/landscape orientation.
+        $orientation = 'portrait';
+        $imageInfo = @getimagesizefromstring($fixedContent);
+        if ($imageInfo !== false) {
+            [$width, $height] = $imageInfo;
+            if ($width > $height) {
+                $orientation = 'landscape';
+            }
+            // Update MIME type to match the (possibly re-encoded) image.
+            $mimeType = $imageInfo['mime'] ?? $mimeType;
+        }
+
+        $base64  = base64_encode($fixedContent);
         $dataUri = "data:{$mimeType};base64,{$base64}";
 
         $html = <<<HTML
@@ -191,7 +209,7 @@ HTML;
 
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html, 'UTF-8');
-        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->setPaper('A4', $orientation);
         $dompdf->render();
 
         return (string) $dompdf->output();
