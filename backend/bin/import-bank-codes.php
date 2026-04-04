@@ -5,11 +5,12 @@
  * Import Bundesbank BLZ (Bankleitzahl) data into the bank_codes table.
  *
  * Usage:
- *   php bin/import-bank-codes.php <path-to-blz-file>
- *   php bin/import-bank-codes.php /tmp/blz_20260309.txt
+ *   php bin/import-bank-codes.php                          # auto-download from Bundesbank
+ *   php bin/import-bank-codes.php /tmp/blz_20260309.txt    # import local file
+ *   php bin/import-bank-codes.php --url https://...        # download from custom URL
  *
- * The BLZ file can be downloaded from:
- *   https://www.bundesbank.de/de/aufgaben/unbarer-zahlungsverkehr/serviceangebot/bankleitzahlen
+ * Auto-download uses BUNDESBANK_BLZ_URL from .env, or falls back to the
+ * built-in default URL. Override when the Bundesbank changes their download path.
  *
  * File format: Fixed-width text (ISO-8859-1), updated quarterly by Deutsche Bundesbank.
  */
@@ -22,21 +23,6 @@ use App\Shared\Config\Env;
 use App\Shared\Logging\Logger;
 use App\Modules\BankCodes\Repositories\BankCodesRepository;
 use App\Modules\BankCodes\Services\BankCodeService;
-
-// --- Parse arguments ---
-if ($argc < 2) {
-    fwrite(STDERR, "Usage: php bin/import-bank-codes.php <path-to-blz-file>\n");
-    fwrite(STDERR, "\nDownload the BLZ file from:\n");
-    fwrite(STDERR, "  https://www.bundesbank.de/de/aufgaben/unbarer-zahlungsverkehr/serviceangebot/bankleitzahlen\n");
-    exit(1);
-}
-
-$filePath = $argv[1];
-
-if (!file_exists($filePath)) {
-    fwrite(STDERR, "Error: File not found: {$filePath}\n");
-    exit(1);
-}
 
 // --- Bootstrap ---
 $envFile = __DIR__ . '/../.env';
@@ -57,11 +43,39 @@ $logger = new Logger($logDir, 'INFO', 'bank-import');
 $repository = new BankCodesRepository($pdo, $logger);
 $service = new BankCodeService($repository, $logger);
 
-// --- Import ---
-echo "Importing bank codes from: {$filePath}\n";
+// --- Parse arguments ---
+$filePath = null;
+$url = null;
 
+for ($i = 1; $i < $argc; $i++) {
+    if ($argv[$i] === '--url' && isset($argv[$i + 1])) {
+        $url = $argv[++$i];
+    } elseif ($argv[$i] === '--help' || $argv[$i] === '-h') {
+        echo "Usage: php bin/import-bank-codes.php [<blz-file>] [--url <url>]\n\n";
+        echo "  No arguments    Auto-download from Bundesbank (uses BUNDESBANK_BLZ_URL env or default)\n";
+        echo "  <blz-file>      Import from a local fixed-width BLZ text file\n";
+        echo "  --url <url>     Download from a custom URL instead of the default\n";
+        exit(0);
+    } else {
+        $filePath = $argv[$i];
+    }
+}
+
+// --- Import ---
 try {
-    $result = $service->importFromFile($filePath);
+    if ($filePath !== null) {
+        if (!file_exists($filePath)) {
+            fwrite(STDERR, "Error: File not found: {$filePath}\n");
+            exit(1);
+        }
+        echo "Importing bank codes from: {$filePath}\n";
+        $result = $service->importFromFile($filePath);
+    } else {
+        echo "Downloading BLZ file from Bundesbank...\n";
+        $result = $service->downloadAndImport($url);
+        echo "  Source: {$result['source']}\n";
+    }
+
     echo "Done!\n";
     echo "  Imported: {$result['imported']}\n";
     echo "  Removed (stale): {$result['removed']}\n";

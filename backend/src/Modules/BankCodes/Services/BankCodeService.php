@@ -9,6 +9,14 @@ use App\Shared\Logging\Logger;
 
 class BankCodeService
 {
+    /**
+     * Stable Bundesbank resource blob ID for the BLZ TXT download.
+     * The full URL is: https://www.bundesbank.de/resource/blob/602632/<hash>/mL/blz-<date>-txt-data.txt
+     * Since the hash/date change quarterly, we use the download landing page which
+     * redirects to the current file. Override via BUNDESBANK_BLZ_URL env var.
+     */
+    private const DEFAULT_BLZ_URL = 'https://www.bundesbank.de/resource/blob/602632/m/blz-aktuell-txt-data.txt';
+
     public function __construct(
         private BankCodesRepository $repository,
         private Logger $logger,
@@ -78,6 +86,91 @@ class BankCodeService
             }
         }
         return $result;
+    }
+
+    /**
+     * Download the BLZ file from Bundesbank and import it.
+     *
+     * URL resolution order:
+     *   1. Explicit $url parameter
+     *   2. BUNDESBANK_BLZ_URL environment variable
+     *   3. Built-in default URL
+     *
+     * @return array{imported: int, removed: int, total: int, source: string}
+     */
+    public function downloadAndImport(?string $url = null): array
+    {
+        $url = $url
+            ?? ($_ENV['BUNDESBANK_BLZ_URL'] ?? null)
+            ?? ($_SERVER['BUNDESBANK_BLZ_URL'] ?? null)
+            ?? self::DEFAULT_BLZ_URL;
+
+        $this->logger->info('Downloading BLZ file', ['url' => $url]);
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'blz_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Cannot create temporary file');
+        }
+
+        try {
+            $this->downloadFile($url, $tempFile);
+            $result = $this->importFromFile($tempFile);
+            $result['source'] = $url;
+            return $result;
+        } finally {
+            @unlink($tempFile);
+        }
+    }
+
+    /**
+     * Download a file via cURL with redirect-following and proper error handling.
+     */
+    private function downloadFile(string $url, string $destPath): void
+    {
+        $ch = curl_init($url);
+        if ($ch === false) {
+            throw new \RuntimeException('Failed to initialize cURL');
+        }
+
+        $fp = fopen($destPath, 'w');
+        if ($fp === false) {
+            curl_close($ch);
+            throw new \RuntimeException("Cannot open temp file for writing: {$destPath}");
+        }
+
+        curl_setopt_array($ch, [
+            CURLOPT_FILE => $fp,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_TIMEOUT => 120,
+            CURLOPT_CONNECTTIMEOUT => 30,
+            CURLOPT_USERAGENT => 'ClubBar/1.0 (BLZ-Import)',
+            CURLOPT_FAILONERROR => true,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+
+        $success = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        fclose($fp);
+
+        if (!$success) {
+            @unlink($destPath);
+            throw new \RuntimeException("Download failed (HTTP {$httpCode}): {$error}. URL: {$url}");
+        }
+
+        $fileSize = filesize($destPath);
+        if ($fileSize === false || $fileSize < 1000) {
+            @unlink($destPath);
+            throw new \RuntimeException(
+                "Downloaded file too small ({$fileSize} bytes) — likely not a valid BLZ file. "
+                . "The Bundesbank URL may have changed. Set BUNDESBANK_BLZ_URL in .env to the current download URL. "
+                . "Find it at: https://www.bundesbank.de/de/aufgaben/unbarer-zahlungsverkehr/serviceangebot/bankleitzahlen"
+            );
+        }
+
+        $this->logger->info('BLZ file downloaded', ['size' => $fileSize, 'url' => $url]);
     }
 
     /**

@@ -98,9 +98,9 @@ switch ($action) {
         break;
 
     case 'import-bank-codes':
-        // Import Bundesbank BLZ data from an uploaded file or a file path on the server.
-        // Upload: POST with multipart form-data field "blz_file"
-        // Server path: POST/GET with JSON body {"file_path": "/path/to/blz.txt"}
+        // Import Bundesbank BLZ data.
+        // Default: auto-downloads from Bundesbank (override URL via BUNDESBANK_BLZ_URL env var).
+        // Alternative: provide file via upload (blz_file), JSON body (file_path), or query param.
         $blzFilePath = null;
 
         // Check for file upload
@@ -122,21 +122,25 @@ switch ($action) {
             $blzFilePath = $_GET['file_path'];
         }
 
-        if ($blzFilePath === null) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Provide BLZ file via upload (blz_file) or file_path parameter']);
-            break;
-        }
-
         $logDir = __DIR__ . '/../logs';
         $logger = new Logger($logDir, 'INFO', 'bank-import');
         $repository = new BankCodesRepository($pdo, $logger);
         $service = new BankCodeService($repository, $logger);
 
         try {
-            $result = $service->importFromFile($blzFilePath);
+            if ($blzFilePath !== null) {
+                // Import from provided file
+                $result = $service->importFromFile($blzFilePath);
+                $result['source'] = 'file';
+            } else {
+                // Auto-download from Bundesbank
+                $url = $_GET['url'] ?? $body['url'] ?? null;
+                $result = $service->downloadAndImport($url);
+            }
+
             echo json_encode([
                 'status' => 'ok',
+                'source' => $result['source'] ?? 'file',
                 'imported' => $result['imported'],
                 'removed' => $result['removed'],
                 'total' => $result['total'],
