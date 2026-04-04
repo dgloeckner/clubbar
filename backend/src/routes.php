@@ -17,6 +17,7 @@ use App\Modules\Settlements\Controllers\SepaConfigController;
 use App\Modules\AdminUsers\Controllers\AdminController as AdminUsersAdminController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
+use App\Modules\BankCodes\Controllers\AdminController as BankCodesAdminController;
 use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminController;
 use App\Modules\Reports\Controllers\AdminController as ReportsAdminController;
 use App\Modules\Auth\Middleware\AdminSessionAuth;
@@ -144,6 +145,9 @@ return function (App $app): void {
         $group->get('/reports/terminal-activity', [ReportsAdminController::class, 'terminalActivity']);
         $group->get('/reports/{reportType}/export', [ReportsAdminController::class, 'exportReport']);
         $group->get('/reports/{reportType}', [ReportsAdminController::class, 'getReport']);
+
+        // Bank lookup
+        $group->get('/bank-lookup', [BankCodesAdminController::class, 'lookup']);
 
         // Terminals
         $group->get('/terminals', [TerminalsAdminController::class, 'index']);

@@ -21,12 +21,13 @@ final readonly class MemberAdminDto
         public ?string $accountHolderName,
         public ?string $mandateReference,
         public ?string $mandateSignedAt,
+        public ?string $bankName,
         public ?string $deletedAt,
         public string $createdAt,
         public string $updatedAt,
     ) {}
 
-    public static function fromRow(array $row): self
+    public static function fromRow(array $row, ?string $bankName = null): self
     {
         $iban = $row['iban'] ?? null;
         return new self(
@@ -44,6 +45,7 @@ final readonly class MemberAdminDto
             accountHolderName: $row['account_holder_name'] ?? null,
             mandateReference: $row['mandate_reference'] ?? null,
             mandateSignedAt: $row['mandate_signed_at'] ?? null,
+            bankName: $bankName,
             deletedAt: $row['deleted_at'] ?? null,
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],
@@ -67,6 +69,7 @@ final readonly class MemberAdminDto
             'account_holder_name' => $this->accountHolderName,
             'mandate_reference' => $this->mandateReference,
             'mandate_signed_at' => $this->mandateSignedAt, // DATE-only field, no timezone needed
+            'bank_name' => $this->bankName,
             'deleted_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->deletedAt),
             'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
             'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),

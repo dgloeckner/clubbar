@@ -2202,6 +2202,40 @@ paths:
   # ============================================================================
   # TERMINALS
   # ============================================================================
+  /admin/bank-lookup:
+    get:
+      tags: [BankCodes]
+      summary: Look up bank info by IBAN
+      description: >
+        Resolves bank name, BIC, and location from a German IBAN using
+        the Bundesbank BLZ (Bankleitzahl) lookup table. Returns null fields
+        for non-German IBANs or unknown bank codes.
+      operationId: bankLookup
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: iban
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Full IBAN to look up (e.g., DE89370400440532013000)
+      responses:
+        '200':
+          description: Bank information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankLookupResponse'
+        '400':
+          description: Missing iban parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /admin/terminals:
     get:
       tags: [Terminals]
@@ -2866,6 +2900,33 @@ components:
             The first candidate is pre-selected in fields.iban.value. Empty or
             absent when the IBAN is unambiguous.
 
+    BankLookupResponse:
+      type: object
+      properties:
+        bank_code:
+          type: string
+          description: 8-digit Bankleitzahl (BLZ) extracted from IBAN
+        bank_name:
+          type: string
+          nullable: true
+          description: Full bank name from Bundesbank BLZ file
+        short_name:
+          type: string
+          nullable: true
+          description: Short bank designation
+        bic:
+          type: string
+          nullable: true
+          description: SWIFT/BIC code
+        postal_code:
+          type: string
+          nullable: true
+          description: Postal code of bank headquarters
+        city:
+          type: string
+          nullable: true
+          description: City of bank headquarters
+
     MandateDocument:
       type: object
       required:
@@ -2935,6 +2996,10 @@ components:
           type: string
           format: date
           nullable: true
+        bank_name:
+          type: string
+          nullable: true
+          description: Bank name resolved from IBAN via Bundesbank BLZ lookup (German IBANs only)
         is_active:
           type: boolean
         is_sepa_valid:

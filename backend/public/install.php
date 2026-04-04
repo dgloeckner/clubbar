@@ -5,7 +5,10 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Shared\Config\Env;
+use App\Shared\Logging\Logger;
 use App\Db\MigrationRunner;
+use App\Modules\BankCodes\Repositories\BankCodesRepository;
+use App\Modules\BankCodes\Services\BankCodeService;
 
 $envFile = __DIR__ . '/../.env';
 if (file_exists($envFile)) {
@@ -94,9 +97,59 @@ switch ($action) {
         }
         break;
 
+    case 'import-bank-codes':
+        // Import Bundesbank BLZ data from an uploaded file or a file path on the server.
+        // Upload: POST with multipart form-data field "blz_file"
+        // Server path: POST/GET with JSON body {"file_path": "/path/to/blz.txt"}
+        $blzFilePath = null;
+
+        // Check for file upload
+        $uploadedFiles = $_FILES['blz_file'] ?? null;
+        if ($uploadedFiles && $uploadedFiles['error'] === UPLOAD_ERR_OK) {
+            $blzFilePath = $uploadedFiles['tmp_name'];
+        }
+
+        // Check for JSON body with file_path
+        if ($blzFilePath === null) {
+            $body = json_decode(file_get_contents('php://input'), true);
+            if (isset($body['file_path']) && file_exists($body['file_path'])) {
+                $blzFilePath = $body['file_path'];
+            }
+        }
+
+        // Check for query parameter
+        if ($blzFilePath === null && isset($_GET['file_path']) && file_exists($_GET['file_path'])) {
+            $blzFilePath = $_GET['file_path'];
+        }
+
+        if ($blzFilePath === null) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Provide BLZ file via upload (blz_file) or file_path parameter']);
+            break;
+        }
+
+        $logDir = __DIR__ . '/../logs';
+        $logger = new Logger($logDir, 'INFO', 'bank-import');
+        $repository = new BankCodesRepository($pdo, $logger);
+        $service = new BankCodeService($repository, $logger);
+
+        try {
+            $result = $service->importFromFile($blzFilePath);
+            echo json_encode([
+                'status' => 'ok',
+                'imported' => $result['imported'],
+                'removed' => $result['removed'],
+                'total' => $result['total'],
+            ]);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        break;
+
     default:
         http_response_code(400);
-        echo json_encode(['error' => 'Use ?action=status, ?action=migrate, or ?action=seed']);
+        echo json_encode(['error' => 'Use ?action=status, ?action=migrate, ?action=seed, or ?action=import-bank-codes']);
 }
 
 @unlink($lockFile);

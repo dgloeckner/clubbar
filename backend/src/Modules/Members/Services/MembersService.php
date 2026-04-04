@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Members\Services;
 
+use App\Modules\BankCodes\Services\BankCodeService;
 use App\Modules\Members\DTOs\MemberDto;
 use App\Modules\Members\DTOs\MemberAdminDto;
 use App\Shared\DTOs\PaginatedResultDto;
@@ -25,6 +26,7 @@ class MembersService
         private TransactionsRepository $transactionsRepository,
         private AuditService $auditService,
         private AuditLogRepository $auditLogRepository,
+        private ?BankCodeService $bankCodeService = null,
     ) {}
 
     public function syncSince(int $since): SyncResultDto
@@ -57,7 +59,20 @@ class MembersService
     public function listMembers(int $limit, int $offset, array $filters = [], string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $search = null): PaginatedResultDto
     {
         $result = $this->membersRepository->listPaginated($limit, $offset, $filters, $sortKey, $sortOrder, $search);
-        $items = array_map(fn($row) => MemberAdminDto::fromRow($row)->toArray(), $result['items']);
+
+        // Batch lookup: resolve bank names for all IBANs in one query
+        $bankNames = [];
+        if ($this->bankCodeService !== null) {
+            $ibans = array_filter(array_column($result['items'], 'iban'));
+            if (!empty($ibans)) {
+                $bankNames = $this->bankCodeService->getBankNamesForIbans($ibans);
+            }
+        }
+
+        $items = array_map(
+            fn($row) => MemberAdminDto::fromRow($row, $bankNames[$row['iban'] ?? ''] ?? null)->toArray(),
+            $result['items'],
+        );
 
         return new PaginatedResultDto(items: $items, total: $result['total'], limit: $limit, offset: $offset);
     }
@@ -74,7 +89,8 @@ class MembersService
         if ($member['deleted_at'] !== null && !$isAnonymized) {
             throw NotFoundException::forResource('Member', $memberId);
         }
-        return MemberAdminDto::fromRow($member);
+        $bankName = $this->resolveBankName($member['iban'] ?? null);
+        return MemberAdminDto::fromRow($member, $bankName);
     }
 
     public function exportMember(string $memberId): array
@@ -83,7 +99,8 @@ class MembersService
         if (!$row) {
             throw NotFoundException::forResource('Member', $memberId);
         }
-        $member = MemberAdminDto::fromRow($row);
+        $bankName = $this->resolveBankName($row['iban'] ?? null);
+        $member = MemberAdminDto::fromRow($row, $bankName);
         $transactions = $this->transactionsRepository->findByMemberId($memberId, limit: 1000);
 
         return [
@@ -139,7 +156,8 @@ class MembersService
             adminUserId: $adminUserId,
         );
 
-        return MemberAdminDto::fromRow($member);
+        $bankName = $this->resolveBankName($member['iban'] ?? null);
+        return MemberAdminDto::fromRow($member, $bankName);
     }
 
     public function updateMember(string $memberId, array $updateData, ?string $adminUserId = null): MemberAdminDto
@@ -181,7 +199,8 @@ class MembersService
             );
         }
 
-        return MemberAdminDto::fromRow($member);
+        $bankName = $this->resolveBankName($member['iban'] ?? null);
+        return MemberAdminDto::fromRow($member, $bankName);
     }
 
     public function deleteMember(string $memberId, ?string $adminUserId = null): bool
@@ -265,6 +284,14 @@ class MembersService
     private function hasPendingSettlement(string $memberId): bool
     {
         return $this->transactionsRepository->hasMemberInActiveSettlement($memberId);
+    }
+
+    private function resolveBankName(?string $iban): ?string
+    {
+        if ($this->bankCodeService === null || $iban === null) {
+            return null;
+        }
+        return $this->bankCodeService->getBankNameForIban($iban);
     }
 
     private function detectChanges(array $old, array $new): array

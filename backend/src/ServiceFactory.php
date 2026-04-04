@@ -22,6 +22,11 @@ use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 
+// BankCodes
+use App\Modules\BankCodes\Repositories\BankCodesRepository;
+use App\Modules\BankCodes\Services\BankCodeService;
+use App\Modules\BankCodes\Controllers\AdminController as BankCodesAdminController;
+
 // Services
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Shared\Services\AuditService;
@@ -127,6 +132,9 @@ class ServiceFactory implements ContainerInterface
         ReportsAdminController::class => 'getReportsAdminController',
         ReportsService::class => 'getReportsService',
 
+        // BankCodes
+        BankCodesAdminController::class => 'getBankCodesAdminController',
+
         // Auth
         AuthController::class => 'getAuthController',
 
@@ -223,6 +231,11 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(TransactionsRepository::class, fn() => new TransactionsRepository($this->pdo, $this->logger));
     }
 
+    public function getBankCodesRepository(): BankCodesRepository
+    {
+        return $this->resolve(BankCodesRepository::class, fn() => new BankCodesRepository($this->pdo, $this->logger));
+    }
+
     // --- Services ---
 
     public function getAuditService(): AuditService
@@ -252,7 +265,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getMembersService(): MembersService
     {
-        return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService(), $this->getAuditLogRepository()));
+        return $this->resolve(MembersService::class, fn() => new MembersService($this->getMembersRepository(), $this->getTransactionsRepository(), $this->getAuditService(), $this->getAuditLogRepository(), $this->getBankCodeService()));
     }
 
     public function getMandateDocumentService(): MandateDocumentService
@@ -333,6 +346,11 @@ class ServiceFactory implements ContainerInterface
     public function getTransactionsService(): TransactionsService
     {
         return $this->resolve(TransactionsService::class, fn() => new TransactionsService($this->getTransactionsRepository(), $this->getMembersRepository(), $this->logger));
+    }
+
+    public function getBankCodeService(): BankCodeService
+    {
+        return $this->resolve(BankCodeService::class, fn() => new BankCodeService($this->getBankCodesRepository(), $this->logger));
     }
 
     // --- Middleware ---
@@ -496,6 +514,11 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(ReportsAdminController::class, fn() => new ReportsAdminController(
             $this->getReportsService(),
         ));
+    }
+
+    public function getBankCodesAdminController(): BankCodesAdminController
+    {
+        return $this->resolve(BankCodesAdminController::class, fn() => new BankCodesAdminController($this->getBankCodesRepository()));
     }
 
     public function getDashboardAdminController(): DashboardAdminController

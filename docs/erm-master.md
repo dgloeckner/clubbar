@@ -161,6 +161,16 @@ erDiagram
     admin_users ||--o{ audit_log : "performs"
     terminals ||--o{ unknown_card_scans : "detects"
     admin_users ||--o{ sepa_config : "modifies"
+
+    bank_codes {
+        char_8 bank_code PK "Bankleitzahl (BLZ)"
+        varchar_128 bank_name "Full bank name"
+        varchar_30 short_name "Short designation"
+        varchar_11 bic "SWIFT/BIC code"
+        varchar_10 postal_code "PLZ of headquarters"
+        varchar_40 city "City of headquarters"
+        timestamp imported_at "Last import timestamp"
+    }
 ```
 
 ---
@@ -482,6 +492,26 @@ Centralized audit trail for all master data changes.
 **Sensitive Data**: IBAN masked as `DE89****...****4567`; passwords logged as `[CHANGED]`; tokens never logged.
 
 **Retention**: 10 years per § 147 AO (German tax code).
+
+### bank_codes
+
+Lookup table for resolving German IBANs to bank names. Data sourced from the Deutsche Bundesbank BLZ (Bankleitzahl) file, updated quarterly. Only Hauptstelle (main office, Merkmal=1) entries are stored.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| bank_code | CHAR(8) | PK | Bankleitzahl (BLZ) |
+| bank_name | VARCHAR(128) | NOT NULL | Full bank name from Bundesbank file |
+| short_name | VARCHAR(30) | NOT NULL, DEFAULT '' | Short designation (Kurzbezeichnung) |
+| bic | VARCHAR(11) | NOT NULL, DEFAULT '' | SWIFT/BIC code |
+| postal_code | VARCHAR(10) | NOT NULL, DEFAULT '' | PLZ of bank headquarters |
+| city | VARCHAR(40) | NOT NULL, DEFAULT '' | City of bank headquarters |
+| imported_at | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP | When this row was last imported |
+
+**Data Source**: Deutsche Bundesbank BLZ-Datei (https://www.bundesbank.de)
+
+**Import**: Via `install.php?action=import-bank-codes` or CLI `php bin/import-bank-codes.php <file>`.
+
+**Lookup**: Extract BLZ from German IBAN positions 5–12 (e.g., DE89**37040044**0532013000 → BLZ 37040044).
 
 ---
 
