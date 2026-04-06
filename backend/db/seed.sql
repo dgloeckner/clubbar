@@ -39,6 +39,21 @@ VALUES (
 --   Token:     test-terminal-token-do-not-use-in-production-0a1b2c3d4e5f6g7h
 --   Hash:      hash('sha256', token)
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- Bank codes (BLZ) — test data for IBAN → bank name resolution
+-- BLZs used in E2E test IBANs (see e2etests/utils/transactions.ts)
+-- ---------------------------------------------------------------------------
+INSERT IGNORE INTO bank_codes (bank_code, bank_name, short_name, bic, postal_code, city)
+VALUES
+    ('37040044', 'Commerzbank',                       'Commerzbank Köln',    'COBADEFFXXX', '50447', 'Köln'),
+    ('51210800', 'Commerzbank vormals Dresdner Bank', 'Commerzbank Ffm',     'DRESDEFF512', '63263', 'Neu-Isenburg'),
+    ('10077777', 'norisbank',                         'norisbank Berlin',    'NORSDE51XXX', '10789', 'Berlin'),
+    ('10010010', 'Postbank',                          'Postbank Berlin',     'PBNKDEFF100', '10559', 'Berlin'),
+    ('37050299', 'Kreissparkasse Köln',               'KSK Köln',           'COKSDE33XXX', '50441', 'Köln');
+
+-- ---------------------------------------------------------------------------
+-- Test terminal
+-- ---------------------------------------------------------------------------
 INSERT IGNORE INTO terminals (id, name, device_id, api_token_hash, is_active, created_at, updated_at)
 VALUES (
     '44e4567-e89b-12d3-a456-426614174000',

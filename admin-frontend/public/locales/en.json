@@ -144,6 +144,8 @@
     "displayName": "Display Name",
     "email": "Email",
     "iban": "IBAN",
+    "bankName": "Bank",
+    "bankNameLoading": "Looking up…",
     "accountHolderName": "Account Holder Name",
     "accountHolderHint": "Only fill if the account holder differs from the member (e.g., parent pays for child)",
     "accountHolderPlaceholder": "Only if different from member",

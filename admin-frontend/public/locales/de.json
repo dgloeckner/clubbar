@@ -144,6 +144,8 @@
     "displayName": "Anzeigename",
     "email": "E-Mail",
     "iban": "IBAN",
+    "bankName": "Bank",
+    "bankNameLoading": "Wird gesucht…",
     "accountHolderName": "Kontoinhaber",
     "accountHolderHint": "Nur ausfüllen, wenn der Kontoinhaber vom Mitglied abweicht (z.B. Elternteil zahlt für Kind)",
     "accountHolderPlaceholder": "Nur wenn abweichend vom Mitglied",

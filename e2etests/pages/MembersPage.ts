@@ -65,6 +65,7 @@ export class MembersPage extends BasePage {
   // IBAN validation
   private readonly ibanValidationIndicator = () => this.page.getByTestId('members-form-iban-validation')
   private readonly ibanError = () => this.page.getByTestId('members-form-iban-error')
+  private readonly bankNameDisplay = () => this.page.getByTestId('members-form-bank-name')
 
   // Filter controls
   private readonly clearFiltersBtn = () => this.page.getByTestId('members-clear-filters')
@@ -387,6 +388,23 @@ export class MembersPage extends BasePage {
 
   async getIbanErrorText(): Promise<string> {
     return await this.ibanError().textContent() || ''
+  }
+
+  // Bank name display (resolved from IBAN via BLZ lookup)
+  async expectBankNameVisible() {
+    await expect(this.bankNameDisplay()).toBeVisible()
+  }
+
+  async expectBankNameHidden() {
+    await expect(this.bankNameDisplay()).not.toBeVisible()
+  }
+
+  async getBankNameText(): Promise<string> {
+    return await this.bankNameDisplay().textContent() || ''
+  }
+
+  async expectBankNameContains(text: string) {
+    await expect(this.bankNameDisplay()).toContainText(text)
   }
 
   async selectLanguage(language: string) {

@@ -24,6 +24,7 @@ import { Toggle } from '../components/forms/Toggle'
 import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { validateIban } from '../utils/iban'
+import { useBankName } from '../hooks/useBankName'
 import { ValidationIndicator } from '../components/forms/ValidationIndicator'
 import { downloadFile } from '../api/client'
 import { MandateDocumentSection } from '../components/MandateDocumentSection'
@@ -84,6 +85,7 @@ export function MembersPage() {
   const [scanFile, setScanFile] = useState<File | null>(null)
   const [scanExtracting, setScanExtracting] = useState(false)
   const scanInputRef = useRef<HTMLInputElement>(null)
+  const bankName = useBankName(formData.iban)
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -1583,6 +1585,19 @@ export function MembersPage() {
                   />
                   {confidenceBadge('iban')}
                 </div>
+                {formData.iban.length >= 12 && formData.iban.toUpperCase().startsWith('DE') && (
+                  <p
+                    data-testid="members-form-bank-name"
+                    style={{
+                      fontSize: theme.typography.fontSize.sm,
+                      color: bankName ? theme.colors.text.secondary : theme.colors.text.tertiary,
+                      marginTop: theme.spacing.xs,
+                      fontStyle: bankName ? 'normal' : 'italic',
+                    }}
+                  >
+                    {bankName ?? (validateIban(formData.iban) ? t('members.bankNameLoading') : '')}
+                  </p>
+                )}
                 {formErrors.iban && (
                   <p data-testid="members-form-iban-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
                     {formErrors.iban}
