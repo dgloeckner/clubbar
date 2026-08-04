@@ -155,7 +155,7 @@ const cancelSettlement = (
       options);
     }
   /**
- * Download the settlement as a SEPA Direct Debit XML file (pain.008.001.02).
+ * Download the settlement as a SEPA Direct Debit XML file (pain.008.001.08).
 
 **Use Cases**: UC-A31, UC-SEPA-08
 
@@ -163,7 +163,7 @@ const cancelSettlement = (
 - Settlement type must be "sepa"
 - At least one member must have valid SEPA data
 
-**XML format**: pain.008.001.02 (SEPA Core Direct Debit)
+**XML format**: pain.008.001.08 (SEPA Core Direct Debit)
 - Sequence type: Always RCUR
 - Minimal debtor data (name, IBAN only)
 

@@ -50,6 +50,7 @@ import type {
   AdminUserCreateRequest,
   AdminUserWithPassword,
   ListAdminUsers200,
+  ListAdminUsersParams,
   UpdateAdminUserBody
 } from './..';
 
@@ -68,10 +69,11 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * @summary List admin users
  */
 const listAdminUsers = (
-    
+    params?: ListAdminUsersParams,
  options?: SecondParameter<typeof customInstance<ListAdminUsers200>>,) => {
       return customInstance<ListAdminUsers200>(
-      {url: `/admin/admin-users`, method: 'GET'
+      {url: `/admin/admin-users`, method: 'GET',
+        params
     },
       options);
     }

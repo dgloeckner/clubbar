@@ -185,7 +185,7 @@ export function SettingsPage() {
   const loadAdminUsers = async () => {
     try {
       setAdminUsersLoading(true)
-      const response = await getAdminUsers().listAdminUsers()
+      const response = await getAdminUsers().listAdminUsers({ per_page: 500 })
       setAdminUsers((response.data || []) as AdminUser[])
     } catch (err: unknown) {
       // silently fail — list will remain empty

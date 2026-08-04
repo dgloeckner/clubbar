@@ -1659,6 +1659,9 @@ paths:
       operationId: listAdminUsers
       security:
         - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
       responses:
         '200':
           description: List of admin users

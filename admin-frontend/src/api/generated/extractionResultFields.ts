@@ -45,19 +45,17 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { ExtractionField } from './extractionField';
 
-/**
- * @nullable
- */
-export type ExtractionField = {
-  /**
-   * Extracted value, null if not found or illegible
-   * @nullable
-   */
-  value?: string | null;
-  /**
-   * Model confidence in the extracted value
-   * @nullable
-   */
-  confidence?: 'high' | 'medium' | 'low' | null;
-} | null;
+export type ExtractionResultFields = {
+  first_name?: ExtractionField | null;
+  last_name?: ExtractionField | null;
+  email?: ExtractionField | null;
+  street?: ExtractionField | null;
+  zip_code?: ExtractionField | null;
+  city?: ExtractionField | null;
+  iban?: ExtractionField | null;
+  account_holder_name?: ExtractionField | null;
+  mandate_signed_at?: ExtractionField | null;
+  card_uid?: ExtractionField | null;
+};
