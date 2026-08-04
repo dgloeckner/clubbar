@@ -46,18 +46,32 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-/**
- * @nullable
- */
-export type ExtractionField = {
+export interface BankLookupResponse {
+  /** 8-digit Bankleitzahl (BLZ) extracted from IBAN */
+  bank_code?: string;
   /**
-   * Extracted value, null if not found or illegible
+   * Full bank name from Bundesbank BLZ file
    * @nullable
    */
-  value?: string | null;
+  bank_name?: string | null;
   /**
-   * Model confidence in the extracted value
+   * Short bank designation
    * @nullable
    */
-  confidence?: 'high' | 'medium' | 'low' | null;
-} | null;
+  short_name?: string | null;
+  /**
+   * SWIFT/BIC code
+   * @nullable
+   */
+  bic?: string | null;
+  /**
+   * Postal code of bank headquarters
+   * @nullable
+   */
+  postal_code?: string | null;
+  /**
+   * City of bank headquarters
+   * @nullable
+   */
+  city?: string | null;
+}

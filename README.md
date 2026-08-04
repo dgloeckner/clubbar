@@ -101,7 +101,7 @@ flowchart TB
 - **Offline-first architecture** — Terminal caches data locally, syncs when connected
 - **Immutable transactions** — Append-only ledger, corrections via reverse entries
 - **Idempotent sync** — Client-generated UUIDs prevent duplicates
-- **SEPA Direct Debit** — pain.008.001.02 XML generation with mandate handling
+- **SEPA Direct Debit** — pain.008.001.08 XML generation with mandate handling
 - **LLM-powered data extraction** — Scanned SEPA mandate forms are read by vision AI (Anthropic Claude or OpenAI GPT-4o) to extract IBAN, name, and mandate date with per-field confidence scores
 
 ### Optional: Token Dispenser Integration

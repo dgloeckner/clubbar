@@ -45,8 +45,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { MandateDocumentExtractionStatus } from './mandateDocumentExtractionStatus';
 import type { ExtractionResult } from './extractionResult';
+import type { MandateDocumentExtractionStatus } from './mandateDocumentExtractionStatus';
 
 export interface MandateDocument {
   /** When the document was last uploaded or replaced */
@@ -60,9 +60,6 @@ export interface MandateDocument {
    * @nullable
    */
   extraction_status?: MandateDocumentExtractionStatus;
-  /**
-   * LLM extraction result; null if extraction was not attempted or not configured
-   * @nullable
-   */
+  /** Extraction results; null if extraction was not attempted or not configured */
   extraction?: ExtractionResult | null;
 }

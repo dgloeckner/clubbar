@@ -83,6 +83,11 @@ export interface Member {
   mandate_reference?: string | null;
   /** @nullable */
   mandate_signed_at?: string | null;
+  /**
+   * Bank name resolved from IBAN via Bundesbank BLZ lookup (German IBANs only)
+   * @nullable
+   */
+  bank_name?: string | null;
   is_active?: boolean;
   is_sepa_valid?: boolean;
   balance_cents?: number;

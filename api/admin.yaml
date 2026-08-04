@@ -1448,7 +1448,7 @@ paths:
       tags: [Settlements]
       summary: Download SEPA XML
       description: |
-        Download the settlement as a SEPA Direct Debit XML file (pain.008.001.02).
+        Download the settlement as a SEPA Direct Debit XML file (pain.008.001.08).
 
         **Use Cases**: UC-A31, UC-SEPA-08
 
@@ -1456,7 +1456,7 @@ paths:
         - Settlement type must be "sepa"
         - At least one member must have valid SEPA data
 
-        **XML format**: pain.008.001.02 (SEPA Core Direct Debit)
+        **XML format**: pain.008.001.08 (SEPA Core Direct Debit)
         - Sequence type: Always RCUR
         - Minimal debtor data (name, IBAN only)
 
@@ -1659,6 +1659,9 @@ paths:
       operationId: listAdminUsers
       security:
         - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/perPage'
       responses:
         '200':
           description: List of admin users

@@ -3,7 +3,7 @@
 **Implementation Status**: Implemented
 
 **Category**: Export
-**Format**: ISO 20022 pain.008.001.02
+**Format**: ISO 20022 pain.008.001.08
 
 ## Summary
 
@@ -30,7 +30,7 @@ Admin exports finalized settlement as SEPA Direct Debit XML file for bank upload
 | Active member | is_active = true |
 | Not anonymized | deleted_at is NULL |
 
-## XML Structure (pain.008.001.02)
+## XML Structure (pain.008.001.08)
 
 ### Group Header
 | Element | Value |
@@ -72,7 +72,7 @@ Admin exports finalized settlement as SEPA Direct Debit XML file for bank upload
 1. Admin opens finalized settlement
 2. Admin clicks "Export SEPA XML"
 3. System validates SEPA prerequisites
-4. System generates XML using pain.008.001.02 format
+4. System generates XML using pain.008.001.08 format
 5. System validates XML against XSD schema
 6. System creates audit log entry
 7. System downloads file to admin browser
@@ -89,7 +89,7 @@ Example: `sepa-SET-2025-001-20250123.xml`
 | action | `export` |
 | entity_type | `settlement` |
 | entity_id | Settlement UUID |
-| new_values | `{ "export_type": "sepa_xml", "format": "pain.008.001.02", "transaction_count": 42 }` |
+| new_values | `{ "export_type": "sepa_xml", "format": "pain.008.001.08", "transaction_count": 42 }` |
 
 ## Alternative Flows
 

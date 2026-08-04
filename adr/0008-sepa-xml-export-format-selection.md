@@ -1,6 +1,6 @@
 # ADR-0008: SEPA XML Export Format Selection
 
-**Status**: Accepted
+**Status**: Accepted (amended 2026-08-04: format raised from pain.008.001.02 to pain.008.001.08)
 
 **Date**: 2025-01-23
 
@@ -19,10 +19,10 @@ For SEPA XML, multiple ISO 20022 versions exist:
 
 | Version | Format | Use Case | Status |
 |---------|--------|----------|--------|
-| **pain.008.001.02** | SEPA Core Direct Debit | Standard EU SEPA | ✅ Current standard |
-| **pain.008.002.02** | SEPA Core Direct Debit (updated) | Newer EU variant | Supported by some banks |
-| **pain.008.003.02** | SEPA Core Direct Debit (latest) | ISO 20022 2018 | Limited support |
-| **pain.008.001.08** | SEPA Business-to-Business (B2B) | High-value B2B | Not applicable |
+| **pain.008.001.02** | SEPA Core Direct Debit (ISO 20022 2009) | Legacy EU SEPA | Superseded (EPC rulebooks until 2023) |
+| **pain.008.002.02** / **pain.008.003.02** | German DK variants | Legacy German banking | Superseded |
+| **pain.008.001.08** | SEPA Core Direct Debit (ISO 20022 2019) | Standard EU SEPA | ✅ Current standard (EPC 2023 rulebook, DK/EBICS since Nov 2025) |
+| **pain.008.001.09+** | SEPA Core Direct Debit (later ISO releases) | Not EPC/DK-selected | May be rejected by banks |
 
 Additionally, SEPA Direct Debit has two schemes:
 
@@ -31,44 +31,42 @@ Additionally, SEPA Direct Debit has two schemes:
 
 ### Bank Support Reality
 
-- **Frankfurter Sparkasse**: pain.008.001.02 + CORE ✅
-- **Deutsche Bank**: pain.008.001.02 + CORE ✅, COR1 optional
-- **Most EU banks**: pain.008.001.02 + CORE (standard)
-- **Legacy banks**: May only accept 002.02
+- **EPC 2023 rulebook / Deutsche Kreditwirtschaft (EBICS)**: pain.008.001.08 + CORE is the required customer-to-bank format since November 2025
+- **Most EU banks**: accept pain.008.001.08 + CORE; legacy pain.008.001.02 acceptance is being phased out
 
 ---
 
 ## Decision
 
-**Use ISO 20022 pain.008.001.02 (SEPA Core Direct Debit) for XML export. Always use RCUR (recurring) sequence type for all collections. CORE scheme (2 business day lead time) with RCUR is pragmatic for small organizations; most banks accept RCUR for initial collections. Exports are generated on-demand, validated against XSD schema, and include comprehensive error reporting.**
+**Use ISO 20022 pain.008.001.08 (SEPA Core Direct Debit, ISO 20022 2019 release) for XML export. Always use RCUR (recurring) sequence type for all collections. CORE scheme (2 business day lead time) with RCUR is pragmatic for small organizations; most banks accept RCUR for initial collections. Exports are generated on-demand, validated against XSD schema, and include comprehensive error reporting.**
 
 ### Core Principles
 
-1. **pain.008.001.02 standard**: Widely supported, future-proof for current deployments
+1. **pain.008.001.08 standard**: Required by EPC 2023 rulebook and Deutsche Kreditwirtschaft (EBICS) since November 2025
 2. **CORE scheme only**: Meets standard requirements; COR1 can be added later
 3. **Always RCUR sequence type**: Simplified; all collections treated as recurring
 4. **Minimal debtor information**: Only debtor name and IBAN; no address data (privacy-first)
 5. **XSD validation**: All generated XML validated against official SEPA schema
-6. **Pragmatic ID generation**: Settlement ID used as base for all SEPA identifiers
-   - Message ID = Settlement ID (e.g., `SET-2025-001`)
-   - Payment Info ID = Settlement ID (e.g., `SET-2025-001`)
-   - End-to-End ID = Settlement ID + sequence (e.g., `SET-2025-001-0001`, `SET-2025-001-0002`)
+6. **Pragmatic ID generation**: Settlement ID used as base for all SEPA identifiers; all identifiers respect the ISO 20022 35-character maximum
+   - Message ID = stored `sepa_message_id` (e.g., `SEPA-7f499732c4fe`)
+   - Payment Info ID = `PMT-` + first 16 hex chars of settlement UUID (e.g., `PMT-401f7c9dbf504925`)
+   - End-to-End ID = Payment Info ID + sequence (e.g., `PMT-401f7c9dbf504925-1`)
 7. **Human-readable IDs**: Audit trail clarity; easy to trace transactions to settlements
 8. **Comprehensive error handling**: Detailed validation errors before export
 9. **UTF-8 encoding**: Mandatory for XML; charset declared in header
 
-### XML Structure (pain.008.001.02)
+### XML Structure (pain.008.001.08)
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.02"
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.08"
           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-          xsi:schemaLocation="urn:iso:std:iso:20022:tech:xsd:pain.008.001.02
-                              pain.008.001.02.xsd">
+          xsi:schemaLocation="urn:iso:std:iso:20022:tech:xsd:pain.008.001.08
+                              pain.008.001.08.xsd">
   <CstmrDrctDbtInitn>
     <!-- Group Header (applies to entire file) -->
     <GrpHdr>
-      <MsgId>SET-2025-001</MsgId>                            <!-- Message ID = Settlement ID -->
+      <MsgId>SEPA-7f499732c4fe</MsgId>                        <!-- Message ID = sepa_message_id -->
       <CreDtTm>2025-01-23T14:30:00Z</CreDtTm>                <!-- Creation timestamp (UTC) -->
       <NbOfTxs>2</NbOfTxs>                                   <!-- Total transaction count -->
       <CtrlSum>37.50</CtrlSum>                                <!-- Total amount in EUR -->
@@ -79,7 +77,7 @@ Additionally, SEPA Direct Debit has two schemes:
 
     <!-- Payment Information (can have multiple, but Club Bar uses single PmtInf) -->
     <PmtInf>
-      <PmtInfId>SET-2025-001</PmtInfId>                      <!-- Payment Info ID = Settlement ID -->
+      <PmtInfId>PMT-401f7c9dbf504925</PmtInfId>              <!-- PMT- + first 16 hex of settlement UUID -->
       <PmtMtd>DD</PmtMtd>                                    <!-- Payment Method = Direct Debit -->
       <NbOfTxs>2</NbOfTxs>                                   <!-- Transaction count in this batch -->
       <CtrlSum>37.50</CtrlSum>                                <!-- Sum of transactions in batch -->
@@ -135,7 +133,7 @@ Additionally, SEPA Direct Debit has two schemes:
       <!-- Direct Debit Transaction Information (repeated for each member) -->
       <DrctDbtTxInf>
         <PmtId>
-          <EndToEndId>SET-2025-001-0001</EndToEndId>         <!-- End-to-End ID = Settlement ID + sequence -->
+          <EndToEndId>PMT-401f7c9dbf504925-1</EndToEndId>    <!-- Payment Info ID + sequence -->
         </PmtId>
 
         <InstdAmt Ccy="EUR">25.50</InstdAmt>                 <!-- Instruction Amount -->
@@ -168,7 +166,7 @@ Additionally, SEPA Direct Debit has two schemes:
       <!-- Second transaction (another member) -->
       <DrctDbtTxInf>
         <PmtId>
-          <EndToEndId>SET-2025-001-0002</EndToEndId>         <!-- End-to-End ID: incremented sequence -->
+          <EndToEndId>PMT-401f7c9dbf504925-2</EndToEndId>    <!-- incremented sequence -->
         </PmtId>
 
         <InstdAmt Ccy="EUR">12.00</InstdAmt>
@@ -235,26 +233,22 @@ sequenceDiagram
 
 ### Backend Architecture
 
-**Library**: Use `digitick/sepa-xml` Composer package for SEPA XML generation (pain.008.001.02 format).
+**Library**: Use `digitick/sepa-xml` Composer package for SEPA XML generation (pain.008.001.08 format).
 
 **Key responsibility areas**:
 - **Validation**: Check SEPA config completeness, member IBAN/mandate data, execution date constraints
 - **ID Mapping**: Use settlement ID as base for all SEPA identifiers (simple, human-readable, traceable)
 - **Data Transformation**: Map transaction data to pain.008 XML elements (creditor, debtor, amounts, dates)
-- **XSD Validation**: Leverage digitick library's built-in validation against pain.008.001.02 schema
+- **XSD Validation**: Leverage digitick library's built-in validation against pain.008.001.08 schema
 
 ### ID Generation Strategy
 
-Pragmatic approach: Use settlement ID as base for all SEPA identifiers.
-
-**Settlement ID format**: `SET-YYYY-NNN` (e.g., `SET-2025-001`)
-- Human-readable for audit trail
-- Max 35 chars (SEPA standard)
+Pragmatic approach: Use the settlement's stored identifiers as base for all SEPA identifiers. All IDs must respect the ISO 20022 35-character maximum — a raw settlement UUID with prefix exceeds it, so UUIDs are hyphen-stripped and truncated.
 
 **Derived IDs**:
-- **Message ID (MsgId)**: = Settlement ID (e.g., `SET-2025-001`)
-- **Payment Info ID (PmtInfId)**: = Settlement ID (e.g., `SET-2025-001`)
-- **End-to-End ID (EndToEndId)**: = Settlement ID + padded sequence (e.g., `SET-2025-001-0001`, `SET-2025-001-0002`)
+- **Message ID (MsgId)**: = stored `sepa_message_id` (e.g., `SEPA-7f499732c4fe`); fallback `MSG-` + first 31 hex chars of settlement UUID
+- **Payment Info ID (PmtInfId)**: = `PMT-` + first 16 hex chars of settlement UUID (e.g., `PMT-401f7c9dbf504925`)
+- **End-to-End ID (EndToEndId)**: = Payment Info ID + sequence (e.g., `PMT-401f7c9dbf504925-1`, `PMT-401f7c9dbf504925-2`)
 
 ### Pre-Export Validation Checklist
 
@@ -287,7 +281,7 @@ Before generating SEPA XML, validate:
 
 ### Positive
 
-✅ **Industry standard**: pain.008.001.02 widely supported by all EU banks
+✅ **Industry standard**: pain.008.001.08 widely supported by all EU banks
 ✅ **CORE scheme**: Meets standard 2-business-day requirement with RCUR
 ✅ **Simplified RCUR**: Always use RCUR (no FRST/RCUR logic); pragmatic for small orgs
 ✅ **Library-based**: digitick/sepa-xml handles XSD validation automatically
@@ -328,7 +322,7 @@ Newer version with updated format.
 - Migration path unclear
 - No functional advantage for Club Bar
 
-**Rejected**: pain.008.001.02 has broader support.
+**Rejected**: pain.008.001.08 has broader support.
 
 ### Alternative 2: Use pain.008.003.02
 
@@ -402,7 +396,7 @@ Build SEPA XML manually using PHP's SimpleXML or DOMDocument.
 
 - **SEPA Standards**:
   - [EPC SEPA Rulebook](https://www.europeanpaymentscouncil.eu/) - Official specification
-  - [pain.008.001.02 XSD Schema](https://www.iso20022.org/) - XML schema (obtain from EPC)
+  - [pain.008.001.08 XSD Schema](https://www.iso20022.org/) - XML schema (obtain from EPC)
 
 - **ISO 20022**:
   - [ISO 20022 Standard](https://www.iso20022.org/) - XML message format

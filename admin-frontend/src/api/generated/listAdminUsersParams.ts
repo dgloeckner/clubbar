@@ -45,19 +45,19 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { PageParameter } from './pageParameter';
+import type { PerPageParameter } from './perPageParameter';
 
+export type ListAdminUsersParams = {
 /**
- * @nullable
+ * Page number (1-indexed)
+ * @minimum 1
  */
-export type ExtractionField = {
-  /**
-   * Extracted value, null if not found or illegible
-   * @nullable
-   */
-  value?: string | null;
-  /**
-   * Model confidence in the extracted value
-   * @nullable
-   */
-  confidence?: 'high' | 'medium' | 'low' | null;
-} | null;
+page?: PageParameter;
+/**
+ * Items per page
+ * @minimum 1
+ * @maximum 100
+ */
+per_page?: PerPageParameter;
+};

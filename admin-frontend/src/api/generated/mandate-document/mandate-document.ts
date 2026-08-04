@@ -45,19 +45,33 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type {
+  ExtractMandateDocumentBody,
+  ExtractionResult
+} from './..';
 
+import { customInstance } from '../../client';
+
+
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+
+  export const getMandateDocument = () => {
 /**
- * @nullable
+ * Stateless extraction endpoint — accepts an image or PDF, calls the configured LLM, and returns extracted fields with confidence levels. No file is stored. Used by the create-member-from-scan flow.
+
+ * @summary Extract member fields from a mandate scan (no storage)
  */
-export type ExtractionField = {
-  /**
-   * Extracted value, null if not found or illegible
-   * @nullable
-   */
-  value?: string | null;
-  /**
-   * Model confidence in the extracted value
-   * @nullable
-   */
-  confidence?: 'high' | 'medium' | 'low' | null;
-} | null;
+const extractMandateDocument = (
+    extractMandateDocumentBody: ExtractMandateDocumentBody,
+ options?: SecondParameter<typeof customInstance<ExtractionResult>>,) => {const formData = new FormData();
+formData.append(`file`, extractMandateDocumentBody.file);
+
+      return customInstance<ExtractionResult>(
+      {url: `/admin/mandate-document/extract`, method: 'POST',
+       data: formData
+    },
+      options);
+    }
+  return {extractMandateDocument}};
+export type ExtractMandateDocumentResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMandateDocument>['extractMandateDocument']>>>

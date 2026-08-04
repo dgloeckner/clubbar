@@ -45,19 +45,31 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type {
+  BankLookupParams,
+  BankLookupResponse
+} from './..';
 
+import { customInstance } from '../../client';
+
+
+type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+
+  export const getBankCodes = () => {
 /**
- * @nullable
+ * Resolves bank name, BIC, and location from a German IBAN using the Bundesbank BLZ (Bankleitzahl) lookup table. Returns null fields for non-German IBANs or unknown bank codes.
+
+ * @summary Look up bank info by IBAN
  */
-export type ExtractionField = {
-  /**
-   * Extracted value, null if not found or illegible
-   * @nullable
-   */
-  value?: string | null;
-  /**
-   * Model confidence in the extracted value
-   * @nullable
-   */
-  confidence?: 'high' | 'medium' | 'low' | null;
-} | null;
+const bankLookup = (
+    params: BankLookupParams,
+ options?: SecondParameter<typeof customInstance<BankLookupResponse>>,) => {
+      return customInstance<BankLookupResponse>(
+      {url: `/admin/bank-lookup`, method: 'GET',
+        params
+    },
+      options);
+    }
+  return {bankLookup}};
+export type BankLookupResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getBankCodes>['bankLookup']>>>

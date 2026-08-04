@@ -447,7 +447,7 @@ export function MembersPage() {
     setExtractedFields(extraction)
 
     const updates: Partial<typeof formData> = {}
-    const f = extraction.fields
+    const f = extraction.fields ?? {}
     if (f.first_name?.value)          updates.first_name           = f.first_name.value
     if (f.last_name?.value)           updates.last_name            = f.last_name.value
     if (f.email?.value)               updates.email                = f.email.value
@@ -479,16 +479,17 @@ export function MembersPage() {
     setShowModal(true)
     try {
       const result = await extractMandateDocument(file)
+      const rf = result.fields ?? {}
       const initialForm = { first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' }
       setFormData({
         ...initialForm,
-        first_name:           result.fields.first_name?.value           ?? '',
-        last_name:            result.fields.last_name?.value            ?? '',
-        email:                result.fields.email?.value                ?? '',
-        iban:                 (result.fields.iban?.value ?? '').replace(/\s/g, '').toUpperCase(),
-        account_holder_name:  result.fields.account_holder_name?.value  ?? '',
-        mandate_signed_at:    result.fields.mandate_signed_at?.value    ?? '',
-        card_uid:             normalizeCardUid(result.fields.card_uid?.value),
+        first_name:           rf.first_name?.value           ?? '',
+        last_name:            rf.last_name?.value            ?? '',
+        email:                rf.email?.value                ?? '',
+        iban:                 (rf.iban?.value ?? '').replace(/\s/g, '').toUpperCase(),
+        account_holder_name:  rf.account_holder_name?.value  ?? '',
+        mandate_signed_at:    rf.mandate_signed_at?.value    ?? '',
+        card_uid:             normalizeCardUid(rf.card_uid?.value),
       })
       setExtractedFields(result)
       setPreExtractionFormData(null)
@@ -501,9 +502,9 @@ export function MembersPage() {
     }
   }
 
-  function confidenceBadge(fieldName: keyof ExtractionResult['fields']) {
+  function confidenceBadge(fieldName: keyof NonNullable<ExtractionResult['fields']>) {
     if (!extractedFields) return null
-    const field = extractedFields.fields[fieldName]
+    const field = extractedFields.fields?.[fieldName]
     if (!field?.confidence) return null
     const styles: Record<string, React.CSSProperties> = {
       high:   { background: 'rgba(34,197,94,0.15)',  color: '#86efac', border: '1px solid rgba(34,197,94,0.3)'  },
@@ -1590,7 +1591,7 @@ export function MembersPage() {
                     data-testid="members-form-bank-name"
                     style={{
                       fontSize: theme.typography.fontSize.sm,
-                      color: bankName ? theme.colors.text.secondary : theme.colors.text.tertiary,
+                      color: bankName ? theme.colors.text.secondary : theme.colors.text.muted,
                       marginTop: theme.spacing.xs,
                       fontStyle: bankName ? 'normal' : 'italic',
                     }}

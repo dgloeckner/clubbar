@@ -46,18 +46,9 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
+export type BankLookupParams = {
 /**
- * @nullable
+ * Full IBAN to look up (e.g., DE89370400440532013000)
  */
-export type ExtractionField = {
-  /**
-   * Extracted value, null if not found or illegible
-   * @nullable
-   */
-  value?: string | null;
-  /**
-   * Model confidence in the extracted value
-   * @nullable
-   */
-  confidence?: 'high' | 'medium' | 'low' | null;
-} | null;
+iban: string;
+};

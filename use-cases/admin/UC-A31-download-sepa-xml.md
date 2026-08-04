@@ -15,11 +15,11 @@ Admin clicks "Download SEPA XML" on settlement
 ## Main Flow
 1. Admin opens settlement details
 2. Admin clicks "Download SEPA XML"
-3. System generates pain.008.001.02 XML
+3. System generates pain.008.001.08 XML
 4. Browser downloads file
 
 ## XML Content
-- Format: pain.008.001.02 (SEPA Direct Debit)
+- Format: pain.008.001.08 (SEPA Direct Debit)
 - Header: Organization creditor ID, name, IBAN
 - Transactions: One entry per member with mandate
 

@@ -46,18 +46,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-/**
- * @nullable
- */
-export type ExtractionField = {
-  /**
-   * Extracted value, null if not found or illegible
-   * @nullable
-   */
-  value?: string | null;
-  /**
-   * Model confidence in the extracted value
-   * @nullable
-   */
-  confidence?: 'high' | 'medium' | 'low' | null;
-} | null;
+export type ExtractMandateDocumentBody = {
+  /** JPEG, PNG, or PDF of the scanned mandate */
+  file: Blob;
+};
