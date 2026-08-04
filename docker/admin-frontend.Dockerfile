@@ -25,12 +25,14 @@ FROM httpd:2.4-alpine
 COPY --from=builder /app/dist/ /usr/local/apache2/htdocs/
 
 # Configure Apache for SPA routing (all routes -> index.html)
-RUN echo '<Directory "/usr/local/apache2/htdocs">\n\
-    Options Indexes FollowSymLinks\n\
-    AllowOverride All\n\
-    Require all granted\n\
-    FallbackResource /index.html\n\
-</Directory>' >> /usr/local/apache2/conf/httpd.conf
+# printf, not echo: BusyBox echo does not expand \n, which corrupts httpd.conf
+RUN printf '%s\n' \
+    '<Directory "/usr/local/apache2/htdocs">' \
+    '    Options Indexes FollowSymLinks' \
+    '    AllowOverride All' \
+    '    Require all granted' \
+    '    FallbackResource /index.html' \
+    '</Directory>' >> /usr/local/apache2/conf/httpd.conf
 
 # Enable mod_rewrite
 RUN sed -i 's/#LoadModule rewrite_module/LoadModule rewrite_module/' /usr/local/apache2/conf/httpd.conf
