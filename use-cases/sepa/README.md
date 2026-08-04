@@ -30,7 +30,7 @@ This directory contains SEPA Direct Debit-specific use cases for the Club Bar sy
 |------|-------|-----------|
 | Minimum lead time | TODAY + 7 calendar days | ADR-0009 |
 | Sequence type | Always RCUR (recurring) | ADR-0008 |
-| XML format | pain.008.001.02 | ADR-0008 |
+| XML format | pain.008.001.08 | ADR-0008 |
 | BIC handling | Not stored; derived from IBAN by bank | ADR-0005 |
 | IBAN validation | ISO 13616 mod-97 checksum | ADR-0005 |
 | Mandate reference | UUID without hyphens (default) | ADR-0006 |

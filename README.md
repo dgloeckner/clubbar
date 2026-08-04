@@ -99,7 +99,7 @@ flowchart TB
 - **Offline-first architecture** — Terminal caches data locally, syncs when connected
 - **Immutable transactions** — Append-only ledger, corrections via reverse entries
 - **Idempotent sync** — Client-generated UUIDs prevent duplicates
-- **SEPA Direct Debit** — pain.008.001.02 XML generation with mandate handling
+- **SEPA Direct Debit** — pain.008.001.08 XML generation with mandate handling
 
 ### Optional: Token Dispenser Integration
 

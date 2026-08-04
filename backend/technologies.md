@@ -121,7 +121,7 @@ return function (App $app): void {
 
 | Export | Format | Usage |
 |--------|--------|-------|
-| **SEPA XML** | pain.008.001.02 | Bank upload |
+| **SEPA XML** | pain.008.001.08 | Bank upload |
 | **CSV** | Semicolon, UTF-8 BOM | Verification, Backup |
 
 ---

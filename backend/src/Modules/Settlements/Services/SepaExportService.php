@@ -42,20 +42,24 @@ class SepaExportService
             $memberTotals[$mid]['amount_cents'] += (int) $item['amount_cents'];
         }
 
-        // Build SEPA XML using digitick/sepa-xml
-        $messageId = $settlement['sepa_message_id'] ?? 'MSG-' . $settlement['id'];
+        // Build SEPA XML using digitick/sepa-xml.
+        // ISO 20022 caps MsgId/PmtInfId/EndToEndId at 35 chars, so identifiers
+        // derived from UUIDs use the hyphen-stripped, truncated form.
+        $settlementIdHex = str_replace('-', '', $settlement['id']);
+        $messageId = $settlement['sepa_message_id'] ?? 'MSG-' . substr($settlementIdHex, 0, 31);
+        $paymentId = 'PMT-' . substr($settlementIdHex, 0, 16);
         $creditorName = $this->sanitizeName($config['creditor_name']);
 
         $directDebit = \Digitick\Sepa\TransferFile\Factory\TransferFileFacadeFactory::createDirectDebit(
             $messageId,
             $creditorName,
-            'pain.008.001.09'
+            'pain.008.001.08'
         );
 
         $directDebit->addPaymentInfo(
-            'PMT-' . $settlement['id'],
+            $paymentId,
             [
-                'id' => 'PMT-' . $settlement['id'],
+                'id' => $paymentId,
                 'creditorName' => $this->sanitizeName($config['creditor_name']),
                 'creditorAccountIBAN' => $this->sanitizeIban($config['creditor_iban']),
                 'creditorAgentBIC' => 'NOTPROVIDED',
@@ -65,6 +69,7 @@ class SepaExportService
             ]
         );
 
+        $sequence = 0;
         foreach ($memberTotals as $entry) {
             $member = $this->membersRepository->findById($entry['member_id']);
             if (!$member || empty($member['iban']) || empty($member['mandate_reference'])) continue;
@@ -72,10 +77,12 @@ class SepaExportService
             $amountCents = abs($entry['amount_cents']);
             if ($amountCents <= 0) continue;
 
+            $sequence++;
             $directDebit->addTransfer(
-                'PMT-' . $settlement['id'],
+                $paymentId,
                 [
                     'amount' => $amountCents,
+                    'endToEndId' => $paymentId . '-' . $sequence,
                     'debtorIban' => $this->sanitizeIban($member['iban']),
                     'debtorBic' => 'NOTPROVIDED',
                     'debtorName' => $this->sanitizeName($member['account_holder_name'] ?? ($member['first_name'] . ' ' . $member['last_name'])),
@@ -119,7 +126,7 @@ class SepaExportService
         }
 
         $xpath = new \DOMXPath($dom);
-        $xpath->registerNamespace('pain', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.09');
+        $xpath->registerNamespace('pain', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.08');
 
         if (!$xpath->query('//pain:GrpHdr')->length) {
             throw new BusinessRuleException('SEPA XML missing GrpHdr element');

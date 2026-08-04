@@ -243,7 +243,7 @@ test.describe('Journal & Settlements', () => {
     expect(sepaResp.headers()['content-type']).toContain('xml')
 
     const xml = await sepaResp.text()
-    expect(xml).toContain('pain.008')
+    expect(xml).toContain('urn:iso:std:iso:20022:tech:xsd:pain.008.001.08')
     expect(xml).toContain('GrpHdr')
     expect(xml).toContain('DrctDbtTxInf')
     // Creditor data

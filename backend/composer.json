@@ -6,7 +6,7 @@
     "require": {
         "php": ">=8.3",
         "chillerlan/php-qrcode": "^6.0",
-        "digitick/sepa-xml": "^3.0",
+        "digitick/sepa-xml": "^3.1",
         "dompdf/dompdf": "^2.0",
         "league/openapi-psr7-validator": "^0.22.0",
         "robthree/twofactorauth": "^3.0",
