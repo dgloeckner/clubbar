@@ -44,14 +44,16 @@ test.describe('Bank Lookup API', () => {
   })
 
   test('returns null bank_name for unknown BLZ', async ({ authenticatedRequest }) => {
-    // Valid IBAN format but BLZ not in seed data
+    // Valid IBAN checksum, but BLZ 99999999 is never assigned by the
+    // Bundesbank — stays unknown even with the full BLZ file imported
+    // (a real BLZ like 20050550 resolves once the import has run).
     const response = await authenticatedRequest.get(
-      `${API_BASE}/admin/bank-lookup?iban=DE75200505501234567890`,
+      `${API_BASE}/admin/bank-lookup?iban=DE66999999991234567890`,
     )
     expect(response.ok()).toBeTruthy()
 
     const data = await response.json()
-    expect(data.bank_code).toBe('20050550')
+    expect(data.bank_code).toBe('99999999')
     expect(data.bank_name).toBeNull()
   })
 

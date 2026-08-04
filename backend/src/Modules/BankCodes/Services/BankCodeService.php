@@ -212,20 +212,22 @@ class BankCodeService
                 continue;
             }
 
-            // Convert from ISO-8859-1 to UTF-8 (Bundesbank files use Latin-1)
-            $line = mb_convert_encoding($line, 'UTF-8', 'ISO-8859-1');
-
             $merkmal = substr($line, 8, 1);
             // Only import main office entries (Merkmal = 1)
             if ($merkmal !== '1') {
                 continue;
             }
 
+            // Extract fixed-width fields on the raw ISO-8859-1 bytes (one byte
+            // per char), THEN convert to UTF-8 — converting first would shift
+            // all offsets after the first umlaut and split multibyte chars.
+            $latin1 = fn(string $s) => mb_convert_encoding(trim($s), 'UTF-8', 'ISO-8859-1');
+
             $bankCode = substr($line, 0, 8);
-            $bankName = trim(substr($line, 9, 58));
+            $bankName = $latin1(substr($line, 9, 58));
             $postalCode = trim(substr($line, 67, 5));
-            $city = trim(substr($line, 72, 35));
-            $shortName = trim(substr($line, 107, 27));
+            $city = $latin1(substr($line, 72, 35));
+            $shortName = $latin1(substr($line, 107, 27));
             $bic = trim(substr($line, 139, 11));
 
             $activeBankCodes[] = $bankCode;
