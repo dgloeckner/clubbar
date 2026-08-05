@@ -30,7 +30,7 @@ void main() {
       mockRepo = MockTransactionsRepository();
 
       // Session controller mocks (owns all session teardown, ADR-0027)
-      when(() => mockSessionController.endSession()).thenReturn(null);
+      when(() => mockSessionController.endSession()).thenReturn(true);
       when(() => mockSessionController.addListener(any())).thenReturn(null);
       when(() => mockSessionController.removeListener(any())).thenReturn(null);
 

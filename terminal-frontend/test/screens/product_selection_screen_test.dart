@@ -8,6 +8,7 @@ import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/auth_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/product_selection_screen.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
@@ -19,6 +20,7 @@ class MockCartProvider extends Mock implements CartProvider {}
 class MockAuthProvider extends Mock implements AuthProvider {}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
+class MockSessionController extends Mock implements SessionController {}
 class MockSoundService extends Mock implements SoundService {}
 
 void main() {
@@ -43,6 +45,7 @@ void main() {
     late MockAuthProvider mockAuthProvider;
     late MockSyncProvider mockSyncProvider;
     late MockMembersProvider mockMembersProvider;
+    late MockSessionController mockSessionController;
     late MockSoundService mockSoundService;
 
     setUp(() {
@@ -51,6 +54,10 @@ void main() {
       mockAuthProvider = MockAuthProvider();
       mockSyncProvider = MockSyncProvider();
       mockMembersProvider = MockMembersProvider();
+      mockSessionController = MockSessionController();
+      when(() => mockSessionController.isCriticalOperationInFlight).thenReturn(false);
+      when(() => mockSessionController.addListener(any())).thenReturn(null);
+      when(() => mockSessionController.removeListener(any())).thenReturn(null);
       mockSoundService = MockSoundService();
 
       // Setup auth provider mocks
@@ -97,6 +104,7 @@ void main() {
               ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
               ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
+              ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),
           ),
@@ -134,6 +142,7 @@ void main() {
               ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
               ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
+              ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),
           ),
@@ -186,6 +195,7 @@ void main() {
               ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
               ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
+              ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),
           ),
@@ -215,6 +225,7 @@ void main() {
               ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
               ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
+              ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),
           ),
@@ -259,6 +270,7 @@ void main() {
               ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
               ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
+              ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
               Provider<SoundService>.value(value: mockSoundService),
             ],
             child: const Scaffold(body: ProductSelectionScreen()),

@@ -73,9 +73,11 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                     deckelCents: membersProvider.memberDeckel,
                     onCartPressed: () => context.go('/cart'),
                     onLogoutPressed: () {
-                      // ADR-0027: all session ends go through endSession()
-                      context.read<SessionController>().endSession();
-                      context.go('/idle');
+                      // ADR-0027: all session ends go through endSession(),
+                      // which refuses to run mid-checkout (rule 7).
+                      if (context.read<SessionController>().endSession()) {
+                        context.go('/idle');
+                      }
                     },
                   ),
                 ),
