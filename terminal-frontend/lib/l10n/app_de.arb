@@ -582,6 +582,10 @@
   "@errorDispenserUnavailable": {
     "description": "TerminalErrorKey.dispenserUnavailable — dispenser did not respond as expected"
   },
+  "errorDispenserNoTokensDispensed": "Es konnten keine Token ausgegeben werden. Dir wurde nichts berechnet – dein Warenkorb bleibt erhalten.",
+  "@errorDispenserNoTokensDispensed": {
+    "description": "TerminalErrorKey.dispenserNoTokensDispensed — dispense finished with zero tokens; checkout aborted"
+  },
   "errorBackendUnreachable": "Keine Verbindung zum Server",
   "@errorBackendUnreachable": {
     "description": "TerminalErrorKey.backendUnreachable — backend health check failed"

@@ -24,6 +24,7 @@ enum TerminalErrorKey {
   dispenserNotConfigured,
   dispenserOperationFailed,
   dispenserUnavailable,
+  dispenserNoTokensDispensed,
 
   // Products
   productsRefreshFailed,
