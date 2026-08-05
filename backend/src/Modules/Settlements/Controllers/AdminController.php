@@ -59,12 +59,16 @@ class AdminController
 
         if (!$this->validator->validate($body, [
             'settlement_date' => ['required', 'date'],
-            'execution_date'  => ['required', 'date'],
+            'execution_date'  => ['required', 'date', 'business_day'],
             'date_from'       => ['date'],
             'date_to'         => ['date'],
             'member_id'       => ['string'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        if ($leadTimeError = $this->validateLeadTime($body['settlement_date'], $body['execution_date'])) {
+            return $this->json($response, $leadTimeError, 422);
         }
 
         $filters = $this->extractTransactionFilters($body);
@@ -88,7 +92,7 @@ class AdminController
         if (!$this->validator->validate($body, [
             'transaction_ids' => ['required', 'array'],
             'settlement_date' => ['required', 'date'],
-            'execution_date'  => ['required', 'date'],
+            'execution_date'  => ['required', 'date', 'business_day'],
             'settlement_type' => ['required', 'in:sepa,manual'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
@@ -101,16 +105,8 @@ class AdminController
             ], 422);
         }
 
-        if (isset($body['settlement_date']) && isset($body['execution_date'])) {
-            $settleDate = new \DateTime($body['settlement_date']);
-            $execDate = new \DateTime($body['execution_date']);
-            $minExecDate = (clone $settleDate)->modify('+7 days');
-            if ($execDate < $minExecDate) {
-                return $this->json($response, [
-                    'error' => 'validation_failed',
-                    'messages' => ['execution_date' => ['execution_date must be at least 7 days after settlement_date']],
-                ], 422);
-            }
+        if ($leadTimeError = $this->validateLeadTime($body['settlement_date'], $body['execution_date'])) {
+            return $this->json($response, $leadTimeError, 422);
         }
 
         if (($body['settlement_type'] ?? '') === 'manual' && empty($body['manual_reason'])) {
@@ -278,6 +274,29 @@ class AdminController
         if (isset($source['search']))    $filters['search']    = $source['search'];
         if (isset($source['member_id'])) $filters['member_id'] = $source['member_id'];
         return $filters;
+    }
+
+    /**
+     * Enforce the ADR-0009 lead time on both settlement creation paths.
+     *
+     * The business-day part of the rule is applied declaratively via the
+     * `business_day` validation rule; this covers the cross-field part, which
+     * the rule-based validator cannot express.
+     *
+     * @return array{error: string, messages: array<string, list<string>>}|null Null when valid.
+     */
+    private function validateLeadTime(string $settlementDate, string $executionDate): ?array
+    {
+        $minExecDate = (new \DateTimeImmutable($settlementDate))->modify('+7 days');
+
+        if (new \DateTimeImmutable($executionDate) < $minExecDate) {
+            return [
+                'error' => 'validation_failed',
+                'messages' => ['execution_date' => ['execution_date must be at least 7 days after settlement_date']],
+            ];
+        }
+
+        return null;
     }
 
     private function buildSettlementCsv(array $memberRows): string

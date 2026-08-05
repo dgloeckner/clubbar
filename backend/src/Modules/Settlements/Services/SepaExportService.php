@@ -9,6 +9,7 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Utils\BankingCalendar;
 use App\Shared\Utils\SepaSanitizer;
 
 class SepaExportService
@@ -27,6 +28,17 @@ class SepaExportService
         $config = $this->sepaConfigRepository->getConfig();
         if (!$config || empty($config['creditor_id']) || empty($config['creditor_name']) || empty($config['creditor_iban'])) {
             throw new BusinessRuleException('SEPA configuration incomplete');
+        }
+
+        // Settlements created before the business-day rule existed (issue #11) can
+        // still hold a weekend or TARGET2 closing date. Refuse rather than emit an
+        // invalid ReqdColltnDt that a bank portal would reject.
+        if (!BankingCalendar::isBusinessDay($settlement['execution_date'])) {
+            throw new BusinessRuleException(sprintf(
+                'Settlement execution date %s is not a bank business day (Mon-Fri, excluding TARGET2 closing days); '
+                . 'cancel the settlement and recreate it with a valid date',
+                $settlement['execution_date']
+            ));
         }
 
         $items = $this->settlementsRepository->findItemsBySettlementId($settlementId);
@@ -65,7 +77,10 @@ class SepaExportService
                 'creditorAgentBIC' => 'NOTPROVIDED',
                 'seqType' => \Digitick\Sepa\PaymentInformation::S_RECURRING,
                 'creditorId' => $config['creditor_id'],
-                'requestedCollectionDate' => $settlement['execution_date'],
+                // Must be 'dueDate' — that is the key digitick's facade reads for
+                // ReqdColltnDt. An unrecognised key is silently ignored and the
+                // library falls back to today + 5 days (issue #11).
+                'dueDate' => $settlement['execution_date'],
             ]
         );
 

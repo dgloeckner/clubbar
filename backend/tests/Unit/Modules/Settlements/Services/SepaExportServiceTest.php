@@ -8,6 +8,7 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Settlements\Services\SepaExportService;
+use App\Shared\Exceptions\BusinessRuleException;
 use PHPUnit\Framework\TestCase;
 
 class SepaExportServiceTest extends TestCase
@@ -17,7 +18,7 @@ class SepaExportServiceTest extends TestCase
     private const MEMBER_ID_2 = 'a1b2c3d4-0000-0000-0000-000000000002';
     private const XSD_PATH = __DIR__ . '/../../../../../vendor/digitick/sepa-xml/doc/ISO20022/pain/008/001/pain.008.001.08.xsd';
 
-    private function makeService(bool $twoMembers = false): SepaExportService
+    private function makeService(bool $twoMembers = false, string $executionDate = '2026-04-08'): SepaExportService
     {
         $sepaConfig = $this->createMock(SepaConfigRepository::class);
         $sepaConfig->method('getConfig')->willReturn([
@@ -32,7 +33,7 @@ class SepaExportServiceTest extends TestCase
             'id' => self::SETTLEMENT_ID,
             'sepa_message_id' => 'SEPA-TEST-MSG',
             'settlement_date' => '2026-04-01',
-            'execution_date' => '2026-04-08',
+            'execution_date' => $executionDate,
         ]);
         $items = [['member_id' => self::MEMBER_ID, 'amount_cents' => 500]];
         if ($twoMembers) {
@@ -120,5 +121,49 @@ class SepaExportServiceTest extends TestCase
         }
         $this->assertCount(2, $ids);
         $this->assertSame($ids, array_unique($ids), 'EndToEndIds must be unique within the file');
+    }
+
+    // ── Business-day guard (issue #11) ────────────────────────────────
+    //
+    // Validation at creation time cannot help settlements stored before that
+    // rule existed, so the export refuses to emit an invalid ReqdColltnDt.
+
+    public function testExportRejectsWeekendExecutionDate(): void
+    {
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/business day/i');
+
+        // 2026-08-09 is the Sunday reported in issue #11.
+        $this->makeService(executionDate: '2026-08-09')->generateSepaXml(self::SETTLEMENT_ID);
+    }
+
+    public function testExportRejectsTarget2ClosingDay(): void
+    {
+        $this->expectException(BusinessRuleException::class);
+
+        // Good Friday — a weekday, so only the holiday set catches it.
+        $this->makeService(executionDate: '2026-04-03')->generateSepaXml(self::SETTLEMENT_ID);
+    }
+
+    /**
+     * Regression test for the root cause behind issue #11: the payment info was
+     * built with a 'requestedCollectionDate' key, which digitick's facade does
+     * not read. The key was silently ignored and ReqdColltnDt fell back to the
+     * library default of today + 5 days, so the admin-chosen execution date
+     * never reached the file. Asserting the exact date keeps that from
+     * regressing — a fallback would produce a moving, today-relative value.
+     */
+    public function testExportEmitsTheSettlementExecutionDateAsRequestedCollectionDate(): void
+    {
+        $xml = $this->makeService(executionDate: '2026-04-07')->generateSepaXml(self::SETTLEMENT_ID);
+
+        $dom = new \DOMDocument();
+        $dom->loadXML($xml);
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('p', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.08');
+
+        $nodes = $xpath->query('//p:ReqdColltnDt');
+        $this->assertSame(1, $nodes->length, 'Export must carry exactly one ReqdColltnDt');
+        $this->assertSame('2026-04-07', $nodes->item(0)->textContent);
     }
 }
