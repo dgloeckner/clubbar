@@ -65,6 +65,34 @@ Two consequences that were not present in the weekend-only version:
 **Worst case lead time**: Good Friday + weekend + Easter Monday is four consecutive closing days,
 so `today + 7` can roll to `today + 11`. Acceptable, but must be stated in the ADR.
 
+### Decision: no date library, backend or frontend
+
+**Backend — native `DateTimeImmutable` + a hand-written Easter function.** The helper needs
+exactly three primitives: day-of-week (`format('N')`), add-one-day (`modify('+1 day')`), and
+Easter Sunday. The first two are native; only Easter is real code, ~10 lines of integer
+arithmetic from a closed-form algorithm that has not changed since 1582 and is pinned by the
+unit tests in T1.3.
+
+A holiday library does not fit this problem. There is **no TARGET2 package on Packagist**
+(searched 2026-08-05, zero results). The obvious candidate, `azuyalabs/yasumi`, is a *country*
+calendar library — its German provider includes Tag der Deutschen Einheit, Christi Himmelfahrt
+and Pfingstmontag, none of which are TARGET2 closing days. Using it would mean adding a runtime
+dependency and *then* writing filter logic to extract a six-date subset, i.e. more code than
+computing the six dates directly, plus a wrong-by-default failure mode if the filter drifts.
+The usual argument for a holiday library — the data changes yearly and someone else maintains it
+— does not apply: the TARGET2 set is four fixed dates plus two Easter offsets, unchanged since
+the ECB fixed it in 2002. This also keeps CLAUDE.md's "no external dependencies beyond Composer
+basics" intact for a backend that ships to shared hosting.
+
+`ext-calendar`'s `easter_days()` is likewise rejected: it saves ~10 lines in exchange for an
+extension requirement that is not declared in `composer.json` and not guaranteed on the IONOS
+target. A hard dependency on the deployment environment is a worse trade than ten testable lines.
+
+**Frontend — nothing at all.** After M4/M5 the frontend performs no date arithmetic; it receives
+`minimum_date` as a string and displays it through the existing `Intl`-based `formatDate` in
+`design-system`. `admin-frontend/package.json` currently has zero date libraries and stays that
+way. Adding `date-fns`/`dayjs` here would only serve the local computation that M5 deletes.
+
 ---
 
 ## Milestones
