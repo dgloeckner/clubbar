@@ -1,7 +1,7 @@
 # SEPA Execution Date: Bank Business Day Rule
 
 **Issue**: [#11 — SEPA export: execution date can fall on a weekend (invalid ReqdColltnDt)](https://github.com/dgloeckner/clubbar/issues/11)
-**Status**: In Progress (analysis done, implementation not started)
+**Status**: Implemented — backend, frontend and docs complete; E2E execution pending CI
 **Created**: 2026-08-05
 **Scope note (2026-08-05)**: extended to cover the six TARGET2 closing days on maintainer
 request. They were originally deferred as a follow-up; see "Scope extension" below for what
@@ -31,6 +31,21 @@ Banks either silently shift the date or (stricter portal validators, e.g. Sparka
 
 **Reproduction**: `settlement_date = 2026-08-02` (Sunday), `execution_date = 2026-08-09` (Sunday)
 passes validation today and lands in the XML as `<ReqdColltnDt>2026-08-09</ReqdColltnDt>`.
+
+### A9 — Root cause, found during implementation (worse than reported)
+
+`SepaExportService` built the payment info with a **`requestedCollectionDate`** key. Digitick's
+`CustomerDirectDebitFacade::addPaymentInfo()` reads **`dueDate`**, and silently ignores keys it
+does not recognise, falling back to `createDueDateFromPaymentInformation($info, '+5 day')`.
+
+So `ReqdColltnDt` was never the settlement's execution date at all — every export carried
+**today + 5 days**, whenever the export happened to run. The admin-chosen date reached the
+database but never the file.
+
+This explains the occurrence in the issue that the `+7` arithmetic never accounted for: the
+export on 2026-08-04 produced 2026-08-09 because 2026-08-04 + 5 = 2026-08-09, not because of the
+lead-time rule. Fixed in M3 by using the `dueDate` key; pinned by an exact-date unit test and an
+E2E assertion on `ReqdColltnDt`.
 
 ## Decision: reject at the API, roll forward in the UI
 
@@ -99,14 +114,14 @@ way. Adding `date-fns`/`dayjs` here would only serve the local computation that 
 
 ### M1 — Banking calendar helper (backend)
 
-- [ ] **T1.1** Add `backend/src/Shared/Utils/BankingCalendar.php`, alongside `DateFormatter` /
+- [x] **T1.1** Add `backend/src/Shared/Utils/BankingCalendar.php`, alongside `DateFormatter` /
       `SepaSanitizer`, as a stateless static helper:
       `isBusinessDay(string $date): bool`, `nextBusinessDay(string $date): string`
       (rolls forward across chained weekends and holidays; returns input if already valid),
       `target2Holidays(int $year): array` (six ISO dates), `easterSunday(int $year): string`.
-- [ ] **T1.2** Easter via Anonymous Gregorian algorithm in plain PHP — **no `ext-calendar`**
+- [x] **T1.2** Easter via Anonymous Gregorian algorithm in plain PHP — **no `ext-calendar`**
       (not in `composer.json`, not guaranteed on the IONOS target).
-- [ ] **T1.3** Unit test `backend/tests/Unit/Shared/Utils/BankingCalendarTest.php`:
+- [x] **T1.3** Unit test `backend/tests/Unit/Shared/Utils/BankingCalendarTest.php`:
       - Easter Sunday for 2026-04-05, 2027-03-28, 2028-04-16
       - each fixed holiday is not a business day; `2026-04-03` (Good Friday) and `2026-04-06`
         (Easter Monday) rejected
@@ -119,10 +134,10 @@ way. Adding `date-fns`/`dayjs` here would only serve the local computation that 
 
 ### M2 — API validation
 
-- [ ] **T2.1** `AdminController::store()` — reject a non-business-day `execution_date` with 422,
+- [x] **T2.1** `AdminController::store()` — reject a non-business-day `execution_date` with 422,
       message `execution_date must be a bank business day (Mon-Fri, excluding TARGET2 closing days)`,
       alongside the existing +7 check.
-- [ ] **T2.2** `AdminController::settleFilter()` — add the **missing** `+7` lead-time check (A2)
+- [x] **T2.2** `AdminController::settleFilter()` — add the **missing** `+7` lead-time check (A2)
       *and* the business-day check, so both creation paths enforce the same rule. Extract the shared
       block into a private `validateExecutionDate(string $settlementDate, string $executionDate): ?array`.
       **Verify**: `curl` a Sunday and `2026-12-25` against both endpoints → 422 with the new message;
@@ -130,57 +145,57 @@ way. Adding `date-fns`/`dayjs` here would only serve the local computation that 
 
 ### M3 — Export guard (defense in depth)
 
-- [ ] **T3.1** `SepaExportService::generateXml()` — throw a domain exception (mapped by the
+- [x] **T3.1** `SepaExportService::generateXml()` — throw a domain exception (mapped by the
       centralized handler, Pattern 007) if the stored `execution_date` is not a business day, so rows
       written before this fix cannot silently produce an invalid file.
-- [ ] **T3.2** Unit test in `backend/tests/Unit/Modules/Settlements/Services/SepaExportServiceTest.php`:
+- [x] **T3.2** Unit test in `backend/tests/Unit/Modules/Settlements/Services/SepaExportServiceTest.php`:
       settlement with a Sunday and one with `2026-12-25` → export throws; ordinary weekday →
       `ReqdColltnDt` present and valid.
       **Verify**: `./vendor/bin/phpunit tests/Unit/Modules/Settlements` — all green.
 
 ### M4 — `GET /admin/settlements/execution-date-info` (moved in scope)
 
-- [ ] **T4.1** Route + `AdminController::executionDateInfo()` returning the shape ADR-0009 already
+- [x] **T4.1** Route + `AdminController::executionDateInfo()` returning the shape ADR-0009 already
       specifies, with `minimum_date` = `nextBusinessDay(TODAY + 7)`:
       `{"minimum_date": "...", "lead_time_days": 7, "rule": "..."}`.
       Thin controller → `SettlementsService` → `BankingCalendar` (Patterns 004/006).
-- [ ] **T4.2** Add the path to `api/admin.yaml` and re-run orval so the frontend gets a typed client.
+- [x] **T4.2** Add the path to `api/admin.yaml` and re-run orval so the frontend gets a typed client.
       **Verify**: `curl -s .../api/admin/settlements/execution-date-info | jq .` returns a Mon–Fri
       non-holiday date ≥ today + 7.
 
 ### M5 — Admin frontend
 
-- [ ] **T5.1** Fetch `minimum_date` from M4's endpoint and use it as `execution_date` in
+- [x] **T5.1** Fetch `minimum_date` from M4's endpoint and use it as `execution_date` in
       `JournalPage.handleConfirmSettlement` (both the settle-filter and the transaction_ids branch)
       and for display in `SettlementConfirmModal` — replacing **both** inline `today + 7` computations,
       which fixes A4 and A5 (shown date == submitted date) and removes the `toISOString()` timezone bug.
       No date rule is reimplemented in TypeScript.
-- [ ] **T5.2** Handle the fetch failing: keep the confirm button disabled with an error rather than
+- [x] **T5.2** Handle the fetch failing: keep the confirm button disabled with an error rather than
       falling back to a locally computed date, which is what would reintroduce the drift.
-- [ ] **T5.3** Vitest test for the modal/page: given a mocked endpoint response, the displayed and
+- [x] **T5.3** Vitest test for the modal/page: given a mocked endpoint response, the displayed and
       submitted date is exactly `minimum_date`.
       **Verify**: `cd admin-frontend && npm run test` — all green.
 
 ### M6 — Tests (E2E / API)
 
-- [ ] **T6.1** Fix the day-of-week flakiness introduced by M2 (A8): route
+- [x] **T6.1** Fix the day-of-week flakiness introduced by M2 (A8): route
       `e2etests/utils/transactions.ts`, `settlements.spec.ts:690` and
       `journal-and-settlements.spec.ts:298` through one shared helper in `e2etests/utils/dates.ts`
       that calls the M4 endpoint (not a reimplemented rule).
-- [ ] **T6.2** New API tests in `e2etests/tests/api/settlements.spec.ts`, against **both**
+- [x] **T6.2** New API tests in `e2etests/tests/api/settlements.spec.ts`, against **both**
       `POST /settlements` and `POST /settlements/settle-filter`: a weekend date → 422; `2026-12-25`
       (Good Friday-style fixed holiday on a weekday) → 422; `2026-04-06` (Easter Monday) → 422;
       the adjacent ordinary weekday → 201. Fixed dates per Pattern 003, not computed ones.
-- [ ] **T6.3** API test for `GET /settlements/execution-date-info`: returns 200, `lead_time_days` 7,
+- [x] **T6.3** API test for `GET /settlements/execution-date-info`: returns 200, `lead_time_days` 7,
       and a `minimum_date` that is a weekday and not in the holiday set.
-- [ ] **T6.4** E2E: settle from the Journal page and assert the created settlement's `execution_date`
+- [x] **T6.4** E2E: settle from the Journal page and assert the created settlement's `execution_date`
       is a valid business day, verified against the API (frontend → API → DB, per CLAUDE.md).
       **Verify**: `cd e2etests && npm test -- tests/api/settlements.spec.ts --workers=4`, then the
       full suite with `--workers=4`.
 
 ### M7 — Documentation
 
-- [ ] **T7.1** **ADR-0009 amendment** — the substantive one. Decision section gains weekends +
+- [x] **T7.1** **ADR-0009 amendment** — the substantive one. Decision section gains weekends +
       the six TARGET2 closing days; the validation pseudocode gains `nextBusinessDay`; Alternative 1
       ("Business Day Calculation with Holiday Calendar", rejected) must be rewritten honestly as
       *partially adopted*: computed holidays yes, `bank_holidays` table and regional variants still
@@ -188,9 +203,9 @@ way. Adding `date-fns`/`dayjs` here would only serve the local computation that 
       and the Easter-algorithm maintenance cost.
       ⚠️ Scope extension approved by the maintainer on 2026-08-05; confirm the final ADR wording
       before it is merged.
-- [ ] **T7.2** `use-cases/sepa/uc-sepa-07-settlement-finalize.md` — replace "No business day
+- [x] **T7.2** `use-cases/sepa/uc-sepa-07-settlement-finalize.md` — replace "No business day
       calculation required" in the Execution Date Rules table, which becomes wrong.
-- [ ] **T7.3** `api/admin.yaml` — document the new 422 case on both creation endpoints (the
+- [x] **T7.3** `api/admin.yaml` — document the new 422 case on both creation endpoints (the
       endpoint itself is added in T4.2).
 
 ---
@@ -201,6 +216,21 @@ way. Adding `date-fns`/`dayjs` here would only serve the local computation that 
   settlement; local closures do not move `ReqdColltnDt`.
 - **`+7` anchor divergence** (A7): `settlement_date + 7` vs ADR-0009's `TODAY + 7`. Pre-existing;
   not changed here.
+
+## Implementation notes (deviations from the plan as written)
+
+- **T5.3 changed shape.** The plan called for a Vitest test of the modal/page wiring. The admin
+  frontend has no DOM test infrastructure — no jsdom, no testing-library, and zero existing
+  Vitest tests — so that would have meant new devDependencies plus a `technologies.md` update,
+  beyond this issue. Instead: Vitest covers the pure `toIsoDate` util (4 tests), and the
+  component wiring is asserted by the E2E test in T6.4, which is where this project verifies UI
+  behaviour anyway. Worth a separate decision whether the frontend should have unit tests at all.
+- **Validation landed as a declarative `business_day` rule** in the shared `Validator` rather
+  than only as controller code, so both endpoints get it from the rule list (Pattern 001). The
+  cross-field lead-time check stayed a shared private controller method as planned.
+- **E2E tests were not executed locally.** This environment has no Docker daemon and no MariaDB,
+  so the stack cannot run. PHPUnit (118 tests), Vitest (4), tsc and lint were all verified
+  locally; E2E execution is left to CI.
 
 ## Success criteria
 
