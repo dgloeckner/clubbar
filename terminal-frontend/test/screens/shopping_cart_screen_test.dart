@@ -210,5 +210,68 @@ void main() {
       // Check quantity is displayed
       expect(find.text('2'), findsOneWidget);
     });
+
+    testWidgets('checkout button gives press feedback via InkWell',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(buildTestWidget());
+
+      final inkWell = tester.widget<InkWell>(
+        find.descendant(
+          of: find.byKey(const Key('checkout-button')),
+          matching: find.byType(InkWell),
+        ),
+      );
+      expect(inkWell.onTap, isNotNull);
+    });
+
+    group('checkout in flight', () {
+      setUp(() {
+        when(() => mockCartProvider.isLoading).thenReturn(true);
+      });
+
+      testWidgets('checkout button shows spinner and processing label',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.text('Wird verarbeitet…'), findsOneWidget);
+        expect(find.text('Bezahlen'), findsNothing);
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.byIcon(Icons.check), findsNothing);
+      });
+
+      testWidgets('checkout button is disabled', (WidgetTester tester) async {
+        await tester.pumpWidget(buildTestWidget());
+
+        final inkWell = tester.widget<InkWell>(
+          find.descendant(
+            of: find.byKey(const Key('checkout-button')),
+            matching: find.byType(InkWell),
+          ),
+        );
+        expect(inkWell.onTap, isNull);
+      });
+
+      testWidgets('tapping the checkout button does not start a checkout',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.text('Wird verarbeitet…'), warnIfMissed: false);
+        await tester.pump();
+
+        verifyNever(() => mockCartProvider.checkout(any(), any(), any()));
+      });
+
+      testWidgets('cart item controls are frozen', (WidgetTester tester) async {
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.byIcon(Icons.delete_outline),
+            warnIfMissed: false);
+        await tester.tap(find.text('+'), warnIfMissed: false);
+        await tester.pump();
+
+        verifyNever(() => mockCartProvider.removeItem(any()));
+        verifyNever(() => mockCartProvider.updateQuantity(any(), any()));
+      });
+    });
   });
 }

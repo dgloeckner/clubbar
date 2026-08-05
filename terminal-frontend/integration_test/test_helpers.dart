@@ -249,9 +249,15 @@ Future<ClubBarDatabase> createTestDatabase() async {
 /// a non-routable address (no real HTTP calls). SyncService is created
 /// with logging disabled and a temp path for failed transactions.
 ///
+/// Pass [cartService] to substitute the real [CartService] — e.g. with a
+/// slower one that keeps a checkout in flight long enough to tap again.
+///
 /// The returned widget can be passed to [tester.pumpWidget] in
 /// integration tests.
-Future<Widget> buildTestApp(ClubBarDatabase database) async {
+Future<Widget> buildTestApp(
+  ClubBarDatabase database, {
+  CartService? cartService,
+}) async {
   // Install mock HTTP overrides so all dart:io HTTP calls return 200 OK.
   // This prevents TransactionHistoryService (which bypasses NetworkService)
   // from failing with connection refused.
@@ -294,10 +300,11 @@ Future<Widget> buildTestApp(ClubBarDatabase database) async {
     networkService: networkService,
   );
   final productsService = ProductsService(repository: productsRepo);
-  final cartService = CartService(
-    database: database,
-    repository: transactionsRepo,
-  );
+  final effectiveCartService = cartService ??
+      CartService(
+        database: database,
+        repository: transactionsRepo,
+      );
 
   final logger = Logger(level: Level.off);
   final syncService = SyncService(
@@ -338,7 +345,7 @@ Future<Widget> buildTestApp(ClubBarDatabase database) async {
     localeProvider: localeProvider,
     membersProvider: membersProvider,
     productsProvider: productsProvider,
-    cartService: cartService,
+    cartService: effectiveCartService,
     syncProvider: syncProvider,
     membersRepository: membersRepo,
     transactionsRepository: transactionsRepo,

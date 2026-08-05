@@ -73,6 +73,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get checkout => 'Checkout';
 
   @override
+  String get checkoutProcessing => 'Processing…';
+
+  @override
   String get memberNotSelected => 'Member not selected';
 
   @override

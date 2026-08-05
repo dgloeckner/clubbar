@@ -103,11 +103,21 @@ class CartProvider extends ChangeNotifier {
   }
 
   /// Checkout: validate, dispense tokens if needed, create transactions, clear cart
+  ///
+  /// Re-entrant calls are ignored: while a checkout is in flight [isLoading] is
+  /// true and any further call returns immediately without touching the cart.
+  /// The cart is only emptied after every await has completed, so without this
+  /// guard a second call (e.g. a double-tap on the checkout button) would see a
+  /// full cart and charge the member twice.
   Future<void> checkout(
     BuildContext context,
     MembersCacheData member,
     String sessionId,
   ) async {
+    // Re-entrancy guard: set synchronously before the first await, so a second
+    // call can never observe a half-finished checkout.
+    if (_isLoading) return;
+
     _isLoading = true;
     notifyListeners();
 
