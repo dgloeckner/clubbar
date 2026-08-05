@@ -769,3 +769,13 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail")'
 - **License**: Apache-2.0
 - **Attribution**: All contributors credited in CONTRIBUTORS.md
 - **DCO**: Contributions must include sign-off (e.g., `git commit -s`)
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as GitHub Issues on `dgloeckner/ruderbar` via the `gh` CLI; reuse the repo's existing type/priority/area labels. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context layout — `CONTEXT.md` at the repo root (created lazily by /domain-modeling) and ADRs in `adr/`. See `docs/agents/domain.md`.
