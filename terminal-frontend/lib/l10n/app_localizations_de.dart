@@ -74,6 +74,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get checkout => 'Bezahlen';
 
   @override
+  String get checkoutProcessing => 'Wird verarbeitet…';
+
+  @override
   String get memberNotSelected => 'Kein Mitglied ausgewählt';
 
   @override

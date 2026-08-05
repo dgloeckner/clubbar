@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -154,6 +156,131 @@ void main() {
 
       expect(provider.items, isEmpty);
       expect(provider.total, equals(0));
+    });
+  });
+
+  group('CartProvider checkout re-entrancy', () {
+    late MockCartService mockService;
+    late MockConfigService mockConfig;
+    late MockSoundService mockSoundService;
+    late CartProvider provider;
+
+    final member = MembersCacheData(
+      id: 'member-1',
+      cardUid: 'card-123',
+      firstName: 'John',
+      lastName: 'Doe',
+      preferredLanguage: 'de',
+      isActive: 1,
+      isSepaValid: 1,
+      balanceCents: 0,
+      updatedAt: '2025-02-01T10:00:00Z',
+    );
+
+    setUp(() {
+      mockService = MockCartService();
+      mockConfig = MockConfigService();
+      mockSoundService = MockSoundService();
+      when(() => mockConfig.dispenserEnabled).thenReturn(false);
+      when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+      provider = CartProvider(
+        service: mockService,
+        config: mockConfig,
+        soundService: mockSoundService,
+      );
+    });
+
+    test('second checkout while first is in flight creates no transaction',
+        () async {
+      // Gate the transaction creation so the first checkout stays in flight
+      // until we decide to release it — this models the slow DB / dispenser
+      // window during which a member can double-tap the button.
+      final gate = Completer<void>();
+      var createTransactionCalls = 0;
+
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (true, null));
+      when(() => mockService.createTransaction(any(), any(),
+          sessionId: any(named: 'sessionId'))).thenAnswer((_) async {
+        createTransactionCalls++;
+        await gate.future;
+        return ('txn-123', null);
+      });
+
+      provider.addItem('prod-1', 'Beer', 500, 2, 'de');
+      final mockContext = MockBuildContext();
+
+      // First tap — starts the checkout but does not complete it yet.
+      final first = provider.checkout(mockContext, member, 'session-1');
+      expect(provider.isLoading, isTrue);
+
+      // Second tap while the first checkout is still awaiting.
+      await provider.checkout(mockContext, member, 'session-2');
+
+      // The re-entrant call must be a no-op: no second submission, the cart
+      // is untouched and the in-flight session is not overwritten.
+      expect(createTransactionCalls, equals(1));
+      expect(provider.items, hasLength(1));
+      expect(provider.lastSessionId, equals('session-1'));
+
+      gate.complete();
+      await first;
+
+      // The original checkout still completes normally, exactly once.
+      expect(createTransactionCalls, equals(1));
+      expect(provider.items, isEmpty);
+      expect(provider.isLoading, isFalse);
+      expect(provider.lastError, isNull);
+      verify(() => mockSoundService.play(SoundEvent.checkoutSuccess)).called(1);
+    });
+
+    test('rapid double checkout awaited together submits the cart once',
+        () async {
+      var createTransactionCalls = 0;
+
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (true, null));
+      when(() => mockService.createTransaction(any(), any(),
+          sessionId: any(named: 'sessionId'))).thenAnswer((_) async {
+        createTransactionCalls++;
+        // Yield so a concurrent checkout would interleave here.
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        return ('txn-123', null);
+      });
+
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      final mockContext = MockBuildContext();
+
+      await Future.wait([
+        provider.checkout(mockContext, member, 'session-1'),
+        provider.checkout(mockContext, member, 'session-1'),
+      ]);
+
+      expect(createTransactionCalls, equals(1));
+      expect(provider.items, isEmpty);
+      expect(provider.isLoading, isFalse);
+    });
+
+    test('checkout can run again after the previous one finished', () async {
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (true, null));
+      when(() => mockService.createTransaction(any(), any(),
+              sessionId: any(named: 'sessionId')))
+          .thenAnswer((_) async => ('txn-123', null));
+
+      final mockContext = MockBuildContext();
+
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      await provider.checkout(mockContext, member, 'session-1');
+      expect(provider.items, isEmpty);
+
+      provider.addItem('prod-2', 'Water', 150, 1, 'de');
+      await provider.checkout(mockContext, member, 'session-2');
+
+      expect(provider.items, isEmpty);
+      expect(provider.lastSessionId, equals('session-2'));
+      verify(() => mockService.createTransaction(any(), any(),
+          sessionId: any(named: 'sessionId'))).called(2);
     });
   });
 

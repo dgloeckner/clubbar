@@ -212,6 +212,12 @@ abstract class AppLocalizations {
   /// **'Bezahlen'**
   String get checkout;
 
+  /// Checkout button label while the checkout is in flight
+  ///
+  /// In de, this message translates to:
+  /// **'Wird verarbeitet…'**
+  String get checkoutProcessing;
+
   /// Error when trying to checkout without member
   ///
   /// In de, this message translates to:

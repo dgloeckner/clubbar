@@ -91,6 +91,13 @@ Member taps cart button to review items before purchase
 3. Return to product view
 4. Product badges still show quantities
 
+### V7: Checkout In Progress
+1. Member taps "Buy"
+2. Buy button switches to a spinner with a "processing" label and stops accepting taps
+3. Quantity and remove controls are frozen for the duration of the checkout
+4. Further "Buy" taps are ignored — the cart is submitted exactly once
+5. On completion the confirmation view is shown
+
 ## Business Rules
 - Cart is transient (not persisted)
 - Cart cleared on: new user scan, checkout, continue shopping after checkout

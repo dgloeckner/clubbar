@@ -22,6 +22,7 @@
   "cartNewBalance": "New Balance: {balance}",
   "cartEachPrice": "{price} each",
   "checkout": "Checkout",
+  "checkoutProcessing": "Processing…",
   "memberNotSelected": "Member not selected",
 
   "checkoutSuccess": "Transaction successful!",
