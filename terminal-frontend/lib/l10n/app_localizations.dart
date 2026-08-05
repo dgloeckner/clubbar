@@ -854,6 +854,24 @@ abstract class AppLocalizations {
   /// **'Weiter einkaufen'**
   String get sessionTimeoutContinue;
 
+  /// ScanHintKey.alreadyLoggedIn — active member re-tapped their own card (ADR-0027 rule 4)
+  ///
+  /// In de, this message translates to:
+  /// **'Du bist bereits angemeldet'**
+  String get scanHintAlreadyLoggedIn;
+
+  /// ScanHintKey.logOutFirst — foreign card tapped during an active session (ADR-0027 rule 3)
+  ///
+  /// In de, this message translates to:
+  /// **'Bitte zuerst abmelden'**
+  String get scanHintLogOutFirst;
+
+  /// ScanHintKey.transactionInProgress — scan refused while a checkout or dispense is in flight (ADR-0027 rule 7)
+  ///
+  /// In de, this message translates to:
+  /// **'Bitte warten – Bezahlung läuft'**
+  String get scanHintTransactionInProgress;
+
   /// TerminalErrorKey.membersRefreshFailed — member cache refresh failed
   ///
   /// In de, this message translates to:

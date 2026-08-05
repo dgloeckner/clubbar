@@ -49,9 +49,28 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   late Future<_SessionData> _sessionDataFuture;
   bool _autoNavStarted = false;
 
+  /// Whom the receipt was issued to, captured once at mount.
+  ///
+  /// A receipt is a finished transaction, so it must not follow live session
+  /// state: a card scan on this screen ends the shown session and starts the
+  /// next member's (ADR-0027 rule 9), and a receipt still watching
+  /// [MembersProvider] would repaint with a cleared or foreign identity while
+  /// it fades out. The balance is already final here — the cart screen awaits
+  /// `refreshDeckel()` before navigating.
+  late final String _memberName;
+  late final int _billedToBalanceCents;
+  late final String _locale;
+
   @override
   void initState() {
     super.initState();
+
+    final selectedMember = context.read<MembersProvider>().selectedMember;
+    _memberName = selectedMember != null
+        ? '${selectedMember.firstName} ${selectedMember.lastName}'
+        : 'Member';
+    _locale = selectedMember?.preferredLanguage ?? 'de';
+    _billedToBalanceCents = context.read<MembersProvider>().memberDeckel ?? 0;
 
     // Initialize scale-in animation
     _scaleController = AnimationController(
@@ -139,13 +158,9 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final membersProvider = context.watch<MembersProvider>();
-    final selectedMember = membersProvider.selectedMember;
-    final locale = selectedMember?.preferredLanguage ?? 'de';
-    final memberName = selectedMember != null
-        ? '${selectedMember.firstName} ${selectedMember.lastName}'
-        : 'Member';
-    final newBalance = membersProvider.memberDeckel ?? 0;
+    final locale = _locale;
+    final memberName = _memberName;
+    final newBalance = _billedToBalanceCents;
 
     return FutureBuilder<_SessionData>(
       future: _sessionDataFuture,

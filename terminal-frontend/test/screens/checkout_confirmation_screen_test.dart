@@ -5,18 +5,24 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
+import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
+import 'package:clubbar_terminal/services/members_service.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
+class MockMembersService extends Mock implements MembersService {}
+class FakeMembersCacheData extends Fake implements MembersCacheData {}
 class MockSessionController extends Mock implements SessionController {}
 class MockTransactionsRepository extends Mock implements TransactionsRepository {}
 
 void main() {
+  setUpAll(() => registerFallbackValue(FakeMembersCacheData()));
+
   group('CheckoutConfirmationScreen', () {
     late MockCartProvider mockCartProvider;
     late MockMembersProvider mockMembersProvider;
@@ -50,6 +56,77 @@ void main() {
       // Setup repository mocks — normal (non-partial) session by default
       when(() => mockRepo.getSessionTotal(any())).thenAnswer((_) async => 500);
       when(() => mockRepo.getSessionDispenserInfo(any())).thenAnswer((_) async => null);
+    });
+
+    testWidgets('keeps the receipt on the member it was issued to when the '
+        'session is taken over (#26)', (WidgetTester tester) async {
+      final anna = MembersCacheData(
+        id: 'member-a',
+        cardUid: '1',
+        firstName: 'Anna',
+        lastName: 'Member',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: '2025-02-01T10:00:00Z',
+      );
+      // A real provider: the point of the test is what happens when it
+      // *notifies*, which a mocked addListener would swallow.
+      final membersService = MockMembersService();
+      when(() => membersService.getEffectiveBalance(any()))
+          .thenAnswer((_) async => -1250);
+      final membersProvider = MembersProvider(service: membersService);
+      await membersProvider.setSelectedMember(anna);
+
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                  value: membersProvider,
+                ),
+                ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController,
+                ),
+                Provider<TransactionsRepository>.value(value: mockRepo),
+              ],
+              child: const CheckoutConfirmationScreen(sessionId: 'sess-abc123'),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('de'), Locale('en')],
+          locale: const Locale('de'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Anna Member'), findsOneWidget);
+      expect(find.textContaining('-12,50'), findsOneWidget);
+
+      // A card tap on this screen ends Anna's session and starts the next
+      // member's before the receipt fades out — the receipt must not repaint
+      // with a cleared or foreign identity.
+      membersProvider.clearSelectedMember();
+      await tester.pump();
+
+      expect(find.text('Anna Member'), findsOneWidget);
+      expect(find.textContaining('-12,50'), findsOneWidget);
     });
 
     testWidgets('displays success message', (WidgetTester tester) async {

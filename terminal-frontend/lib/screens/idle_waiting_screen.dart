@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
@@ -23,29 +22,19 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
   static const _errorDisplayDuration = Duration(seconds: 5);
   static const _errorFadeDuration = Duration(milliseconds: 500);
 
-  final StringBuffer _rfidBuffer = StringBuffer();
   Timer? _errorDismissTimer;
   Timer? _errorClearTimer;
   /// The occurrence already shown, so a repeat of the same key still displays.
   TerminalError? _shownError;
   double _errorOpacity = 1.0;
-  RfidProvider? _rfidProvider;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Scan capture itself belongs to the app shell (see [ScanCapture]) — the
+      // reader is a property of the terminal, not of this screen (issue #26).
       context.read<SyncProvider>().startBackgroundSync();
-
-      // Save reference to RfidProvider for safe disposal
-      final rfidProvider = context.read<RfidProvider>();
-      _rfidProvider = rfidProvider;
-
-      // Start listening for real RFID scans (stream subscription)
-      rfidProvider.startListening(context);
-
-      // Capture all keyboard input globally — works on Linux/Wayland and macOS
-      HardwareKeyboard.instance.addHandler(_onKeyEvent);
     });
   }
 
@@ -53,26 +42,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
   void dispose() {
     _errorDismissTimer?.cancel();
     _errorClearTimer?.cancel();
-    HardwareKeyboard.instance.removeHandler(_onKeyEvent);
-    // Null when the screen is torn down before its first post-frame callback.
-    _rfidProvider?.stopListening();
     super.dispose();
-  }
-
-  /// Accumulate characters from the RFID reader (USB keyboard emulation).
-  /// Emits the buffered UID when Enter is received.
-  bool _onKeyEvent(KeyEvent event) {
-    if (event is! KeyDownEvent) return false;
-    if (event.logicalKey == LogicalKeyboardKey.enter) {
-      final uid = _rfidBuffer.toString().trim();
-      _rfidBuffer.clear();
-      if (uid.isNotEmpty) {
-        _rfidProvider?.emitScan(uid);
-      }
-    } else if (event.character != null && event.character!.isNotEmpty) {
-      _rfidBuffer.write(event.character);
-    }
-    return false; // don't consume — let other widgets handle events normally
   }
 
   /// Show [error] at full opacity for [_errorDisplayDuration], then fade it out.
