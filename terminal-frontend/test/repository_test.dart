@@ -3,6 +3,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/generated/terminal.swagger.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
@@ -35,7 +36,7 @@ void main() {
       final (member, error) = await repo.findByCardUid('unknown-card-uid');
 
       expect(member, isNull);
-      expect(error, equals('rfidErrorUnknownCard'));
+      expect(error, equals(TerminalErrorKey.unknownCard));
     });
 
     test('findByCardUid returns member for valid card', () async {
@@ -79,7 +80,7 @@ void main() {
       final (member, error) = await repo.findByCardUid('card-inactive');
 
       expect(member, isNull);
-      expect(error, equals('rfidErrorAccountInactive'));
+      expect(error, equals(TerminalErrorKey.accountInactive));
     });
 
     test('findByCardUid returns error for missing SEPA mandate', () async {
@@ -100,7 +101,7 @@ void main() {
       final (member, error) = await repo.findByCardUid('card-no-sepa');
 
       expect(member, isNull);
-      expect(error, equals('rfidErrorSepaMissing'));
+      expect(error, equals(TerminalErrorKey.sepaMissing));
     });
 
     test('upsertMembers inserts new members', () async {

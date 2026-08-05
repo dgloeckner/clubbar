@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'dart:convert';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/services/products_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
@@ -80,7 +81,7 @@ void main() {
 
       await provider.refreshProducts();
 
-      expect(provider.lastError, contains('refresh'));
+      expect(provider.lastErrorKey, equals(TerminalErrorKey.productsRefreshFailed));
       expect(provider.isSyncing, isFalse);
     });
 

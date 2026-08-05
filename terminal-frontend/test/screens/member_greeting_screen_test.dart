@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/member_greeting_screen.dart';
+import '../test_helpers.dart';
 
 class MockMembersProvider extends Mock implements MembersProvider {}
 
@@ -50,13 +52,14 @@ void main() {
 
     testWidgets('displays error message for unknown card', (WidgetTester tester) async {
       when(() => mockMembersProvider.selectedMember).thenReturn(null);
-      when(() => mockMembersProvider.lastError).thenReturn('Member not found');
+      when(() => mockMembersProvider.lastError).thenReturn(
+          const TerminalError(key: TerminalErrorKey.unknownCard, sequence: 1));
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: ChangeNotifierProvider<MembersProvider>.value(
+        createTestApp(
+          child: ChangeNotifierProvider<MembersProvider>.value(
             value: mockMembersProvider,
             child: const Scaffold(
               body: MemberGreetingScreen(),
@@ -65,7 +68,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Member not found'), findsOneWidget);
+      expect(find.text('Unbekannter Chip'), findsOneWidget);
     });
 
     testWidgets('displays Continue Shopping button', (WidgetTester tester) async {

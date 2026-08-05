@@ -547,5 +547,51 @@
       "seconds": {"type": "int"}
     }
   },
-  "sessionTimeoutContinue": "Weiter einkaufen"
+  "sessionTimeoutContinue": "Weiter einkaufen",
+
+  "@_TERMINAL_ERRORS": {},
+  "errorMembersRefreshFailed": "Mitgliederdaten konnten nicht aktualisiert werden",
+  "@errorMembersRefreshFailed": {
+    "description": "TerminalErrorKey.membersRefreshFailed — member cache refresh failed"
+  },
+  "errorProductsRefreshFailed": "Produkte konnten nicht aktualisiert werden",
+  "@errorProductsRefreshFailed": {
+    "description": "TerminalErrorKey.productsRefreshFailed — product cache refresh failed"
+  },
+  "errorCheckoutFailed": "Bezahlung fehlgeschlagen. Bitte erneut versuchen.",
+  "@errorCheckoutFailed": {
+    "description": "TerminalErrorKey.checkoutFailed — unexpected failure during checkout"
+  },
+  "errorCheckoutCancelled": "Bezahlung abgebrochen",
+  "@errorCheckoutCancelled": {
+    "description": "TerminalErrorKey.checkoutCancelled — member cancelled the checkout"
+  },
+  "errorTransactionCreateFailed": "Dein Einkauf konnte nicht gespeichert werden. Bitte erneut versuchen.",
+  "@errorTransactionCreateFailed": {
+    "description": "TerminalErrorKey.transactionCreateFailed — transaction could not be written locally"
+  },
+  "errorDispenserNotConfigured": "Das Ausgabegerät ist nicht eingerichtet",
+  "@errorDispenserNotConfigured": {
+    "description": "TerminalErrorKey.dispenserNotConfigured — token product in cart but dispenser disabled"
+  },
+  "errorDispenserOperationFailed": "Token-Ausgabe fehlgeschlagen. Bitte das Personal informieren.",
+  "@errorDispenserOperationFailed": {
+    "description": "TerminalErrorKey.dispenserOperationFailed — dispenser bookkeeping failed"
+  },
+  "errorDispenserUnavailable": "Das Ausgabegerät ist nicht verfügbar",
+  "@errorDispenserUnavailable": {
+    "description": "TerminalErrorKey.dispenserUnavailable — dispenser did not respond as expected"
+  },
+  "errorBackendUnreachable": "Keine Verbindung zum Server",
+  "@errorBackendUnreachable": {
+    "description": "TerminalErrorKey.backendUnreachable — backend health check failed"
+  },
+  "errorSyncFailed": "Synchronisierung fehlgeschlagen",
+  "@errorSyncFailed": {
+    "description": "TerminalErrorKey.syncFailed — a sync cycle did not complete"
+  },
+  "errorTransactionSyncFailed": "Einige Einkäufe konnten nicht synchronisiert werden",
+  "@errorTransactionSyncFailed": {
+    "description": "TerminalErrorKey.transactionSyncFailed — non-fatal transaction upload failure"
+  }
 }

@@ -1,4 +1,5 @@
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
@@ -18,7 +19,8 @@ class MembersService {
 
   /// Look up member by RFID card UID.
   /// On success, opportunistically syncs pending transactions for a fresh balance.
-  Future<(MembersCacheData?, String?)> lookupByRfid(String cardUid) async {
+  Future<(MembersCacheData?, TerminalErrorKey?)> lookupByRfid(
+      String cardUid) async {
     final (member, error) = await _repository.findByCardUid(cardUid);
     if (member == null) return (member, error);
 

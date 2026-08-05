@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
@@ -375,11 +376,14 @@ class ShoppingCartScreen extends StatelessWidget {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(cartProvider.lastError!),
+                              content: Text(cartProvider.lastError!
+                                  .message(AppLocalizations.of(context)!)),
                               backgroundColor: const Color(0xffef4444),
                             ),
                           );
                         }
+                        // Shown — drop it so the next failure signals afresh.
+                        cartProvider.clearError();
                         return;
                       }
 

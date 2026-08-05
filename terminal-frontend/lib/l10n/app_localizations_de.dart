@@ -452,4 +452,45 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get sessionTimeoutContinue => 'Weiter einkaufen';
+
+  @override
+  String get errorMembersRefreshFailed =>
+      'Mitgliederdaten konnten nicht aktualisiert werden';
+
+  @override
+  String get errorProductsRefreshFailed =>
+      'Produkte konnten nicht aktualisiert werden';
+
+  @override
+  String get errorCheckoutFailed =>
+      'Bezahlung fehlgeschlagen. Bitte erneut versuchen.';
+
+  @override
+  String get errorCheckoutCancelled => 'Bezahlung abgebrochen';
+
+  @override
+  String get errorTransactionCreateFailed =>
+      'Dein Einkauf konnte nicht gespeichert werden. Bitte erneut versuchen.';
+
+  @override
+  String get errorDispenserNotConfigured =>
+      'Das Ausgabegerät ist nicht eingerichtet';
+
+  @override
+  String get errorDispenserOperationFailed =>
+      'Token-Ausgabe fehlgeschlagen. Bitte das Personal informieren.';
+
+  @override
+  String get errorDispenserUnavailable =>
+      'Das Ausgabegerät ist nicht verfügbar';
+
+  @override
+  String get errorBackendUnreachable => 'Keine Verbindung zum Server';
+
+  @override
+  String get errorSyncFailed => 'Synchronisierung fehlgeschlagen';
+
+  @override
+  String get errorTransactionSyncFailed =>
+      'Einige Einkäufe konnten nicht synchronisiert werden';
 }

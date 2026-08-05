@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/widgets/status_info_modal.dart';
 import '../test_helpers.dart';
@@ -65,7 +66,8 @@ void main() {
       when(() => mockSyncProvider.lastSyncTime).thenReturn(null);
       when(() => mockSyncProvider.lastSuccessfulTransactionSync).thenReturn(null);
       when(() => mockSyncProvider.retryCount).thenReturn(3);
-      when(() => mockSyncProvider.lastError).thenReturn('Backend unreachable');
+      when(() => mockSyncProvider.lastError).thenReturn(
+          const TerminalError(key: TerminalErrorKey.backendUnreachable, sequence: 1));
 
       await tester.pumpWidget(buildTestApp(
         child: Builder(
@@ -84,7 +86,7 @@ void main() {
       expect(find.text('Wiederholungsversuche'), findsOneWidget); // "Retry count" in German
       expect(find.text('3'), findsOneWidget);
       expect(find.text('Fehlerdetails'), findsOneWidget); // "Error details" in German
-      expect(find.text('Backend unreachable'), findsOneWidget);
+      expect(find.text('Keine Verbindung zum Server'), findsOneWidget);
     });
 
     testWidgets('shows Error status with error details', (tester) async {
@@ -92,7 +94,8 @@ void main() {
       when(() => mockSyncProvider.lastSyncTime).thenReturn(DateTime(2025, 6, 15, 14, 30));
       when(() => mockSyncProvider.lastSuccessfulTransactionSync).thenReturn(null);
       when(() => mockSyncProvider.retryCount).thenReturn(1);
-      when(() => mockSyncProvider.lastError).thenReturn('Sync failed: timeout');
+      when(() => mockSyncProvider.lastError).thenReturn(
+          const TerminalError(key: TerminalErrorKey.syncFailed, sequence: 1));
 
       await tester.pumpWidget(buildTestApp(
         child: Builder(
@@ -108,7 +111,7 @@ void main() {
 
       expect(find.text('Fehler'), findsOneWidget); // "Error" in German
       expect(find.text('Fehlerdetails'), findsOneWidget); // "Error details" in German
-      expect(find.text('Sync failed: timeout'), findsOneWidget);
+      expect(find.text('Synchronisierung fehlgeschlagen'), findsOneWidget);
     });
 
     testWidgets('Dismiss button closes the modal', (tester) async {

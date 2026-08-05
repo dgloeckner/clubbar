@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
@@ -15,6 +16,7 @@ class MockSessionController extends Mock implements SessionController {}
 void main() {
   setUpAll(() {
     registerFallbackValue(SoundEvent.scanSuccess);
+    registerFallbackValue(TerminalErrorKey.unknownCard);
     registerFallbackValue(MembersCacheData(
       id: 'fallback',
       cardUid: null,
@@ -70,7 +72,7 @@ void main() {
 
     test('plays scanError when card not found', () async {
       when(() => membersRepository.findByCardUid(any()))
-          .thenAnswer((_) async => (null, 'rfidErrorUnknownCard'));
+          .thenAnswer((_) async => (null, TerminalErrorKey.unknownCard));
       when(() => membersProvider.setError(any())).thenReturn(null);
 
       await provider.handleCardScan('unknown-card');

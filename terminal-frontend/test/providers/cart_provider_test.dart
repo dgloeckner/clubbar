@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
@@ -140,12 +141,75 @@ void main() {
       provider.addItem('prod-1', 'Beer', 500, 1, 'de');
 
       when(() => mockService.validateCartBeforeCheckout(any(), any()))
-          .thenAnswer((_) async => (false, 'Member inactive'));
+          .thenAnswer((_) async => (false, TerminalErrorKey.accountInactive));
 
       await provider.checkout(mockContext, member, 'test-session-id');
 
       expect(provider.items, hasLength(1)); // Cart unchanged
-      expect(provider.lastError, equals('Member inactive'));
+      expect(provider.lastErrorKey, equals(TerminalErrorKey.accountInactive));
+    });
+
+    // Acceptance criterion (#57): a member who taps checkout twice against the
+    // same failure must be told twice — the second rejection has to reach the
+    // UI as its own event, not be swallowed as "unchanged state".
+    test('repeating the same checkout failure produces a second display event',
+        () async {
+      final member = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 0,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+
+      final mockContext = MockBuildContext();
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (false, TerminalErrorKey.accountInactive));
+
+      var notifications = 0;
+      provider.addListener(() => notifications++);
+
+      await provider.checkout(mockContext, member, 'test-session-id');
+      final first = provider.lastError;
+
+      await provider.checkout(mockContext, member, 'test-session-id');
+      final second = provider.lastError;
+
+      expect(first!.key, equals(second!.key));
+      expect(first, isNot(equals(second)));
+      expect(second.sequence, greaterThan(first.sequence));
+      expect(notifications, greaterThanOrEqualTo(2));
+    });
+
+    test('clearError drops a displayed checkout failure', () async {
+      final member = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 0,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (false, TerminalErrorKey.accountInactive));
+
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      await provider.checkout(MockBuildContext(), member, 'test-session-id');
+      expect(provider.lastError, isNotNull);
+
+      provider.clearError();
+
+      expect(provider.lastError, isNull);
     });
 
     test('clearCart empties cart', () {
@@ -374,7 +438,7 @@ void main() {
       provider.addItem('prod-1', 'Beer', 500, 1, 'de');
       clearInteractions(mockSoundService);
       when(() => mockService.validateCartBeforeCheckout(any(), any()))
-          .thenAnswer((_) async => (false, 'Member inactive'));
+          .thenAnswer((_) async => (false, TerminalErrorKey.accountInactive));
 
       await provider.checkout(mockContext, member, 'test-session-id');
 
