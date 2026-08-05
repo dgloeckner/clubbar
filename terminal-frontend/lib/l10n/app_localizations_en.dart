@@ -452,6 +452,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sessionTimeoutContinue => 'Keep shopping';
 
   @override
+  String get scanHintAlreadyLoggedIn => 'You are already logged in';
+
+  @override
+  String get scanHintLogOutFirst => 'Please log out first';
+
+  @override
+  String get scanHintTransactionInProgress =>
+      'Please wait — transaction in progress';
+
+  @override
   String get errorMembersRefreshFailed => 'Member data could not be refreshed';
 
   @override

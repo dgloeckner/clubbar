@@ -8,6 +8,7 @@ import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
 import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/widgets/main_layout.dart';
+import 'package:clubbar_terminal/widgets/scan_capture.dart';
 
 // Create router with dynamic redirect based on member selection state
 GoRouter createAppRouter(BuildContext context, {configService}) {
@@ -41,9 +42,13 @@ GoRouter createAppRouter(BuildContext context, {configService}) {
       return null; // No redirect needed
     },
     routes: [
-      // Shell route with persistent header
+      // Shell route with persistent header. Scan capture sits here so a card
+      // tap is read on every route, not only on the idle screen (issue #26).
       ShellRoute(
-        builder: (context, state, child) => MainLayout(child: child),
+        builder: (context, state, child) => ScanCapture(
+          location: state.uri.path,
+          child: MainLayout(child: child),
+        ),
         routes: [
           GoRoute(
             path: '/idle',

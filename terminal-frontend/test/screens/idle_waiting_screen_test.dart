@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
@@ -120,23 +119,8 @@ void main() {
       expect(button.onPressed, isNull); // Button disabled when scanning
     });
 
-    testWidgets('keyboard input emits scan to rfidProvider on Enter', (WidgetTester tester) async {
-      when(() => mockRfidProvider.addListener(any())).thenReturn(null);
-      when(() => mockRfidProvider.removeListener(any())).thenReturn(null);
-      when(() => mockRfidProvider.isScanning).thenReturn(false);
-
-      await tester.pumpWidget(buildTestApp());
-      await tester.pump(); // trigger addPostFrameCallback → registers HardwareKeyboard handler
-
-      // Simulate RFID reader typing '0', '0', '3' then Enter
-      await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
-      await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
-      await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pump();
-
-      verify(() => mockRfidProvider.emitScan('003')).called(1);
-    });
+    // Keyboard-wedge capture moved to the app shell in issue #26 — it is
+    // covered by test/widgets/scan_capture_test.dart.
   });
 
   group('IdleWaitingScreen error banner', () {

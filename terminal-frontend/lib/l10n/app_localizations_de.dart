@@ -454,6 +454,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get sessionTimeoutContinue => 'Weiter einkaufen';
 
   @override
+  String get scanHintAlreadyLoggedIn => 'Du bist bereits angemeldet';
+
+  @override
+  String get scanHintLogOutFirst => 'Bitte zuerst abmelden';
+
+  @override
+  String get scanHintTransactionInProgress => 'Bitte warten – Bezahlung läuft';
+
+  @override
   String get errorMembersRefreshFailed =>
       'Mitgliederdaten konnten nicht aktualisiert werden';
 

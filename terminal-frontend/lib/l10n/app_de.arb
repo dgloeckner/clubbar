@@ -549,6 +549,20 @@
   },
   "sessionTimeoutContinue": "Weiter einkaufen",
 
+  "@_SCAN_HINTS": {},
+  "scanHintAlreadyLoggedIn": "Du bist bereits angemeldet",
+  "@scanHintAlreadyLoggedIn": {
+    "description": "ScanHintKey.alreadyLoggedIn — active member re-tapped their own card (ADR-0027 rule 4)"
+  },
+  "scanHintLogOutFirst": "Bitte zuerst abmelden",
+  "@scanHintLogOutFirst": {
+    "description": "ScanHintKey.logOutFirst — foreign card tapped during an active session (ADR-0027 rule 3)"
+  },
+  "scanHintTransactionInProgress": "Bitte warten – Bezahlung läuft",
+  "@scanHintTransactionInProgress": {
+    "description": "ScanHintKey.transactionInProgress — scan refused while a checkout or dispense is in flight (ADR-0027 rule 7)"
+  },
+
   "@_TERMINAL_ERRORS": {},
   "errorMembersRefreshFailed": "Mitgliederdaten konnten nicht aktualisiert werden",
   "@errorMembersRefreshFailed": {

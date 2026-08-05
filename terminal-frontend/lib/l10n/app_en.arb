@@ -170,6 +170,10 @@
   },
   "sessionTimeoutContinue": "Keep shopping",
 
+  "scanHintAlreadyLoggedIn": "You are already logged in",
+  "scanHintLogOutFirst": "Please log out first",
+  "scanHintTransactionInProgress": "Please wait — transaction in progress",
+
   "errorMembersRefreshFailed": "Member data could not be refreshed",
   "errorProductsRefreshFailed": "Products could not be refreshed",
   "errorCheckoutFailed": "Checkout failed. Please try again.",
