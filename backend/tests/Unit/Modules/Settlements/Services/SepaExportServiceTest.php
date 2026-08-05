@@ -87,9 +87,33 @@ class SepaExportServiceTest extends TestCase
         $this->assertSame('5.00', $xpath->query('//p:CtrlSum')->item(0)->textContent);
         $this->assertSame('RCUR', $xpath->query('//p:SeqTp')->item(0)->textContent);
         $this->assertSame('CORE', $xpath->query('//p:LclInstrm/p:Cd')->item(0)->textContent);
-        // ISO 20022 2019 versions (>= .08) use BICFI instead of BIC
-        $this->assertGreaterThan(0, $xpath->query('//p:FinInstnId/p:BICFI')->length);
         $this->assertSame('F3332CA866B249E7A202BFBF4836B605', $xpath->query('//p:MndtId')->item(0)->textContent);
+    }
+
+    public function testIbanOnlySubmissionUsesOthrIdNotProvidedForAgents(): void
+    {
+        $xml = $this->makeService()->generateSepaXml(self::SETTLEMENT_ID);
+
+        $dom = new \DOMDocument();
+        $dom->loadXML($xml);
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('p', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.08');
+
+        // EPC/DK guidelines: when no BIC is supplied, the agent must be identified
+        // via Othr/Id = NOTPROVIDED. BICFI=NOTPROVIDED only passes XSD validation by
+        // accident — it parses as a non-existent Romanian BIC (NOTP-RO-VI-DED) and is
+        // rejected by bank-side validators that resolve BICs against a directory.
+        $this->assertSame(0, $xpath->query('//p:FinInstnId/p:BICFI')->length);
+
+        foreach (['CdtrAgt', 'DbtrAgt'] as $agent) {
+            // Both agents are mandatory (minOccurs=1) in pain.008.001.08 and must not
+            // be dropped just because no BIC is available.
+            $this->assertSame(1, $xpath->query("//p:{$agent}")->length, "{$agent} is mandatory");
+
+            $ids = $xpath->query("//p:{$agent}/p:FinInstnId/p:Othr/p:Id");
+            $this->assertSame(1, $ids->length, "{$agent} must carry exactly one Othr/Id");
+            $this->assertSame('NOTPROVIDED', $ids->item(0)->textContent);
+        }
     }
 
     public function testExportValidatesAgainstOfficialXsd(): void

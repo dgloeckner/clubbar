@@ -68,13 +68,17 @@ class SepaExportService
             'pain.008.001.08'
         );
 
+        // IBAN-only submission: no agent BIC is collected. Omitting the BIC key
+        // makes digitick emit <FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId>,
+        // the encoding the EPC/DK guidelines prescribe for pain.008.001.08.
+        // Passing the literal 'NOTPROVIDED' would instead land in <BICFI>, where it
+        // parses as a (non-existent) Romanian BIC and can trip bank-side validators.
         $directDebit->addPaymentInfo(
             $paymentId,
             [
                 'id' => $paymentId,
                 'creditorName' => $this->sanitizeName($config['creditor_name']),
                 'creditorAccountIBAN' => $this->sanitizeIban($config['creditor_iban']),
-                'creditorAgentBIC' => 'NOTPROVIDED',
                 'seqType' => \Digitick\Sepa\PaymentInformation::S_RECURRING,
                 'creditorId' => $config['creditor_id'],
                 // Must be 'dueDate' — that is the key digitick's facade reads for
@@ -99,7 +103,8 @@ class SepaExportService
                     'amount' => $amountCents,
                     'endToEndId' => $paymentId . '-' . $sequence,
                     'debtorIban' => $this->sanitizeIban($member['iban']),
-                    'debtorBic' => 'NOTPROVIDED',
+                    // No debtorBic: see the CdtrAgt note above — the omitted BIC
+                    // yields <DbtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id>.
                     'debtorName' => $this->sanitizeName($member['account_holder_name'] ?? ($member['first_name'] . ' ' . $member['last_name'])),
                     'debtorMandate' => $member['mandate_reference'],
                     'debtorMandateSignDate' => $member['mandate_signed_at'] ?? $settlement['settlement_date'],
