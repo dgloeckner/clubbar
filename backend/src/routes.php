@@ -122,6 +122,9 @@ return function (App $app): void {
         $group->get('/audit-log', [AuditLogAdminController::class, 'index']);
 
         // Settlements
+        // Static segments must stay above /settlements/{id} so they are not
+        // swallowed by the placeholder route.
+        $group->get('/settlements/execution-date-info', [SettlementsAdminController::class, 'executionDateInfo']);
         $group->get('/settlements/filter-preview', [SettlementsAdminController::class, 'filterPreview']);
         $group->post('/settlements/settle-filter', [SettlementsAdminController::class, 'settleFilter']);
         $group->post('/settlements/preview', [SettlementsAdminController::class, 'preview']);

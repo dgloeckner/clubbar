@@ -47,6 +47,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type {
   CreateSettlementByFiltersBody,
+  ExecutionDateInfo,
   ListSettlements200,
   ListSettlementsParams,
   PreviewSettlementByFiltersParams,
@@ -87,6 +88,9 @@ const listSettlements = (
 
 **SEPA settlements**:
 - Require `execution_date` (minimum TODAY + 7 calendar days)
+- `execution_date` must be a bank business day — Mon-Fri, excluding the
+  six TARGET2 closing days. Use `GET /admin/settlements/execution-date-info`
+  for the earliest valid date rather than computing it.
 - All members with valid SEPA data are included in XML export
 
 **Manual settlements**:
@@ -118,6 +122,25 @@ const previewSettlement = (
       return customInstance<SettlementPreview>(
       {url: `/admin/settlements/preview`, method: 'GET',
         params
+    },
+      options);
+    }
+  /**
+ * Returns the earliest execution date a settlement may use: today plus the
+fixed lead time, rolled forward to the next bank business day.
+
+Clients must use `minimum_date` rather than computing it, so the TARGET2
+calendar stays defined in one place.
+
+**ADR**: ADR-0009 · **Use Case**: UC-SEPA-07
+
+ * @summary Earliest valid SEPA execution date
+ */
+const getExecutionDateInfo = (
+    
+ options?: SecondParameter<typeof customInstance<ExecutionDateInfo>>,) => {
+      return customInstance<ExecutionDateInfo>(
+      {url: `/admin/settlements/execution-date-info`, method: 'GET'
     },
       options);
     }
@@ -215,7 +238,12 @@ const previewSettlementByFilters = (
       options);
     }
   /**
- * Create a settlement for all unsettled transactions matching date filters
+ * Create a settlement for all unsettled transactions matching date filters.
+
+`execution_date` follows the same rule as `POST /admin/settlements`: at
+least `settlement_date` + 7 calendar days, and a bank business day
+(Mon-Fri, excluding the six TARGET2 closing days).
+
  * @summary Create settlement by date filter
  */
 const createSettlementByFilters = (
@@ -228,10 +256,11 @@ const createSettlementByFilters = (
     },
       options);
     }
-  return {listSettlements,createSettlement,previewSettlement,getSettlement,cancelSettlement,downloadSepaXml,downloadSettlementCsv,previewSettlementByFilters,createSettlementByFilters}};
+  return {listSettlements,createSettlement,previewSettlement,getExecutionDateInfo,getSettlement,cancelSettlement,downloadSepaXml,downloadSettlementCsv,previewSettlementByFilters,createSettlementByFilters}};
 export type ListSettlementsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['listSettlements']>>>
 export type CreateSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['createSettlement']>>>
 export type PreviewSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['previewSettlement']>>>
+export type GetExecutionDateInfoResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['getExecutionDateInfo']>>>
 export type GetSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['getSettlement']>>>
 export type CancelSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['cancelSettlement']>>>
 export type DownloadSepaXmlResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['downloadSepaXml']>>>

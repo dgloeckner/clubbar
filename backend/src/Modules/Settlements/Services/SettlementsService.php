@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Services;
 
+use App\Modules\Settlements\DTOs\ExecutionDateInfoDto;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementItemDto;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
@@ -16,10 +17,14 @@ use App\Shared\Exceptions\BusinessRuleException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Services\AuditService;
+use App\Shared\Utils\BankingCalendar;
 use PDO;
 
 class SettlementsService
 {
+    /** Fixed SEPA lead time in calendar days (ADR-0009). */
+    public const LEAD_TIME_DAYS = 7;
+
     public function __construct(
         private SettlementsRepository $settlementsRepository,
         private MembersRepository $membersRepository,
@@ -27,6 +32,28 @@ class SettlementsService
         private AuditService $auditService,
         private PDO $db,
     ) {}
+
+    /**
+     * The earliest execution date an admin may choose (ADR-0009).
+     *
+     * TODAY + 7 calendar days, rolled forward to the next TARGET2 business day
+     * so the resulting ReqdColltnDt is always a settlement day. Around Easter
+     * the roll can add four days, since Good Friday through Easter Monday are
+     * four consecutive closing days.
+     *
+     * @param string|null $today Injectable for tests; defaults to the current date.
+     */
+    public function getExecutionDateInfo(?string $today = null): ExecutionDateInfoDto
+    {
+        $base = (new \DateTimeImmutable($today ?? 'today'))->modify('+7 days');
+
+        return new ExecutionDateInfoDto(
+            minimumDate: BankingCalendar::nextBusinessDay($base->format('Y-m-d')),
+            leadTimeDays: self::LEAD_TIME_DAYS,
+            rule: 'execution_date >= today + 7 calendar days, rolled to the next bank business day '
+                . '(Mon-Fri, excluding TARGET2 closing days)',
+        );
+    }
 
     public function previewSettlement(?string $fromDate = null, ?string $toDate = null, ?string $memberId = null, bool $sepaEligibleOnly = false): SettlementPreviewDto
     {

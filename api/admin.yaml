@@ -1290,6 +1290,9 @@ paths:
 
         **SEPA settlements**:
         - Require `execution_date` (minimum TODAY + 7 calendar days)
+        - `execution_date` must be a bank business day — Mon-Fri, excluding the
+          six TARGET2 closing days. Use `GET /admin/settlements/execution-date-info`
+          for the earliest valid date rather than computing it.
         - All members with valid SEPA data are included in XML export
 
         **Manual settlements**:
@@ -1315,6 +1318,19 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: |
+            Validation failed — `execution_date` is earlier than
+            `settlement_date` + 7 days, or is not a bank business day.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: validation_failed
+                messages:
+                  execution_date:
+                    - execution_date must be a bank business day (Mon-Fri, excluding TARGET2 closing days)
         '412':
           description: SEPA configuration incomplete
           content:
@@ -1359,6 +1375,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SettlementPreview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/settlements/execution-date-info:
+    get:
+      tags: [Settlements]
+      summary: Earliest valid SEPA execution date
+      description: |
+        Returns the earliest execution date a settlement may use: today plus the
+        fixed lead time, rolled forward to the next bank business day.
+
+        Clients must use `minimum_date` rather than computing it, so the TARGET2
+        calendar stays defined in one place.
+
+        **ADR**: ADR-0009 · **Use Case**: UC-SEPA-07
+      operationId: getExecutionDateInfo
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Execution date rule and the earliest valid date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionDateInfo'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -2536,7 +2577,12 @@ paths:
     post:
       tags: [Settlements]
       summary: Create settlement by date filter
-      description: Create a settlement for all unsettled transactions matching date filters
+      description: |
+        Create a settlement for all unsettled transactions matching date filters.
+
+        `execution_date` follows the same rule as `POST /admin/settlements`: at
+        least `settlement_date` + 7 calendar days, and a bank business day
+        (Mon-Fri, excluding the six TARGET2 closing days).
       operationId: createSettlementByFilters
       security:
         - sessionAuth: []
@@ -2577,6 +2623,19 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: |
+            Validation failed — `execution_date` is earlier than
+            `settlement_date` + 7 days, or is not a bank business day.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: validation_failed
+                messages:
+                  execution_date:
+                    - execution_date must be a bank business day (Mon-Fri, excluding TARGET2 closing days)
 
   /admin/dashboard:
     get:
@@ -3484,6 +3543,26 @@ components:
                 nullable: true
               is_sepa_eligible:
                 type: boolean
+
+    ExecutionDateInfo:
+      type: object
+      required: [minimum_date, lead_time_days, rule]
+      properties:
+        minimum_date:
+          type: string
+          format: date
+          description: Earliest valid execution date; always a bank business day.
+          example: '2026-08-12'
+        lead_time_days:
+          type: integer
+          description: Fixed SEPA lead time in calendar days (ADR-0009).
+          example: 7
+        rule:
+          type: string
+          description: Human-readable statement of the rule, for display in the admin UI.
+          example: >-
+            execution_date >= today + 7 calendar days, rolled to the next bank
+            business day (Mon-Fri, excluding TARGET2 closing days)
 
     SettlementPreview:
       type: object

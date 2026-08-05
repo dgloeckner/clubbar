@@ -18,6 +18,15 @@ class AdminController
         private Validator $validator,
     ) {}
 
+    /**
+     * The earliest valid execution date, so the admin UI does not have to
+     * reimplement the TARGET2 calendar (ADR-0009, UC-SEPA-07).
+     */
+    public function executionDateInfo(Request $request, Response $response): Response
+    {
+        return $this->json($response, $this->settlementsService->getExecutionDateInfo()->toArray());
+    }
+
     public function preview(Request $request, Response $response): Response
     {
         $body = $request->getParsedBody() ?? [];
