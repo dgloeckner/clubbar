@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Shared\Validation;
 
+use App\Shared\Utils\BankingCalendar;
+
 class Validator
 {
     private array $errors = [];
@@ -56,6 +58,7 @@ class Validator
             'boolean'  => (!is_bool($value) && $value !== null && $value !== 0 && $value !== 1 && $value !== '0' && $value !== '1') ? "{$field} must be a boolean" : null,
             'uuid'     => ($value && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $value)) ? "{$field} must be a valid UUID" : null,
             'date'     => ($value && !strtotime($value)) ? "{$field} must be a valid date" : null,
+            'business_day' => $this->validateBusinessDay($field, $value),
             'array'    => ($value !== null && !is_array($value)) ? "{$field} must be an array" : null,
             'json'     => ($value !== null && !is_array($value) && json_decode((string)$value) === null) ? "{$field} must be valid JSON" : null,
             'regex'    => ($value !== null && $param && !preg_match($param, (string)$value)) ? "{$field} format is invalid" : null,
@@ -110,6 +113,30 @@ class Validator
         }
 
         return null;
+    }
+
+    /**
+     * Validate that a date is a TARGET2 bank business day.
+     *
+     * SEPA requires the requested collection date to be a settlement day, so a
+     * weekend or TARGET2 closing day would produce an invalid ReqdColltnDt.
+     * Null passes — `required` owns the missing-value case.
+     */
+    private function validateBusinessDay(string $field, mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $message = "{$field} must be a bank business day (Mon-Fri, excluding TARGET2 closing days)";
+
+        try {
+            return BankingCalendar::isBusinessDay((string) $value) ? null : $message;
+        } catch (\InvalidArgumentException) {
+            // Unparseable input is reported by the `date` rule; fail closed here
+            // rather than letting the exception escape as a 500.
+            return $message;
+        }
     }
 
     /**

@@ -282,6 +282,7 @@
       "totalAmount": "Total amount",
       "settlementDate": "Settlement date",
       "executionDate": "Execution date",
+      "executionDateUnavailable": "The execution date could not be loaded. Please try again.",
       "confirm": "Create settlement",
       "cancel": "Cancel"
     },

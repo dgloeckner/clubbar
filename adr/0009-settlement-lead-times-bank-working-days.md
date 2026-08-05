@@ -1,8 +1,13 @@
 # ADR-0009: Settlement Lead Times
 
-**Status**: Accepted
+**Status**: Accepted (amended 2026-08-05)
 
 **Date**: 2025-01-23
+
+**Amendment 2026-08-05 (issue #11)**: the execution date must additionally fall
+on a TARGET2 business day. The original decision allowed weekends and bank
+holidays, which produced an invalid `ReqdColltnDt` in the SEPA export. See
+"Amendment: Bank Business Days" below; Alternative 1 is now partially adopted.
 
 ---
 
@@ -23,31 +28,75 @@ SEPA Direct Debit transfers require advance notice before collection. The system
 
 ## Decision
 
-**Settlement execution dates must be at least 7 calendar days in the future (TODAY + 7 days minimum). No holiday calendar or business day calculations required. Simple date validation only.**
+**Settlement execution dates must be at least 7 calendar days in the future (TODAY + 7 days minimum) and must fall on a TARGET2 bank business day. No holiday calendar table required — the six TARGET2 closing days are computed, not stored.**
 
 ### Core Principles
 
 1. **Fixed 7-day minimum lead time**: Execution date ≥ TODAY + 7 calendar days
-2. **Calendar days, not business days**: Simpler, no holiday management
-3. **No date comparison: Must be future date (≥ TODAY + 7)
-4. **No holiday management**: Eliminates bank_holidays table and related logic
-5. **Simple validation**: Single rule, stateless, easy to understand
+2. **Calendar days for the lead time**: The buffer is counted in calendar days, not business days
+3. **Business day for the date itself**: The chosen date must be Mon–Fri and not a TARGET2 closing day
+4. **No holiday management**: No bank_holidays table; the closing days are derived from the year
+5. **Stateless validation**: Both rules are pure functions of the input dates
+
+### Amendment: Bank Business Days
+
+SEPA requires `ReqdColltnDt` to be a day on which TARGET2 settles. The original
+rule permitted any calendar date, so a weekend date passed validation and was
+written verbatim into the export. Banks either shift such a date silently or
+reject the file (stricter portal validators do the latter).
+
+**TARGET2 closing days** — the complete set, unchanged since the ECB fixed it in 2002:
+
+| Day | Determination |
+|-----|---------------|
+| 1 January | Fixed |
+| Good Friday | Easter Sunday − 2 days |
+| Easter Monday | Easter Sunday + 1 day |
+| 1 May | Fixed |
+| 25 December | Fixed |
+| 26 December | Fixed |
+
+Easter is computed with the Anonymous Gregorian (Meeus/Jones/Butcher) algorithm.
+Regional and national holidays are deliberately excluded: TARGET2 governs SEPA
+settlement, and local closures do not move the collection date.
+
+**Rejection, not correction**: an invalid `execution_date` is rejected with 422
+rather than silently rolled forward. Rewriting a caller-supplied date would make
+the stored settlement differ from the request with no trace in the audit log.
+Clients that need a valid date ask for one (see the endpoint below).
 
 ### Validation Algorithm
 
 **Pseudocode: Settlement Execution Date Validation**
 
 ```
-Function ValidateExecutionDate(executionDate):
-  minDate = TODAY + 7 days
-  if executionDate < minDate:
-    return [false, "Earliest allowed date: " + minDate]
-  else:
-    return [true, "Valid"]
+Function IsBusinessDay(date):
+  if date is Saturday or Sunday:
+    return false
+  return date not in Target2Holidays(year of date)
+
+Function Target2Holidays(year):
+  easter = EasterSunday(year)          // Anonymous Gregorian algorithm
+  return [Jan 1, easter - 2, easter + 1, May 1, Dec 25, Dec 26]
+
+Function NextBusinessDay(date):
+  while not IsBusinessDay(date):       // may advance up to 4 days at Easter
+    date = date + 1 day
+  return date
+
+Function ValidateExecutionDate(executionDate, settlementDate):
+  if executionDate < settlementDate + 7 days:
+    return [false, "execution_date must be at least 7 days after settlement_date"]
+  if not IsBusinessDay(executionDate):
+    return [false, "execution_date must be a bank business day"]
+  return [true, "Valid"]
 
 Function GetMinimumExecutionDate():
-  return TODAY + 7 days
+  return NextBusinessDay(TODAY + 7 days)
 ```
+
+The frontend must **not** reimplement this. `GET /admin/settlements/execution-date-info`
+is the single source of truth, so the Easter computation exists in one language only.
 
 ### Data Structures
 
@@ -64,11 +113,13 @@ Function GetMinimumExecutionDate():
 
 #### API Endpoint Response
 
+`GET /admin/settlements/execution-date-info`:
+
 ```json
 {
-  "minimum_date": "2025-02-01",
+  "minimum_date": "2026-08-12",
   "lead_time_days": 7,
-  "rule": "execution_date >= today + 7 calendar days"
+  "rule": "execution_date >= today + 7 calendar days, rolled to the next bank business day (Mon-Fri, excluding TARGET2 closing days)"
 }
 ```
 
@@ -78,12 +129,12 @@ Function GetMinimumExecutionDate():
 graph TD
     A["Admin selects execution date"] --> B["GET /api/settlements/execution-date-info"]
     B --> C["Fetch minimum_date = TODAY + 7"]
-    C --> D["UI shows minimum_date<br/>Suggest minimum_date as default"]
+    C --> D["UI shows minimum_date<br/>(already rolled to a business day)"]
     D --> E["Admin submits execution_date"]
     E --> F["POST /api/settlements"]
-    F --> G{"execution_date >= minimum_date?"}
+    F --> G{"execution_date >= minimum_date<br/>AND is a business day?"}
     G -->|Yes| H["Create settlement<br/>Mark transactions as pending"]
-    G -->|No| I["Return 400 error<br/>Show minimum_date requirement"]
+    G -->|No| I["Return 422 error<br/>Show which rule failed"]
     H --> J["Audit log: settlement_created"]
     I --> K["User corrects date"]
     K --> E
@@ -95,7 +146,8 @@ graph TD
 
 ### Positive
 
-✅ **Drastically simpler**: No holiday calendar, no regional logic, no complex calculations
+✅ **Valid SEPA dates**: `ReqdColltnDt` is always a TARGET2 settlement day, so no bank shifts the date and no portal validator rejects the file
+✅ **Still no holiday calendar**: No regional logic, no external sync, no maintenance of holiday data
 ✅ **No database overhead**: Eliminates bank_holidays table entirely
 ✅ **Safe buffer**: 7 calendar days provides ample lead time for SEPA processing (≈ 5 business days)
 ✅ **Pragmatic**: Covers real-world use cases (member bar settlements typically not on weekends)
@@ -109,6 +161,8 @@ graph TD
 ❌ **Less precise**: May require longer lead time than SEPA minimum (2 business days)
 ❌ **Calendar days, not business days**: 7 calendar days > 2 business days (acceptable for small orgs)
 ❌ **No flexibility**: Same 7-day rule regardless of organization needs
+❌ **Effective lead time varies**: Good Friday through Easter Monday is four consecutive closing days, so the suggested minimum can land at TODAY + 11
+❌ **Easter algorithm to maintain**: ~10 lines of date arithmetic that must stay correct; pinned by unit tests against known Easter dates
 
 ### Mitigations
 
@@ -130,10 +184,16 @@ Track weekends and German holidays; require 2 business days.
 - Complex code (BusinessDayCalculator class)
 - Holiday database maintenance required
 - Regional holiday variants add complexity
-- Easter date calculation needed (Gauss algorithm)
+- Easter date calculation needed
 - External holiday sync (future enhancement)
 
-**Rejected**: Over-engineered for small organizations. Fixed 7-day rule sufficient.
+**Partially adopted (2026-08-05, issue #11)**. The original rejection was too
+broad: it discarded the weekend and holiday *check* along with the calendar
+*infrastructure*. What is now adopted is the stateless half — a business-day
+check against the six computed TARGET2 closing days, including the Easter
+calculation. What remains rejected is the stateful half: no bank_holidays table,
+no regional variants, no external sync, and the lead time itself is still
+counted in calendar days rather than business days.
 
 ### Alternative 2: No Lead Time (Execute Immediately)
 
@@ -155,7 +215,7 @@ All settlements execute on same calendar date.
 **Cons**:
 - Not flexible per settlement
 - Doesn't match organization preferences
-- May fall on weekend
+- May fall on a weekend or closing day
 
 **Rejected**: Admin needs per-settlement control.
 
@@ -198,7 +258,13 @@ Longer buffer.
 - **SEPA Standards**:
   - RCUR (recurring) sequence type requires 2 business days notice minimum
   - 7 calendar days ≈ 5 business days on average (exceeds SEPA minimum)
+  - `ReqdColltnDt` must be a TARGET2 settlement day
   - [EPC SEPA Rulebook](https://www.europeanpaymentscouncil.eu/) - Direct Debit rules
+
+- **TARGET2 calendar**:
+  - Six closing days: 1 January, Good Friday, Easter Monday, 1 May, 25 December, 26 December
+  - Unchanged since the ECB fixed the calendar in 2002
+  - Easter: Anonymous Gregorian (Meeus/Jones/Butcher) algorithm
 
 - **Date Format**:
   - ISO 8601: YYYY-MM-DD

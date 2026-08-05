@@ -23,11 +23,15 @@ Admin finalizes a settlement, locking transactions and enabling export.
 
 | Rule | Value |
 |------|-------|
-| Minimum | TODAY + 7 calendar days |
+| Minimum | TODAY + 7 calendar days, rolled to the next bank business day |
+| Business day | Mon–Fri, excluding the six TARGET2 closing days |
 | Format | Date (YYYY-MM-DD) |
-| Purpose | Bank processing lead time |
+| Purpose | Bank processing lead time; SEPA requires `ReqdColltnDt` to be a settlement day |
 
-No business day calculation required; 7 calendar days is sufficient buffer.
+The lead time is counted in calendar days, but the resulting date must itself be
+a business day — a weekend or TARGET2 closing day is rejected with 422 (ADR-0009,
+issue #11). Clients obtain the earliest valid date from
+`GET /admin/settlements/execution-date-info` rather than computing it.
 
 ## Main Flow
 

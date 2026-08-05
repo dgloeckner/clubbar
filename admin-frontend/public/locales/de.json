@@ -282,6 +282,7 @@
       "totalAmount": "Betrag",
       "settlementDate": "Buchungsdatum",
       "executionDate": "Ausführungsdatum",
+      "executionDateUnavailable": "Das Ausführungsdatum konnte nicht geladen werden. Bitte erneut versuchen.",
       "confirm": "Abrechnung erstellen",
       "cancel": "Abbrechen"
     },

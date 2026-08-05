@@ -2,6 +2,7 @@ import { test, expect } from '../../fixtures/auth.fixture'
 import { JournalPage } from '../../pages/JournalPage'
 import { SettlementsPage } from '../../pages/SettlementsPage'
 import { generateUUID, createTestMember, createSepaInvalidMember } from '../../utils/transactions'
+import { minimumExecutionDate, today } from '../../utils/dates'
 
 /**
  * Journal & Settlements E2E Tests (Consolidated)
@@ -201,6 +202,19 @@ test.describe('Journal & Settlements', () => {
     const settlementId = await journalPage.concludeSettlement()
     expect(settlementId).toMatch(/^[0-9a-f-]{36}$/) // UUID format
 
+    // ── Execution date persisted from the UI must be a business day ───
+    // The UI derives it from GET /settlements/execution-date-info; this asserts
+    // what actually reached the database, on whatever day the suite runs
+    // (issue #11).
+    const createdResp = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}`)
+    expect(createdResp.status()).toBe(200)
+    const created = await createdResp.json()
+
+    expect(created.execution_date).toBe(await minimumExecutionDate(authenticatedRequest))
+    const execWeekday = new Date(`${created.execution_date}T00:00:00Z`).getUTCDay()
+    expect(execWeekday, `${created.execution_date} must not fall on a weekend`).toBeGreaterThan(0)
+    expect(execWeekday).toBeLessThan(6)
+
     // ── Verify on Settlements page ────────────────────────────────────
     const settlementsPage = new SettlementsPage(page)
     await settlementsPage.navigate()
@@ -258,6 +272,10 @@ test.describe('Journal & Settlements', () => {
     // Member totals: member1 = €35.00, member2 = €20.00
     expect(xml).toContain('35.00')
     expect(xml).toContain('20.00')
+    // ReqdColltnDt must be the settlement's own execution date. It previously
+    // came from the library's today + 5 fallback because the payment info used
+    // an unrecognised key, so the admin's date never reached the file (#11).
+    expect(xml).toContain(`<ReqdColltnDt>${created.execution_date}</ReqdColltnDt>`)
 
     // ── Verify status changed to Exportiert ───────────────────────────
     await settlementsPage.navigate()
@@ -294,12 +312,12 @@ test.describe('Journal & Settlements', () => {
     const settlement1Id = await testTransactions.createSettlement([txn1Id, txn2Id])
 
     // ── Attempt duplicate: txn2 + txn3 → must reject ──────────────────
-    const today = new Date().toISOString().split('T')[0]
-    const execDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+    const todayStr = today()
+    const execDate = await minimumExecutionDate(authenticatedRequest)
     const dupResp = await authenticatedRequest.post('/api/admin/settlements', {
       data: {
         transaction_ids: [txn2Id, txn3Id],
-        settlement_date: today,
+        settlement_date: todayStr,
         execution_date: execDate,
         settlement_type: 'sepa',
       },

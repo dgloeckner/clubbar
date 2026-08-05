@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import type { SettlementFilterPreview } from '../../api/generated'
 import { theme } from '../../styles/design-system'
 import { useFormatters } from '../../hooks/useFormatters'
+import { toIsoDate } from '../../utils/dates'
 
 interface TransactionSummary {
   member_id?: string
@@ -19,20 +20,24 @@ export interface SettlementConfirmModalProps {
   /** Provide either transactions (settle-selected) or preview (settle-all) */
   transactions?: TransactionSummary[]
   preview?: SettlementFilterPreview
+  /**
+   * The execution date that will actually be submitted, from the backend
+   * (see `useExecutionDateInfo`). Null while it is loading or unavailable —
+   * confirmation stays blocked until it arrives, since the modal must never
+   * display a date other than the one being sent.
+   */
+  executionDate: string | null
   onConfirm: () => void
   onCancel: () => void
   isLoading: boolean
   error?: string | null
 }
 
-function formatIsoDate(date: Date): string {
-  return date.toISOString().split('T')[0]
-}
-
 export function SettlementConfirmModal({
   isOpen,
   transactions,
   preview,
+  executionDate,
   onConfirm,
   onCancel,
   isLoading,
@@ -47,12 +52,8 @@ export function SettlementConfirmModal({
   const memberCount = preview?.member_count ?? new Set(transactions?.map((tx) => tx.member_id) ?? []).size
   const totalCents = preview?.total_amount_cents ?? transactions?.reduce((sum, tx) => sum + (tx.amount_cents ?? 0), 0) ?? 0
 
-  const today = new Date()
-  const executionDate = new Date()
-  executionDate.setDate(executionDate.getDate() + 7)
-
-  const settlementDateStr = formatIsoDate(today)
-  const executionDateStr = formatIsoDate(executionDate)
+  const settlementDateStr = toIsoDate(new Date())
+  const canConfirm = executionDate !== null && !isLoading
 
   return (
     <div
@@ -131,8 +132,11 @@ export function SettlementConfirmModal({
           <dt style={{ color: theme.colors.text.secondary, fontSize: 14 }}>
             {t('journal.settlementConfirm.executionDate')}
           </dt>
-          <dd style={{ margin: 0, fontWeight: 500, fontSize: 14 }}>
-            {formatDate(executionDateStr)}
+          <dd
+            data-testid="journal-settlement-confirm-execution-date"
+            style={{ margin: 0, fontWeight: 500, fontSize: 14 }}
+          >
+            {executionDate ? formatDate(executionDate) : '—'}
           </dd>
         </dl>
 
@@ -154,24 +158,24 @@ export function SettlementConfirmModal({
           <button
             data-testid="journal-settlement-confirm-submit-btn"
             onClick={onConfirm}
-            disabled={isLoading}
+            disabled={!canConfirm}
             style={{
               flex: 1,
               padding: theme.spacing.md,
-              background: isLoading ? theme.colors.bg.tertiary : '#10b981',
+              background: canConfirm ? '#10b981' : theme.colors.bg.tertiary,
               color: 'white',
               border: 'none',
               borderRadius: theme.borderRadius.md,
-              cursor: isLoading ? 'not-allowed' : 'pointer',
+              cursor: canConfirm ? 'pointer' : 'not-allowed',
               fontWeight: 500,
               fontSize: 14,
               transition: `all ${theme.transitions.default}`,
             }}
             onMouseEnter={(e) => {
-              if (!isLoading) e.currentTarget.style.background = '#059669'
+              if (canConfirm) e.currentTarget.style.background = '#059669'
             }}
             onMouseLeave={(e) => {
-              if (!isLoading) e.currentTarget.style.background = '#10b981'
+              if (canConfirm) e.currentTarget.style.background = '#10b981'
             }}
           >
             {isLoading ? t('common.loading') : t('journal.settlementConfirm.confirm')}

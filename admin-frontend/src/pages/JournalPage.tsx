@@ -23,6 +23,8 @@ import { useTranslation } from 'react-i18next'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { useExecutionDateInfo } from '../hooks/useExecutionDateInfo'
+import { toIsoDate } from '../utils/dates'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { SettlementStatusFilter } from '../components/forms/SettlementStatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
@@ -136,6 +138,10 @@ export function JournalPage() {
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [settleAllPreview, setSettleAllPreview] = useState<SettlementFilterPreview | null>(null)
   const [settleAllLoading, setSettleAllLoading] = useState(false)
+
+  // The execution date comes from the backend so the displayed and submitted
+  // value are the same one, and the TARGET2 rule is not duplicated here.
+  const { info: executionDateInfo, error: executionDateError } = useExecutionDateInfo(confirmModalOpen)
 
   // Correction modal state
   const [showCorrectionModal, setShowCorrectionModal] = useState(false)
@@ -395,13 +401,18 @@ export function JournalPage() {
   }
 
   const handleConfirmSettlement = async () => {
+    // The backend owns the execution-date rule (ADR-0009); without it there is
+    // nothing valid to submit, and guessing locally is what issue #11 was about.
+    if (!executionDateInfo) {
+      setConfirmError(executionDateError ?? t('journal.settlementConfirm.executionDateUnavailable'))
+      return
+    }
+
     setConfirmLoading(true)
     setConfirmError(null)
     try {
-      const today = new Date().toISOString().split('T')[0]
-      const executionDate = new Date()
-      executionDate.setDate(executionDate.getDate() + 7)
-      const executionDateStr = executionDate.toISOString().split('T')[0]
+      const today = toIsoDate(new Date())
+      const executionDateStr = executionDateInfo.minimum_date
 
       if (settleAllPreview) {
         await getSettlements().createSettlementByFilters({
@@ -1153,6 +1164,7 @@ export function JournalPage() {
           isOpen={confirmModalOpen}
           transactions={settleAllPreview ? undefined : pendingTransactions}
           preview={settleAllPreview ?? undefined}
+          executionDate={executionDateInfo?.minimum_date ?? null}
           onConfirm={handleConfirmSettlement}
           onCancel={() => {
             setConfirmModalOpen(false)
@@ -1160,7 +1172,7 @@ export function JournalPage() {
             setConfirmError(null)
           }}
           isLoading={confirmLoading}
-          error={confirmError}
+          error={confirmError ?? executionDateError}
         />
 
         {/* Correction Modal */}
