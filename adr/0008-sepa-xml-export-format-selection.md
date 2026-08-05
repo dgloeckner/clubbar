@@ -1,6 +1,6 @@
 # ADR-0008: SEPA XML Export Format Selection
 
-**Status**: Accepted (amended 2026-08-04: format raised from pain.008.001.02 to pain.008.001.08)
+**Status**: Accepted (amended 2026-08-04: format raised from pain.008.001.02 to pain.008.001.08; amended 2026-08-05: IBAN-only agents documented as `Othr/Id = NOTPROVIDED`, see issue #12)
 
 **Date**: 2025-01-23
 
@@ -46,14 +46,15 @@ Additionally, SEPA Direct Debit has two schemes:
 2. **CORE scheme only**: Meets standard requirements; COR1 can be added later
 3. **Always RCUR sequence type**: Simplified; all collections treated as recurring
 4. **Minimal debtor information**: Only debtor name and IBAN; no address data (privacy-first)
-5. **XSD validation**: All generated XML validated against official SEPA schema
-6. **Pragmatic ID generation**: Settlement ID used as base for all SEPA identifiers; all identifiers respect the ISO 20022 35-character maximum
+5. **IBAN-only agent identification**: Club Bar collects no agent BICs. `CdtrAgt` and `DbtrAgt` are both mandatory (1..1) in pain.008.001.08 and therefore cannot be omitted; the missing BIC is encoded as `Othr/Id = NOTPROVIDED` per the EPC/DK implementation guidelines. It must **not** be written to `BICFI`: the literal satisfies the `BICFIDec2014Identifier` pattern by accident (`NOTP`-`RO`-`VI`-`DED`), so it passes XSD validation while declaring a non-existent Romanian institution — which bank-side validators that resolve BICs against a directory will reject
+6. **XSD validation**: All generated XML validated against official SEPA schema
+7. **Pragmatic ID generation**: Settlement ID used as base for all SEPA identifiers; all identifiers respect the ISO 20022 35-character maximum
    - Message ID = stored `sepa_message_id` (e.g., `SEPA-7f499732c4fe`)
    - Payment Info ID = `PMT-` + first 16 hex chars of settlement UUID (e.g., `PMT-401f7c9dbf504925`)
    - End-to-End ID = Payment Info ID + sequence (e.g., `PMT-401f7c9dbf504925-1`)
-7. **Human-readable IDs**: Audit trail clarity; easy to trace transactions to settlements
-8. **Comprehensive error handling**: Detailed validation errors before export
-9. **UTF-8 encoding**: Mandatory for XML; charset declared in header
+8. **Human-readable IDs**: Audit trail clarity; easy to trace transactions to settlements
+9. **Comprehensive error handling**: Detailed validation errors before export
+10. **UTF-8 encoding**: Mandatory for XML; charset declared in header
 
 ### XML Structure (pain.008.001.08)
 
@@ -111,10 +112,12 @@ Additionally, SEPA Direct Debit has two schemes:
         <Ccy>EUR</Ccy>                                        <!-- Currency = EUR -->
       </CdtrAcct>
 
-      <!-- Creditor Agent (Organization's Bank) -->
+      <!-- Creditor Agent (Organization's Bank) - IBAN-only, no BIC collected -->
       <CdtrAgt>
         <FinInstnId>
-          <BICFI>COBADEFFXXX</BICFI>                          <!-- BIC (derived from IBAN by bank) -->
+          <Othr>
+            <Id>NOTPROVIDED</Id>                              <!-- IBAN-only: bank derives the agent from the IBAN -->
+          </Othr>
         </FinInstnId>
       </CdtrAgt>
 
@@ -144,6 +147,15 @@ Additionally, SEPA Direct Debit has two schemes:
             <MndtId>550e8400e29b41d4a716446655440000</MndtId><!-- Mandate Reference (from member record) -->
           </MndtRltdInf>
         </DrctDbtTx>
+
+        <!-- Debtor Agent (Member's Bank) - mandatory (1..1), IBAN-only -->
+        <DbtrAgt>
+          <FinInstnId>
+            <Othr>
+              <Id>NOTPROVIDED</Id>
+            </Othr>
+          </FinInstnId>
+        </DbtrAgt>
 
         <!-- Debtor (Member) - Minimal information only -->
         <Dbtr>
@@ -176,6 +188,14 @@ Additionally, SEPA Direct Debit has two schemes:
             <MndtId>8a1c9012f45c48d9b872336e50f41c8e</MndtId>
           </MndtRltdInf>
         </DrctDbtTx>
+
+        <DbtrAgt>
+          <FinInstnId>
+            <Othr>
+              <Id>NOTPROVIDED</Id>
+            </Othr>
+          </FinInstnId>
+        </DbtrAgt>
 
         <Dbtr>
           <Nm>Erika Müller</Nm>
@@ -410,7 +430,7 @@ Build SEPA XML manually using PHP's SimpleXML or DOMDocument.
 ## Post-Implementation Monitoring
 
 - [ ] Track XML generation errors (validation failures)
-- [ ] Monitor bank acceptance (any rejections?)
+- [ ] Monitor bank acceptance (any rejections?) — in particular, confirm a real bank file check accepts the `Othr/Id = NOTPROVIDED` agent encoding (issue #12)
 - [ ] Verify XSD validation catches errors before export
 - [ ] Check SEPA character encoding (names with umlauts)
 - [ ] Verify RCUR sequence type consistently used in all exports
