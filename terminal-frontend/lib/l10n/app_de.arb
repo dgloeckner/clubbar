@@ -104,10 +104,6 @@
   "@checkoutProcessing": {
     "description": "Checkout button label while the checkout is in flight"
   },
-  "memberNotSelected": "Kein Mitglied ausgewählt",
-  "@memberNotSelected": {
-    "description": "Error when trying to checkout without member"
-  },
 
   "@_CHECKOUT_CONFIRMATION": {},
   "checkoutSuccess": "Buchung erfolgreich!",
@@ -198,10 +194,6 @@
   "sepaNo": "Nein",
   "@sepaNo": {
     "description": "No label for SEPA status"
-  },
-  "noMemberSelected": "Kein Mitglied ausgewählt",
-  "@noMemberSelected": {
-    "description": "Message when no member is selected"
   },
 
   "@_MEMBER_BAR": {},

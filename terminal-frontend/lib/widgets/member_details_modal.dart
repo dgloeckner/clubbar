@@ -102,11 +102,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         _errorKey = null;
       });
     } catch (e, stackTrace) {
-      AppLog.instance.e(
-        'Terminal error ${TerminalErrorKey.transactionHistoryFailed.name}',
-        error: e,
-        stackTrace: stackTrace,
-      );
+      logTerminalError(TerminalErrorKey.transactionHistoryFailed, e, stackTrace);
       setState(() {
         _errorKey = TerminalErrorKey.transactionHistoryFailed;
         _isLoading = false;

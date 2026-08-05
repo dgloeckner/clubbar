@@ -23,7 +23,6 @@
   "cartEachPrice": "{price} each",
   "checkout": "Checkout",
   "checkoutProcessing": "Processing…",
-  "memberNotSelected": "Member not selected",
 
   "checkoutSuccess": "Transaction successful!",
   "checkoutPartialSuccess": "Only {count} {count, plural, =1{token} other{tokens}} dispensed",
@@ -41,7 +40,6 @@
   "memberInactive": "Inactive",
   "sepaYes": "Yes",
   "sepaNo": "No",
-  "noMemberSelected": "No member selected",
 
   "welcomeMember": "Welcome, {name}",
   "balance": "Balance",

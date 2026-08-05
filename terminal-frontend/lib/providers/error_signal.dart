@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
-import 'package:clubbar_terminal/utils/app_logger.dart';
 
 /// Error signalling for providers: emit a [TerminalErrorKey], never prose.
 ///
@@ -33,13 +32,7 @@ mixin ErrorSignal on ChangeNotifier {
     StackTrace? stackTrace,
   }) {
     _lastError = TerminalError(key: key, sequence: ++_errorSequence);
-    if (cause != null) {
-      AppLog.instance.e(
-        'Terminal error ${key.name}',
-        error: cause,
-        stackTrace: stackTrace,
-      );
-    }
+    logTerminalError(key, cause, stackTrace);
   }
 
   /// Drop the pending error without notifying — for success paths that are

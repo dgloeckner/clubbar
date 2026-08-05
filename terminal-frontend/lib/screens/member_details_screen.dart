@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 
 class MemberDetailsScreen extends StatelessWidget {
@@ -15,8 +17,10 @@ class MemberDetailsScreen extends StatelessWidget {
         final member = membersProvider.selectedMember;
 
         if (member == null) {
+          // Tells the member how to get out of this state, rather than just
+          // naming it (#27).
           return Center(
-            child: Text(l10n.noMemberSelected),
+            child: Text(TerminalErrorKey.noMemberSelected.message(l10n)),
           );
         }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:clubbar_terminal/utils/app_logger.dart';
+
 /// Stable identity of a member-facing error.
 ///
 /// Services and providers emit these keys instead of English prose; the UI
@@ -40,6 +42,24 @@ enum TerminalErrorKey {
   backendUnreachable,
   syncFailed,
   transactionSyncFailed,
+}
+
+/// Record the raw [cause] behind [key] — the only place that text may go.
+///
+/// Shared by [ErrorSignal.emitError] and by the widgets that catch their own
+/// exceptions, so every terminal error reads the same way in `error.log`
+/// regardless of which layer caught it.
+void logTerminalError(
+  TerminalErrorKey key,
+  Object? cause, [
+  StackTrace? stackTrace,
+]) {
+  if (cause == null) return;
+  AppLog.instance.e(
+    'Terminal error ${key.name}',
+    error: cause,
+    stackTrace: stackTrace,
+  );
 }
 
 /// A single occurrence of an error, as signalled to the UI.

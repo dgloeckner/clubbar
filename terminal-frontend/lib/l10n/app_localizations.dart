@@ -218,12 +218,6 @@ abstract class AppLocalizations {
   /// **'Wird verarbeitet…'**
   String get checkoutProcessing;
 
-  /// Error when trying to checkout without member
-  ///
-  /// In de, this message translates to:
-  /// **'Kein Mitglied ausgewählt'**
-  String get memberNotSelected;
-
   /// Success message after checkout
   ///
   /// In de, this message translates to:
@@ -313,12 +307,6 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Nein'**
   String get sepaNo;
-
-  /// Message when no member is selected
-  ///
-  /// In de, this message translates to:
-  /// **'Kein Mitglied ausgewählt'**
-  String get noMemberSelected;
 
   /// Greeting message with member name
   ///

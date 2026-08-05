@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/member_details_screen.dart';
 import '../test_helpers.dart';
@@ -62,7 +63,7 @@ void main() {
       expect(find.text('Aktiv'), findsOneWidget); // "Active" in German
     });
 
-    testWidgets('displays no member selected message when member is null', (WidgetTester tester) async {
+    testWidgets('with no member, says how to get out of that state (#27)', (WidgetTester tester) async {
       when(() => mockMembersProvider.selectedMember).thenReturn(null);
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
@@ -76,7 +77,10 @@ void main() {
         ),
       );
 
-      expect(find.text('Kein Mitglied ausgewählt'), findsOneWidget); // "No member selected" in German
+      expect(
+        find.text(await errorCopy(TerminalErrorKey.noMemberSelected)),
+        findsOneWidget,
+      );
     });
 
     testWidgets('displays inactive status correctly', (WidgetTester tester) async {

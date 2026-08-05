@@ -25,6 +25,8 @@ class ErrorBanner extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final danger = hexToColor(AppColors.semanticDanger);
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(
@@ -36,26 +38,28 @@ class ErrorBanner extends StatelessWidget {
         vertical: AppSpacing.md,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xff450a0a),
-        border: Border.all(color: const Color(0xff7f1d1d)),
-        borderRadius: BorderRadius.circular(12),
+        // Danger at low alpha over the dark terminal background, so the strip
+        // reads as urgent without the glare of a solid red block.
+        color: danger.withValues(alpha: 0.15),
+        border: Border.all(color: danger.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(AppBorderRadius.md),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error, color: Color(0xffef4444)),
+          Icon(Icons.error, color: danger),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
               message!,
               style: TextStyle(
-                color: const Color(0xfffecaca),
+                color: hexToColor(AppColors.textPrimary),
                 fontSize: AppFontSizes.base,
               ),
             ),
           ),
           if (onDismiss != null)
             IconButton(
-              icon: const Icon(Icons.close, color: Color(0xfffecaca)),
+              icon: Icon(Icons.close, color: hexToColor(AppColors.textPrimary)),
               onPressed: onDismiss,
             ),
         ],

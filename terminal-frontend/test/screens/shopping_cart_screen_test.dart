@@ -403,6 +403,21 @@ void main() {
         verify(() => mockCartProvider.clearError()).called(1);
       });
 
+      testWidgets('a failure does not also leak into the inline banner',
+          (WidgetTester tester) async {
+        // The banner renders whatever is still pending, so the split between
+        // the two surfaces holds only because the modal path clears its own
+        // error. Pin it: a genuine failure must not end up in both.
+        failCheckoutWith(TerminalErrorKey.checkoutFailed);
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.text('Bezahlen'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(find.byType(ErrorBanner), findsNothing);
+      });
+
       testWidgets('does not navigate to the confirmation screen',
           (WidgetTester tester) async {
         failCheckoutWith(TerminalErrorKey.checkoutFailed);
@@ -413,6 +428,23 @@ void main() {
         await tester.pumpAndSettle();
 
         verifyNever(() => mockMembersProvider.refreshDeckel());
+      });
+
+      testWidgets('checkout without a logged-in member says who is missing',
+          (WidgetTester tester) async {
+        when(() => mockMembersProvider.selectedMember).thenReturn(null);
+        when(() => mockCartProvider.lastError).thenReturn(null);
+
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.text('Bezahlen'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(await errorCopy(TerminalErrorKey.noMemberSelected)),
+          findsOneWidget,
+        );
+        verifyNever(() => mockCartProvider.checkout(any(), any(), any()));
       });
 
       testWidgets('a cancellation the member chose gets a banner, not a modal',

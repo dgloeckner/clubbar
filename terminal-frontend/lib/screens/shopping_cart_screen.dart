@@ -171,15 +171,16 @@ class ShoppingCartScreen extends StatelessWidget {
             // their modal is shown.
             if (cartProvider.lastError != null)
               ErrorBanner(
-                message: cartProvider.lastError!
-                    .message(AppLocalizations.of(context)!),
+                message: cartProvider.lastError!.message(l10n),
                 onDismiss: cartProvider.clearError,
               ),
 
             // Item list — frozen while a checkout is in flight, otherwise the
             // cart could be mutated after the transactions were computed. The
-            // overlay makes that freeze visible instead of leaving taps to
-            // silently do nothing.
+            // overlay makes that freeze visible, rather than letting the
+            // quantity and remove buttons silently swallow taps. It covers
+            // only the list because the one control outside it, the checkout
+            // button, states its own in-flight condition.
             Expanded(
               child: LoadingOverlay(
                 isLoading: isCheckoutInFlight,

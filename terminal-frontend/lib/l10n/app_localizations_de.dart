@@ -77,9 +77,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get checkoutProcessing => 'Wird verarbeitet…';
 
   @override
-  String get memberNotSelected => 'Kein Mitglied ausgewählt';
-
-  @override
   String get checkoutSuccess => 'Buchung erfolgreich!';
 
   @override
@@ -151,9 +148,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get sepaNo => 'Nein';
-
-  @override
-  String get noMemberSelected => 'Kein Mitglied ausgewählt';
 
   @override
   String welcomeMember(String name) {
