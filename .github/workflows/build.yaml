@@ -12,8 +12,79 @@ on:
 permissions:
   contents: write
 
+# Superseded runs on the same branch are pointless — cancel them. main is
+# exempt because its runs deploy, and a half-finished deploy is worse than a
+# redundant one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
+  # Which parts of the repo did this branch actually touch? Every downstream
+  # job is gated on the answer, so a terminal-only change no longer pays for
+  # admin lint, backend tests, E2E and packaging.
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      admin: ${{ steps.filter.outputs.admin }}
+      backend: ${{ steps.filter.outputs.backend }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      terminal: ${{ steps.filter.outputs.terminal }}
+      # "Run the lot": main and releases must build every artifact regardless
+      # of paths, and a workflow edit has to be exercised end to end.
+      full: ${{ steps.full.outputs.value }}
+      # The web stack travels together: E2E drives admin against the backend,
+      # so a change to either side (or to the tests) runs the whole chain.
+      web: ${{ steps.web.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # paths-filter diffs against main
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: main
+          filters: |
+            admin:
+              - 'admin-frontend/**'
+            backend:
+              - 'backend/**'
+              - 'scripts/**'
+              - 'docker-compose*.yml'
+            e2e:
+              - 'e2etests/**'
+            terminal:
+              - 'terminal-frontend/**'
+            ci:
+              - '.github/workflows/**'
+
+      - name: Decide whether to run everything
+        id: full
+        run: |
+          if [ "${{ github.event_name }}" = "release" ] \
+            || [ "${{ github.ref }}" = "refs/heads/main" ] \
+            || [ "${{ steps.filter.outputs.ci }}" = "true" ]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decide whether the web stack runs
+        id: web
+        run: |
+          if [ "${{ steps.full.outputs.value }}" = "true" ] \
+            || [ "${{ steps.filter.outputs.admin }}" = "true" ] \
+            || [ "${{ steps.filter.outputs.backend }}" = "true" ] \
+            || [ "${{ steps.filter.outputs.e2e }}" = "true" ]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
   lint:
+    needs: [changes]
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.admin == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -38,6 +109,8 @@ jobs:
         working-directory: admin-frontend
 
   test-backend:
+    needs: [changes]
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-24.04
 
     services:
@@ -102,6 +175,10 @@ jobs:
           DB_PASS: clubbar
 
   build-frontend:
+    needs: [changes]
+    # Gated on `web`, not `admin`: test-e2e and test-package download this
+    # job's dist artifact, so it has to run whenever they do.
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -127,7 +204,16 @@ jobs:
           retention-days: 1
 
   test-e2e:
-    needs: [lint, test-backend, build-frontend]
+    needs: [changes, lint, test-backend, build-frontend]
+    # A skipped dependency must not cascade into skipping this job (lint is
+    # skipped for a backend-only change), so gate on failure rather than on
+    # the default "all needs succeeded".
+    if: |
+      always() && !cancelled()
+      && needs.changes.outputs.web == 'true'
+      && needs.lint.result != 'failure'
+      && needs['test-backend'].result != 'failure'
+      && needs['build-frontend'].result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 
@@ -255,7 +341,11 @@ jobs:
 
   test-package:
     name: Build & Test Package
-    needs: [test-e2e]
+    needs: [changes, test-e2e]
+    if: |
+      always() && !cancelled()
+      && needs.changes.outputs.web == 'true'
+      && needs['test-e2e'].result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     outputs:
@@ -376,7 +466,10 @@ jobs:
           retention-days: 14
 
   build-terminal:
-    needs: [lint, test-backend]
+    # The Flutter terminal shares no code, artifact or service with admin lint
+    # or the backend suite — waiting on them only delayed this job.
+    needs: [changes]
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.terminal == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
 
@@ -462,8 +555,13 @@ jobs:
 
   deploy-integration:
     name: Deploy to Integration
-    needs: [test-package]
-    if: github.ref == 'refs/heads/main'
+    needs: [changes, test-package]
+    # On main `full` is true, so every upstream job ran and this deploys the
+    # fully-tested package exactly as before.
+    if: |
+      always() && !cancelled()
+      && github.ref == 'refs/heads/main'
+      && needs['test-package'].result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: ionos-integration
