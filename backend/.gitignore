@@ -7,4 +7,5 @@
 .DS_Store
 Thumbs.db
 .phpunit.result.cache
+.phpunit.cache/
 /VERSION
