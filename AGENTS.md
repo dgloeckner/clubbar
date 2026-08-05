@@ -10,6 +10,42 @@ This document defines **project-specific agent workflows** that complement the s
 
 ---
 
+## Branch & PR Workflow (CRITICAL)
+
+**Never commit directly to `main`. All work happens on a feature branch and lands through a pull request.**
+
+This is what makes the work reviewable, and — when a GitHub issue is involved — what links the code back to the issue that motivated it.
+
+### The loop
+
+1. **Refresh `main`, then branch off it — before the first commit.** Always start from an up-to-date base so the branch doesn't carry a stale history into review:
+
+   ```bash
+   git checkout main
+   git pull origin main          # fresh base
+   git checkout -b feat/57-terminal-error-plumbing
+   ```
+
+   Name the branch after the issue where there is one: `feat/<issue>-<slug>`, `fix/<issue>-<slug>`, `docs/<slug>`.
+
+   If `git pull` reports local commits on `main` that aren't on the remote, stop and surface that rather than merging or rebasing past it — it usually means earlier work was committed to `main` by mistake. To rescue it: `git branch <feature-branch>` at the current HEAD, `git checkout <feature-branch>`, then `git branch -f main origin/main`. The commit survives on the branch and `main` returns to the remote's state.
+
+   If the branch is long-lived and `main` moves underneath it, refresh again before opening the PR (`git fetch origin && git merge origin/main`) so CI tests the real merge result.
+2. **Implement with the `/implement` skill** (`mattpocock-skills:implement`) — it drives TDD at agreed seams, runs typechecking and single test files while working, runs the full suite once at the end, and finishes with `/code-review` before committing. Pass the issue URL as the argument so the implementation is anchored to the spec.
+3. **Verify before pushing.** The Test Verification Policy below is not waived by the existence of CI — tests must be green locally first.
+4. **Push and open a PR.** Link the issue in the PR body with a closing keyword (`Closes #57`) so merging the PR closes the issue automatically. State what changed, call out anything deliberately left out of scope, and record the local verification result (analyzer status + test counts).
+5. **Watch the PR until it is green.** Invoke the `monitor-github-pipeline` skill (see *GitHub Actions Pipeline Monitoring*). On failure: read the job logs, classify the root cause, fix it, push to the same branch, and re-monitor. **A PR is not done when it is open — it is done when its checks pass.**
+
+### Why link the issue
+
+An issue-linked PR gives the project a trail from requirement → change → review → merge. Without the link, the issue has to be closed by hand and the reasoning behind the change is only recoverable from commit archaeology. Reference sub-issues and parent issues in the body too when a change is one slice of a larger effort, so the rollout order stays legible.
+
+### What still needs asking
+
+Branching, pushing a feature branch, and opening a PR are the expected path and need no separate approval when the user has asked for the work. **Merging** a PR, force-pushing, and deleting branches are not — confirm those.
+
+---
+
 ## E2E Testing Patterns (CRITICAL)
 
 **When working on Playwright tests, ALWAYS reference the patterns in `e2etests/patterns/` directory.**
