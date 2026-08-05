@@ -127,6 +127,13 @@ void main() {
     late FakeRfidProvider rfidProvider;
     late MockSyncProvider mockSyncProvider;
 
+    /// Resolved once so the finder below tracks the ARB, not a copied literal.
+    late String unknownCardCopy;
+
+    setUpAll(() async {
+      unknownCardCopy = await errorCopy(TerminalErrorKey.unknownCard);
+    });
+
     setUp(() {
       rfidProvider = FakeRfidProvider();
       mockSyncProvider = MockSyncProvider();
@@ -157,7 +164,7 @@ void main() {
     /// when no banner is in the tree at all.
     double? bannerOpacity(WidgetTester tester) {
       final banner = find.ancestor(
-        of: find.text('Unbekannter Chip'),
+        of: find.text(unknownCardCopy),
         matching: find.byType(FadeTransition),
       );
       if (banner.evaluate().isEmpty) return null;

@@ -8,9 +8,13 @@ import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
+import 'package:clubbar_terminal/widgets/error_banner.dart';
+import 'package:clubbar_terminal/widgets/loading_overlay.dart';
+import '../test_helpers.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
 
@@ -270,7 +274,15 @@ void main() {
 
         expect(find.text('Wird verarbeitet…'), findsOneWidget);
         expect(find.text('Bezahlen'), findsNothing);
-        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        // Scoped to the button: the frozen item list carries its own overlay
+        // spinner, which is a different signal.
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('checkout-button')),
+            matching: find.byType(CircularProgressIndicator),
+          ),
+          findsOneWidget,
+        );
         expect(find.byIcon(Icons.check), findsNothing);
       });
 
@@ -306,6 +318,157 @@ void main() {
 
         verifyNever(() => mockCartProvider.removeItem(any()));
         verifyNever(() => mockCartProvider.updateQuantity(any(), any()));
+      });
+
+      testWidgets('the frozen list is visibly dimmed, not silently dead (#27)',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.byType(LoadingOverlay), findsOneWidget);
+        final overlay = tester.widget<LoadingOverlay>(
+          find.byType(LoadingOverlay),
+        );
+        expect(overlay.isLoading, isTrue);
+      });
+    });
+
+    // Issue #27: a failed checkout used to flash raw prose in a 4-second
+    // snackbar that overlapped the total bar. It now blocks with a modal the
+    // member has to answer.
+    group('checkout failure (#27)', () {
+      /// Make [checkout] fail with [key], the way the provider would.
+      void failCheckoutWith(TerminalErrorKey key) {
+        when(() => mockCartProvider.clearError()).thenReturn(null);
+        when(() => mockCartProvider.checkout(any(), any(), any()))
+            .thenAnswer((_) async {
+          when(() => mockCartProvider.lastError)
+              .thenReturn(TerminalError(key: key, sequence: 1));
+        });
+      }
+
+      testWidgets('shows a dismissible modal offering retry',
+          (WidgetTester tester) async {
+        failCheckoutWith(TerminalErrorKey.checkoutFailed);
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.text('Bezahlen'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(
+          find.text(await errorCopy(TerminalErrorKey.checkoutFailed)),
+          findsOneWidget,
+        );
+        expect(find.text('Schließen'), findsOneWidget);
+        expect(find.text('Erneut versuchen'), findsOneWidget);
+      });
+
+      testWidgets('never puts raw exception text in front of the member',
+          (WidgetTester tester) async {
+        failCheckoutWith(TerminalErrorKey.checkoutFailed);
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.text('Bezahlen'));
+        await tester.pumpAndSettle();
+
+        final rendered = tester
+            .widgetList<Text>(find.byType(Text))
+            .map((t) => t.data ?? '')
+            .join('\n');
+        expect(rendered, isNot(contains('Exception')));
+        expect(rendered, isNot(contains('HTTP')));
+      });
+
+      testWidgets('retry runs the checkout again',
+          (WidgetTester tester) async {
+        failCheckoutWith(TerminalErrorKey.checkoutFailed);
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.text('Bezahlen'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Erneut versuchen'));
+        await tester.pumpAndSettle();
+
+        verify(() => mockCartProvider.checkout(any(), any(), any())).called(2);
+      });
+
+      testWidgets('clears the error once shown, so the next failure signals afresh',
+          (WidgetTester tester) async {
+        failCheckoutWith(TerminalErrorKey.checkoutFailed);
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.text('Bezahlen'));
+        await tester.pumpAndSettle();
+
+        verify(() => mockCartProvider.clearError()).called(1);
+      });
+
+      testWidgets('does not navigate to the confirmation screen',
+          (WidgetTester tester) async {
+        failCheckoutWith(TerminalErrorKey.checkoutFailed);
+        when(() => mockCartProvider.lastSessionId).thenReturn('session-1');
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.text('Bezahlen'));
+        await tester.pumpAndSettle();
+
+        verifyNever(() => mockMembersProvider.refreshDeckel());
+      });
+
+      testWidgets('a cancellation the member chose gets a banner, not a modal',
+          (WidgetTester tester) async {
+        failCheckoutWith(TerminalErrorKey.checkoutCancelled);
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.text('Bezahlen'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        // Left pending on purpose so the banner can render it.
+        verifyNever(() => mockCartProvider.clearError());
+      });
+    });
+
+    group('error banner (#27)', () {
+      testWidgets('renders a pending error inline', (WidgetTester tester) async {
+        when(() => mockCartProvider.lastError).thenReturn(
+          const TerminalError(
+            key: TerminalErrorKey.checkoutCancelled,
+            sequence: 1,
+          ),
+        );
+
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.byType(ErrorBanner), findsOneWidget);
+        expect(
+          find.text(await errorCopy(TerminalErrorKey.checkoutCancelled)),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('dismissing it clears the provider error',
+          (WidgetTester tester) async {
+        when(() => mockCartProvider.lastError).thenReturn(
+          const TerminalError(
+            key: TerminalErrorKey.checkoutCancelled,
+            sequence: 1,
+          ),
+        );
+        when(() => mockCartProvider.clearError()).thenReturn(null);
+
+        await tester.pumpWidget(buildTestWidget());
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pump();
+
+        verify(() => mockCartProvider.clearError()).called(1);
+      });
+
+      testWidgets('stays out of the way when there is no error',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.byType(ErrorBanner), findsNothing);
       });
     });
   });

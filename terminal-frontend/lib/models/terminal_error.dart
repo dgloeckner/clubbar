@@ -13,6 +13,13 @@ enum TerminalErrorKey {
   sepaMissing,
   memberLookupFailed,
   membersRefreshFailed,
+  noMemberSelected,
+
+  // Member details
+  transactionHistoryFailed,
+
+  // Terminal status
+  statusLoadFailed,
 
   // Cart / checkout
   cartEmpty,

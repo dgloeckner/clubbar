@@ -497,25 +497,25 @@ abstract class AppLocalizations {
   /// Error when scanned card is not in database
   ///
   /// In de, this message translates to:
-  /// **'Unbekannter Chip'**
+  /// **'Wir kennen diesen Chip nicht – bitte an der Bar anmelden'**
   String get rfidErrorUnknownCard;
 
   /// Error when member account is inactive
   ///
   /// In de, this message translates to:
-  /// **'Konto inaktiv'**
+  /// **'Dein Konto ist inaktiv – bitte beim Bar-Team melden'**
   String get rfidErrorAccountInactive;
 
   /// Error when member has no valid SEPA mandate
   ///
   /// In de, this message translates to:
-  /// **'SEPA-Mandat fehlt'**
+  /// **'Lastschrift ist noch nicht eingerichtet – bitte beim Bar-Team melden'**
   String get rfidErrorSepaMissing;
 
   /// Error when database query fails
   ///
   /// In de, this message translates to:
-  /// **'Datenbankfehler'**
+  /// **'Etwas ist schiefgelaufen – bitte erneut versuchen oder beim Bar-Team melden'**
   String get rfidErrorDatabaseError;
 
   /// Label for preferred language setting
@@ -587,7 +587,7 @@ abstract class AppLocalizations {
   /// Hint that user can still purchase non-token items
   ///
   /// In de, this message translates to:
-  /// **'Sie können andere Artikel ohne Tokens kaufen.'**
+  /// **'Du kannst andere Artikel ohne Token kaufen.'**
   String get dispenserBuyWithoutTokensHint;
 
   /// Button to cancel checkout and return to cart
@@ -830,12 +830,6 @@ abstract class AppLocalizations {
   /// **'Online ({state})'**
   String dispenserStatusOnline(String state);
 
-  /// No description provided for @statusLoadError.
-  ///
-  /// In de, this message translates to:
-  /// **'Status konnte nicht geladen werden: {error}'**
-  String statusLoadError(String error);
-
   /// No description provided for @sessionTimeoutWarningTitle.
   ///
   /// In de, this message translates to:
@@ -875,74 +869,92 @@ abstract class AppLocalizations {
   /// TerminalErrorKey.membersRefreshFailed — member cache refresh failed
   ///
   /// In de, this message translates to:
-  /// **'Mitgliederdaten konnten nicht aktualisiert werden'**
+  /// **'Mitgliederdaten konnten nicht aktualisiert werden – bitte gleich noch einmal versuchen'**
   String get errorMembersRefreshFailed;
 
   /// TerminalErrorKey.productsRefreshFailed — product cache refresh failed
   ///
   /// In de, this message translates to:
-  /// **'Produkte konnten nicht aktualisiert werden'**
+  /// **'Die Produktliste konnte nicht aktualisiert werden – bitte gleich noch einmal versuchen'**
   String get errorProductsRefreshFailed;
 
   /// TerminalErrorKey.checkoutFailed — unexpected failure during checkout
   ///
   /// In de, this message translates to:
-  /// **'Bezahlung fehlgeschlagen. Bitte erneut versuchen.'**
+  /// **'Etwas ist schiefgelaufen – dir wurde nichts berechnet. Bitte erneut versuchen.'**
   String get errorCheckoutFailed;
 
   /// TerminalErrorKey.checkoutCancelled — member cancelled the checkout
   ///
   /// In de, this message translates to:
-  /// **'Bezahlung abgebrochen'**
+  /// **'Bezahlung abgebrochen – dein Warenkorb bleibt unverändert.'**
   String get errorCheckoutCancelled;
 
   /// TerminalErrorKey.transactionCreateFailed — transaction could not be written locally
   ///
   /// In de, this message translates to:
-  /// **'Dein Einkauf konnte nicht gespeichert werden. Bitte erneut versuchen.'**
+  /// **'Dein Einkauf konnte nicht gespeichert werden – dir wurde nichts berechnet. Bitte erneut versuchen.'**
   String get errorTransactionCreateFailed;
 
   /// TerminalErrorKey.dispenserNotConfigured — token product in cart but dispenser disabled
   ///
   /// In de, this message translates to:
-  /// **'Das Ausgabegerät ist nicht eingerichtet'**
+  /// **'Der Token-Automat ist nicht eingerichtet – bitte beim Bar-Team melden.'**
   String get errorDispenserNotConfigured;
 
   /// TerminalErrorKey.dispenserOperationFailed — dispenser bookkeeping failed
   ///
   /// In de, this message translates to:
-  /// **'Token-Ausgabe fehlgeschlagen. Bitte das Personal informieren.'**
+  /// **'Die Token-Ausgabe hat nicht geklappt – bitte beim Bar-Team melden.'**
   String get errorDispenserOperationFailed;
 
   /// TerminalErrorKey.dispenserUnavailable — dispenser did not respond as expected
   ///
   /// In de, this message translates to:
-  /// **'Das Ausgabegerät ist nicht verfügbar'**
+  /// **'Der Token-Automat antwortet nicht – alles andere kannst du trotzdem kaufen.'**
   String get errorDispenserUnavailable;
 
   /// TerminalErrorKey.dispenserNoTokensDispensed — dispense finished with zero tokens; checkout aborted
   ///
   /// In de, this message translates to:
-  /// **'Es konnten keine Token ausgegeben werden. Dir wurde nichts berechnet – dein Warenkorb bleibt erhalten.'**
+  /// **'Es sind keine Token herausgekommen – dir wurde nichts berechnet. Dein Warenkorb bleibt erhalten; bitte beim Bar-Team melden.'**
   String get errorDispenserNoTokensDispensed;
 
   /// TerminalErrorKey.backendUnreachable — backend health check failed
   ///
   /// In de, this message translates to:
-  /// **'Keine Verbindung zum Server'**
+  /// **'Keine Verbindung zum Server – deine Einkäufe werden hier gespeichert und später übertragen.'**
   String get errorBackendUnreachable;
 
   /// TerminalErrorKey.syncFailed — a sync cycle did not complete
   ///
   /// In de, this message translates to:
-  /// **'Synchronisierung fehlgeschlagen'**
+  /// **'Synchronisierung fehlgeschlagen – deine Einkäufe werden hier gespeichert und später übertragen.'**
   String get errorSyncFailed;
 
   /// TerminalErrorKey.transactionSyncFailed — non-fatal transaction upload failure
   ///
   /// In de, this message translates to:
-  /// **'Einige Einkäufe konnten nicht synchronisiert werden'**
+  /// **'Einige Einkäufe sind noch nicht beim Server angekommen – bitte dem Bar-Team Bescheid geben.'**
   String get errorTransactionSyncFailed;
+
+  /// TerminalErrorKey.noMemberSelected — a member-scoped view opened without a logged-in member
+  ///
+  /// In de, this message translates to:
+  /// **'Es ist niemand angemeldet – bitte den Chip an den Scanner halten.'**
+  String get errorNoMemberSelected;
+
+  /// TerminalErrorKey.transactionHistoryFailed — transaction history could not be fetched
+  ///
+  /// In de, this message translates to:
+  /// **'Deine Einkäufe konnten nicht geladen werden – bitte erneut versuchen.'**
+  String get errorTransactionHistoryFailed;
+
+  /// TerminalErrorKey.statusLoadFailed — status modal could not gather terminal state
+  ///
+  /// In de, this message translates to:
+  /// **'Der Terminal-Status konnte nicht geladen werden – bitte erneut versuchen.'**
+  String get errorStatusLoadFailed;
 }
 
 class _AppLocalizationsDelegate

@@ -3,9 +3,24 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 
 class MockConfigService extends Mock implements ConfigService {}
+
+/// The copy a member actually sees for [key], in [locale].
+///
+/// Assert against this rather than a copied-out literal: error wording is
+/// expected to keep improving, and a test that hardcodes it turns every
+/// rewrite into a false failure.
+Future<String> errorCopy(
+  TerminalErrorKey key, {
+  String locale = 'de',
+}) async {
+  final l10n = await AppLocalizations.delegate.load(Locale(locale));
+  return key.message(l10n);
+}
 
 /// Creates a default MockConfigService with safe defaults for tests.
 MockConfigService createMockConfigService() {

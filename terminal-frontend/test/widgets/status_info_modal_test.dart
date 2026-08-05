@@ -86,7 +86,8 @@ void main() {
       expect(find.text('Wiederholungsversuche'), findsOneWidget); // "Retry count" in German
       expect(find.text('3'), findsOneWidget);
       expect(find.text('Fehlerdetails'), findsOneWidget); // "Error details" in German
-      expect(find.text('Keine Verbindung zum Server'), findsOneWidget);
+      expect(find.text(await errorCopy(TerminalErrorKey.backendUnreachable)),
+          findsOneWidget);
     });
 
     testWidgets('shows Error status with error details', (tester) async {
@@ -111,7 +112,8 @@ void main() {
 
       expect(find.text('Fehler'), findsOneWidget); // "Error" in German
       expect(find.text('Fehlerdetails'), findsOneWidget); // "Error details" in German
-      expect(find.text('Synchronisierung fehlgeschlagen'), findsOneWidget);
+      expect(find.text(await errorCopy(TerminalErrorKey.syncFailed)),
+          findsOneWidget);
     });
 
     testWidgets('Dismiss button closes the modal', (tester) async {

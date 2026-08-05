@@ -244,16 +244,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scanCard => 'Scan Token';
 
   @override
-  String get rfidErrorUnknownCard => 'Unknown token';
+  String get rfidErrorUnknownCard =>
+      'We don\'t know this chip — please register at the bar';
 
   @override
-  String get rfidErrorAccountInactive => 'Account inactive';
+  String get rfidErrorAccountInactive =>
+      'Your account is inactive — please see the bar staff';
 
   @override
-  String get rfidErrorSepaMissing => 'SEPA mandate missing';
+  String get rfidErrorSepaMissing =>
+      'Direct debit is not set up yet — please see the bar staff';
 
   @override
-  String get rfidErrorDatabaseError => 'Database error';
+  String get rfidErrorDatabaseError =>
+      'Something went wrong — please try again or see the bar staff';
 
   @override
   String get preferredLanguage => 'Preferred Language';
@@ -436,11 +440,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String statusLoadError(String error) {
-    return 'Failed to load status: $error';
-  }
-
-  @override
   String get sessionTimeoutWarningTitle => 'Still there?';
 
   @override
@@ -462,42 +461,62 @@ class AppLocalizationsEn extends AppLocalizations {
       'Please wait — transaction in progress';
 
   @override
-  String get errorMembersRefreshFailed => 'Member data could not be refreshed';
+  String get errorMembersRefreshFailed =>
+      'Member data could not be updated — please try again in a moment';
 
   @override
-  String get errorProductsRefreshFailed => 'Products could not be refreshed';
+  String get errorProductsRefreshFailed =>
+      'The product list could not be updated — please try again in a moment';
 
   @override
-  String get errorCheckoutFailed => 'Checkout failed. Please try again.';
+  String get errorCheckoutFailed =>
+      'Something went wrong — you have not been charged. Please try again.';
 
   @override
-  String get errorCheckoutCancelled => 'Checkout cancelled';
+  String get errorCheckoutCancelled =>
+      'Checkout cancelled — your cart is unchanged.';
 
   @override
   String get errorTransactionCreateFailed =>
-      'Your purchase could not be saved. Please try again.';
+      'Your purchase could not be saved — you have not been charged. Please try again.';
 
   @override
-  String get errorDispenserNotConfigured => 'The dispenser is not set up';
+  String get errorDispenserNotConfigured =>
+      'The token dispenser is not set up — please see the bar staff.';
 
   @override
   String get errorDispenserOperationFailed =>
-      'Token dispensing failed. Please notify staff.';
+      'Token dispensing failed — please see the bar staff.';
 
   @override
-  String get errorDispenserUnavailable => 'The dispenser is not available';
+  String get errorDispenserUnavailable =>
+      'The token dispenser is not responding — you can still buy everything else.';
 
   @override
   String get errorDispenserNoTokensDispensed =>
-      'No tokens could be dispensed. You have not been charged — your cart is still there.';
+      'No tokens came out — you have not been charged. Your cart is still there; please see the bar staff.';
 
   @override
-  String get errorBackendUnreachable => 'No connection to the server';
+  String get errorBackendUnreachable =>
+      'No connection to the server — your purchases are saved here and sent later.';
 
   @override
-  String get errorSyncFailed => 'Synchronisation failed';
+  String get errorSyncFailed =>
+      'Sync failed — your purchases are saved here and sent later.';
 
   @override
   String get errorTransactionSyncFailed =>
-      'Some purchases could not be synchronised';
+      'Some purchases have not reached the server yet — please tell the bar staff.';
+
+  @override
+  String get errorNoMemberSelected =>
+      'Nobody is logged in — please hold your chip to the scanner.';
+
+  @override
+  String get errorTransactionHistoryFailed =>
+      'Your purchases could not be loaded — please try again.';
+
+  @override
+  String get errorStatusLoadFailed =>
+      'The terminal status could not be loaded — please try again.';
 }

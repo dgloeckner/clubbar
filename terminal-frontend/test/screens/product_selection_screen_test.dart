@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/auth_provider.dart';
@@ -12,6 +13,7 @@ import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/product_selection_screen.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
 import '../test_helpers.dart';
 
@@ -285,6 +287,92 @@ void main() {
       await tester.pump();
 
       verify(() => mockSoundService.play(SoundEvent.categorySwitch)).called(1);
+    });
+
+    // Issue #27: a stale product list is worth saying out loud, but the
+    // member can still buy everything already cached — so it is an inline
+    // banner, not a blocking modal.
+    group('refresh failure banner (#27)', () {
+      Future<void> pumpScreen(WidgetTester tester) async {
+        final categories = [
+          CategoriesCacheData(
+            id: 'cat-1',
+            names: jsonEncode({'de': 'Bier'}),
+            isActive: 1,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        ];
+        when(() => mockProductsProvider.categories).thenReturn(categories);
+        when(() => mockProductsProvider.products).thenReturn([]);
+        when(() => mockCartProvider.itemCount).thenReturn(0);
+        when(() => mockCartProvider.items).thenReturn([]);
+
+        await tester.pumpWidget(
+          createTestApp(
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ProductsProvider>.value(
+                    value: mockProductsProvider),
+                ChangeNotifierProvider<CartProvider>.value(
+                    value: mockCartProvider),
+                ChangeNotifierProvider<AuthProvider>.value(
+                    value: mockAuthProvider),
+                ChangeNotifierProvider<SyncProvider>.value(
+                    value: mockSyncProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                    value: mockMembersProvider),
+                ChangeNotifierProvider<SessionController>.value(
+                    value: mockSessionController),
+                Provider<SoundService>.value(value: mockSoundService),
+              ],
+              child: const Scaffold(body: ProductSelectionScreen()),
+            ),
+          ),
+        );
+      }
+
+      testWidgets('shows localized copy when the refresh failed',
+          (WidgetTester tester) async {
+        when(() => mockProductsProvider.lastError).thenReturn(
+          const TerminalError(
+            key: TerminalErrorKey.productsRefreshFailed,
+            sequence: 1,
+          ),
+        );
+
+        await pumpScreen(tester);
+
+        expect(find.byType(ErrorBanner), findsOneWidget);
+        expect(
+          find.text(await errorCopy(TerminalErrorKey.productsRefreshFailed)),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('dismissing it clears the provider error',
+          (WidgetTester tester) async {
+        when(() => mockProductsProvider.lastError).thenReturn(
+          const TerminalError(
+            key: TerminalErrorKey.productsRefreshFailed,
+            sequence: 1,
+          ),
+        );
+        when(() => mockProductsProvider.clearError()).thenReturn(null);
+
+        await pumpScreen(tester);
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pump();
+
+        verify(() => mockProductsProvider.clearError()).called(1);
+      });
+
+      testWidgets('absent when nothing failed', (WidgetTester tester) async {
+        when(() => mockProductsProvider.lastError).thenReturn(null);
+
+        await pumpScreen(tester);
+
+        expect(find.byType(ErrorBanner), findsNothing);
+      });
     });
   });
 }

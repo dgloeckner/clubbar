@@ -10,7 +10,9 @@ import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/utils/app_logger.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/widgets/error_modal.dart';
 
 void showStatusInfoModal(BuildContext context) {
   try {
@@ -65,20 +67,16 @@ void showStatusInfoModal(BuildContext context) {
         networkService: networkService,
       ),
     );
-  } catch (e) {
-    final l10n = AppLocalizations.of(context)!;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.errorTitle),
-        content: Text(l10n.statusLoadError(e.toString())),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.dismiss),
-          ),
-        ],
-      ),
+  } catch (e, stackTrace) {
+    // The exception belongs in the log; the member gets the localized key.
+    AppLog.instance.e(
+      'Terminal error ${TerminalErrorKey.statusLoadFailed.name}',
+      error: e,
+      stackTrace: stackTrace,
+    );
+    showErrorModal(
+      context,
+      TerminalErrorKey.statusLoadFailed.message(AppLocalizations.of(context)!),
     );
   }
 }
