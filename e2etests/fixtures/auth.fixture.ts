@@ -7,6 +7,7 @@ import {
   createCorrection,
   createSettlement,
 } from "../utils/transactions";
+import { minimumExecutionDate } from "../utils/dates";
 import { ProfilePage } from "../pages/ProfilePage";
 import { MainLayoutPage } from "../pages/MainLayoutPage";
 import { ProductsPage } from "../pages/ProductsPage";
@@ -45,7 +46,7 @@ interface TestTransactionsFixture {
     notes?: string,
     reason?: 'adjustment' | 'refund' | 'discount'
   ): Promise<string>;
-  createSettlement(transactionIds: string[], daysFromNow?: number): Promise<string>;
+  createSettlement(transactionIds: string[], executionDate?: string): Promise<string>;
 }
 
 interface AuthFixtures {
@@ -422,8 +423,12 @@ export const test = base.extend<AuthFixtures>({
         return result.transaction?.id || result.id;
       },
 
-      async createSettlement(transactionIds: string[], daysFromNow = 7) {
-        const settlementData = createSettlement(transactionIds, daysFromNow);
+      async createSettlement(transactionIds: string[], executionDate?: string) {
+        // Ask the backend for a valid execution date unless the test pins one:
+        // it must be a TARGET2 business day, and the answer moves with the
+        // calendar (issue #11).
+        const execDate = executionDate ?? (await minimumExecutionDate(authenticatedRequest));
+        const settlementData = createSettlement(transactionIds, execDate);
         const response = await authenticatedRequest.post(`${API_BASE}/admin/settlements`, {
           data: settlementData,
         });

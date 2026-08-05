@@ -1,4 +1,9 @@
 import { test, expect } from '../../fixtures/auth.fixture';
+import {
+  INVALID_EXECUTION_DATES,
+  minimumExecutionDate,
+  today as todayIso,
+} from '../../utils/dates';
 
 test.describe('Settlements API', () => {
   /**
@@ -251,6 +256,73 @@ test.describe('Settlements API', () => {
       expect(body.error).toBe('validation_failed');
       expect(body.messages).toBeDefined();
       // Validation message structure varies - just check messages exist
+    });
+
+    /**
+     * Business-day rule (issue #11).
+     *
+     * SEPA requires ReqdColltnDt to be a settlement day, so execution_date must
+     * be Mon-Fri and not one of the six TARGET2 closing days. Dates are fixed
+     * rather than computed (Pattern 003) so the test asserts the same thing
+     * whatever day it runs on.
+     */
+    test('C3a: POST /settlements rejects a weekend execution_date', async ({ authenticatedRequest }) => {
+      for (const execDate of [INVALID_EXECUTION_DATES.saturday, INVALID_EXECUTION_DATES.sunday]) {
+        const response = await authenticatedRequest.post('/api/admin/settlements', {
+          data: {
+            settlement_type: 'sepa',
+            transaction_ids: ['test-id'],
+            settlement_date: '2026-07-01',
+            execution_date: execDate,
+          },
+        });
+
+        expect(response.status(), `${execDate} must be rejected`).toBe(422);
+        const body = await response.json();
+        expect(body.error).toBe('validation_failed');
+        expect(JSON.stringify(body.messages)).toContain('business day');
+      }
+    });
+
+    test('C3b: POST /settlements rejects TARGET2 closing days', async ({ authenticatedRequest }) => {
+      const closingDays = [
+        INVALID_EXECUTION_DATES.goodFriday,
+        INVALID_EXECUTION_DATES.easterMonday,
+        INVALID_EXECUTION_DATES.christmasDay,
+        INVALID_EXECUTION_DATES.newYearsDay,
+      ];
+
+      for (const execDate of closingDays) {
+        const response = await authenticatedRequest.post('/api/admin/settlements', {
+          data: {
+            settlement_type: 'sepa',
+            transaction_ids: ['test-id'],
+            // Far enough back that the 7-day lead time is never the reason.
+            settlement_date: '2026-01-05',
+            execution_date: execDate,
+          },
+        });
+
+        expect(response.status(), `${execDate} is a closing day and must be rejected`).toBe(422);
+        expect(JSON.stringify((await response.json()).messages)).toContain('business day');
+      }
+    });
+
+    test('C3c: POST /settlements accepts the business day after a closing day', async ({ authenticatedRequest }) => {
+      // 2026-04-07, the Tuesday after Good Friday → Easter Monday. Accepted past
+      // validation, so the failure is about the dummy transaction id, not the date.
+      const response = await authenticatedRequest.post('/api/admin/settlements', {
+        data: {
+          settlement_type: 'sepa',
+          transaction_ids: ['test-id'],
+          settlement_date: '2026-01-05',
+          execution_date: '2026-04-07',
+        },
+      });
+
+      if (response.status() === 422) {
+        expect(JSON.stringify((await response.json()).messages)).not.toContain('business day');
+      }
     });
 
     test('C4: POST /settlements requires transaction_ids', async ({ authenticatedRequest }) => {
@@ -686,8 +758,8 @@ test.describe('Settlements API', () => {
         data: { amount_cents: 200, reason: 'adjustment', notes: `sf-tx2-${testId}` },
       });
 
-      const today = new Date().toISOString().split('T')[0];
-      const exec = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      const today = todayIso();
+      const exec = await minimumExecutionDate(authenticatedRequest);
 
       const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
         data: {
@@ -727,6 +799,94 @@ test.describe('Settlements API', () => {
       const body = await res.json();
       expect(body.error).toBe('validation_failed');
       expect(body.messages).toBeDefined();
+    });
+
+    /**
+     * settle-filter had no execution_date validation at all before issue #11 —
+     * neither the business-day rule nor the 7-day lead time that
+     * POST /settlements always enforced.
+     */
+    test('rejects a weekend execution_date', async ({ authenticatedRequest }) => {
+      const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
+        data: {
+          settlement_date: '2026-07-01',
+          execution_date: INVALID_EXECUTION_DATES.sunday,
+        },
+      });
+
+      expect(res.status()).toBe(422);
+      expect(JSON.stringify((await res.json()).messages)).toContain('business day');
+    });
+
+    test('rejects a TARGET2 closing day execution_date', async ({ authenticatedRequest }) => {
+      const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
+        data: {
+          settlement_date: '2026-01-05',
+          execution_date: INVALID_EXECUTION_DATES.easterMonday,
+        },
+      });
+
+      expect(res.status()).toBe(422);
+      expect(JSON.stringify((await res.json()).messages)).toContain('business day');
+    });
+
+    test('rejects an execution_date inside the 7-day lead time', async ({ authenticatedRequest }) => {
+      const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
+        data: {
+          settlement_date: '2026-07-01', // Wednesday
+          execution_date: '2026-07-03',  // Friday — a business day, but only 2 days later
+        },
+      });
+
+      expect(res.status()).toBe(422);
+      expect(JSON.stringify((await res.json()).messages)).toContain('7 days');
+    });
+  });
+
+  /**
+   * Execution date info (ADR-0009, UC-SEPA-07)
+   */
+  test.describe('Execution Date Info', () => {
+    test('GET /settlements/execution-date-info returns a valid minimum date', async ({ authenticatedRequest }) => {
+      const res = await authenticatedRequest.get('/api/admin/settlements/execution-date-info');
+
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+
+      expect(body).toHaveProperty('minimum_date');
+      expect(body).toHaveProperty('lead_time_days', 7);
+      expect(body).toHaveProperty('rule');
+      expect(body.minimum_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+      // Never a weekend — parsed as UTC, which is what the ISO date denotes.
+      const weekday = new Date(`${body.minimum_date}T00:00:00Z`).getUTCDay();
+      expect(weekday, `${body.minimum_date} must not fall on a weekend`).toBeGreaterThan(0);
+      expect(weekday).toBeLessThan(6);
+
+      // And never a TARGET2 closing day.
+      expect(Object.values(INVALID_EXECUTION_DATES)).not.toContain(body.minimum_date);
+    });
+
+    test('the suggested minimum date is accepted by the creation endpoint', async ({ authenticatedRequest }) => {
+      // Closes the loop: whatever the endpoint suggests must pass validation,
+      // so the admin UI can submit it unchanged on any day of the year.
+      const execDate = await minimumExecutionDate(authenticatedRequest);
+
+      const res = await authenticatedRequest.post('/api/admin/settlements', {
+        data: {
+          settlement_type: 'sepa',
+          transaction_ids: ['test-id'],
+          settlement_date: todayIso(),
+          execution_date: execDate,
+        },
+      });
+
+      // May still fail on the dummy transaction id — but never on the date.
+      if (res.status() === 422) {
+        const messages = JSON.stringify((await res.json()).messages);
+        expect(messages).not.toContain('business day');
+        expect(messages).not.toContain('7 days');
+      }
     });
   });
 });

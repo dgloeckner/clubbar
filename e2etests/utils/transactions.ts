@@ -6,6 +6,8 @@
  * Implements E2E Testing Pattern 003: Database-Agnostic Assertions (via test data builders)
  */
 
+import { toIsoDate } from './dates'
+
 /**
  * Generate a UUID v4 string
  * Used for transaction IDs in sync API calls
@@ -172,24 +174,28 @@ export interface SettlementData {
 
 /**
  * Create settlement data
+ *
+ * The execution date must be supplied by the caller rather than derived from
+ * `today + 7`: it has to be a TARGET2 business day, and a computed one lands on
+ * a weekend or closing day often enough to make tests fail by day of week
+ * (issue #11). Use `minimumExecutionDate()` from `utils/dates` to get a valid
+ * value from the backend.
+ *
  * @param transactionIds - IDs of transactions to settle
- * @param daysFromNow - Days from today for execution date (default: 7)
+ * @param executionDate - Valid execution date (YYYY-MM-DD)
  * @returns Settlement data ready for settlement API
  */
 export const createSettlement = (
   transactionIds: string[],
-  daysFromNow: number = 7
+  executionDate: string
 ): SettlementData => {
-  const today = new Date().toISOString().split('T')[0]
-  const executionDate = new Date()
-  executionDate.setDate(executionDate.getDate() + daysFromNow)
-  const executionDateStr = executionDate.toISOString().split('T')[0]
+  const today = toIsoDate(new Date())
 
   return {
     settlement_type: 'sepa',
     transaction_ids: transactionIds,
     settlement_date: today,
-    execution_date: executionDateStr,
+    execution_date: executionDate,
     period_start: today,
     period_end: today,
   }
