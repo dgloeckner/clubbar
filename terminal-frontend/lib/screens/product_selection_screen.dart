@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
 import 'dart:convert';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
@@ -72,8 +73,8 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                     deckelCents: membersProvider.memberDeckel,
                     onCartPressed: () => context.go('/cart'),
                     onLogoutPressed: () {
-                      // Clear selected member and navigate to scan page
-                      membersProvider.clearSelectedMember();
+                      // ADR-0027: all session ends go through endSession()
+                      context.read<SessionController>().endSession();
                       context.go('/idle');
                     },
                   ),

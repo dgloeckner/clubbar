@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/config/app_router.dart';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/providers/auth_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
@@ -330,6 +331,17 @@ void main() async {
     config: configService,
   );
 
+  final cartProvider = CartProvider(
+    service: cartService,
+    config: configService,
+    soundService: soundService,
+  );
+  // Session lifecycle owner (ADR-0027): all session ends go through this.
+  final sessionController = SessionController(
+    membersProvider: membersProvider,
+    cartProvider: cartProvider,
+  );
+
   // Load products into provider (after seeding database)
   await productsProvider.refreshProducts();
   final syncProvider = SyncProvider(
@@ -344,7 +356,8 @@ void main() async {
     localeProvider: localeProvider,
     membersProvider: membersProvider,
     productsProvider: productsProvider,
-    cartService: cartService,
+    cartProvider: cartProvider,
+    sessionController: sessionController,
     syncProvider: syncProvider,
     membersRepository: membersRepo,
     transactionsRepository: transactionsRepo,
@@ -377,7 +390,8 @@ class ClubBarTerminalApp extends StatelessWidget {
   final LocaleProvider localeProvider;
   final MembersProvider membersProvider;
   final ProductsProvider productsProvider;
-  final CartService cartService;
+  final CartProvider cartProvider;
+  final SessionController sessionController;
   final SyncProvider syncProvider;
   final MembersRepository membersRepository;
   final TransactionsRepository transactionsRepository;
@@ -393,7 +407,8 @@ class ClubBarTerminalApp extends StatelessWidget {
     required this.localeProvider,
     required this.membersProvider,
     required this.productsProvider,
-    required this.cartService,
+    required this.cartProvider,
+    required this.sessionController,
     required this.syncProvider,
     required this.membersRepository,
     required this.transactionsRepository,
@@ -419,9 +434,10 @@ class ClubBarTerminalApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider<MembersProvider>.value(value: membersProvider),
         ChangeNotifierProvider<ProductsProvider>(create: (_) => productsProvider),
-        ChangeNotifierProvider(create: (_) => CartProvider(service: cartService, config: configService, soundService: soundService)),
+        ChangeNotifierProvider<CartProvider>.value(value: cartProvider),
+        ChangeNotifierProvider<SessionController>.value(value: sessionController),
         ChangeNotifierProvider<SyncProvider>(create: (_) => syncProvider),
-        ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider, membersRepository, soundService)),
+        ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider, membersRepository, soundService, sessionController)),
       ],
       child: Builder(
         builder: (context) {

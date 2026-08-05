@@ -835,6 +835,24 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Status konnte nicht geladen werden: {error}'**
   String statusLoadError(String error);
+
+  /// No description provided for @sessionTimeoutWarningTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Noch da?'**
+  String get sessionTimeoutWarningTitle;
+
+  /// No description provided for @sessionTimeoutWarningBody.
+  ///
+  /// In de, this message translates to:
+  /// **'Du wirst in {seconds} s automatisch abgemeldet.'**
+  String sessionTimeoutWarningBody(int seconds);
+
+  /// No description provided for @sessionTimeoutContinue.
+  ///
+  /// In de, this message translates to:
+  /// **'Weiter einkaufen'**
+  String get sessionTimeoutContinue;
 }
 
 class _AppLocalizationsDelegate

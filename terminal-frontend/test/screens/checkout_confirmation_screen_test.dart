@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
@@ -12,18 +13,26 @@ import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
+class MockSessionController extends Mock implements SessionController {}
 class MockTransactionsRepository extends Mock implements TransactionsRepository {}
 
 void main() {
   group('CheckoutConfirmationScreen', () {
     late MockCartProvider mockCartProvider;
     late MockMembersProvider mockMembersProvider;
+    late MockSessionController mockSessionController;
     late MockTransactionsRepository mockRepo;
 
     setUp(() {
       mockCartProvider = MockCartProvider();
       mockMembersProvider = MockMembersProvider();
+      mockSessionController = MockSessionController();
       mockRepo = MockTransactionsRepository();
+
+      // Session controller mocks (owns all session teardown, ADR-0027)
+      when(() => mockSessionController.endSession()).thenReturn(null);
+      when(() => mockSessionController.addListener(any())).thenReturn(null);
+      when(() => mockSessionController.removeListener(any())).thenReturn(null);
 
       // Setup cart provider mocks
       when(() => mockCartProvider.clearCart()).thenReturn(null);
@@ -54,6 +63,9 @@ void main() {
                 ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
+                ),
+                ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController,
                 ),
                 Provider<TransactionsRepository>.value(value: mockRepo),
               ],
@@ -105,6 +117,9 @@ void main() {
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
                 ),
+                ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController,
+                ),
                 Provider<TransactionsRepository>.value(value: mockRepo),
               ],
               child: const CheckoutConfirmationScreen(
@@ -154,6 +169,9 @@ void main() {
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
                 ),
+                ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController,
+                ),
                 Provider<TransactionsRepository>.value(value: mockRepo),
               ],
               child: const CheckoutConfirmationScreen(
@@ -202,6 +220,9 @@ void main() {
                 ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
+                ),
+                ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController,
                 ),
                 Provider<TransactionsRepository>.value(value: mockRepo),
               ],
@@ -263,6 +284,9 @@ void main() {
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
                 ),
+                ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController,
+                ),
                 Provider<TransactionsRepository>.value(value: mockRepo),
               ],
               child: const CheckoutConfirmationScreen(
@@ -302,9 +326,10 @@ void main() {
       // Wait for auto-navigation (30 second countdown)
       await tester.pump(const Duration(seconds: 30));
 
-      // Verify clearCart was called
-      verify(() => mockCartProvider.clearCart()).called(greaterThanOrEqualTo(1));
-      verify(() => mockMembersProvider.clearSelectedMember()).called(greaterThanOrEqualTo(1));
+      // Checkout completion ends the session (ADR-0027); endSession() owns
+      // clearing the cart and the selected member.
+      verify(() => mockSessionController.endSession())
+          .called(greaterThanOrEqualTo(1));
     });
   });
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
@@ -41,7 +42,8 @@ class ShoppingCartScreen extends StatelessWidget {
                     showBackButton: true,
                     onBackPressed: () => context.go('/products'),
                     onLogoutPressed: () {
-                      membersProvider.clearSelectedMember();
+                      // ADR-0027: all session ends go through endSession()
+                      context.read<SessionController>().endSession();
                       context.go('/idle');
                     },
                   ),
@@ -358,7 +360,16 @@ class ShoppingCartScreen extends StatelessWidget {
                         return;
                       }
 
-                      await cartProvider.checkout(context, selectedMember, sessionId);
+                      // ADR-0027 rule 7: suspend the inactivity timer while
+                      // checkout/dispensing is in flight.
+                      final session = context.read<SessionController>();
+                      session.beginCriticalOperation();
+                      try {
+                        await cartProvider.checkout(
+                            context, selectedMember, sessionId);
+                      } finally {
+                        session.endCriticalOperation();
+                      }
 
                       if (cartProvider.lastError != null) {
                         if (context.mounted) {

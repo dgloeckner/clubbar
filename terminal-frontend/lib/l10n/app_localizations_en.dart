@@ -439,4 +439,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String statusLoadError(String error) {
     return 'Failed to load status: $error';
   }
+
+  @override
+  String get sessionTimeoutWarningTitle => 'Still there?';
+
+  @override
+  String sessionTimeoutWarningBody(int seconds) {
+    return 'You will be logged out automatically in $seconds s.';
+  }
+
+  @override
+  String get sessionTimeoutContinue => 'Keep shopping';
 }

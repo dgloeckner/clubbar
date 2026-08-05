@@ -441,4 +441,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String statusLoadError(String error) {
     return 'Status konnte nicht geladen werden: $error';
   }
+
+  @override
+  String get sessionTimeoutWarningTitle => 'Noch da?';
+
+  @override
+  String sessionTimeoutWarningBody(int seconds) {
+    return 'Du wirst in $seconds s automatisch abgemeldet.';
+  }
+
+  @override
+  String get sessionTimeoutContinue => 'Weiter einkaufen';
 }

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
-import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
@@ -110,8 +110,8 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   }
 
   void _performNavigation() {
-    context.read<CartProvider>().clearCart();
-    context.read<MembersProvider>().clearSelectedMember();
+    // Checkout completion is one of the three session ends (ADR-0027).
+    context.read<SessionController>().endSession();
     context.go('/idle');
   }
 

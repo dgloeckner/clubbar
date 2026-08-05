@@ -7,9 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/main.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/locale_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
@@ -340,12 +342,23 @@ Future<Widget> buildTestApp(
     networkService: networkService,
   );
 
+  final cartProvider = CartProvider(
+    service: effectiveCartService,
+    config: configService,
+    soundService: soundService,
+  );
+  final sessionController = SessionController(
+    membersProvider: membersProvider,
+    cartProvider: cartProvider,
+  );
+
   return ClubBarTerminalApp(
     database: database,
     localeProvider: localeProvider,
     membersProvider: membersProvider,
     productsProvider: productsProvider,
-    cartService: effectiveCartService,
+    cartProvider: cartProvider,
+    sessionController: sessionController,
     syncProvider: syncProvider,
     membersRepository: membersRepo,
     transactionsRepository: transactionsRepo,

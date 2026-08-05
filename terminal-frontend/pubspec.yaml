@@ -61,6 +61,7 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
+  fake_async: ^1.3.1
 
   # Code Generation
   drift_dev: ^2.32.0

@@ -47,6 +47,11 @@ Each ADR follows this structure:
 | [0020](./0020-sepa-mandate-requirement-terminal-access.md) | SEPA Mandate Requirement for Terminal Access | Accepted | 2025-01-23 |
 | [0021](./0021-rfid-card-assignment-workflow.md) | RFID Card Assignment Workflow | Accepted | 2025-01-23 |
 | [0022](./0022-test-strategy-and-automation.md) | Test Strategy and Automation | Accepted | 2025-01-23 |
+| [0023](./0023-terminal-balance-state-management.md) | Terminal Balance State Management | Accepted | 2025-01-25 |
+| [0024](./0024-transaction-history-retrieval-terminal.md) | Transaction History Retrieval in Terminal | Accepted | 2025-01-25 |
+| [0025](./0025-session-fixation-protection.md) | Session Fixation Protection on Login | Accepted | 2026-03-17 |
+| [0026](./0026-mandatory-totp-two-factor-authentication.md) | Mandatory TOTP Two-Factor Authentication for Admin Panel | Accepted | 2026-03-22 |
+| [0027](./0027-terminal-session-lifecycle.md) | Terminal Session Lifecycle and Cart Ownership | Accepted | 2026-08-05 |
 
 ## Creating a New ADR
 

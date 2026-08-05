@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/config/app_router.dart';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/auth_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
@@ -20,6 +21,7 @@ class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockCartProvider extends Mock implements CartProvider {}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockRfidProvider extends Mock implements RfidProvider {}
+class MockSessionController extends Mock implements SessionController {}
 
 void main() {
   group('App Navigation', () {
@@ -29,6 +31,7 @@ void main() {
     late MockCartProvider mockCartProvider;
     late MockSyncProvider mockSyncProvider;
     late MockRfidProvider mockRfidProvider;
+    late MockSessionController mockSessionController;
 
     setUp(() {
       mockAuthProvider = MockAuthProvider();
@@ -37,6 +40,7 @@ void main() {
       mockCartProvider = MockCartProvider();
       mockSyncProvider = MockSyncProvider();
       mockRfidProvider = MockRfidProvider();
+      mockSessionController = MockSessionController();
 
       // Setup default mock behaviors
       when(() => mockAuthProvider.isAuthenticated).thenReturn(true);
@@ -65,6 +69,10 @@ void main() {
       when(() => mockRfidProvider.addListener(any())).thenReturn(null);
       when(() => mockRfidProvider.removeListener(any())).thenReturn(null);
       when(() => mockRfidProvider.isScanning).thenReturn(false);
+
+      when(() => mockSessionController.showTimeoutWarning).thenReturn(false);
+      when(() => mockSessionController.addListener(any())).thenReturn(null);
+      when(() => mockSessionController.removeListener(any())).thenReturn(null);
     });
 
     testWidgets('app starts at idle screen', (WidgetTester tester) async {
@@ -77,6 +85,7 @@ void main() {
             ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
             ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
             ChangeNotifierProvider<RfidProvider>.value(value: mockRfidProvider),
+            ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
             Provider<ConfigService>.value(value: createMockConfigService()),
           ],
           child: Builder(

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
@@ -14,6 +15,8 @@ import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
 class MockCartProvider extends Mock implements CartProvider {}
 
 class MockMembersProvider extends Mock implements MembersProvider {}
+
+class MockSessionController extends Mock implements SessionController {}
 
 class FakeMembersCacheData extends Fake implements MembersCacheData {}
 
@@ -27,10 +30,17 @@ void main() {
   group('ShoppingCartScreen', () {
     late MockCartProvider mockCartProvider;
     late MockMembersProvider mockMembersProvider;
+    late MockSessionController mockSessionController;
 
     setUp(() {
       mockCartProvider = MockCartProvider();
       mockMembersProvider = MockMembersProvider();
+      mockSessionController = MockSessionController();
+      when(() => mockSessionController.endSession()).thenReturn(null);
+      when(() => mockSessionController.beginCriticalOperation()).thenReturn(null);
+      when(() => mockSessionController.endCriticalOperation()).thenReturn(null);
+      when(() => mockSessionController.addListener(any())).thenReturn(null);
+      when(() => mockSessionController.removeListener(any())).thenReturn(null);
 
       // Default mock setup
       when(() => mockCartProvider.items).thenReturn([
@@ -91,6 +101,9 @@ void main() {
             ChangeNotifierProvider<MembersProvider>.value(
               value: mockMembersProvider,
             ),
+            ChangeNotifierProvider<SessionController>.value(
+              value: mockSessionController,
+            ),
           ],
           child: child ?? const Scaffold(body: ShoppingCartScreen()),
         ),
@@ -144,6 +157,9 @@ void main() {
                 ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
                 ChangeNotifierProvider<MembersProvider>.value(
                   value: mockMembersProvider,
+                ),
+                ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController,
                 ),
               ],
               child: const Scaffold(
