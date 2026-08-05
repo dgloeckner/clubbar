@@ -20,12 +20,16 @@ class IdleWaitingScreen extends StatefulWidget {
 }
 
 class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
+  static const _errorDisplayDuration = Duration(seconds: 5);
+  static const _errorFadeDuration = Duration(milliseconds: 500);
+
   final StringBuffer _rfidBuffer = StringBuffer();
   Timer? _errorDismissTimer;
+  Timer? _errorClearTimer;
   /// The occurrence already shown, so a repeat of the same key still displays.
   TerminalError? _shownError;
   double _errorOpacity = 1.0;
-  late RfidProvider _rfidProvider;
+  RfidProvider? _rfidProvider;
 
   @override
   void initState() {
@@ -34,10 +38,11 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
       context.read<SyncProvider>().startBackgroundSync();
 
       // Save reference to RfidProvider for safe disposal
-      _rfidProvider = context.read<RfidProvider>();
+      final rfidProvider = context.read<RfidProvider>();
+      _rfidProvider = rfidProvider;
 
       // Start listening for real RFID scans (stream subscription)
-      _rfidProvider.startListening(context);
+      rfidProvider.startListening(context);
 
       // Capture all keyboard input globally — works on Linux/Wayland and macOS
       HardwareKeyboard.instance.addHandler(_onKeyEvent);
@@ -47,8 +52,10 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
   @override
   void dispose() {
     _errorDismissTimer?.cancel();
+    _errorClearTimer?.cancel();
     HardwareKeyboard.instance.removeHandler(_onKeyEvent);
-    _rfidProvider.stopListening();
+    // Null when the screen is torn down before its first post-frame callback.
+    _rfidProvider?.stopListening();
     super.dispose();
   }
 
@@ -60,7 +67,7 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
       final uid = _rfidBuffer.toString().trim();
       _rfidBuffer.clear();
       if (uid.isNotEmpty) {
-        _rfidProvider.emitScan(uid);
+        _rfidProvider?.emitScan(uid);
       }
     } else if (event.character != null && event.character!.isNotEmpty) {
       _rfidBuffer.write(event.character);
@@ -68,24 +75,34 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
     return false; // don't consume — let other widgets handle events normally
   }
 
-  /// Start auto-dismiss timer for error message
+  /// Show [error] at full opacity for [_errorDisplayDuration], then fade it out.
+  ///
+  /// Every failed scan is a distinct occurrence (see [TerminalError.sequence]),
+  /// so this restarts from scratch each time — including for a repeat scan of
+  /// the same rejected card. Both timers of the previous occurrence are
+  /// cancelled first: a stale clear firing mid-display would wipe the new
+  /// banner after a few hundred milliseconds.
   void _startErrorDismissTimer(TerminalError error) {
     _errorDismissTimer?.cancel();
+    _errorClearTimer?.cancel();
 
     setState(() {
       _errorOpacity = 1.0;
       _shownError = error;
     });
 
-    _errorDismissTimer = Timer(const Duration(seconds: 5), () {
+    _errorDismissTimer = Timer(_errorDisplayDuration, () {
+      if (!mounted) return;
       setState(() {
         _errorOpacity = 0.0;
       });
 
-      Timer(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          context.read<RfidProvider>().clearDetection();
-        }
+      _errorClearTimer = Timer(_errorFadeDuration, () {
+        if (!mounted) return;
+        setState(() {
+          _shownError = null;
+        });
+        context.read<RfidProvider>().clearDetection();
       });
     });
   }
@@ -142,7 +159,9 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                               right: 0,
                               child: AnimatedOpacity(
                                 opacity: _errorOpacity,
-                                duration: const Duration(milliseconds: 500),
+                                // Must match the clear timer, or the banner is
+                                // torn out of the tree mid-fade.
+                                duration: _errorFadeDuration,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: AppSpacing.md,
