@@ -8,7 +8,7 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Status | Summary |
 |------|--------|---------|
-| [SEPA Execution Date: Bank Business Day Rule](./2026-08-05-sepa-execution-date-business-day.md) | In Progress | Issue #11: reject weekend `execution_date` (422) on both settlement endpoints, roll the admin UI suggestion forward, guard the SEPA export |
+| [SEPA Execution Date: Bank Business Day Rule](./2026-08-05-sepa-execution-date-business-day.md) | In Progress | Issue #11: reject non-business-day `execution_date` (422, weekends + six TARGET2 closing days) on both settlement endpoints, add `GET /settlements/execution-date-info` as the single source of truth, guard the SEPA export |
 
 ---
 

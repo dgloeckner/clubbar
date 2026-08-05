@@ -3,6 +3,9 @@
 **Issue**: [#11 — SEPA export: execution date can fall on a weekend (invalid ReqdColltnDt)](https://github.com/dgloeckner/clubbar/issues/11)
 **Status**: In Progress (analysis done, implementation not started)
 **Created**: 2026-08-05
+**Scope note (2026-08-05)**: extended to cover the six TARGET2 closing days on maintainer
+request. They were originally deferred as a follow-up; see "Scope extension" below for what
+that changes.
 
 ---
 
@@ -20,11 +23,11 @@ Banks either silently shift the date or (stricter portal validators, e.g. Sparka
 | A1 | `POST /api/admin/settlements` validates only `execution_date >= settlement_date + 7 days` — no weekday check | `backend/src/Modules/Settlements/Controllers/AdminController.php:101-111` |
 | A2 | **`POST /api/admin/settlements/settle-filter` has no lead-time validation at all** — any date passes, including yesterday | `AdminController.php:53-78` |
 | A3 | Export writes the stored date straight into `requestedCollectionDate`; no guard, and the XSD does not reject weekends | `backend/src/Modules/Settlements/Services/SepaExportService.php:68` |
-| A4 | Admin UI computes `execution_date` client-side as `today + 7` in two independent places — never asks the user, so a weekend date is submitted silently | `admin-frontend/src/pages/JournalPage.tsx:402-404`, `admin-frontend/src/components/modals/SettlementConfirmModal.tsx:51-55` |
+| A4 | Admin UI computes `execution_date` client-side as `today + 7` in two independent places — never asks the user, so an invalid date is submitted silently | `admin-frontend/src/pages/JournalPage.tsx:402-404`, `admin-frontend/src/components/modals/SettlementConfirmModal.tsx:51-55` |
 | A5 | The modal (preview) and the submit path compute the date separately — the value shown and the value sent can differ; `JournalPage` also uses `toISOString()` on a local `Date`, which shifts the day for UTC-negative offsets | same as A4 |
 | A6 | `GET /settlements/execution-date-info` referenced in the issue, ADR-0009 and UC-SEPA-07 **does not exist** — no route, no controller method | `backend/src/routes.php:125-135` |
 | A7 | The `+7` rule is anchored to `settlement_date`, while ADR-0009 specifies `TODAY + 7`. Divergence pre-dates this issue; documented here, not changed by this plan | `AdminController.php:105` |
-| A8 | E2E helpers build `execution_date` as `today + 7` dynamically. Once weekend dates are rejected, these tests fail on ~2 of 7 weekdays | `e2etests/utils/transactions.ts:184-192`, `e2etests/tests/api/settlements.spec.ts:690`, `e2etests/tests/admin/journal-and-settlements.spec.ts:298` |
+| A8 | E2E helpers build `execution_date` as `today + 7` dynamically. Once invalid dates are rejected, these tests fail on ~2 of 7 weekdays (more around holidays) | `e2etests/utils/transactions.ts:184-192`, `e2etests/tests/api/settlements.spec.ts:690`, `e2etests/tests/admin/journal-and-settlements.spec.ts:298` |
 
 **Reproduction**: `settlement_date = 2026-08-02` (Sunday), `execution_date = 2026-08-09` (Sunday)
 passes validation today and lands in the XML as `<ReqdColltnDt>2026-08-09</ReqdColltnDt>`.
@@ -33,102 +36,148 @@ passes validation today and lands in the XML as `<ReqdColltnDt>2026-08-09</ReqdC
 
 Two options were on the table (issue, suggested fix 1). Chosen combination:
 
-- **API rejects** a weekend `execution_date` with 422. Silently rewriting a date the caller
+- **API rejects** an invalid `execution_date` with 422. Silently rewriting a date the caller
   explicitly supplied would make the stored settlement differ from the request and is invisible
   in the audit log. Rejection is explicit and testable.
 - **UI rolls forward.** The admin never picks the date — the frontend derives it. So the
-  frontend must produce a valid date (next Mon–Fri on/after `today + 7`), otherwise the
-  settle button breaks for ~2 of 7 weekdays.
+  frontend must produce a valid date, otherwise the settle button breaks on a predictable
+  fraction of days.
 
-Scope stays inside ADR-0009's "no holiday calendar" principle: weekday check only, stateless,
-no new tables. TARGET2 holidays are explicitly out of scope (see Follow-up).
+## Scope extension: TARGET2 closing days
+
+A bank business day is now **Mon–Fri, excluding the six TARGET2 closing days**: 1 January,
+Good Friday, Easter Monday, 1 May, 25 December, 26 December. This reverses part of ADR-0009,
+which rejected business-day calculation (Alternative 1) partly to avoid the Easter algorithm.
+What is adopted is only the *stateless* half of that alternative — no `bank_holidays` table, no
+regional variants, no external holiday sync; the six dates are computed, not stored.
+
+Two consequences that were not present in the weekend-only version:
+
+1. **Easter must be computed.** Use the Anonymous Gregorian (Meeus/Jones/Butcher) algorithm in
+   plain PHP — *not* `easter_date()`, which needs `ext-calendar`. That extension is not declared
+   in `backend/composer.json` and cannot be assumed on shared hosting (IONOS deployment target).
+2. **The rule is no longer trivial enough to duplicate in TypeScript.** The frontend-local helper
+   that the weekend-only plan proposed would mean maintaining the Easter algorithm twice, in two
+   languages, with silent drift when they disagree. So **`GET /admin/settlements/execution-date-info`
+   (A6) moves into scope** as the single source of truth, and the frontend consumes `minimum_date`
+   instead of computing anything. This is also the endpoint ADR-0009 and UC-SEPA-07 already describe.
+
+**Worst case lead time**: Good Friday + weekend + Easter Monday is four consecutive closing days,
+so `today + 7` can roll to `today + 11`. Acceptable, but must be stated in the ADR.
 
 ---
 
 ## Milestones
 
-### M1 — Shared business-day helper (backend)
+### M1 — Banking calendar helper (backend)
 
-- [ ] **T1.1** Add `backend/src/Shared/Utils/BankingDate.php` with `isBusinessDay(string $date): bool`
-      and `nextBusinessDay(string $date): string` (Sat/Sun → next Monday; returns input if already Mon–Fri).
-      Sits alongside `DateFormatter`, `SepaSanitizer` — no DI, pure static helper.
-- [ ] **T1.2** Unit test `backend/tests/Unit/Shared/Utils/BankingDateTest.php`: each weekday,
-      Sat→Mon, Sun→Mon, idempotency of `nextBusinessDay`, invalid date string handling.
-      **Verify**: `cd backend && ./vendor/bin/phpunit tests/Unit/Shared/Utils/BankingDateTest.php` — all green.
+- [ ] **T1.1** Add `backend/src/Shared/Utils/BankingCalendar.php`, alongside `DateFormatter` /
+      `SepaSanitizer`, as a stateless static helper:
+      `isBusinessDay(string $date): bool`, `nextBusinessDay(string $date): string`
+      (rolls forward across chained weekends and holidays; returns input if already valid),
+      `target2Holidays(int $year): array` (six ISO dates), `easterSunday(int $year): string`.
+- [ ] **T1.2** Easter via Anonymous Gregorian algorithm in plain PHP — **no `ext-calendar`**
+      (not in `composer.json`, not guaranteed on the IONOS target).
+- [ ] **T1.3** Unit test `backend/tests/Unit/Shared/Utils/BankingCalendarTest.php`:
+      - Easter Sunday for 2026-04-05, 2027-03-28, 2028-04-16
+      - each fixed holiday is not a business day; `2026-04-03` (Good Friday) and `2026-04-06`
+        (Easter Monday) rejected
+      - **chained rolls**: `2026-04-03` (Good Fri) → `2026-04-07` (Tue, skips weekend + Easter Mon);
+        `2028-12-25` (Mon) → `2028-12-27` (Wed, two consecutive holidays);
+        `2026-12-25` (Fri) → `2026-12-28` (Mon); `2027-01-01` (Fri) → `2027-01-04` (Mon)
+      - a holiday falling on a weekend is not double-counted (`2027-05-01` is a Saturday)
+      - ordinary weekday unchanged; `nextBusinessDay` is idempotent
+      **Verify**: `cd backend && ./vendor/bin/phpunit tests/Unit/Shared/Utils/BankingCalendarTest.php` — all green.
 
 ### M2 — API validation
 
-- [ ] **T2.1** `AdminController::store()` — reject non-business-day `execution_date` with 422,
-      message `execution_date must be a bank business day (Mon-Fri)`, alongside the existing +7 check.
+- [ ] **T2.1** `AdminController::store()` — reject a non-business-day `execution_date` with 422,
+      message `execution_date must be a bank business day (Mon-Fri, excluding TARGET2 closing days)`,
+      alongside the existing +7 check.
 - [ ] **T2.2** `AdminController::settleFilter()` — add the **missing** `+7` lead-time check (A2)
       *and* the business-day check, so both creation paths enforce the same rule. Extract the shared
       block into a private `validateExecutionDate(string $settlementDate, string $executionDate): ?array`.
-      **Verify**: `curl` a Sunday `execution_date` against both endpoints → 422 with the new message;
-      a Monday date → 201.
+      **Verify**: `curl` a Sunday and `2026-12-25` against both endpoints → 422 with the new message;
+      an ordinary Monday → 201.
 
 ### M3 — Export guard (defense in depth)
 
-- [ ] **T3.1** `SepaExportService::generateXml()` — throw a domain exception (mapped to 409/422 by the
-      centralized handler, Pattern 007) if the stored `execution_date` is not a business day, so legacy
-      rows written before this fix cannot silently produce an invalid file.
+- [ ] **T3.1** `SepaExportService::generateXml()` — throw a domain exception (mapped by the
+      centralized handler, Pattern 007) if the stored `execution_date` is not a business day, so rows
+      written before this fix cannot silently produce an invalid file.
 - [ ] **T3.2** Unit test in `backend/tests/Unit/Modules/Settlements/Services/SepaExportServiceTest.php`:
-      settlement with a Sunday `execution_date` → export throws; Monday → `ReqdColltnDt` present and valid.
+      settlement with a Sunday and one with `2026-12-25` → export throws; ordinary weekday →
+      `ReqdColltnDt` present and valid.
       **Verify**: `./vendor/bin/phpunit tests/Unit/Modules/Settlements` — all green.
 
-### M4 — Admin frontend
+### M4 — `GET /admin/settlements/execution-date-info` (moved in scope)
 
-- [ ] **T4.1** Add `admin-frontend/src/utils/bankingDate.ts` with a timezone-safe
-      `toIsoDate(date)` (local components, not `toISOString()`) and
-      `suggestedExecutionDate(from = new Date())` = roll `from + 7` forward to the next Mon–Fri.
-- [ ] **T4.2** Use it in `JournalPage.handleConfirmSettlement` (both the settle-filter and the
-      transaction_ids branch) and in `SettlementConfirmModal`, replacing both inline computations —
-      fixes A4 and A5 (shown date == submitted date).
-- [ ] **T4.3** Vitest unit test for `suggestedExecutionDate`: for each weekday of a fixed reference
-      week the result is Mon–Fri and `>= from + 7`.
+- [ ] **T4.1** Route + `AdminController::executionDateInfo()` returning the shape ADR-0009 already
+      specifies, with `minimum_date` = `nextBusinessDay(TODAY + 7)`:
+      `{"minimum_date": "...", "lead_time_days": 7, "rule": "..."}`.
+      Thin controller → `SettlementsService` → `BankingCalendar` (Patterns 004/006).
+- [ ] **T4.2** Add the path to `api/admin.yaml` and re-run orval so the frontend gets a typed client.
+      **Verify**: `curl -s .../api/admin/settlements/execution-date-info | jq .` returns a Mon–Fri
+      non-holiday date ≥ today + 7.
+
+### M5 — Admin frontend
+
+- [ ] **T5.1** Fetch `minimum_date` from M4's endpoint and use it as `execution_date` in
+      `JournalPage.handleConfirmSettlement` (both the settle-filter and the transaction_ids branch)
+      and for display in `SettlementConfirmModal` — replacing **both** inline `today + 7` computations,
+      which fixes A4 and A5 (shown date == submitted date) and removes the `toISOString()` timezone bug.
+      No date rule is reimplemented in TypeScript.
+- [ ] **T5.2** Handle the fetch failing: keep the confirm button disabled with an error rather than
+      falling back to a locally computed date, which is what would reintroduce the drift.
+- [ ] **T5.3** Vitest test for the modal/page: given a mocked endpoint response, the displayed and
+      submitted date is exactly `minimum_date`.
       **Verify**: `cd admin-frontend && npm run test` — all green.
 
-### M5 — Tests (E2E / API)
+### M6 — Tests (E2E / API)
 
-- [ ] **T5.1** Fix the day-of-week flakiness introduced by M2 (A8): route
+- [ ] **T6.1** Fix the day-of-week flakiness introduced by M2 (A8): route
       `e2etests/utils/transactions.ts`, `settlements.spec.ts:690` and
-      `journal-and-settlements.spec.ts:298` through one shared helper
-      (`e2etests/utils/dates.ts` → `businessDayFromNow(7)`).
-- [ ] **T5.2** New API tests in `e2etests/tests/api/settlements.spec.ts`: weekend `execution_date`
-      → 422 with the business-day message, for **both** `POST /settlements` and
-      `POST /settlements/settle-filter`; adjacent Monday → 201. Use fixed dates (a known
-      Saturday/Sunday) per Pattern 003 rather than computed ones.
-- [ ] **T5.3** E2E: settle from the Journal page and assert the created settlement's
-      `execution_date` is a Mon–Fri, verified against the API (frontend → API → DB, per the
-      end-to-end requirement in CLAUDE.md).
+      `journal-and-settlements.spec.ts:298` through one shared helper in `e2etests/utils/dates.ts`
+      that calls the M4 endpoint (not a reimplemented rule).
+- [ ] **T6.2** New API tests in `e2etests/tests/api/settlements.spec.ts`, against **both**
+      `POST /settlements` and `POST /settlements/settle-filter`: a weekend date → 422; `2026-12-25`
+      (Good Friday-style fixed holiday on a weekday) → 422; `2026-04-06` (Easter Monday) → 422;
+      the adjacent ordinary weekday → 201. Fixed dates per Pattern 003, not computed ones.
+- [ ] **T6.3** API test for `GET /settlements/execution-date-info`: returns 200, `lead_time_days` 7,
+      and a `minimum_date` that is a weekday and not in the holiday set.
+- [ ] **T6.4** E2E: settle from the Journal page and assert the created settlement's `execution_date`
+      is a valid business day, verified against the API (frontend → API → DB, per CLAUDE.md).
       **Verify**: `cd e2etests && npm test -- tests/api/settlements.spec.ts --workers=4`, then the
       full suite with `--workers=4`.
 
-### M6 — Documentation
+### M7 — Documentation
 
-- [ ] **T6.1** **ADR-0009 amendment** — add the weekday rule to Decision + validation pseudocode +
-      Consequences. ⚠️ Requires explicit maintainer approval before editing (project convention:
-      never modify ADRs without confirmation).
-- [ ] **T6.2** `use-cases/sepa/uc-sepa-07-settlement-finalize.md` — update the "Execution Date Rules"
-      table with the Mon–Fri constraint.
-- [ ] **T6.3** `api/admin.yaml` — document the new 422 case for `/admin/settlements` and
-      `/admin/settlements/settle-filter`; re-run orval if any schema changes.
+- [ ] **T7.1** **ADR-0009 amendment** — the substantive one. Decision section gains weekends +
+      the six TARGET2 closing days; the validation pseudocode gains `nextBusinessDay`; Alternative 1
+      ("Business Day Calculation with Holiday Calendar", rejected) must be rewritten honestly as
+      *partially adopted*: computed holidays yes, `bank_holidays` table and regional variants still
+      no. Consequences gain the four-consecutive-closing-days worst case (lead time up to +11 days)
+      and the Easter-algorithm maintenance cost.
+      ⚠️ Scope extension approved by the maintainer on 2026-08-05; confirm the final ADR wording
+      before it is merged.
+- [ ] **T7.2** `use-cases/sepa/uc-sepa-07-settlement-finalize.md` — replace "No business day
+      calculation required" in the Execution Date Rules table, which becomes wrong.
+- [ ] **T7.3** `api/admin.yaml` — document the new 422 case on both creation endpoints (the
+      endpoint itself is added in T4.2).
 
 ---
 
 ## Out of scope / follow-up
 
-- **TARGET2 closing days** (Jan 1, Good Friday, Easter Monday, May 1, Dec 25, Dec 26). Needs a
-  separate ADR-0009 amendment and maintainer approval — ADR-0009 deliberately excluded holiday
-  logic (Alternative 1, rejected). Track as its own issue.
-- **`GET /admin/settlements/execution-date-info`** (A6). The rule is trivial enough to duplicate in
-  M4's frontend helper; a server endpoint would remove the drift risk but is not required to close
-  this issue. Track separately if the rule ever grows (e.g. holidays).
+- **Regional bank holidays** beyond TARGET2 (e.g. German state holidays). TARGET2 governs SEPA
+  settlement; local closures do not move `ReqdColltnDt`.
 - **`+7` anchor divergence** (A7): `settlement_date + 7` vs ADR-0009's `TODAY + 7`. Pre-existing;
   not changed here.
 
 ## Success criteria
 
-1. Weekend `execution_date` → 422 on both creation endpoints (M2, covered by T5.2).
-2. Settling from the admin UI never produces a weekend `execution_date` (M4, covered by T5.3).
+1. Weekend **and** TARGET2 closing day `execution_date` → 422 on both creation endpoints (M2, covered by T6.2).
+2. Settling from the admin UI never produces a non-business-day `execution_date`, and no date rule
+   is duplicated in TypeScript (M4+M5, covered by T6.4).
 3. Export refuses to emit a `ReqdColltnDt` that is not a business day (M3, covered by T3.2).
-4. Full E2E suite passes with `--workers=4` on any day of the week.
+4. Full E2E suite passes with `--workers=4` on any day of the year, including holiday periods.
