@@ -485,6 +485,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Das Ausgabegerät ist nicht verfügbar';
 
   @override
+  String get errorDispenserNoTokensDispensed =>
+      'Es konnten keine Token ausgegeben werden. Dir wurde nichts berechnet – dein Warenkorb bleibt erhalten.';
+
+  @override
   String get errorBackendUnreachable => 'Keine Verbindung zum Server';
 
   @override

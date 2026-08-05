@@ -178,6 +178,7 @@
   "errorDispenserNotConfigured": "The dispenser is not set up",
   "errorDispenserOperationFailed": "Token dispensing failed. Please notify staff.",
   "errorDispenserUnavailable": "The dispenser is not available",
+  "errorDispenserNoTokensDispensed": "No tokens could be dispensed. You have not been charged — your cart is still there.",
   "errorBackendUnreachable": "No connection to the server",
   "errorSyncFailed": "Synchronisation failed",
   "errorTransactionSyncFailed": "Some purchases could not be synchronised"

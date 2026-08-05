@@ -185,7 +185,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
         }
 
         // Show dispensing dialog
-        final result = await _showDispensingDialog(
+        final result = await showDispensingDialog(
           context,
           tokenProducts,
           dispenserTxId,
@@ -256,8 +256,16 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
               print('Keeping tracking record for reconciliation (state=${result.state})');
             }
           } else {
-            // No tokens dispensed - clean up tracking record
+            // Nothing came out of the dispenser. There is no purchase to
+            // record, so this is a failed checkout, not a €0.00 success:
+            // release the tracking record, keep the cart so the member can
+            // retry, and say why. Falling through here would clear the cart
+            // and show the green confirmation screen for nothing (#15).
+            // `finally` below clears _isLoading and notifies.
             await _service.cleanupDispenserOperation(dispenserTxId);
+            emitError(TerminalErrorKey.dispenserNoTokensDispensed);
+            _soundService.play(SoundEvent.checkoutError);
+            return;
           }
         }
       }
@@ -295,8 +303,13 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
     }
   }
 
-  /// Show dispensing progress dialog and return result
-  Future<DispenseResult?> _showDispensingDialog(
+  /// Show dispensing progress dialog and return result.
+  ///
+  /// Overridable so tests can drive the dispense branch of [checkout] without a
+  /// widget tree; production code never calls it directly.
+  @protected
+  @visibleForTesting
+  Future<DispenseResult?> showDispensingDialog(
     BuildContext context,
     List<CartItem> tokenProducts,
     String dispenserTxId,

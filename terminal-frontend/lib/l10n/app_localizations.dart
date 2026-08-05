@@ -902,6 +902,12 @@ abstract class AppLocalizations {
   /// **'Das Ausgabegerät ist nicht verfügbar'**
   String get errorDispenserUnavailable;
 
+  /// TerminalErrorKey.dispenserNoTokensDispensed — dispense finished with zero tokens; checkout aborted
+  ///
+  /// In de, this message translates to:
+  /// **'Es konnten keine Token ausgegeben werden. Dir wurde nichts berechnet – dein Warenkorb bleibt erhalten.'**
+  String get errorDispenserNoTokensDispensed;
+
   /// TerminalErrorKey.backendUnreachable — backend health check failed
   ///
   /// In de, this message translates to:

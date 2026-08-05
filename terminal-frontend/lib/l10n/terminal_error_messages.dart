@@ -32,6 +32,8 @@ extension TerminalErrorKeyL10n on TerminalErrorKey {
         return l10n.errorDispenserOperationFailed;
       case TerminalErrorKey.dispenserUnavailable:
         return l10n.errorDispenserUnavailable;
+      case TerminalErrorKey.dispenserNoTokensDispensed:
+        return l10n.errorDispenserNoTokensDispensed;
       case TerminalErrorKey.productsRefreshFailed:
         return l10n.errorProductsRefreshFailed;
       case TerminalErrorKey.backendUnreachable:

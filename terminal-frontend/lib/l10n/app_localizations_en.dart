@@ -478,6 +478,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorDispenserUnavailable => 'The dispenser is not available';
 
   @override
+  String get errorDispenserNoTokensDispensed =>
+      'No tokens could be dispensed. You have not been charged — your cart is still there.';
+
+  @override
   String get errorBackendUnreachable => 'No connection to the server';
 
   @override

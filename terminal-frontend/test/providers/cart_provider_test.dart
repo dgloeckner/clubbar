@@ -9,12 +9,36 @@ import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 
 class MockCartService extends Mock implements CartService {}
 class MockConfigService extends Mock implements ConfigService {}
 class MockBuildContext extends Mock implements BuildContext {}
 class MockSoundService extends Mock implements SoundService {}
+
+/// Drives the dispense branch of [CartProvider.checkout] without a widget tree:
+/// the real implementation puts a dialog on screen, which a unit test has no
+/// way to answer.
+class StubDispenseCartProvider extends CartProvider {
+  StubDispenseCartProvider({
+    required super.service,
+    required super.config,
+    required super.soundService,
+    required this.dispenseResult,
+  });
+
+  /// What the dispenser "returns"; null models a cancelled/failed dialog.
+  final DispenseResult? dispenseResult;
+
+  @override
+  Future<DispenseResult?> showDispensingDialog(
+    BuildContext context,
+    List<CartItem> tokenProducts,
+    String dispenserTxId,
+  ) async =>
+      dispenseResult;
+}
 
 void main() {
   setUpAll(() {
@@ -220,6 +244,167 @@ void main() {
 
       expect(provider.items, isEmpty);
       expect(provider.total, equals(0));
+    });
+  });
+
+  // Acceptance criteria (#15): a dispense that yields zero tokens is a failed
+  // checkout, not a €0.00 success. The member keeps their cart, is told why,
+  // and is not charged.
+  group('CartProvider zero-token dispense', () {
+    late MockCartService mockService;
+    late MockConfigService mockConfig;
+    late MockSoundService mockSoundService;
+
+    final member = MembersCacheData(
+      id: 'member-1',
+      cardUid: 'card-123',
+      firstName: 'John',
+      lastName: 'Doe',
+      preferredLanguage: 'de',
+      isActive: 1,
+      isSepaValid: 1,
+      balanceCents: 0,
+      updatedAt: '2025-02-01T10:00:00Z',
+    );
+
+    CartProvider providerDispensing(int dispensed) =>
+        StubDispenseCartProvider(
+          service: mockService,
+          config: mockConfig,
+          soundService: mockSoundService,
+          dispenseResult: DispenseResult(
+            txId: 'tx-1',
+            state: dispensed > 0 ? 'done' : 'error',
+            quantity: 1,
+            dispensed: dispensed,
+          ),
+        );
+
+    setUp(() {
+      mockService = MockCartService();
+      mockConfig = MockConfigService();
+      mockSoundService = MockSoundService();
+
+      when(() => mockConfig.dispenserEnabled).thenReturn(true);
+      when(() => mockConfig.dispenserBaseUrl).thenReturn('http://dispenser');
+      when(() => mockConfig.dispenserApiKey).thenReturn('key');
+      when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (true, null));
+      when(() => mockService.createDispenserOperation(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            memberId: any(named: 'memberId'),
+            productId: any(named: 'productId'),
+            priceCents: any(named: 'priceCents'),
+            requestedQty: any(named: 'requestedQty'),
+          )).thenAnswer((_) async => (true, null));
+      when(() => mockService.cleanupDispenserOperation(any()))
+          .thenAnswer((_) async => (true, null));
+      when(() => mockService.createTransaction(any(), any(),
+              sessionId: any(named: 'sessionId')))
+          .thenAnswer((_) async => ('txn-123', null));
+    });
+
+    test('keeps the cart and reports an error when no token is dispensed',
+        () async {
+      final provider = providerDispensing(0);
+      provider.addItem('token-1', 'Token', 200, 1, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      expect(provider.items, hasLength(1));
+      expect(provider.total, equals(200));
+      expect(provider.lastErrorKey,
+          equals(TerminalErrorKey.dispenserNoTokensDispensed));
+      expect(provider.isLoading, isFalse);
+    });
+
+    test('creates no transaction when no token is dispensed', () async {
+      final provider = providerDispensing(0);
+      provider.addItem('token-1', 'Token', 200, 1, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verifyNever(() => mockService.createTransactionsFromDispenseResult(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            memberId: any(named: 'memberId'),
+            productId: any(named: 'productId'),
+            priceCents: any(named: 'priceCents'),
+            requestedQty: any(named: 'requestedQty'),
+            actualDispensed: any(named: 'actualDispensed'),
+            sessionId: any(named: 'sessionId'),
+          ));
+      verifyNever(() => mockService.createTransaction(any(), any(),
+          sessionId: any(named: 'sessionId')));
+      expect(provider.lastTransactionId, isNull);
+    });
+
+    test('plays the error sound, not the success sound, on zero tokens',
+        () async {
+      final provider = providerDispensing(0);
+      provider.addItem('token-1', 'Token', 200, 1, 'de',
+          requiresDispenser: true);
+      clearInteractions(mockSoundService);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verify(() => mockSoundService.play(SoundEvent.checkoutError)).called(1);
+      verifyNever(() => mockSoundService.play(SoundEvent.checkoutSuccess));
+    });
+
+    test('leaves regular products in the cart too — nothing is charged',
+        () async {
+      final provider = providerDispensing(0);
+      provider.addItem('token-1', 'Token', 200, 1, 'de',
+          requiresDispenser: true);
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      expect(provider.items, hasLength(2));
+      verifyNever(() => mockService.createTransaction(any(), any(),
+          sessionId: any(named: 'sessionId')));
+    });
+
+    test('releases the dispenser tracking record on zero tokens', () async {
+      final provider = providerDispensing(0);
+      provider.addItem('token-1', 'Token', 200, 1, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verify(() => mockService.cleanupDispenserOperation(any())).called(1);
+    });
+
+    test('a partial dispense still succeeds and clears the cart', () async {
+      final provider = providerDispensing(1);
+      provider.addItem('token-1', 'Token', 200, 2, 'de',
+          requiresDispenser: true);
+
+      when(() => mockService.createTransactionsFromDispenseResult(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            memberId: any(named: 'memberId'),
+            productId: any(named: 'productId'),
+            priceCents: any(named: 'priceCents'),
+            requestedQty: any(named: 'requestedQty'),
+            actualDispensed: any(named: 'actualDispensed'),
+            sessionId: any(named: 'sessionId'),
+          )).thenAnswer((_) async => ('txn-token', null));
+      when(() => mockService.updateDispenserOperationState(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            state: any(named: 'state'),
+            transactionsCreated: any(named: 'transactionsCreated'),
+            lastKnownDispensed: any(named: 'lastKnownDispensed'),
+          )).thenAnswer((_) async => (true, null));
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      expect(provider.items, isEmpty);
+      expect(provider.lastError, isNull);
+      expect(provider.lastTransactionId, equals('txn-token'));
+      verify(() => mockSoundService.play(SoundEvent.checkoutSuccess)).called(1);
     });
   });
 
