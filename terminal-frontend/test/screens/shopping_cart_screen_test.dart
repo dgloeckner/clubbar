@@ -36,7 +36,10 @@ void main() {
       mockCartProvider = MockCartProvider();
       mockMembersProvider = MockMembersProvider();
       mockSessionController = MockSessionController();
-      when(() => mockSessionController.endSession()).thenReturn(null);
+      when(() => mockSessionController.endSession()).thenReturn(true);
+      when(() => mockSessionController.hasActiveSession).thenReturn(false);
+      when(() => mockSessionController.isCriticalOperationInFlight)
+          .thenReturn(false);
       when(() => mockSessionController.beginCriticalOperation()).thenReturn(null);
       when(() => mockSessionController.endCriticalOperation()).thenReturn(null);
       when(() => mockSessionController.addListener(any())).thenReturn(null);
@@ -243,6 +246,22 @@ void main() {
     group('checkout in flight', () {
       setUp(() {
         when(() => mockCartProvider.isLoading).thenReturn(true);
+        when(() => mockSessionController.isCriticalOperationInFlight)
+            .thenReturn(true);
+      });
+
+      testWidgets('logout does not end the session (#48)',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(
+          find.byKey(const Key('member-bar-logout')),
+          warnIfMissed: false,
+        );
+        await tester.pump();
+
+        verifyNever(() => mockSessionController.endSession());
+        verifyNever(() => mockMembersProvider.clearSelectedMember());
       });
 
       testWidgets('checkout button shows spinner and processing label',

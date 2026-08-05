@@ -71,13 +71,26 @@ class SessionController extends ChangeNotifier {
     return SessionStartResult.started;
   }
 
+  /// True while a checkout/dispense is in flight (ADR-0027 rule 7).
+  bool get isCriticalOperationInFlight => _criticalOps > 0;
+
   /// End the active session: cart is silently discarded (ADR-0027 rule 5).
-  void endSession() {
+  ///
+  /// Refused while a critical operation is in flight (ADR-0027 rule 7):
+  /// nothing ends a session during billing — not the inactivity timer, not an
+  /// explicit logout tap, not a card scan. Guarding here rather than only in
+  /// the UI keeps future callers from reintroducing #48.
+  ///
+  /// Returns whether the session actually ended — callers that navigate away
+  /// must gate on it, or they would leave a still-billing session behind.
+  bool endSession() {
+    if (isCriticalOperationInFlight) return false;
+
     _cancelTimers();
-    _criticalOps = 0;
     _cartProvider.clearCart();
     _membersProvider.clearSelectedMember();
     notifyListeners();
+    return true;
   }
 
   /// Record a member interaction; resets the inactivity timer and dismisses

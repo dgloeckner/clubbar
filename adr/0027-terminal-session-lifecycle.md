@@ -1,6 +1,6 @@
 # ADR-0027: Terminal Session Lifecycle and Cart Ownership
 
-**Status**: Accepted
+**Status**: Accepted (amended 2026-08-05 — see [Amendment 1](#amendment-1-nothing-ends-a-session-during-a-critical-operation))
 
 **Date**: 2026-08-05
 
@@ -34,7 +34,10 @@ stateDiagram-v2
     Active --> Idle: explicit logout → endSession()
     Active --> Confirmation: checkout completes
     Confirmation --> Idle: logout button / 30 s auto-return → endSession()
+    Confirmation --> Active: card scan (receipt finalized, fresh session)
 ```
+
+Session ends are suspended for as long as a checkout or dispense is in flight (rule 7).
 
 ### Rules
 
@@ -42,12 +45,30 @@ stateDiagram-v2
 |---|------|-----------|
 | 1 | A session starts only by a card scan from the idle screen. | Single entry point; cart defensively cleared at start. |
 | 2 | A session ends **only** by: explicit logout, inactivity timeout, or checkout completion. | Protects the active member's cart and billing identity. |
-| 3 | A foreign card tap during an active session is **rejected** (with a "please log out first" hint). It never ends, replaces, or merges the session. | Prevents session hijacking and cross-member billing. Binding constraint on #26. |
-| 4 | The same member re-tapping their own card mid-session is a no-op. | An accidental double-tap must not wipe the cart. |
+| 3 | A foreign card tap during an **Active or Warning** session is **rejected** (with a "please log out first" hint). It never ends, replaces, or merges the session. | Prevents session hijacking and cross-member billing. Binding constraint on #26. Scoped to Active/Warning by [amendment 2](#amendment-2-per-route-scan-policy-53) — the Confirmation screen holds a finished receipt, not an open cart. |
+| 4 | The same member re-tapping their own card mid-session is a no-op, and the tap counts as activity (resets the inactivity timer, dismisses the "Still there?" warning). | An accidental double-tap must not wipe the cart; a member still standing at the terminal is not idle. |
 | 5 | The cart is created empty at session start and silently discarded at session end. No cross-session cart preservation. | Cart is session state, not member state. Silent discard: nothing is billed yet, and a blocking dialog would hold the kiosk hostage. |
 | 6 | Inactivity timeout: 60 s without interaction, then a visible 10 s countdown warning; any tap resets. | 30 s (original dead constant) punishes slow deciders; without any timeout a walked-away session blocks the terminal (rule 3 forbids takeover by scan). |
-| 7 | The inactivity timer is suspended while a checkout or dispense operation is in flight. | A long token dispense must never be interrupted by an auto-logout mid-billing. |
-| 8 | All session ends go through a single `endSession()` on a session controller; no screen clears member or cart state directly. | One code path to enforce the invariant; future paths (e.g. new screens) cannot reintroduce #13. |
+| 7 | **Nothing ends a session while a checkout or dispense operation is in flight** — not the inactivity timer, not an explicit logout, not a card scan. `endSession()` is a no-op for as long as the critical operation runs, and the logout affordance renders disabled. | A long token dispense must never be interrupted mid-billing. Broadened from "the inactivity timer is suspended" by [amendment 1](#amendment-1-nothing-ends-a-session-during-a-critical-operation): the member must always reach the confirmation screen for a charge they incurred (#48). |
+| 8 | All session ends go through a single `endSession()` on a session controller; no screen clears member or cart state directly. | One code path to enforce the invariant; future paths (e.g. new screens) cannot reintroduce #13 — and, since rule 7's guard lives inside `endSession()`, cannot reintroduce #48 either. |
+| 9 | On the **Confirmation** screen any card that could start a session finalizes the shown receipt and starts that member's session (the same member gets a fresh session — "one more round"); an invalid card shows a scan error and does **not** finalize the receipt. | The receipt is a finished transaction, not an open cart: there is nothing to protect and takeover is the queue win. Added by [amendment 2](#amendment-2-per-route-scan-policy-53). |
+
+### Amendments
+
+#### Amendment 1: nothing ends a session during a critical operation
+
+Decided 2026-08-05 (record: #55, implemented with #48). Rule 7 originally only suspended the inactivity *timer*, which left the logout button tappable during checkout: the member was billed, `endSession()` navigated to idle, and the confirmation screen was never reached — a silent charge.
+
+The guard now sits at two layers:
+
+- **Controller** — `endSession()` returns without doing anything while `isCriticalOperationInFlight` is true. The invariant lives where rule 8 says it must, so any future caller (new screen, timer, scan handler) inherits it.
+- **UI** — the logout affordance renders disabled while a critical operation is in flight, so the refusal is visible rather than a dead tap.
+
+A tap during checkout is simply refused; there is no deferred logout. Checkout completion always reaches the confirmation screen, where logout works normally.
+
+#### Amendment 2: per-route scan policy (#53)
+
+Decided 2026-08-05 (record: #53, implemented with #26). Once scan capture moves to the app shell, rule 3's session protection is scoped to Active/Warning, rule 4 gains the activity reset, rule 9 defines the Confirmation-screen takeover, and rule 7 covers scans as well: while a critical operation is in flight every scan is rejected with "please wait — transaction in progress", and scans are never queued.
 
 ### Alternatives considered
 
@@ -67,11 +88,13 @@ stateDiagram-v2
 
 - A member who abandons a full cart loses it silently and must re-select items on next login; accepted (a few taps, nothing billed).
 - The terminal is blocked for up to ~70 s (60 s + 10 s warning) after a walk-away before the next member can scan; mitigated by the visible countdown and the logout button remaining available to anyone.
-- Rule 7 means a hung dispense keeps the session open; bounded by the dispenser dialog's own request timeouts.
+- Rule 7 means a hung dispense keeps the session open **and un-endable** — neither the timer nor a logout tap can clear it; bounded by the dispenser dialog's own request timeouts, and every critical operation must therefore be closed in a `finally` block so the counter cannot leak.
+- A member who taps logout mid-checkout sees the button do nothing until the transaction finishes; accepted, and made legible by the disabled styling.
 
 ## Related
 
 - [ADR-0014](./0014-rfid-scanning-integration.md) — RFID scanning integration
 - [ADR-0023](./0023-terminal-balance-state-management.md) — balance state shown within a session
-- Issues: #13 (cart persists across logout), #23 (inactivity timeout), #26 (scan outside idle screen)
+- Issues: #13 (cart persists across logout), #23 (inactivity timeout), #26 (scan outside idle screen), #48 (logout during in-flight checkout)
+- Decision records for the amendments: #55 (logout guard), #53 (per-route scan policy)
 - `CONTEXT.md` — definitions of *Session*, *Cart*, *Deckel*

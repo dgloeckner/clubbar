@@ -43,9 +43,11 @@ class ShoppingCartScreen extends StatelessWidget {
                     showBackButton: true,
                     onBackPressed: () => context.go('/products'),
                     onLogoutPressed: () {
-                      // ADR-0027: all session ends go through endSession()
-                      context.read<SessionController>().endSession();
-                      context.go('/idle');
+                      // ADR-0027: all session ends go through endSession(),
+                      // which refuses to run mid-checkout (rule 7).
+                      if (context.read<SessionController>().endSession()) {
+                        context.go('/idle');
+                      }
                     },
                   ),
                 ),
@@ -92,8 +94,11 @@ class ShoppingCartScreen extends StatelessWidget {
                   showBackButton: true,
                   onBackPressed: () => context.go('/products'),
                   onLogoutPressed: () {
-                    membersProvider.clearSelectedMember();
-                    context.go('/idle');
+                    // ADR-0027 rule 8: all session ends go through
+                    // endSession() — it also refuses to run mid-checkout.
+                    if (context.read<SessionController>().endSession()) {
+                      context.go('/idle');
+                    }
                   },
                 ),
               ),

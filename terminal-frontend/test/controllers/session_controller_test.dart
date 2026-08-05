@@ -230,23 +230,51 @@ void main() {
       });
     });
 
-    test('endSession resets the critical-operation count', () {
-      fakeAsync((async) {
-        final controller = buildController();
-        controller.startSession(_member('a'));
-        async.flushMicrotasks();
+    test('isCriticalOperationInFlight tracks the nesting count', () {
+      final controller = buildController();
 
-        controller.beginCriticalOperation();
-        controller.endSession();
+      expect(controller.isCriticalOperationInFlight, isFalse);
 
-        controller.startSession(_member('b'));
-        async.flushMicrotasks();
-        async.elapse(const Duration(seconds: 61));
+      controller.beginCriticalOperation();
+      controller.beginCriticalOperation();
+      expect(controller.isCriticalOperationInFlight, isTrue);
 
-        expect(controller.showTimeoutWarning, isTrue,
-            reason: 'a stale critical op must not suppress the next '
-                'session\'s inactivity timer');
-      });
+      controller.endCriticalOperation();
+      expect(controller.isCriticalOperationInFlight, isTrue,
+          reason: 'an outer critical operation is still in flight');
+
+      controller.endCriticalOperation();
+      expect(controller.isCriticalOperationInFlight, isFalse);
+    });
+
+    test('endSession is refused while a critical operation is in flight',
+        () async {
+      final controller = buildController();
+      await controller.startSession(_member('a'));
+      controller.beginCriticalOperation();
+
+      expect(controller.endSession(), isFalse,
+          reason: 'the caller must be able to tell the logout was refused');
+
+      expect(controller.hasActiveSession, isTrue,
+          reason: 'nothing may end a session during billing (ADR-0027 rule 7)');
+      verifyNever(() => members.clearSelectedMember());
+      // Only the defensive clear from startSession.
+      verify(() => cart.clearCart()).called(1);
+    });
+
+    test('endSession works again once the critical operation finished',
+        () async {
+      final controller = buildController();
+      await controller.startSession(_member('a'));
+      controller.beginCriticalOperation();
+      controller.endSession();
+
+      controller.endCriticalOperation();
+
+      expect(controller.endSession(), isTrue);
+      expect(controller.hasActiveSession, isFalse);
+      verify(() => members.clearSelectedMember()).called(1);
     });
   });
 }

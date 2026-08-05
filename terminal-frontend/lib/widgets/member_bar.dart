@@ -1,5 +1,7 @@
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
@@ -28,6 +30,12 @@ class MemberBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    // ADR-0027 rule 7: a checkout/dispense in flight must not be interrupted,
+    // so logout is refused for as long as it runs. Read here rather than per
+    // screen so every surface showing the MemberBar is covered.
+    final logoutBlocked = context.select<SessionController, bool>(
+      (session) => session.isCriticalOperationInFlight,
+    );
     final locale = member.preferredLanguage;
     final firstName = member.firstName ?? '';
     final lastName = member.lastName ?? '';
@@ -112,27 +120,31 @@ class MemberBar extends StatelessWidget {
               else
                 _buildCartButton(),
               const SizedBox(width: 8),
-              // Logout button
+              // Logout button — disabled while a checkout/dispense runs
               Material(
+                key: const Key('member-bar-logout'),
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: onLogoutPressed,
+                  onTap: logoutBlocked ? null : onLogoutPressed,
                   borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: const Color(0xff334155),
-                      borderRadius: BorderRadius.circular(11),
-                      border: Border.all(
-                        color: const Color(0xff475569),
-                        width: 1,
+                  child: Opacity(
+                    opacity: logoutBlocked ? 0.4 : 1.0,
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: const Color(0xff334155),
+                        borderRadius: BorderRadius.circular(11),
+                        border: Border.all(
+                          color: const Color(0xff475569),
+                          width: 1,
+                        ),
                       ),
-                    ),
-                    child: const Icon(
-                      Icons.exit_to_app,
-                      color: Color(0xff94a3b8),
-                      size: 22,
+                      child: const Icon(
+                        Icons.exit_to_app,
+                        color: Color(0xff94a3b8),
+                        size: 22,
+                      ),
                     ),
                   ),
                 ),
