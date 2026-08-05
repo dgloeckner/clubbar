@@ -8,7 +8,7 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Status | Summary |
 |------|--------|---------|
-| [SEPA NOTPROVIDED BIC Encoding](./2026-08-05-sepa-notprovided-bic-encoding.md) | Not Started | Issue #12 — emit `Othr/Id = NOTPROVIDED` instead of `BICFI = NOTPROVIDED` for IBAN-only agents in the pain.008.001.08 export |
+| [SEPA NOTPROVIDED BIC Encoding](./2026-08-05-sepa-notprovided-bic-encoding.md) | In Progress (Tasks 1-4 done; bank file check pending) | Issue #12 — emit `Othr/Id = NOTPROVIDED` instead of `BICFI = NOTPROVIDED` for IBAN-only agents in the pain.008.001.08 export |
 
 ---
 

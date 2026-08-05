@@ -5,6 +5,18 @@
 
 **Related:** [ADR-0008](../adr/0008-sepa-xml-export-format-selection.md) (SEPA XML export format), UC-A31 (SEPA XML export)
 
+**Status:** Tasks 1-4 complete (2026-08-05). Task 5 (bank-side file check) is manual and still open.
+
+| Task | Status | Evidence |
+|------|--------|----------|
+| 1. Emit `Othr/Id` instead of `BICFI` | `[x]` | Both agents render `<Othr><Id>NOTPROVIDED</Id></Othr>`; no `BICFI` in output |
+| 2. Update unit tests | `[x]` | `SepaExportServiceTest` 5/5 passing, 19 assertions; XSD validation still green |
+| 3. Full backend unit suite | `[x]` | `vendor/bin/phpunit --testsuite Unit` → 83/83 passing, 192 assertions |
+| 4. Update ADR-0008 | `[x]` | Maintainer approved 2026-08-05; agent encoding + mandatory `DbtrAgt` documented |
+| 5. Bank-side file check | `[ ]` | Manual step — upload an export to a bank file check, then close issue #12 |
+
+> Note: `vendor/bin/phpunit` (all suites) also reports 30 errors in `tests/Feature/**`, all `PDOException: getaddrinfo for database failed`. These are pre-existing environment failures from the absent database container, unrelated to this change; CI runs them against a live database.
+
 ---
 
 ## Analysis
@@ -72,7 +84,7 @@ So the change is strictly non-regressive and does not depend on a bank round-tri
 
 **Files:** Modify `backend/src/Modules/Settlements/Services/SepaExportService.php`
 
-- [ ] **Step 1: Remove the pseudo-BIC from the payment information**
+- [x] **Step 1: Remove the pseudo-BIC from the payment information**
 
 At line 65, delete the `'creditorAgentBIC' => 'NOTPROVIDED',` entry and add a comment above the array explaining that omitting the BIC makes the library emit the EPC/DK-prescribed `Othr/Id` form:
 
@@ -84,7 +96,7 @@ At line 65, delete the `'creditorAgentBIC' => 'NOTPROVIDED',` entry and add a co
 // parses as a (non-existent) Romanian BIC and can trip bank-side validators.
 ```
 
-- [ ] **Step 2: Remove the pseudo-BIC from the transfer**
+- [x] **Step 2: Remove the pseudo-BIC from the transfer**
 
 At line 87, delete the `'debtorBic' => 'NOTPROVIDED',` entry.
 
@@ -96,7 +108,7 @@ At line 87, delete the `'debtorBic' => 'NOTPROVIDED',` entry.
 
 **Files:** Modify `backend/tests/Unit/Modules/Settlements/Services/SepaExportServiceTest.php`
 
-- [ ] **Step 1: Replace the outdated BICFI assertion**
+- [x] **Step 1: Replace the outdated BICFI assertion**
 
 `testExportContainsCoreDirectDebitStructure()` currently asserts (line 89-90):
 
@@ -107,7 +119,7 @@ $this->assertGreaterThan(0, $xpath->query('//p:FinInstnId/p:BICFI')->length);
 
 This asserts the defect. Remove it — the encoding gets its own test in Step 2.
 
-- [ ] **Step 2: Add a dedicated encoding test**
+- [x] **Step 2: Add a dedicated encoding test**
 
 ```php
 public function testIbanOnlySubmissionUsesOthrIdNotProvidedForAgents(): void
@@ -132,7 +144,7 @@ public function testIbanOnlySubmissionUsesOthrIdNotProvidedForAgents(): void
 }
 ```
 
-- [ ] **Step 3: Assert both agents remain present**
+- [x] **Step 3: Assert both agents remain present**
 
 `CdtrAgt` and `DbtrAgt` are mandatory (`minOccurs=1`). Add to the same test, guarding against a future "just omit the element" regression:
 
@@ -153,7 +165,7 @@ cd backend && vendor/bin/phpunit tests/Unit/Modules/Settlements/Services/SepaExp
 
 ## Task 3: Run the full backend unit suite
 
-- [ ] **Step 1: Confirm no regressions**
+- [x] **Step 1: Confirm no regressions**
 
 ```bash
 cd backend && vendor/bin/phpunit
@@ -169,15 +181,15 @@ cd backend && vendor/bin/phpunit
 
 **Files:** Modify `adr/0008-sepa-xml-export-format-selection.md`
 
-- [ ] **Step 1: Correct the XML structure example**
+- [x] **Step 1: Correct the XML structure example**
 
 The example currently shows `<CdtrAgt><FinInstnId><BICFI>COBADEFFXXX</BICFI></FinInstnId></CdtrAgt>` and omits `DbtrAgt` entirely from `DrctDbtTxInf`. Both diverge from what the implementation emits. Replace with the IBAN-only form and add the mandatory `DbtrAgt`.
 
-- [ ] **Step 2: Add an explicit "Agent identification" core principle**
+- [x] **Step 2: Add an explicit "Agent identification" core principle**
 
 State that Club Bar does not collect agent BICs (IBAN-only), that both `CdtrAgt` and `DbtrAgt` are mandatory in pain.008.001.08 and therefore cannot be omitted, and that the missing BIC is encoded as `Othr/Id = NOTPROVIDED` per EPC/DK guidelines.
 
-- [ ] **Step 3: Tick the relevant post-implementation monitoring item**
+- [x] **Step 3: Tick the relevant post-implementation monitoring item**
 
 The "Monitor bank acceptance (any rejections?)" checkbox relates directly to this change.
 
