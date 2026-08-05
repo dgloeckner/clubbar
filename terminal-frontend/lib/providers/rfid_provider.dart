@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
+import 'package:clubbar_terminal/providers/error_signal.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/services/mock_rfid_service.dart';
@@ -10,7 +12,7 @@ import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 
-class RfidProvider extends ChangeNotifier {
+class RfidProvider extends ChangeNotifier with ErrorSignal {
   final MockRfidService _mockRfidService = MockRfidService();
   final RealRfidService _realRfidService = RealRfidService();
   final MembersProvider _membersProvider;
@@ -20,7 +22,6 @@ class RfidProvider extends ChangeNotifier {
 
   MembersCacheData? _detectedMember;
   bool _isScanning = false;
-  String? _error;
   StreamSubscription<String>? _scanSubscription;
   BuildContext? _context;
 
@@ -29,7 +30,10 @@ class RfidProvider extends ChangeNotifier {
 
   MembersCacheData? get detectedMember => _detectedMember;
   bool get isScanning => _isScanning;
-  String? get error => _error;
+
+  /// Pending scan error, or null. Each occurrence is a distinct event, so
+  /// scanning the same rejected card twice signals twice.
+  TerminalError? get error => lastError;
 
   /// Start listening for real RFID card scans (automatic detection).
   /// Call this when the idle screen mounts.
@@ -54,16 +58,16 @@ class RfidProvider extends ChangeNotifier {
   }
 
   /// Handle a card scan (lookup member by card UID and navigate).
-  /// Errors are i18n keys (e.g., 'rfidErrorUnknownCard') to be translated by UI.
+  /// Errors are [TerminalErrorKey]s, localized by the UI at render time.
   Future<void> handleCardScan(String cardUid) async {
     if (_isScanning) return;
 
     _isScanning = true;
-    _error = null;
+    resetError();
     notifyListeners();
 
     try {
-      // Lookup member by card UID (returns i18n error key if failed)
+      // Lookup member by card UID (returns an error key if failed)
       final (member, errorKey) = await _membersRepository.findByCardUid(cardUid);
 
       if (member != null) {
@@ -79,7 +83,7 @@ class RfidProvider extends ChangeNotifier {
         }
 
         _detectedMember = member;
-        _error = null;
+        resetError();
         _soundService.play(SoundEvent.scanSuccess);
 
         _isScanning = false;
@@ -90,18 +94,20 @@ class RfidProvider extends ChangeNotifier {
           _context!.go('/products');
         }
       } else {
-        // Error: card not found, inactive, or SEPA missing (i18n key)
-        _error = errorKey ?? 'rfidErrorDatabaseError';
+        // Error: card not found, inactive, or SEPA missing
+        final key = errorKey ?? TerminalErrorKey.memberLookupFailed;
         _detectedMember = null;
-        _membersProvider.setError(_error!);
+        emitError(key);
+        _membersProvider.setError(key);
         _soundService.play(SoundEvent.scanError);
         _isScanning = false;
         notifyListeners();
       }
-    } catch (e) {
-      _error = 'rfidErrorDatabaseError';
+    } catch (e, stackTrace) {
       _detectedMember = null;
-      _membersProvider.setError(_error!);
+      emitError(TerminalErrorKey.memberLookupFailed,
+          cause: e, stackTrace: stackTrace);
+      _membersProvider.setError(TerminalErrorKey.memberLookupFailed);
       _soundService.play(SoundEvent.scanError);
       _isScanning = false;
       notifyListeners();
@@ -113,7 +119,7 @@ class RfidProvider extends ChangeNotifier {
   /// back to the hardcoded mock member (for offline-only development).
   Future<void> simulateCardDetection(BuildContext context, {String? cardUidOverride}) async {
     _isScanning = true;
-    _error = null;
+    resetError();
     notifyListeners();
 
     try {
@@ -130,9 +136,9 @@ class RfidProvider extends ChangeNotifier {
         // No synced members yet — fall back to mock member for offline dev
         final mockMember = await _mockRfidService.detectCard(cardUidOverride: cardUidOverride);
         if (mockMember == null) {
-          _error = 'rfidErrorUnknownCard';
           _detectedMember = null;
-          _membersProvider.setError('rfidErrorUnknownCard');
+          emitError(TerminalErrorKey.unknownCard);
+          _membersProvider.setError(TerminalErrorKey.unknownCard);
           _isScanning = false;
           notifyListeners();
           return;
@@ -176,7 +182,7 @@ class RfidProvider extends ChangeNotifier {
       }
 
       _detectedMember = member;
-      _error = null;
+      resetError();
 
       _isScanning = false;
       notifyListeners();
@@ -184,10 +190,11 @@ class RfidProvider extends ChangeNotifier {
       if (context.mounted) {
         context.go('/products');
       }
-    } catch (e) {
-      _error = 'Error: $e';
+    } catch (e, stackTrace) {
       _detectedMember = null;
-      _membersProvider.setError(_error!);
+      emitError(TerminalErrorKey.memberLookupFailed,
+          cause: e, stackTrace: stackTrace);
+      _membersProvider.setError(TerminalErrorKey.memberLookupFailed);
       _isScanning = false;
       notifyListeners();
     }
@@ -195,7 +202,7 @@ class RfidProvider extends ChangeNotifier {
 
   void clearDetection() {
     _detectedMember = null;
-    _error = null;
+    resetError();
     notifyListeners();
   }
 

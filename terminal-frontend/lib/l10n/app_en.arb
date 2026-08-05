@@ -168,5 +168,17 @@
       "seconds": {"type": "int"}
     }
   },
-  "sessionTimeoutContinue": "Keep shopping"
+  "sessionTimeoutContinue": "Keep shopping",
+
+  "errorMembersRefreshFailed": "Member data could not be refreshed",
+  "errorProductsRefreshFailed": "Products could not be refreshed",
+  "errorCheckoutFailed": "Checkout failed. Please try again.",
+  "errorCheckoutCancelled": "Checkout cancelled",
+  "errorTransactionCreateFailed": "Your purchase could not be saved. Please try again.",
+  "errorDispenserNotConfigured": "The dispenser is not set up",
+  "errorDispenserOperationFailed": "Token dispensing failed. Please notify staff.",
+  "errorDispenserUnavailable": "The dispenser is not available",
+  "errorBackendUnreachable": "No connection to the server",
+  "errorSyncFailed": "Synchronisation failed",
+  "errorTransactionSyncFailed": "Some purchases could not be synchronised"
 }

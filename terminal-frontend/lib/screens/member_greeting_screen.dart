@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 
 class MemberGreetingScreen extends StatelessWidget {
@@ -56,7 +58,7 @@ class MemberGreetingScreen extends StatelessWidget {
       children: [
         if (provider.lastError != null)
           Text(
-            provider.lastError!,
+            provider.lastError!.message(AppLocalizations.of(context)!),
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: Colors.red,
             ),

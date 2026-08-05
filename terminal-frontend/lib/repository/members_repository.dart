@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart' hide Column;
 import '../database/database.dart';
 import '../generated/terminal.swagger.dart';
+import '../models/terminal_error.dart';
+import '../utils/app_logger.dart';
 
 class MembersRepository {
   final ClubBarDatabase _db;
@@ -8,28 +10,31 @@ class MembersRepository {
   MembersRepository(this._db);
 
   /// Find member by card UID (fast lookup for terminal access)
-  /// Returns (member, errorKey) where errorKey is an i18n key (e.g., 'rfidErrorUnknownCard')
-  Future<(MembersCacheData?, String?)> findByCardUid(String cardUid) async {
+  /// Returns (member, errorKey); the key is localized at render time.
+  Future<(MembersCacheData?, TerminalErrorKey?)> findByCardUid(
+      String cardUid) async {
     try {
       final member = await (_db.select(_db.membersCache)
             ..where((m) => m.cardUid.equals(cardUid)))
           .getSingleOrNull();
 
       if (member == null) {
-        return (null, 'rfidErrorUnknownCard');
+        return (null, TerminalErrorKey.unknownCard);
       }
 
       if (member.isActive == 0) {
-        return (null, 'rfidErrorAccountInactive');
+        return (null, TerminalErrorKey.accountInactive);
       }
 
       if (member.isSepaValid == 0) {
-        return (null, 'rfidErrorSepaMissing');
+        return (null, TerminalErrorKey.sepaMissing);
       }
 
       return (member, null);
-    } catch (e) {
-      return (null, 'rfidErrorDatabaseError');
+    } catch (e, stackTrace) {
+      AppLog.instance.e('Member lookup by card UID failed',
+          error: e, stackTrace: stackTrace);
+      return (null, TerminalErrorKey.memberLookupFailed);
     }
   }
 

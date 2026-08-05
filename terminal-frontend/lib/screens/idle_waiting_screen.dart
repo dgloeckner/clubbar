@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
@@ -20,7 +22,8 @@ class IdleWaitingScreen extends StatefulWidget {
 class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
   final StringBuffer _rfidBuffer = StringBuffer();
   Timer? _errorDismissTimer;
-  String? _lastError;
+  /// The occurrence already shown, so a repeat of the same key still displays.
+  TerminalError? _shownError;
   double _errorOpacity = 1.0;
   late RfidProvider _rfidProvider;
 
@@ -65,31 +68,13 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
     return false; // don't consume — let other widgets handle events normally
   }
 
-  /// Translate RFID error key to localized message
-  String _getLocalizedError(BuildContext context, String errorKey) {
-    final l10n = AppLocalizations.of(context)!;
-
-    switch (errorKey) {
-      case 'rfidErrorUnknownCard':
-        return l10n.rfidErrorUnknownCard;
-      case 'rfidErrorAccountInactive':
-        return l10n.rfidErrorAccountInactive;
-      case 'rfidErrorSepaMissing':
-        return l10n.rfidErrorSepaMissing;
-      case 'rfidErrorDatabaseError':
-        return l10n.rfidErrorDatabaseError;
-      default:
-        return errorKey;
-    }
-  }
-
   /// Start auto-dismiss timer for error message
-  void _startErrorDismissTimer(String error) {
+  void _startErrorDismissTimer(TerminalError error) {
     _errorDismissTimer?.cancel();
 
     setState(() {
       _errorOpacity = 1.0;
-      _lastError = error;
+      _shownError = error;
     });
 
     _errorDismissTimer = Timer(const Duration(seconds: 5), () {
@@ -133,7 +118,8 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                 // RFID button with error overlay (no layout jump)
                 Consumer<RfidProvider>(
                   builder: (context, rfidProvider, child) {
-                    if (rfidProvider.error != null && rfidProvider.error != _lastError) {
+                    if (rfidProvider.error != null &&
+                        rfidProvider.error != _shownError) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         _startErrorDismissTimer(rfidProvider.error!);
                       });
@@ -171,7 +157,8 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                                     ),
                                   ),
                                   child: Text(
-                                    _getLocalizedError(context, rfidProvider.error!),
+                                    rfidProvider.error!
+                                        .message(AppLocalizations.of(context)!),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       color: Colors.white,

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
@@ -88,7 +90,7 @@ class _StatusInfoDialog extends StatefulWidget {
   final DateTime? lastSyncTime;
   final DateTime? lastTransactionSync;
   final int retryCount;
-  final String? lastError;
+  final TerminalError? lastError;
   final DispenserHealth? dispenserHealth;
   final String? backendUrl;
   final String? dispenserUrl;
@@ -422,7 +424,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
               titleColor: const Color(0xffef4444),
               children: [
                 Text(
-                  widget.lastError!,
+                  widget.lastError!.message(l10n),
                   style: TextStyle(
                     fontSize: AppFontSizes.xs,
                     color: const Color(0xff94a3b8),

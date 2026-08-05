@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
+import 'package:clubbar_terminal/providers/error_signal.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
@@ -8,7 +10,7 @@ import 'package:clubbar_terminal/services/sync_service.dart';
 /// Three-state connectivity status for the terminal.
 enum ConnectionStatus { online, offline, error }
 
-class SyncProvider extends ChangeNotifier {
+class SyncProvider extends ChangeNotifier with ErrorSignal {
   final SyncService _syncService;
   final MembersProvider _membersProvider;
   final ProductsProvider _productsProvider;
@@ -19,8 +21,6 @@ class SyncProvider extends ChangeNotifier {
   DateTime? _lastSyncTime;
   DateTime? _lastSuccessfulTransactionSync;
   int _retryCount = 0;
-  String? _lastError;
-  Exception? _errorType;
   Timer? _backgroundTimer;
   ConnectionStatus _connectionStatus = ConnectionStatus.online;
 
@@ -38,8 +38,6 @@ class SyncProvider extends ChangeNotifier {
   DateTime? get lastSyncTime => _lastSyncTime;
   DateTime? get lastSuccessfulTransactionSync => _lastSuccessfulTransactionSync;
   int get retryCount => _retryCount;
-  String? get lastError => _lastError;
-  Exception? get errorType => _errorType;
   ConnectionStatus get connectionStatus => _connectionStatus;
 
   /// Manually trigger sync
@@ -47,18 +45,19 @@ class SyncProvider extends ChangeNotifier {
     // Always run health check to keep connectionStatus accurate
     final healthy = await _networkService.checkHealth();
     if (!healthy) {
-      final changed = _connectionStatus != ConnectionStatus.offline;
       _connectionStatus = ConnectionStatus.offline;
-      _lastError = 'Backend unreachable';
       _retryCount++;
-      if (changed) notifyListeners();
+      // Emitted on every failed attempt, not just on the transition, so a
+      // repeated outage still signals a fresh display event.
+      emitError(TerminalErrorKey.backendUnreachable);
+      notifyListeners();
       return;
     }
 
     // Health passed — if we were offline, update immediately
     if (_connectionStatus == ConnectionStatus.offline) {
       _connectionStatus = ConnectionStatus.online;
-      _lastError = null;
+      resetError();
       _retryCount = 0;
       notifyListeners();
     }
@@ -92,24 +91,21 @@ class SyncProvider extends ChangeNotifier {
         // Check if transaction sync had a non-fatal error
         final txnError = _syncService.lastTransactionSyncError;
         if (txnError != null) {
-          _lastError = txnError;
-          _errorType = null;
+          emitError(TerminalErrorKey.transactionSyncFailed, cause: txnError);
           _connectionStatus = ConnectionStatus.error;
         } else {
-          _lastError = null;
-          _errorType = null;
+          resetError();
           _connectionStatus = ConnectionStatus.online;
         }
       } else {
         // Health passed but sync failed → error state
-        final error = await _syncService.getLastError();
-        _lastError = error;
+        emitError(TerminalErrorKey.syncFailed,
+            cause: await _syncService.getLastError());
         _retryCount++;
         _connectionStatus = ConnectionStatus.error;
       }
-    } catch (e) {
-      _lastError = 'Sync error: $e';
-      _errorType = e as Exception?;
+    } catch (e, stackTrace) {
+      emitError(TerminalErrorKey.syncFailed, cause: e, stackTrace: stackTrace);
       _retryCount++;
       _connectionStatus = ConnectionStatus.error;
     } finally {

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/generated/terminal.swagger.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/services/members_service.dart';
@@ -60,7 +61,7 @@ void main() {
 
       test('returns error when member not found', () async {
         when(() => mockRepo.findByCardUid('invalid-card'))
-            .thenAnswer((_) async => (null, 'Unknown card'));
+            .thenAnswer((_) async => (null, TerminalErrorKey.unknownCard));
 
         final (member, error) = await service.lookupByRfid('invalid-card');
 
@@ -71,22 +72,22 @@ void main() {
 
       test('returns error when account inactive', () async {
         when(() => mockRepo.findByCardUid('card-456'))
-            .thenAnswer((_) async => (null, 'Account inactive'));
+            .thenAnswer((_) async => (null, TerminalErrorKey.accountInactive));
 
         final (member, error) = await service.lookupByRfid('card-456');
 
         expect(member, isNull);
-        expect(error, contains('inactive'));
+        expect(error, equals(TerminalErrorKey.accountInactive));
       });
 
       test('returns error when SEPA mandate not signed', () async {
         when(() => mockRepo.findByCardUid('card-789'))
-            .thenAnswer((_) async => (null, 'SEPA mandate missing'));
+            .thenAnswer((_) async => (null, TerminalErrorKey.sepaMissing));
 
         final (member, error) = await service.lookupByRfid('card-789');
 
         expect(member, isNull);
-        expect(error, contains('SEPA'));
+        expect(error, equals(TerminalErrorKey.sepaMissing));
       });
     });
 

@@ -34,6 +34,7 @@ import 'package:clubbar_terminal/services/dispenser_recovery_service.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/error_file_output.dart';
 import 'package:clubbar_terminal/generated/terminal.swagger.dart';
+import 'package:clubbar_terminal/utils/app_logger.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 /// Seed database with mock categories and products for development
@@ -250,6 +251,9 @@ void main() async {
       ErrorFileOutput(file: errorLogFile),
     ]),
   );
+
+  // Route ErrorSignal's raw-exception logging into the same sinks
+  AppLog.configure(logger);
 
   // Initialize database
   final database = ClubBarDatabase();

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
@@ -33,7 +34,7 @@ class SlowCartService extends CartService {
   int createTransactionCalls = 0;
 
   @override
-  Future<(String?, String?)> createTransaction(
+  Future<(String?, TerminalErrorKey?)> createTransaction(
     MembersCacheData member,
     List<CartItem> items, {
     required String sessionId,

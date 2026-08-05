@@ -1,7 +1,9 @@
 import 'package:uuid/uuid.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/utils/app_logger.dart';
 import 'package:drift/drift.dart';
 
 class CartService {
@@ -18,8 +20,8 @@ class CartService {
   /// Create and persist transactions from cart items.
   /// Creates one transaction per cart line item (each with its product_id),
   /// as required by the backend API.
-  /// Returns tuple: (firstTransactionId, errorMessage)
-  Future<(String?, String?)> createTransaction(
+  /// Returns tuple: (firstTransactionId, errorKey)
+  Future<(String?, TerminalErrorKey?)> createTransaction(
     MembersCacheData member,
     List<CartItem> items, {
     required String sessionId,
@@ -51,25 +53,27 @@ class CartService {
       }
 
       return (firstTxnId, null);
-    } catch (e) {
-      return (null, 'Failed to create transaction: $e');
+    } catch (e, stackTrace) {
+      AppLog.instance
+          .e('Transaction creation failed', error: e, stackTrace: stackTrace);
+      return (null, TerminalErrorKey.transactionCreateFailed);
     }
   }
 
   /// Validate cart before checkout
-  /// Returns tuple: (isValid, errorMessage)
-  Future<(bool, String?)> validateCartBeforeCheckout(
+  /// Returns tuple: (isValid, errorKey)
+  Future<(bool, TerminalErrorKey?)> validateCartBeforeCheckout(
     MembersCacheData member,
     List<CartItem> items,
   ) async {
     // Check member is active
     if (member.isActive == 0) {
-      return (false, 'Member account is inactive');
+      return (false, TerminalErrorKey.accountInactive);
     }
 
     // Check cart not empty
     if (items.isEmpty) {
-      return (false, 'Cart is empty');
+      return (false, TerminalErrorKey.cartEmpty);
     }
 
     return (true, null);
@@ -84,8 +88,8 @@ class CartService {
   /// This record will be used to recover incomplete operations if the app crashes
   /// between dispensing and transaction creation.
   ///
-  /// Returns tuple: (success, errorMessage)
-  Future<(bool, String?)> createDispenserOperation({
+  /// Returns tuple: (success, errorKey)
+  Future<(bool, TerminalErrorKey?)> createDispenserOperation({
     required String dispenserTxId,
     required String memberId,
     required String productId,
@@ -106,8 +110,10 @@ class CartService {
 
       await _db.into(_db.dispenserOperations).insert(operation);
       return (true, null);
-    } catch (e) {
-      return (false, 'Failed to create dispenser operation: $e');
+    } catch (e, stackTrace) {
+      AppLog.instance.e('Dispenser operation record creation failed',
+          error: e, stackTrace: stackTrace);
+      return (false, TerminalErrorKey.dispenserOperationFailed);
     }
   }
 
@@ -116,8 +122,8 @@ class CartService {
   /// Creates one transaction per actually dispensed token. All transactions share
   /// the same dispenserTxId for grouping.
   ///
-  /// Returns tuple: (firstTransactionId, errorMessage)
-  Future<(String?, String?)> createTransactionsFromDispenseResult({
+  /// Returns tuple: (firstTransactionId, errorKey)
+  Future<(String?, TerminalErrorKey?)> createTransactionsFromDispenseResult({
     required String dispenserTxId,
     required String memberId,
     required String productId,
@@ -155,8 +161,10 @@ class CartService {
       }
 
       return (firstTxnId, null);
-    } catch (e) {
-      return (null, 'Failed to create transactions from dispense result: $e');
+    } catch (e, stackTrace) {
+      AppLog.instance.e('Transaction creation from dispense result failed',
+          error: e, stackTrace: stackTrace);
+      return (null, TerminalErrorKey.transactionCreateFailed);
     }
   }
 
@@ -165,8 +173,8 @@ class CartService {
   /// Used after creating transactions to track reconciliation status, and during
   /// polling to update ESP8266 state for recovery service monitoring.
   ///
-  /// Returns tuple: (success, errorMessage)
-  Future<(bool, String?)> updateDispenserOperationState({
+  /// Returns tuple: (success, errorKey)
+  Future<(bool, TerminalErrorKey?)> updateDispenserOperationState({
     required String dispenserTxId,
     String? state,
     int? transactionsCreated,
@@ -196,23 +204,27 @@ class CartService {
           .write(companion);
 
       return (true, null);
-    } catch (e) {
-      return (false, 'Failed to update dispenser operation state: $e');
+    } catch (e, stackTrace) {
+      AppLog.instance.e('Dispenser operation state update failed',
+          error: e, stackTrace: stackTrace);
+      return (false, TerminalErrorKey.dispenserOperationFailed);
     }
   }
 
   /// Clean up dispenser operation tracking record AFTER transactions are created.
   ///
-  /// Returns tuple: (success, errorMessage)
-  Future<(bool, String?)> cleanupDispenserOperation(
+  /// Returns tuple: (success, errorKey)
+  Future<(bool, TerminalErrorKey?)> cleanupDispenserOperation(
       String dispenserTxId) async {
     try {
       await (_db.delete(_db.dispenserOperations)
             ..where((t) => t.dispenserTxId.equals(dispenserTxId)))
           .go();
       return (true, null);
-    } catch (e) {
-      return (false, 'Failed to cleanup dispenser operation: $e');
+    } catch (e, stackTrace) {
+      AppLog.instance.e('Dispenser operation cleanup failed',
+          error: e, stackTrace: stackTrace);
+      return (false, TerminalErrorKey.dispenserOperationFailed);
     }
   }
 }

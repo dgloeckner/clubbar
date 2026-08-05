@@ -450,4 +450,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sessionTimeoutContinue => 'Keep shopping';
+
+  @override
+  String get errorMembersRefreshFailed => 'Member data could not be refreshed';
+
+  @override
+  String get errorProductsRefreshFailed => 'Products could not be refreshed';
+
+  @override
+  String get errorCheckoutFailed => 'Checkout failed. Please try again.';
+
+  @override
+  String get errorCheckoutCancelled => 'Checkout cancelled';
+
+  @override
+  String get errorTransactionCreateFailed =>
+      'Your purchase could not be saved. Please try again.';
+
+  @override
+  String get errorDispenserNotConfigured => 'The dispenser is not set up';
+
+  @override
+  String get errorDispenserOperationFailed =>
+      'Token dispensing failed. Please notify staff.';
+
+  @override
+  String get errorDispenserUnavailable => 'The dispenser is not available';
+
+  @override
+  String get errorBackendUnreachable => 'No connection to the server';
+
+  @override
+  String get errorSyncFailed => 'Synchronisation failed';
+
+  @override
+  String get errorTransactionSyncFailed =>
+      'Some purchases could not be synchronised';
 }

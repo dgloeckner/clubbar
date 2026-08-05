@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
+import 'package:clubbar_terminal/providers/error_signal.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
@@ -8,14 +10,16 @@ import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/widgets/dispensing_progress_dialog.dart';
 import 'package:clubbar_terminal/widgets/dispenser_error_dialog.dart';
 
-class CartProvider extends ChangeNotifier {
+class CartProvider extends ChangeNotifier with ErrorSignal {
   final CartService _service;
   final ConfigService _config;
   final SoundService _soundService;
 
   List<CartItem> _items = [];
   bool _isLoading = false;
-  String? _lastError;
+
+  /// Raw dispenser exception, kept only to branch the token-skip flow below.
+  /// Deliberately not exposed: members see [lastError]'s key, never this.
   Exception? _errorType;
   String? _lastTransactionId;
   String? _lastSessionId;
@@ -32,8 +36,6 @@ class CartProvider extends ChangeNotifier {
   int get itemCount => _items.fold(0, (sum, item) => sum + item.quantity);
   int get total => _items.fold(0, (sum, item) => sum + item.lineTotalCents);
   bool get isLoading => _isLoading;
-  String? get lastError => _lastError;
-  Exception? get errorType => _errorType;
   String? get lastTransactionId => _lastTransactionId;
   String? get lastSessionId => _lastSessionId;
 
@@ -127,7 +129,7 @@ class CartProvider extends ChangeNotifier {
           await _service.validateCartBeforeCheckout(member, _items);
 
       if (!valid) {
-        _lastError = error;
+        emitError(error ?? TerminalErrorKey.checkoutFailed);
         _isLoading = false;
         _soundService.play(SoundEvent.checkoutError);
         notifyListeners();
@@ -148,7 +150,7 @@ class CartProvider extends ChangeNotifier {
 
         if (!dispenserEnabled) {
           // Should never happen (filtered in UI), but safety check
-          _lastError = 'Dispenser not configured';
+          emitError(TerminalErrorKey.dispenserNotConfigured);
           _isLoading = false;
           notifyListeners();
           return;
@@ -176,7 +178,7 @@ class CartProvider extends ChangeNotifier {
         );
 
         if (!trackingSuccess) {
-          _lastError = trackingError;
+          emitError(trackingError ?? TerminalErrorKey.dispenserOperationFailed);
           _isLoading = false;
           notifyListeners();
           return;
@@ -227,7 +229,8 @@ class CartProvider extends ChangeNotifier {
             );
 
             if (tokenTxnId == null) {
-              _lastError = tokenError;
+              emitError(
+                  tokenError ?? TerminalErrorKey.transactionCreateFailed);
               _isLoading = false;
               notifyListeners();
               return;
@@ -265,7 +268,7 @@ class CartProvider extends ChangeNotifier {
             await _service.createTransaction(member, regularProducts, sessionId: sessionId);
 
         if (txnId == null) {
-          _lastError = createError;
+          emitError(createError ?? TerminalErrorKey.transactionCreateFailed);
           _isLoading = false;
           notifyListeners();
           return;
@@ -276,11 +279,12 @@ class CartProvider extends ChangeNotifier {
 
       // Clear cart on success
       _items = [];
-      _lastError = null;
+      resetError();
       _errorType = null;
       _soundService.play(SoundEvent.checkoutSuccess);
-    } catch (e) {
-      _lastError = 'Checkout failed: $e';
+    } catch (e, stackTrace) {
+      emitError(TerminalErrorKey.checkoutFailed,
+          cause: e, stackTrace: stackTrace);
       if (e is Exception) {
         _errorType = e;
       }
@@ -335,16 +339,17 @@ class CartProvider extends ChangeNotifier {
           // User chose to continue without tokens
           // Store error type so checkout can skip token processing
           _errorType = errorException;
-          _lastError = null; // Clear error since user made informed choice
+          resetError(); // Clear error since user made informed choice
           return null; // Return null to signal tokens should be skipped
         } else {
           // User chose to cancel checkout
-          _lastError = 'Checkout cancelled';
+          emitError(TerminalErrorKey.checkoutCancelled);
           return null;
         }
       } else {
-        // Other dispenser errors - just show error message
-        _lastError = errorException!.message;
+        // Other dispenser errors — the raw message stays in the log.
+        emitError(TerminalErrorKey.dispenserUnavailable,
+            cause: errorException);
         return null;
       }
     }
@@ -355,7 +360,7 @@ class CartProvider extends ChangeNotifier {
   /// Clear cart
   void clearCart() {
     _items = [];
-    _lastError = null;
+    resetError();
     _lastSessionId = null;
     notifyListeners();
   }

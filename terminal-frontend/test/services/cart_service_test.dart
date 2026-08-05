@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
 
@@ -226,7 +227,7 @@ void main() {
           await service.validateCartBeforeCheckout(member, items);
 
       expect(valid, isFalse);
-      expect(error, contains('inactive'));
+      expect(error, equals(TerminalErrorKey.accountInactive));
     });
 
     test('validateCartBeforeCheckout returns error for empty cart', () async {
@@ -246,7 +247,7 @@ void main() {
           await service.validateCartBeforeCheckout(member, []);
 
       expect(valid, isFalse);
-      expect(error, contains('empty'));
+      expect(error, equals(TerminalErrorKey.cartEmpty));
     });
   });
 }

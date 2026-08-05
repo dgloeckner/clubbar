@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/services/members_service.dart';
+import 'package:clubbar_terminal/providers/error_signal.dart';
 import 'package:clubbar_terminal/providers/locale_provider.dart';
 
-class MembersProvider extends ChangeNotifier {
+class MembersProvider extends ChangeNotifier with ErrorSignal {
   final MembersService _service;
   final LocaleProvider? _localeProvider;
 
@@ -16,8 +18,6 @@ class MembersProvider extends ChangeNotifier {
   int? _memberDeckel;
   bool _isLoading = false;
   bool _isSyncing = false;
-  String? _lastError;
-  Exception? _errorType;
 
   MembersProvider({
     required MembersService service,
@@ -34,8 +34,6 @@ class MembersProvider extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
   bool get isSyncing => _isSyncing;
-  String? get lastError => _lastError;
-  Exception? get errorType => _errorType;
 
   /// Select member by RFID card UID
   Future<void> selectMemberByRfid(String cardUid) async {
@@ -49,22 +47,20 @@ class MembersProvider extends ChangeNotifier {
         _selectedMember = member;
         _sessionId = _uuid.v4();
         _memberDeckel = await _service.getEffectiveBalance(member);
-        _lastError = null;
-        _errorType = null;
+        resetError();
 
         // Update app locale based on member's preferred language
         _localeProvider?.setLocaleFromMember(member.preferredLanguage);
       } else {
         _selectedMember = null;
         _memberDeckel = null;
-        _lastError = error;
-        _errorType = null;
+        emitError(error ?? TerminalErrorKey.memberLookupFailed);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       _selectedMember = null;
       _memberDeckel = null;
-      _lastError = 'Error looking up member: $e';
-      _errorType = e as Exception?;
+      emitError(TerminalErrorKey.memberLookupFailed,
+          cause: e, stackTrace: stackTrace);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -84,8 +80,7 @@ class MembersProvider extends ChangeNotifier {
     _selectedMember = member;
     _sessionId = _uuid.v4();
     _memberDeckel = await _service.getEffectiveBalance(member);
-    _lastError = null;
-    _errorType = null;
+    resetError();
 
     // Update app locale based on member's preferred language
     _localeProvider?.setLocaleFromMember(member.preferredLanguage);
@@ -113,11 +108,10 @@ class MembersProvider extends ChangeNotifier {
     try {
       final members = await _service.getAllMembers();
       _members = members;
-      _lastError = null;
-      _errorType = null;
-    } catch (e) {
-      _lastError = 'Failed to refresh members: $e';
-      _errorType = e as Exception?;
+      resetError();
+    } catch (e, stackTrace) {
+      emitError(TerminalErrorKey.membersRefreshFailed,
+          cause: e, stackTrace: stackTrace);
     } finally {
       _isSyncing = false;
       notifyListeners();
@@ -147,17 +141,10 @@ class MembersProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Set error state
-  void setError(String message) {
-    _lastError = message;
-    _errorType = null;
-    notifyListeners();
-  }
-
-  /// Clear error state
-  void clearError() {
-    _lastError = null;
-    _errorType = null;
+  /// Set error state. Every call is a fresh display event, so an identical
+  /// error repeated back-to-back still re-renders.
+  void setError(TerminalErrorKey key) {
+    emitError(key);
     notifyListeners();
   }
 }

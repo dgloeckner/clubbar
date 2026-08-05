@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/members_service.dart';
 
@@ -74,19 +75,19 @@ void main() {
 
     test('selectMemberByRfid sets error when member not found', () async {
       when(() => mockService.lookupByRfid('invalid-card'))
-          .thenAnswer((_) async => (null, 'Member not found'));
+          .thenAnswer((_) async => (null, TerminalErrorKey.unknownCard));
 
       await provider.selectMemberByRfid('invalid-card');
 
       expect(provider.selectedMember, isNull);
       expect(provider.memberDeckel, isNull);
-      expect(provider.lastError, equals('Member not found'));
+      expect(provider.lastErrorKey, equals(TerminalErrorKey.unknownCard));
     });
 
     test('selectMemberByRfid clears previous error on success', () async {
       // First set an error
       when(() => mockService.lookupByRfid('invalid'))
-          .thenAnswer((_) async => (null, 'Not found'));
+          .thenAnswer((_) async => (null, TerminalErrorKey.unknownCard));
       await provider.selectMemberByRfid('invalid');
       expect(provider.lastError, isNotNull);
 

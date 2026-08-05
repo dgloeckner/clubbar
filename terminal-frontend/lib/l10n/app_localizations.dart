@@ -853,6 +853,72 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Weiter einkaufen'**
   String get sessionTimeoutContinue;
+
+  /// TerminalErrorKey.membersRefreshFailed — member cache refresh failed
+  ///
+  /// In de, this message translates to:
+  /// **'Mitgliederdaten konnten nicht aktualisiert werden'**
+  String get errorMembersRefreshFailed;
+
+  /// TerminalErrorKey.productsRefreshFailed — product cache refresh failed
+  ///
+  /// In de, this message translates to:
+  /// **'Produkte konnten nicht aktualisiert werden'**
+  String get errorProductsRefreshFailed;
+
+  /// TerminalErrorKey.checkoutFailed — unexpected failure during checkout
+  ///
+  /// In de, this message translates to:
+  /// **'Bezahlung fehlgeschlagen. Bitte erneut versuchen.'**
+  String get errorCheckoutFailed;
+
+  /// TerminalErrorKey.checkoutCancelled — member cancelled the checkout
+  ///
+  /// In de, this message translates to:
+  /// **'Bezahlung abgebrochen'**
+  String get errorCheckoutCancelled;
+
+  /// TerminalErrorKey.transactionCreateFailed — transaction could not be written locally
+  ///
+  /// In de, this message translates to:
+  /// **'Dein Einkauf konnte nicht gespeichert werden. Bitte erneut versuchen.'**
+  String get errorTransactionCreateFailed;
+
+  /// TerminalErrorKey.dispenserNotConfigured — token product in cart but dispenser disabled
+  ///
+  /// In de, this message translates to:
+  /// **'Das Ausgabegerät ist nicht eingerichtet'**
+  String get errorDispenserNotConfigured;
+
+  /// TerminalErrorKey.dispenserOperationFailed — dispenser bookkeeping failed
+  ///
+  /// In de, this message translates to:
+  /// **'Token-Ausgabe fehlgeschlagen. Bitte das Personal informieren.'**
+  String get errorDispenserOperationFailed;
+
+  /// TerminalErrorKey.dispenserUnavailable — dispenser did not respond as expected
+  ///
+  /// In de, this message translates to:
+  /// **'Das Ausgabegerät ist nicht verfügbar'**
+  String get errorDispenserUnavailable;
+
+  /// TerminalErrorKey.backendUnreachable — backend health check failed
+  ///
+  /// In de, this message translates to:
+  /// **'Keine Verbindung zum Server'**
+  String get errorBackendUnreachable;
+
+  /// TerminalErrorKey.syncFailed — a sync cycle did not complete
+  ///
+  /// In de, this message translates to:
+  /// **'Synchronisierung fehlgeschlagen'**
+  String get errorSyncFailed;
+
+  /// TerminalErrorKey.transactionSyncFailed — non-fatal transaction upload failure
+  ///
+  /// In de, this message translates to:
+  /// **'Einige Einkäufe konnten nicht synchronisiert werden'**
+  String get errorTransactionSyncFailed;
 }
 
 class _AppLocalizationsDelegate

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
@@ -79,7 +80,7 @@ void main() {
       await provider.startSync();
 
       expect(provider.connectionStatus, equals(ConnectionStatus.offline));
-      expect(provider.lastError, equals('Backend unreachable'));
+      expect(provider.lastErrorKey, equals(TerminalErrorKey.backendUnreachable));
       expect(provider.retryCount, equals(1));
       verifyNever(() => mockSyncService.syncAll());
       verifyNever(() => mockSyncService.isSyncNeeded());
@@ -98,7 +99,7 @@ void main() {
       await provider.startSync();
 
       expect(provider.connectionStatus, equals(ConnectionStatus.error));
-      expect(provider.lastError, contains('Sync failed'));
+      expect(provider.lastErrorKey, equals(TerminalErrorKey.syncFailed));
       expect(provider.retryCount, equals(1));
     });
 
@@ -231,7 +232,7 @@ void main() {
       await provider.startSync();
 
       expect(provider.connectionStatus, equals(ConnectionStatus.error));
-      expect(provider.lastError, contains('HTTP 422'));
+      expect(provider.lastErrorKey, equals(TerminalErrorKey.transactionSyncFailed));
       expect(provider.lastSyncTime, isNotNull);
     });
 
