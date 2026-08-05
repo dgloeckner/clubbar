@@ -90,4 +90,25 @@ void main() {
       verify(() => soundService.play(SoundEvent.scanError)).called(1);
     });
   });
+
+  group('RfidProvider error signalling', () {
+    test('a repeat scan of the same rejected card is a distinct occurrence',
+        () async {
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (null, TerminalErrorKey.unknownCard));
+      when(() => membersProvider.setError(any())).thenReturn(null);
+
+      await provider.handleCardScan('unknown-card');
+      final first = provider.error;
+
+      await provider.handleCardScan('unknown-card');
+      final second = provider.error;
+
+      // Same key, but not equal — the UI re-shows the banner on change, so an
+      // equal repeat would be silently swallowed (see issue #17).
+      expect(first!.key, TerminalErrorKey.unknownCard);
+      expect(second!.key, TerminalErrorKey.unknownCard);
+      expect(second, isNot(equals(first)));
+    });
+  });
 }

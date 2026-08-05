@@ -99,7 +99,9 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
 
       _errorClearTimer = Timer(_errorFadeDuration, () {
         if (!mounted) return;
-        _shownError = null;
+        setState(() {
+          _shownError = null;
+        });
         context.read<RfidProvider>().clearDetection();
       });
     });
@@ -157,7 +159,9 @@ class _IdleWaitingScreenState extends State<IdleWaitingScreen> {
                               right: 0,
                               child: AnimatedOpacity(
                                 opacity: _errorOpacity,
-                                duration: const Duration(milliseconds: 500),
+                                // Must match the clear timer, or the banner is
+                                // torn out of the tree mid-fade.
+                                duration: _errorFadeDuration,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: AppSpacing.md,

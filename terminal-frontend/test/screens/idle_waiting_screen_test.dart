@@ -164,30 +164,47 @@ void main() {
       );
     }
 
-    /// Opacity the error banner is currently rendered at; null when no banner
-    /// is in the tree at all.
+    // Mirrors the screen's own display window and fade duration.
+    const displayDuration = Duration(seconds: 5);
+    const fadeDuration = Duration(milliseconds: 500);
+
+    /// Opacity the error banner is actually *rendered* at — the animation's
+    /// current value, not the target `AnimatedOpacity` is heading for. Null
+    /// when no banner is in the tree at all.
     double? bannerOpacity(WidgetTester tester) {
       final banner = find.ancestor(
         of: find.text('Unbekannter Chip'),
-        matching: find.byType(AnimatedOpacity),
+        matching: find.byType(FadeTransition),
       );
       if (banner.evaluate().isEmpty) return null;
-      return tester.widget<AnimatedOpacity>(banner).opacity;
+      return tester.widget<FadeTransition>(banner.first).opacity.value;
+    }
+
+    /// Signal a failed scan and settle the fade, so assertions afterwards see
+    /// the rendered banner rather than a frame mid-animation. Two pumps: one
+    /// for the provider notification, one for the screen's post-frame callback
+    /// that (re)starts the dismiss timer.
+    Future<void> failScan(WidgetTester tester) async {
+      rfidProvider.failScan(TerminalErrorKey.unknownCard);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(fadeDuration);
+    }
+
+    /// Let the display window and the following fade run out.
+    Future<void> letBannerExpire(WidgetTester tester) async {
+      await tester.pump(displayDuration);
+      await tester.pump(fadeDuration + const Duration(milliseconds: 100));
     }
 
     testWidgets('shows the banner for a failed scan', (tester) async {
       await tester.pumpWidget(buildTestApp());
       await tester.pump();
 
-      rfidProvider.failScan(TerminalErrorKey.unknownCard);
-      await tester.pump(); // rebuild
-      await tester.pump(); // post-frame callback → dismiss timer starts
-
+      await failScan(tester);
       expect(bannerOpacity(tester), 1.0);
 
-      // Let the 5 s display window and the 500 ms fade run out.
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pump(const Duration(milliseconds: 600));
+      await letBannerExpire(tester);
       expect(bannerOpacity(tester), isNull);
     });
 
@@ -196,22 +213,17 @@ void main() {
       await tester.pumpWidget(buildTestApp());
       await tester.pump();
 
-      rfidProvider.failScan(TerminalErrorKey.unknownCard);
-      await tester.pump();
-      await tester.pump();
+      await failScan(tester);
       expect(bannerOpacity(tester), 1.0);
 
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pump(const Duration(milliseconds: 600));
+      await letBannerExpire(tester);
       expect(bannerOpacity(tester), isNull);
 
       // Same card, same error key — must still be shown.
-      rfidProvider.failScan(TerminalErrorKey.unknownCard);
-      await tester.pump();
-      await tester.pump();
+      await failScan(tester);
       expect(bannerOpacity(tester), 1.0);
 
-      // ...and for the full 5 s, not a truncated window.
+      // ...and for the rest of the display window, not a truncated one.
       await tester.pump(const Duration(seconds: 4));
       expect(bannerOpacity(tester), 1.0);
     });
@@ -221,18 +233,16 @@ void main() {
       await tester.pumpWidget(buildTestApp());
       await tester.pump();
 
-      rfidProvider.failScan(TerminalErrorKey.unknownCard);
-      await tester.pump();
-      await tester.pump();
+      await failScan(tester);
 
-      // Fade has just started; the previous dismissal still has a pending
-      // clear scheduled 500 ms out.
-      await tester.pump(const Duration(seconds: 5));
-      expect(bannerOpacity(tester), 0.0);
+      // Sit inside the fade-out: the dismissal has fired and its clear is
+      // still pending, 100 ms out. (`failScan` already consumed `fadeDuration`
+      // settling the fade-in.)
+      await tester.pump(displayDuration - fadeDuration);
+      await tester.pump(fadeDuration - const Duration(milliseconds: 100));
+      expect(bannerOpacity(tester), lessThan(0.5));
 
-      rfidProvider.failScan(TerminalErrorKey.unknownCard);
-      await tester.pump();
-      await tester.pump();
+      await failScan(tester);
       expect(bannerOpacity(tester), 1.0);
 
       // The stale clear from the first error must not wipe the new one.
@@ -245,9 +255,7 @@ void main() {
       await tester.pumpWidget(buildTestApp());
       await tester.pump();
 
-      rfidProvider.failScan(TerminalErrorKey.unknownCard);
-      await tester.pump();
-      await tester.pump();
+      await failScan(tester);
 
       await tester.pumpWidget(createTestApp(child: const SizedBox()));
       await tester.pump(const Duration(seconds: 6));
