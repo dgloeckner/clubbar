@@ -160,5 +160,13 @@
     "placeholders": {
       "error": {"type": "String"}
     }
-  }
+  },
+  "sessionTimeoutWarningTitle": "Still there?",
+  "sessionTimeoutWarningBody": "You will be logged out automatically in {seconds} s.",
+  "@sessionTimeoutWarningBody": {
+    "placeholders": {
+      "seconds": {"type": "int"}
+    }
+  },
+  "sessionTimeoutContinue": "Keep shopping"
 }

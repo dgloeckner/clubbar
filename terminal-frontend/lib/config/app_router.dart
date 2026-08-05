@@ -13,6 +13,9 @@ import 'package:clubbar_terminal/widgets/main_layout.dart';
 GoRouter createAppRouter(BuildContext context, {configService}) {
   return GoRouter(
     initialLocation: '/idle',
+    // Re-evaluate redirects when the session ends without a navigation event
+    // (e.g. the inactivity timeout clears the member; ADR-0027 rule 6).
+    refreshListenable: Provider.of<MembersProvider>(context, listen: false),
     redirect: (context, state) {
       // Watch MembersProvider for member selection changes
       final membersProvider = context.read<MembersProvider>();

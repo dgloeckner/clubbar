@@ -6,6 +6,7 @@ import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/services/mock_rfid_service.dart';
 import 'package:clubbar_terminal/services/real_rfid_service.dart';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 
@@ -15,6 +16,7 @@ class RfidProvider extends ChangeNotifier {
   final MembersProvider _membersProvider;
   final MembersRepository _membersRepository;
   final SoundService _soundService;
+  final SessionController _sessionController;
 
   MembersCacheData? _detectedMember;
   bool _isScanning = false;
@@ -22,7 +24,8 @@ class RfidProvider extends ChangeNotifier {
   StreamSubscription<String>? _scanSubscription;
   BuildContext? _context;
 
-  RfidProvider(this._membersProvider, this._membersRepository, this._soundService);
+  RfidProvider(this._membersProvider, this._membersRepository,
+      this._soundService, this._sessionController);
 
   MembersCacheData? get detectedMember => _detectedMember;
   bool get isScanning => _isScanning;
@@ -64,10 +67,19 @@ class RfidProvider extends ChangeNotifier {
       final (member, errorKey) = await _membersRepository.findByCardUid(cardUid);
 
       if (member != null) {
-        // Success: member found, active, and SEPA valid
+        // Success: member found, active, and SEPA valid.
+        // ADR-0027 rule 3: an active session is protected — a foreign card
+        // never ends or replaces it, so a rejected scan is ignored.
+        final result = await _sessionController.startSession(member);
+        if (result == SessionStartResult.rejectedActiveSession) {
+          _soundService.play(SoundEvent.scanError);
+          _isScanning = false;
+          notifyListeners();
+          return;
+        }
+
         _detectedMember = member;
         _error = null;
-        _membersProvider.setSelectedMember(member);
         _soundService.play(SoundEvent.scanSuccess);
 
         _isScanning = false;
@@ -154,9 +166,17 @@ class RfidProvider extends ChangeNotifier {
         } catch (_) {}
       }
 
+      // ADR-0027 rule 3: never replace an active session.
+      final result = await _sessionController.startSession(member);
+      if (result == SessionStartResult.rejectedActiveSession) {
+        _soundService.play(SoundEvent.scanError);
+        _isScanning = false;
+        notifyListeners();
+        return;
+      }
+
       _detectedMember = member;
       _error = null;
-      _membersProvider.setSelectedMember(member);
 
       _isScanning = false;
       notifyListeners();

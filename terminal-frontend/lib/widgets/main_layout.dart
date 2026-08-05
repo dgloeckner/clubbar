@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/clubbar_header.dart';
 import 'package:clubbar_terminal/widgets/status_info_modal.dart';
 
@@ -59,6 +62,7 @@ class MainLayout extends StatelessWidget {
     }
 
     final effectiveStatus = _computeEffectiveStatus(backendStatus, dispenserHealth);
+    final session = context.watch<SessionController>();
 
     return Scaffold(
       backgroundColor: const Color(0xff0a1628),
@@ -66,7 +70,84 @@ class MainLayout extends StatelessWidget {
         connectionStatus: effectiveStatus,
         onStatusTap: () => showStatusInfoModal(context),
       ),
-      body: child,
+      // Every pointer-down anywhere in the app counts as member activity and
+      // resets the session inactivity timer (ADR-0027 rule 6).
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => session.recordActivity(),
+        child: Stack(
+          children: [
+            child,
+            if (session.showTimeoutWarning)
+              _TimeoutWarningOverlay(
+                secondsLeft: session.warningSecondsLeft,
+                onContinue: session.recordActivity,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-screen "Still there?" countdown shown before the inactivity timeout
+/// ends the session. Any tap dismisses it via the activity Listener above.
+class _TimeoutWarningOverlay extends StatelessWidget {
+  final int secondsLeft;
+  final VoidCallback onContinue;
+
+  const _TimeoutWarningOverlay({
+    required this.secondsLeft,
+    required this.onContinue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return Positioned.fill(
+      child: ColoredBox(
+        color: const Color(0xd90a1628),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                l10n.sessionTimeoutWarningTitle,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: AppFontSizes.xxl,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                l10n.sessionTimeoutWarningBody(secondsLeft),
+                style: TextStyle(
+                  color: const Color(0xff94a3b8),
+                  fontSize: AppFontSizes.lg,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              FilledButton(
+                key: const Key('session-timeout-continue'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xff3b82f6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xl,
+                    vertical: AppSpacing.lg,
+                  ),
+                ),
+                onPressed: onContinue,
+                child: Text(
+                  l10n.sessionTimeoutContinue,
+                  style: TextStyle(fontSize: AppFontSizes.lg),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

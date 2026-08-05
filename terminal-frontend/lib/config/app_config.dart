@@ -9,9 +9,11 @@ class AppConfig {
   static const Duration syncInterval = Duration(seconds: 60);
   static const Duration syncTimeout = Duration(seconds: 10);
 
-  // Inactivity & Cart Preservation
-  static const Duration inactivityTimeout = Duration(seconds: 30);
-  static const Duration cartPreservationDuration = Duration(hours: 1);
+  // Session inactivity timeout (ADR-0027): 60 s without interaction, then a
+  // visible countdown warning before the session ends. The cart dies with the
+  // session — there is no cross-session cart preservation.
+  static const Duration inactivityTimeout = Duration(seconds: 60);
+  static const Duration inactivityWarningDuration = Duration(seconds: 10);
 
   // Balance Limit (€100.00 = 10000 cents; configurable from backend later)
   static const int balanceLimitCents = 10000; // €100.00

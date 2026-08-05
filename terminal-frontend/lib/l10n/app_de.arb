@@ -539,5 +539,13 @@
     "placeholders": {
       "error": {"type": "String"}
     }
-  }
+  },
+  "sessionTimeoutWarningTitle": "Noch da?",
+  "sessionTimeoutWarningBody": "Du wirst in {seconds} s automatisch abgemeldet.",
+  "@sessionTimeoutWarningBody": {
+    "placeholders": {
+      "seconds": {"type": "int"}
+    }
+  },
+  "sessionTimeoutContinue": "Weiter einkaufen"
 }

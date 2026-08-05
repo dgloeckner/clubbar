@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
@@ -9,6 +10,7 @@ import 'package:clubbar_terminal/services/sound_service.dart';
 class MockMembersProvider extends Mock implements MembersProvider {}
 class MockMembersRepository extends Mock implements MembersRepository {}
 class MockSoundService extends Mock implements SoundService {}
+class MockSessionController extends Mock implements SessionController {}
 
 void main() {
   setUpAll(() {
@@ -29,13 +31,18 @@ void main() {
   late MockMembersProvider membersProvider;
   late MockMembersRepository membersRepository;
   late MockSoundService soundService;
+  late MockSessionController sessionController;
   late RfidProvider provider;
 
   setUp(() {
     membersProvider = MockMembersProvider();
     membersRepository = MockMembersRepository();
     soundService = MockSoundService();
-    provider = RfidProvider(membersProvider, membersRepository, soundService);
+    sessionController = MockSessionController();
+    when(() => sessionController.startSession(any()))
+        .thenAnswer((_) async => SessionStartResult.started);
+    provider = RfidProvider(
+        membersProvider, membersRepository, soundService, sessionController);
     when(() => soundService.play(any())).thenAnswer((_) async {});
   });
 
