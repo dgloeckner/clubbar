@@ -407,6 +407,22 @@ void main() {
       expect(find.text('Idle'), findsOneWidget);
     });
 
+    testWidgets('stays put when the session refuses to end (ADR-0027 rule 7)',
+        (WidgetTester tester) async {
+      // A critical operation in flight makes endSession() refuse. Navigating
+      // anyway lands on /idle with a member still selected, which the router
+      // bounces straight back to /products — a session that was supposed to
+      // be over, resumed.
+      when(() => mockSessionController.endSession()).thenReturn(false);
+
+      await pumpReceipt(tester);
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Fertig'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Idle'), findsNothing);
+      expect(find.text('Buchung erfolgreich!'), findsOneWidget);
+    });
+
     testWidgets('"Weiter einkaufen" resumes the session on /products (#25)',
         (WidgetTester tester) async {
       await pumpReceipt(tester);

@@ -137,15 +137,21 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
     _autoLoopTimer = Timer(_autoReturnDelay, () {
       if (mounted) {
-        _performNavigation();
+        _endSessionAndReturnToIdle();
       }
     });
   }
 
-  void _performNavigation() {
+  /// Ends the session and returns the terminal to idle.
+  ///
+  /// Checkout completion is one of the three session ends (ADR-0027), and
+  /// [SessionController.endSession] can refuse one while a critical operation
+  /// is in flight (rule 7) — navigating anyway would drop us on `/idle` with a
+  /// member still selected, which the router immediately bounces to
+  /// `/products`, resuming a session that was supposed to be over.
+  void _endSessionAndReturnToIdle() {
+    if (!context.read<SessionController>().endSession()) return;
     _cancelTimers();
-    // Checkout completion is one of the three session ends (ADR-0027).
-    context.read<SessionController>().endSession();
     context.go('/idle');
   }
 
@@ -248,7 +254,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
             // Partial dispense: show confirm button; normal: countdown + actions
             if (data.isPartial) ...[
               ElevatedButton(
-                onPressed: _performNavigation,
+                onPressed: _endSessionAndReturnToIdle,
                 child: Text(l10n.checkoutPartialConfirm),
               ),
             ] else ...[
@@ -326,6 +332,8 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         ..._receiptFooter(l10n),
 
         // No countdown here: the unexplained bounce to idle is the bug (#16).
+        // No "continue shopping" either — this branch means we could not read
+        // the receipt back, which is the wrong moment to invite more spending.
         _doneButton(l10n),
       ],
     );
@@ -407,7 +415,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   /// my purchase" — members avoided it and sat out the countdown instead.
   Widget _doneButton(AppLocalizations l10n) {
     return ElevatedButton(
-      onPressed: _performNavigation,
+      onPressed: _endSessionAndReturnToIdle,
       style: ElevatedButton.styleFrom(
         backgroundColor: hexToColor(AppColors.semanticPrimary),
         foregroundColor: Colors.white,
