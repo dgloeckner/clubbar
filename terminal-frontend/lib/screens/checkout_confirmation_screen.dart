@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
@@ -27,12 +28,6 @@ class _SessionData {
   });
 }
 
-/// How long the receipt stays up before the terminal returns itself to idle.
-///
-/// Short on purpose (#25): the receipt is the tail of an otherwise fast flow,
-/// and every second here is a second the next person in the queue cannot start.
-const Duration _autoReturnDelay = Duration(seconds: 8);
-
 class CheckoutConfirmationScreen extends StatefulWidget {
   final String sessionId;
 
@@ -50,7 +45,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     with SingleTickerProviderStateMixin {
   Timer? _autoLoopTimer;
   Timer? _countdownTimer;
-  int _secondsRemaining = _autoReturnDelay.inSeconds;
+  int _secondsRemaining = AppConfig.receiptAutoReturnDelay.inSeconds;
   late AnimationController _scaleController;
   late Animation<double> _scaleAnimation;
   late Future<_SessionData> _sessionDataFuture;
@@ -135,7 +130,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
       }
     });
 
-    _autoLoopTimer = Timer(_autoReturnDelay, () {
+    _autoLoopTimer = Timer(AppConfig.receiptAutoReturnDelay, () {
       if (mounted) {
         _endSessionAndReturnToIdle();
       }
@@ -155,12 +150,14 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     context.go('/idle');
   }
 
-  /// Sends the member back to the product list with their session intact.
+  /// Sends the member back to the product list with their session intact
+  /// (ADR-0027 rule 10).
   ///
   /// The purchase is booked and the cart already empty, so this is a fresh
   /// round of shopping — not a session end, hence no [SessionController]
-  /// teardown. The inactivity timer is restarted so the resumed session is
-  /// governed by ADR-0027 again rather than by whatever was left running.
+  /// teardown. `recordActivity()` restarts the inactivity timer, so the
+  /// resumed session is governed by rule 6 again rather than by whatever was
+  /// left running.
   void _continueShopping() {
     _cancelTimers();
     context.read<SessionController>().recordActivity();
