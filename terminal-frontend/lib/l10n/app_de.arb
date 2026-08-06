@@ -155,6 +155,10 @@
   "@checkoutReceiptUnavailable": {
     "description": "Shown on the confirmation screen when the receipt details could not be loaded"
   },
+  "checkoutDone": "Fertig",
+  "@checkoutDone": {
+    "description": "Dismisses the confirmation screen after a successful purchase"
+  },
   "redirectingIn": "Weiterleitung in {seconds} {seconds, plural, =1{Sekunde} other{Sekunden}}...",
   "@redirectingIn": {
     "description": "Countdown message before redirecting",

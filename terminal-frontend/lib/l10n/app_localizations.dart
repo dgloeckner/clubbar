@@ -260,6 +260,12 @@ abstract class AppLocalizations {
   /// **'Dein Kauf wurde gebucht — die Belegdaten konnten nicht geladen werden.'**
   String get checkoutReceiptUnavailable;
 
+  /// Dismisses the confirmation screen after a successful purchase
+  ///
+  /// In de, this message translates to:
+  /// **'Fertig'**
+  String get checkoutDone;
+
   /// Countdown message before redirecting
   ///
   /// In de, this message translates to:

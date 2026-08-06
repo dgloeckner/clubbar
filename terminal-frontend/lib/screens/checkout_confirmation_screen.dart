@@ -27,6 +27,12 @@ class _SessionData {
   });
 }
 
+/// How long the receipt stays up before the terminal returns itself to idle.
+///
+/// Short on purpose (#25): the receipt is the tail of an otherwise fast flow,
+/// and every second here is a second the next person in the queue cannot start.
+const Duration _autoReturnDelay = Duration(seconds: 8);
+
 class CheckoutConfirmationScreen extends StatefulWidget {
   final String sessionId;
 
@@ -44,7 +50,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     with SingleTickerProviderStateMixin {
   Timer? _autoLoopTimer;
   Timer? _countdownTimer;
-  int _secondsRemaining = 30;
+  int _secondsRemaining = _autoReturnDelay.inSeconds;
   late AnimationController _scaleController;
   late Animation<double> _scaleAnimation;
   late Future<_SessionData> _sessionDataFuture;
@@ -129,7 +135,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
       }
     });
 
-    _autoLoopTimer = Timer(const Duration(seconds: 30), () {
+    _autoLoopTimer = Timer(_autoReturnDelay, () {
       if (mounted) {
         _performNavigation();
       }
@@ -137,15 +143,32 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   }
 
   void _performNavigation() {
+    _cancelTimers();
     // Checkout completion is one of the three session ends (ADR-0027).
     context.read<SessionController>().endSession();
     context.go('/idle');
   }
 
-  @override
-  void dispose() {
+  /// Sends the member back to the product list with their session intact.
+  ///
+  /// The purchase is booked and the cart already empty, so this is a fresh
+  /// round of shopping — not a session end, hence no [SessionController]
+  /// teardown. The inactivity timer is restarted so the resumed session is
+  /// governed by ADR-0027 again rather than by whatever was left running.
+  void _continueShopping() {
+    _cancelTimers();
+    context.read<SessionController>().recordActivity();
+    context.go('/products');
+  }
+
+  void _cancelTimers() {
     _autoLoopTimer?.cancel();
     _countdownTimer?.cancel();
+  }
+
+  @override
+  void dispose() {
+    _cancelTimers();
     _scaleController.dispose();
     super.dispose();
   }
@@ -219,10 +242,10 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
             ),
             const SizedBox(height: AppSpacing.lg),
 
-            // Session reference ID, then the balance it was booked against
+            // The balance the purchase was booked against
             ..._receiptFooter(l10n),
 
-            // Partial dispense: show confirm button; normal: show countdown + logout
+            // Partial dispense: show confirm button; normal: countdown + actions
             if (data.isPartial) ...[
               ElevatedButton(
                 onPressed: _performNavigation,
@@ -232,13 +255,26 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
               Text(
                 l10n.redirectingIn(_secondsRemaining),
                 style: TextStyle(
-                  color: hexToColor(AppColors.textMuted),
+                  color: hexToColor(AppColors.textSecondary),
                   fontSize: AppFontSizes.base,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.lg),
-              _logoutButton(l10n),
+              _doneButton(l10n),
+              const SizedBox(height: AppSpacing.sm),
+              // For the member who is not done yet — buying a second round
+              // should not cost them a card scan.
+              TextButton(
+                onPressed: _continueShopping,
+                child: Text(
+                  l10n.continueShopping,
+                  style: TextStyle(
+                    color: hexToColor(AppColors.textSecondary),
+                    fontSize: AppFontSizes.lg,
+                  ),
+                ),
+              ),
             ],
           ],
         );
@@ -286,11 +322,11 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         ),
         const SizedBox(height: AppSpacing.lg),
 
-        // Session reference ID — what the bar staff need to look it up
+        // The balance the purchase was booked against
         ..._receiptFooter(l10n),
 
         // No countdown here: the unexplained bounce to idle is the bug (#16).
-        _logoutButton(l10n),
+        _doneButton(l10n),
       ],
     );
   }
@@ -326,19 +362,13 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     ];
   }
 
-  /// Session reference and resulting balance — the bottom of every receipt.
+  /// The resulting balance — the bottom of every receipt.
+  ///
+  /// No session reference here (#25): a raw UUID means nothing to the member
+  /// it is shown to, and the transaction is looked up from the local database
+  /// or the backend when staff actually need it.
   List<Widget> _receiptFooter(AppLocalizations l10n) {
     return [
-      Text(
-        widget.sessionId,
-        style: TextStyle(
-          color: hexToColor(AppColors.textMuted),
-          fontSize: AppFontSizes.sm,
-          fontFamily: 'monospace',
-        ),
-        textAlign: TextAlign.center,
-      ),
-      const SizedBox(height: AppSpacing.lg),
       Text(
         formatNewBalance(_billedToBalanceCents, l10n, _locale),
         style: TextStyle(
@@ -370,11 +400,16 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     );
   }
 
-  Widget _logoutButton(AppLocalizations l10n) {
+  /// Dismisses the receipt.
+  ///
+  /// Deliberately *not* the danger colour (#25): this ends a session that
+  /// already succeeded, and a red button on a success screen reads as "cancel
+  /// my purchase" — members avoided it and sat out the countdown instead.
+  Widget _doneButton(AppLocalizations l10n) {
     return ElevatedButton(
       onPressed: _performNavigation,
       style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xffDC2626),
+        backgroundColor: hexToColor(AppColors.semanticPrimary),
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 29, vertical: 17),
         textStyle: TextStyle(
@@ -382,7 +417,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
           fontWeight: FontWeight.w600,
         ),
       ),
-      child: Text(l10n.logout),
+      child: Text(l10n.checkoutDone),
     );
   }
 }
