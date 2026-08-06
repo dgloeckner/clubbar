@@ -121,34 +121,56 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                 locale: selectedMember?.preferredLanguage ?? 'de',
               ),
 
-              // Category tabs (full width, 2 tabs)
+              // Category tabs
+              //
+              // Issue #30: the bar used to be a bare Row of Expanded chips
+              // sized for the two categories the first club happened to have.
+              // Six categories — or one long German name — overflowed it.
+              //
+              // [IntrinsicWidth] inside a horizontal scroll view makes the row
+              // as wide as its chips need, but never narrower than the screen:
+              // up to three short chips still stretch edge to edge as before,
+              // and anything wider scrolls instead of overflowing.
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
-                child: Row(
-                  children: List.generate(
-                    categories.length,
-                    (index) {
-                      final memberLang = selectedMember?.preferredLanguage ?? 'de';
-                      return Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            right: index < categories.length - 1 ? _gridSpacing : 0,
-                          ),
-                          child: CategoryChip(
-                            category: categories[index],
-                            categoryName: _getCategoryName(categories[index], memberLang, l10n.categoryDefault),
-                            selected: _selectedCategoryIndex == index,
-                            onSelected: () {
-                              context.read<SoundService>().play(SoundEvent.categorySwitch);
-                              setState(() {
-                                _selectedCategoryIndex = index;
-                              });
-                            },
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      key: const Key('category-bar'),
+                      scrollDirection: Axis.horizontal,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                        child: IntrinsicWidth(
+                          child: Row(
+                            children: List.generate(
+                              categories.length,
+                              (index) {
+                                final memberLang = selectedMember?.preferredLanguage ?? 'de';
+                                return Expanded(
+                                  child: Padding(
+                                    padding: EdgeInsets.only(
+                                      right: index < categories.length - 1 ? _gridSpacing : 0,
+                                    ),
+                                    child: CategoryChip(
+                                      category: categories[index],
+                                      categoryName: _getCategoryName(categories[index], memberLang, l10n.categoryDefault),
+                                      selected: _selectedCategoryIndex == index,
+                                      onSelected: () {
+                                        context.read<SoundService>().play(SoundEvent.categorySwitch);
+                                        setState(() {
+                                          _selectedCategoryIndex = index;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(height: _verticalSpacing),

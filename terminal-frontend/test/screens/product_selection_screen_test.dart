@@ -545,5 +545,145 @@ void main() {
         expect((wideTile.width - narrowTile.width).abs(), lessThan(40));
       });
     });
+
+    // Issue #30: the bar was a plain Row of Expanded chips sized for two tabs.
+    // A club with six categories — or one long German name like "Alkoholfreie
+    // Getränke" — blew the row out with a RenderFlex overflow. The bar now
+    // stretches to fill while the chips fit and scrolls horizontally once they
+    // do not.
+    group('category bar overflow (#30)', () {
+      Future<void> pumpCategories(
+        WidgetTester tester,
+        List<String> names, {
+        Size surface = const Size(1280, 800),
+      }) async {
+        tester.view.physicalSize = surface;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final categories = List.generate(
+          names.length,
+          (i) => CategoriesCacheData(
+            id: 'cat-$i',
+            names: jsonEncode({'de': names[i]}),
+            isActive: 1,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        );
+
+        when(() => mockProductsProvider.categories).thenReturn(categories);
+        when(() => mockProductsProvider.products).thenReturn([]);
+        when(() => mockProductsProvider.lastError).thenReturn(null);
+        when(() => mockCartProvider.itemCount).thenReturn(0);
+        when(() => mockCartProvider.items).thenReturn([]);
+
+        await tester.pumpWidget(
+          createTestApp(
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ProductsProvider>.value(
+                    value: mockProductsProvider),
+                ChangeNotifierProvider<CartProvider>.value(
+                    value: mockCartProvider),
+                ChangeNotifierProvider<AuthProvider>.value(
+                    value: mockAuthProvider),
+                ChangeNotifierProvider<SyncProvider>.value(
+                    value: mockSyncProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                    value: mockMembersProvider),
+                ChangeNotifierProvider<SessionController>.value(
+                    value: mockSessionController),
+                Provider<SoundService>.value(value: mockSoundService),
+              ],
+              child: const Scaffold(body: ProductSelectionScreen()),
+            ),
+          ),
+        );
+      }
+
+      /// Long, real-world German category names — the worst case the issue
+      /// reports.
+      const longGermanNames = [
+        'Alkoholfreie Getränke',
+        'Alkoholische Getränke',
+        'Heißgetränke',
+        'Snacks und Süßigkeiten',
+        'Frühstück und Kuchen',
+        'Sonderveranstaltungen',
+      ];
+
+      for (final count in [2, 3, 6]) {
+        testWidgets('lays out $count categories without overflowing',
+            (WidgetTester tester) async {
+          await pumpCategories(tester, longGermanNames.take(count).toList());
+
+          expect(tester.takeException(), isNull);
+          expect(find.byType(CategoryChip), findsNWidgets(count));
+        });
+      }
+
+      testWidgets('six long names still fit on a narrow kiosk',
+          (WidgetTester tester) async {
+        await pumpCategories(
+          tester,
+          longGermanNames,
+          surface: const Size(1024, 768),
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(CategoryChip), findsNWidgets(6));
+      });
+
+      testWidgets('the bar scrolls horizontally when the chips do not fit',
+          (WidgetTester tester) async {
+        await pumpCategories(
+          tester,
+          longGermanNames,
+          surface: const Size(1024, 768),
+        );
+
+        final bar = find.byKey(const Key('category-bar'));
+        expect(bar, findsOneWidget);
+
+        final firstChipBefore =
+            tester.getTopLeft(find.byType(CategoryChip).first).dx;
+        await tester.drag(bar, const Offset(-300, 0));
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.getTopLeft(find.byType(CategoryChip).first).dx,
+          lessThan(firstChipBefore),
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('a short bar still stretches across the full width',
+          (WidgetTester tester) async {
+        await pumpCategories(tester, ['Bier', 'Wein', 'Snacks']);
+
+        final chips = find.byType(CategoryChip);
+        final left = tester.getTopLeft(chips.first).dx;
+        final right = tester.getTopRight(chips.at(2)).dx;
+        final barWidth = tester.getSize(find.byKey(const Key('category-bar'))).width;
+
+        // Chips plus their gaps span the bar: no dead space on the right.
+        expect(right - left, closeTo(barWidth, 1));
+      });
+
+      testWidgets('a short bar does not scroll', (WidgetTester tester) async {
+        await pumpCategories(tester, ['Bier', 'Wein', 'Snacks']);
+
+        final bar = find.byKey(const Key('category-bar'));
+        final firstChipBefore =
+            tester.getTopLeft(find.byType(CategoryChip).first).dx;
+        await tester.drag(bar, const Offset(-300, 0));
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.getTopLeft(find.byType(CategoryChip).first).dx,
+          firstChipBefore,
+        );
+      });
+    });
   });
 }

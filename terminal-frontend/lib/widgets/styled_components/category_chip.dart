@@ -50,12 +50,20 @@ class CategoryChip extends StatelessWidget {
               size: 38,
             ),
             const SizedBox(width: AppSpacing.sm),
-            Text(
-              categoryName,
-              style: TextStyle(
-                color: textColor,
-                fontSize: AppFontSizes.xl,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            // Issue #30: a long German category name ("Alkoholfreie Getränke")
+            // used to push the row past its chip. The bar scrolls rather than
+            // squeezing, so this is only the backstop for the case where the
+            // chip is genuinely narrower than its label.
+            Flexible(
+              child: Text(
+                categoryName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: AppFontSizes.xl,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
             ),
           ],
