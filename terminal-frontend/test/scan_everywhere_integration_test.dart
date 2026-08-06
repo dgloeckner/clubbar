@@ -87,6 +87,7 @@ void main() {
     when(() => cartProvider.clearCart()).thenReturn(null);
     when(() => cartProvider.items).thenReturn([]);
     when(() => cartProvider.itemCount).thenReturn(0);
+    when(() => cartProvider.lastCheckoutTotalCents).thenReturn(0);
     when(() => cartProvider.addListener(any())).thenReturn(null);
     when(() => cartProvider.removeListener(any())).thenReturn(null);
 

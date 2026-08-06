@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'dart:async';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
@@ -61,6 +62,12 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   late final int _billedToBalanceCents;
   late final String _locale;
 
+  /// What the checkout actually billed, captured once at mount.
+  ///
+  /// The only amount left if the session lookup fails (#16): [CartProvider]
+  /// empties the cart during checkout, so it records the bill instead.
+  late final int _lastBilledCents;
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +78,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         : 'Member';
     _locale = selectedMember?.preferredLanguage ?? 'de';
     _billedToBalanceCents = context.read<MembersProvider>().memberDeckel ?? 0;
+    _lastBilledCents = context.read<CartProvider>().lastCheckoutTotalCents;
 
     // Initialize scale-in animation
     _scaleController = AnimationController(
@@ -146,20 +154,15 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final locale = _locale;
-    final memberName = _memberName;
-    final newBalance = _billedToBalanceCents;
 
     return FutureBuilder<_SessionData>(
       future: _sessionDataFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          if (!_autoNavStarted) {
-            _autoNavStarted = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _performNavigation();
-            });
-          }
-          return const Center(child: CircularProgressIndicator());
+          // The purchase already succeeded — only the receipt details are
+          // missing. Say so and let the member dismiss it themselves (#16);
+          // bouncing to idle leaves them unsure whether they were charged.
+          return _buildFallbackReceipt(l10n);
         }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -174,138 +177,212 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
           });
         }
 
-        return Center(
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.xl,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Icon: partial dispense gets warning icon
-                  Icon(
-                    data.isPartial ? Icons.warning_amber_rounded : Icons.check_circle,
-                    size: 48,
-                    color: data.isPartial
-                        ? hexToColor(AppColors.semanticWarning)
-                        : hexToColor(AppColors.semanticSuccess),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Title
-                  Text(
-                    data.isPartial
-                        ? l10n.checkoutPartialSuccess(data.dispenserActual ?? 0)
-                        : l10n.checkoutSuccess,
-                    style: TextStyle(
-                      color: hexToColor(AppColors.textPrimary),
-                      fontSize: AppFontSizes.xxxl,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Member name
-                  Text(
-                    memberName,
-                    style: TextStyle(
-                      color: hexToColor(AppColors.textSecondary),
-                      fontSize: AppFontSizes.lg,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // For partial dispense: show crossed-out original amount above billed amount
-                  if (data.isPartial && data.originalTotalCents != null) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: Text(
-                        formatPrice(data.originalTotalCents!, locale),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: hexToColor(AppColors.semanticInfo),
-                          fontSize: AppFontSizes.xl,
-                          fontWeight: FontWeight.w700,
-                          decoration: TextDecoration.lineThrough,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                  ],
-
-                  // Actual billed amount
-                  PriceDisplay(
-                    priceCents: data.billedCents,
-                    locale: locale,
-                    fontSize: PriceFontSize.large,
-                    fullWidth: true,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Session reference ID
-                  Text(
-                    widget.sessionId,
-                    style: TextStyle(
-                      color: hexToColor(AppColors.textMuted),
-                      fontSize: AppFontSizes.sm,
-                      fontFamily: 'monospace',
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Balance
-                  Text(
-                    formatNewBalance(newBalance, l10n, locale),
-                    style: TextStyle(
-                      color: balanceColor(newBalance),
-                      fontSize: AppFontSizes.lg,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Partial dispense: show confirm button; normal: show countdown + logout
-                  if (data.isPartial) ...[
-                    ElevatedButton(
-                      onPressed: _performNavigation,
-                      child: Text(l10n.checkoutPartialConfirm),
-                    ),
-                  ] else ...[
-                    Text(
-                      l10n.redirectingIn(_secondsRemaining),
-                      style: TextStyle(
-                        color: hexToColor(AppColors.textMuted),
-                        fontSize: AppFontSizes.base,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    ElevatedButton(
-                      onPressed: _performNavigation,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xffDC2626),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 29, vertical: 17),
-                        textStyle: TextStyle(
-                          fontSize: AppFontSizes.lg * 1.2,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      child: Text(l10n.logout),
-                    ),
-                  ],
-                ],
-              ),
+        return _receiptFrame(
+          children: [
+            // Icon: partial dispense gets warning icon
+            ..._receiptHeader(
+              icon: data.isPartial
+                  ? Icons.warning_amber_rounded
+                  : Icons.check_circle,
+              iconColor: data.isPartial
+                  ? hexToColor(AppColors.semanticWarning)
+                  : hexToColor(AppColors.semanticSuccess),
+              title: data.isPartial
+                  ? l10n.checkoutPartialSuccess(data.dispenserActual ?? 0)
+                  : l10n.checkoutSuccess,
             ),
-          ),
+
+            // For partial dispense: show crossed-out original amount above billed amount
+            if (data.isPartial && data.originalTotalCents != null) ...[
+              SizedBox(
+                width: double.infinity,
+                child: Text(
+                  formatPrice(data.originalTotalCents!, locale),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: hexToColor(AppColors.semanticInfo),
+                    fontSize: AppFontSizes.xl,
+                    fontWeight: FontWeight.w700,
+                    decoration: TextDecoration.lineThrough,
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+            ],
+
+            // Actual billed amount
+            PriceDisplay(
+              priceCents: data.billedCents,
+              locale: locale,
+              fontSize: PriceFontSize.large,
+              fullWidth: true,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            // Session reference ID, then the balance it was booked against
+            ..._receiptFooter(l10n),
+
+            // Partial dispense: show confirm button; normal: show countdown + logout
+            if (data.isPartial) ...[
+              ElevatedButton(
+                onPressed: _performNavigation,
+                child: Text(l10n.checkoutPartialConfirm),
+              ),
+            ] else ...[
+              Text(
+                l10n.redirectingIn(_secondsRemaining),
+                style: TextStyle(
+                  color: hexToColor(AppColors.textMuted),
+                  fontSize: AppFontSizes.base,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              _logoutButton(l10n),
+            ],
+          ],
         );
       },
+    );
+  }
+
+  /// The receipt shown when the session details cannot be loaded (#16).
+  ///
+  /// The money already moved, so this stays a receipt — success wording plus
+  /// the amount the checkout billed — with a note about what is missing and
+  /// no auto-navigation: the member decides when to leave. The terminal is
+  /// not pinned by that; [SessionController]'s inactivity timer is running
+  /// again by now (the cart screen ends its critical operation before it
+  /// navigates here), so a walked-away session still times out per ADR-0027.
+  Widget _buildFallbackReceipt(AppLocalizations l10n) {
+    return _receiptFrame(
+      children: [
+        // The booking itself did go through — lead with that.
+        ..._receiptHeader(
+          icon: Icons.check_circle,
+          iconColor: hexToColor(AppColors.semanticSuccess),
+          title: l10n.checkoutSuccess,
+        ),
+
+        // Billed amount, absent only for a zero-total checkout
+        if (_lastBilledCents > 0) ...[
+          PriceDisplay(
+            priceCents: _lastBilledCents,
+            locale: _locale,
+            fontSize: PriceFontSize.large,
+            fullWidth: true,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+
+        // What is missing, so the thinner receipt is not a mystery
+        Text(
+          l10n.checkoutReceiptUnavailable,
+          style: TextStyle(
+            color: hexToColor(AppColors.textMuted),
+            fontSize: AppFontSizes.base,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+
+        // Session reference ID — what the bar staff need to look it up
+        ..._receiptFooter(l10n),
+
+        // No countdown here: the unexplained bounce to idle is the bug (#16).
+        _logoutButton(l10n),
+      ],
+    );
+  }
+
+  /// Icon, headline and member name — the top of every receipt variant.
+  List<Widget> _receiptHeader({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+  }) {
+    return [
+      Icon(icon, size: 48, color: iconColor),
+      const SizedBox(height: AppSpacing.lg),
+      Text(
+        title,
+        style: TextStyle(
+          color: hexToColor(AppColors.textPrimary),
+          fontSize: AppFontSizes.xxxl,
+          fontWeight: FontWeight.w700,
+        ),
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      Text(
+        _memberName,
+        style: TextStyle(
+          color: hexToColor(AppColors.textSecondary),
+          fontSize: AppFontSizes.lg,
+        ),
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: AppSpacing.lg),
+    ];
+  }
+
+  /// Session reference and resulting balance — the bottom of every receipt.
+  List<Widget> _receiptFooter(AppLocalizations l10n) {
+    return [
+      Text(
+        widget.sessionId,
+        style: TextStyle(
+          color: hexToColor(AppColors.textMuted),
+          fontSize: AppFontSizes.sm,
+          fontFamily: 'monospace',
+        ),
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      Text(
+        formatNewBalance(_billedToBalanceCents, l10n, _locale),
+        style: TextStyle(
+          color: balanceColor(_billedToBalanceCents),
+          fontSize: AppFontSizes.lg,
+        ),
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: AppSpacing.lg),
+    ];
+  }
+
+  /// The scale-in card every receipt variant is painted into.
+  Widget _receiptFrame({required List<Widget> children}) {
+    return Center(
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.xl,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: children,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _logoutButton(AppLocalizations l10n) {
+    return ElevatedButton(
+      onPressed: _performNavigation,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xffDC2626),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 29, vertical: 17),
+        textStyle: TextStyle(
+          fontSize: AppFontSizes.lg * 1.2,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      child: Text(l10n.logout),
     );
   }
 }

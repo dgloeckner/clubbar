@@ -115,6 +115,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get checkoutPartialConfirm => 'Alles klar!';
 
   @override
+  String get checkoutReceiptUnavailable =>
+      'Dein Kauf wurde gebucht — die Belegdaten konnten nicht geladen werden.';
+
+  @override
   String redirectingIn(int seconds) {
     String _temp0 = intl.Intl.pluralLogic(
       seconds,

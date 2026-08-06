@@ -151,6 +151,10 @@
     }
   },
   "checkoutPartialConfirm": "Alles klar!",
+  "checkoutReceiptUnavailable": "Dein Kauf wurde gebucht — die Belegdaten konnten nicht geladen werden.",
+  "@checkoutReceiptUnavailable": {
+    "description": "Shown on the confirmation screen when the receipt details could not be loaded"
+  },
   "redirectingIn": "Weiterleitung in {seconds} {seconds, plural, =1{Sekunde} other{Sekunden}}...",
   "@redirectingIn": {
     "description": "Countdown message before redirecting",
