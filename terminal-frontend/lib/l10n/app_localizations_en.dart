@@ -81,6 +81,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get checkoutProcessing => 'Processing…';
 
   @override
+  String get checkoutBlockedByLimit => 'Limit reached';
+
+  @override
+  String get creditLimitReached =>
+      'Balance limit reached — remove items to continue.';
+
+  @override
+  String get creditLimitApproaching => 'You are getting close to your limit.';
+
+  @override
+  String creditLimitCurrent(String amount) {
+    return 'Current balance: $amount';
+  }
+
+  @override
+  String creditLimitCart(String amount) {
+    return 'Cart total: $amount';
+  }
+
+  @override
+  String creditLimitMaximum(String amount) {
+    return 'Maximum allowed: $amount';
+  }
+
+  @override
   String get checkoutSuccess => 'Transaction successful!';
 
   @override
@@ -479,6 +504,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get errorCheckoutFailed =>
       'Something went wrong — you have not been charged. Please try again.';
+
+  @override
+  String get errorBalanceLimitExceeded =>
+      'Your limit is reached — please remove items or see the bar staff.';
 
   @override
   String get errorCheckoutCancelled =>

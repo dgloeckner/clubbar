@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
+import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/utils/app_logger.dart';
@@ -76,7 +77,31 @@ class CartService {
       return (false, TerminalErrorKey.cartEmpty);
     }
 
+    // Credit limit (UC-T11 E3, UC-T12). The cart screen already disables the
+    // button above the limit; this is the authority, not a duplicate of it —
+    // the tab can move under the member's feet (a sync landing mid-session)
+    // between rendering the screen and tapping Buy.
+    final limitCheck = await checkCreditLimit(member, items);
+    if (limitCheck.blocksCheckout) {
+      return (false, TerminalErrorKey.balanceLimitExceeded);
+    }
+
     return (true, null);
+  }
+
+  /// Where [items] would leave [member] relative to the credit limit.
+  ///
+  /// Reads the effective tab (including unsynced transactions) so the verdict
+  /// holds on an offline terminal.
+  Future<CreditLimitCheck> checkCreditLimit(
+    MembersCacheData member,
+    List<CartItem> items,
+  ) async {
+    return CreditLimitCheck.evaluate(
+      currentBalanceCents: await _repository.getEffectiveBalance(member),
+      cartTotalCents:
+          items.fold<int>(0, (sum, item) => sum + item.lineTotalCents),
+    );
   }
 
   // ============================================================================

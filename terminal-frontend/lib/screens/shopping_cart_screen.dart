@@ -4,12 +4,14 @@ import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
+import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/error_modal.dart';
 import 'package:clubbar_terminal/widgets/loading_overlay.dart';
@@ -63,10 +65,14 @@ class ShoppingCartScreen extends StatelessWidget {
       // Shown — drop it so the next failure signals afresh.
       cartProvider.clearError();
       if (!context.mounted) return;
+      // The credit limit is a standing condition, not a hiccup: retrying
+      // would refuse the exact same cart. The member's way out is the banner
+      // above and the remove buttons, so the modal offers no Retry.
+      final isRetryable = error.key != TerminalErrorKey.balanceLimitExceeded;
       showErrorModal(
         context,
         error.message(AppLocalizations.of(context)!),
-        onRetry: () => _runCheckout(context),
+        onRetry: isRetryable ? () => _runCheckout(context) : null,
       );
       return;
     }
@@ -88,6 +94,22 @@ class ShoppingCartScreen extends StatelessWidget {
       builder: (context, cartProvider, membersProvider, child) {
         final selectedMember = membersProvider.selectedMember;
         final locale = selectedMember?.preferredLanguage ?? 'de';
+
+        final totalCents = cartProvider.items.fold<int>(
+          0,
+          (sum, item) => sum + (item.priceCents * item.quantity),
+        );
+        final currentDeckel = membersProvider.memberDeckel ?? 0;
+
+        // Credit limit (UC-T11 E3, UC-T12). Same verdict the service enforces
+        // at checkout, computed here so the member sees the ceiling *before*
+        // they tap Buy rather than being refused afterwards. Evaluated above
+        // the empty-cart branch too: a member who is already over the limit
+        // needs to know that with an empty cart, not after filling one.
+        final limitCheck = CreditLimitCheck.evaluate(
+          currentBalanceCents: currentDeckel,
+          cartTotalCents: totalCents,
+        );
 
         if (cartProvider.items.isEmpty) {
           return Column(
@@ -114,6 +136,7 @@ class ShoppingCartScreen extends StatelessWidget {
                     },
                   ),
                 ),
+              CreditLimitBanner(check: limitCheck, locale: locale),
               Expanded(
                 child: Center(
                   child: Text(
@@ -129,14 +152,8 @@ class ShoppingCartScreen extends StatelessWidget {
           );
         }
 
-        final totalCents = cartProvider.items.fold<int>(
-          0,
-          (sum, item) => sum + (item.priceCents * item.quantity),
-        );
-
-        // Calculate new balance (Deckel + cart total)
-        final currentDeckel = membersProvider.memberDeckel ?? 0;
-        final newBalanceCents = currentDeckel + totalCents;
+        // Balance preview after this cart (Deckel + cart total).
+        final newBalanceCents = limitCheck.projectedBalanceCents;
 
         // While checkout runs the cart must not be edited or re-submitted
         final isCheckoutInFlight = cartProvider.isLoading;
@@ -174,6 +191,10 @@ class ShoppingCartScreen extends StatelessWidget {
                 message: cartProvider.lastError!.message(l10n),
                 onDismiss: cartProvider.clearError,
               ),
+
+            // Standing notice while the tab is at or over the limit — renders
+            // nothing below the warning band.
+            CreditLimitBanner(check: limitCheck, locale: locale),
 
             // Item list — frozen while a checkout is in flight, otherwise the
             // cart could be mutated after the transactions were computed. The
@@ -428,6 +449,7 @@ class ShoppingCartScreen extends StatelessWidget {
                   // a double-tap cannot create duplicate transactions.
                   _CheckoutButton(
                     isLoading: isCheckoutInFlight,
+                    isBlockedByLimit: limitCheck.blocksCheckout,
                     onPressed: () => _runCheckout(context),
                   ),
                 ],
@@ -440,32 +462,54 @@ class ShoppingCartScreen extends StatelessWidget {
   }
 }
 
-/// Checkout button with press feedback and an in-flight state.
+/// Checkout button with press feedback, an in-flight state and a blocked
+/// state.
 ///
 /// While [isLoading] is true the button is non-interactive (no [onPressed] on
 /// the [InkWell]) and shows a spinner plus a "processing" label, so a member
 /// cannot tap it a second time during the async checkout.
+///
+/// While [isBlockedByLimit] is true it is greyed out and says so (UC-T12). A
+/// tooltip would be the desktop answer; on a touch terminal nobody hovers, so
+/// the reason goes in the label — and in the banner above the cart.
 class _CheckoutButton extends StatelessWidget {
   const _CheckoutButton({
     required this.isLoading,
+    required this.isBlockedByLimit,
     required this.onPressed,
   });
 
   final bool isLoading;
+  final bool isBlockedByLimit;
   final Future<void> Function() onPressed;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final borderRadius = BorderRadius.circular(AppBorderRadius.lg);
+    // Resolved once: background, foreground and label always describe the
+    // same state, so they cannot drift apart as states are added.
+    final (background, foreground, label) = switch (this) {
+      _ when isBlockedByLimit => (
+          hexToColor(AppColors.borderLight),
+          hexToColor(AppColors.textSecondary),
+          l10n.checkoutBlockedByLimit,
+        ),
+      _ when isLoading => (
+          const Color(0xff166534),
+          Colors.black,
+          l10n.checkoutProcessing,
+        ),
+      _ => (const Color(0xff22c55e), Colors.black, l10n.checkout),
+    };
 
     return Material(
       // Stable selector for widget/integration tests
       key: const Key('checkout-button'),
-      color: isLoading ? const Color(0xff166534) : const Color(0xff22c55e),
+      color: background,
       borderRadius: borderRadius,
       child: InkWell(
-        onTap: isLoading ? null : onPressed,
+        onTap: isLoading || isBlockedByLimit ? null : onPressed,
         borderRadius: borderRadius,
         child: SizedBox(
           height: 67,
@@ -483,16 +527,16 @@ class _CheckoutButton extends StatelessWidget {
                     ),
                   )
                 else
-                  const Icon(
-                    Icons.check,
-                    color: Colors.black,
+                  Icon(
+                    isBlockedByLimit ? Icons.block : Icons.check,
+                    color: foreground,
                     size: 24,
                   ),
                 const SizedBox(width: 8),
                 Text(
-                  isLoading ? l10n.checkoutProcessing : l10n.checkout,
+                  label,
                   style: TextStyle(
-                    color: Colors.black,
+                    color: foreground,
                     fontSize: AppFontSizes.xl,
                     fontWeight: FontWeight.w600,
                   ),

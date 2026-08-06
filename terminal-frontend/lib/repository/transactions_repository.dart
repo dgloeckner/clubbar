@@ -77,6 +77,17 @@ class TransactionsRepository {
     return transactions.fold<int>(0, (sum, txn) => sum + txn.amountCents);
   }
 
+  /// Effective balance (Deckel) for a member: the balance last confirmed by
+  /// the backend plus everything bought since that has not synced yet.
+  ///
+  /// The single definition of "what this member currently owes" — the member
+  /// bar, the cart's balance preview and the credit-limit check all read it
+  /// from here, so an offline terminal cannot show one number and enforce
+  /// against another.
+  Future<int> getEffectiveBalance(MembersCacheData member) async {
+    return member.balanceCents + await getUnsyncedAmountForMember(member.id);
+  }
+
   /// Clear all transactions (for logout or reset)
   Future<void> clearCache() async {
     await _db.delete(_db.transactionsLocal).go();

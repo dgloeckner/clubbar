@@ -173,20 +173,12 @@ void main() {
     });
 
     group('getEffectiveBalance', () {
-      test('returns synced balance when no unsynced txns', () async {
-        final testMember = makeMember(balanceCents: 500);
-        when(() => mockTxnRepo.getUnsyncedAmountForMember('member-1'))
-            .thenAnswer((_) async => 0);
-
-        final balance = await service.getEffectiveBalance(testMember);
-
-        expect(balance, equals(500));
-      });
-
-      test('adds unsynced transactions to synced balance', () async {
+      // The arithmetic itself lives in TransactionsRepository, so that the
+      // credit-limit check and the member bar read the same definition.
+      test('reports the repository\'s effective balance', () async {
         final testMember = makeMember(balanceCents: 1000);
-        when(() => mockTxnRepo.getUnsyncedAmountForMember('member-1'))
-            .thenAnswer((_) async => -300);
+        when(() => mockTxnRepo.getEffectiveBalance(testMember))
+            .thenAnswer((_) async => 700);
 
         final balance = await service.getEffectiveBalance(testMember);
 

@@ -43,7 +43,11 @@ class AppColors {
 ///   * an open tab above [AppMoney.warnAboveCents] turns amber
 class AppMoney {
   /// Open tabs above this amount are shown in the warning colour.
-  /// Kept in sync with the credit-limit thresholds once those land.
+  ///
+  /// Deliberately *not* the credit limit: this is a reading cue ("that tab is
+  /// getting substantial"), while `CreditLimitCheck` decides what the member
+  /// may still buy. The limit's own warning band and hard stop are surfaced
+  /// by `CreditLimitBanner` and the checkout button, not by this colour.
   static const int warnAboveCents = 2000; // €20.00
 }
 

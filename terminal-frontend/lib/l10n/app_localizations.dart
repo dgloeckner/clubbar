@@ -224,6 +224,42 @@ abstract class AppLocalizations {
   /// **'Wird verarbeitet…'**
   String get checkoutProcessing;
 
+  /// Checkout button label when the credit limit blocks the purchase
+  ///
+  /// In de, this message translates to:
+  /// **'Limit erreicht'**
+  String get checkoutBlockedByLimit;
+
+  /// Cart banner headline when the projected tab exceeds the credit limit
+  ///
+  /// In de, this message translates to:
+  /// **'Limit erreicht – bitte Artikel entfernen, um fortzufahren.'**
+  String get creditLimitReached;
+
+  /// Cart banner headline when the projected tab is inside the warning band
+  ///
+  /// In de, this message translates to:
+  /// **'Du näherst dich deinem Limit.'**
+  String get creditLimitApproaching;
+
+  /// Credit limit banner: the member's tab before this cart
+  ///
+  /// In de, this message translates to:
+  /// **'Aktueller Betrag: {amount}'**
+  String creditLimitCurrent(String amount);
+
+  /// Credit limit banner: what the cart would add
+  ///
+  /// In de, this message translates to:
+  /// **'Warenkorb: {amount}'**
+  String creditLimitCart(String amount);
+
+  /// Credit limit banner: the configured ceiling
+  ///
+  /// In de, this message translates to:
+  /// **'Maximum: {amount}'**
+  String creditLimitMaximum(String amount);
+
   /// Success message after checkout
   ///
   /// In de, this message translates to:
@@ -889,6 +925,12 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Etwas ist schiefgelaufen – dir wurde nichts berechnet. Bitte erneut versuchen.'**
   String get errorCheckoutFailed;
+
+  /// TerminalErrorKey.balanceLimitExceeded — checkout would push the tab past the credit limit
+  ///
+  /// In de, this message translates to:
+  /// **'Dein Limit ist erreicht – bitte Artikel entfernen oder beim Bar-Team melden.'**
+  String get errorBalanceLimitExceeded;
 
   /// TerminalErrorKey.checkoutCancelled — member cancelled the checkout
   ///

@@ -25,6 +25,7 @@ enum TerminalErrorKey {
 
   // Cart / checkout
   cartEmpty,
+  balanceLimitExceeded,
   checkoutFailed,
   checkoutCancelled,
   transactionCreateFailed,

@@ -7,10 +7,12 @@ import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
+import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
 import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
@@ -91,6 +93,19 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                   message: productsProvider.lastError!.message(l10n),
                   onDismiss: productsProvider.clearError,
                 ),
+
+              // Credit limit, checked as items go in rather than only in the
+              // cart (UC-T12 "Add to cart | Warning shown, item still added"):
+              // the member sees the ceiling while they can still choose, not
+              // after they have picked a round for the table. Adding stays
+              // allowed — only checkout is blocked.
+              CreditLimitBanner(
+                check: CreditLimitCheck.evaluate(
+                  currentBalanceCents: membersProvider.memberDeckel ?? 0,
+                  cartTotalCents: cartProvider.total,
+                ),
+                locale: selectedMember?.preferredLanguage ?? 'de',
+              ),
 
               // Category tabs (full width, 2 tabs)
               Padding(
