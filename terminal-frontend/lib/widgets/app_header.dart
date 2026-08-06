@@ -1,8 +1,10 @@
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/auth_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/utils/formatters.dart';
 
 class AppHeader extends AppBar {
   AppHeader({
@@ -68,15 +70,23 @@ class AppHeader extends AppBar {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              Text(
-                'Deckel: ${((membersProvider.memberDeckel ?? member.balanceCents) / 100.0).toStringAsFixed(2)} \u20ac',
-                style: TextStyle(
-                  color: balanceColor(
-                    membersProvider.memberDeckel ?? member.balanceCents,
-                  ),
-                  fontSize: AppFontSizes.sm,
-                  fontWeight: FontWeight.w500,
-                ),
+              Builder(
+                builder: (context) {
+                  final balanceCents =
+                      membersProvider.memberDeckel ?? member.balanceCents;
+                  return Text(
+                    formatBalance(
+                      balanceCents,
+                      AppLocalizations.of(context)!,
+                      member.preferredLanguage,
+                    ),
+                    style: TextStyle(
+                      color: balanceColor(balanceCents),
+                      fontSize: AppFontSizes.sm,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  );
+                },
               ),
             ],
           ),
