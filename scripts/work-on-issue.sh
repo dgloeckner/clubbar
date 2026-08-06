@@ -101,12 +101,27 @@ fi
 # stale main puts a rebase between you and review. Both are cheap to prevent
 # here and tedious to unpick later.
 #
-# Skipped for -d, which prints the prompt and launches nothing.
+# Under -d this reports what it would decide and touches nothing — no checkout,
+# no fetch, no merge. That makes the preflight inspectable without launching a
+# session, which is the only safe way to test it.
 # ---------------------------------------------------------------------------
 MAIN_BRANCH="${MAIN_BRANCH:-main}"
 
 git_preflight() {
   git rev-parse --git-dir >/dev/null 2>&1 || { echo "Not a git repository." >&2; exit 1; }
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    local d_current
+    d_current="$(git rev-parse --abbrev-ref HEAD)"
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+      echo "preflight: working tree is dirty — would stop" >&2
+    elif [ "$d_current" != "$MAIN_BRANCH" ]; then
+      echo "preflight: on '$d_current', not '$MAIN_BRANCH' — would offer to switch" >&2
+    else
+      echo "preflight: clean tree on $MAIN_BRANCH — would fetch and fast-forward" >&2
+    fi
+    return 0
+  fi
 
   # Tracked changes only: this repo always carries untracked scratch dirs, and
   # untracked files survive a branch switch untouched anyway.
@@ -146,11 +161,7 @@ git_preflight() {
   git merge --ff-only "origin/$MAIN_BRANCH" >&2 || exit 1
 }
 
-if [ "$DRY_RUN" -eq 1 ]; then
-  echo "(dry run: skipping git preflight)" >&2
-else
-  git_preflight
-fi
+git_preflight
 
 # Resolve the repo from the git remote rather than gh's default, so renamed-repo
 # redirects don't send label queries to the stale name.
