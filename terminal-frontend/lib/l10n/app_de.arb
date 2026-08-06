@@ -437,6 +437,10 @@
   "@transactionHistoryUnavailableOffline": {
     "description": "Message when transaction history cannot be loaded offline"
   },
+  "offlineLocalTransactionsOnly": "Offline — nur Käufe von diesem Terminal, ältere Historie nicht verfügbar",
+  "@offlineLocalTransactionsOnly": {
+    "description": "Banner above the transaction list when offline and only locally recorded transactions can be shown"
+  },
   "noTransactions": "Noch keine Transaktionen",
   "@noTransactions": {
     "description": "Message when member has no transactions yet"

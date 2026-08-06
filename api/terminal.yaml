@@ -1223,6 +1223,22 @@ components:
               product_name:
                 type: string
                 description: Display name of product or correction reason (translated to member's language)
+              product_icon:
+                type: string
+                nullable: true
+                description: Icon name of the purchased product (null for corrections/manual adjustments)
+              settlement_id:
+                type: string
+                format: uuid
+                nullable: true
+                description: |
+                  Settlement this transaction was included in, or null when the
+                  transaction is still an open tab. Cancelled settlements are ignored.
+              settlement_date:
+                type: string
+                format: date
+                nullable: true
+                description: Date of the settlement referenced by `settlement_id` (null when unsettled)
               notes:
                 type: string
                 nullable: true
@@ -1254,6 +1270,9 @@ components:
             type: purchase
             product_id: 987f6543-e21a-11d3-b456-426614174999
             product_name: Pils
+            product_icon: beer
+            settlement_id: null
+            settlement_date: null
             created_at: '2025-01-25T14:32:00Z'
             created_by_terminal_id: terminal-001
           - id: 550e8400-e29b-41d4-a716-446655440003

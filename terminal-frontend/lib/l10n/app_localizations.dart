@@ -596,6 +596,12 @@ abstract class AppLocalizations {
   /// **'Transaktionshistorie offline nicht verfügbar'**
   String get transactionHistoryUnavailableOffline;
 
+  /// Banner above the transaction list when offline and only locally recorded transactions can be shown
+  ///
+  /// In de, this message translates to:
+  /// **'Offline — nur Käufe von diesem Terminal, ältere Historie nicht verfügbar'**
+  String get offlineLocalTransactionsOnly;
+
   /// Message when member has no transactions yet
   ///
   /// In de, this message translates to:

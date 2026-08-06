@@ -95,6 +95,7 @@
   "errorLoadingTransactions": "Error loading transactions",
   "offlineMode": "Offline Mode",
   "transactionHistoryUnavailableOffline": "Transaction history unavailable offline",
+  "offlineLocalTransactionsOnly": "Offline — showing recent purchases from this terminal; older history unavailable",
   "noTransactions": "No transactions yet",
 
   "dispenserBusyTitle": "Dispenser Busy",
