@@ -4,10 +4,10 @@ How the engineering skills should consume this repo's domain documentation when 
 
 ## Before exploring, read these
 
-- **`CONTEXT.md`** at the repo root (created lazily by `/domain-modeling`; does not exist yet)
+- **`CONTEXT.md`** at the repo root — the glossary / ubiquitous language. It exists and is maintained by `/domain-modeling`.
 - **`adr/`** — read ADRs that touch the area you're about to work in. This repo keeps its ADRs at the repo root (`adr/`, not `docs/adr/`); 22 ADRs document binding decisions and per CLAUDE.md they must be followed and never modified without explicit user confirmation.
 
-If `CONTEXT.md` doesn't exist, **proceed silently**. Don't flag its absence; don't suggest creating it upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates it lazily when terms or decisions actually get resolved.
+`CONTEXT.md` grows lazily: `/domain-modeling` (reached via `/grill-with-docs` and `/improve-codebase-architecture`) adds terms and decisions as they actually get resolved, so it covers some areas and not others. Where it is silent on a concept, **proceed silently** — don't flag the gap as an error.
 
 ## File structure
 
@@ -15,7 +15,7 @@ Single-context repo:
 
 ```
 /
-├── CONTEXT.md            ← glossary / ubiquitous language (lazily created)
+├── CONTEXT.md            ← glossary / ubiquitous language (grown lazily)
 ├── adr/                  ← Architecture Decision Records (0001–0022)
 ├── docs/                 ← ERMs and data documentation (erm-master.md, erm-frontend.md)
 ├── use-cases/            ← functional requirements

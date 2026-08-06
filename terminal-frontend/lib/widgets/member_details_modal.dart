@@ -72,32 +72,23 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         return;
       }
 
-      final networkService = context.read<NetworkService>();
+      final service = TransactionHistoryService(
+        networkService: context.read<NetworkService>(),
+        database: context.read<ClubBarDatabase>(),
+      );
 
-      // Check if online
-      final isOnline = await networkService.checkHealth();
+      // Offline still yields the purchases this terminal recorded locally —
+      // the same ones the displayed balance already accounts for (#32).
+      final result = await service.fetchTransactionHistory(
+        memberId: member.id,
+        preferredLanguage: member.preferredLanguage,
+      );
 
       if (!mounted) return;
 
-      List<TransactionListItem> transactions = [];
-
-      if (isOnline) {
-        // Fetch from backend (includes local unsynced + remote)
-        final database = context.read<ClubBarDatabase>();
-        final service = TransactionHistoryService(
-          networkService: networkService,
-          database: database,
-        );
-
-        transactions = await service.fetchTransactionHistory(
-          memberId: member.id,
-          preferredLanguage: member.preferredLanguage,
-        );
-      }
-
       setState(() {
-        _transactions = transactions;
-        _isOffline = !isOnline;
+        _transactions = result.transactions;
+        _isOffline = result.isOffline;
         _isLoading = false;
         _errorKey = null;
       });
@@ -370,6 +361,18 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       );
     }
 
+    // Offline with local purchases: show them. The balance above already
+    // counts them, so hiding them would be a visible contradiction (#32).
+    if (_isOffline && _transactions.isNotEmpty) {
+      return Column(
+        children: [
+          _offlineBanner(l10n),
+          const SizedBox(height: 8),
+          Expanded(child: _transactionsListView(locale)),
+        ],
+      );
+    }
+
     if (_isOffline) {
       return Center(
         child: Padding(
@@ -418,6 +421,10 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       );
     }
 
+    return _transactionsListView(locale);
+  }
+
+  Widget _transactionsListView(String locale) {
     return ListView.separated(
       controller: _listScrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -430,6 +437,33 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         final transaction = _transactions[index];
         return _buildTransactionRow(transaction, locale);
       },
+    );
+  }
+
+  /// Explains, above the list, that this is only what the terminal itself saw.
+  Widget _offlineBanner(AppLocalizations l10n) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xff3b82f6).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off, color: Color(0xff3b82f6), size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              l10n.offlineLocalTransactionsOnly,
+              style: TextStyle(
+                color: const Color(0xffa1a1aa),
+                fontSize: AppFontSizes.sm,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

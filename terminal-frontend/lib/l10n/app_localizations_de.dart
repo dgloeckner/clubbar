@@ -313,6 +313,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Transaktionshistorie offline nicht verfügbar';
 
   @override
+  String get offlineLocalTransactionsOnly =>
+      'Offline — nur Käufe von diesem Terminal, ältere Historie nicht verfügbar';
+
+  @override
   String get noTransactions => 'Noch keine Transaktionen';
 
   @override

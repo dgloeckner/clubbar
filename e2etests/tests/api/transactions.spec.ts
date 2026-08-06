@@ -500,6 +500,41 @@ test.describe('Transaction History Endpoint', () => {
     expect(tx.created_at).toBeDefined();
   });
 
+  test('GET /api/terminal/transactions/{member_id} returns product_icon, settlement_id, settlement_date fields', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+
+    // Upload a purchase transaction
+    const transaction = createValidTransaction(member.id, product.id);
+    const postResponse = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+    expect(postResponse.ok()).toBeTruthy();
+
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=50`);
+
+    expect(response.ok()).toBeTruthy();
+
+    const body = await response.json();
+    const tx = body.transactions.find((t: any) => t.id === transaction.id);
+
+    expect(tx).toBeDefined();
+
+    // Fields must be present (string or null), per api/terminal.yaml TransactionHistoryResponse schema
+    expect(tx).toHaveProperty('product_icon');
+    expect(tx.product_icon === null || typeof tx.product_icon === 'string').toBeTruthy();
+
+    expect(tx).toHaveProperty('settlement_id');
+    expect(tx.settlement_id === null || typeof tx.settlement_id === 'string').toBeTruthy();
+
+    expect(tx).toHaveProperty('settlement_date');
+    expect(tx.settlement_date === null || typeof tx.settlement_date === 'string').toBeTruthy();
+
+    // This purchase has not been part of any settlement yet
+    expect(tx.settlement_id).toBeNull();
+    expect(tx.settlement_date).toBeNull();
+  });
+
   test('GET /api/terminal/transactions/{member_id} returns product_name in member language', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
     const product = await createProduct(authenticatedRequest);

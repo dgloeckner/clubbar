@@ -7,6 +7,11 @@
 # Candidates are ranked by impact (see IMPACT SCORE below) and the highest-value
 # one is offered first; -1 takes it without prompting.
 #
+# Before launching anything the script checks that the implementation skill is
+# installed, that the working tree is clean, that HEAD is on main (offering to
+# switch), and that main fast-forwards to origin. Any failure exits non-zero.
+# Set MAIN_BRANCH to use a name other than "main".
+#
 # Usage:
 #   scripts/work-on-issue.sh [-p PRIORITY] [-l LABEL] [-n NUMBER] [-1] [-A] [-C] [-d] [PRIORITY]
 #
@@ -56,6 +61,107 @@ shift $((OPTIND - 1))
 
 command -v gh >/dev/null || { echo "gh CLI not found" >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------
+# The implementation skill the prompt hands the work to.
+#
+# Checked here, before anything else happens, because the failure is otherwise
+# invisible: skills marked `disable-model-invocation: true` are absent from the
+# model's available-skills listing, so a session told to use a missing one will
+# reasonably conclude it isn't installed and quietly substitute the nearest
+# match. Fail loudly at launch instead of discovering it in the diff.
+# ---------------------------------------------------------------------------
+SKILL="mattpocock-skills:implement"
+SKILL_PLUGIN="${SKILL%%:*}"
+SKILL_NAME="${SKILL##*:}"
+
+skill_installed() {
+  # Plugin skills: ~/.claude/plugins/cache/<marketplace>/<plugin>/<ver>/skills/**/<name>/SKILL.md
+  find "$HOME/.claude/plugins" \
+       -type f -path "*/$SKILL_PLUGIN/*/skills/*/$SKILL_NAME/SKILL.md" \
+       -print -quit 2>/dev/null | grep -q . && return 0
+  # Plain skills: personal or project-local
+  [ -f "$HOME/.claude/skills/$SKILL_NAME/SKILL.md" ] && return 0
+  [ -f ".claude/skills/$SKILL_NAME/SKILL.md" ] && return 0
+  return 1
+}
+
+if ! skill_installed; then
+  echo "Required skill '/$SKILL' is not installed." >&2
+  echo "Install it with:  claude plugin install $SKILL_PLUGIN" >&2
+  echo "(Refusing to launch: the session would silently fall back to another skill.)" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Git preflight: start every issue from a clean, current main.
+#
+# The session branches off whatever HEAD happens to be. Starting from a feature
+# branch quietly makes the new work a child of the old, and starting from a
+# stale main puts a rebase between you and review. Both are cheap to prevent
+# here and tedious to unpick later.
+#
+# Under -d this reports what it would decide and touches nothing — no checkout,
+# no fetch, no merge. That makes the preflight inspectable without launching a
+# session, which is the only safe way to test it.
+# ---------------------------------------------------------------------------
+MAIN_BRANCH="${MAIN_BRANCH:-main}"
+
+git_preflight() {
+  git rev-parse --git-dir >/dev/null 2>&1 || { echo "Not a git repository." >&2; exit 1; }
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    local d_current
+    d_current="$(git rev-parse --abbrev-ref HEAD)"
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+      echo "preflight: working tree is dirty — would stop" >&2
+    elif [ "$d_current" != "$MAIN_BRANCH" ]; then
+      echo "preflight: on '$d_current', not '$MAIN_BRANCH' — would offer to switch" >&2
+    else
+      echo "preflight: clean tree on $MAIN_BRANCH — would fetch and fast-forward" >&2
+    fi
+    return 0
+  fi
+
+  # Tracked changes only: this repo always carries untracked scratch dirs, and
+  # untracked files survive a branch switch untouched anyway.
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "Working tree has uncommitted changes:" >&2
+    git status --short --untracked-files=no >&2
+    echo >&2
+    echo "Commit or stash them before starting a new issue." >&2
+    exit 1
+  fi
+
+  local current
+  current="$(git rev-parse --abbrev-ref HEAD)"
+  if [ "$current" != "$MAIN_BRANCH" ]; then
+    if [ "$AUTO_PICK" -eq 1 ] || [ ! -t 0 ]; then
+      echo "On '$current', not '$MAIN_BRANCH'. Switch before running unattended." >&2
+      exit 1
+    fi
+    local answer
+    read -r -p "On '$current', not '$MAIN_BRANCH'. Switch to $MAIN_BRANCH? [y/N] " answer
+    case "$answer" in
+      y|Y) git checkout "$MAIN_BRANCH" >&2 || exit 1 ;;
+      *) echo "Aborted — issue work starts from $MAIN_BRANCH." >&2; exit 1 ;;
+    esac
+  fi
+
+  echo "Fetching origin/$MAIN_BRANCH…" >&2
+  git fetch origin "$MAIN_BRANCH" >&2 || { echo "Could not fetch origin/$MAIN_BRANCH." >&2; exit 1; }
+
+  # Fast-forward only. A local main carrying commits origin doesn't have is a
+  # mistake worth stopping on, not one to merge past.
+  if ! git merge-base --is-ancestor HEAD "origin/$MAIN_BRANCH"; then
+    echo "Local $MAIN_BRANCH has commits that are not on origin/$MAIN_BRANCH." >&2
+    echo "Push or reset them before starting a new issue." >&2
+    exit 1
+  fi
+  git merge --ff-only "origin/$MAIN_BRANCH" >&2 || exit 1
+}
+
+git_preflight
 
 # Resolve the repo from the git remote rather than gh's default, so renamed-repo
 # redirects don't send label queries to the stale name.
@@ -178,7 +284,7 @@ BRANCH="issue-$ISSUE_NUM-$(printf '%s' "$ISSUE_TITLE" \
   | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-40)"
 
 # ---------------------------------------------------------------------------
-# 4. Build the Claude prompt.
+# 5. Build the Claude prompt.
 # ---------------------------------------------------------------------------
 read -r -d '' PROMPT <<EOF || true
 Implement GitHub issue #$ISSUE_NUM in $REPO: "$ISSUE_TITLE"
@@ -186,8 +292,21 @@ Implement GitHub issue #$ISSUE_NUM in $REPO: "$ISSUE_TITLE"
 Start by reading the full issue and its discussion:
   gh issue view $ISSUE_NUM --repo $REPO --comments
 
-Then use /mattpocock-skills:implement to implement it. Follow the project
-conventions in CLAUDE.md (ADRs, patterns, TDD, test-verification policy).
+Then implement it using the $SKILL skill. Invoke it with the Skill tool under
+exactly that name.
+
+It is marked user-invocable-only, so it will NOT appear in your available-skills
+listing. Invoke it by name regardless — the listing's silence is not evidence
+that it is missing, and it has been verified as installed before this session
+started.
+
+The skill is a hard requirement, not a suggestion. If invoking it fails, stop
+immediately, change nothing, and report that the skill could not be invoked. Do
+not substitute a different skill, do not improvise an equivalent workflow, and
+do not proceed without one.
+
+Follow the project conventions in CLAUDE.md (ADRs, patterns, TDD,
+test-verification policy).
 
 Delegate to sub-agents where the work parallelises, and use cheaper models
 (Haiku for mechanical/search work, Sonnet for routine implementation) where
