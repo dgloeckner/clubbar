@@ -12,6 +12,7 @@ import 'package:clubbar_terminal/services/real_rfid_service.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/utils/card_uid.dart';
 
 class RfidProvider extends ChangeNotifier with ErrorSignal {
   final MockRfidService _mockRfidService = MockRfidService();
@@ -94,8 +95,14 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
   ///
   /// Failures are [TerminalErrorKey]s and refusals are [ScanHintKey]s; both are
   /// localized by the UI at render time.
-  Future<void> handleCardScan(String cardUid) async {
+  ///
+  /// [rawCardUid] is normalized here rather than at each input path: this is where
+  /// every scan converges, so no future caller can reintroduce the case
+  /// mismatch that rejected valid cards as "Unknown token" (issue #18).
+  Future<void> handleCardScan(String rawCardUid) async {
     if (_isScanning) return;
+
+    final cardUid = normalizeCardUid(rawCardUid);
 
     // ADR-0027 rule 7: while billing runs, every scan is refused and none is
     // queued. Checked before the lookup so a refused tap cannot touch the

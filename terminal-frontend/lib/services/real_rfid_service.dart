@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:clubbar_terminal/utils/card_uid.dart';
+
 /// Real RFID service for USB keyboard emulation readers.
 ///
 /// Most USB RFID/NFC readers act as a keyboard (HID device) that types the
@@ -20,9 +22,9 @@ class RealRfidService {
   /// Emit a card UID to the stream (called by UI when TextField receives input).
   /// This should be called from TextField's onSubmitted callback.
   void emitScan(String cardUid) {
-    final trimmedUid = cardUid.trim().toUpperCase();
-    if (trimmedUid.isNotEmpty) {
-      _scanController.add(trimmedUid);
+    final normalizedUid = normalizeCardUid(cardUid);
+    if (normalizedUid.isNotEmpty) {
+      _scanController.add(normalizedUid);
     }
   }
 

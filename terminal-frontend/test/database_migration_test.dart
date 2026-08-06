@@ -1,0 +1,132 @@
+// Migrations are exercised against a real on-disk database: the upgrade path is
+// what every already-installed terminal takes, and it is the one path a fresh
+// `onCreate` never covers.
+import 'dart:io';
+
+import 'package:drift/drift.dart' show Value;
+import 'package:drift/native.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
+import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
+import 'package:clubbar_terminal/repository/members_repository.dart';
+
+void main() {
+  late Directory tempDir;
+  late File dbFile;
+
+  setUp(() {
+    tempDir = Directory.systemTemp.createTempSync('clubbar_migration_test');
+    dbFile = File(p.join(tempDir.path, 'clubbar.sqlite'));
+  });
+
+  tearDown(() {
+    if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+  });
+
+  ClubBarDatabase openDatabase() =>
+      ClubBarDatabase.forTesting(NativeDatabase(dbFile));
+
+  /// Seed [cardUids] into a fresh database and rewind it to schema [version], so
+  /// that the next open runs the upgrade path from there.
+  Future<void> seedAtSchemaVersion(
+      int version, Map<String, String?> cardUids) async {
+    final db = openDatabase();
+    for (final entry in cardUids.entries) {
+      // Inserted raw rather than through MembersRepository: the point is a row
+      // that predates the repository's normalization.
+      await db.into(db.membersCache).insert(
+            MembersCacheCompanion(
+              id: Value(entry.key),
+              cardUid: Value(entry.value),
+              firstName: Value(entry.key),
+              lastName: const Value('Member'),
+              preferredLanguage: const Value('de'),
+              isActive: const Value(1),
+              isSepaValid: const Value(1),
+              updatedAt: const Value('2025-02-01T10:00:00Z'),
+            ),
+          );
+    }
+    await db.customStatement('PRAGMA user_version = $version');
+    await db.close();
+  }
+
+  // Issue #18: card UIDs are canonical from now on, but a member synced before
+  // the fix keeps their lower-case UID — and stays unscannable — until the
+  // backend happens to touch them again. The upgrade rewrites those rows.
+  group('schema 8: card UID canonicalization', () {
+    test('upper-cases a UID cached before the fix', () async {
+      await seedAtSchemaVersion(7, {'member-legacy': 'abcd1234'});
+
+      final db = openDatabase();
+      final stored = await db.select(db.membersCache).getSingle();
+
+      expect(stored.cardUid, equals('ABCD1234'));
+      await db.close();
+    });
+
+    test('the migrated member is found by a scan again', () async {
+      await seedAtSchemaVersion(7, {'member-legacy': 'abcd1234'});
+
+      final db = openDatabase();
+      final (member, error) =
+          await MembersRepository(db).findByCardUid('abcd1234');
+
+      expect(member?.id, equals('member-legacy'));
+      expect(error, isNull);
+      await db.close();
+    });
+
+    test('leaves an already canonical UID and a card-less member alone',
+        () async {
+      await seedAtSchemaVersion(7, {
+        'member-canonical': 'ABCD1234',
+        'member-anonymized': null,
+      });
+
+      final db = openDatabase();
+      final stored = await db.select(db.membersCache).get();
+
+      expect(
+        {for (final m in stored) m.id: m.cardUid},
+        equals({'member-canonical': 'ABCD1234', 'member-anonymized': null}),
+      );
+      await db.close();
+    });
+
+    test('a case-only duplicate does not abort the upgrade', () async {
+      // card_uid is UNIQUE, so upper-casing both of these would collide. The
+      // migration skips the loser instead of taking the terminal down on
+      // startup; the next sync of either member resolves it.
+      await seedAtSchemaVersion(7, {
+        'member-upper': 'ABCD1234',
+        'member-lower': 'abcd1234',
+      });
+
+      final db = openDatabase();
+      final stored = await db.select(db.membersCache).get();
+
+      expect(stored.length, equals(2), reason: 'no row is lost');
+      final upper = stored.firstWhere((m) => m.id == 'member-upper');
+      expect(upper.cardUid, equals('ABCD1234'));
+      // The colliding row keeps its old value — still unscannable, but the
+      // other member (and the terminal) is unaffected.
+      final (found, _) = await MembersRepository(db).findByCardUid('abcd1234');
+      expect(found?.id, equals('member-upper'));
+      await db.close();
+    });
+
+    test('an unknown card is still unknown after the upgrade', () async {
+      await seedAtSchemaVersion(7, {'member-legacy': 'abcd1234'});
+
+      final db = openDatabase();
+      final (member, error) =
+          await MembersRepository(db).findByCardUid('ffff0000');
+
+      expect(member, isNull);
+      expect(error, equals(TerminalErrorKey.unknownCard));
+      await db.close();
+    });
+  });
+}

@@ -128,6 +128,29 @@ void main() {
     });
   });
 
+  // Issue #18: the provider is where every input path converges, so it is the
+  // one place that has to guarantee a canonical UID reaches the lookup.
+  group('RfidProvider card UID normalization', () {
+    test('a lower-case scan is looked up canonically', () async {
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (member('member-a'), null));
+
+      await provider.handleCardScan('abcd1234');
+
+      verify(() => membersRepository.findByCardUid('ABCD1234')).called(1);
+    });
+
+    test('the reader\'s surrounding whitespace never reaches the lookup',
+        () async {
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (member('member-a'), null));
+
+      await provider.handleCardScan('  AbCd1234\t');
+
+      verify(() => membersRepository.findByCardUid('ABCD1234')).called(1);
+    });
+  });
+
   // Issue #26 / ADR-0027 amendment 2: scans arrive on every route now, so the
   // provider — not the screen that happens to be mounted — owns the policy.
   group('RfidProvider per-route scan policy', () {
