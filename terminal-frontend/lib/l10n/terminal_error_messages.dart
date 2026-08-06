@@ -26,6 +26,8 @@ extension TerminalErrorKeyL10n on TerminalErrorKey {
         return l10n.errorStatusLoadFailed;
       case TerminalErrorKey.cartEmpty:
         return l10n.cartEmpty;
+      case TerminalErrorKey.balanceLimitExceeded:
+        return l10n.errorBalanceLimitExceeded;
       case TerminalErrorKey.checkoutFailed:
         return l10n.errorCheckoutFailed;
       case TerminalErrorKey.checkoutCancelled:

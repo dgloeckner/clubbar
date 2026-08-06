@@ -608,6 +608,56 @@ void main() {
       expect(count.first.transactionType, equals('PURCHASE'));
     });
 
+    test('getEffectiveBalance is the synced balance when nothing is pending',
+        () async {
+      await createTestMember('member-1');
+
+      final member = await (db.select(db.membersCache)
+            ..where((m) => m.id.equals('member-1')))
+          .getSingle();
+
+      expect(
+        await repo.getEffectiveBalance(member.copyWith(balanceCents: 500)),
+        equals(500),
+      );
+    });
+
+    test('getEffectiveBalance adds unsynced transactions to the synced balance',
+        () async {
+      await createTestMember('member-1');
+      await db.into(db.transactionsLocal).insert(
+            TransactionsLocalCompanion(
+              id: const Value('txn-synced'),
+              memberId: const Value('member-1'),
+              amountCents: const Value(1000),
+              transactionType: const Value('purchase'),
+              createdAt: const Value('2025-02-01T12:00:00Z'),
+              synced: const Value(1),
+            ),
+          );
+      await db.into(db.transactionsLocal).insert(
+            TransactionsLocalCompanion(
+              id: const Value('txn-unsynced'),
+              memberId: const Value('member-1'),
+              amountCents: const Value(550),
+              transactionType: const Value('purchase'),
+              createdAt: const Value('2025-02-01T12:01:00Z'),
+              synced: const Value(0),
+            ),
+          );
+
+      final member = await (db.select(db.membersCache)
+            ..where((m) => m.id.equals('member-1')))
+          .getSingle();
+      // The synced 1000 is already reflected in balanceCents by the backend;
+      // only the unsynced 550 is added on top.
+      final balance = await repo.getEffectiveBalance(
+        member.copyWith(balanceCents: 1000),
+      );
+
+      expect(balance, equals(1550));
+    });
+
     test('getUnsyncedTransactions returns only unsynced', () async {
       await createTestMember('member-1');
 

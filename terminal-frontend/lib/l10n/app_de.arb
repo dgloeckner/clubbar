@@ -114,6 +114,48 @@
   "@checkoutProcessing": {
     "description": "Checkout button label while the checkout is in flight"
   },
+  "checkoutBlockedByLimit": "Limit erreicht",
+  "@checkoutBlockedByLimit": {
+    "description": "Checkout button label when the credit limit blocks the purchase"
+  },
+  "creditLimitReached": "Limit erreicht – bitte Artikel entfernen, um fortzufahren.",
+  "@creditLimitReached": {
+    "description": "Cart banner headline when the projected tab exceeds the credit limit"
+  },
+  "creditLimitApproaching": "Du näherst dich deinem Limit.",
+  "@creditLimitApproaching": {
+    "description": "Cart banner headline when the projected tab is inside the warning band"
+  },
+  "creditLimitCurrent": "Aktueller Betrag: {amount}",
+  "@creditLimitCurrent": {
+    "description": "Credit limit banner: the member's tab before this cart",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "85,00 €"
+      }
+    }
+  },
+  "creditLimitCart": "Warenkorb: {amount}",
+  "@creditLimitCart": {
+    "description": "Credit limit banner: what the cart would add",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "16,50 €"
+      }
+    }
+  },
+  "creditLimitMaximum": "Maximum: {amount}",
+  "@creditLimitMaximum": {
+    "description": "Credit limit banner: the configured ceiling",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "100,00 €"
+      }
+    }
+  },
 
   "@_CHECKOUT_CONFIRMATION": {},
   "checkoutSuccess": "Buchung erfolgreich!",
@@ -585,6 +627,10 @@
   "errorCheckoutFailed": "Etwas ist schiefgelaufen – dir wurde nichts berechnet. Bitte erneut versuchen.",
   "@errorCheckoutFailed": {
     "description": "TerminalErrorKey.checkoutFailed — unexpected failure during checkout"
+  },
+  "errorBalanceLimitExceeded": "Dein Limit ist erreicht – bitte Artikel entfernen oder beim Bar-Team melden.",
+  "@errorBalanceLimitExceeded": {
+    "description": "TerminalErrorKey.balanceLimitExceeded — checkout would push the tab past the credit limit"
   },
   "errorCheckoutCancelled": "Bezahlung abgebrochen – dein Warenkorb bleibt unverändert.",
   "@errorCheckoutCancelled": {

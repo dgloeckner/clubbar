@@ -13,6 +13,7 @@ import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
+import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 import '../test_helpers.dart';
@@ -406,6 +407,26 @@ void main() {
         expect(find.text('Erneut versuchen'), findsOneWidget);
       });
 
+      testWidgets('offers no retry when the credit limit did the blocking',
+          (WidgetTester tester) async {
+        // The button is enabled — the tab only crossed the limit between
+        // rendering and tapping (a sync landing mid-session). Retrying would
+        // refuse the identical cart, so the modal only dismisses.
+        failCheckoutWith(TerminalErrorKey.balanceLimitExceeded);
+        await tester.pumpWidget(buildTestWidget());
+
+        await tester.tap(find.text('Bezahlen'));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(
+          find.text(await errorCopy(TerminalErrorKey.balanceLimitExceeded)),
+          findsOneWidget,
+        );
+        expect(find.text('Schließen'), findsOneWidget);
+        expect(find.text('Erneut versuchen'), findsNothing);
+      });
+
       testWidgets('never puts raw exception text in front of the member',
           (WidgetTester tester) async {
         failCheckoutWith(TerminalErrorKey.checkoutFailed);
@@ -544,6 +565,169 @@ void main() {
         await tester.pumpWidget(buildTestWidget());
 
         expect(find.byType(ErrorBanner), findsNothing);
+      });
+    });
+
+    group('credit limit (UC-T11 E3, UC-T12)', () {
+      // Cart is €11.00; the limit is €100.00, warning band from €80.00.
+
+      void withDeckel(int cents) {
+        when(() => mockMembersProvider.memberDeckel).thenReturn(cents);
+      }
+
+      InkWell checkoutInkWell(WidgetTester tester) => tester.widget<InkWell>(
+            find.descendant(
+              of: find.byKey(const Key('checkout-button')),
+              matching: find.byType(InkWell),
+            ),
+          );
+
+      testWidgets('no banner while the tab is well inside the limit',
+          (WidgetTester tester) async {
+        withDeckel(1000);
+
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.byType(CreditLimitBanner), findsOneWidget);
+        expect(find.byKey(const Key('credit-limit-banner')), findsNothing);
+        expect(checkoutInkWell(tester).onTap, isNotNull);
+      });
+
+      testWidgets('warns inside the warning band but still allows checkout',
+          (WidgetTester tester) async {
+        withDeckel(7500); // + €11.00 = €86.00, past the €80.00 warning line
+
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.byKey(const Key('credit-limit-banner')), findsOneWidget);
+        expect(find.text('Du näherst dich deinem Limit.'), findsOneWidget);
+        expect(find.text('Bezahlen'), findsOneWidget);
+        expect(checkoutInkWell(tester).onTap, isNotNull);
+      });
+
+      testWidgets('blocks checkout once the cart would exceed the limit',
+          (WidgetTester tester) async {
+        withDeckel(9500); // + €11.00 = €106.00
+
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(
+          find.text('Limit erreicht – bitte Artikel entfernen, '
+              'um fortzufahren.'),
+          findsOneWidget,
+        );
+        expect(find.text('Limit erreicht'), findsOneWidget); // button label
+        expect(find.text('Bezahlen'), findsNothing);
+        expect(checkoutInkWell(tester).onTap, isNull);
+      });
+
+      testWidgets('the banner names current tab, cart and maximum',
+          (WidgetTester tester) async {
+        withDeckel(9500);
+
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.textContaining('Aktueller Betrag: 95,00'), findsOneWidget);
+        expect(find.textContaining('Warenkorb: 11,00'), findsOneWidget);
+        expect(find.textContaining('Maximum: 100,00'), findsOneWidget);
+      });
+
+      testWidgets('tapping the blocked button starts no checkout',
+          (WidgetTester tester) async {
+        withDeckel(9500);
+
+        await tester.pumpWidget(buildTestWidget());
+        await tester.tap(find.text('Limit erreicht'), warnIfMissed: false);
+        await tester.pump();
+
+        verifyNever(() => mockCartProvider.checkout(any(), any(), any()));
+      });
+
+      testWidgets('landing exactly on the limit still allows checkout',
+          (WidgetTester tester) async {
+        withDeckel(8900); // + €11.00 = exactly €100.00
+
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.text('Bezahlen'), findsOneWidget);
+        expect(checkoutInkWell(tester).onTap, isNotNull);
+        // Still worth warning about — they are on the ceiling.
+        expect(find.byKey(const Key('credit-limit-banner')), findsOneWidget);
+      });
+
+      testWidgets('warns a member who is already over the limit with an '
+          'empty cart', (WidgetTester tester) async {
+        withDeckel(12000);
+        when(() => mockCartProvider.items).thenReturn([]);
+        when(() => mockCartProvider.itemCount).thenReturn(0);
+
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.byKey(const Key('credit-limit-banner')), findsOneWidget);
+        expect(find.text('Dein Warenkorb ist leer'), findsOneWidget);
+      });
+
+      testWidgets('speaks the member\'s language', (WidgetTester tester) async {
+        withDeckel(9500);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('en'),
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en'), Locale('de')],
+            home: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<CartProvider>.value(
+                  value: mockCartProvider,
+                ),
+                ChangeNotifierProvider<MembersProvider>.value(
+                  value: mockMembersProvider,
+                ),
+                ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController,
+                ),
+              ],
+              child: const Scaffold(body: ShoppingCartScreen()),
+            ),
+          ),
+        );
+
+        expect(
+          find.text('Balance limit reached — remove items to continue.'),
+          findsOneWidget,
+        );
+        expect(find.text('Limit reached'), findsOneWidget);
+        expect(find.textContaining('Maximum allowed:'), findsOneWidget);
+      });
+
+      testWidgets('shrinking the cart unblocks checkout',
+          (WidgetTester tester) async {
+        withDeckel(9500);
+        await tester.pumpWidget(buildTestWidget());
+        expect(checkoutInkWell(tester).onTap, isNull);
+
+        // Member removes an item: one beer instead of two.
+        when(() => mockCartProvider.items).thenReturn([
+          CartItem(
+            productId: 'prod-1',
+            productName: 'Bier',
+            quantity: 1,
+            priceCents: 400,
+            language: 'de',
+          ),
+        ]);
+        // Non-const child so the rebuild actually reaches the screen.
+        await tester.pumpWidget(
+          buildTestWidget(child: Scaffold(body: const ShoppingCartScreen())),
+        );
+
+        expect(checkoutInkWell(tester).onTap, isNotNull);
+        expect(find.text('Bezahlen'), findsOneWidget);
       });
     });
   });

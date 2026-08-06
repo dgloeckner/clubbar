@@ -63,9 +63,7 @@ class MembersService {
   /// Compute effective balance (Deckel) for a member:
   /// synced balance from backend + sum of unsynced local transactions
   Future<int> getEffectiveBalance(MembersCacheData member) async {
-    final unsyncedAmount =
-        await _transactionsRepository.getUnsyncedAmountForMember(member.id);
-    return member.balanceCents + unsyncedAmount;
+    return _transactionsRepository.getEffectiveBalance(member);
   }
 
   /// Get all active members

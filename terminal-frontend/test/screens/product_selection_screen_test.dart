@@ -74,6 +74,8 @@ void main() {
 
       // Setup members provider mocks
       when(() => mockMembersProvider.selectedMember).thenReturn(null);
+      when(() => mockMembersProvider.memberDeckel).thenReturn(0);
+      when(() => mockCartProvider.total).thenReturn(0);
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
     });
@@ -372,6 +374,30 @@ void main() {
         await pumpScreen(tester);
 
         expect(find.byType(ErrorBanner), findsNothing);
+      });
+
+      // UC-T12: "Add to cart | Preview balance vs max | Warning shown, item
+      // still added". The member should meet the ceiling while choosing, not
+      // only once they open the cart.
+      testWidgets('warns about the credit limit while choosing products',
+          (WidgetTester tester) async {
+        when(() => mockProductsProvider.lastError).thenReturn(null);
+        when(() => mockMembersProvider.memberDeckel).thenReturn(9000);
+        when(() => mockCartProvider.total).thenReturn(2000);
+
+        await pumpScreen(tester);
+
+        expect(find.byKey(const Key('credit-limit-banner')), findsOneWidget);
+      });
+
+      testWidgets('stays quiet while the tab is well inside the limit',
+          (WidgetTester tester) async {
+        when(() => mockProductsProvider.lastError).thenReturn(null);
+        when(() => mockMembersProvider.memberDeckel).thenReturn(1000);
+
+        await pumpScreen(tester);
+
+        expect(find.byKey(const Key('credit-limit-banner')), findsNothing);
       });
     });
   });

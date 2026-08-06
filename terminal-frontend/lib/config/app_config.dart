@@ -21,8 +21,14 @@ class AppConfig {
   // the queue cannot start.
   static const Duration receiptAutoReturnDelay = Duration(seconds: 8);
 
-  // Balance Limit (€100.00 = 10000 cents; configurable from backend later)
+  // Balance Limit (€100.00 = 10000 cents; configurable from backend later).
+  // Enforced by `CreditLimitCheck` (UC-T11 E3, UC-T12): a checkout that would
+  // push the tab *past* this is blocked; landing exactly on it is allowed.
+  // Zero or less turns enforcement off.
   static const int balanceLimitCents = 10000; // €100.00
+
+  // Share of the limit at which the member is warned but not yet blocked.
+  static const int balanceWarnThresholdPercent = 80; // €80.00 of €100.00
 
   // Backend API
   static const String healthEndpoint = '/health';
