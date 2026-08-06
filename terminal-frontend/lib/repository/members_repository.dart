@@ -3,6 +3,7 @@ import '../database/database.dart';
 import '../generated/terminal.swagger.dart';
 import '../models/terminal_error.dart';
 import '../utils/app_logger.dart';
+import '../utils/card_uid.dart';
 
 class MembersRepository {
   final ClubBarDatabase _db;
@@ -11,11 +12,16 @@ class MembersRepository {
 
   /// Find member by card UID (fast lookup for terminal access)
   /// Returns (member, errorKey); the key is localized at render time.
+  ///
+  /// Both sides of the comparison are canonicalized — the argument here and the
+  /// stored value in [upsertMembers] — so a card is matched by its UID and not
+  /// by the case the reader or the backend happened to use (issue #18).
   Future<(MembersCacheData?, TerminalErrorKey?)> findByCardUid(
       String cardUid) async {
     try {
+      final normalizedUid = normalizeCardUid(cardUid);
       final member = await (_db.select(_db.membersCache)
-            ..where((m) => m.cardUid.equals(cardUid)))
+            ..where((m) => m.cardUid.equals(normalizedUid)))
           .getSingleOrNull();
 
       if (member == null) {
@@ -39,12 +45,16 @@ class MembersRepository {
   }
 
   /// Upsert members from sync response (INSERT OR REPLACE)
+  ///
+  /// Card UIDs are canonicalized on the way in, so the cache never holds a
+  /// value a scan cannot match — whatever case the backend stores them in
+  /// (issue #18).
   Future<void> upsertMembers(List<Member> members) async {
     for (final dto in members) {
       await _db.into(_db.membersCache).insertOnConflictUpdate(
         MembersCacheCompanion(
           id: Value(dto.id),
-          cardUid: Value(dto.cardUid),
+          cardUid: Value(normalizeCardUidOrNull(dto.cardUid)),
           firstName: Value(dto.firstName),
           lastName: Value(dto.lastName),
           preferredLanguage: Value(dto.preferredLanguage),

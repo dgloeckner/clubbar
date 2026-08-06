@@ -9,6 +9,7 @@ import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/models/scan_hint.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/utils/card_uid.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 /// App-shell wrapper that captures RFID scans on **every** route and shows what
@@ -90,7 +91,9 @@ class _ScanCaptureState extends State<ScanCapture> {
 
     if (event.logicalKey == LogicalKeyboardKey.enter) {
       _bufferResetTimer?.cancel();
-      final uid = _rfidBuffer.toString().trim();
+      // A reader that types lower-case hex must reach the same member as one
+      // that types upper-case (issue #18) — see [normalizeCardUid].
+      final uid = normalizeCardUid(_rfidBuffer.toString());
       _rfidBuffer.clear();
       if (uid.isNotEmpty) {
         _rfidProvider?.emitScan(uid);

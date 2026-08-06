@@ -45,7 +45,7 @@ class ClubBarDatabase extends _$ClubBarDatabase {
   ClubBarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -127,6 +127,20 @@ class ClubBarDatabase extends _$ClubBarDatabase {
             // Remove display_order column — categories are now sorted lexicographically
             await m.database.customStatement(
                 'ALTER TABLE "categories_cache" DROP COLUMN "display_order"');
+          }
+          if (from < 8) {
+            // Canonicalize card UIDs already in the cache (issue #18). Writes
+            // are normalized from now on, but a member synced before this
+            // upgrade keeps its lower-case UID until the backend touches it
+            // again — and would stay unscannable until then.
+            //
+            // OR IGNORE: card_uid is UNIQUE, so two rows differing only in case
+            // would collide. Leaving such a row untouched keeps the migration
+            // (and the terminal's startup) alive; the next sync of either
+            // member resolves it.
+            await m.database.customStatement(
+                'UPDATE OR IGNORE "members_cache" SET "card_uid" = UPPER("card_uid") '
+                'WHERE "card_uid" IS NOT NULL AND "card_uid" <> UPPER("card_uid")');
           }
         },
       );

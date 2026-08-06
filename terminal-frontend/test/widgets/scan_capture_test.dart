@@ -154,6 +154,25 @@ void main() {
       expect(rfid.emittedScans, ['03']);
     });
 
+    // Issue #18: a reader that types lower-case hex used to produce a UID that
+    // no exact-match lookup could resolve.
+    testWidgets('a lower-case reader emits a canonical UID', (tester) async {
+      await tester.pumpWidget(buildShell());
+      await tester.pump();
+
+      for (final key in [
+        LogicalKeyboardKey.keyA,
+        LogicalKeyboardKey.keyB,
+        LogicalKeyboardKey.digit1,
+      ]) {
+        await tester.sendKeyEvent(key);
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      expect(rfid.emittedScans, ['AB1']);
+    });
+
     testWidgets('a stale partial UID is never emitted on a later Enter',
         (tester) async {
       await tester.pumpWidget(buildShell());

@@ -44,7 +44,7 @@ void main() {
       await db.into(db.membersCache).insert(
         MembersCacheCompanion(
           id: const Value('member-1'),
-          cardUid: const Value('card-uid-123'),
+          cardUid: const Value('CARD-UID-123'),
           firstName: const Value('John'),
           lastName: const Value('Doe'),
           preferredLanguage: const Value('de'),
@@ -54,7 +54,7 @@ void main() {
         ),
       );
 
-      final (member, error) = await repo.findByCardUid('card-uid-123');
+      final (member, error) = await repo.findByCardUid('CARD-UID-123');
 
       expect(member, isNotNull);
       expect(member!.id, equals('member-1'));
@@ -67,7 +67,7 @@ void main() {
       await db.into(db.membersCache).insert(
         MembersCacheCompanion(
           id: const Value('member-inactive'),
-          cardUid: const Value('card-inactive'),
+          cardUid: const Value('CARD-INACTIVE'),
           firstName: const Value('Jane'),
           lastName: const Value('Doe'),
           preferredLanguage: const Value('de'),
@@ -77,7 +77,7 @@ void main() {
         ),
       );
 
-      final (member, error) = await repo.findByCardUid('card-inactive');
+      final (member, error) = await repo.findByCardUid('CARD-INACTIVE');
 
       expect(member, isNull);
       expect(error, equals(TerminalErrorKey.accountInactive));
@@ -88,7 +88,7 @@ void main() {
       await db.into(db.membersCache).insert(
         MembersCacheCompanion(
           id: const Value('member-no-sepa'),
-          cardUid: const Value('card-no-sepa'),
+          cardUid: const Value('CARD-NO-SEPA'),
           firstName: const Value('Bob'),
           lastName: const Value('Smith'),
           preferredLanguage: const Value('de'),
@@ -98,10 +98,88 @@ void main() {
         ),
       );
 
-      final (member, error) = await repo.findByCardUid('card-no-sepa');
+      final (member, error) = await repo.findByCardUid('CARD-NO-SEPA');
 
       expect(member, isNull);
       expect(error, equals(TerminalErrorKey.sepaMissing));
+    });
+
+    // Issue #18: the lookup is an exact string match, so before normalization a
+    // reader that typed lower-case hex was told "Unknown token" for a member
+    // that exists — a failure that depended purely on the reader hardware.
+    group('card UID case (issue #18)', () {
+      Future<void> seedMember(String cardUid) =>
+          repo.upsertMembers([
+            Member(
+              id: 'member-case',
+              cardUid: cardUid,
+              firstName: 'Case',
+              lastName: 'Insensitive',
+              preferredLanguage: 'de',
+              isActive: true,
+              isSepaValid: true,
+              createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+              updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
+            ),
+          ]);
+
+      test('upsertMembers stores the UID canonically, whatever case the '
+          'backend sent', () async {
+        await seedMember('abcd1234');
+
+        final stored = await db.select(db.membersCache).getSingle();
+        expect(stored.cardUid, equals('ABCD1234'));
+      });
+
+      test('upsertMembers keeps a member without a card card-less', () async {
+        await repo.upsertMembers([
+          Member(
+            id: 'member-anonymized',
+            cardUid: null,
+            firstName: 'No',
+            lastName: 'Card',
+            preferredLanguage: 'de',
+            isActive: true,
+            isSepaValid: true,
+            createdAt: DateTime.parse('2025-02-01T12:00:00Z'),
+            updatedAt: DateTime.parse('2025-02-01T12:00:00Z'),
+          ),
+        ]);
+
+        final stored = await db.select(db.membersCache).getSingle();
+        expect(stored.cardUid, isNull);
+      });
+
+      test('lower-, upper- and mixed-case scans all resolve to the same member',
+          () async {
+        await seedMember('ABCD1234');
+
+        for (final scanned in ['abcd1234', 'ABCD1234', 'AbCd1234']) {
+          final (member, error) = await repo.findByCardUid(scanned);
+          expect(member?.id, equals('member-case'),
+              reason: 'scan "$scanned" must find the member');
+          expect(error, isNull);
+        }
+      });
+
+      test('a member synced in lower case is still found by an upper-case scan',
+          () async {
+        await seedMember('abcd1234');
+
+        final (member, error) = await repo.findByCardUid('ABCD1234');
+
+        expect(member?.id, equals('member-case'));
+        expect(error, isNull);
+      });
+
+      test('the trailing whitespace a reader appends is not part of the UID',
+          () async {
+        await seedMember('ABCD1234');
+
+        final (member, _) = await repo.findByCardUid(' abcd1234 ');
+
+        expect(member?.id, equals('member-case'));
+      });
     });
 
     test('upsertMembers inserts new members', () async {
@@ -183,7 +261,7 @@ void main() {
       await db.into(db.membersCache).insert(
         MembersCacheCompanion(
           id: const Value('member-inactive'),
-          cardUid: const Value('card-inactive'),
+          cardUid: const Value('CARD-INACTIVE'),
           firstName: const Value('Inactive'),
           lastName: const Value('Member'),
           preferredLanguage: const Value('de'),
