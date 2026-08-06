@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 
@@ -14,15 +15,6 @@ class MemberInfoCard extends StatelessWidget {
     required this.balanceCents,
     required this.locale,
   });
-
-  Color _getBalanceColor() {
-    if (balanceCents > 0) {
-      return const Color(0xff22c55e); // Green - positive balance
-    } else if (balanceCents < 0) {
-      return const Color(0xfff97316); // Orange - negative balance
-    }
-    return const Color(0xff94a3b8); // Secondary - zero balance
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,9 +72,9 @@ class MemberInfoCard extends StatelessWidget {
 
                 // Balance/Deckel with color coding
                 Text(
-                  'Deckel: ${formatPrice(balanceCents, locale)}',
+                  formatBalance(balanceCents, AppLocalizations.of(context)!, locale),
                   style: TextStyle(
-                    color: _getBalanceColor(),
+                    color: balanceColor(balanceCents),
                     fontSize: AppFontSizes.base,
                     fontWeight: FontWeight.w500,
                   ),

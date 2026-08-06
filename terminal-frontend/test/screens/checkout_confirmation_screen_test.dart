@@ -117,7 +117,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.text('Anna Member'), findsOneWidget);
-      expect(find.textContaining('-12,50'), findsOneWidget);
+      expect(find.textContaining('Neues Guthaben: 12,50'), findsOneWidget);
 
       // A card tap on this screen ends Anna's session and starts the next
       // member's before the receipt fades out — the receipt must not repaint
@@ -126,7 +126,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Anna Member'), findsOneWidget);
-      expect(find.textContaining('-12,50'), findsOneWidget);
+      expect(find.textContaining('Neues Guthaben: 12,50'), findsOneWidget);
     });
 
     testWidgets('displays success message', (WidgetTester tester) async {

@@ -99,9 +99,15 @@ class MemberBar extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${l10n.balance}: ${formatPrice(deckelCents ?? member.balanceCents, locale)}',
+                      formatBalance(
+                        deckelCents ?? member.balanceCents,
+                        l10n,
+                        locale,
+                      ),
                       style: TextStyle(
-                        color: Color(0xffFF6B4A),
+                        color: balanceColor(
+                          deckelCents ?? member.balanceCents,
+                        ),
                         fontSize: AppFontSizes.lg,
                         fontWeight: FontWeight.w500,
                       ),

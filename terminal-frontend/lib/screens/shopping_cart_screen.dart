@@ -401,9 +401,9 @@ class ShoppingCartScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              l10n.cartNewBalance(formatPrice(newBalanceCents, locale)),
+                              formatNewBalance(newBalanceCents, l10n, locale),
                               style: TextStyle(
-                                color: Color(0xff22c55e),
+                                color: balanceColor(newBalanceCents),
                                 fontSize: AppFontSizes.xl,
                                 fontWeight: FontWeight.w500,
                               ),

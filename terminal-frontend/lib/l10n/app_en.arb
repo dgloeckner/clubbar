@@ -19,7 +19,8 @@
 
   "cartEmpty": "Your cart is empty",
   "cartTotal": "Total",
-  "cartNewBalance": "New Balance: {balance}",
+  "newBalanceOpenTab": "New open tab: {amount}",
+  "newBalanceCredit": "New credit: {amount}",
   "cartEachPrice": "{price} each",
   "checkout": "Checkout",
   "checkoutProcessing": "Processing…",
@@ -28,7 +29,6 @@
   "checkoutPartialSuccess": "Only {count} {count, plural, =1{token} other{tokens}} dispensed",
   "checkoutPartialMessage": "You have been charged for {count} {count, plural, =1{token} other{tokens}} only.\nSorry for the inconvenience.",
   "checkoutOriginalTotal": "(not {amount})",
-  "checkoutNewBalance": "New Balance: {balance}",
   "checkoutPartialConfirm": "All good!",
   "redirectingIn": "Redirecting in {seconds} {seconds, plural, =1{second} other{seconds}}...",
 
@@ -42,7 +42,8 @@
   "sepaNo": "No",
 
   "welcomeMember": "Welcome, {name}",
-  "balance": "Balance",
+  "balanceOpenTab": "Open tab: {amount}",
+  "balanceCredit": "Credit: {amount}",
   "viewDetails": "Details",
   "logout": "Log out",
 
