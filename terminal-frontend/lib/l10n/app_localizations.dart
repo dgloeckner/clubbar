@@ -254,6 +254,12 @@ abstract class AppLocalizations {
   /// **'Alles klar!'**
   String get checkoutPartialConfirm;
 
+  /// Shown on the confirmation screen when the receipt details could not be loaded
+  ///
+  /// In de, this message translates to:
+  /// **'Dein Kauf wurde gebucht — die Belegdaten konnten nicht geladen werden.'**
+  String get checkoutReceiptUnavailable;
+
   /// Countdown message before redirecting
   ///
   /// In de, this message translates to:

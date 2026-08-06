@@ -12,6 +12,7 @@ import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
 import 'package:clubbar_terminal/services/members_service.dart';
+import 'package:clubbar_terminal/widgets/styled_components/price_display.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
@@ -42,7 +43,10 @@ void main() {
 
       // Setup cart provider mocks
       when(() => mockCartProvider.clearCart()).thenReturn(null);
-      when(() => mockCartProvider.total).thenReturn(2500); // €25.00
+      // checkout() empties the cart before this screen mounts, so the billed
+      // amount only survives on the provider.
+      when(() => mockCartProvider.total).thenReturn(0);
+      when(() => mockCartProvider.lastCheckoutTotalCents).thenReturn(2500);
       when(() => mockCartProvider.addListener(any())).thenReturn(null);
       when(() => mockCartProvider.removeListener(any())).thenReturn(null);
 
@@ -347,6 +351,113 @@ void main() {
       // After another 1 second, should show 28 seconds
       await tester.pump(const Duration(seconds: 1));
       expect(find.textContaining('Weiterleitung in 28'), findsOneWidget);
+    });
+
+    /// Pumps the screen with a repository whose session lookup fails, so the
+    /// receipt has to fall back (#16).
+    Future<void> pumpFailingReceipt(WidgetTester tester) async {
+      when(() => mockRepo.getSessionTotal(any()))
+          .thenThrow(Exception('session gone'));
+
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                  value: mockMembersProvider,
+                ),
+                ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController,
+                ),
+                Provider<TransactionsRepository>.value(value: mockRepo),
+              ],
+              child: const CheckoutConfirmationScreen(sessionId: 'sess-abc123'),
+            ),
+          ),
+          GoRoute(
+            path: '/idle',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Idle')),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('de'), Locale('en')],
+          locale: const Locale('de'),
+        ),
+      );
+
+      // Let the FutureBuilder settle into its error state.
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('a failed session lookup still confirms the purchase (#16)',
+        (WidgetTester tester) async {
+      await pumpFailingReceipt(tester);
+
+      // The purchase happened — say so, and explain what is missing.
+      expect(find.text('Buchung erfolgreich!'), findsOneWidget);
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+      expect(find.textContaining('Belegdaten'), findsOneWidget);
+      // Never a bare spinner: that is indistinguishable from loading.
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('the fallback receipt falls back to the cart total (#16)',
+        (WidgetTester tester) async {
+      await pumpFailingReceipt(tester);
+
+      // The cart is already empty here; the €25.00 comes from what checkout
+      // recorded as billed.
+      expect(find.textContaining('25,00'), findsOneWidget);
+    });
+
+    testWidgets('the fallback receipt omits an amount it does not have (#16)',
+        (WidgetTester tester) async {
+      when(() => mockCartProvider.lastCheckoutTotalCents).thenReturn(0);
+      await pumpFailingReceipt(tester);
+
+      // Still a receipt — just without a figure it cannot vouch for.
+      expect(find.text('Buchung erfolgreich!'), findsOneWidget);
+      expect(find.byType(PriceDisplay), findsNothing);
+    });
+
+    testWidgets('the fallback receipt never navigates on its own (#16)',
+        (WidgetTester tester) async {
+      await pumpFailingReceipt(tester);
+
+      // Well past the 30s auto-nav the happy path uses.
+      await tester.pump(const Duration(seconds: 60));
+
+      expect(find.text('Idle'), findsNothing);
+      expect(find.text('Buchung erfolgreich!'), findsOneWidget);
+      verifyNever(() => mockSessionController.endSession());
+    });
+
+    testWidgets('the fallback receipt is dismissed by the user (#16)',
+        (WidgetTester tester) async {
+      await pumpFailingReceipt(tester);
+
+      await tester.tap(find.text('Abmelden'));
+      await tester.pumpAndSettle();
+
+      verify(() => mockSessionController.endSession()).called(1);
+      expect(find.text('Idle'), findsOneWidget);
     });
 
     testWidgets('clears cart on navigation', (WidgetTester tester) async {

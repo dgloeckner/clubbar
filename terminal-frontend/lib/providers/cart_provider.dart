@@ -24,6 +24,14 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
   String? _lastTransactionId;
   String? _lastSessionId;
 
+  /// What the last successful checkout actually billed, in cents.
+  ///
+  /// [total] cannot answer this after the fact: [checkout] empties the cart on
+  /// success, and on a partial dispense the cart never matched the bill
+  /// anyway. The confirmation screen needs the figure to show a receipt when
+  /// the session lookup fails (#16).
+  int _lastCheckoutTotalCents = 0;
+
   CartProvider({
     required CartService service,
     required ConfigService config,
@@ -38,6 +46,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
   bool get isLoading => _isLoading;
   String? get lastTransactionId => _lastTransactionId;
   String? get lastSessionId => _lastSessionId;
+  int get lastCheckoutTotalCents => _lastCheckoutTotalCents;
 
   /// Add item to cart (accumulates quantity if product already present)
   void addItem(
@@ -137,6 +146,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
       }
 
       _lastSessionId = sessionId;
+      var billedCents = 0;
 
       // Separate token products from regular products
       final tokenProducts =
@@ -237,6 +247,8 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
             }
 
             _lastTransactionId = tokenTxnId;
+            // Only the tokens that came out are charged for.
+            billedCents += actualQuantity * tokenProduct.priceCents;
 
             // Update tracking state with created count
             await _service.updateDispenserOperationState(
@@ -283,9 +295,13 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
         }
 
         _lastTransactionId ??= txnId;
+        billedCents += regularProducts.fold(
+            0, (sum, item) => sum + item.lineTotalCents);
       }
 
-      // Clear cart on success
+      // Clear cart on success — record the bill first, it is the only
+      // surviving record of the amount for the receipt (#16).
+      _lastCheckoutTotalCents = billedCents;
       _items = [];
       resetError();
       _errorType = null;
@@ -375,6 +391,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
     _items = [];
     resetError();
     _lastSessionId = null;
+    _lastCheckoutTotalCents = 0;
     notifyListeners();
   }
 }

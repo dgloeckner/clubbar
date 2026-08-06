@@ -146,6 +146,35 @@ void main() {
       expect(provider.items, isEmpty);
       expect(provider.total, equals(0));
       expect(provider.lastError, isNull);
+      // The emptied cart can no longer answer "what was I charged?", so the
+      // bill is recorded for the receipt (#16).
+      expect(provider.lastCheckoutTotalCents, equals(500));
+    });
+
+    test('clearing the cart forgets the last bill (#16)', () async {
+      final member = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: DateTime.now().toIso8601String(),
+      );
+
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (true, null));
+      when(() => mockService.createTransaction(any(), any(),
+          sessionId: any(named: 'sessionId'))).thenAnswer((_) async => ('txn-123', null));
+      await provider.checkout(MockBuildContext(), member, 'test-session-id');
+
+      // Session teardown must not leak one member's bill into the next.
+      provider.clearCart();
+
+      expect(provider.lastCheckoutTotalCents, equals(0));
     });
 
     test('checkout handles validation error without clearing cart', () async {
