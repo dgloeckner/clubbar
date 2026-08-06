@@ -64,6 +64,7 @@
   "noProducts": "No products available",
   "noCategories": "No categories available",
   "noProductsInCategory": "No products in this category",
+  "productUnavailableDispenserOffline": "Token dispenser currently unavailable",
 
   "statusOnline": "Online",
   "statusOffline": "Offline",

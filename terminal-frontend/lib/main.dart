@@ -333,6 +333,9 @@ void main() async {
   final productsProvider = ProductsProvider(
     service: productsService,
     config: configService,
+    // Null when no dispenser is configured — then dispenser-gated products are
+    // hidden outright and there is no health to watch (issue #31).
+    dispenserHealth: dispenserHealthService,
   );
 
   final cartProvider = CartProvider(

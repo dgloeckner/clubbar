@@ -12,6 +12,15 @@ class ProductCard extends StatefulWidget {
   final int quantity;
   final VoidCallback? onDecrement;
 
+  /// Whether the product can be bought right now.
+  ///
+  /// Issue #31: a token whose dispenser is offline stays on the grid — hiding
+  /// it reads as "discontinued" — but it must not reach the cart.
+  final bool enabled;
+
+  /// Short line telling the member why a disabled card cannot be bought.
+  final String? unavailableNote;
+
   const ProductCard({
     super.key,
     required this.product,
@@ -20,6 +29,8 @@ class ProductCard extends StatefulWidget {
     required this.onTap,
     this.quantity = 0,
     this.onDecrement,
+    this.enabled = true,
+    this.unavailableNote,
   });
 
   @override
@@ -50,10 +61,12 @@ class _ProductCardState extends State<ProductCard>
   }
 
   void _handleTapDown(TapDownDetails details) {
+    if (!widget.enabled) return;
     _animationController.forward();
   }
 
   void _handleTapUp(TapUpDetails details) {
+    if (!widget.enabled) return;
     _animationController.reverse();
     widget.onTap();
   }
@@ -65,6 +78,7 @@ class _ProductCardState extends State<ProductCard>
   @override
   Widget build(BuildContext context) {
     final isInCart = widget.quantity > 0;
+    final enabled = widget.enabled;
 
     return GestureDetector(
       onTapDown: _handleTapDown,
@@ -75,61 +89,99 @@ class _ProductCardState extends State<ProductCard>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Card(
-              color: Color(int.parse('0xff${AppColors.bgCard.replaceFirst('#', '')}')),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-                side: BorderSide(
-                  color: isInCart ? const Color(0xff3b82f6) : const Color(0xff334155),
-                  width: isInCart ? 2 : 1,
+            // Dimmed rather than removed: the member should still see what the
+            // club sells, just not be able to order it (issue #31).
+            Opacity(
+              opacity: enabled ? 1.0 : 0.45,
+              child: Card(
+                color: Color(
+                  int.parse('0xff${AppColors.bgCard.replaceFirst('#', '')}'),
                 ),
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-                  boxShadow: const [],
+                  side: BorderSide(
+                    color: isInCart
+                        ? const Color(0xff3b82f6)
+                        : const Color(0xff334155),
+                    width: isInCart ? 2 : 1,
+                  ),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Icon (larger for better visibility)
-                    getProductIcon(
-                      widget.product.iconName,
-                      size: 72,
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
+                child: Container(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                    boxShadow: const [],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Icon (larger for better visibility)
+                      getProductIcon(widget.product.iconName, size: 72),
+                      const SizedBox(height: AppSpacing.lg),
 
-                    // Product name (larger font)
-                    Text(
-                      widget.productName,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Color(0xfff1f5f9),
-                        fontSize: AppFontSizes.xl,
-                        fontWeight: FontWeight.w600,
+                      // Product name (larger font)
+                      Text(
+                        widget.productName,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Color(0xfff1f5f9),
+                          fontSize: AppFontSizes.xl,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
+                      const SizedBox(height: AppSpacing.sm),
 
-                    // Price (cyan, bold, larger font)
-                    Text(
-                      formatPrice(widget.product.priceCents, widget.locale),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xff0ea5e9),
-                        fontSize: AppFontSizes.xxl,
-                        fontWeight: FontWeight.bold,
+                      // Price (cyan, bold, larger font)
+                      Text(
+                        formatPrice(widget.product.priceCents, widget.locale),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Color(0xff0ea5e9),
+                          fontSize: AppFontSizes.xxl,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
+            // Unavailability note — a banner across the foot of the card, so
+            // it costs the fixed-height tile no layout room.
+            if (!enabled && widget.unavailableNote != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xcc1e293b),
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(AppBorderRadius.lg),
+                      bottomRight: Radius.circular(AppBorderRadius.lg),
+                    ),
+                  ),
+                  child: Text(
+                    widget.unavailableNote!,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: const Color(0xfffbbf24),
+                      fontSize: AppFontSizes.sm,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
             // Minus button — top-left, large touch target
             if (isInCart && widget.onDecrement != null)
               Positioned(
@@ -143,7 +195,10 @@ class _ProductCardState extends State<ProductCard>
                     decoration: BoxDecoration(
                       color: const Color(0xff1e293b),
                       borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: const Color(0xff3b82f6), width: 1.5),
+                      border: Border.all(
+                        color: const Color(0xff3b82f6),
+                        width: 1.5,
+                      ),
                     ),
                     child: const Icon(
                       Icons.remove,
@@ -159,7 +214,10 @@ class _ProductCardState extends State<ProductCard>
                 top: 8,
                 right: 8,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xff3b82f6),
                     borderRadius: BorderRadius.circular(16),

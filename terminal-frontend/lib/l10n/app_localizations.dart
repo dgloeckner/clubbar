@@ -434,6 +434,12 @@ abstract class AppLocalizations {
   /// **'Keine Produkte in dieser Kategorie'**
   String get noProductsInCategory;
 
+  /// Note on a product card whose token dispenser is offline or faulty
+  ///
+  /// In de, this message translates to:
+  /// **'Token-Ausgabe zurzeit nicht verfügbar'**
+  String get productUnavailableDispenserOffline;
+
   /// Connection status: online
   ///
   /// In de, this message translates to:

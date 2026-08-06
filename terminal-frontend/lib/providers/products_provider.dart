@@ -4,10 +4,18 @@ import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/error_signal.dart';
 import 'package:clubbar_terminal/services/products_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 
 class ProductsProvider extends ChangeNotifier with ErrorSignal {
   final ProductsService _service;
   final ConfigService _config;
+
+  /// Live dispenser health, when a dispenser is configured at all.
+  ///
+  /// Issue #31: without this the grid only knew whether a dispenser *exists*,
+  /// not whether it works, so a jammed machine still sold tokens right up to
+  /// the checkout dialog.
+  final DispenserHealthService? _dispenserHealth;
 
   List<CategoriesCacheData> _categories = [];
   List<ProductsCacheData> _products = [];
@@ -17,8 +25,20 @@ class ProductsProvider extends ChangeNotifier with ErrorSignal {
   ProductsProvider({
     required ProductsService service,
     required ConfigService config,
+    DispenserHealthService? dispenserHealth,
   })  : _service = service,
-        _config = config;
+        _config = config,
+        _dispenserHealth = dispenserHealth {
+    _dispenserHealth?.addListener(_onDispenserHealthChanged);
+  }
+
+  void _onDispenserHealthChanged() => notifyListeners();
+
+  @override
+  void dispose() {
+    _dispenserHealth?.removeListener(_onDispenserHealthChanged);
+    super.dispose();
+  }
 
   List<CategoriesCacheData> get categories => _categories;
   List<ProductsCacheData> get products => _products;
@@ -75,5 +95,25 @@ class ProductsProvider extends ChangeNotifier with ErrorSignal {
       }
       return true;
     }).toList();
+  }
+
+  /// Whether [product] can actually be bought right now.
+  ///
+  /// Only dispenser-gated products can answer `false`: they need a configured
+  /// dispenser that is currently healthy. A product the member cannot have is
+  /// shown disabled rather than hidden — a token that vanishes from the grid
+  /// reads as "discontinued", which it is not (issue #31).
+  ///
+  /// Health that has not been polled yet counts as available: the terminal
+  /// should not open with every token greyed out, and the checkout dispenser
+  /// dialog is still the backstop.
+  bool isProductAvailable(ProductsCacheData product) {
+    if (product.requiresDispenser != 1) return true;
+    if (!_config.dispenserEnabled) return false;
+
+    final health = _dispenserHealth?.currentHealth;
+    if (health == null) return true;
+
+    return !health.isUnavailable;
   }
 }

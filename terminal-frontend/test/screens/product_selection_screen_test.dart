@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
@@ -93,6 +94,10 @@ void main() {
 
       when(() => mockProductsProvider.categories).thenReturn(categories);
       when(() => mockProductsProvider.products).thenReturn([]);
+      when(() => mockProductsProvider.getVisibleProducts(any()))
+          .thenReturn([]);
+      when(() => mockProductsProvider.isProductAvailable(any()))
+          .thenReturn(true);
       when(() => mockProductsProvider.addListener(any())).thenReturn(null);
       when(() => mockProductsProvider.removeListener(any())).thenReturn(null);
       when(() => mockCartProvider.addListener(any())).thenReturn(null);
@@ -131,6 +136,10 @@ void main() {
 
       when(() => mockProductsProvider.categories).thenReturn(categories);
       when(() => mockProductsProvider.products).thenReturn([]);
+      when(() => mockProductsProvider.getVisibleProducts(any()))
+          .thenReturn([]);
+      when(() => mockProductsProvider.isProductAvailable(any()))
+          .thenReturn(true);
       when(() => mockProductsProvider.addListener(any())).thenReturn(null);
       when(() => mockProductsProvider.removeListener(any())).thenReturn(null);
       when(() => mockCartProvider.addListener(any())).thenReturn(null);
@@ -182,6 +191,10 @@ void main() {
 
       when(() => mockProductsProvider.categories).thenReturn(categories);
       when(() => mockProductsProvider.products).thenReturn([]);
+      when(() => mockProductsProvider.getVisibleProducts(any()))
+          .thenReturn([]);
+      when(() => mockProductsProvider.isProductAvailable(any()))
+          .thenReturn(true);
       when(() => mockProductsProvider.addListener(any())).thenReturn(null);
       when(() => mockProductsProvider.removeListener(any())).thenReturn(null);
       when(() => mockCartProvider.itemCount).thenReturn(5);
@@ -215,6 +228,10 @@ void main() {
     testWidgets('renders successfully when empty', (WidgetTester tester) async {
       when(() => mockProductsProvider.categories).thenReturn([]);
       when(() => mockProductsProvider.products).thenReturn([]);
+      when(() => mockProductsProvider.getVisibleProducts(any()))
+          .thenReturn([]);
+      when(() => mockProductsProvider.isProductAvailable(any()))
+          .thenReturn(true);
       when(() => mockProductsProvider.addListener(any())).thenReturn(null);
       when(() => mockProductsProvider.removeListener(any())).thenReturn(null);
       when(() => mockCartProvider.itemCount).thenReturn(0);
@@ -258,6 +275,10 @@ void main() {
 
       when(() => mockProductsProvider.categories).thenReturn(categories);
       when(() => mockProductsProvider.products).thenReturn([]);
+      when(() => mockProductsProvider.getVisibleProducts(any()))
+          .thenReturn([]);
+      when(() => mockProductsProvider.isProductAvailable(any()))
+          .thenReturn(true);
       when(() => mockProductsProvider.addListener(any())).thenReturn(null);
       when(() => mockProductsProvider.removeListener(any())).thenReturn(null);
       when(() => mockCartProvider.addListener(any())).thenReturn(null);
@@ -307,6 +328,10 @@ void main() {
         ];
         when(() => mockProductsProvider.categories).thenReturn(categories);
         when(() => mockProductsProvider.products).thenReturn([]);
+        when(() => mockProductsProvider.getVisibleProducts(any()))
+            .thenReturn([]);
+        when(() => mockProductsProvider.isProductAvailable(any()))
+            .thenReturn(true);
         when(() => mockCartProvider.itemCount).thenReturn(0);
         when(() => mockCartProvider.items).thenReturn([]);
 
@@ -446,6 +471,10 @@ void main() {
 
         when(() => mockProductsProvider.categories).thenReturn(categories);
         when(() => mockProductsProvider.products).thenReturn(products);
+        when(() => mockProductsProvider.getVisibleProducts(any()))
+            .thenReturn(products);
+        when(() => mockProductsProvider.isProductAvailable(any()))
+            .thenReturn(true);
         when(() => mockProductsProvider.lastError).thenReturn(null);
         when(() => mockProductsProvider.getTranslatedName(any(), any()))
             .thenAnswer((invocation) {
@@ -573,6 +602,10 @@ void main() {
 
         when(() => mockProductsProvider.categories).thenReturn(categories);
         when(() => mockProductsProvider.products).thenReturn([]);
+        when(() => mockProductsProvider.getVisibleProducts(any()))
+            .thenReturn([]);
+        when(() => mockProductsProvider.isProductAvailable(any()))
+            .thenReturn(true);
         when(() => mockProductsProvider.lastError).thenReturn(null);
         when(() => mockCartProvider.itemCount).thenReturn(0);
         when(() => mockCartProvider.items).thenReturn([]);
@@ -683,6 +716,184 @@ void main() {
           tester.getTopLeft(find.byType(CategoryChip).first).dx,
           firstChipBefore,
         );
+      });
+    });
+
+    // Issue #31: the grid used to filter products itself, which meant a
+    // terminal with no dispenser still sold sauna tokens and a jammed one
+    // only said so at checkout.
+    group('dispenser-gated products', () {
+      final beer = ProductsCacheData(
+        id: 'prod-beer',
+        categoryId: 'cat-1',
+        names: jsonEncode({'de': 'Bier'}),
+        descriptions: null,
+        priceCents: 350,
+        isActive: 1,
+        requiresDispenser: 0,
+        iconName: null,
+        updatedAt: '2025-02-01T10:00:00Z',
+      );
+
+      final token = ProductsCacheData(
+        id: 'prod-token',
+        categoryId: 'cat-1',
+        names: jsonEncode({'de': 'Sauna-Token'}),
+        descriptions: null,
+        priceCents: 200,
+        isActive: 1,
+        requiresDispenser: 1,
+        iconName: null,
+        updatedAt: '2025-02-01T10:00:00Z',
+      );
+
+      Future<void> pumpGrid(
+        WidgetTester tester, {
+        required List<ProductsCacheData> visible,
+        required Set<String> unavailableIds,
+      }) async {
+        final categories = [
+          CategoriesCacheData(
+            id: 'cat-1',
+            names: jsonEncode({'de': 'Getränke'}),
+            isActive: 1,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        ];
+
+        when(() => mockProductsProvider.categories).thenReturn(categories);
+        when(() => mockProductsProvider.products)
+            .thenReturn([beer, token]);
+        when(() => mockProductsProvider.getVisibleProducts('cat-1'))
+            .thenReturn(visible);
+        when(() => mockProductsProvider.isProductAvailable(any()))
+            .thenAnswer((invocation) {
+          final product =
+              invocation.positionalArguments[0] as ProductsCacheData;
+          return !unavailableIds.contains(product.id);
+        });
+        when(() => mockProductsProvider.lastError).thenReturn(null);
+        when(() => mockProductsProvider.getTranslatedName(any(), any()))
+            .thenAnswer((invocation) {
+          final product =
+              invocation.positionalArguments[0] as ProductsCacheData;
+          return product.id == 'prod-token' ? 'Sauna-Token' : 'Bier';
+        });
+        when(() => mockCartProvider.itemCount).thenReturn(0);
+        when(() => mockCartProvider.items).thenReturn([]);
+        when(() => mockCartProvider.addItem(
+              any(),
+              any(),
+              any(),
+              any(),
+              any(),
+              iconName: any(named: 'iconName'),
+              requiresDispenser: any(named: 'requiresDispenser'),
+            )).thenReturn(null);
+
+        await tester.pumpWidget(
+          createTestApp(
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ProductsProvider>.value(
+                    value: mockProductsProvider),
+                ChangeNotifierProvider<CartProvider>.value(
+                    value: mockCartProvider),
+                ChangeNotifierProvider<AuthProvider>.value(
+                    value: mockAuthProvider),
+                ChangeNotifierProvider<SyncProvider>.value(
+                    value: mockSyncProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                    value: mockMembersProvider),
+                ChangeNotifierProvider<SessionController>.value(
+                    value: mockSessionController),
+                Provider<SoundService>.value(value: mockSoundService),
+              ],
+              child: const Scaffold(body: ProductSelectionScreen()),
+            ),
+          ),
+        );
+      }
+
+      testWidgets('shows only the products the provider deems visible',
+          (WidgetTester tester) async {
+        // A terminal without a dispenser: getVisibleProducts drops the token.
+        await pumpGrid(tester, visible: [beer], unavailableIds: {});
+
+        expect(find.byType(ProductCard), findsOneWidget);
+        expect(find.text('Bier'), findsOneWidget);
+        expect(find.text('Sauna-Token'), findsNothing);
+      });
+
+      testWidgets(
+          'shows the empty-category message when everything is filtered out',
+          (WidgetTester tester) async {
+        await pumpGrid(tester, visible: [], unavailableIds: {});
+
+        expect(find.byType(ProductCard), findsNothing);
+        expect(find.text('Keine Produkte in dieser Kategorie'), findsOneWidget);
+      });
+
+      testWidgets('keeps an unavailable token on the grid, with a reason',
+          (WidgetTester tester) async {
+        await pumpGrid(
+          tester,
+          visible: [beer, token],
+          unavailableIds: {'prod-token'},
+        );
+
+        final l10n = await AppLocalizations.delegate.load(const Locale('de'));
+
+        expect(find.byType(ProductCard), findsNWidgets(2));
+        expect(find.text('Sauna-Token'), findsOneWidget);
+        expect(
+          find.text(l10n.productUnavailableDispenserOffline),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('an unavailable token cannot be added to the cart',
+          (WidgetTester tester) async {
+        await pumpGrid(
+          tester,
+          visible: [beer, token],
+          unavailableIds: {'prod-token'},
+        );
+
+        await tester.tap(find.text('Sauna-Token'));
+        await tester.pumpAndSettle();
+
+        verifyNever(() => mockCartProvider.addItem(
+              'prod-token',
+              any(),
+              any(),
+              any(),
+              any(),
+              iconName: any(named: 'iconName'),
+              requiresDispenser: any(named: 'requiresDispenser'),
+            ));
+      });
+
+      testWidgets('an available product is still addable',
+          (WidgetTester tester) async {
+        await pumpGrid(
+          tester,
+          visible: [beer, token],
+          unavailableIds: {'prod-token'},
+        );
+
+        await tester.tap(find.text('Bier'));
+        await tester.pumpAndSettle();
+
+        verify(() => mockCartProvider.addItem(
+              'prod-beer',
+              'Bier',
+              350,
+              1,
+              'de',
+              iconName: any(named: 'iconName'),
+              requiresDispenser: any(named: 'requiresDispenser'),
+            )).called(1);
       });
     });
   });

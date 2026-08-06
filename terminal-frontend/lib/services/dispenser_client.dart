@@ -171,6 +171,14 @@ class DispenserHealth {
     );
   }
 
+  /// Whether this health report means the dispenser cannot serve a token
+  /// right now — unreachable, or reporting a fault it has not cleared.
+  ///
+  /// A busy dispenser ("dispensing") is *not* unavailable: it is mid-checkout
+  /// for someone else and will be free again in seconds.
+  bool get isUnavailable =>
+      dispenser == 'offline' || dispenser == 'error' || status == 'error';
+
   /// Create offline/unreachable health state
   factory DispenserHealth.offline() {
     return DispenserHealth(

@@ -206,9 +206,10 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     final l10n = AppLocalizations.of(context)!;
     // Get member's preferred language (needed for sort and display)
     final memberLang = context.read<MembersProvider>().selectedMember?.preferredLanguage ?? 'de';
-    final products = productsProvider.products
-        .where((p) => p.categoryId == category.id)
-        .toList()
+    // Issue #31: ask the provider what is sellable rather than filtering by
+    // category here — the raw list still contains dispenser-gated products on
+    // terminals that have no dispenser at all.
+    final products = productsProvider.getVisibleProducts(category.id).toList()
       ..sort((a, b) {
         final nameA = productsProvider.getTranslatedName(a, memberLang).toLowerCase();
         final nameB = productsProvider.getTranslatedName(b, memberLang).toLowerCase();
@@ -246,11 +247,19 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
         );
         final quantity = cartItem?.quantity ?? 0;
 
+        // A configured but jammed or unplugged dispenser leaves the token on
+        // the grid — greyed out with the reason — instead of letting the
+        // member find out at checkout (issue #31).
+        final available = productsProvider.isProductAvailable(product);
+
         return ProductCard(
           product: product,
           productName: name,
           locale: memberLang,
           quantity: quantity,
+          enabled: available,
+          unavailableNote:
+              available ? null : l10n.productUnavailableDispenserOffline,
           onDecrement: quantity > 0
             ? () => cartProvider.decreaseItem(product.id)
             : null,
