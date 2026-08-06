@@ -204,17 +204,15 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     CartProvider cartProvider,
   ) {
     final l10n = AppLocalizations.of(context)!;
-    // Get member's preferred language (needed for sort and display)
+    // Get member's preferred language (needed for display)
     final memberLang = context.read<MembersProvider>().selectedMember?.preferredLanguage ?? 'de';
     // Issue #31: ask the provider what is sellable rather than filtering by
     // category here — the raw list still contains dispenser-gated products on
     // terminals that have no dispenser at all.
-    final products = productsProvider.getVisibleProducts(category.id).toList()
-      ..sort((a, b) {
-        final nameA = productsProvider.getTranslatedName(a, memberLang).toLowerCase();
-        final nameB = productsProvider.getTranslatedName(b, memberLang).toLowerCase();
-        return nameA.compareTo(nameB);
-      });
+    //
+    // Issue #33: the provider also decides the order. Sorting by the member's
+    // language here reshuffled the grid on every language switch.
+    final products = productsProvider.getVisibleProducts(category.id);
 
     if (products.isEmpty) {
       return Center(

@@ -168,7 +168,7 @@ void main() {
         ],
         child: Builder(
           builder: (context) {
-            router = createAppRouter(context);
+            router = createAppRouter(membersProvider: context.read<MembersProvider>());
             return MaterialApp.router(
               routerConfig: router,
               localizationsDelegates: const [

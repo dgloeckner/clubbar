@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/screens/idle_waiting_screen.dart';
 import 'package:clubbar_terminal/screens/product_selection_screen.dart';
 import 'package:clubbar_terminal/screens/member_details_screen.dart';
@@ -10,16 +9,21 @@ import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/widgets/main_layout.dart';
 import 'package:clubbar_terminal/widgets/scan_capture.dart';
 
-// Create router with dynamic redirect based on member selection state
-GoRouter createAppRouter(BuildContext context, {configService}) {
+/// Creates the app's router with a redirect driven by member selection state.
+///
+/// Takes [membersProvider] directly rather than reading it off a
+/// [BuildContext]: the router is created once for the app's lifetime (issue
+/// #33), outside any build, so there is no context to read from at that point.
+GoRouter createAppRouter({
+  required MembersProvider membersProvider,
+  configService,
+}) {
   return GoRouter(
     initialLocation: '/idle',
     // Re-evaluate redirects when the session ends without a navigation event
     // (e.g. the inactivity timeout clears the member; ADR-0027 rule 6).
-    refreshListenable: Provider.of<MembersProvider>(context, listen: false),
+    refreshListenable: membersProvider,
     redirect: (context, state) {
-      // Watch MembersProvider for member selection changes
-      final membersProvider = context.read<MembersProvider>();
       final selectedMember = membersProvider.selectedMember;
 
       // If member selected and not on products/cart/confirmation, navigate to products

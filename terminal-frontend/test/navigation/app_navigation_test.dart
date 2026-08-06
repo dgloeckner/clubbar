@@ -90,7 +90,7 @@ void main() {
           ],
           child: Builder(
             builder: (context) => MaterialApp.router(
-              routerConfig: createAppRouter(context),
+              routerConfig: createAppRouter(membersProvider: context.read<MembersProvider>()),
               localizationsDelegates: const [
                 AppLocalizations.delegate,
                 GlobalMaterialLocalizations.delegate,
