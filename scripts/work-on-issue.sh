@@ -65,13 +65,12 @@ command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
 # ---------------------------------------------------------------------------
 # The implementation skill the prompt hands the work to.
 #
-# Checked here, before anything else happens, because the failure is otherwise
-# invisible: skills marked `disable-model-invocation: true` are absent from the
-# model's available-skills listing, so a session told to use a missing one will
-# reasonably conclude it isn't installed and quietly substitute the nearest
-# match. Fail loudly at launch instead of discovering it in the diff.
+# Checked here, before anything else happens, because a session told to use a
+# skill that isn't installed will reasonably conclude it is missing and quietly
+# substitute the nearest match. Fail loudly at launch instead of discovering it
+# in the diff.
 # ---------------------------------------------------------------------------
-SKILL="mattpocock-skills:implement"
+SKILL="mattpocock-skills:tdd"
 SKILL_PLUGIN="${SKILL%%:*}"
 SKILL_NAME="${SKILL##*:}"
 
@@ -293,12 +292,8 @@ Start by reading the full issue and its discussion:
   gh issue view $ISSUE_NUM --repo $REPO --comments
 
 Then implement it using the $SKILL skill. Invoke it with the Skill tool under
-exactly that name.
-
-It is marked user-invocable-only, so it will NOT appear in your available-skills
-listing. Invoke it by name regardless — the listing's silence is not evidence
-that it is missing, and it has been verified as installed before this session
-started.
+exactly that name, and follow its red-green-refactor loop: write the failing
+test that captures the issue first, then make it pass.
 
 The skill is a hard requirement, not a suggestion. If invoking it fails, stop
 immediately, change nothing, and report that the skill could not be invoked. Do
