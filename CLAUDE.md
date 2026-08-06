@@ -776,6 +776,10 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail")'
 
 Issues are tracked as GitHub Issues on `dgloeckner/ruderbar` via the `gh` CLI; reuse the repo's existing type/priority/area labels. See `docs/agents/issue-tracker.md`.
 
+### Triage labels
+
+The five canonical triage roles use their default names (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), alongside the repo's type/priority/area labels. See `docs/agents/triage-labels.md`.
+
 ### Domain docs
 
-Single-context layout — `CONTEXT.md` at the repo root (created lazily by /domain-modeling) and ADRs in `adr/`. See `docs/agents/domain.md`.
+Single-context layout — `CONTEXT.md` at the repo root and ADRs in `adr/`. See `docs/agents/domain.md`.
