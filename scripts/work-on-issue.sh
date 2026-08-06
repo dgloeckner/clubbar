@@ -148,7 +148,7 @@ git_preflight() {
     esac
   fi
 
-  echo "Fetching origin/$MAIN_BRANCH…" >&2
+  echo "Fetching origin/${MAIN_BRANCH}…" >&2
   git fetch origin "$MAIN_BRANCH" >&2 || { echo "Could not fetch origin/$MAIN_BRANCH." >&2; exit 1; }
 
   # Fast-forward only. A local main carrying commits origin doesn't have is a
