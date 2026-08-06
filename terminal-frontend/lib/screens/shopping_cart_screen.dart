@@ -230,7 +230,7 @@ class ShoppingCartScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  l10n.cartEachPrice('€$unitPriceFormatted'),
+                                  l10n.cartEachPrice(unitPriceFormatted),
                                   style: TextStyle(
                                     color: Color(0xff0ea5e9),
                                     fontSize: AppFontSizes.base,
@@ -324,7 +324,7 @@ class ShoppingCartScreen extends StatelessWidget {
                           SizedBox(
                             width: 90,
                             child: Text(
-                              '€$lineTotalFormatted',
+                              lineTotalFormatted,
                               textAlign: TextAlign.right,
                               style: TextStyle(
                                 color: Colors.white,

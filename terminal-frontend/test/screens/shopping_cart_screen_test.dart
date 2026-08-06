@@ -12,6 +12,7 @@ import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
+import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 import '../test_helpers.dart';
@@ -221,6 +222,48 @@ void main() {
       // Price is 550 cents = 5,50 € in German format
       expect(find.textContaining('5,50'), findsWidgets);
       expect(find.textContaining('pro Stück'), findsWidgets); // German "each"
+    });
+
+    // Issue #19: formatPrice() already appends the € symbol, but the unit
+    // price and line total call sites also prepended a hardcoded '€',
+    // producing '€€3,50' on every cart row.
+    group('currency symbol (#19)', () {
+      testWidgets('unit price and line total render with a single €',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildTestWidget());
+
+        final unitPrice = formatPrice(550, 'de');
+        final lineTotal = formatPrice(1100, 'de');
+
+        expect(find.text('$unitPrice pro Stück'), findsOneWidget);
+        expect(find.text(lineTotal), findsWidgets);
+        expect(find.textContaining('€€'), findsNothing);
+      });
+
+      testWidgets('holds for the English locale format too',
+          (WidgetTester tester) async {
+        final testMember = MembersCacheData(
+          id: 'member-1',
+          cardUid: 'card-123',
+          firstName: 'John',
+          lastName: 'Doe',
+          preferredLanguage: 'en',
+          isActive: 1,
+          isSepaValid: 1,
+          balanceCents: 0,
+          updatedAt: '2025-02-01T10:00:00Z',
+        );
+        when(() => mockMembersProvider.selectedMember).thenReturn(testMember);
+
+        await tester.pumpWidget(buildTestWidget());
+
+        final unitPrice = formatPrice(550, 'en');
+        final lineTotal = formatPrice(1100, 'en');
+
+        expect(find.textContaining(unitPrice), findsOneWidget);
+        expect(find.text(lineTotal), findsWidgets);
+        expect(find.textContaining('€€'), findsNothing);
+      });
     });
 
     testWidgets('has plus and minus buttons for quantity',
