@@ -34,6 +34,14 @@
 #   type       bug +60 | enhancement +25 | tech-debt +5 | documentation +0
 #   area       accessibility +15 | ux +15 | terminal-frontend +10 | i18n +5
 #   traction   reactions x8 + comments x4 (capped at +60)
+#   unblocks   open dependents x25 (capped at +100)
+#
+# The "unblocks" term makes gating work float. A schema migration that seven
+# issues wait on carries no bug label and would otherwise rank below a leaf
+# frontend bug — correct by priority, wrong by consequence, since taking it
+# first is what lets everything else start. Capped at one priority tier so it
+# reorders within a tier without ever outranking severity. The count is read
+# from the same API response as the blocker check, so it costs no extra call.
 #
 set -euo pipefail
 
@@ -225,20 +233,33 @@ else
   }
 
   # -------------------------------------------------------------------------
-  # 2. Drop issues with open blockers (GitHub native issue dependencies).
+  # 2. Drop issues with open blockers, and record how many issues each one
+  #    unblocks (GitHub native issue dependencies).
+  #
+  #    Both numbers come from the same response, so the dependents count is
+  #    free — no extra request beyond the blocker check we already make.
   # -------------------------------------------------------------------------
   echo "Checking blockers on $count issue(s)…" >&2
-  unblocked="$(jq -r '.[].number' <<<"$candidates" \
+  unblocked_pairs="$(jq -r '.[].number' <<<"$candidates" \
     | xargs -P 8 -I{} gh api "repos/$REPO/issues/{}" \
-        --jq 'select((.issue_dependencies_summary.blocked_by // 0) == 0) | .number' \
+        --jq '.issue_dependencies_summary as $d
+              | select(($d.blocked_by // 0) == 0)
+              | "\(.number)\t\($d.blocking // 0)"' \
     | sort -n)"
 
-  [ -n "$unblocked" ] || { echo "All matching issues are blocked by open issues." >&2; exit 2; }
+  [ -n "$unblocked_pairs" ] || { echo "All matching issues are blocked by open issues." >&2; exit 2; }
+
+  # number -> open-dependent count, as a JSON object keyed by issue number
+  unblocking_json="$(printf '%s\n' "$unblocked_pairs" \
+    | jq -R -s 'split("\n") | map(select(length > 0) | split("\t")
+                | {key: .[0], value: (.[1] | tonumber)}) | from_entries')"
+  unblocked="$(cut -f1 <<<"$unblocked_pairs")"
 
   # -------------------------------------------------------------------------
   # 3. Rank by impact. Highest score first; ties go to the lower (older) number.
   # -------------------------------------------------------------------------
-  rows="$(jq -r --argjson nums "$(printf '%s\n' "$unblocked" | jq -R 'tonumber' | jq -s .)" '
+  rows="$(jq -r --argjson nums "$(printf '%s\n' "$unblocked" | jq -R 'tonumber' | jq -s .)" \
+             --argjson unblocking "$unblocking_json" '
     def weight($labels; $table):
       [$table | to_entries[] as $e | select($labels | index($e.key)) | $e.value] | add // 0;
     map(select(.number as $n | $nums | index($n)))
@@ -250,9 +271,10 @@ else
           + weight($l; {"accessibility":15,"ux":15,"terminal-frontend":10,"i18n":5})
           + ([([.reactionGroups[]?.users.totalCount] | add // 0) * 8
               + ((.comments | length) * 4), 60] | min)
+          + ([(($unblocking[.number | tostring] // 0) * 25), 100] | min)
       )})
     | sort_by(-.score, .number)
-    | .[] | "\(.number)\t\(.title)\t\([.labels[].name] | join(", "))\t\(.score)"' <<<"$candidates")"
+    | .[] | "\(.number)\t\(.title)\t\([.labels[].name] | join(", "))\t\(.score)\t\($unblocking[.number | tostring] // 0)"' <<<"$candidates")"
 
   top_num="$(printf '%s\n' "$rows" | head -1 | cut -f1)"
   top_title="$(printf '%s\n' "$rows" | head -1 | cut -f2)"
@@ -260,7 +282,9 @@ else
   echo >&2
   echo "Unblocked candidates, highest impact first:" >&2
   printf '%s\n' "$rows" \
-    | awk -F'\t' 'NR==1{m="  ->"} NR>1{m="    "} {printf "%s #%-4s (%3s)  %s\n              [%s]\n", m, $1, $4, $2, $3}' >&2
+    | awk -F'\t' 'NR==1{m="  ->"} NR>1{m="    "}
+                  {u = ($5 > 0) ? sprintf("  ->  unblocks %d", $5) : "";
+                   printf "%s #%-4s (%3s)  %s\n              [%s]%s\n", m, $1, $4, $2, $3, u}' >&2
 
   # -------------------------------------------------------------------------
   # 4. Ask the user to confirm the top pick (or choose another).
