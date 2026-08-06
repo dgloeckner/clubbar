@@ -57,6 +57,37 @@ shift $((OPTIND - 1))
 command -v gh >/dev/null || { echo "gh CLI not found" >&2; exit 1; }
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
 
+# ---------------------------------------------------------------------------
+# The implementation skill the prompt hands the work to.
+#
+# Checked here, before anything else happens, because the failure is otherwise
+# invisible: skills marked `disable-model-invocation: true` are absent from the
+# model's available-skills listing, so a session told to use a missing one will
+# reasonably conclude it isn't installed and quietly substitute the nearest
+# match. Fail loudly at launch instead of discovering it in the diff.
+# ---------------------------------------------------------------------------
+SKILL="mattpocock-skills:implement"
+SKILL_PLUGIN="${SKILL%%:*}"
+SKILL_NAME="${SKILL##*:}"
+
+skill_installed() {
+  # Plugin skills: ~/.claude/plugins/cache/<marketplace>/<plugin>/<ver>/skills/**/<name>/SKILL.md
+  find "$HOME/.claude/plugins" \
+       -type f -path "*/$SKILL_PLUGIN/*/skills/*/$SKILL_NAME/SKILL.md" \
+       -print -quit 2>/dev/null | grep -q . && return 0
+  # Plain skills: personal or project-local
+  [ -f "$HOME/.claude/skills/$SKILL_NAME/SKILL.md" ] && return 0
+  [ -f ".claude/skills/$SKILL_NAME/SKILL.md" ] && return 0
+  return 1
+}
+
+if ! skill_installed; then
+  echo "Required skill '/$SKILL' is not installed." >&2
+  echo "Install it with:  claude plugin install $SKILL_PLUGIN" >&2
+  echo "(Refusing to launch: the session would silently fall back to another skill.)" >&2
+  exit 1
+fi
+
 # Resolve the repo from the git remote rather than gh's default, so renamed-repo
 # redirects don't send label queries to the stale name.
 REPO="$(git remote get-url origin 2>/dev/null \
@@ -178,7 +209,7 @@ BRANCH="issue-$ISSUE_NUM-$(printf '%s' "$ISSUE_TITLE" \
   | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' | cut -c1-40)"
 
 # ---------------------------------------------------------------------------
-# 4. Build the Claude prompt.
+# 5. Build the Claude prompt.
 # ---------------------------------------------------------------------------
 read -r -d '' PROMPT <<EOF || true
 Implement GitHub issue #$ISSUE_NUM in $REPO: "$ISSUE_TITLE"
@@ -186,8 +217,21 @@ Implement GitHub issue #$ISSUE_NUM in $REPO: "$ISSUE_TITLE"
 Start by reading the full issue and its discussion:
   gh issue view $ISSUE_NUM --repo $REPO --comments
 
-Then use /mattpocock-skills:implement to implement it. Follow the project
-conventions in CLAUDE.md (ADRs, patterns, TDD, test-verification policy).
+Then implement it using the $SKILL skill. Invoke it with the Skill tool under
+exactly that name.
+
+It is marked user-invocable-only, so it will NOT appear in your available-skills
+listing. Invoke it by name regardless — the listing's silence is not evidence
+that it is missing, and it has been verified as installed before this session
+started.
+
+The skill is a hard requirement, not a suggestion. If invoking it fails, stop
+immediately, change nothing, and report that the skill could not be invoked. Do
+not substitute a different skill, do not improvise an equivalent workflow, and
+do not proceed without one.
+
+Follow the project conventions in CLAUDE.md (ADRs, patterns, TDD,
+test-verification policy).
 
 Delegate to sub-agents where the work parallelises, and use cheaper models
 (Haiku for mechanical/search work, Sonnet for routine implementation) where
