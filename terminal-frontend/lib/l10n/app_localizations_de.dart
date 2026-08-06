@@ -227,6 +227,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noProductsInCategory => 'Keine Produkte in dieser Kategorie';
 
   @override
+  String get productUnavailableDispenserOffline =>
+      'Token-Ausgabe zurzeit nicht verfügbar';
+
+  @override
   String get statusOnline => 'Online';
 
   @override

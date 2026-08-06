@@ -321,6 +321,10 @@
   "@noProductsInCategory": {
     "description": "Message when selected category has no products"
   },
+  "productUnavailableDispenserOffline": "Token-Ausgabe zurzeit nicht verfügbar",
+  "@productUnavailableDispenserOffline": {
+    "description": "Note on a product card whose token dispenser is offline or faulty"
+  },
 
   "@_STATUS": {},
   "statusOnline": "Online",
