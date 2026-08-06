@@ -23,18 +23,6 @@ ProductsCacheData _makeProduct(String id, Map<String, String> names) {
   );
 }
 
-/// Applies the same sort comparator used in ProductSelectionScreen._buildProductGrid
-List<ProductsCacheData> _sortProducts(
-    List<ProductsCacheData> products, ProductsService service, String lang) {
-  final sorted = List<ProductsCacheData>.from(products)
-    ..sort((a, b) {
-      final nameA = service.getTranslatedName(a, lang).toLowerCase();
-      final nameB = service.getTranslatedName(b, lang).toLowerCase();
-      return nameA.compareTo(nameB);
-    });
-  return sorted;
-}
-
 void main() {
   late MockProductsRepository mockRepo;
   late ProductsService service;
@@ -44,66 +32,79 @@ void main() {
     service = ProductsService(repository: mockRepo);
   });
 
-  group('Product sorting (screen comparator via ProductsService.getTranslatedName)', () {
-    // Three products whose German and English names produce different sort orders
-    // to confirm that the correct language is used during comparison.
-    final bier = _makeProduct('p1', {'de': 'Bier', 'en': 'Beer'});
-    final apfelsaft = _makeProduct('p2', {'de': 'Apfelsaft', 'en': 'Apple juice'});
-    final cola = _makeProduct('p3', {'de': 'Cola', 'en': 'Cola'});
+  group('ProductsService.sortForDisplay', () {
+    test('orders products alphabetically by their German name', () {
+      final unsorted = [
+        _makeProduct('p1', {'de': 'Bier', 'en': 'Beer'}),
+        _makeProduct('p2', {'de': 'Apfelsaft', 'en': 'Apple juice'}),
+        _makeProduct('p3', {'de': 'Cola', 'en': 'Cola'}),
+      ];
 
-    // Input list is intentionally unsorted.
-    final unsorted = [bier, apfelsaft, cola];
+      final sorted = service.sortForDisplay(unsorted);
 
-    test('sorts alphabetically by German name (de)', () {
-      final sorted = _sortProducts(unsorted, service, 'de');
+      expect(sorted.map((p) => p.id).toList(), ['p2', 'p1', 'p3']);
+    });
 
+    test('keeps tile positions identical whatever language the member reads',
+        () {
+      // Issue #33: sorting by the localized name shuffled the grid on every
+      // language switch — 'Bier'/'Beer' sorts before 'Apfelsaft' in English
+      // but after it in German, so regulars lost the position they had
+      // memorized mid-order.
+      final products = [
+        _makeProduct('p1', {'de': 'Bier', 'en': 'Beer'}),
+        _makeProduct('p2', {'de': 'Apfelsaft', 'en': 'Apple juice'}),
+        _makeProduct('p3', {'de': 'Wasser', 'en': 'Water'}),
+        _makeProduct('p4', {'de': 'Cola', 'en': 'Coke'}),
+      ];
+
+      final order = service.sortForDisplay(products).map((p) => p.id).toList();
+
+      // Re-sorting a list the member sees in a different language must not
+      // move anything: the order is a property of the product, not the UI
+      // language.
+      final reordered = products.reversed.toList();
       expect(
-        sorted.map((p) => service.getTranslatedName(p, 'de')).toList(),
-        ['Apfelsaft', 'Bier', 'Cola'],
+        service.sortForDisplay(reordered).map((p) => p.id).toList(),
+        order,
       );
     });
 
-    test('sorts alphabetically by English name (en)', () {
-      final sorted = _sortProducts(unsorted, service, 'en');
-
-      expect(
-        sorted.map((p) => service.getTranslatedName(p, 'en')).toList(),
-        ['Apple juice', 'Beer', 'Cola'],
-      );
-    });
-
-    test('sort is case-insensitive (lowercase name does not sort before uppercase A)', () {
-      // Without toLowerCase(), 'bier' (0x62) > 'Apfel' (0x41) > 'Cola' (0x43)
-      // would give wrong order [Apfel, Cola, bier].
-      // With toLowerCase() it must be [Apfel, bier, Cola].
+    test('sorts case-insensitively', () {
       final mixedCase = [
-        _makeProduct('x1', {'de': 'bier'}),   // lowercase b
-        _makeProduct('x2', {'de': 'Apfel'}),  // uppercase A
-        _makeProduct('x3', {'de': 'Cola'}),   // uppercase C
+        _makeProduct('x1', {'de': 'bier'}), // lowercase b
+        _makeProduct('x2', {'de': 'Apfel'}), // uppercase A
+        _makeProduct('x3', {'de': 'Cola'}), // uppercase C
       ];
 
-      final sorted = _sortProducts(mixedCase, service, 'de');
+      final sorted = service.sortForDisplay(mixedCase);
+
+      expect(sorted.map((p) => p.id).toList(), ['x2', 'x1', 'x3']);
+    });
+
+    test('falls back to a stable order for products without a German name', () {
+      // No German name means the sort key is empty for both — they must still
+      // come out in the same order every time rather than swapping around.
+      final noGerman = [
+        _makeProduct('z2', {'en': 'Second'}),
+        _makeProduct('z1', {'en': 'First'}),
+      ];
 
       expect(
-        sorted.map((p) => service.getTranslatedName(p, 'de')).toList(),
-        ['Apfel', 'bier', 'Cola'],
+        service.sortForDisplay(noGerman).map((p) => p.id).toList(),
+        ['z1', 'z2'],
       );
     });
 
-    test('falls back to German name when requested language is missing', () {
-      // Products that only have German translations; sort by 'fr' should still
-      // use the German fallback in getTranslatedName and produce correct order.
-      final deOnly = [
-        _makeProduct('y1', {'de': 'Weizen'}),
-        _makeProduct('y2', {'de': 'Mineralwasser'}),
+    test('leaves the caller\'s list untouched', () {
+      final products = [
+        _makeProduct('p1', {'de': 'Bier'}),
+        _makeProduct('p2', {'de': 'Apfelsaft'}),
       ];
 
-      final sorted = _sortProducts(deOnly, service, 'fr');
+      service.sortForDisplay(products);
 
-      expect(
-        sorted.map((p) => service.getTranslatedName(p, 'fr')).toList(),
-        ['Mineralwasser', 'Weizen'],
-      );
+      expect(products.map((p) => p.id).toList(), ['p1', 'p2']);
     });
   });
 }

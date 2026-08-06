@@ -2,13 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:clubbar_terminal/l10n/app_localizations.dart';
-import 'package:clubbar_terminal/config/app_config.dart';
-import 'package:clubbar_terminal/config/app_router.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/providers/auth_provider.dart';
@@ -17,6 +13,7 @@ import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
+import 'package:clubbar_terminal/app/terminal_material_app.dart';
 import 'package:clubbar_terminal/providers/locale_provider.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
@@ -446,32 +443,9 @@ class ClubBarTerminalApp extends StatelessWidget {
         ChangeNotifierProvider<SyncProvider>(create: (_) => syncProvider),
         ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider, membersRepository, soundService, sessionController)),
       ],
-      child: Builder(
-        builder: (context) {
-          final localeProvider = context.watch<LocaleProvider>();
-
-          return MaterialApp.router(
-            title: AppConfig.appName,
-            scrollBehavior: _KioskScrollBehavior(),
-            theme: ThemeData(
-              useMaterial3: true,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF3B82F6),
-                brightness: Brightness.dark,
-              ),
-            ),
-            // Localization configuration
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            supportedLocales: LocaleProvider.supportedLocales,
-            locale: localeProvider.locale,
-            routerConfig: createAppRouter(context, configService: configService),
-          );
-        },
+      child: TerminalMaterialApp(
+        configService: configService,
+        scrollBehavior: _KioskScrollBehavior(),
       ),
     );
   }

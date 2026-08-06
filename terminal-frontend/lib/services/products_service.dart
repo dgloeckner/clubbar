@@ -41,6 +41,26 @@ class ProductsService {
     }
   }
 
+  /// The order products are shown in on the grid.
+  ///
+  /// Sorted by the German name — the default language — rather than by the
+  /// name the current member happens to read. Tile position is a property of
+  /// the product, not of the UI language: sorting by the localized name meant
+  /// every language switch reshuffled the grid under members who had learned
+  /// where their drink sits (issue #33). Ties fall back to the product id so
+  /// the order is fully determined.
+  List<ProductsCacheData> sortForDisplay(List<ProductsCacheData> products) {
+    return List<ProductsCacheData>.from(products)
+      ..sort((a, b) {
+        final byName = getTranslatedName(a, _defaultLanguage)
+            .toLowerCase()
+            .compareTo(getTranslatedName(b, _defaultLanguage).toLowerCase());
+        return byName != 0 ? byName : a.id.compareTo(b.id);
+      });
+  }
+
+  static const String _defaultLanguage = 'de';
+
   /// Refresh products from repository
   Future<List<(CategoriesCacheData, List<ProductsCacheData>)>>
       refreshProducts() async {

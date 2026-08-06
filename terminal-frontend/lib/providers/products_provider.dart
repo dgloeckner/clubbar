@@ -76,16 +76,19 @@ class ProductsProvider extends ChangeNotifier with ErrorSignal {
     notifyListeners();
   }
 
-  /// Get visible products for a category
+  /// Get visible products for a category, in the order the grid shows them.
   ///
   /// Filters products by:
   /// - Category ID
   /// - Active status
   /// - Dispenser requirement (hides products requiring dispenser when dispenser is disabled)
+  ///
+  /// The order is language-independent (see [ProductsService.sortForDisplay]),
+  /// so tile positions survive a language switch (issue #33).
   List<ProductsCacheData> getVisibleProducts(String categoryId) {
     final dispenserEnabled = _config.dispenserEnabled;
 
-    return _products
+    final visible = _products
         .where((p) => p.categoryId == categoryId)
         .where((p) => p.isActive == 1)
         .where((p) {
@@ -95,6 +98,8 @@ class ProductsProvider extends ChangeNotifier with ErrorSignal {
       }
       return true;
     }).toList();
+
+    return _service.sortForDisplay(visible);
   }
 
   /// Whether [product] can actually be bought right now.

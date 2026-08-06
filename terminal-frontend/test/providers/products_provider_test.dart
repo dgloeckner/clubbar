@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/repository/products_repository.dart';
 import 'package:clubbar_terminal/services/products_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
@@ -11,9 +12,14 @@ import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 
 class MockProductsService extends Mock implements ProductsService {}
 class MockConfigService extends Mock implements ConfigService {}
+class MockProductsRepository extends Mock implements ProductsRepository {}
 class MockDispenserHealthService extends Mock implements DispenserHealthService {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(<ProductsCacheData>[]);
+  });
+
   group('ProductsProvider', () {
     late MockProductsService mockService;
     late MockConfigService mockConfig;
@@ -150,6 +156,10 @@ void main() {
     setUp(() {
       mockService = MockProductsService();
       mockConfig = MockConfigService();
+      // Display ordering is the real service's job and has its own tests
+      // (test/product_sort_test.dart); here it must simply pass through.
+      when(() => mockService.sortForDisplay(any()))
+          .thenAnswer((i) => i.positionalArguments.first as List<ProductsCacheData>);
       provider = ProductsProvider(
         service: mockService,
         config: mockConfig,
@@ -436,6 +446,61 @@ void main() {
       healthListener();
 
       expect(notified, equals(1));
+    });
+  });
+
+  group('ProductsProvider display order (issue #33)', () {
+    late MockProductsRepository mockRepository;
+    late ProductsProvider provider;
+
+    ProductsCacheData product(String id, Map<String, String> names) {
+      return ProductsCacheData(
+        id: id,
+        categoryId: 'cat-1',
+        names: jsonEncode(names),
+        descriptions: null,
+        priceCents: 350,
+        isActive: 1,
+        requiresDispenser: 0,
+        iconName: null,
+        updatedAt: '2025-02-01T10:00:00Z',
+      );
+    }
+
+    setUp(() {
+      mockRepository = MockProductsRepository();
+      final mockConfig = MockConfigService();
+      when(() => mockConfig.dispenserEnabled).thenReturn(false);
+      provider = ProductsProvider(
+        // A real service: the order the grid renders in is the behavior under
+        // test, not the fact that the provider delegates the sort.
+        service: ProductsService(repository: mockRepository),
+        config: mockConfig,
+      );
+    });
+
+    test('getVisibleProducts returns products in stable display order', () async {
+      final category = CategoriesCacheData(
+        id: 'cat-1',
+        names: jsonEncode({'de': 'Getränke', 'en': 'Drinks'}),
+        isActive: 1,
+        updatedAt: '2025-02-01T10:00:00Z',
+      );
+      when(() => mockRepository.getActiveCategoriesWithProducts())
+          .thenAnswer((_) async => [
+                (category, [
+                  product('p1', {'de': 'Bier', 'en': 'Beer'}),
+                  product('p2', {'de': 'Apfelsaft', 'en': 'Apple juice'}),
+                  product('p3', {'de': 'Cola', 'en': 'Coke'}),
+                ])
+              ]);
+
+      await provider.refreshProducts();
+
+      expect(
+        provider.getVisibleProducts('cat-1').map((p) => p.id).toList(),
+        ['p2', 'p1', 'p3'],
+      );
     });
   });
 }
