@@ -52,6 +52,7 @@ import {
   getRowStyle,
 } from '../styles/tableTokens'
 import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
+import { parsePriceToCents } from '../utils/price'
 import { useFormatters } from '../hooks/useFormatters'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 
@@ -265,8 +266,9 @@ export function ProductsPage() {
       return
     }
 
-    if (!formData.price.trim()) {
-      setFormError('Price is required')
+    const priceCents = parsePriceToCents(formData.price)
+    if (priceCents === null) {
+      setFormError('Valid price is required')
       return
     }
 
@@ -276,7 +278,6 @@ export function ProductsPage() {
     }
 
     try {
-      const priceCents = Math.round(parseFloat(formData.price) * 100)
       // Filter out empty language names - backend requires all values to be non-empty
       const nonEmptyNames = Object.entries(formData.names)
         .filter(([, name]) => name.trim())
@@ -320,7 +321,8 @@ export function ProductsPage() {
       return
     }
 
-    if (!formData.price || parseFloat(formData.price) <= 0) {
+    const priceCents = parsePriceToCents(formData.price)
+    if (priceCents === null || priceCents <= 0) {
       setFormError('Valid price is required')
       return
     }
@@ -331,7 +333,6 @@ export function ProductsPage() {
     }
 
     try {
-      const priceCents = Math.round(parseFloat(formData.price) * 100)
       // Filter out empty language names - backend requires all values to be non-empty
       const nonEmptyNames = Object.entries(formData.names)
         .filter(([, name]) => name.trim())
