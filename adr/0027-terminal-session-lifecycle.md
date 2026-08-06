@@ -1,6 +1,6 @@
 # ADR-0027: Terminal Session Lifecycle and Cart Ownership
 
-**Status**: Accepted (amended 2026-08-05 — see [Amendment 1](#amendment-1-nothing-ends-a-session-during-a-critical-operation))
+**Status**: Accepted (amended 2026-08-06 — see [Amendment 1](#amendment-1-nothing-ends-a-session-during-a-critical-operation), [Amendment 2](#amendment-2-per-route-scan-policy-53), [Amendment 3](#amendment-3-a-shorter-resumable-receipt-25))
 
 **Date**: 2026-08-05
 
@@ -33,8 +33,9 @@ stateDiagram-v2
     Warning --> Idle: 10 s countdown elapses → endSession()
     Active --> Idle: explicit logout → endSession()
     Active --> Confirmation: checkout completes
-    Confirmation --> Idle: logout button / 30 s auto-return → endSession()
+    Confirmation --> Idle: "Done" button / 8 s auto-return → endSession()
     Confirmation --> Active: card scan (receipt finalized, fresh session)
+    Confirmation --> Active: "continue shopping" (same session, no endSession())
 ```
 
 Session ends are suspended for as long as a checkout or dispense is in flight (rule 7).
@@ -52,6 +53,7 @@ Session ends are suspended for as long as a checkout or dispense is in flight (r
 | 7 | **Nothing ends a session while a checkout or dispense operation is in flight** — not the inactivity timer, not an explicit logout, not a card scan. `endSession()` is a no-op for as long as the critical operation runs, and the logout affordance renders disabled. | A long token dispense must never be interrupted mid-billing. Broadened from "the inactivity timer is suspended" by [amendment 1](#amendment-1-nothing-ends-a-session-during-a-critical-operation): the member must always reach the confirmation screen for a charge they incurred (#48). |
 | 8 | All session ends go through a single `endSession()` on a session controller; no screen clears member or cart state directly. | One code path to enforce the invariant; future paths (e.g. new screens) cannot reintroduce #13 — and, since rule 7's guard lives inside `endSession()`, cannot reintroduce #48 either. |
 | 9 | On the **Confirmation** screen any card that could start a session finalizes the shown receipt and starts that member's session (the same member gets a fresh session — "one more round"); an invalid card shows a scan error and does **not** finalize the receipt. | The receipt is a finished transaction, not an open cart: there is nothing to protect and takeover is the queue win. Added by [amendment 2](#amendment-2-per-route-scan-policy-53). |
+| 10 | The **Confirmation** screen auto-returns to idle after **8 s**, and offers a non-destructive "Done" that dismisses it immediately plus a "continue shopping" that returns to the product list **without ending the session**. | The receipt is the tail of a fast flow; a long dwell throttles the whole queue. Added by [amendment 3](#amendment-3-a-shorter-resumable-receipt-25). |
 
 ### Amendments
 
@@ -69,6 +71,27 @@ A tap during checkout is simply refused; there is no deferred logout. Checkout c
 #### Amendment 2: per-route scan policy (#53)
 
 Decided 2026-08-05 (record: #53, implemented with #26). Once scan capture moves to the app shell, rule 3's session protection is scoped to Active/Warning, rule 4 gains the activity reset, rule 9 defines the Confirmation-screen takeover, and rule 7 covers scans as well: while a critical operation is in flight every scan is rejected with "please wait — transaction in progress", and scans are never queued.
+
+#### Amendment 3: a shorter, resumable receipt (#25)
+
+Decided 2026-08-06 (record: #25). The Confirmation dwell drops from 30 s to 8 s, and the receipt gains a fourth exit.
+
+The 30 s dwell was served in full almost every time. Its only escape hatch was styled in the danger colour and labelled "Log out", which on a *success* screen reads as "cancel my purchase" — so members left it alone and waited, and the queue waited with them. Rule 9 lets the next member tap in early, but that only helps the person behind; the member who is not finished had no way to buy a second round without ending their own session first.
+
+So the receipt now ends three ways instead of two:
+
+- **"Done"** (neutral/primary, never the danger colour) — `endSession()`, back to idle.
+- **8 s auto-return** — the same, unattended.
+- **"Continue shopping"** — back to the product list on the **same session**. No `endSession()`, no cleared member; the auto-return timer is cancelled and `recordActivity()` restarts the inactivity timer, so the resumed session is governed by rule 6 again.
+
+Rule 2's three session ends are unchanged: continuing to shop is not a session end, it is the absence of one. The cart is already empty (checkout drained it), so rule 5's cart-belongs-to-session invariant is untouched — the member simply resumes filling the same session's cart.
+
+Two details follow from rule 7 rather than from this amendment, and are recorded here because #25 is where they landed in code:
+
+- The dismissal gates on `endSession()`'s return value. A refused end (critical operation in flight) must not navigate — landing on `/idle` with a member still selected only makes the router bounce back to `/products`, resuming a session that was supposed to be over. The receipt stays up instead.
+- The receipt shown when the session lookup fails (#16) keeps its "Done"-only action row. That branch means the receipt could not be read back, which is the wrong moment to invite more spending.
+
+The raw session UUID is also gone from the member-facing receipt. It carried no meaning for the person reading it; staff look a transaction up from the local database or the backend.
 
 ### Alternatives considered
 

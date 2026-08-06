@@ -12,6 +12,7 @@ import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
 import 'package:clubbar_terminal/services/members_service.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/styled_components/price_display.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
@@ -38,6 +39,7 @@ void main() {
 
       // Session controller mocks (owns all session teardown, ADR-0027)
       when(() => mockSessionController.endSession()).thenReturn(true);
+      when(() => mockSessionController.recordActivity()).thenReturn(null);
       when(() => mockSessionController.addListener(any())).thenReturn(null);
       when(() => mockSessionController.removeListener(any())).thenReturn(null);
 
@@ -238,58 +240,6 @@ void main() {
       expect(find.textContaining('Weiterleitung in'), findsOneWidget);
     });
 
-    testWidgets('displays session ID', (WidgetTester tester) async {
-      final router = GoRouter(
-        initialLocation: '/',
-        routes: [
-          GoRoute(
-            path: '/',
-            builder: (context, state) => MultiProvider(
-              providers: [
-                ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-                ChangeNotifierProvider<MembersProvider>.value(
-                  value: mockMembersProvider,
-                ),
-                ChangeNotifierProvider<SessionController>.value(
-                  value: mockSessionController,
-                ),
-                Provider<TransactionsRepository>.value(value: mockRepo),
-              ],
-              child: const CheckoutConfirmationScreen(
-                sessionId: 'sess-abc123',
-              ),
-            ),
-          ),
-          GoRoute(
-            path: '/idle',
-            builder: (context, state) => const Scaffold(
-              body: Center(child: Text('Idle')),
-            ),
-          ),
-        ],
-      );
-
-      await tester.pumpWidget(
-        MaterialApp.router(
-          routerConfig: router,
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: const [Locale('de'), Locale('en')],
-          locale: const Locale('de'),
-        ),
-      );
-
-      // Let FutureBuilder resolve
-      await tester.pump();
-      await tester.pump();
-
-      expect(find.text('sess-abc123'), findsOneWidget);
-    });
-
     testWidgets('countdown decrements every second', (WidgetTester tester) async {
       final router = GoRouter(
         initialLocation: '/',
@@ -341,16 +291,154 @@ void main() {
       // Trigger addPostFrameCallback for _startAutoNav
       await tester.pump();
 
-      // Initially shows 30 seconds
-      expect(find.textContaining('Weiterleitung in 30'), findsOneWidget);
+      // Starts at the short dwell the queue can absorb (#25)
+      expect(find.textContaining('Weiterleitung in 8'), findsOneWidget);
 
-      // After 1 second, should show 29 seconds
       await tester.pump(const Duration(seconds: 1));
-      expect(find.textContaining('Weiterleitung in 29'), findsOneWidget);
+      expect(find.textContaining('Weiterleitung in 7'), findsOneWidget);
 
-      // After another 1 second, should show 28 seconds
       await tester.pump(const Duration(seconds: 1));
-      expect(find.textContaining('Weiterleitung in 28'), findsOneWidget);
+      expect(find.textContaining('Weiterleitung in 6'), findsOneWidget);
+    });
+
+    /// Pumps a normal (non-partial) receipt with `/idle` and `/products`
+    /// destinations wired up, settled past the auto-nav post-frame callback.
+    Future<void> pumpReceipt(WidgetTester tester) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => MultiProvider(
+              providers: [
+                ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                  value: mockMembersProvider,
+                ),
+                ChangeNotifierProvider<SessionController>.value(
+                  value: mockSessionController,
+                ),
+                Provider<TransactionsRepository>.value(value: mockRepo),
+              ],
+              child: const CheckoutConfirmationScreen(sessionId: 'sess-abc123'),
+            ),
+          ),
+          GoRoute(
+            path: '/idle',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Idle')),
+            ),
+          ),
+          GoRoute(
+            path: '/products',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Products')),
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('de'), Locale('en')],
+          locale: const Locale('de'),
+        ),
+      );
+
+      // Resolve the FutureBuilder, then run the auto-nav post-frame callback.
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('never shows the raw session UUID (#25)',
+        (WidgetTester tester) async {
+      await pumpReceipt(tester);
+
+      // A session reference is noise on a member-facing receipt.
+      expect(find.text('sess-abc123'), findsNothing);
+      // What the member actually came for is still there.
+      expect(find.text('Buchung erfolgreich!'), findsOneWidget);
+      expect(find.byType(PriceDisplay), findsOneWidget);
+    });
+
+    testWidgets('auto-returns to idle within 8 seconds (#25)',
+        (WidgetTester tester) async {
+      await pumpReceipt(tester);
+
+      // Just short of the dwell: still on the receipt.
+      await tester.pump(const Duration(seconds: 7));
+      expect(find.text('Idle'), findsNothing);
+
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Idle'), findsOneWidget);
+      verify(() => mockSessionController.endSession()).called(1);
+    });
+
+    testWidgets('dismisses on a non-destructive "Fertig" button (#25)',
+        (WidgetTester tester) async {
+      await pumpReceipt(tester);
+
+      // "Abmelden" on a success screen reads as "cancel my purchase".
+      expect(find.text('Abmelden'), findsNothing);
+
+      final done = find.widgetWithText(ElevatedButton, 'Fertig');
+      expect(done, findsOneWidget);
+
+      // Nothing red: red is this app's danger colour (semanticDanger).
+      final style = tester.widget<ElevatedButton>(done).style!;
+      final background = style.backgroundColor!.resolve({});
+      expect(background, isNot(hexToColor(AppColors.semanticDanger)));
+      expect(background, hexToColor(AppColors.semanticPrimary));
+
+      await tester.tap(done);
+      await tester.pumpAndSettle();
+
+      verify(() => mockSessionController.endSession()).called(1);
+      expect(find.text('Idle'), findsOneWidget);
+    });
+
+    testWidgets('stays put when the session refuses to end (ADR-0027 rule 7)',
+        (WidgetTester tester) async {
+      // A critical operation in flight makes endSession() refuse. Navigating
+      // anyway lands on /idle with a member still selected, which the router
+      // bounces straight back to /products — a session that was supposed to
+      // be over, resumed.
+      when(() => mockSessionController.endSession()).thenReturn(false);
+
+      await pumpReceipt(tester);
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Fertig'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Idle'), findsNothing);
+      expect(find.text('Buchung erfolgreich!'), findsOneWidget);
+    });
+
+    testWidgets('"Weiter einkaufen" resumes the session on /products (#25)',
+        (WidgetTester tester) async {
+      await pumpReceipt(tester);
+
+      await tester.tap(find.text('Weiter einkaufen'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Products'), findsOneWidget);
+      // The member keeps shopping — the session must survive.
+      verifyNever(() => mockSessionController.endSession());
+      verify(() => mockSessionController.recordActivity()).called(1);
+
+      // The auto-return timer must not drag them off the product list.
+      await tester.pump(const Duration(seconds: 30));
+      expect(find.text('Products'), findsOneWidget);
+      verifyNever(() => mockSessionController.endSession());
     });
 
     /// Pumps the screen with a repository whose session lookup fails, so the
@@ -418,6 +506,13 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
+    testWidgets('the fallback receipt shows no raw session UUID either (#25)',
+        (WidgetTester tester) async {
+      await pumpFailingReceipt(tester);
+
+      expect(find.text('sess-abc123'), findsNothing);
+    });
+
     testWidgets('the fallback receipt falls back to the cart total (#16)',
         (WidgetTester tester) async {
       await pumpFailingReceipt(tester);
@@ -453,7 +548,7 @@ void main() {
         (WidgetTester tester) async {
       await pumpFailingReceipt(tester);
 
-      await tester.tap(find.text('Abmelden'));
+      await tester.tap(find.text('Fertig'));
       await tester.pumpAndSettle();
 
       verify(() => mockSessionController.endSession()).called(1);

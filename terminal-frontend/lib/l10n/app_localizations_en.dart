@@ -118,6 +118,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your purchase was recorded — the receipt details could not be loaded.';
 
   @override
+  String get checkoutDone => 'Done';
+
+  @override
   String redirectingIn(int seconds) {
     String _temp0 = intl.Intl.pluralLogic(
       seconds,

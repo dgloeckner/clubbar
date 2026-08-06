@@ -15,6 +15,12 @@ class AppConfig {
   static const Duration inactivityTimeout = Duration(seconds: 60);
   static const Duration inactivityWarningDuration = Duration(seconds: 10);
 
+  // How long the checkout receipt stays up before the terminal returns itself
+  // to idle (ADR-0027 rule 10). Short on purpose: the receipt is the tail of an
+  // otherwise fast flow, and every second here is a second the next person in
+  // the queue cannot start.
+  static const Duration receiptAutoReturnDelay = Duration(seconds: 8);
+
   // Balance Limit (€100.00 = 10000 cents; configurable from backend later)
   static const int balanceLimitCents = 10000; // €100.00
 

@@ -31,6 +31,7 @@
   "checkoutOriginalTotal": "(not {amount})",
   "checkoutPartialConfirm": "All good!",
   "checkoutReceiptUnavailable": "Your purchase was recorded — the receipt details could not be loaded.",
+  "checkoutDone": "Done",
   "redirectingIn": "Redirecting in {seconds} {seconds, plural, =1{second} other{seconds}}...",
 
   "memberDetails": "Member Details",
