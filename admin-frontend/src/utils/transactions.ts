@@ -3,6 +3,8 @@
  * Extracted from services/transactions.ts.
  */
 
+import { theme } from '../styles/design-system'
+
 export function formatTransactionType(type: string): string {
   const labels: Record<string, string> = {
     purchase: 'Purchase',
@@ -22,7 +24,7 @@ export function getTransactionTypeColor(
 }
 
 export function getAmountColor(amountCents: number): string {
-  if (amountCents > 0) return 'text-red-600'
-  if (amountCents < 0) return 'text-green-600'
-  return 'text-gray-600'
+  if (amountCents > 0) return theme.colors.semantic.danger
+  if (amountCents < 0) return theme.colors.semantic.success
+  return theme.colors.text.secondary
 }
