@@ -7,6 +7,11 @@
 # Candidates are ranked by impact (see IMPACT SCORE below) and the highest-value
 # one is offered first; -1 takes it without prompting.
 #
+# Before launching anything the script checks that the implementation skill is
+# installed, that the working tree is clean, that HEAD is on main (offering to
+# switch), and that main fast-forwards to origin. Any failure exits non-zero.
+# Set MAIN_BRANCH to use a name other than "main".
+#
 # Usage:
 #   scripts/work-on-issue.sh [-p PRIORITY] [-l LABEL] [-n NUMBER] [-1] [-A] [-C] [-d] [PRIORITY]
 #
@@ -86,6 +91,65 @@ if ! skill_installed; then
   echo "Install it with:  claude plugin install $SKILL_PLUGIN" >&2
   echo "(Refusing to launch: the session would silently fall back to another skill.)" >&2
   exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Git preflight: start every issue from a clean, current main.
+#
+# The session branches off whatever HEAD happens to be. Starting from a feature
+# branch quietly makes the new work a child of the old, and starting from a
+# stale main puts a rebase between you and review. Both are cheap to prevent
+# here and tedious to unpick later.
+#
+# Skipped for -d, which prints the prompt and launches nothing.
+# ---------------------------------------------------------------------------
+MAIN_BRANCH="${MAIN_BRANCH:-main}"
+
+git_preflight() {
+  git rev-parse --git-dir >/dev/null 2>&1 || { echo "Not a git repository." >&2; exit 1; }
+
+  # Tracked changes only: this repo always carries untracked scratch dirs, and
+  # untracked files survive a branch switch untouched anyway.
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "Working tree has uncommitted changes:" >&2
+    git status --short --untracked-files=no >&2
+    echo >&2
+    echo "Commit or stash them before starting a new issue." >&2
+    exit 1
+  fi
+
+  local current
+  current="$(git rev-parse --abbrev-ref HEAD)"
+  if [ "$current" != "$MAIN_BRANCH" ]; then
+    if [ "$AUTO_PICK" -eq 1 ] || [ ! -t 0 ]; then
+      echo "On '$current', not '$MAIN_BRANCH'. Switch before running unattended." >&2
+      exit 1
+    fi
+    local answer
+    read -r -p "On '$current', not '$MAIN_BRANCH'. Switch to $MAIN_BRANCH? [y/N] " answer
+    case "$answer" in
+      y|Y) git checkout "$MAIN_BRANCH" >&2 || exit 1 ;;
+      *) echo "Aborted — issue work starts from $MAIN_BRANCH." >&2; exit 1 ;;
+    esac
+  fi
+
+  echo "Fetching origin/$MAIN_BRANCH…" >&2
+  git fetch origin "$MAIN_BRANCH" >&2 || { echo "Could not fetch origin/$MAIN_BRANCH." >&2; exit 1; }
+
+  # Fast-forward only. A local main carrying commits origin doesn't have is a
+  # mistake worth stopping on, not one to merge past.
+  if ! git merge-base --is-ancestor HEAD "origin/$MAIN_BRANCH"; then
+    echo "Local $MAIN_BRANCH has commits that are not on origin/$MAIN_BRANCH." >&2
+    echo "Push or reset them before starting a new issue." >&2
+    exit 1
+  fi
+  git merge --ff-only "origin/$MAIN_BRANCH" >&2 || exit 1
+}
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  echo "(dry run: skipping git preflight)" >&2
+else
+  git_preflight
 fi
 
 # Resolve the repo from the git remote rather than gh's default, so renamed-repo
