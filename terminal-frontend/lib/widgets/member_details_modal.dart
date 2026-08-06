@@ -220,9 +220,9 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                           ),
                         ),
                         Text(
-                          '${l10n.balance}: ${formatPrice(balanceCents, locale)}',
+                          formatBalance(balanceCents, l10n, locale),
                           style: TextStyle(
-                            color: _balanceColor(balanceCents),
+                            color: balanceColor(balanceCents),
                             fontSize: AppFontSizes.base,
                             fontWeight: FontWeight.w500,
                           ),
@@ -482,9 +482,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
           Text(
             formatPrice(transaction.amountCents, locale),
             style: TextStyle(
-              color: transaction.amountCents >= 0
-                  ? const Color(0xffFF6B4A)
-                  : const Color(0xff22c55e),
+              color: transactionAmountColor(transaction.amountCents),
               fontSize: AppFontSizes.lg,
               fontWeight: FontWeight.w600,
             ),
@@ -547,16 +545,6 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         ),
       ),
     );
-  }
-
-  Color _balanceColor(int balanceCents) {
-    if (balanceCents > 0) {
-      return const Color(0xff22c55e); // Green
-    } else if (balanceCents < 0) {
-      return const Color(0xfff97316); // Orange
-    } else {
-      return const Color(0xff94a3b8); // Gray
-    }
   }
 
   String _formatTransactionTimestamp(DateTime timestamp, String locale) {

@@ -142,19 +142,6 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     super.dispose();
   }
 
-  String _getBalanceDisplayText(int balanceCents, AppLocalizations l10n, String locale) {
-    return l10n.checkoutNewBalance(formatPrice(balanceCents, locale));
-  }
-
-  Color _getBalanceColor(int balanceCents) {
-    if (balanceCents > 0) {
-      return hexToColor(AppColors.semanticSuccess); // Green
-    } else if (balanceCents < 0) {
-      return hexToColor(AppColors.semanticWarning); // Orange
-    }
-    return hexToColor(AppColors.textMuted); // Gray for zero
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -274,9 +261,9 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
 
                   // Balance
                   Text(
-                    _getBalanceDisplayText(newBalance, l10n, locale),
+                    formatNewBalance(newBalance, l10n, locale),
                     style: TextStyle(
-                      color: _getBalanceColor(newBalance),
+                      color: balanceColor(newBalance),
                       fontSize: AppFontSizes.lg,
                     ),
                     textAlign: TextAlign.center,

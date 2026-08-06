@@ -194,11 +194,17 @@ abstract class AppLocalizations {
   /// **'Gesamt'**
   String get cartTotal;
 
-  /// Shows new balance after checkout
+  /// Projected open tab after checkout
   ///
   /// In de, this message translates to:
-  /// **'Neuer Kontostand: {balance}'**
-  String cartNewBalance(String balance);
+  /// **'Neuer offener Betrag: {amount}'**
+  String newBalanceOpenTab(String amount);
+
+  /// Projected credit after checkout
+  ///
+  /// In de, this message translates to:
+  /// **'Neues Guthaben: {amount}'**
+  String newBalanceCredit(String amount);
 
   /// Unit price label
   ///
@@ -241,12 +247,6 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'(nicht {amount})'**
   String checkoutOriginalTotal(String amount);
-
-  /// Shows new balance on confirmation screen
-  ///
-  /// In de, this message translates to:
-  /// **'Neuer Kontostand: {balance}'**
-  String checkoutNewBalance(String balance);
 
   /// No description provided for @checkoutPartialConfirm.
   ///
@@ -314,11 +314,17 @@ abstract class AppLocalizations {
   /// **'Willkommen, {name}'**
   String welcomeMember(String name);
 
-  /// Label for member balance
+  /// Member owes this amount (open tab)
   ///
   /// In de, this message translates to:
-  /// **'Kontostand'**
-  String get balance;
+  /// **'Offener Betrag: {amount}'**
+  String balanceOpenTab(String amount);
+
+  /// Member has this amount in credit
+  ///
+  /// In de, this message translates to:
+  /// **'Guthaben: {amount}'**
+  String balanceCredit(String amount);
 
   /// Button to view member details
   ///

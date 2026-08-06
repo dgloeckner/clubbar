@@ -71,7 +71,9 @@ class AppHeader extends AppBar {
               Text(
                 'Deckel: ${((membersProvider.memberDeckel ?? member.balanceCents) / 100.0).toStringAsFixed(2)} \u20ac',
                 style: TextStyle(
-                  color: Color(0xffFF6B4A), // Coral orange
+                  color: balanceColor(
+                    membersProvider.memberDeckel ?? member.balanceCents,
+                  ),
                   fontSize: AppFontSizes.sm,
                   fontWeight: FontWeight.w500,
                 ),

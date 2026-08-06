@@ -60,8 +60,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cartTotal => 'Total';
 
   @override
-  String cartNewBalance(String balance) {
-    return 'New Balance: $balance';
+  String newBalanceOpenTab(String amount) {
+    return 'New open tab: $amount';
+  }
+
+  @override
+  String newBalanceCredit(String amount) {
+    return 'New credit: $amount';
   }
 
   @override
@@ -103,11 +108,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String checkoutOriginalTotal(String amount) {
     return '(not $amount)';
-  }
-
-  @override
-  String checkoutNewBalance(String balance) {
-    return 'New Balance: $balance';
   }
 
   @override
@@ -154,7 +154,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get balance => 'Balance';
+  String balanceOpenTab(String amount) {
+    return 'Open tab: $amount';
+  }
+
+  @override
+  String balanceCredit(String amount) {
+    return 'Credit: $amount';
+  }
 
   @override
   String get viewDetails => 'Details';

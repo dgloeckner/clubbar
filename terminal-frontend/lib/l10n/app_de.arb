@@ -76,13 +76,23 @@
   "@cartTotal": {
     "description": "Label for cart total"
   },
-  "cartNewBalance": "Neuer Kontostand: {balance}",
-  "@cartNewBalance": {
-    "description": "Shows new balance after checkout",
+  "newBalanceOpenTab": "Neuer offener Betrag: {amount}",
+  "@newBalanceOpenTab": {
+    "description": "Projected open tab after checkout",
     "placeholders": {
-      "balance": {
+      "amount": {
         "type": "String",
-        "example": "€12.50"
+        "example": "12,50 €"
+      }
+    }
+  },
+  "newBalanceCredit": "Neues Guthaben: {amount}",
+  "@newBalanceCredit": {
+    "description": "Projected credit after checkout",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "12,50 €"
       }
     }
   },
@@ -137,16 +147,6 @@
       "amount": {
         "type": "String",
         "example": "€9.00"
-      }
-    }
-  },
-  "checkoutNewBalance": "Neuer Kontostand: {balance}",
-  "@checkoutNewBalance": {
-    "description": "Shows new balance on confirmation screen",
-    "placeholders": {
-      "balance": {
-        "type": "String",
-        "example": "€12.50"
       }
     }
   },
@@ -207,9 +207,25 @@
       }
     }
   },
-  "balance": "Kontostand",
-  "@balance": {
-    "description": "Label for member balance"
+  "balanceOpenTab": "Offener Betrag: {amount}",
+  "@balanceOpenTab": {
+    "description": "Member owes this amount (open tab)",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "12,50 €"
+      }
+    }
+  },
+  "balanceCredit": "Guthaben: {amount}",
+  "@balanceCredit": {
+    "description": "Member has this amount in credit",
+    "placeholders": {
+      "amount": {
+        "type": "String",
+        "example": "12,50 €"
+      }
+    }
   },
   "viewDetails": "Details",
   "@viewDetails": {

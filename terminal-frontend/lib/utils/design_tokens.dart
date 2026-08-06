@@ -30,6 +30,44 @@ class AppColors {
   static const String borderFocus = '#3b82f6';   // Focus border
 }
 
+/// Money semantics for the terminal (see issue #28).
+///
+/// Sign convention — the same everywhere, for balances and for single
+/// transaction amounts:
+///   * a **positive** amount means the member *owes* money (open tab / Deckel)
+///   * a **negative** amount means *credit* in the member's favour
+///
+/// Colour rules, encoded once in [balanceColor] / [transactionAmountColor]:
+///   * green is reserved for actual credit — it never shows debt
+///   * a settled account or a small open tab stays neutral (primary text)
+///   * an open tab above [AppMoney.warnAboveCents] turns amber
+class AppMoney {
+  /// Open tabs above this amount are shown in the warning colour.
+  /// Kept in sync with the credit-limit thresholds once those land.
+  static const int warnAboveCents = 2000; // €20.00
+}
+
+/// Colour for a *balance* (member bar, details modal, cart, confirmation).
+Color balanceColor(int balanceCents) {
+  if (balanceCents < 0) {
+    return hexToColor(AppColors.semanticSuccess); // credit
+  }
+  if (balanceCents > AppMoney.warnAboveCents) {
+    return hexToColor(AppColors.semanticWarning); // large open tab
+  }
+  return hexToColor(AppColors.textPrimary); // settled or small open tab
+}
+
+/// Colour for a single *transaction amount* in a booking history.
+///
+/// Same polarity as [balanceColor]: only money in the member's favour is
+/// green. A charge is neutral — it is not an error, so it is not amber.
+Color transactionAmountColor(int amountCents) {
+  return amountCents < 0
+      ? hexToColor(AppColors.semanticSuccess)
+      : hexToColor(AppColors.textPrimary);
+}
+
 class AppSpacing {
   static const double xs = 4.0;
   static const double sm = 8.0;

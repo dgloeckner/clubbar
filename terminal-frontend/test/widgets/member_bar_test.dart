@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
 
 class MockSessionController extends Mock implements SessionController {}
@@ -32,7 +33,7 @@ void main() {
     when(() => session.isCriticalOperationInFlight).thenReturn(false);
   });
 
-  Widget buildTestWidget({VoidCallback? onLogoutPressed}) {
+  Widget buildTestWidget({VoidCallback? onLogoutPressed, int balanceCents = 0}) {
     return MaterialApp(
       locale: const Locale('de'),
       localizationsDelegates: const [
@@ -46,7 +47,7 @@ void main() {
         value: session,
         child: Scaffold(
           body: MemberBar(
-            member: _member,
+            member: _member.copyWith(balanceCents: balanceCents),
             itemCount: 0,
             onLogoutPressed: onLogoutPressed,
           ),
@@ -61,6 +62,48 @@ void main() {
           matching: find.byType(InkWell),
         ),
       );
+
+  /// The balance line, located by its label prefix — the amount carries a
+  /// locale-specific non-breaking space, so it is matched loosely.
+  Text balanceText(WidgetTester tester, String startsWith) => tester.widget<Text>(
+        find.byWidgetPredicate(
+          (w) => w is Text && (w.data ?? '').startsWith(startsWith),
+        ),
+      );
+
+  group('MemberBar balance (#28)', () {
+    testWidgets('labels an open tab and colours it neutral below the threshold',
+        (tester) async {
+      await tester.pumpWidget(buildTestWidget(balanceCents: 1480));
+
+      final text = balanceText(tester, 'Offener Betrag: 14,80');
+      expect(text.style?.color, hexToColor(AppColors.textPrimary));
+    });
+
+    testWidgets('colours a large open tab amber', (tester) async {
+      await tester.pumpWidget(
+        buildTestWidget(balanceCents: AppMoney.warnAboveCents + 1),
+      );
+
+      final text = balanceText(tester, 'Offener Betrag: 20,01');
+      expect(text.style?.color, hexToColor(AppColors.semanticWarning));
+    });
+
+    testWidgets('labels credit and colours it green', (tester) async {
+      await tester.pumpWidget(buildTestWidget(balanceCents: -500));
+
+      final text = balanceText(tester, 'Guthaben: 5,00');
+      expect(text.style?.color, hexToColor(AppColors.semanticSuccess));
+    });
+
+    testWidgets('a settled account is never shown as a warning',
+        (tester) async {
+      await tester.pumpWidget(buildTestWidget(balanceCents: 0));
+
+      final text = balanceText(tester, 'Offener Betrag: 0,00');
+      expect(text.style?.color, hexToColor(AppColors.textPrimary));
+    });
+  });
 
   group('MemberBar logout button', () {
     testWidgets('is enabled while no critical operation is in flight',
