@@ -2,6 +2,11 @@
 #
 # work-on-issue.sh — pick an unblocked GitHub issue by priority and hand it to Claude Code.
 #
+# Only issues labelled "ready-for-agent" are ever considered: that label is the
+# triage gate saying a ticket is fully specified and safe to hand to an
+# unattended agent. Anything still in triage, or needing a human, is skipped.
+# (-n bypasses discovery entirely, so it can still target any issue by number.)
+#
 # "Unblocked" means: open, no open blocked-by dependency, and (unless -A) no assignee.
 #
 # Candidates are ranked by impact (see IMPACT SCORE below) and the highest-value
@@ -34,6 +39,12 @@ set -euo pipefail
 
 PRIORITY="high"
 EXTRA_LABELS=()
+
+# The triage gate. Every discovered candidate must carry this label; it is what
+# distinguishes "someone wrote this down" from "this is specified well enough to
+# hand to an agent that no one is watching". Not overridable by flag on purpose —
+# use -n to work a specific issue that has not been through triage.
+REQUIRED_LABEL="ready-for-agent"
 ISSUE_NUM=""
 INCLUDE_ASSIGNED=0
 CLAIM=1
@@ -178,24 +189,30 @@ if [ -n "$ISSUE_NUM" ]; then
   ISSUE_TITLE="$(gh issue view "$ISSUE_NUM" --repo "$REPO" --json title --jq .title)"
 else
   echo "Priority: $(jq -r 'join(" | ")' <<<"$PRIORITY_LABELS_JSON")" >&2
+  echo "Required: $REQUIRED_LABEL" >&2
   [ ${#EXTRA_LABELS[@]} -gt 0 ] && echo "Labels:   ${EXTRA_LABELS[*]}" >&2
 
   # -------------------------------------------------------------------------
   # 1. Candidate issues: open + matching labels (filtered client-side; the
   #    server-side label filter is unreliable across the repo rename redirect).
   #    An issue matches if it carries ANY of the priority labels and ALL of the
-  #    extra labels.
+  #    required labels — the triage gate plus any -l filters.
   # -------------------------------------------------------------------------
-  extra_labels_json="$(printf '%s\n' "${EXTRA_LABELS[@]+"${EXTRA_LABELS[@]}"}" | jq -R . | jq -s 'map(select(. != ""))')"
+  required_labels_json="$(printf '%s\n' "$REQUIRED_LABEL" "${EXTRA_LABELS[@]+"${EXTRA_LABELS[@]}"}" \
+    | jq -R . | jq -s 'map(select(. != ""))')"
 
   candidates="$(gh issue list --repo "$REPO" --state open --limit 200 \
     --json number,title,labels,assignees,comments,reactionGroups \
     --jq "map(select(([.labels[].name]) as \$have
                      | ($PRIORITY_LABELS_JSON | any(. as \$l | \$have | index(\$l)))
-                       and ($extra_labels_json | all(. as \$l | \$have | index(\$l)))))")"
+                       and ($required_labels_json | all(. as \$l | \$have | index(\$l)))))")"
 
   labelled="$(jq 'length' <<<"$candidates")"
-  [ "$labelled" -eq 0 ] && { echo "No open issues carry those labels." >&2; exit 2; }
+  [ "$labelled" -eq 0 ] && {
+    echo "No open issues are labelled '$REQUIRED_LABEL' with those labels." >&2
+    echo "Triage some first, or use -n NUMBER to work a specific issue." >&2
+    exit 2
+  }
 
   if [ "$INCLUDE_ASSIGNED" -eq 0 ]; then
     candidates="$(jq 'map(select((.assignees | length) == 0))' <<<"$candidates")"
