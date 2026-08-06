@@ -15,6 +15,7 @@ import 'package:clubbar_terminal/screens/product_selection_screen.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
+import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
 import '../test_helpers.dart';
 
 class MockProductsProvider extends Mock implements ProductsProvider {}
@@ -398,6 +399,150 @@ void main() {
         await pumpScreen(tester);
 
         expect(find.byKey(const Key('credit-limit-banner')), findsNothing);
+      });
+    });
+
+    // Issue #29: the grid used to derive its aspect ratio from the number of
+    // products, so tiles shrank without bound as the catalog grew (and could
+    // even be computed negative), ballooned when a category held three items,
+    // and never scrolled. Tile size is now a constant; the catalog scrolls.
+    group('product grid sizing (#29)', () {
+      /// A kiosk-sized surface, so the numbers below mean what they say.
+      Future<void> setSurface(WidgetTester tester, Size size) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+      }
+
+      Future<void> pumpCatalog(
+        WidgetTester tester,
+        int productCount, {
+        Size surface = const Size(1280, 800),
+      }) async {
+        await setSurface(tester, surface);
+
+        final categories = [
+          CategoriesCacheData(
+            id: 'cat-1',
+            names: jsonEncode({'de': 'Getränke'}),
+            isActive: 1,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        ];
+        final products = List.generate(
+          productCount,
+          (i) => ProductsCacheData(
+            id: 'prod-$i',
+            categoryId: 'cat-1',
+            names: jsonEncode({'de': 'Produkt $i'}),
+            descriptions: null,
+            priceCents: 250 + i,
+            isActive: 1,
+            requiresDispenser: 0,
+            iconName: null,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        );
+
+        when(() => mockProductsProvider.categories).thenReturn(categories);
+        when(() => mockProductsProvider.products).thenReturn(products);
+        when(() => mockProductsProvider.lastError).thenReturn(null);
+        when(() => mockProductsProvider.getTranslatedName(any(), any()))
+            .thenAnswer((invocation) {
+          final product = invocation.positionalArguments[0] as ProductsCacheData;
+          // Two-line names are the worst case for vertical fit.
+          return 'Ein ziemlich langer Produktname ${product.id}';
+        });
+        when(() => mockCartProvider.itemCount).thenReturn(0);
+        when(() => mockCartProvider.items).thenReturn([]);
+
+        await tester.pumpWidget(
+          createTestApp(
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ProductsProvider>.value(
+                    value: mockProductsProvider),
+                ChangeNotifierProvider<CartProvider>.value(
+                    value: mockCartProvider),
+                ChangeNotifierProvider<AuthProvider>.value(
+                    value: mockAuthProvider),
+                ChangeNotifierProvider<SyncProvider>.value(
+                    value: mockSyncProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                    value: mockMembersProvider),
+                ChangeNotifierProvider<SessionController>.value(
+                    value: mockSessionController),
+                Provider<SoundService>.value(value: mockSoundService),
+              ],
+              child: const Scaffold(body: ProductSelectionScreen()),
+            ),
+          ),
+        );
+      }
+
+      for (final count in [1, 9, 40]) {
+        testWidgets('lays out $count products without overflowing',
+            (WidgetTester tester) async {
+          await pumpCatalog(tester, count);
+
+          expect(tester.takeException(), isNull);
+          expect(find.byType(ProductCard), findsWidgets);
+        });
+      }
+
+      testWidgets('survives a screen too narrow for four columns',
+          (WidgetTester tester) async {
+        await pumpCatalog(tester, 12, surface: const Size(640, 480));
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(ProductCard), findsWidgets);
+      });
+
+      testWidgets('a sparse category gets the same tile size as a full one',
+          (WidgetTester tester) async {
+        await pumpCatalog(tester, 3);
+        final sparseTile = tester.getSize(find.byType(ProductCard).first);
+
+        await pumpCatalog(tester, 40);
+        final fullTile = tester.getSize(find.byType(ProductCard).first);
+
+        expect(sparseTile, fullTile);
+        // Readable, not screen-tall: three snacks must not become giant cards.
+        expect(sparseTile.height, lessThan(320));
+        expect(sparseTile.height, greaterThan(160));
+      });
+
+      testWidgets('a catalog taller than the screen scrolls',
+          (WidgetTester tester) async {
+        await pumpCatalog(tester, 40);
+
+        final grid = tester.widget<GridView>(find.byType(GridView));
+        expect(grid.physics, isNot(isA<NeverScrollableScrollPhysics>()));
+
+        final firstTileBefore =
+            tester.getTopLeft(find.byType(ProductCard).first).dy;
+        await tester.drag(find.byType(GridView), const Offset(0, -300));
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.getTopLeft(find.byType(ProductCard).first).dy,
+          lessThan(firstTileBefore),
+        );
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('column count follows the screen width, not a fixed 4',
+          (WidgetTester tester) async {
+        await pumpCatalog(tester, 12, surface: const Size(1920, 1080));
+        final wideTile = tester.getSize(find.byType(ProductCard).first);
+
+        await pumpCatalog(tester, 12, surface: const Size(1024, 768));
+        final narrowTile = tester.getSize(find.byType(ProductCard).first);
+
+        // Same tile, more of them per row — width does not stretch with the
+        // screen, and height is identical either way.
+        expect(wideTile.height, narrowTile.height);
+        expect((wideTile.width - narrowTile.width).abs(), lessThan(40));
       });
     });
   });

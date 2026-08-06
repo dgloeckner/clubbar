@@ -38,7 +38,21 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   }
 
   // Grid layout constants
-  static const int _columns = 4;
+  //
+  // Issue #29: the tile is a *constant*, not a function of how many products
+  // the club happens to sell. The grid used to squeeze every row into the
+  // available height, which made a 25-product category unreadable (and could
+  // compute a negative tile height), while three snacks became screen-tall
+  // cards. Now the column count follows the screen width and anything that
+  // does not fit scrolls — touch-drag is enabled globally in main.dart.
+  //
+  // [_tileMaxWidth] is an upper bound: Flutter fits as many columns of at most
+  // this width as the row allows, so tiles stay finger-sized on a 1920 px
+  // screen instead of stretching. [_tileHeight] is what the card actually
+  // needs — 72 px icon + two lines of name at `xl` + price at `xxl` + the
+  // card's padding — with a little slack.
+  static const double _tileMaxWidth = 240.0;
+  static const double _tileHeight = 218.0;
   static const double _gridSpacing = 12.0;
   static const double _horizontalPadding = 16.0;
   static const double _verticalSpacing = 12.0;
@@ -139,7 +153,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
               ),
               const SizedBox(height: _verticalSpacing),
 
-              // Product grid (4 columns, fills remaining space)
+              // Product grid — constant tile size, scrolls past the fold
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(
@@ -188,62 +202,45 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       );
     }
 
-    // Use LayoutBuilder to get actual available dimensions
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Calculate aspect ratio from actual constraints
-        final availableWidth = constraints.maxWidth;
-        final availableHeight = constraints.maxHeight;
-        final rows = (products.length / _columns).ceil();
+    return GridView.builder(
+      padding: EdgeInsets.zero,
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: _tileMaxWidth,
+        // A pinned height, rather than an aspect ratio: the card's contents
+        // are fixed-size, so the space they need must not depend on how wide
+        // the row happens to be.
+        mainAxisExtent: _tileHeight,
+        crossAxisSpacing: _gridSpacing,
+        mainAxisSpacing: _gridSpacing,
+      ),
+      itemCount: products.length,
+      itemBuilder: (context, index) {
+        final product = products[index];
+        final name = productsProvider.getTranslatedName(product, memberLang);
 
-        // Calculate item dimensions from actual constraints
-        final totalHorizontalGaps = (_columns - 1) * _gridSpacing;
-        final itemWidth = (availableWidth - totalHorizontalGaps) / _columns;
+        // Get quantity from cart if product is already there
+        final cartItem = cartProvider.items.firstWhereOrNull(
+          (item) => item.productId == product.id,
+        );
+        final quantity = cartItem?.quantity ?? 0;
 
-        final totalVerticalGaps = (rows - 1) * _gridSpacing;
-        final itemHeight = (availableHeight - totalVerticalGaps) / rows;
-
-        final aspectRatio = itemWidth / itemHeight;
-
-        return GridView.builder(
-          padding: EdgeInsets.zero,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: _columns,
-            crossAxisSpacing: _gridSpacing,
-            mainAxisSpacing: _gridSpacing,
-            childAspectRatio: aspectRatio,
-          ),
-          itemCount: products.length,
-          itemBuilder: (context, index) {
-            final product = products[index];
-            final name = productsProvider.getTranslatedName(product, memberLang);
-
-            // Get quantity from cart if product is already there
-            final cartItem = cartProvider.items.firstWhereOrNull(
-              (item) => item.productId == product.id,
-            );
-            final quantity = cartItem?.quantity ?? 0;
-
-            return ProductCard(
-              product: product,
-              productName: name,
-              locale: memberLang,
-              quantity: quantity,
-              onDecrement: quantity > 0
-                ? () => cartProvider.decreaseItem(product.id)
-                : null,
-              onTap: () {
-                cartProvider.addItem(
-                  product.id,
-                  name,
-                  product.priceCents,
-                  1,
-                  memberLang,
-                  iconName: product.iconName,
-                  requiresDispenser: product.requiresDispenser == 1,
-                );
-              },
+        return ProductCard(
+          product: product,
+          productName: name,
+          locale: memberLang,
+          quantity: quantity,
+          onDecrement: quantity > 0
+            ? () => cartProvider.decreaseItem(product.id)
+            : null,
+          onTap: () {
+            cartProvider.addItem(
+              product.id,
+              name,
+              product.priceCents,
+              1,
+              memberLang,
+              iconName: product.iconName,
+              requiresDispenser: product.requiresDispenser == 1,
             );
           },
         );
