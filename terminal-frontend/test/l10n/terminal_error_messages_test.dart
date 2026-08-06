@@ -30,6 +30,73 @@ void main() {
         // collapse would mean the mapping is broken.
         expect(messages.length, greaterThan(TerminalErrorKey.values.length - 3));
       });
+
+      test('copy carries no exception-shaped placeholder in $locale', () async {
+        final l10n = await AppLocalizations.delegate.load(Locale(locale));
+
+        // Error copy takes no arguments by construction — `message()` returns
+        // a plain getter. This pins the *content* side of the same rule: no
+        // key smuggles engineer vocabulary in front of a member.
+        const leaks = [
+          'Exception',
+          'HTTP',
+          'null',
+          'SQL',
+          'SEPA',
+          'Datenbank',
+          'Database',
+          '{',
+        ];
+
+        for (final key in TerminalErrorKey.values) {
+          final message = key.message(l10n);
+          for (final leak in leaks) {
+            expect(
+              message,
+              isNot(contains(leak)),
+              reason: '${key.name} exposes "$leak" in $locale: $message',
+            );
+          }
+        }
+      });
+
+      test('copy tells the member what to do in $locale', () async {
+        final l10n = await AppLocalizations.delegate.load(Locale(locale));
+
+        // Every error that is not purely informational should name a next
+        // step — try again, see the staff, register at the bar.
+        const informational = {
+          TerminalErrorKey.cartEmpty,
+          TerminalErrorKey.checkoutCancelled,
+          TerminalErrorKey.backendUnreachable,
+          TerminalErrorKey.syncFailed,
+        };
+        const cues = [
+          'try again',
+          'bar staff',
+          'register at the bar',
+          'erneut versuchen',
+          'Bar-Team',
+          'an der Bar anmelden',
+          'noch einmal versuchen',
+          'Scanner',
+          'scanner',
+          // "…you can still buy everything else" — a workaround is a next
+          // step too.
+          'you can still',
+          'kannst du trotzdem',
+        ];
+
+        for (final key in TerminalErrorKey.values) {
+          if (informational.contains(key)) continue;
+          final message = key.message(l10n);
+          expect(
+            cues.any(message.contains),
+            isTrue,
+            reason: '${key.name} offers no next step in $locale: $message',
+          );
+        }
+      });
     }
 
     test('TerminalError delegates to its key', () async {

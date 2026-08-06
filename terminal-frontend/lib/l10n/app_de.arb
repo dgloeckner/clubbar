@@ -104,10 +104,6 @@
   "@checkoutProcessing": {
     "description": "Checkout button label while the checkout is in flight"
   },
-  "memberNotSelected": "Kein Mitglied ausgewählt",
-  "@memberNotSelected": {
-    "description": "Error when trying to checkout without member"
-  },
 
   "@_CHECKOUT_CONFIRMATION": {},
   "checkoutSuccess": "Buchung erfolgreich!",
@@ -198,10 +194,6 @@
   "sepaNo": "Nein",
   "@sepaNo": {
     "description": "No label for SEPA status"
-  },
-  "noMemberSelected": "Kein Mitglied ausgewählt",
-  "@noMemberSelected": {
-    "description": "Message when no member is selected"
   },
 
   "@_MEMBER_BAR": {},
@@ -337,19 +329,19 @@
   },
 
   "@_RFID_ERRORS": {},
-  "rfidErrorUnknownCard": "Unbekannter Chip",
+  "rfidErrorUnknownCard": "Wir kennen diesen Chip nicht – bitte an der Bar anmelden",
   "@rfidErrorUnknownCard": {
     "description": "Error when scanned card is not in database"
   },
-  "rfidErrorAccountInactive": "Konto inaktiv",
+  "rfidErrorAccountInactive": "Dein Konto ist inaktiv – bitte beim Bar-Team melden",
   "@rfidErrorAccountInactive": {
     "description": "Error when member account is inactive"
   },
-  "rfidErrorSepaMissing": "SEPA-Mandat fehlt",
+  "rfidErrorSepaMissing": "Lastschrift ist noch nicht eingerichtet – bitte beim Bar-Team melden",
   "@rfidErrorSepaMissing": {
     "description": "Error when member has no valid SEPA mandate"
   },
-  "rfidErrorDatabaseError": "Datenbankfehler",
+  "rfidErrorDatabaseError": "Etwas ist schiefgelaufen – bitte erneut versuchen oder beim Bar-Team melden",
   "@rfidErrorDatabaseError": {
     "description": "Error when database query fails"
   },
@@ -401,7 +393,7 @@
   "@dispenserOfflineMessage": {
     "description": "Message explaining dispenser is offline"
   },
-  "dispenserBuyWithoutTokensHint": "Sie können andere Artikel ohne Tokens kaufen.",
+  "dispenserBuyWithoutTokensHint": "Du kannst andere Artikel ohne Token kaufen.",
   "@dispenserBuyWithoutTokensHint": {
     "description": "Hint that user can still purchase non-token items"
   },
@@ -534,12 +526,6 @@
       "state": {"type": "String"}
     }
   },
-  "statusLoadError": "Status konnte nicht geladen werden: {error}",
-  "@statusLoadError": {
-    "placeholders": {
-      "error": {"type": "String"}
-    }
-  },
   "sessionTimeoutWarningTitle": "Noch da?",
   "sessionTimeoutWarningBody": "Du wirst in {seconds} s automatisch abgemeldet.",
   "@sessionTimeoutWarningBody": {
@@ -564,52 +550,64 @@
   },
 
   "@_TERMINAL_ERRORS": {},
-  "errorMembersRefreshFailed": "Mitgliederdaten konnten nicht aktualisiert werden",
+  "errorMembersRefreshFailed": "Mitgliederdaten konnten nicht aktualisiert werden – bitte gleich noch einmal versuchen",
   "@errorMembersRefreshFailed": {
     "description": "TerminalErrorKey.membersRefreshFailed — member cache refresh failed"
   },
-  "errorProductsRefreshFailed": "Produkte konnten nicht aktualisiert werden",
+  "errorProductsRefreshFailed": "Die Produktliste konnte nicht aktualisiert werden – bitte gleich noch einmal versuchen",
   "@errorProductsRefreshFailed": {
     "description": "TerminalErrorKey.productsRefreshFailed — product cache refresh failed"
   },
-  "errorCheckoutFailed": "Bezahlung fehlgeschlagen. Bitte erneut versuchen.",
+  "errorCheckoutFailed": "Etwas ist schiefgelaufen – dir wurde nichts berechnet. Bitte erneut versuchen.",
   "@errorCheckoutFailed": {
     "description": "TerminalErrorKey.checkoutFailed — unexpected failure during checkout"
   },
-  "errorCheckoutCancelled": "Bezahlung abgebrochen",
+  "errorCheckoutCancelled": "Bezahlung abgebrochen – dein Warenkorb bleibt unverändert.",
   "@errorCheckoutCancelled": {
     "description": "TerminalErrorKey.checkoutCancelled — member cancelled the checkout"
   },
-  "errorTransactionCreateFailed": "Dein Einkauf konnte nicht gespeichert werden. Bitte erneut versuchen.",
+  "errorTransactionCreateFailed": "Dein Einkauf konnte nicht gespeichert werden – dir wurde nichts berechnet. Bitte erneut versuchen.",
   "@errorTransactionCreateFailed": {
     "description": "TerminalErrorKey.transactionCreateFailed — transaction could not be written locally"
   },
-  "errorDispenserNotConfigured": "Das Ausgabegerät ist nicht eingerichtet",
+  "errorDispenserNotConfigured": "Der Token-Automat ist nicht eingerichtet – bitte beim Bar-Team melden.",
   "@errorDispenserNotConfigured": {
     "description": "TerminalErrorKey.dispenserNotConfigured — token product in cart but dispenser disabled"
   },
-  "errorDispenserOperationFailed": "Token-Ausgabe fehlgeschlagen. Bitte das Personal informieren.",
+  "errorDispenserOperationFailed": "Die Token-Ausgabe hat nicht geklappt – bitte beim Bar-Team melden.",
   "@errorDispenserOperationFailed": {
     "description": "TerminalErrorKey.dispenserOperationFailed — dispenser bookkeeping failed"
   },
-  "errorDispenserUnavailable": "Das Ausgabegerät ist nicht verfügbar",
+  "errorDispenserUnavailable": "Der Token-Automat antwortet nicht – alles andere kannst du trotzdem kaufen.",
   "@errorDispenserUnavailable": {
     "description": "TerminalErrorKey.dispenserUnavailable — dispenser did not respond as expected"
   },
-  "errorDispenserNoTokensDispensed": "Es konnten keine Token ausgegeben werden. Dir wurde nichts berechnet – dein Warenkorb bleibt erhalten.",
+  "errorDispenserNoTokensDispensed": "Es sind keine Token herausgekommen – dir wurde nichts berechnet. Dein Warenkorb bleibt erhalten; bitte beim Bar-Team melden.",
   "@errorDispenserNoTokensDispensed": {
     "description": "TerminalErrorKey.dispenserNoTokensDispensed — dispense finished with zero tokens; checkout aborted"
   },
-  "errorBackendUnreachable": "Keine Verbindung zum Server",
+  "errorBackendUnreachable": "Keine Verbindung zum Server – deine Einkäufe werden hier gespeichert und später übertragen.",
   "@errorBackendUnreachable": {
     "description": "TerminalErrorKey.backendUnreachable — backend health check failed"
   },
-  "errorSyncFailed": "Synchronisierung fehlgeschlagen",
+  "errorSyncFailed": "Synchronisierung fehlgeschlagen – deine Einkäufe werden hier gespeichert und später übertragen.",
   "@errorSyncFailed": {
     "description": "TerminalErrorKey.syncFailed — a sync cycle did not complete"
   },
-  "errorTransactionSyncFailed": "Einige Einkäufe konnten nicht synchronisiert werden",
+  "errorTransactionSyncFailed": "Einige Einkäufe sind noch nicht beim Server angekommen – bitte dem Bar-Team Bescheid geben.",
   "@errorTransactionSyncFailed": {
     "description": "TerminalErrorKey.transactionSyncFailed — non-fatal transaction upload failure"
+  },
+  "errorNoMemberSelected": "Es ist niemand angemeldet – bitte den Chip an den Scanner halten.",
+  "@errorNoMemberSelected": {
+    "description": "TerminalErrorKey.noMemberSelected — a member-scoped view opened without a logged-in member"
+  },
+  "errorTransactionHistoryFailed": "Deine Einkäufe konnten nicht geladen werden – bitte erneut versuchen.",
+  "@errorTransactionHistoryFailed": {
+    "description": "TerminalErrorKey.transactionHistoryFailed — transaction history could not be fetched"
+  },
+  "errorStatusLoadFailed": "Der Terminal-Status konnte nicht geladen werden – bitte erneut versuchen.",
+  "@errorStatusLoadFailed": {
+    "description": "TerminalErrorKey.statusLoadFailed — status modal could not gather terminal state"
   }
 }

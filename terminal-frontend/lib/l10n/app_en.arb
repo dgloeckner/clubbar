@@ -23,7 +23,6 @@
   "cartEachPrice": "{price} each",
   "checkout": "Checkout",
   "checkoutProcessing": "Processing…",
-  "memberNotSelected": "Member not selected",
 
   "checkoutSuccess": "Transaction successful!",
   "checkoutPartialSuccess": "Only {count} {count, plural, =1{token} other{tokens}} dispensed",
@@ -41,7 +40,6 @@
   "memberInactive": "Inactive",
   "sepaYes": "Yes",
   "sepaNo": "No",
-  "noMemberSelected": "No member selected",
 
   "welcomeMember": "Welcome, {name}",
   "balance": "Balance",
@@ -77,10 +75,10 @@
   "continueShopping": "Continue Shopping",
   "scanCard": "Scan Token",
 
-  "rfidErrorUnknownCard": "Unknown token",
-  "rfidErrorAccountInactive": "Account inactive",
-  "rfidErrorSepaMissing": "SEPA mandate missing",
-  "rfidErrorDatabaseError": "Database error",
+  "rfidErrorUnknownCard": "We don't know this chip — please register at the bar",
+  "rfidErrorAccountInactive": "Your account is inactive — please see the bar staff",
+  "rfidErrorSepaMissing": "Direct debit is not set up yet — please see the bar staff",
+  "rfidErrorDatabaseError": "Something went wrong — please try again or see the bar staff",
 
   "preferredLanguage": "Preferred Language",
   "recentTransactions": "Recent Transactions",
@@ -155,12 +153,6 @@
       "state": {"type": "String"}
     }
   },
-  "statusLoadError": "Failed to load status: {error}",
-  "@statusLoadError": {
-    "placeholders": {
-      "error": {"type": "String"}
-    }
-  },
   "sessionTimeoutWarningTitle": "Still there?",
   "sessionTimeoutWarningBody": "You will be logged out automatically in {seconds} s.",
   "@sessionTimeoutWarningBody": {
@@ -174,16 +166,19 @@
   "scanHintLogOutFirst": "Please log out first",
   "scanHintTransactionInProgress": "Please wait — transaction in progress",
 
-  "errorMembersRefreshFailed": "Member data could not be refreshed",
-  "errorProductsRefreshFailed": "Products could not be refreshed",
-  "errorCheckoutFailed": "Checkout failed. Please try again.",
-  "errorCheckoutCancelled": "Checkout cancelled",
-  "errorTransactionCreateFailed": "Your purchase could not be saved. Please try again.",
-  "errorDispenserNotConfigured": "The dispenser is not set up",
-  "errorDispenserOperationFailed": "Token dispensing failed. Please notify staff.",
-  "errorDispenserUnavailable": "The dispenser is not available",
-  "errorDispenserNoTokensDispensed": "No tokens could be dispensed. You have not been charged — your cart is still there.",
-  "errorBackendUnreachable": "No connection to the server",
-  "errorSyncFailed": "Synchronisation failed",
-  "errorTransactionSyncFailed": "Some purchases could not be synchronised"
+  "errorMembersRefreshFailed": "Member data could not be updated — please try again in a moment",
+  "errorProductsRefreshFailed": "The product list could not be updated — please try again in a moment",
+  "errorCheckoutFailed": "Something went wrong — you have not been charged. Please try again.",
+  "errorCheckoutCancelled": "Checkout cancelled — your cart is unchanged.",
+  "errorTransactionCreateFailed": "Your purchase could not be saved — you have not been charged. Please try again.",
+  "errorDispenserNotConfigured": "The token dispenser is not set up — please see the bar staff.",
+  "errorDispenserOperationFailed": "Token dispensing failed — please see the bar staff.",
+  "errorDispenserUnavailable": "The token dispenser is not responding — you can still buy everything else.",
+  "errorDispenserNoTokensDispensed": "No tokens came out — you have not been charged. Your cart is still there; please see the bar staff.",
+  "errorBackendUnreachable": "No connection to the server — your purchases are saved here and sent later.",
+  "errorSyncFailed": "Sync failed — your purchases are saved here and sent later.",
+  "errorTransactionSyncFailed": "Some purchases have not reached the server yet — please tell the bar staff.",
+  "errorNoMemberSelected": "Nobody is logged in — please hold your chip to the scanner.",
+  "errorTransactionHistoryFailed": "Your purchases could not be loaded — please try again.",
+  "errorStatusLoadFailed": "The terminal status could not be loaded — please try again."
 }

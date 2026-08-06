@@ -77,9 +77,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get checkoutProcessing => 'Wird verarbeitet…';
 
   @override
-  String get memberNotSelected => 'Kein Mitglied ausgewählt';
-
-  @override
   String get checkoutSuccess => 'Buchung erfolgreich!';
 
   @override
@@ -151,9 +148,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get sepaNo => 'Nein';
-
-  @override
-  String get noMemberSelected => 'Kein Mitglied ausgewählt';
 
   @override
   String welcomeMember(String name) {
@@ -245,16 +239,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get scanCard => 'Chip scannen';
 
   @override
-  String get rfidErrorUnknownCard => 'Unbekannter Chip';
+  String get rfidErrorUnknownCard =>
+      'Wir kennen diesen Chip nicht – bitte an der Bar anmelden';
 
   @override
-  String get rfidErrorAccountInactive => 'Konto inaktiv';
+  String get rfidErrorAccountInactive =>
+      'Dein Konto ist inaktiv – bitte beim Bar-Team melden';
 
   @override
-  String get rfidErrorSepaMissing => 'SEPA-Mandat fehlt';
+  String get rfidErrorSepaMissing =>
+      'Lastschrift ist noch nicht eingerichtet – bitte beim Bar-Team melden';
 
   @override
-  String get rfidErrorDatabaseError => 'Datenbankfehler';
+  String get rfidErrorDatabaseError =>
+      'Etwas ist schiefgelaufen – bitte erneut versuchen oder beim Bar-Team melden';
 
   @override
   String get preferredLanguage => 'Bevorzugte Sprache';
@@ -294,7 +292,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get dispenserBuyWithoutTokensHint =>
-      'Sie können andere Artikel ohne Tokens kaufen.';
+      'Du kannst andere Artikel ohne Token kaufen.';
 
   @override
   String get dispenserCancelButton => 'Abbrechen & zurück zum Warenkorb';
@@ -438,11 +436,6 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String statusLoadError(String error) {
-    return 'Status konnte nicht geladen werden: $error';
-  }
-
-  @override
   String get sessionTimeoutWarningTitle => 'Noch da?';
 
   @override
@@ -464,46 +457,61 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get errorMembersRefreshFailed =>
-      'Mitgliederdaten konnten nicht aktualisiert werden';
+      'Mitgliederdaten konnten nicht aktualisiert werden – bitte gleich noch einmal versuchen';
 
   @override
   String get errorProductsRefreshFailed =>
-      'Produkte konnten nicht aktualisiert werden';
+      'Die Produktliste konnte nicht aktualisiert werden – bitte gleich noch einmal versuchen';
 
   @override
   String get errorCheckoutFailed =>
-      'Bezahlung fehlgeschlagen. Bitte erneut versuchen.';
+      'Etwas ist schiefgelaufen – dir wurde nichts berechnet. Bitte erneut versuchen.';
 
   @override
-  String get errorCheckoutCancelled => 'Bezahlung abgebrochen';
+  String get errorCheckoutCancelled =>
+      'Bezahlung abgebrochen – dein Warenkorb bleibt unverändert.';
 
   @override
   String get errorTransactionCreateFailed =>
-      'Dein Einkauf konnte nicht gespeichert werden. Bitte erneut versuchen.';
+      'Dein Einkauf konnte nicht gespeichert werden – dir wurde nichts berechnet. Bitte erneut versuchen.';
 
   @override
   String get errorDispenserNotConfigured =>
-      'Das Ausgabegerät ist nicht eingerichtet';
+      'Der Token-Automat ist nicht eingerichtet – bitte beim Bar-Team melden.';
 
   @override
   String get errorDispenserOperationFailed =>
-      'Token-Ausgabe fehlgeschlagen. Bitte das Personal informieren.';
+      'Die Token-Ausgabe hat nicht geklappt – bitte beim Bar-Team melden.';
 
   @override
   String get errorDispenserUnavailable =>
-      'Das Ausgabegerät ist nicht verfügbar';
+      'Der Token-Automat antwortet nicht – alles andere kannst du trotzdem kaufen.';
 
   @override
   String get errorDispenserNoTokensDispensed =>
-      'Es konnten keine Token ausgegeben werden. Dir wurde nichts berechnet – dein Warenkorb bleibt erhalten.';
+      'Es sind keine Token herausgekommen – dir wurde nichts berechnet. Dein Warenkorb bleibt erhalten; bitte beim Bar-Team melden.';
 
   @override
-  String get errorBackendUnreachable => 'Keine Verbindung zum Server';
+  String get errorBackendUnreachable =>
+      'Keine Verbindung zum Server – deine Einkäufe werden hier gespeichert und später übertragen.';
 
   @override
-  String get errorSyncFailed => 'Synchronisierung fehlgeschlagen';
+  String get errorSyncFailed =>
+      'Synchronisierung fehlgeschlagen – deine Einkäufe werden hier gespeichert und später übertragen.';
 
   @override
   String get errorTransactionSyncFailed =>
-      'Einige Einkäufe konnten nicht synchronisiert werden';
+      'Einige Einkäufe sind noch nicht beim Server angekommen – bitte dem Bar-Team Bescheid geben.';
+
+  @override
+  String get errorNoMemberSelected =>
+      'Es ist niemand angemeldet – bitte den Chip an den Scanner halten.';
+
+  @override
+  String get errorTransactionHistoryFailed =>
+      'Deine Einkäufe konnten nicht geladen werden – bitte erneut versuchen.';
+
+  @override
+  String get errorStatusLoadFailed =>
+      'Der Terminal-Status konnte nicht geladen werden – bitte erneut versuchen.';
 }

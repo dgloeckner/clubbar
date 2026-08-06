@@ -218,7 +218,8 @@ void main() {
       rfid.failScan(TerminalErrorKey.unknownCard);
       await tester.pump();
 
-      expect(find.text('Unbekannter Chip'), findsOneWidget);
+      expect(find.text(await errorCopy(TerminalErrorKey.unknownCard)),
+          findsOneWidget);
     });
 
     testWidgets('a repeat of the same refusal is shown again', (tester) async {
@@ -256,7 +257,7 @@ void main() {
       rfid.failScan(TerminalErrorKey.unknownCard);
       await tester.pump();
 
-      expect(find.text('Unbekannter Chip'), findsNothing);
+      expect(find.text(await errorCopy(TerminalErrorKey.unknownCard)), findsNothing);
     });
   });
 }

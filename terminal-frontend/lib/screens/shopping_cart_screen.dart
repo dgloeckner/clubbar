@@ -4,11 +4,15 @@ import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/widgets/error_banner.dart';
+import 'package:clubbar_terminal/widgets/error_modal.dart';
+import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
 
 class ShoppingCartScreen extends StatelessWidget {
@@ -16,6 +20,65 @@ class ShoppingCartScreen extends StatelessWidget {
 
   static const double _horizontalPadding = 16.0;
   static const double _verticalSpacing = 12.0;
+
+  /// Run a checkout and route its outcome to the right surface.
+  ///
+  /// Failures get a blocking [showErrorModal] with Dismiss + Retry, where
+  /// Retry re-enters this method — the member can recover without hunting for
+  /// the checkout button behind a snackbar that overlapped the total bar.
+  ///
+  /// A member-initiated cancellation is not a failure: it stays in
+  /// `lastError` so the inline [ErrorBanner] can quietly confirm the cart is
+  /// unchanged, instead of a modal nagging about a choice they just made.
+  static Future<void> _runCheckout(BuildContext context) async {
+    final cartProvider = context.read<CartProvider>();
+    final membersProvider = context.read<MembersProvider>();
+
+    final selectedMember = membersProvider.selectedMember;
+    if (selectedMember == null) {
+      showErrorModal(
+        context,
+        TerminalErrorKey.noMemberSelected.message(AppLocalizations.of(context)!),
+      );
+      return;
+    }
+    final sessionId = membersProvider.sessionId ?? '';
+
+    // ADR-0027 rule 7: suspend the inactivity timer while
+    // checkout/dispensing is in flight.
+    final session = context.read<SessionController>();
+    session.beginCriticalOperation();
+    try {
+      await cartProvider.checkout(context, selectedMember, sessionId);
+    } finally {
+      session.endCriticalOperation();
+    }
+
+    final error = cartProvider.lastError;
+    if (error != null) {
+      if (error.key == TerminalErrorKey.checkoutCancelled) {
+        // Left pending on purpose — the banner renders it.
+        return;
+      }
+      // Shown — drop it so the next failure signals afresh.
+      cartProvider.clearError();
+      if (!context.mounted) return;
+      showErrorModal(
+        context,
+        error.message(AppLocalizations.of(context)!),
+        onRetry: () => _runCheckout(context),
+      );
+      return;
+    }
+
+    // Recompute Deckel from database (now includes
+    // the new unsynced transaction)
+    await membersProvider.refreshDeckel();
+
+    if (cartProvider.lastSessionId != null && context.mounted) {
+      context.go('/confirmation/${cartProvider.lastSessionId}');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,11 +166,24 @@ class ShoppingCartScreen extends StatelessWidget {
                 ),
               ),
 
+            // Quiet, dismissible acknowledgement of a cancelled checkout.
+            // Genuine failures never reach here — they are cleared as soon as
+            // their modal is shown.
+            if (cartProvider.lastError != null)
+              ErrorBanner(
+                message: cartProvider.lastError!.message(l10n),
+                onDismiss: cartProvider.clearError,
+              ),
+
             // Item list — frozen while a checkout is in flight, otherwise the
-            // cart could be mutated after the transactions were computed.
+            // cart could be mutated after the transactions were computed. The
+            // overlay makes that freeze visible, rather than letting the
+            // quantity and remove buttons silently swallow taps. It covers
+            // only the list because the one control outside it, the checkout
+            // button, states its own in-flight condition.
             Expanded(
-              child: IgnorePointer(
-                ignoring: isCheckoutInFlight,
+              child: LoadingOverlay(
+                isLoading: isCheckoutInFlight,
                 child: ListView.builder(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   itemCount: cartProvider.items.length,
@@ -352,54 +428,7 @@ class ShoppingCartScreen extends StatelessWidget {
                   // a double-tap cannot create duplicate transactions.
                   _CheckoutButton(
                     isLoading: isCheckoutInFlight,
-                    onPressed: () async {
-                      final selectedMember = membersProvider.selectedMember;
-                      final sessionId = membersProvider.sessionId ?? '';
-
-                      if (selectedMember == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(l10n.memberNotSelected),
-                            backgroundColor: const Color(0xffef4444),
-                          ),
-                        );
-                        return;
-                      }
-
-                      // ADR-0027 rule 7: suspend the inactivity timer while
-                      // checkout/dispensing is in flight.
-                      final session = context.read<SessionController>();
-                      session.beginCriticalOperation();
-                      try {
-                        await cartProvider.checkout(
-                            context, selectedMember, sessionId);
-                      } finally {
-                        session.endCriticalOperation();
-                      }
-
-                      if (cartProvider.lastError != null) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(cartProvider.lastError!
-                                  .message(AppLocalizations.of(context)!)),
-                              backgroundColor: const Color(0xffef4444),
-                            ),
-                          );
-                        }
-                        // Shown — drop it so the next failure signals afresh.
-                        cartProvider.clearError();
-                        return;
-                      }
-
-                      // Recompute Deckel from database (now includes
-                      // the new unsynced transaction)
-                      await membersProvider.refreshDeckel();
-
-                      if (cartProvider.lastSessionId != null && context.mounted) {
-                        context.go('/confirmation/${cartProvider.lastSessionId}');
-                      }
-                    },
+                    onPressed: () => _runCheckout(context),
                   ),
                 ],
               ),

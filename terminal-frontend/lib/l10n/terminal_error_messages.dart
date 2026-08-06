@@ -18,6 +18,12 @@ extension TerminalErrorKeyL10n on TerminalErrorKey {
         return l10n.rfidErrorDatabaseError;
       case TerminalErrorKey.membersRefreshFailed:
         return l10n.errorMembersRefreshFailed;
+      case TerminalErrorKey.noMemberSelected:
+        return l10n.errorNoMemberSelected;
+      case TerminalErrorKey.transactionHistoryFailed:
+        return l10n.errorTransactionHistoryFailed;
+      case TerminalErrorKey.statusLoadFailed:
+        return l10n.errorStatusLoadFailed;
       case TerminalErrorKey.cartEmpty:
         return l10n.cartEmpty;
       case TerminalErrorKey.checkoutFailed:

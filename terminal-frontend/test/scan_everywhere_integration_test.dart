@@ -59,9 +59,13 @@ MembersCacheData _member(String id, String cardUid, String firstName) =>
     );
 
 void main() {
-  setUpAll(() {
+  /// Resolved once so the assertions below track the ARB, not a copied literal.
+  late String unknownCardCopy;
+
+  setUpAll(() async {
     registerFallbackValue(FakeMembersCacheData());
     registerFallbackValue(SoundEvent.scanSuccess);
+    unknownCardCopy = await errorCopy(TerminalErrorKey.unknownCard);
   });
 
   final memberA = _member('member-a', '1', 'Anna');
@@ -243,7 +247,7 @@ void main() {
 
       await scanCard(tester, LogicalKeyboardKey.digit9);
 
-      expect(find.text('Unbekannter Chip'), findsOneWidget);
+      expect(find.text(unknownCardCopy), findsOneWidget);
       expect(membersProvider.selectedMember?.id, 'member-a');
       await logout(tester);
     });
@@ -291,7 +295,7 @@ void main() {
 
       expect(location(), '/confirmation/session-1');
       expect(membersProvider.selectedMember?.id, 'member-a');
-      expect(find.text('Unbekannter Chip'), findsOneWidget);
+      expect(find.text(unknownCardCopy), findsOneWidget);
       await logout(tester);
     });
 

@@ -68,7 +68,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Unbekannter Chip'), findsOneWidget);
+      expect(find.text(await errorCopy(TerminalErrorKey.unknownCard)), findsOneWidget);
     });
 
     testWidgets('displays Continue Shopping button', (WidgetTester tester) async {

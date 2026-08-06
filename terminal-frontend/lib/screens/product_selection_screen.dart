@@ -6,10 +6,12 @@ import 'dart:convert';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
 import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
 import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
@@ -80,6 +82,14 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                       }
                     },
                   ),
+                ),
+
+              // A stale product list is worth telling the member about, but
+              // not worth blocking on — everything already cached still sells.
+              if (productsProvider.lastError != null)
+                ErrorBanner(
+                  message: productsProvider.lastError!.message(l10n),
+                  onDismiss: productsProvider.clearError,
                 ),
 
               // Category tabs (full width, 2 tabs)

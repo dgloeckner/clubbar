@@ -19,6 +19,40 @@ void main() {
       when(() => mockSyncProvider.removeListener(any())).thenReturn(null);
     });
 
+    // Issue #27: this used to render `statusLoadError(e.toString())` — the
+    // exception text verbatim, inside a localized sentence.
+    testWidgets('a failure to gather status shows localized copy, not the exception',
+        (tester) async {
+      await tester.pumpWidget(
+        createTestApp(
+          child: Builder(
+            // No SyncProvider in the tree, so context.read throws exactly the
+            // way a missing dependency would in production.
+            builder: (context) => ElevatedButton(
+              onPressed: () => showStatusInfoModal(context),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(await errorCopy(TerminalErrorKey.statusLoadFailed)),
+        findsOneWidget,
+      );
+      expect(find.text('Schließen'), findsOneWidget);
+
+      final rendered = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => t.data ?? '')
+          .join('\n');
+      expect(rendered, isNot(contains('ProviderNotFoundException')));
+      expect(rendered, isNot(contains('SyncProvider')));
+    });
+
     Widget buildTestApp({required Widget child}) {
       return createTestApp(
         child: ChangeNotifierProvider<SyncProvider>.value(
@@ -86,7 +120,8 @@ void main() {
       expect(find.text('Wiederholungsversuche'), findsOneWidget); // "Retry count" in German
       expect(find.text('3'), findsOneWidget);
       expect(find.text('Fehlerdetails'), findsOneWidget); // "Error details" in German
-      expect(find.text('Keine Verbindung zum Server'), findsOneWidget);
+      expect(find.text(await errorCopy(TerminalErrorKey.backendUnreachable)),
+          findsOneWidget);
     });
 
     testWidgets('shows Error status with error details', (tester) async {
@@ -111,7 +146,8 @@ void main() {
 
       expect(find.text('Fehler'), findsOneWidget); // "Error" in German
       expect(find.text('Fehlerdetails'), findsOneWidget); // "Error details" in German
-      expect(find.text('Synchronisierung fehlgeschlagen'), findsOneWidget);
+      expect(find.text(await errorCopy(TerminalErrorKey.syncFailed)),
+          findsOneWidget);
     });
 
     testWidgets('Dismiss button closes the modal', (tester) async {

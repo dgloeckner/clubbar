@@ -2,12 +2,15 @@ import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
+import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/models/transaction_list_item.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/transaction_history_service.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/utils/app_logger.dart';
 import 'package:clubbar_terminal/database/database.dart';
 
 /// Show member details modal as a bottom sheet
@@ -29,8 +32,9 @@ class MemberDetailsModal extends StatefulWidget {
 
 class _MemberDetailsModalState extends State<MemberDetailsModal> {
   bool _isLoading = true;
-  bool _hasError = false;
-  String? _errorMessage;
+
+  /// Which error to show, never *why* — the raw exception goes to the log.
+  TerminalErrorKey? _errorKey;
   List<TransactionListItem> _transactions = [];
   bool _isOffline = false;
 
@@ -53,8 +57,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
   Future<void> _loadTransactions() async {
     setState(() {
       _isLoading = true;
-      _hasError = false;
-      _errorMessage = null;
+      _errorKey = null;
     });
 
     try {
@@ -63,8 +66,7 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
 
       if (member == null) {
         setState(() {
-          _hasError = true;
-          _errorMessage = 'No member selected';
+          _errorKey = TerminalErrorKey.noMemberSelected;
           _isLoading = false;
         });
         return;
@@ -97,12 +99,12 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
         _transactions = transactions;
         _isOffline = !isOnline;
         _isLoading = false;
-        _hasError = false;
+        _errorKey = null;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      logTerminalError(TerminalErrorKey.transactionHistoryFailed, e, stackTrace);
       setState(() {
-        _hasError = true;
-        _errorMessage = e.toString();
+        _errorKey = TerminalErrorKey.transactionHistoryFailed;
         _isLoading = false;
       });
     }
@@ -111,8 +113,12 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
   Future<void> _updateLanguage(String newLanguage) async {
     try {
       await context.read<MembersProvider>().updateSelectedMemberLanguage(newLanguage);
-    } catch (e) {
-      debugPrint('Failed to update language: $e');
+    } catch (e, stackTrace) {
+      AppLog.instance.e(
+        'Failed to update member language',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -316,8 +322,10 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
       );
     }
 
-    if (_hasError) {
-      return Center(
+    if (_errorKey != null) {
+      // Scrollable: actionable copy is longer than a bare "Database error",
+      // and this block sits in whatever height the sheet has left over.
+      return SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -337,17 +345,15 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              if (_errorMessage != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _errorMessage!,
-                  style: TextStyle(
-                    color: const Color(0xffa1a1aa),
-                    fontSize: AppFontSizes.sm,
-                  ),
-                  textAlign: TextAlign.center,
+              const SizedBox(height: 8),
+              Text(
+                _errorKey!.message(l10n),
+                style: TextStyle(
+                  color: const Color(0xffa1a1aa),
+                  fontSize: AppFontSizes.sm,
                 ),
-              ],
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: _loadTransactions,
