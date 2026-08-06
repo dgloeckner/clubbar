@@ -40,6 +40,31 @@ class StubDispenseCartProvider extends CartProvider {
       dispenseResult;
 }
 
+/// Scripts one dispense outcome per checkout, so a test can run two checkouts
+/// in a row against the same provider and give each a different ending.
+class ScriptedDispenseCartProvider extends CartProvider {
+  ScriptedDispenseCartProvider({
+    required super.service,
+    required super.config,
+    required super.soundService,
+    required this.outcomes,
+  });
+
+  /// One entry per checkout. A thunk may throw (the dispense blew up) or
+  /// return null (the member answered the dialog with "cancel").
+  final List<Future<DispenseResult?> Function()> outcomes;
+
+  int calls = 0;
+
+  @override
+  Future<DispenseResult?> showDispensingDialog(
+    BuildContext context,
+    List<CartItem> tokenProducts,
+    String dispenserTxId,
+  ) =>
+      outcomes[calls++]();
+}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(CartItem(
@@ -434,6 +459,93 @@ void main() {
       expect(provider.lastError, isNull);
       expect(provider.lastTransactionId, equals('txn-token'));
       verify(() => mockSoundService.play(SoundEvent.checkoutSuccess)).called(1);
+    });
+  });
+
+  // Acceptance criteria (#20): the dispenser error a checkout ended on is
+  // per-checkout state. Leaking it into the next checkout made that one take
+  // the "member already agreed to go without tokens" branch and skip
+  // dispensing silently — the member is charged for the rest of the cart and
+  // never told the tokens were dropped.
+  group('CartProvider stale dispenser error state', () {
+    late MockCartService mockService;
+    late MockConfigService mockConfig;
+    late MockSoundService mockSoundService;
+
+    final member = MembersCacheData(
+      id: 'member-1',
+      cardUid: 'card-123',
+      firstName: 'John',
+      lastName: 'Doe',
+      preferredLanguage: 'de',
+      isActive: 1,
+      isSepaValid: 1,
+      balanceCents: 0,
+      updatedAt: '2025-02-01T10:00:00Z',
+    );
+
+    setUp(() {
+      mockService = MockCartService();
+      mockConfig = MockConfigService();
+      mockSoundService = MockSoundService();
+
+      when(() => mockConfig.dispenserEnabled).thenReturn(true);
+      when(() => mockConfig.dispenserBaseUrl).thenReturn('http://dispenser');
+      when(() => mockConfig.dispenserApiKey).thenReturn('key');
+      when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (true, null));
+      when(() => mockService.createDispenserOperation(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            memberId: any(named: 'memberId'),
+            productId: any(named: 'productId'),
+            priceCents: any(named: 'priceCents'),
+            requestedQty: any(named: 'requestedQty'),
+          )).thenAnswer((_) async => (true, null));
+      when(() => mockService.updateDispenserOperationState(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            state: any(named: 'state'),
+            transactionsCreated: any(named: 'transactionsCreated'),
+            lastKnownDispensed: any(named: 'lastKnownDispensed'),
+          )).thenAnswer((_) async => (true, null));
+      when(() => mockService.cleanupDispenserOperation(any()))
+          .thenAnswer((_) async => (true, null));
+      when(() => mockService.createTransaction(any(), any(),
+              sessionId: any(named: 'sessionId')))
+          .thenAnswer((_) async => ('txn-123', null));
+    });
+
+    test('a dispenser failure does not skip tokens in the next checkout',
+        () async {
+      final provider = ScriptedDispenseCartProvider(
+        service: mockService,
+        config: mockConfig,
+        soundService: mockSoundService,
+        outcomes: [
+          // First checkout: the dispense attempt blows up as busy.
+          () async => throw DispenserBusyException(),
+          // Second checkout: the member answers the dialog with "cancel",
+          // which must abort the checkout outright.
+          () async => null,
+        ],
+      );
+
+      provider.addItem('token-1', 'Token', 200, 1, 'de',
+          requiresDispenser: true);
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+      expect(provider.items, hasLength(1), reason: 'nothing was charged yet');
+
+      provider.addItem('prod-1', 'Beer', 500, 1, 'de');
+      clearInteractions(mockSoundService);
+
+      await provider.checkout(MockBuildContext(), member, 'session-2');
+
+      expect(provider.calls, equals(2), reason: 'the dispense path ran again');
+      expect(provider.items, hasLength(2),
+          reason: 'a cancelled dispense aborts the whole checkout');
+      verifyNever(() => mockService.createTransaction(any(), any(),
+          sessionId: any(named: 'sessionId')));
+      verifyNever(() => mockSoundService.play(SoundEvent.checkoutSuccess));
     });
   });
 

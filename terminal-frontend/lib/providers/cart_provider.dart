@@ -129,6 +129,9 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
     // call can never observe a half-finished checkout.
     if (_isLoading) return;
 
+    // Whatever the last checkout ended on says nothing about this one (#20).
+    _resetCheckoutState();
+
     _isLoading = true;
     notifyListeners();
 
@@ -303,8 +306,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
       // surviving record of the amount for the receipt (#16).
       _lastCheckoutTotalCents = billedCents;
       _items = [];
-      resetError();
-      _errorType = null;
+      _resetCheckoutState();
       _soundService.play(SoundEvent.checkoutSuccess);
     } catch (e, stackTrace) {
       emitError(TerminalErrorKey.checkoutFailed,
@@ -386,10 +388,21 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
     return result;
   }
 
+  /// Every piece of state that belongs to a single checkout attempt.
+  ///
+  /// Both fields are read to decide what a checkout does — [_errorType] picks
+  /// the token-skip branch — so a value left over from an aborted attempt
+  /// silently changes the next one (#20). Reset them together, in one place, so
+  /// a future field added here cannot be forgotten at one of the call sites.
+  void _resetCheckoutState() {
+    resetError();
+    _errorType = null;
+  }
+
   /// Clear cart
   void clearCart() {
     _items = [];
-    resetError();
+    _resetCheckoutState();
     _lastSessionId = null;
     _lastCheckoutTotalCents = 0;
     notifyListeners();
