@@ -4,7 +4,15 @@
 
 Every legal constraint established by research during the money-semantics work, and the specific mechanism that satisfies it. The constraints themselves live in [ADR-0028](../adr/0028-legal-constraints-on-money-handling.md) and [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md); this page is the **mapping**, so that a change to any mechanism can be traced back to what it was there for.
 
-> ⚠️ **Not legal advice.** Items marked ⚠️ need confirmation from the club's Steuerberater or bank; they are flagged where research found no authority, not smoothed over. Sources: [#140](https://github.com/dgloeckner/ruderbar/issues/140), [#149](https://github.com/dgloeckner/ruderbar/issues/149), [#159](https://github.com/dgloeckner/ruderbar/issues/159), [#174](https://github.com/dgloeckner/ruderbar/issues/174), with full working in `research/`.
+> ⚠️ **Not legal advice.** Items marked ⚠️ need confirmation from the club's Steuerberater or bank; they are flagged where research found no authority, not smoothed over. Sources: [#140](https://github.com/dgloeckner/ruderbar/issues/140), [#149](https://github.com/dgloeckner/ruderbar/issues/149), [#159](https://github.com/dgloeckner/ruderbar/issues/159), [#174](https://github.com/dgloeckner/ruderbar/issues/174), with full working in `research/`:
+
+| File | Covers |
+|---|---|
+| `club-bookkeeping-obligations.md` | Whether the bar carries bookkeeping duties at all, at what granularity — the premise that everything else rests on |
+| `correction-bookkeeping-law.md` | GoBD Rz. 64 linkage; payout Belege; the KassenSichV exit |
+| `art9-rfid-display-retention.md` | Art. 9 and consumption data; RFID as personal data; screen display; retention classification |
+| `175-onboarding-form-datenschutz.md` | Art. 13 content; legal basis per purpose; mandate-vs-consent; Art. 30 / § 38 BDSG; form practice |
+| `credit-limit-precedents.md` | Credit-balance and refund precedents |
 
 ---
 
