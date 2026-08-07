@@ -153,4 +153,61 @@ class BankCodeServiceTest extends TestCase
         $this->assertNull($service->lookupByIban('GB29NWBK60161331926819'));
         $this->assertNull($service->lookupByIban(null));
     }
+
+    // ─── lookupByBlz ────────────────────────────────────────────────────────
+    //
+    // The bank-lookup endpoint sends only the 8-digit BLZ, never the full
+    // IBAN, so that member account numbers never appear in access logs (#108).
+
+    public function test_lookupByBlz_returns_the_bank_behind_a_blz(): void
+    {
+        $repository = $this->createMock(\App\Modules\BankCodes\Repositories\BankCodesRepository::class);
+        $repository->expects($this->once())
+            ->method('findByBankCode')
+            ->with('37040044')
+            ->willReturn([
+                'bank_name' => 'Commerzbank',
+                'short_name' => 'Commerzbank Köln',
+                'bic' => 'COBADEFFXXX',
+                'postal_code' => '50667',
+                'city' => 'Köln',
+            ]);
+
+        $service = new BankCodeService($repository, $this->createMock(\App\Shared\Logging\Logger::class));
+
+        $this->assertSame([
+            'bank_code' => '37040044',
+            'bank_name' => 'Commerzbank',
+            'short_name' => 'Commerzbank Köln',
+            'bic' => 'COBADEFFXXX',
+            'postal_code' => '50667',
+            'city' => 'Köln',
+        ], $service->lookupByBlz('37040044'));
+    }
+
+    public function test_lookupByBlz_returns_a_bare_record_for_an_unknown_blz(): void
+    {
+        $repository = $this->createMock(\App\Modules\BankCodes\Repositories\BankCodesRepository::class);
+        $repository->method('findByBankCode')->willReturn(null);
+
+        $service = new BankCodeService($repository, $this->createMock(\App\Shared\Logging\Logger::class));
+
+        $unknown = $service->lookupByBlz('99999999');
+        $this->assertSame('99999999', $unknown['bank_code']);
+        $this->assertNull($unknown['bank_name']);
+        $this->assertNull($unknown['bic']);
+    }
+
+    public function test_lookupByBlz_does_not_query_for_a_malformed_blz(): void
+    {
+        $repository = $this->createMock(\App\Modules\BankCodes\Repositories\BankCodesRepository::class);
+        $repository->expects($this->never())->method('findByBankCode');
+
+        $service = new BankCodeService($repository, $this->createMock(\App\Shared\Logging\Logger::class));
+
+        $this->assertNull($service->lookupByBlz('1904'));
+        $this->assertNull($service->lookupByBlz('370400440'));
+        $this->assertNull($service->lookupByBlz('3704004a'));
+        $this->assertNull($service->lookupByBlz(null));
+    }
 }

@@ -60,7 +60,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
 export type BankLookupParams = {
 /**
- * Full IBAN to look up (e.g., DE89370400440532013000)
+ * 8-digit German Bankleitzahl (e.g., 37040044)
+ * @pattern ^\d{8}$
  */
-iban: string;
+blz: string;
 };

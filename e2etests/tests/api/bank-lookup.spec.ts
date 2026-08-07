@@ -4,8 +4,10 @@ import { expect } from '@playwright/test'
 /**
  * E2E Test: Bank Lookup API
  *
- * Verifies the GET /api/admin/bank-lookup?iban= endpoint returns
+ * Verifies the GET /api/admin/bank-lookup?blz= endpoint returns
  * correct bank information from the Bundesbank BLZ lookup table.
+ * The endpoint takes only the 8-digit BLZ, never a full IBAN, so
+ * account numbers stay out of access logs.
  *
  * Prerequisites: bank_codes table seeded with test data (see seed.sql).
  */
@@ -13,9 +15,9 @@ import { expect } from '@playwright/test'
 test.describe('Bank Lookup API', () => {
   const API_BASE = 'http://localhost:8080/api'
 
-  test('returns bank name for valid German IBAN', async ({ authenticatedRequest }) => {
+  test('returns bank name for valid BLZ', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get(
-      `${API_BASE}/admin/bank-lookup?iban=DE89370400440532013000`,
+      `${API_BASE}/admin/bank-lookup?blz=37040044`,
     )
     expect(response.ok()).toBeTruthy()
 
@@ -25,9 +27,9 @@ test.describe('Bank Lookup API', () => {
     expect(data.bic).toBe('COBADEFFXXX')
   })
 
-  test('returns null fields for non-German IBAN', async ({ authenticatedRequest }) => {
+  test('returns null fields for a malformed BLZ', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get(
-      `${API_BASE}/admin/bank-lookup?iban=AT611904300234573201`,
+      `${API_BASE}/admin/bank-lookup?blz=1904`,
     )
     expect(response.ok()).toBeTruthy()
 
@@ -36,7 +38,7 @@ test.describe('Bank Lookup API', () => {
     expect(data.bic).toBeNull()
   })
 
-  test('returns 400 for missing iban parameter', async ({ authenticatedRequest }) => {
+  test('returns 400 for missing blz parameter', async ({ authenticatedRequest }) => {
     const response = await authenticatedRequest.get(
       `${API_BASE}/admin/bank-lookup`,
     )
@@ -44,11 +46,11 @@ test.describe('Bank Lookup API', () => {
   })
 
   test('returns null bank_name for unknown BLZ', async ({ authenticatedRequest }) => {
-    // Valid IBAN checksum, but BLZ 99999999 is never assigned by the
-    // Bundesbank — stays unknown even with the full BLZ file imported
-    // (a real BLZ like 20050550 resolves once the import has run).
+    // BLZ 99999999 is never assigned by the Bundesbank - stays unknown
+    // even with the full BLZ file imported (a real BLZ like 20050550
+    // resolves once the import has run).
     const response = await authenticatedRequest.get(
-      `${API_BASE}/admin/bank-lookup?iban=DE66999999991234567890`,
+      `${API_BASE}/admin/bank-lookup?blz=99999999`,
     )
     expect(response.ok()).toBeTruthy()
 

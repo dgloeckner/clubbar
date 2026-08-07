@@ -50,8 +50,8 @@ class AdminControllerTest extends TestCase
     public function test_lookup_returns_the_bank_the_service_found(): void
     {
         $this->service->expects($this->once())
-            ->method('lookupByIban')
-            ->with('DE89370400440532013000')
+            ->method('lookupByBlz')
+            ->with('37040044')
             ->willReturn([
                 'bank_code' => '37040044',
                 'bank_name' => 'Commerzbank',
@@ -61,33 +61,33 @@ class AdminControllerTest extends TestCase
                 'city' => null,
             ]);
 
-        $response = $this->controller->lookup($this->get(['iban' => 'DE89370400440532013000']), new Response());
+        $response = $this->controller->lookup($this->get(['blz' => '37040044']), new Response());
 
         $this->assertSame(200, $response->getStatusCode());
         $this->assertSame('application/json', $response->getHeaderLine('Content-Type'));
         $this->assertSame('COBADEFFXXX', $this->decode($response)['bic']);
     }
 
-    public function test_lookup_explains_itself_for_a_country_it_does_not_cover(): void
+    public function test_lookup_explains_itself_for_a_malformed_blz(): void
     {
-        $this->service->method('lookupByIban')->willReturn(null);
+        $this->service->method('lookupByBlz')->willReturn(null);
 
-        $body = $this->decode($this->controller->lookup($this->get(['iban' => 'AT611904300234573201']), new Response()));
+        $body = $this->decode($this->controller->lookup($this->get(['blz' => '1904']), new Response()));
 
         $this->assertNull($body['bank_name']);
         $this->assertNull($body['bic']);
-        $this->assertStringContainsString('German IBANs', $body['message']);
+        $this->assertStringContainsString('8-digit German Bankleitzahl', $body['message']);
     }
 
-    public function test_lookup_refuses_a_request_with_no_iban(): void
+    public function test_lookup_refuses_a_request_with_no_blz(): void
     {
-        $this->service->expects($this->never())->method('lookupByIban');
+        $this->service->expects($this->never())->method('lookupByBlz');
 
-        foreach ([[], ['iban' => ''], ['iban' => ['DE89']]] as $query) {
+        foreach ([[], ['blz' => ''], ['blz' => ['37040044']]] as $query) {
             $response = $this->controller->lookup($this->get($query), new Response());
 
             $this->assertSame(400, $response->getStatusCode());
-            $this->assertSame('Missing iban parameter', $this->decode($response)['error']);
+            $this->assertSame('Missing blz parameter', $this->decode($response)['error']);
         }
     }
 }

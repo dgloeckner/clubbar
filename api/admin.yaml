@@ -3045,21 +3045,24 @@ paths:
   /admin/bank-lookup:
     get:
       tags: [BankCodes]
-      summary: Look up bank info by IBAN
+      summary: Look up bank info by BLZ
       description: >
-        Resolves bank name, BIC, and location from a German IBAN using
-        the Bundesbank BLZ (Bankleitzahl) lookup table. Returns null fields
-        for non-German IBANs or unknown bank codes.
+        Resolves bank name, BIC, and location from a German BLZ
+        (Bankleitzahl) using the Bundesbank lookup table. Takes only the
+        8-digit BLZ instead of the full IBAN so account numbers never
+        appear in access logs. Returns null fields for invalid or unknown
+        bank codes.
       operationId: bankLookup
       security:
         - sessionAuth: []
       parameters:
-        - name: iban
+        - name: blz
           in: query
           required: true
           schema:
             type: string
-          description: Full IBAN to look up (e.g., DE89370400440532013000)
+            pattern: '^\d{8}$'
+          description: 8-digit German Bankleitzahl (e.g., 37040044)
       responses:
         '200':
           description: Bank information
@@ -3068,7 +3071,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BankLookupResponse'
         '400':
-          description: Missing iban parameter
+          description: Missing blz parameter
           content:
             application/json:
               schema:
@@ -4039,7 +4042,7 @@ components:
       properties:
         bank_code:
           type: string
-          description: 8-digit Bankleitzahl (BLZ) extracted from IBAN
+          description: 8-digit Bankleitzahl (BLZ) that was looked up
         bank_name:
           type: string
           nullable: true
