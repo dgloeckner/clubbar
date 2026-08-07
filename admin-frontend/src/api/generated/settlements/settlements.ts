@@ -50,8 +50,8 @@ import type {
   ExecutionDateInfo,
   ListSettlements200,
   ListSettlementsParams,
+  PreviewSettlementBody,
   PreviewSettlementByFiltersParams,
-  PreviewSettlementParams,
   Settlement,
   SettlementCreateRequest,
   SettlementFilterPreview,
@@ -110,18 +110,27 @@ const createSettlement = (
       options);
     }
   /**
- * Get a preview of transactions available for settlement.
+ * What a collection run would contain, and who it would leave out and
+why (ruling #141, issue #161).
+
+`from_date`/`to_date` select the run's **participants** — the members
+with unsettled activity in that window. They do not bound the amounts:
+each participant's whole unsettled position is what is tested and, on
+inclusion, what is swept. Members split into three buckets by that
+total: `> 0` and `= 0` are eligible (zero settles but produces no line
+in the pain.008), `< 0` is excluded into `credit_members`.
 
 **Use Cases**: UC-A30, UC-SEPA-06
 
- * @summary Preview unsettled transactions
+ * @summary Preview a settlement run
  */
 const previewSettlement = (
-    params?: PreviewSettlementParams,
+    previewSettlementBody?: PreviewSettlementBody,
  options?: SecondParameter<typeof customInstance<SettlementPreview>>,) => {
       return customInstance<SettlementPreview>(
-      {url: `/admin/settlements/preview`, method: 'GET',
-        params
+      {url: `/admin/settlements/preview`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: previewSettlementBody
     },
       options);
     }

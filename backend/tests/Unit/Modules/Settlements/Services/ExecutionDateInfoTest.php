@@ -70,6 +70,24 @@ class ExecutionDateInfoTest extends TestCase
         $this->assertStringContainsString('business day', $info->rule);
     }
 
+    /**
+     * The response carries the server's own date alongside the minimum.
+     *
+     * A client that pairs a locally-computed `settlement_date` with this
+     * `minimum_date` submits two dates from two clocks. Whenever the browser's
+     * calendar day is ahead of the server's — any evening east of UTC — the
+     * lead-time check rejects the very pair the server just suggested, and the
+     * admin cannot create a settlement at all. Publishing `today` lets both
+     * fields come from one clock.
+     */
+    public function test_reports_the_server_date_the_minimum_was_derived_from(): void
+    {
+        $info = $this->makeService()->getExecutionDateInfo('2026-08-05');
+
+        $this->assertSame('2026-08-05', $info->today);
+        $this->assertSame('2026-08-05', $info->toArray()['today']);
+    }
+
     public function test_default_today_yields_a_valid_future_business_day(): void
     {
         $info = $this->makeService()->getExecutionDateInfo();
@@ -89,7 +107,7 @@ class ExecutionDateInfoTest extends TestCase
     {
         $payload = $this->makeService()->getExecutionDateInfo('2026-08-05')->toArray();
 
-        $this->assertSame(['minimum_date', 'lead_time_days', 'rule'], array_keys($payload));
+        $this->assertSame(['minimum_date', 'lead_time_days', 'rule', 'today'], array_keys($payload));
         $this->assertSame('2026-08-12', $payload['minimum_date']);
         $this->assertSame(7, $payload['lead_time_days']);
     }

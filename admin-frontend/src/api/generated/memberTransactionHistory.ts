@@ -50,6 +50,12 @@ import type { MemberTransactionHistoryTransactionsItem } from './memberTransacti
 
 export interface MemberTransactionHistory {
   member_id?: string;
+  /** The member's **unsettled** position — what they still owe (positive)
+or the credit the club owes them (negative), per ruling
+[#141](https://github.com/dgloeckner/ruderbar/issues/141).
+The `transactions` list below is the full history and still contains
+transactions this figure excludes because a settlement claimed them.
+ */
   current_balance_cents?: number;
   transactions?: MemberTransactionHistoryTransactionsItem[];
   settlements?: MemberTransactionHistorySettlementsItem[];

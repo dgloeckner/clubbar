@@ -1,5 +1,5 @@
 import type { APIRequestContext } from '@playwright/test'
-import { minimumExecutionDate, today as todayIso } from './dates'
+import { minimumExecutionDate, serverToday } from './dates'
 
 /**
  * Per-test settlement factory (issue #98, ruling #146).
@@ -142,7 +142,7 @@ export function settlementFactory(
         throw new Error(`Factory could not sync purchase (${syncResponse.status()}): ${await syncResponse.text()}`)
       }
 
-      const settlementDate = todayIso()
+      const settlementDate = await serverToday(adminRequest)
       const executionDate = await minimumExecutionDate(adminRequest)
 
       const settlementResponse = await adminRequest.post('/api/admin/settlements', {

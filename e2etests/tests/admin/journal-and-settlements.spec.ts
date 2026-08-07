@@ -2,7 +2,7 @@ import { test, expect } from '../../fixtures/auth.fixture'
 import { JournalPage } from '../../pages/JournalPage'
 import { SettlementsPage } from '../../pages/SettlementsPage'
 import { generateUUID, createTestMember, createSepaInvalidMember } from '../../utils/transactions'
-import { minimumExecutionDate, today } from '../../utils/dates'
+import { minimumExecutionDate, serverToday } from '../../utils/dates'
 
 /**
  * Journal & Settlements E2E Tests (Consolidated)
@@ -360,7 +360,7 @@ test.describe('Journal & Settlements', () => {
     const settlement1Id = await testTransactions.createSettlement([txn1Id, txn2Id])
 
     // ── Attempt duplicate: txn2 (already settled) + txn3 → must reject ─
-    const todayStr = today()
+    const todayStr = await serverToday(authenticatedRequest)
     const execDate = await minimumExecutionDate(authenticatedRequest)
     const dupResp = await authenticatedRequest.post('/api/admin/settlements', {
       data: {

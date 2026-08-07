@@ -24,7 +24,6 @@ import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useExecutionDateInfo } from '../hooks/useExecutionDateInfo'
-import { toIsoDate } from '../utils/dates'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { SettlementStatusFilter } from '../components/forms/SettlementStatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
@@ -441,7 +440,13 @@ export function JournalPage() {
     setConfirmLoading(true)
     setConfirmError(null)
     try {
-      const today = toIsoDate(new Date())
+      // Both dates come from the server's clock, never this browser's. The
+      // backend requires execution_date >= settlement_date + 7 days; if we
+      // dated the settlement locally we would pair our calendar day with a
+      // minimum_date derived from the server's. East of UTC those differ every
+      // evening, and the settlement the admin just confirmed is refused with a
+      // lead-time error naming a date the server itself suggested.
+      const today = executionDateInfo.today
       const executionDateStr = executionDateInfo.minimum_date
 
       if (settleAllPreview) {
@@ -1195,6 +1200,7 @@ export function JournalPage() {
           transactions={settleAllPreview ? undefined : pendingTransactions}
           preview={settleAllPreview ?? undefined}
           executionDate={executionDateInfo?.minimum_date ?? null}
+          settlementDate={executionDateInfo?.today ?? null}
           onConfirm={handleConfirmSettlement}
           onCancel={() => {
             setConfirmModalOpen(false)

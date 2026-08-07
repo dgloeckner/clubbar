@@ -27,6 +27,13 @@ export interface SettlementConfirmModalProps {
    * display a date other than the one being sent.
    */
   executionDate: string | null
+  /**
+   * The settlement date that will be submitted — the server's own calendar
+   * day, not this browser's. Displaying one day while submitting another is
+   * the drift that made settlements unfillable east of UTC every evening.
+   * Falls back to the local day only while the server's answer is loading.
+   */
+  settlementDate?: string | null
   onConfirm: () => void
   onCancel: () => void
   isLoading: boolean
@@ -38,6 +45,7 @@ export function SettlementConfirmModal({
   transactions,
   preview,
   executionDate,
+  settlementDate,
   onConfirm,
   onCancel,
   isLoading,
@@ -52,7 +60,7 @@ export function SettlementConfirmModal({
   const memberCount = preview?.member_count ?? new Set(transactions?.map((tx) => tx.member_id) ?? []).size
   const totalCents = preview?.total_amount_cents ?? transactions?.reduce((sum, tx) => sum + (tx.amount_cents ?? 0), 0) ?? 0
 
-  const settlementDateStr = toIsoDate(new Date())
+  const settlementDateStr = settlementDate ?? toIsoDate(new Date())
   const canConfirm = executionDate !== null && !isLoading
 
   return (
