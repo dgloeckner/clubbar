@@ -215,16 +215,27 @@ class AdminController
         $id = $args['id'];
         $adminId = $request->getAttribute('admin_user_id');
 
-        $xml = $this->sepaExportService->generateSepaXml($id);
+        $result = $this->sepaExportService->export($id);
 
         // Mark settlement as exported
         $this->settlementsService->markExported($id, $adminId);
 
-        $response->getBody()->write($xml);
-        return $response
+        $response->getBody()->write($result->xml);
+        $response = $response
             ->withHeader('Content-Type', 'application/xml; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="sepa-' . $id . '.xml"')
-            ->withStatus(200);
+            ->withHeader('Content-Disposition', 'attachment; filename="sepa-' . $id . '.xml"');
+
+        // #80: members in credit carry no file line. The body is the bank file
+        // and cannot say so, so the omission rides on a header rather than
+        // vanishing. Ids only — names do not belong in HTTP headers.
+        if ($result->creditExcludedMembers !== []) {
+            $response = $response->withHeader(
+                'X-Credit-Excluded-Members',
+                implode(',', array_column($result->creditExcludedMembers, 'member_id'))
+            );
+        }
+
+        return $response->withStatus(200);
     }
 
     public function exportCsv(Request $request, Response $response, array $args): Response
