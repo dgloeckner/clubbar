@@ -51,5 +51,6 @@ export type TransactionTransactionType = typeof TransactionTransactionType[keyof
 
 export const TransactionTransactionType = {
   purchase: 'purchase',
-  correction: 'correction',
+  storno: 'storno',
+  payout: 'payout',
 } as const;

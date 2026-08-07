@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\DTOs;
 
+use App\Modules\Settlements\Enums\SettlementMethod;
+
 final readonly class SettlementDto
 {
     public function __construct(
         public string $id,
-        public ?string $manualReason,
+        public SettlementMethod $method,
         public string $settlementDate,
         public string $executionDate,
         public ?string $periodStart,
@@ -27,13 +29,17 @@ final readonly class SettlementDto
         public int $transactionCount = 0,
         public ?string $transactionDateMin = null,
         public ?string $transactionDateMax = null,
+        public ?string $submittedAt = null,
+        public ?string $submittedByAdminId = null,
     ) {}
 
     public static function fromRow(array $row, array $items = []): self
     {
         return new self(
             id: $row['id'],
-            manualReason: $row['manual_reason'] ?? null,
+            // Default to DIRECT_DEBIT for rows that predate #163's `method`
+            // column (e.g. minimal fixtures in older tests).
+            method: SettlementMethod::tryFrom($row['method'] ?? '') ?? SettlementMethod::DIRECT_DEBIT,
             settlementDate: $row['settlement_date'],
             executionDate: $row['execution_date'],
             periodStart: $row['period_start'] ?? null,
@@ -52,6 +58,8 @@ final readonly class SettlementDto
             transactionCount: (int) ($row['transaction_count'] ?? 0),
             transactionDateMin: $row['transaction_date_min'] ?? null,
             transactionDateMax: $row['transaction_date_max'] ?? null,
+            submittedAt: $row['submitted_at'] ?? null,
+            submittedByAdminId: $row['submitted_by_admin_id'] ?? null,
         );
     }
 
@@ -59,7 +67,7 @@ final readonly class SettlementDto
     {
         return [
             'id' => $this->id,
-            'manual_reason' => $this->manualReason,
+            'method' => $this->method->value,
             'settlement_date' => $this->settlementDate,
             'execution_date' => $this->executionDate,
             'period_start' => $this->periodStart,
@@ -79,6 +87,8 @@ final readonly class SettlementDto
             'transaction_count' => $this->transactionCount,
             'transaction_date_min' => \App\Shared\Utils\DateFormatter::toUtcIso($this->transactionDateMin),
             'transaction_date_max' => \App\Shared\Utils\DateFormatter::toUtcIso($this->transactionDateMax),
+            'submitted_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->submittedAt),
+            'submitted_by_admin_id' => $this->submittedByAdminId,
         ];
     }
 }

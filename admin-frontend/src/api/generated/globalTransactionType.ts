@@ -51,5 +51,6 @@ export type GlobalTransactionType = typeof GlobalTransactionType[keyof typeof Gl
 
 export const GlobalTransactionType = {
   purchase: 'purchase',
-  correction: 'correction',
+  storno: 'storno',
+  payout: 'payout',
 } as const;

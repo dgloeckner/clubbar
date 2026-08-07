@@ -51,5 +51,6 @@ export type DashboardResponseRecentTransactionsItemType = typeof DashboardRespon
 
 export const DashboardResponseRecentTransactionsItemType = {
   purchase: 'purchase',
-  correction: 'correction',
+  storno: 'storno',
+  payout: 'payout',
 } as const;

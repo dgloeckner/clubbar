@@ -8,10 +8,10 @@ import '../database/database.dart';
 class TransactionListItem {
   final String id;
   final DateTime timestamp;
-  final String details; // Product name or correction notes
+  final String details; // Product name or storno/payout notes
   final int amountCents;
   final TransactionSyncStatus syncStatus;
-  final String? productIcon; // Icon name (e.g., "beer", "coffee") or null for corrections
+  final String? productIcon; // Icon name (e.g., "beer", "coffee") or null for stornos/payouts
   final String? settlementId;
   final DateTime? settlementDate;
 
@@ -39,9 +39,9 @@ class TransactionListItem {
     String details;
     String? iconName;
 
-    if (transaction.transactionType == 'correction') {
-      // Corrections: use notes
-      details = transaction.notes ?? 'Korrektur';
+    if (transaction.transactionType == 'storno' || transaction.transactionType == 'payout') {
+      // Stornos and payouts: use notes (no product involved)
+      details = transaction.notes ?? (transaction.transactionType == 'payout' ? 'Auszahlung' : 'Storno');
       iconName = null;
     } else if (product != null) {
       // Purchases: extract product name from multilingual JSON
@@ -95,9 +95,9 @@ class TransactionListItem {
   factory TransactionListItem.fromBackendJson(Map<String, dynamic> json, String preferredLanguage) {
     // Parse product names JSON (multilingual)
     String details;
-    if (json['transaction_type'] == 'correction') {
-      // For corrections, use notes as details
-      details = json['notes'] ?? 'Correction';
+    if (json['transaction_type'] == 'storno' || json['transaction_type'] == 'payout') {
+      // For stornos and payouts, use notes as details (no product involved)
+      details = json['notes'] ?? (json['transaction_type'] == 'payout' ? 'Auszahlung' : 'Storno');
     } else {
       // For purchases, extract product name in user's language
       final productNames = json['product_names'];

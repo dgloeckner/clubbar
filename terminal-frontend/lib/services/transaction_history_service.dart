@@ -148,10 +148,15 @@ class TransactionHistoryService {
       if (response == null) return []; // 304 → empty
 
       return response.transactions.map((item) {
-        final details =
-            item.type == TransactionHistoryResponse$Transactions$ItemType.correction
-                ? (item.notes ?? 'Correction')
-                : item.productName;
+        final isStornoOrPayout = item.type ==
+                TransactionHistoryResponse$Transactions$ItemType.storno ||
+            item.type == TransactionHistoryResponse$Transactions$ItemType.payout;
+        final details = isStornoOrPayout
+            ? (item.notes ??
+                (item.type == TransactionHistoryResponse$Transactions$ItemType.payout
+                    ? 'Auszahlung'
+                    : 'Storno'))
+            : item.productName;
 
         // A transaction that landed in a (non-cancelled) settlement is history,
         // not a running tab — the badge has to say so.

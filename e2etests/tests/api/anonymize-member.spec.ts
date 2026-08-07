@@ -173,8 +173,11 @@ test.describe('GDPR Member Anonymization', () => {
     const txId1 = await testTransactions.createSyncTransaction(member.id, 300);
     const txId2 = await testTransactions.createSyncTransaction(member.id, 500);
 
-    // Create a correction to zero out the balance
-    await testTransactions.createCorrection(member.id, -800, 'Zero out for anonymization');
+    // Zero the balance by reversing the two purchases. There is no free-amount
+    // adjustment any more: a storno names one transaction and reverses it in
+    // full, so clearing a tab of two purchases takes two stornos.
+    await testTransactions.createStorno(member.id, -300, 'Zero out for anonymization', 'refund', txId1);
+    await testTransactions.createStorno(member.id, -500, 'Zero out for anonymization', 'refund', txId2);
 
     // Anonymize
     const anonResponse = await authenticatedRequest.post(`${API_BASE}/admin/members/${member.id}/anonymize`);
@@ -186,8 +189,9 @@ test.describe('GDPR Member Anonymization', () => {
     );
     expect(txnResponse.ok()).toBeTruthy();
     const txnData = await txnResponse.json();
-    // Should have at least the 3 transactions (2 purchases + 1 correction)
-    expect(txnData.items.length).toBeGreaterThanOrEqual(3);
+    // 2 purchases + 2 stornos, all retained: erasure removes the person, not
+    // the accounting record (#165)
+    expect(txnData.items.length).toBeGreaterThanOrEqual(4);
 
     // Verify transaction amounts are intact
     const amounts = txnData.items.map((t: any) => t.amount_cents);

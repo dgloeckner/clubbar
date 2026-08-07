@@ -80,14 +80,15 @@ const getMemberTransactions = (
       options);
     }
   /**
- * Create a manual correction transaction for a member.
+ * Create a storno for a member — the reversal of one specific transaction.
 
 **Use Case**: UC-A21
 
-Manual transactions can have positive amounts (charge) or negative amounts (credit/reversal).
+A storno must name the transaction it reverses via `related_transaction_id`
+(GoBD Rz. 64, *"Korrektur- bzw. Stornobuchungen"*); omitting it is a 422.
 A reason is required for audit purposes.
 
- * @summary Create manual transaction (correction)
+ * @summary Create manual transaction (storno)
  */
 const createManualTransaction = (
     memberId: string,

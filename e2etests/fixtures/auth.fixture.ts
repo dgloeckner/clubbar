@@ -4,7 +4,7 @@ import { generateTotp } from "../utils/totp";
 import {
   createTestMember,
   createSyncTransaction,
-  createCorrection,
+  createStorno,
   createSettlement,
 } from "../utils/transactions";
 import { minimumExecutionDate } from "../utils/dates";
@@ -40,11 +40,20 @@ interface TestTransactionsFixture {
   createMember(firstName?: string, lastName?: string, baseEmail?: string): Promise<any>;
   createProduct(nameDe: string, priceCents: number, nameEn?: string): Promise<any>;
   createSyncTransaction(memberId: string, amountCents?: number, notes?: string, productId?: string): Promise<string>;
-  createCorrection(
+  /**
+   * Create a storno (reversal) transaction for a member.
+   * A storno must name the transaction it reverses via `related_transaction_id`
+   * (GoBD Rz. 64). If `relatedTransactionId` is omitted, a fresh purchase
+   * transaction is created for the member first and used as the target —
+   * this also guarantees each storno reverses a DISTINCT purchase, since a
+   * transaction can only be stornoed once (UNIQUE constraint).
+   */
+  createStorno(
     memberId: string,
     amountCents?: number,
     notes?: string,
-    reason?: 'adjustment' | 'refund' | 'discount'
+    reason?: 'adjustment' | 'refund' | 'discount',
+    relatedTransactionId?: string
   ): Promise<string>;
   createSettlement(transactionIds: string[], executionDate?: string): Promise<string>;
 }
@@ -400,23 +409,32 @@ export const test = base.extend<AuthFixtures>({
         return result.accepted_ids?.[0] || txnData.id;
       },
 
-      async createCorrection(
+      async createStorno(
         memberId: string,
         amountCents = 1000,
-        notes = 'Test correction',
-        reason = 'adjustment'
+        notes = 'Test storno',
+        reason = 'adjustment',
+        relatedTransactionId?: string
       ) {
-        const correctionData = createCorrection(amountCents, notes, reason);
+        // A storno must name the transaction it reverses (required, not null).
+        // If the caller didn't supply one, create a fresh purchase for this
+        // member to reverse — a distinct one each call, since a transaction
+        // can only be stornoed once (UNIQUE constraint on related_transaction_id).
+        const targetTransactionId =
+          relatedTransactionId ??
+          (await this.createSyncTransaction(memberId, Math.abs(amountCents) || 1000, `${notes} (auto purchase)`));
+
+        const stornoData = createStorno(amountCents, notes, targetTransactionId, reason);
         const response = await authenticatedRequest.post(
-          `${API_BASE}/admin/members/${memberId}/transactions/correction`,
+          `${API_BASE}/admin/members/${memberId}/transactions`,
           {
-            data: correctionData,
+            data: stornoData,
           }
         );
 
         if (response.status() !== 201) {
           const error = await response.json();
-          throw new Error(`Failed to create correction: ${JSON.stringify(error)}`);
+          throw new Error(`Failed to create storno: ${JSON.stringify(error)}`);
         }
 
         const result = await response.json();

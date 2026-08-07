@@ -342,4 +342,165 @@ class MembersRepositoryTest extends DatabaseTestCase
         
         $this->assertTrue($found, 'Member created after cursor should be found in next sync');
     }
+
+    // ------------------------------------------------------------------
+    // Banking data, which lives on the append-only mandate record (#164)
+    // ------------------------------------------------------------------
+
+    public function test_create_mints_a_mandate_reference_when_an_iban_is_given(): void
+    {
+        // No reference named at all — ADR-0006 says mint one.
+        $id = $this->generateUuid();
+        $this->testMemberIds[] = $id;
+
+        $member = $this->membersRepository->create([
+            'id' => $id,
+            'first_name' => 'Minted',
+            'last_name' => 'Member',
+            'email' => "minted-{$id}@example.com",
+            'iban' => 'DE89370400440532013000',
+            'mandate_signed_at' => '2025-01-01',
+        ]);
+
+        $this->assertSame('DE89370400440532013000', $member['iban']);
+        $this->assertNotEmpty($member['mandate_reference']);
+        $this->assertSame('2025-01-01', $member['mandate_signed_at']);
+    }
+
+    public function test_a_member_without_an_iban_has_no_mandate_reference(): void
+    {
+        $id = $this->generateUuid();
+        $this->testMemberIds[] = $id;
+
+        $member = $this->membersRepository->create([
+            'id' => $id,
+            'first_name' => 'NoBank',
+            'last_name' => 'Member',
+            'email' => "nobank-{$id}@example.com",
+        ]);
+
+        $this->assertNull($member['iban']);
+        $this->assertNull(
+            $member['mandate_reference'],
+            'a reference minted from an IBAN-less member would assert a mandate that does not exist'
+        );
+    }
+
+    public function test_an_explicitly_empty_reference_opens_no_mandate_even_with_an_iban(): void
+    {
+        // Auto-minting a reference is what makes a missing mandate invisible
+        // (#164). The caller saying "no reference" must therefore leave the
+        // member SEPA-invalid rather than have one minted on their behalf.
+        $member = $this->createMemberWithBankingData(['mandate_reference' => '']);
+
+        $this->assertNull($member['mandate_reference']);
+        $this->assertNull($member['iban']);
+        $this->assertSame(0, $this->countMandates($member['id']));
+    }
+
+    public function test_an_empty_iban_is_stored_as_no_banking_data_at_all(): void
+    {
+        $member = $this->createMemberWithBankingData(['iban' => '']);
+
+        $this->assertNull($member['iban']);
+        $this->assertSame(0, $this->countMandates($member['id']));
+    }
+
+    public function test_resubmitting_the_same_banking_data_leaves_the_mandate_alone(): void
+    {
+        // The admin edit form round-trips every field, so an unrelated edit
+        // re-sends the unchanged IBAN and reference. That must not be read as a
+        // bank change: opening a second mandate carrying the same reference
+        // would collide, and the member would appear to have moved banks.
+        $member = $this->createMemberWithBankingData();
+        $reference = $member['mandate_reference'];
+
+        $updated = $this->membersRepository->updateById($member['id'], [
+            'first_name' => 'Renamed',
+            'iban' => $member['iban'],
+            'mandate_reference' => $reference,
+            'mandate_signed_at' => $member['mandate_signed_at'],
+        ]);
+
+        $this->assertSame('Renamed', $updated['first_name']);
+        $this->assertSame($reference, $updated['mandate_reference']);
+        $this->assertSame(1, $this->countMandates($member['id']));
+    }
+
+    public function test_a_bank_change_ends_the_old_mandate_and_opens_a_new_one(): void
+    {
+        $member = $this->createMemberWithBankingData();
+        $originalReference = $member['mandate_reference'];
+
+        $updated = $this->membersRepository->updateById($member['id'], [
+            'iban' => 'DE02120300000000202051',
+        ]);
+
+        $this->assertSame('DE02120300000000202051', $updated['iban']);
+        $this->assertNotSame(
+            $originalReference,
+            $updated['mandate_reference'],
+            'a new bank account is a new mandate, and SEPA convention gives it a new reference'
+        );
+        $this->assertSame(
+            2,
+            $this->countMandates($member['id']),
+            'the superseded mandate must survive so a return quoting its MREF+ still resolves'
+        );
+    }
+
+    public function test_clearing_the_iban_revokes_the_mandate(): void
+    {
+        $member = $this->createMemberWithBankingData();
+
+        $updated = $this->membersRepository->updateById($member['id'], ['iban' => null]);
+
+        $this->assertNull($updated['iban']);
+        $this->assertNull($updated['mandate_reference']);
+        $this->assertSame(1, $this->countMandates($member['id']), 'the ended mandate is kept, not deleted');
+    }
+
+    public function test_anonymize_ends_the_mandate_but_keeps_the_record(): void
+    {
+        $member = $this->createMemberWithBankingData();
+
+        $this->assertTrue($this->membersRepository->anonymize($member['id']));
+
+        $anonymized = $this->membersRepository->findByIdIncludingDeleted($member['id']);
+        $this->assertNull($anonymized['iban']);
+        $this->assertNull($anonymized['mandate_reference']);
+        $this->assertSame(
+            1,
+            $this->countMandates($member['id']),
+            'erasure removes the person; the mandate record is what a bank return still has to resolve (#165)'
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
+     */
+    private function createMemberWithBankingData(array $overrides = []): array
+    {
+        $id = $this->generateUuid();
+        $this->testMemberIds[] = $id;
+
+        return $this->membersRepository->create(array_merge([
+            'id' => $id,
+            'first_name' => 'Banking',
+            'last_name' => 'Member',
+            'email' => "banking-{$id}@example.com",
+            'iban' => 'DE89370400440532013000',
+            'mandate_reference' => 'MANDATE' . substr($id, 0, 8),
+            'mandate_signed_at' => '2025-01-01',
+        ], $overrides));
+    }
+
+    private function countMandates(string $memberId): int
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM mandates WHERE member_id = ?');
+        $stmt->execute([$memberId]);
+
+        return (int) $stmt->fetchColumn();
+    }
 }

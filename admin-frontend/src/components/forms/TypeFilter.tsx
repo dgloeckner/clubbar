@@ -1,30 +1,30 @@
 /**
  * Type Filter Component (Colored Toggle Pills)
  *
- * Filters transactions by type: All, Purchase, or Correction
+ * Filters transactions by type: All, Purchase, or Storno
  * Uses colored toggle pills with visual indicators (colored dots)
  *
  * Features:
- * - Colored dot indicators (green for purchase, orange for correction)
+ * - Colored dot indicators (green for purchase, orange for storno)
  * - Clean, compact button group design
  * - Active button highlighted in blue
  * - Callback on type change
  */
 
 export interface TypeFilterProps {
-  value?: 'all' | 'purchase' | 'correction'
-  onTypeChange?: (type: 'all' | 'purchase' | 'correction') => void
+  value?: 'all' | 'purchase' | 'storno'
+  onTypeChange?: (type: 'all' | 'purchase' | 'storno') => void
   testId?: string
 }
 
 const TYPES = [
   { key: 'all', label: 'All Transactions' },
   { key: 'purchase', label: 'Purchases', dotColor: '#22c55e' }, // Green
-  { key: 'correction', label: 'Corrections', dotColor: '#f97316' }, // Orange
+  { key: 'storno', label: 'Stornos', dotColor: '#f97316' }, // Orange
 ] as const
 
 export function TypeFilter({ value = 'all', onTypeChange, testId = 'type-filter' }: TypeFilterProps) {
-  const handleClick = (type: 'all' | 'purchase' | 'correction') => {
+  const handleClick = (type: 'all' | 'purchase' | 'storno') => {
     if (onTypeChange) {
       onTypeChange(type)
     }
@@ -41,7 +41,7 @@ export function TypeFilter({ value = 'all', onTypeChange, testId = 'type-filter'
       {TYPES.map((type) => (
         <button
           key={type.key}
-          onClick={() => handleClick(type.key as 'all' | 'purchase' | 'correction')}
+          onClick={() => handleClick(type.key as 'all' | 'purchase' | 'storno')}
           data-testid={`${testId}-${type.key}`}
           style={{
             display: 'flex',
@@ -70,7 +70,7 @@ export function TypeFilter({ value = 'all', onTypeChange, testId = 'type-filter'
             }
           }}
         >
-          {/* Colored dot indicator (only for purchase/correction) */}
+          {/* Colored dot indicator (only for purchase/storno) */}
           {type.key !== 'all' && (
             <div
               style={{

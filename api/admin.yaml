@@ -58,7 +58,7 @@ tags:
   - name: Members
     description: Member CRUD, RFID card management, GDPR workflows
   - name: Transactions
-    description: Transaction viewing and manual corrections
+    description: Transaction viewing and manual stornos
   - name: Products
     description: Product and category management
   - name: Settlements
@@ -472,7 +472,7 @@ paths:
           description: Filter by transaction type
           schema:
             type: string
-            enum: [all, purchase, correction]
+            enum: [all, purchase, storno, payout]
             default: all
         - name: include_settled
           in: query
@@ -494,13 +494,14 @@ paths:
 
     post:
       tags: [Transactions]
-      summary: Create manual transaction (correction)
+      summary: Create manual transaction (storno)
       description: |
-        Create a manual correction transaction for a member.
+        Create a storno for a member — the reversal of one specific transaction.
 
         **Use Case**: UC-A21
 
-        Manual transactions can have positive amounts (charge) or negative amounts (credit/reversal).
+        A storno must name the transaction it reverses via `related_transaction_id`
+        (GoBD Rz. 64, *"Korrektur- bzw. Stornobuchungen"*); omitting it is a 422.
         A reason is required for audit purposes.
       operationId: createManualTransaction
       security:
@@ -934,7 +935,7 @@ paths:
           description: Filter by transaction type
           schema:
             type: string
-            enum: [all, purchase, correction]
+            enum: [all, purchase, storno, payout]
             default: all
       responses:
         '200':
@@ -1295,8 +1296,8 @@ paths:
           for the earliest valid date rather than computing it.
         - All members with valid SEPA data are included in XML export
 
-        **Manual settlements**:
-        - Require `manual_reason` and `notes` (min 10 chars)
+        **Manual settlements** (`method: bank_transfer` or `write_off`):
+        - Must cover exactly one member
         - No SEPA XML export available
       operationId: createSettlement
       security:
@@ -2484,7 +2485,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [purchase, correction]
+            enum: [purchase, storno, payout]
         - name: member_id
           in: query
           schema:
@@ -3212,7 +3213,7 @@ components:
           type: integer
         transaction_type:
           type: string
-          enum: [purchase, correction]
+          enum: [purchase, storno, payout]
         notes:
           type: string
           nullable: true
@@ -3257,7 +3258,7 @@ components:
                 format: date-time
               type:
                 type: string
-                enum: [purchase, correction]
+                enum: [purchase, storno, payout]
               description:
                 type: string
               amount_cents:
@@ -3287,7 +3288,7 @@ components:
 
     ManualTransactionRequest:
       type: object
-      required: [amount_cents, notes]
+      required: [amount_cents, notes, related_transaction_id]
       properties:
         amount_cents:
           type: integer
@@ -3295,11 +3296,15 @@ components:
         notes:
           type: string
           maxLength: 500
-          description: Reason for the correction (required)
+          description: Reason for the storno (required)
         related_transaction_id:
           type: string
           format: uuid
-          description: Optional reference to original transaction
+          description: |
+            The transaction this storno reverses (required). A storno must name
+            the transaction it reverses (GoBD Rz. 64, "Korrektur- bzw.
+            Stornobuchungen"). Naming a transaction that does not exist, or
+            that belongs to another member, results in a 404.
 
     # --------------------------------------------------------------------------
     # Products & Categories
@@ -3445,9 +3450,13 @@ components:
         id:
           type: string
           format: uuid
-        settlement_type:
+        method:
           type: string
-          enum: [sepa, manual]
+          enum: [direct_debit, bank_transfer, write_off]
+          description: |
+            How this settlement's balance is collected. Replaces the old
+            `settlement_type`/`manual_reason` pair (ruling #163). Only
+            `direct_debit` settlements can be exported to SEPA.
         settlement_date:
           type: string
           format: date
@@ -3465,6 +3474,14 @@ components:
           type: string
           format: date-time
           nullable: true
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        submitted_by_admin_id:
+          type: string
+          format: uuid
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -3475,9 +3492,13 @@ components:
         id:
           type: string
           format: uuid
-        settlement_type:
+        method:
           type: string
-          enum: [sepa, manual]
+          enum: [direct_debit, bank_transfer, write_off]
+          description: |
+            How this settlement's balance is collected. Replaces the old
+            `settlement_type`/`manual_reason` pair (ruling #163). Only
+            `direct_debit` settlements can be exported to SEPA.
         settlement_date:
           type: string
           format: date
@@ -3496,10 +3517,6 @@ components:
         sepa_message_id:
           type: string
           nullable: true
-        manual_reason:
-          type: string
-          enum: [cash_payment, bank_transfer, other_payment, write_off, goodwill, correction, other]
-          nullable: true
         total_amount_cents:
           type: integer
         member_count:
@@ -3513,6 +3530,14 @@ components:
         exported_at:
           type: string
           format: date-time
+          nullable: true
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        submitted_by_admin_id:
+          type: string
+          format: uuid
           nullable: true
         notes:
           type: string
@@ -3616,11 +3641,16 @@ components:
 
     SettlementCreateRequest:
       type: object
-      required: [settlement_type]
       properties:
-        settlement_type:
+        method:
           type: string
-          enum: [sepa, manual]
+          enum: [direct_debit, bank_transfer, write_off]
+          default: direct_debit
+          description: |
+            How this settlement's balance will be collected. Replaces the old
+            `settlement_type`/`manual_reason` pair (ruling #163).
+            `bank_transfer` and `write_off` settlements must cover exactly one
+            member and can never be exported to SEPA.
         period_start:
           type: string
           format: date
@@ -3630,15 +3660,10 @@ components:
         execution_date:
           type: string
           format: date
-          description: Required for SEPA (>= TODAY + 7 days)
-        manual_reason:
-          type: string
-          enum: [cash_payment, bank_transfer, other_payment, write_off, goodwill, correction, other]
-          description: Required for manual settlements
+          description: Required for direct_debit (>= TODAY + 7 days)
         notes:
           type: string
           maxLength: 500
-          description: Required for manual settlements (min 10 chars)
         member_ids:
           type: array
           items:
@@ -3728,7 +3753,7 @@ components:
           type: string
         type:
           type: string
-          enum: [purchase, correction]
+          enum: [purchase, storno, payout]
         amount_cents:
           type: integer
         description:
@@ -4249,7 +4274,7 @@ components:
                 description: Display name (first + last name or card_uid)
               type:
                 type: string
-                enum: [purchase, correction]
+                enum: [purchase, storno, payout]
               amount_cents:
                 type: integer
               product_name:

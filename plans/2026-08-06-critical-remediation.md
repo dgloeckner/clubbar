@@ -87,7 +87,7 @@ Two things gate everything:
 
 | Phase | Work | Gated by |
 |---|---|---|
-| 0 | [Schema migration](https://github.com/dgloeckner/ruderbar/issues/151) | — |
+| 0 | ~~[Schema migration](https://github.com/dgloeckner/ruderbar/issues/151)~~ **shipped** — `007_critical_remediation.sql` | — |
 | 1 | [Test fixtures](https://github.com/dgloeckner/ruderbar/issues/98) · ~~coverage gate (#103)~~ **merged in [#154](https://github.com/dgloeckner/ruderbar/pull/154)** · [coverage/ruling protocol](https://github.com/dgloeckner/ruderbar/issues/168) | — |
 | 2 | [Balance definition](https://github.com/dgloeckner/ruderbar/issues/83) · [credit exclusion](https://github.com/dgloeckner/ruderbar/issues/80) · **[settlement-layer exclusion](https://github.com/dgloeckner/ruderbar/issues/161)** · [export reporting](https://github.com/dgloeckner/ruderbar/issues/114) | Phase 0 |
 | 3 | [Cancellation](https://github.com/dgloeckner/ruderbar/issues/81) · [atomicity](https://github.com/dgloeckner/ruderbar/issues/86) · [EndToEndId](https://github.com/dgloeckner/ruderbar/issues/150) · [lead time](https://github.com/dgloeckner/ruderbar/issues/113) · [undo UX](https://github.com/dgloeckner/ruderbar/issues/127) · [tests](https://github.com/dgloeckner/ruderbar/issues/100) | Phases 0–2 |

@@ -45,13 +45,14 @@ export class JournalPage extends BasePage {
   private readonly settlementConfirmTxCount = () => this.page.getByTestId('journal-settlement-confirm-transaction-count')
   private readonly settlementConfirmMemberCount = () => this.page.getByTestId('journal-settlement-confirm-member-count')
 
-  // Correction modal elements (test IDs from JournalPage.tsx)
-  private readonly createCorrectionBtn = () => this.page.getByTestId('journal-create-correction-btn')
-  private readonly correctionModal = () => this.page.getByTestId('journal-correction-modal')
-  private readonly correctionMemberSelect = () => this.page.getByTestId('journal-correction-member-select')
-  private readonly correctionAmountInput = () => this.page.getByTestId('journal-correction-amount-input')
-  private readonly correctionReasonInput = () => this.page.getByTestId('journal-correction-reason-input')
-  private readonly correctionSubmitBtn = () => this.page.getByTestId('journal-correction-submit-btn')
+  // Storno modal elements (test IDs from JournalPage.tsx)
+  private readonly createStornoBtn = () => this.page.getByTestId('journal-create-storno-btn')
+  private readonly stornoModal = () => this.page.getByTestId('journal-storno-modal')
+  private readonly stornoMemberSelect = () => this.page.getByTestId('journal-storno-member-select')
+  private readonly stornoRelatedTransactionSelect = () => this.page.getByTestId('journal-storno-related-transaction-select')
+  private readonly stornoAmountInput = () => this.page.getByTestId('journal-storno-amount-input')
+  private readonly stornoReasonInput = () => this.page.getByTestId('journal-storno-reason-input')
+  private readonly stornoSubmitBtn = () => this.page.getByTestId('journal-storno-submit-btn')
 
   constructor(page: Page) {
     super(page)
@@ -340,48 +341,57 @@ export class JournalPage extends BasePage {
   }
 
   /**
-   * CORRECTION MODAL
-   * Opens the "Create Correction" modal from the journal toolbar.
+   * STORNO MODAL
+   * Opens the "Create Storno" modal from the journal toolbar.
    */
-  async openCorrectionModal() {
-    await this.createCorrectionBtn().click()
-    await expect(this.correctionModal()).toBeVisible()
+  async openStornoModal() {
+    await this.createStornoBtn().click()
+    await expect(this.stornoModal()).toBeVisible()
     // Wait for member options to load (modal fetches members asynchronously)
-    await expect(this.correctionMemberSelect().locator('option').nth(1)).toBeAttached({ timeout: 10000 })
+    await expect(this.stornoMemberSelect().locator('option').nth(1)).toBeAttached({ timeout: 10000 })
   }
 
   /**
-   * Fill the correction form.
+   * Fill the storno form.
    * NOTE: amountEur is in euros (e.g. 7.50) — the input field displays EUR
    * because JournalPage.tsx renders: value={correctionForm.amountCents / 100}
    * The backend will receive amount_cents = amountEur * 100.
+   *
+   * Selecting a member triggers an async fetch of that member's transactions
+   * (the storno candidates); `relatedTransactionId` must reference one of
+   * their existing transactions (GoBD Rz. 64: a storno must name the
+   * transaction it reverses).
    */
-  async fillCorrectionForm(params: {
+  async fillStornoForm(params: {
     memberId: string
+    relatedTransactionId: string
     amountEur: number
     reason: string
   }) {
-    await this.correctionMemberSelect().selectOption(params.memberId)
-    await this.correctionAmountInput().fill(String(params.amountEur))
-    await this.correctionReasonInput().fill(params.reason)
+    await this.stornoMemberSelect().selectOption(params.memberId)
+    // Wait for the related-transaction dropdown to populate for this member
+    await expect(this.stornoRelatedTransactionSelect().locator(`option[value="${params.relatedTransactionId}"]`)).toBeAttached({ timeout: 10000 })
+    await this.stornoRelatedTransactionSelect().selectOption(params.relatedTransactionId)
+    await this.stornoAmountInput().fill(String(params.amountEur))
+    await this.stornoReasonInput().fill(params.reason)
   }
 
   /**
-   * Submit the correction form and wait for the API response (201 Created).
+   * Submit the storno form and wait for the API response (201 Created).
    * Returns the Response so tests can assert on body content.
    */
-  async submitCorrectionForm(): Promise<import('@playwright/test').Response> {
+  async submitStornoForm(): Promise<import('@playwright/test').Response> {
     const responsePromise = this.page.waitForResponse(
       (resp) =>
         resp.url().includes('/admin/members/') &&
         resp.url().includes('/transactions') &&
         resp.status() === 201
     )
-    await this.correctionSubmitBtn().click()
+    await this.stornoSubmitBtn().click()
     return responsePromise
   }
 
-  async expectCorrectionModalHidden() {
-    await expect(this.correctionModal()).toBeHidden()
+  async expectStornoModalHidden() {
+    await expect(this.stornoModal()).toBeHidden()
   }
 }

@@ -81,9 +81,12 @@ class AdminController
             $body['reason'] = $body['notes'];
         }
 
+        // related_transaction_id is required, not optional: a storno reverses one
+        // named transaction (GoBD Rz. 64), and the database refuses an unlinked one.
         if (!$this->validator->validate($body, [
             'amount_cents' => ['required', 'integer'],
             'reason' => ['required', 'string', 'max:500'],
+            'related_transaction_id' => ['required', 'string'],
         ])) {
             return $this->json($response, [
                 'error' => 'validation_failed',
@@ -107,6 +110,7 @@ class AdminController
             $amountCents,
             $body['reason'],
             $adminId,
+            $body['related_transaction_id'],
         );
 
         // Return flat transaction fields directly (not wrapped)

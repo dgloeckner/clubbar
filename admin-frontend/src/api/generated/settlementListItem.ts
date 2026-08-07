@@ -45,11 +45,15 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { SettlementListItemSettlementType } from './settlementListItemSettlementType';
+import type { SettlementListItemMethod } from './settlementListItemMethod';
 
 export interface SettlementListItem {
   id?: string;
-  settlement_type?: SettlementListItemSettlementType;
+  /** How this settlement's balance is collected. Replaces the old
+`settlement_type`/`manual_reason` pair (ruling #163). Only
+`direct_debit` settlements can be exported to SEPA.
+ */
+  method?: SettlementListItemMethod;
   settlement_date?: string;
   /** @nullable */
   execution_date?: string | null;
@@ -58,5 +62,9 @@ export interface SettlementListItem {
   is_cancelled?: boolean;
   /** @nullable */
   exported_at?: string | null;
+  /** @nullable */
+  submitted_at?: string | null;
+  /** @nullable */
+  submitted_by_admin_id?: string | null;
   created_at?: string;
 }

@@ -215,27 +215,29 @@ class SettlementsRepositoryTest extends DatabaseTestCase
 
         $result = $this->settlementsRepository->create([
             'id' => $id,
-            'manual_reason' => 'cash',
+            // manual_reason 'cash' maps to method 'bank_transfer' post-migration; a non-direct_debit
+            // method requires member_count = 1 (chk_settlements_manual_is_single_member).
+            'method' => 'bank_transfer',
             'settlement_date' => '2026-06-01',
             'execution_date' => '2026-06-05',
             'period_start' => '2026-05-01',
             'period_end' => '2026-05-31',
             'sepa_message_id' => null,
             'total_amount_cents' => 12345,
-            'member_count' => 3,
+            'member_count' => 1,
             'notes' => 'Test settlement notes',
             'created_by_admin_id' => $adminId,
         ]);
 
         $this->assertNotNull($result);
         $this->assertEquals($id, $result['id']);
-        $this->assertEquals('cash', $result['manual_reason']);
+        $this->assertEquals('bank_transfer', $result['method']);
         $this->assertEquals('2026-06-01', $result['settlement_date']);
         $this->assertEquals('2026-06-05', $result['execution_date']);
         $this->assertEquals('2026-05-01', $result['period_start']);
         $this->assertEquals('2026-05-31', $result['period_end']);
         $this->assertEquals(12345, (int) $result['total_amount_cents']);
-        $this->assertEquals(3, (int) $result['member_count']);
+        $this->assertEquals(1, (int) $result['member_count']);
         $this->assertEquals(0, (int) $result['is_cancelled']);
         $this->assertEquals('Test settlement notes', $result['notes']);
         $this->assertEquals($adminId, $result['created_by_admin_id']);
@@ -266,7 +268,8 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $memberId = $this->createTestMember('Negative', 'Amount');
         $categoryId = $this->createTestCategory('NegativeCategory');
         $productId = $this->createTestProduct($categoryId, 'NegativeProduct', 'mug', 500);
-        $transactionId = $this->createTestTransaction($memberId, $productId, -500, 'correction', '2026-06-15 10:00:00');
+        $purchaseTransactionId = $this->createTestTransaction($memberId, $productId, 500, 'purchase', '2026-06-15 09:00:00');
+        $transactionId = $this->createTestTransaction($memberId, $productId, -500, 'storno', '2026-06-15 10:00:00', $purchaseTransactionId);
 
         // Note: settlements.total_amount_cents is UNSIGNED (unlike settlement_items.amount_cents),
         // so the settlement-level total uses 0 here; only the item-level amount is negative.
@@ -630,13 +633,22 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         return $productId;
     }
 
-    private function createTestTransaction(string $memberId, string $productId, int $amountCents, string $type, string $createdAt): string
+    private function createTestTransaction(string $memberId, string $productId, int $amountCents, string $type, string $createdAt, ?string $relatedTransactionId = null): string
     {
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
 
+        if ($relatedTransactionId !== null) {
+            $stmt = $this->db->prepare(
+                'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, related_transaction_id, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            );
+            $stmt->execute([$transactionId, $memberId, $productId, $amountCents, $type, $relatedTransactionId, $createdAt]);
+
+            return $transactionId;
+        }
+
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, $productId, $amountCents, $type, $createdAt]);
 

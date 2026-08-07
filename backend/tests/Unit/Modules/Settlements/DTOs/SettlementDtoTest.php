@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\Settlements\DTOs;
 
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementItemDto;
+use App\Modules\Settlements\Enums\SettlementMethod;
 use PHPUnit\Framework\TestCase;
 
 class SettlementDtoTest extends TestCase
@@ -15,7 +16,7 @@ class SettlementDtoTest extends TestCase
         // Arrange & Act
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: '2026-08-01',
@@ -35,7 +36,7 @@ class SettlementDtoTest extends TestCase
 
         // Assert
         $this->assertSame('settlement-123', $dto->id);
-        $this->assertNull($dto->manualReason);
+        $this->assertSame(SettlementMethod::DIRECT_DEBIT, $dto->method);
         $this->assertSame('2026-08-07', $dto->settlementDate);
         $this->assertSame('2026-08-10', $dto->executionDate);
         $this->assertSame('2026-08-01', $dto->periodStart);
@@ -58,7 +59,7 @@ class SettlementDtoTest extends TestCase
         // Arrange & Act
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -80,6 +81,8 @@ class SettlementDtoTest extends TestCase
         $this->assertSame(0, $dto->transactionCount);
         $this->assertNull($dto->transactionDateMin);
         $this->assertNull($dto->transactionDateMax);
+        $this->assertNull($dto->submittedAt);
+        $this->assertNull($dto->submittedByAdminId);
     }
 
     public function test_constructor_allows_custom_transaction_count_and_dates(): void
@@ -87,7 +90,7 @@ class SettlementDtoTest extends TestCase
         // Arrange & Act
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -119,7 +122,7 @@ class SettlementDtoTest extends TestCase
         // Arrange
         $row = [
             'id' => 'settlement-123',
-            'manual_reason' => 'cash',
+            'method' => 'bank_transfer',
             'settlement_date' => '2026-08-07',
             'execution_date' => '2026-08-10',
             'period_start' => '2026-08-01',
@@ -137,6 +140,8 @@ class SettlementDtoTest extends TestCase
             'transaction_count' => 10,
             'transaction_date_min' => '2026-08-01',
             'transaction_date_max' => '2026-08-07',
+            'submitted_at' => '2026-08-09 09:00:00',
+            'submitted_by_admin_id' => 'admin-999',
         ];
 
         // Act
@@ -144,7 +149,7 @@ class SettlementDtoTest extends TestCase
 
         // Assert
         $this->assertSame('settlement-123', $dto->id);
-        $this->assertSame('cash', $dto->manualReason);
+        $this->assertSame(SettlementMethod::BANK_TRANSFER, $dto->method);
         $this->assertSame('2026-08-07', $dto->settlementDate);
         $this->assertSame('2026-08-10', $dto->executionDate);
         $this->assertSame('2026-08-01', $dto->periodStart);
@@ -163,6 +168,8 @@ class SettlementDtoTest extends TestCase
         $this->assertSame(10, $dto->transactionCount);
         $this->assertSame('2026-08-01', $dto->transactionDateMin);
         $this->assertSame('2026-08-07', $dto->transactionDateMax);
+        $this->assertSame('2026-08-09 09:00:00', $dto->submittedAt);
+        $this->assertSame('admin-999', $dto->submittedByAdminId);
     }
 
     public function test_from_row_with_minimal_data(): void
@@ -183,7 +190,9 @@ class SettlementDtoTest extends TestCase
 
         // Assert
         $this->assertSame('settlement-456', $dto->id);
-        $this->assertNull($dto->manualReason);
+        // A row without a `method` column (e.g. an older fixture) falls back
+        // to DIRECT_DEBIT rather than leaving the field unset.
+        $this->assertSame(SettlementMethod::DIRECT_DEBIT, $dto->method);
         $this->assertSame('2026-08-07', $dto->settlementDate);
         $this->assertSame('2026-08-10', $dto->executionDate);
         $this->assertNull($dto->periodStart);
@@ -202,6 +211,8 @@ class SettlementDtoTest extends TestCase
         $this->assertSame(0, $dto->transactionCount);
         $this->assertNull($dto->transactionDateMin);
         $this->assertNull($dto->transactionDateMax);
+        $this->assertNull($dto->submittedAt);
+        $this->assertNull($dto->submittedByAdminId);
     }
 
     public function test_from_row_converts_is_cancelled_to_boolean(): void
@@ -302,7 +313,7 @@ class SettlementDtoTest extends TestCase
         // Arrange
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: 'cash',
+            method: SettlementMethod::BANK_TRANSFER,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: '2026-08-01',
@@ -329,7 +340,7 @@ class SettlementDtoTest extends TestCase
         // Assert - verify all expected keys exist
         $expectedKeys = [
             'id',
-            'manual_reason',
+            'method',
             'settlement_date',
             'execution_date',
             'period_start',
@@ -349,6 +360,8 @@ class SettlementDtoTest extends TestCase
             'transaction_count',
             'transaction_date_min',
             'transaction_date_max',
+            'submitted_at',
+            'submitted_by_admin_id',
         ];
 
         foreach ($expectedKeys as $key) {
@@ -361,7 +374,7 @@ class SettlementDtoTest extends TestCase
         // Arrange
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -392,7 +405,7 @@ class SettlementDtoTest extends TestCase
         // Arrange
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -423,7 +436,7 @@ class SettlementDtoTest extends TestCase
         // Arrange
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -466,7 +479,7 @@ class SettlementDtoTest extends TestCase
 
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -499,7 +512,7 @@ class SettlementDtoTest extends TestCase
         // Arrange
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -529,6 +542,8 @@ class SettlementDtoTest extends TestCase
         $this->assertNull($array['exported_at']);
         $this->assertNull($array['transaction_date_min']);
         $this->assertNull($array['transaction_date_max']);
+        $this->assertNull($array['submitted_at']);
+        $this->assertNull($array['submitted_by_admin_id']);
     }
 
     public function test_to_array_with_cancelled_settlement(): void
@@ -536,7 +551,7 @@ class SettlementDtoTest extends TestCase
         // Arrange
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -567,7 +582,7 @@ class SettlementDtoTest extends TestCase
         // Arrange
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -593,12 +608,12 @@ class SettlementDtoTest extends TestCase
         $this->assertSame('msg-123', $array['sepa_message_id']);
     }
 
-    public function test_to_array_preserves_manual_reason(): void
+    public function test_to_array_preserves_method(): void
     {
         // Arrange
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: 'write_off',
+            method: SettlementMethod::WRITE_OFF,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -620,7 +635,7 @@ class SettlementDtoTest extends TestCase
         $array = $dto->toArray();
 
         // Assert
-        $this->assertSame('write_off', $array['manual_reason']);
+        $this->assertSame('write_off', $array['method']);
     }
 
     public function test_to_array_with_admin_info(): void
@@ -628,7 +643,7 @@ class SettlementDtoTest extends TestCase
         // Arrange
         $dto = new SettlementDto(
             id: 'settlement-123',
-            manualReason: null,
+            method: SettlementMethod::DIRECT_DEBIT,
             settlementDate: '2026-08-07',
             executionDate: '2026-08-10',
             periodStart: null,
@@ -652,5 +667,29 @@ class SettlementDtoTest extends TestCase
         // Assert
         $this->assertSame('admin-456', $array['created_by_admin_id']);
         $this->assertSame('Jane Doe', $array['created_by_admin_name']);
+    }
+
+    public function test_to_array_includes_submission_fields(): void
+    {
+        // Arrange
+        $row = [
+            'id' => 'settlement-123',
+            'method' => 'direct_debit',
+            'settlement_date' => '2026-08-07',
+            'execution_date' => '2026-08-10',
+            'total_amount_cents' => 5000,
+            'member_count' => 1,
+            'is_cancelled' => 0,
+            'created_at' => '2026-08-07 10:00:00',
+            'submitted_at' => '2026-08-09 09:00:00',
+            'submitted_by_admin_id' => 'admin-999',
+        ];
+
+        // Act
+        $array = SettlementDto::fromRow($row)->toArray();
+
+        // Assert
+        $this->assertNotNull($array['submitted_at']);
+        $this->assertSame('admin-999', $array['submitted_by_admin_id']);
     }
 }

@@ -174,7 +174,7 @@ test.describe("Dashboard API", () => {
       expect(/^\d{4}-\d{2}-\d{2}T/.test(txn.timestamp)).toBe(true);
 
       // Transaction type should be valid
-      expect(["purchase", "correction"]).toContain(txn.type);
+      expect(["purchase", "storno", "payout"]).toContain(txn.type);
     }
   });
 

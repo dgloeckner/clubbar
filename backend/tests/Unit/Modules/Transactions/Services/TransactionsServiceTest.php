@@ -11,6 +11,7 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\SepaValidationException;
+use App\Shared\Exceptions\ValidationException;
 use App\Shared\Logging\Logger;
 use PHPUnit\Framework\TestCase;
 
@@ -242,14 +243,18 @@ class TransactionsServiceTest extends TestCase
     // recordCorrection
     // ------------------------------------------------------------------
 
-    public function test_recordCorrection_creates_transaction_with_type_correction_and_given_amount(): void
+    public function test_recordCorrection_creates_transaction_with_type_storno_and_given_amount(): void
     {
         // NOTE: actual behaviour — this service does NOT compute a reversal/inverse
         // amount and does NOT write a separate audit-log entry (no AuditService is
         // injected into this class at all). It records a single new immutable row
-        // with transaction_type "correction" using amountCents exactly as passed by
-        // the caller (sign convention is the caller's responsibility).
+        // with transaction_type "storno" using amountCents exactly as passed by
+        // the caller (sign convention is the caller's responsibility; deriving the
+        // amount from the original transaction is deferred to issue #169). What IS
+        // enforced is the linkage: relatedTransactionId is mandatory and must name
+        // an existing transaction belonging to the same member.
         $memberId = 'member-1';
+        $relatedTransactionId = 'tx-original';
 
         $this->membersRepository->expects($this->once())
             ->method('findById')
@@ -257,14 +262,20 @@ class TransactionsServiceTest extends TestCase
             ->willReturn($this->sepaValidMember($memberId));
 
         $this->transactionsRepository->expects($this->once())
+            ->method('findById')
+            ->with($relatedTransactionId)
+            ->willReturn(['id' => $relatedTransactionId, 'member_id' => $memberId, 'amount_cents' => 1500]);
+
+        $this->transactionsRepository->expects($this->once())
             ->method('insertTransaction')
-            ->with($this->callback(function (array $data) use ($memberId) {
+            ->with($this->callback(function (array $data) use ($memberId, $relatedTransactionId) {
                 return $data['member_id'] === $memberId
                     && $data['amount_cents'] === -1500
-                    && $data['transaction_type'] === 'correction'
+                    && $data['transaction_type'] === 'storno'
                     && $data['notes'] === 'Refund for wrong charge'
                     && $data['product_id'] === null
                     && $data['created_by_admin_id'] === 'admin-1'
+                    && $data['related_transaction_id'] === $relatedTransactionId
                     && is_string($data['id']) && $data['id'] !== ''
                     && is_string($data['created_at']);
             }))
@@ -272,7 +283,7 @@ class TransactionsServiceTest extends TestCase
                 'id' => 'generated-id',
                 'member_id' => $memberId,
                 'amount_cents' => -1500,
-                'transaction_type' => 'correction',
+                'transaction_type' => 'storno',
                 'notes' => 'Refund for wrong charge',
                 'created_at' => '2026-01-01 10:00:00',
             ]);
@@ -282,10 +293,10 @@ class TransactionsServiceTest extends TestCase
             ->with($memberId)
             ->willReturn(-1500);
 
-        $result = $this->service->recordCorrection($memberId, -1500, 'Refund for wrong charge', 'admin-1');
+        $result = $this->service->recordCorrection($memberId, -1500, 'Refund for wrong charge', 'admin-1', $relatedTransactionId);
 
         $this->assertSame(-1500, $result['transaction']['amount_cents']);
-        $this->assertSame('correction', $result['transaction']['transaction_type']);
+        $this->assertSame('storno', $result['transaction']['transaction_type']);
         // formatTransactionTimestamps converts created_at to ISO 8601 UTC
         $this->assertSame('2026-01-01T10:00:00Z', $result['transaction']['created_at']);
         $this->assertSame(-1500, $result['new_balance_cents']);
@@ -294,10 +305,16 @@ class TransactionsServiceTest extends TestCase
     public function test_recordCorrection_accepts_zero_amount_and_records_it_as_is(): void
     {
         // NOTE: actual behaviour — no guard against a zero-amount correction;
-        // the service happily records it verbatim.
+        // the service happily records it verbatim (deriving the amount from the
+        // original transaction is deferred to issue #169), as long as the
+        // mandatory linkage to the reversed transaction is present.
         $memberId = 'member-1';
+        $relatedTransactionId = 'tx-original';
 
         $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+        $this->transactionsRepository->method('findById')
+            ->with($relatedTransactionId)
+            ->willReturn(['id' => $relatedTransactionId, 'member_id' => $memberId, 'amount_cents' => 0]);
 
         $this->transactionsRepository->expects($this->once())
             ->method('insertTransaction')
@@ -306,13 +323,13 @@ class TransactionsServiceTest extends TestCase
                 'id' => 'generated-id',
                 'member_id' => $memberId,
                 'amount_cents' => 0,
-                'transaction_type' => 'correction',
+                'transaction_type' => 'storno',
                 'created_at' => '2026-01-01 10:00:00',
             ]);
 
         $this->transactionsRepository->method('getMemberBalance')->willReturn(0);
 
-        $result = $this->service->recordCorrection($memberId, 0, 'No-op correction');
+        $result = $this->service->recordCorrection($memberId, 0, 'No-op correction', null, $relatedTransactionId);
 
         $this->assertSame(0, $result['transaction']['amount_cents']);
         $this->assertSame(0, $result['new_balance_cents']);
@@ -321,10 +338,16 @@ class TransactionsServiceTest extends TestCase
     public function test_recordCorrection_accepts_positive_amount_and_records_it_as_is(): void
     {
         // NOTE: actual behaviour — a positive correction amount is recorded
-        // verbatim too; the service applies no sign normalization at all.
+        // verbatim too; the service applies no sign normalization at all
+        // (deriving the amount from the original transaction is deferred to
+        // issue #169), but the mandatory linkage still applies.
         $memberId = 'member-1';
+        $relatedTransactionId = 'tx-original';
 
         $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+        $this->transactionsRepository->method('findById')
+            ->with($relatedTransactionId)
+            ->willReturn(['id' => $relatedTransactionId, 'member_id' => $memberId, 'amount_cents' => -2000]);
 
         $this->transactionsRepository->expects($this->once())
             ->method('insertTransaction')
@@ -333,13 +356,13 @@ class TransactionsServiceTest extends TestCase
                 'id' => 'generated-id',
                 'member_id' => $memberId,
                 'amount_cents' => 2000,
-                'transaction_type' => 'correction',
+                'transaction_type' => 'storno',
                 'created_at' => '2026-01-01 10:00:00',
             ]);
 
         $this->transactionsRepository->method('getMemberBalance')->willReturn(2000);
 
-        $result = $this->service->recordCorrection($memberId, 2000, 'Goodwill credit');
+        $result = $this->service->recordCorrection($memberId, 2000, 'Goodwill credit', null, $relatedTransactionId);
 
         $this->assertSame(2000, $result['transaction']['amount_cents']);
     }
@@ -366,6 +389,40 @@ class TransactionsServiceTest extends TestCase
         $this->expectException(SepaValidationException::class);
 
         $this->service->recordCorrection('member-1', -100, 'reason');
+    }
+
+    public function test_recordCorrection_throws_validation_exception_when_related_transaction_id_missing(): void
+    {
+        // GoBD Rz. 64 requires a storno to explicitly name the transaction it
+        // reverses; a free-amount adjustment with no linkage is no longer permitted.
+        $memberId = 'member-1';
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+        $this->transactionsRepository->expects($this->never())->method('findById');
+        $this->transactionsRepository->expects($this->never())->method('insertTransaction');
+
+        $this->expectException(ValidationException::class);
+
+        $this->service->recordCorrection($memberId, -100, 'reason', null, null);
+    }
+
+    public function test_recordCorrection_throws_not_found_when_related_transaction_belongs_to_different_member(): void
+    {
+        // GoBD Rz. 64 ties a storno to the specific transaction it reverses; a
+        // storno must not silently reverse another member's booking.
+        $memberId = 'member-1';
+        $relatedTransactionId = 'tx-other-member';
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+        $this->transactionsRepository->expects($this->once())
+            ->method('findById')
+            ->with($relatedTransactionId)
+            ->willReturn(['id' => $relatedTransactionId, 'member_id' => 'member-2', 'amount_cents' => -500]);
+        $this->transactionsRepository->expects($this->never())->method('insertTransaction');
+
+        $this->expectException(NotFoundException::class);
+
+        $this->service->recordCorrection($memberId, -100, 'reason', null, $relatedTransactionId);
     }
 
     // ------------------------------------------------------------------
@@ -527,7 +584,7 @@ class TransactionsServiceTest extends TestCase
             [
                 'id' => 'tx-1',
                 'created_at' => '2026-01-01 10:00:00',
-                'transaction_type' => 'correction',
+                'transaction_type' => 'storno',
                 'product_names' => null,
                 'notes' => null,
             ],
@@ -535,7 +592,7 @@ class TransactionsServiceTest extends TestCase
 
         $result = $this->service->getRecentTransactionsForMember($memberId);
 
-        // No product and no notes -> falls back to the type label for 'correction'
-        $this->assertSame('Correction', $result[0]['product_name']);
+        // No product and no notes -> falls back to the type label for 'storno'
+        $this->assertSame('Storno', $result[0]['product_name']);
     }
 }

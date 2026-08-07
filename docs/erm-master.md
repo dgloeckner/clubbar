@@ -14,8 +14,15 @@ erDiagram
         varchar_100 first_name "First name (nullable for GDPR)"
         varchar_100 last_name "Last name (nullable for GDPR)"
         varchar_255 email "Contact email"
+        varchar_70 account_holder_name "If different from member (still on members)"
         varchar_10 preferred_language "ISO 639-1 (e.g., 'de', 'en')"
         boolean is_active "Active/blocked (TEMPORARY, e.g. lost card)"
+        boolean collection_hold "Blocks the next SEPA sweep after a return"
+        varchar_500 collection_hold_reason "Why the hold was placed"
+        datetime held_at "When the hold was placed"
+        binary_16 held_by_admin_id FK "Admin who placed the hold"
+        datetime cleared_at "When the hold was lifted"
+        binary_16 cleared_by_admin_id FK "Admin who lifted the hold"
         datetime deleted_at "Offboarded; erasure completed"
         date retention_expires_at "When the retained residual may be deleted"
         datetime created_at "Record creation"
@@ -54,20 +61,23 @@ erDiagram
         binary_16 related_transaction_id FK "Reversed transaction (NOT NULL for storno, UNIQUE)"
         binary_16 created_by_terminal_id FK "Recording terminal"
         binary_16 created_by_admin_id FK "Admin (manual entries)"
-        datetime created_at "Transaction timestamp"
+        datetime occurred_at "Terminal-owned: when the sale happened"
+        datetime received_at "Server-owned: when we learned of it"
     }
 
     mandates {
-        binary_16 id PK "UUID"
+        binary_16 id PK "UUID, append-only"
         binary_16 member_id FK "Owning member"
+        binary_16 active_member_id UK "= member_id while in force, else NULL"
         varchar_35 reference UK "SEPA mandate ID (UMR)"
         varchar_34 iban "SEPA bank account"
-        varchar_70 account_holder_name "If different from member"
-        date signed_at "Mandate signature date (REQUIRED)"
+        date signed_at "Mandate signature date (nullable in Phase 0)"
         binary_16 document_id FK "Optional scanned mandate"
-        boolean is_active "At most one active per member"
         datetime ended_at "Bank change or revocation"
+        enum ended_reason "bank_change, revoked or offboarded"
+        binary_16 created_by_admin_id FK "Admin who recorded it"
         datetime created_at "Record creation"
+        boolean is_active "VIRTUAL: active_member_id IS NOT NULL"
     }
 
     settlements {
@@ -84,18 +94,34 @@ erDiagram
         datetime cancelled_at "Cancellation timestamp"
         binary_16 cancelled_by_admin_id FK "Who cancelled"
         datetime exported_at "Last export timestamp"
-        varchar_500 notes "Admin notes"
+        datetime submitted_at "When submission to the bank became irreversible"
+        binary_16 submitted_by_admin_id FK "Admin who submitted"
+        varchar_1000 notes "Admin notes"
         binary_16 created_by_admin_id FK "Who created"
         datetime created_at "Record creation"
         datetime updated_at "Last modification"
     }
 
     settlement_items {
-        int id PK "Auto-increment"
+        bigint id PK "Auto-increment"
         binary_16 settlement_id FK "Which settlement"
-        binary_16 transaction_id FK "Which transaction"
+        binary_16 transaction_id FK "Historical record (no longer UNIQUE)"
+        binary_16 active_transaction_id UK "Live claim; NULL once released"
         binary_16 member_id FK "Which member"
         int amount_cents "Member total amount"
+        varchar_35 end_to_end_id "SEPA End-to-End-ID for this item"
+    }
+
+    settlement_reversals {
+        binary_16 id PK "UUID"
+        binary_16 settlement_id FK "Which settlement"
+        binary_16 member_id FK "Which member"
+        enum reason "bank_return or club_error"
+        int amount_cents "Reversed amount in cents"
+        varchar_35 bank_reference "Bank's reversal reference"
+        varchar_1000 notes "Admin notes"
+        binary_16 created_by_admin_id FK "Admin who recorded it"
+        datetime created_at "Record creation (append-only)"
     }
 
     terminals {
@@ -160,14 +186,20 @@ erDiagram
     categories ||--o{ products : "contains"
     members ||--o{ transactions : "makes"
     products ||--o{ transactions : "purchased in"
-    transactions ||--o| transactions : "corrects"
+    transactions ||--o| transactions : "stornos"
     terminals ||--o{ transactions : "records"
     admin_users ||--o{ transactions : "creates"
     settlements ||--o{ settlement_items : "includes"
     transactions ||--o{ settlement_items : "settled in"
     members ||--o{ settlement_items : "has"
+    settlements ||--o{ settlement_reversals : "clawed back by"
+    members ||--o{ settlement_reversals : "affects"
+    admin_users ||--o{ settlement_reversals : "records"
+    members ||--o{ mandates : "grants"
+    admin_users ||--o{ mandates : "records"
     admin_users ||--o{ settlements : "creates"
     admin_users ||--o{ settlements : "cancels"
+    admin_users ||--o{ settlements : "submits"
     admin_users ||--o{ audit_log : "performs"
     terminals ||--o{ unknown_card_scans : "detects"
     admin_users ||--o{ sepa_config : "modifies"
@@ -198,21 +230,29 @@ Stores all organization members with payment information.
 | first_name | VARCHAR(100) | NULL | First name (nullable for GDPR anonymization) |
 | last_name | VARCHAR(100) | NULL | Last name (nullable for GDPR anonymization) |
 | email | VARCHAR(255) | NULL | Contact email address |
+| phone | VARCHAR(20) | NULL | Contact phone number |
+| account_holder_name | VARCHAR(70) | NULL | Still on `members` — only banking fields moved to `mandates` ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md), amended) |
 | preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code for product display |
-| ~~iban~~ | — | — | **Moved to `mandates`** ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md), amended) |
-| ~~account_holder_name~~ | — | — | **Moved to `mandates`** |
+| ~~iban~~ | — | — | **Moved to `mandates.iban`** ([#164](https://github.com/dgloeckner/ruderbar/issues/164)) |
 | ~~mandate_reference~~ | — | — | **Moved to `mandates.reference`** |
-| ~~mandate_signed_at~~ | — | — | **Moved to `mandates.signed_at`**, and now **required** |
+| ~~mandate_signed_at~~ | — | — | **Moved to `mandates.signed_at`** |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | **Temporary** block — e.g. a lost card. **Not** "left the club" |
+| collection_hold | BOOLEAN | NOT NULL, DEFAULT FALSE | Stops the **next SEPA sweep** from re-debiting a member whose collection was just returned ([#148](https://github.com/dgloeckner/ruderbar/issues/148), [#165](https://github.com/dgloeckner/ruderbar/issues/165)) |
+| collection_hold_reason | VARCHAR(500) | NULL | Why the hold was placed |
+| held_at | DATETIME | NULL | When the hold was placed |
+| held_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who placed the hold |
+| cleared_at | DATETIME | NULL | When the hold was lifted |
+| cleared_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who lifted the hold |
 | deleted_at | DATETIME | NULL | Offboarding completed; erasure done. This **is** "gone" |
-| retention_expires_at | DATE | NULL | Stamped at offboarding: 31.12. of last transaction year + 10 years. ⚠️ This is the **earliest** deletion may occur, not a due date — § 147 Abs. 3 S. 5 AO suspends expiry while the Festsetzungsfrist runs. Deletion is a **reviewed, deliberate act**, not an automated sweep ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) |
+| retention_expires_at | DATE | NULL | Stamped at offboarding: 31.12. of last transaction year + 10 years ([#173](https://github.com/dgloeckner/ruderbar/issues/173)). ⚠️ This is the **earliest** deletion may occur, not a due date — § 147 Abs. 3 S. 5 AO suspends expiry while the Festsetzungsfrist runs. Deletion is a **reviewed, deliberate act**, not an automated sweep ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
 **Indexes:**
 - `card_uid` (UNIQUE)
-- `iban`
 - `is_active`
+- `collection_hold`
+- `retention_expires_at`
 - `updated_at`
 
 **SEPA validity** is no longer a member field test. It is *"does this member have an active mandate"* — one lookup against `mandates` ([ADR-0020](../adr/0020-sepa-mandate-requirement-terminal-access.md), amended). Without one the member cannot use the terminal at all.
@@ -283,22 +323,26 @@ Product catalog with multilingual support.
 
 ### mandates
 
-A mandate is **one record**, or the member has none. At most one active per member; rows are **append-only** — a bank change or revocation ends the current mandate and creates a new one, never mutates in place. That is what keeps a returned collection matchable via `MREF+` after the member moves banks ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md) amended, [#164](https://github.com/dgloeckner/ruderbar/issues/164)).
+A mandate is **one record**, or the member has none. Rows are **append-only** — a bank change or revocation ends the current mandate and creates a new one, never mutates in place. Banking data used to live directly on `members` and was freely mutable, so a return arriving after a bank change quoted an MREF+ that no longer existed anywhere and could not be matched; a standalone, append-only record is what keeps it matchable ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md) amended, [#164](https://github.com/dgloeckner/ruderbar/issues/164), [#165](https://github.com/dgloeckner/ruderbar/issues/165)).
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | BINARY(16) | PK | UUID |
-| member_id | BINARY(16) | FK → members.id, NOT NULL | Owning member |
+| member_id | BINARY(16) | FK → members.id, NOT NULL | Owning member (stable across the mandate's history) |
+| active_member_id | BINARY(16) | **UNIQUE**, NULL | Holds `member_id` while this mandate is **in force**; NULL once ended. MariaDB has no partial indexes but permits many NULLs in a unique column, so this expresses *"at most one active mandate per member"* the same way `settlement_items` expresses its live claim |
 | reference | VARCHAR(35) | UNIQUE, NOT NULL | SEPA mandate ID (UMR); auto-generated at mandate creation |
 | iban | VARCHAR(34) | NOT NULL | ISO 13616 + mod-97 checksum |
-| account_holder_name | VARCHAR(70) | NULL | If different from member (SEPA max 70) |
-| signed_at | DATE | **NOT NULL** | Mandate signature date. Required — pain.008 demands it, and it must never be fabricated |
-| document_id | BINARY(16) | FK, NULL | Optional scanned mandate; OCR prefill only, not a precondition |
-| is_active | BOOLEAN | NOT NULL | **At most one TRUE per member** — enforce in the DB |
-| ended_at | DATETIME | NULL | Bank change or revocation |
+| signed_at | DATE | NULL | Mandate signature date. Deliberately nullable in Phase 0 — the schema migration relocates existing data without changing the eligibility predicate; making a signature date a precondition of SEPA validity is a separate, later change |
+| document_id | BINARY(16) | FK → mandate_documents.id, NULL | Optional scanned mandate; OCR prefill only, not a precondition |
+| ended_at | DATETIME | NULL | When the mandate stopped being in force |
+| ended_reason | ENUM | NULL | `bank_change` · `revoked` · `offboarded` |
+| created_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who recorded it |
 | created_at | DATETIME | NOT NULL | Record creation |
+| is_active | BOOLEAN | **VIRTUAL, generated** | `active_member_id IS NOT NULL`. Derived rather than stored beside the constraint, so the flag and the constraint cannot drift apart |
 
-**Indexes:** `member_id`, `reference` (UNIQUE), `(member_id, is_active)`
+**Indexes:** `member_id`, `reference` (UNIQUE), `active_member_id` (UNIQUE)
+
+**Constraint:** `active_member_id` must equal `member_id` when set (`CHECK`) — a mandate can only be "active" for its own owner.
 
 **Beleg-bearing** — `reference`, `iban` and `signed_at` survive a GDPR erasure request under [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md). Do not null them on anonymisation; the current code does, and that is a bug.
 
@@ -318,19 +362,20 @@ Immutable, append-only transaction log. No UPDATE or DELETE operations permitted
 | amount_cents | INT | NOT NULL | Amount in cents (positive = charge; negative = credit/reversal; non-zero; -999999 to +999999) |
 | transaction_type | ENUM | NOT NULL | `purchase` (terminal sale or admin manual purchase) · `storno` (full reversal of one transaction) · `payout` (credit returned at offboarding) |
 | notes | VARCHAR(500) | NULL | Reason/description (required for manual entries) |
-| related_transaction_id | BINARY(16) | FK → transactions.id, **NOT NULL for `storno`**, **UNIQUE** | The transaction being reversed. Mandatory linkage — GoBD Rz. 64 ([ADR-0028](../adr/0028-legal-constraints-on-money-handling.md) §4). UNIQUE enforces *stornoable at most once* |
+| related_transaction_id | BINARY(16) | FK → transactions.id, **NOT NULL for `storno`**, **UNIQUE** | The transaction being reversed. Mandatory linkage — GoBD Rz. 64 ([ADR-0028](../adr/0028-legal-constraints-on-money-handling.md) §4). UNIQUE enforces *stornoable at most once*; MariaDB permits many NULLs in a unique column, so purchases and payouts (which carry no linkage) are unaffected |
 | created_by_terminal_id | BINARY(16) | FK → terminals.id, NULL | Terminal that recorded the transaction |
 | created_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who created manual entry |
-| created_at | DATETIME | NOT NULL | Transaction timestamp |
+| occurred_at | TIMESTAMP | NOT NULL | **Terminal-owned**: when the sale actually happened. Reporting queries use this ([#144](https://github.com/dgloeckner/ruderbar/issues/144)) |
+| received_at | TIMESTAMP | NOT NULL | **Server-owned**: when the backend learned of it. Audit and sync queries use this. A drink sold offline yesterday and synced today `occurred_at` yesterday but `received_at` today — filtering settlement on the terminal-supplied value is what makes backdating profitable, filtering on server time misdates genuine offline sales |
 
 **Indexes:**
-- `member_id`
+- `(member_id, occurred_at)`
 - `product_id`
 - `transaction_type`
-- `created_at`
-- `related_transaction_id`
+- `received_at`
+- `related_transaction_id` (UNIQUE)
 
-**Note:** A **storno** is a new transaction whose `amount_cents` is the **exact negation** of the transaction it references — derived, never supplied by the caller. The original is never modified. There is no free-amount adjustment and no partial storno ([ADR-0004](../adr/0004-immutable-transaction-storage.md), amended).
+**Note:** A **storno** is a new transaction whose `amount_cents` is the **exact negation** of the transaction it references — derived, never supplied by the caller. The original is never modified. There is no free-amount adjustment and no partial storno ([ADR-0004](../adr/0004-immutable-transaction-storage.md), amended). `related_transaction_id` is a **hard DB constraint** for storno rows (`CHECK (transaction_type <> 'storno' OR related_transaction_id IS NOT NULL)`), not just an application-level rule ([#158](https://github.com/dgloeckner/ruderbar/issues/158)).
 
 ---
 
@@ -354,7 +399,9 @@ Settlement records for SEPA collections and manual settlements.
 | cancelled_at | DATETIME | NULL | Cancellation timestamp |
 | cancelled_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who cancelled |
 | exported_at | DATETIME | NULL | Last export timestamp |
-| notes | VARCHAR(500) | NULL | Admin notes (required for manual: min 10 chars) |
+| submitted_at | DATETIME | NULL | When the settlement was submitted to the bank and became **no longer freely cancellable**. Cancellation is permitted while no money has moved, which needs a recorded moment at which it did ([#142](https://github.com/dgloeckner/ruderbar/issues/142), [#163](https://github.com/dgloeckner/ruderbar/issues/163)) |
+| submitted_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who submitted |
+| notes | VARCHAR(1000) | NULL | Admin notes; carries no meaning to the system |
 | created_by_admin_id | BINARY(16) | FK → admin_users.id, NOT NULL | Admin who created |
 | created_at | DATETIME | NOT NULL | Settlement creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
@@ -365,42 +412,58 @@ Settlement records for SEPA collections and manual settlements.
 - `execution_date`
 - `method`
 
-**Settlement Types:**
-- `sepa`: Standard SEPA Direct Debit settlement with XML export
-- `manual`: Non-SEPA settlement (cash, bank transfer, write-off, etc.)
+**`method`** replaces two prior fields: a `settlement_type` that was validated at the controller but never stored, and `manual_reason`, which was an unvalidated free string ([#142](https://github.com/dgloeckner/ruderbar/issues/142), [#163](https://github.com/dgloeckner/ruderbar/issues/163)):
+- `direct_debit`: SEPA collection covering any number of members; the only method that produces a pain.008 export
+- `bank_transfer`: one member, money already arrived by other means
+- `write_off`: one member, money that will never arrive
 
-**Manual Settlement Reasons:**
-- `cash_payment`: Member paid in cash
-- `bank_transfer`: Member paid via manual bank transfer
-- `other_payment`: Member paid via other method
-- `write_off`: Debt written off as uncollectable
-- `goodwill`: Balance cleared as goodwill gesture
-- `storno`: Full reversal of exactly one transaction
-- `payout`: Credit returned to a member at offboarding
-- `other`: Other reason (explain in notes)
+**Constraint**: `CHECK (method = 'direct_debit' OR member_count = 1)` — only a direct debit is a batch; a bank transfer or write-off is a decision about exactly one member, so neither may be exported and neither may quietly cover a group.
 
-**Cancellation**: Sets `is_cancelled = true`; linked transactions become unsettled again (available for future settlement).
+**Cancellation**: Sets `is_cancelled = true`; linked transactions become unsettled again (available for future settlement) — the `settlement_items` row survives (see below), only its live claim (`active_transaction_id`) is released.
 
 ---
 
 ### settlement_items
 
-Links transactions to settlements (many-to-many).
+Links transactions to settlements. Cancelling a settlement used to `DELETE` its items, which both returned the transactions to the unsettled pool *and* destroyed the record of what the cancelled settlement had contained. Splitting the claim from the record fixes both: the row survives cancellation while the claim is released ([#142](https://github.com/dgloeckner/ruderbar/issues/142), [#148](https://github.com/dgloeckner/ruderbar/issues/148)).
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| id | INT | PK, AUTO_INCREMENT | Internal reference |
+| id | BIGINT | PK, AUTO_INCREMENT | Internal reference |
 | settlement_id | BINARY(16) | FK → settlements.id, NOT NULL | Which settlement |
-| transaction_id | BINARY(16) | FK → transactions.id, NOT NULL | Which transaction |
+| transaction_id | BINARY(16) | FK → transactions.id, NOT NULL | **Historical record** — which transaction this item was ever created for. No longer UNIQUE: a transaction can appear here once per settlement attempt over its lifetime |
+| active_transaction_id | BINARY(16) | FK → transactions.id, **UNIQUE**, NULL | **The live claim**. Equal to `transaction_id` while the settlement holding it is not cancelled; set to NULL when cancelled, freeing the transaction for re-settlement. MariaDB has no partial indexes but permits many NULLs in a unique column, so the DB still prevents two live settlements claiming the same transaction |
 | member_id | BINARY(16) | FK → members.id, NOT NULL | Denormalized for queries |
-| amount_cents | INT | NOT NULL | Member's total amount in this settlement |
+| amount_cents | BIGINT | NOT NULL | Member's amount for this item; **signed**, to allow negative correction amounts |
+| end_to_end_id | VARCHAR(35) | NULL | SEPA End-to-End-ID generated for this item on export |
 
 **Indexes:**
 - `settlement_id`
-- `transaction_id` (UNIQUE pair with settlement_id)
+- `transaction_id`
+- `active_transaction_id` (UNIQUE)
 - `member_id`
 
-**Constraint**: Each transaction can only belong to one settlement.
+**Constraint**: A transaction can be **actively** claimed by at most one settlement at a time (`active_transaction_id` UNIQUE); its full settlement history is preserved via `transaction_id`.
+
+### settlement_reversals
+
+The bank clawing back a collection without asking — distinct from cancellation, which is the club *choosing* to undo a settlement. Append-only events, at most one per member per settlement ([#148](https://github.com/dgloeckner/ruderbar/issues/148)).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | BINARY(16) | PK | UUID |
+| settlement_id | BINARY(16) | FK → settlements.id, NOT NULL | Which settlement was (partially) clawed back |
+| member_id | BINARY(16) | FK → members.id, NOT NULL | Which member's collection was returned |
+| reason | ENUM | NOT NULL | `bank_return` (the bank returned the direct debit, e.g. insufficient funds) · `club_error` (the club's own mistake) |
+| amount_cents | BIGINT | NOT NULL | Amount reversed, in cents |
+| bank_reference | VARCHAR(35) | NULL | Bank's reference for the return |
+| notes | VARCHAR(1000) | NULL | Admin notes |
+| created_by_admin_id | BINARY(16) | FK → admin_users.id, NOT NULL | Admin who recorded it |
+| created_at | DATETIME | NOT NULL | Record creation (append-only; no update/delete) |
+
+**Indexes:**
+- `(settlement_id, member_id)` (UNIQUE)
+- `member_id`
 
 ---
 
@@ -573,6 +636,8 @@ flowchart TB
         T[terminals]
         S[settlements]
         SI[settlement_items]
+        SR[settlement_reversals]
+        MD[mandates]
         UC[unknown_card_scans]
     end
 
@@ -591,6 +656,11 @@ flowchart TB
     S -->|"1:N"| SI
     TX -->|"1:N"| SI
     M -->|"1:N"| SI
+    S -->|"1:N"| SR
+    M -->|"1:N"| SR
+    AU -->|"1:N"| SR
+    M -->|"1:N"| MD
+    AU -->|"1:N"| MD
     AU -->|"1:N"| S
     AU -->|"1:N"| AL
     T -->|"1:N"| UC
@@ -611,11 +681,16 @@ flowchart TB
 | products → transactions | 1:N | Product appears in many transactions |
 | terminals → transactions | 1:N | Terminal records many transactions |
 | admin_users → transactions | 1:N | Admin creates manual transactions |
-| transactions → transactions | N:1 | Correction references original |
+| transactions → transactions | N:1 | Storno references the transaction it reverses |
 | settlements → settlement_items | 1:N | Settlement includes many items |
-| transactions → settlement_items | 1:N | Transaction in settlement items |
+| transactions → settlement_items | 1:N | Transaction in settlement items (history), at most one active claim |
 | members → settlement_items | 1:N | Member's settlement items |
-| admin_users → settlements | 1:N | Admin creates/cancels settlements |
+| settlements → settlement_reversals | 1:N | A settlement may be clawed back per member |
+| members → settlement_reversals | 1:N | Member's reversed collections |
+| admin_users → settlement_reversals | 1:N | Admin who recorded the reversal |
+| members → mandates | 1:N | Member's mandate history (append-only; at most one active) |
+| admin_users → mandates | 1:N | Admin who recorded the mandate |
+| admin_users → settlements | 1:N | Admin creates/cancels/submits settlements |
 | admin_users → audit_log | 1:N | Admin performs many audited actions |
 | terminals → unknown_card_scans | 1:N | Terminal detects unknown cards |
 
@@ -635,9 +710,19 @@ flowchart TB
 | transactions | created_by_admin_id | admin_users | SET NULL |
 | settlement_items | settlement_id | settlements | CASCADE |
 | settlement_items | transaction_id | transactions | RESTRICT |
+| settlement_items | active_transaction_id | transactions | RESTRICT |
 | settlement_items | member_id | members | RESTRICT |
 | settlements | created_by_admin_id | admin_users | RESTRICT |
 | settlements | cancelled_by_admin_id | admin_users | SET NULL |
+| settlements | submitted_by_admin_id | admin_users | RESTRICT |
+| settlement_reversals | settlement_id | settlements | RESTRICT |
+| settlement_reversals | member_id | members | RESTRICT |
+| settlement_reversals | created_by_admin_id | admin_users | RESTRICT |
+| mandates | member_id | members | CASCADE |
+| mandates | document_id | mandate_documents | SET NULL |
+| mandates | created_by_admin_id | admin_users | SET NULL |
+| members | held_by_admin_id | admin_users | SET NULL |
+| members | cleared_by_admin_id | admin_users | SET NULL |
 | unknown_card_scans | terminal_id | terminals | SET NULL |
 | audit_log | admin_user_id | admin_users | SET NULL |
 | sepa_config | updated_by_admin_id | admin_users | SET NULL |
@@ -650,8 +735,12 @@ flowchart TB
 4. **Categories cannot be deleted with products**: Use `is_active = false` instead
 5. **Terminals cannot be deleted with transactions**: Use `is_active = false` instead
 6. **SEPA creditor_id is immutable**: Cannot be changed after initial configuration
-7. **Settlement transactions are locked**: Transactions with settlement_items cannot be modified
-8. **Settlement cancellation unlinks transactions**: When cancelled, transactions become available for future settlements
+7. **Settlement transactions are locked**: Transactions with an active `settlement_items` claim cannot be re-settled elsewhere
+8. **Settlement cancellation releases the claim, not the record**: When cancelled, `active_transaction_id` is nulled and the transaction becomes available for future settlement; the `settlement_items` row itself is retained as history
+9. **A transaction is stornoed at most once**: Enforced by the UNIQUE index on `transactions.related_transaction_id`
+10. **A storno must reference the original**: Enforced by `CHECK (transaction_type <> 'storno' OR related_transaction_id IS NOT NULL)`
+11. **Non-direct-debit settlements cover exactly one member**: Enforced by `CHECK (method = 'direct_debit' OR member_count = 1)`
+12. **At most one active mandate per member**: Enforced by the UNIQUE index on `mandates.active_member_id`, together with `CHECK (active_member_id IS NULL OR active_member_id = member_id)`
 
 ---
 
@@ -666,15 +755,15 @@ When a member requests deletion (GDPR Art. 17):
 | first_name | "Max" | NULL |
 | last_name | "Mustermann" | NULL |
 | email | "max@example.com" | NULL |
-| iban | "DE89..." | NULL |
-| mandate_reference | "ABC123..." | NULL |
+| phone | "+49 170 ..." | NULL |
+| preferred_language | "de" | NULL |
 | card_uid | "A1B2C3D4" | "ANONYMOUS-{uuid}" |
 | is_active | true | false |
 | deleted_at | NULL | {timestamp} |
 
-**Retained:** `id`, `created_at`, `updated_at`, `retention_expires_at` — plus the whole **retention tier**: `mandates` rows (reference, IBAN, `signed_at`, document), transactions, settlements, payment/return/reversal records.
+`iban` and `mandate_reference` no longer live on `members` at all — they moved to `mandates` in [#164](https://github.com/dgloeckner/ruderbar/issues/164)/[#165](https://github.com/dgloeckner/ruderbar/issues/165) and are **not** touched by member anonymization ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): both are Beleg-bearing, and nulling them would break matching a returned collection that arrives after the erasure request.
 
-⚠️ **Corrected 2026-08-07** ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): `preferred_language` is **deleted** — it has no Belegfunktion. `mandate_signed_at` moved to `mandates` and is retained there. The previous list had the mandate fields backwards: `iban` and `mandate_reference` were being nulled although both are Beleg-bearing and required to match a returned collection.
+**Retained:** `id`, `created_at`, `updated_at`, `retention_expires_at` — plus the whole **retention tier**: `mandates` rows (`reference`, `iban`, `signed_at`, document), transactions, settlements, payment/return/reversal records.
 
 ### Retention Periods
 

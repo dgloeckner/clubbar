@@ -8,7 +8,8 @@ import {
 describe('formatTransactionType', () => {
   it('labels known transaction types', () => {
     expect(formatTransactionType('purchase')).toBe('Purchase')
-    expect(formatTransactionType('correction')).toBe('Correction')
+    expect(formatTransactionType('storno')).toBe('Storno')
+    expect(formatTransactionType('payout')).toBe('Payout')
   })
 
   it('passes unknown types through unchanged', () => {
@@ -17,12 +18,12 @@ describe('formatTransactionType', () => {
 })
 
 describe('getTransactionTypeColor', () => {
-  it('returns distinct badge colors for purchase and correction', () => {
+  it('returns distinct badge colors for purchase and storno', () => {
     const purchase = getTransactionTypeColor('purchase')
-    const correction = getTransactionTypeColor('correction')
+    const storno = getTransactionTypeColor('storno')
     expect(purchase.text).toBe('#3b82f6')
-    expect(correction.text).toBe('#f97316')
-    expect(purchase.bg).not.toBe(correction.bg)
+    expect(storno.text).toBe('#f97316')
+    expect(purchase.bg).not.toBe(storno.bg)
   })
 
   it('falls back to a neutral color for unknown types', () => {

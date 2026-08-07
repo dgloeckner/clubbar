@@ -17,15 +17,18 @@ class TransactionsRepository
 
     public function findById(string $id): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM transactions WHERE id = ?');
+        // occurred_at is the terminal-owned sale time; the API still calls it created_at until #172 renames the contract.
+        $stmt = $this->db->prepare('SELECT *, occurred_at AS created_at FROM transactions WHERE id = ?');
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
     }
 
     public function insertTransaction(array $data): ?array
     {
+        // Terminals still send the field as created_at; it is written to occurred_at
+        // (the sale time), while received_at is stamped by the database default.
         $stmt = $this->db->prepare(
-            'INSERT IGNORE INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, related_transaction_id, created_by_terminal_id, created_by_admin_id, created_at, dispenser_tx_id, dispenser_requested, dispenser_actual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT IGNORE INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, related_transaction_id, created_by_terminal_id, created_by_admin_id, occurred_at, dispenser_tx_id, dispenser_requested, dispenser_actual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $data['id'],
@@ -97,14 +100,16 @@ class TransactionsRepository
             $params[] = $type;
         }
         if ($since) {
-            $where[] = 't.created_at >= ?';
+            $where[] = 't.occurred_at >= ?';
             $params[] = $since;
         }
 
         $whereClause = 'WHERE ' . implode(' AND ', $where);
 
+        // occurred_at is the terminal-owned sale time; the API still calls it created_at until #172 renames the contract.
         $stmt = $this->db->prepare(
             "SELECT t.*,
+                    t.occurred_at AS created_at,
                     p.names as product_names,
                     p.icon_name as product_icon,
                     s.id as settlement_id,
@@ -114,7 +119,7 @@ class TransactionsRepository
              LEFT JOIN settlement_items si ON t.id = si.transaction_id
              LEFT JOIN settlements s ON si.settlement_id = s.id AND s.is_cancelled = 0
              {$whereClause}
-             ORDER BY t.created_at DESC
+             ORDER BY t.occurred_at DESC
              LIMIT {$limit} OFFSET {$offset}"
         );
         $stmt->execute($params);
@@ -135,11 +140,11 @@ class TransactionsRepository
             $params[] = $filters['member_id'];
         }
         if (isset($filters['date_from'])) {
-            $where[] = 't.created_at >= ?';
+            $where[] = 't.occurred_at >= ?';
             $params[] = $filters['date_from'];
         }
         if (isset($filters['date_to'])) {
-            $where[] = 't.created_at <= ?';
+            $where[] = 't.occurred_at <= ?';
             $params[] = $filters['date_to'] . ' 23:59:59';
         }
         if (isset($filters['search'])) {
@@ -159,8 +164,9 @@ class TransactionsRepository
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $sortMap = ['created_at' => 't.created_at', 'amount' => 't.amount_cents', 'type' => 't.transaction_type', 'member_name' => 'm.last_name', 'member' => 'm.last_name'];
-        $sortCol = $sortMap[$sortKey] ?? 't.created_at';
+        // API sort key stays created_at; it now maps to the occurred_at column.
+        $sortMap = ['created_at' => 't.occurred_at', 'amount' => 't.amount_cents', 'type' => 't.transaction_type', 'member_name' => 'm.last_name', 'member' => 'm.last_name'];
+        $sortCol = $sortMap[$sortKey] ?? 't.occurred_at';
         $dir = SafeQuery::direction($sortOrder);
 
         $countStmt = $this->db->prepare("SELECT COUNT(*) FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause}");
@@ -168,8 +174,9 @@ class TransactionsRepository
         $total = (int) $countStmt->fetchColumn();
 
         $dataParams = array_merge($params, [$limit, $offset]);
+        // occurred_at is the terminal-owned sale time; the API still calls it created_at until #172 renames the contract.
         $stmt = $this->db->prepare(
-            "SELECT t.*, CONCAT(m.first_name, ' ', m.last_name) as member_name, m.first_name, m.last_name, m.email, p.names as product_names, (SELECT s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0 LIMIT 1) as settlement_date FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
+            "SELECT t.*, t.occurred_at AS created_at, CONCAT(m.first_name, ' ', m.last_name) as member_name, m.first_name, m.last_name, m.email, p.names as product_names, (SELECT s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0 LIMIT 1) as settlement_date FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
 
@@ -202,14 +209,14 @@ class TransactionsRepository
 
     public function countRecentTransactions(int $days = 30): int
     {
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM transactions WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)');
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM transactions WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL ? DAY)');
         $stmt->execute([$days]);
         return (int) $stmt->fetchColumn();
     }
 
     public function sumRecentAmountCents(int $days = 30): int
     {
-        $stmt = $this->db->prepare('SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)');
+        $stmt = $this->db->prepare('SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL ? DAY)');
         $stmt->execute([$days]);
         return (int) $stmt->fetchColumn();
     }
@@ -247,11 +254,11 @@ class TransactionsRepository
         $params = [];
 
         if (isset($filters['date_from'])) {
-            $where[] = 't.created_at >= ?';
+            $where[] = 't.occurred_at >= ?';
             $params[] = $filters['date_from'];
         }
         if (isset($filters['date_to'])) {
-            $where[] = 't.created_at <= ?';
+            $where[] = 't.occurred_at <= ?';
             $params[] = $filters['date_to'] . ' 23:59:59';
         }
         if (isset($filters['search'])) {
@@ -303,11 +310,11 @@ class TransactionsRepository
         $params = [];
 
         if (isset($filters['date_from'])) {
-            $where[] = 't.created_at >= ?';
+            $where[] = 't.occurred_at >= ?';
             $params[] = $filters['date_from'];
         }
         if (isset($filters['date_to'])) {
-            $where[] = 't.created_at <= ?';
+            $where[] = 't.occurred_at <= ?';
             $params[] = $filters['date_to'] . ' 23:59:59';
         }
         if (isset($filters['search'])) {
@@ -329,7 +336,7 @@ class TransactionsRepository
              LEFT JOIN members m ON t.member_id = m.id
              LEFT JOIN products p ON t.product_id = p.id
              {$whereClause}
-             ORDER BY t.created_at ASC"
+             ORDER BY t.occurred_at ASC"
         );
         $stmt->execute($params);
         return array_column($stmt->fetchAll(), 'id');
