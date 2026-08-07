@@ -36,4 +36,30 @@ final class DateFormatter
         // Already in ISO 8601 format or other format — return as-is
         return $datetime;
     }
+
+    /**
+     * Convert an inbound API timestamp to the bare UTC form MariaDB stores.
+     *
+     * Input:  "2026-01-23T14:23:15.780Z" (ISO 8601, as terminals send it)
+     * Output: "2026-01-23 14:23:15" (bare UTC for a DATETIME column)
+     *
+     * An offset is applied, not dropped: the columns are UTC. A value MariaDB
+     * already accepts is passed through untouched, and so is one that cannot
+     * be parsed — inventing a plausible timestamp for a sale whose time we do
+     * not know is worse than letting the database refuse the row (#144).
+     */
+    public static function toMysqlDateTime(?string $datetime): ?string
+    {
+        if ($datetime === null || $datetime === '') {
+            return null;
+        }
+
+        try {
+            $dt = new \DateTimeImmutable($datetime);
+        } catch (\Exception) {
+            return $datetime;
+        }
+
+        return $dt->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+    }
 }

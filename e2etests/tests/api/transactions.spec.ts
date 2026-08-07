@@ -197,6 +197,119 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(body.details.length).toBeGreaterThan(0);
   });
 
+  /**
+   * Issue #82 — the batch validator never required `id`, so a transaction
+   * without one reached the insert, where `INSERT IGNORE` discarded it and
+   * reported it accepted. `id` is the client-generated UUID the whole
+   * idempotency guarantee of ADR-0004 rests on; a batch entry without one is
+   * not storable and must be refused before anything is written.
+   */
+  test('POST /api/sync/transactions rejects a transaction with no id', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const { id, ...transactionWithoutId } = createValidTransaction(member.id, product.id);
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transactionWithoutId] },
+    });
+
+    expect(response.status()).toBe(422);
+
+    const body = await response.json();
+    expect(body.error).toBe('validation_failed');
+    expect(body.details.some((d) => d.field === 'id')).toBeTruthy();
+  });
+
+  /**
+   * Issue #82, the sale-loss case. `transaction_type` is client-controlled and
+   * a value outside the ENUM is a row MariaDB refuses. It used to be swallowed
+   * by `INSERT IGNORE` and returned in `accepted_ids`, at which point the
+   * terminal purged a served drink from its offline queue and no record of the
+   * sale existed anywhere. A refused row is reported as rejected.
+   */
+  test('POST /api/sync/transactions never accepts a transaction the database refuses', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, {
+      transaction_type: 'not_a_real_type',
+    });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+    expect(body.accepted_ids).not.toContain(transaction.id);
+    expect(body.rejected.count).toBe(1);
+    expect(body.rejected.errors[0].transaction_id).toBe(transaction.id);
+
+    // And nothing was written — the terminal keeps the sale in its queue.
+    const history = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}`);
+    expect(history.ok()).toBeTruthy();
+    expect((await history.json()).count).toBe(0);
+  });
+
+  /**
+   * Issue #82 — one refused entry must not cost the club the sales beside it.
+   */
+  test('POST /api/sync/transactions accepts the rest of a batch around a refused entry', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const good = createValidTransaction(member.id, product.id, { amount_cents: 350 });
+    const refused = createValidTransaction(member.id, product.id, {
+      amount_cents: 700,
+      transaction_type: 'not_a_real_type',
+    });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [good, refused] },
+    });
+
+    expect(response.status()).toBe(201);
+
+    const body = await response.json();
+    expect(body.accepted_ids).toEqual([good.id]);
+    expect(body.rejected.count).toBe(1);
+    expect(body.member_balances[member.id]).toBe(350);
+  });
+
+  /**
+   * Issue #82 item 3 — the core ADR-0004 guarantee had no test at all.
+   * A terminal that loses the response resends the same batch; the same client
+   * UUID must be accepted again and must not book the drink twice.
+   */
+  test('POST /api/sync/transactions is idempotent when a batch is resent', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, { amount_cents: 450 });
+
+    const first = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+    expect(first.status()).toBe(201);
+    expect((await first.json()).accepted_ids).toContain(transaction.id);
+
+    // The terminal never saw that response and retries the identical batch.
+    const retry = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+    expect(retry.status()).toBe(201);
+
+    const retryBody = await retry.json();
+    expect(retryBody.accepted_ids).toContain(transaction.id);
+    expect(retryBody.rejected.count).toBe(0);
+
+    // Booked once, not twice — in the ledger and in the balance alike.
+    expect(retryBody.member_balances[member.id]).toBe(450);
+
+    const history = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}`);
+    const historyBody = await history.json();
+    expect(historyBody.count).toBe(1);
+    expect(historyBody.transactions[0].id).toBe(transaction.id);
+  });
+
   test('POST /api/sync/transactions rejects negative amount_cents', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
     const product = await createProduct(authenticatedRequest);

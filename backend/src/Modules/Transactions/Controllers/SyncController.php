@@ -33,7 +33,11 @@ class SyncController
         // Validate each transaction's required fields before processing
         $validationErrors = [];
         foreach ($transactions as $index => $tx) {
-            $requiredFields = ['member_id', 'product_id', 'amount_cents', 'created_at'];
+            // `id` is the terminal-generated UUID the idempotency guarantee of
+            // ADR-0004 rests on. It was missing from this list (#82), so a batch
+            // entry without one reached the insert and was discarded there while
+            // the response still called it accepted.
+            $requiredFields = ['id', 'member_id', 'product_id', 'amount_cents', 'created_at'];
             foreach ($requiredFields as $field) {
                 if (!isset($tx[$field]) || $tx[$field] === '') {
                     $validationErrors[] = [

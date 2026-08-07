@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Modules\Transactions\Repositories;
 
 use PDO;
+use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
+use App\Shared\Utils\DateFormatter;
 
 class TransactionsRepository
 {
@@ -23,35 +25,103 @@ class TransactionsRepository
         return $stmt->fetch() ?: null;
     }
 
+    /**
+     * Store one transaction, or report that its id was already stored.
+     *
+     * Returns the stored row, or `null` when a row with this id already
+     * exists — the idempotent replay of ADR-0004, which is the *only* failure
+     * this method absorbs. `INSERT IGNORE` used to absorb every ignorable
+     * error alongside it (#82): a dangling foreign key or an out-of-range
+     * value produced the same "zero rows affected" as a replay, the caller
+     * read it as "already had it", and the sale was reported accepted while no
+     * record of it existed anywhere.
+     *
+     * @throws TransactionNotStorableException when the database refuses the row
+     * @throws \PDOException on any transient database failure
+     */
     public function insertTransaction(array $data): ?array
     {
         // Terminals still send the field as created_at; it is written to occurred_at
         // (the sale time), while received_at is stamped by the database default.
         $stmt = $this->db->prepare(
-            'INSERT IGNORE INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, related_transaction_id, created_by_terminal_id, created_by_admin_id, occurred_at, dispenser_tx_id, dispenser_requested, dispenser_actual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, related_transaction_id, created_by_terminal_id, created_by_admin_id, occurred_at, dispenser_tx_id, dispenser_requested, dispenser_actual) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([
-            $data['id'],
-            $data['member_id'],
-            $data['product_id'] ?? null,
-            (int) $data['amount_cents'],
-            $data['transaction_type'] ?? 'purchase',
-            $data['notes'] ?? null,
-            $data['related_transaction_id'] ?? null,
-            $data['created_by_terminal_id'] ?? null,
-            $data['created_by_admin_id'] ?? null,
-            $data['created_at'] ?? date('Y-m-d H:i:s'),
-            $data['dispenser_tx_id'] ?? null,
-            $data['dispenser_requested'] ?? null,
-            $data['dispenser_actual'] ?? null,
-        ]);
 
-        if ($stmt->rowCount() === 0) {
-            return null; // duplicate
+        try {
+            $stmt->execute([
+                $data['id'],
+                $data['member_id'],
+                $data['product_id'] ?? null,
+                (int) $data['amount_cents'],
+                $data['transaction_type'] ?? 'purchase',
+                $data['notes'] ?? null,
+                $data['related_transaction_id'] ?? null,
+                $data['created_by_terminal_id'] ?? null,
+                $data['created_by_admin_id'] ?? null,
+                DateFormatter::toMysqlDateTime($data['created_at'] ?? null) ?? date('Y-m-d H:i:s'),
+                $data['dispenser_tx_id'] ?? null,
+                $data['dispenser_requested'] ?? null,
+                $data['dispenser_actual'] ?? null,
+            ]);
+        } catch (\PDOException $e) {
+            if (self::isDuplicateKey($e)) {
+                return null; // Already stored — the terminal is replaying the batch
+            }
+            if (self::isRowRefused($e)) {
+                $this->logger->error('Transaction refused by the database', [
+                    'id' => $data['id'] ?? null,
+                    'sqlstate' => $e->errorInfo[0] ?? null,
+                    'driver_code' => $e->errorInfo[1] ?? null,
+                    'driver_message' => $e->errorInfo[2] ?? null,
+                ]);
+                throw new TransactionNotStorableException(
+                    'Transaction cannot be stored: the database refused the row',
+                    0,
+                    $e,
+                );
+            }
+            throw $e; // Transient — the caller should retry the whole batch
         }
 
         $this->logger->info('Transaction created', ['id' => $data['id']]);
         return $this->findById($data['id']);
+    }
+
+    /**
+     * Errno 1062 is a duplicate primary or unique key and nothing else.
+     * SQLSTATE 23000 alone is not enough — MySQL reports foreign-key failures
+     * (1452), NOT NULL failures (1048) and check-constraint failures (3819)
+     * under the same class, and those are the rows that must never be mistaken
+     * for a replay.
+     */
+    private static function isDuplicateKey(\PDOException $e): bool
+    {
+        return ($e->errorInfo[0] ?? null) === '23000'
+            && ((int) ($e->errorInfo[1] ?? 0)) === 1062;
+    }
+
+    /**
+     * Whether the database refused this particular row, as opposed to failing
+     * for a reason a retry could clear.
+     *
+     * The three SQLSTATE classes below are what MariaDB raises for a row it
+     * will refuse identically forever:
+     *
+     * | Class | Raised for | Example |
+     * |---|---|---|
+     * | `23` | integrity constraint | dangling `member_id` (1452), storno without a link (4025) |
+     * | `22` | data exception | `occurred_at` that is not a datetime (1292) |
+     * | `01` | truncation, promoted to an error by `STRICT_TRANS_TABLES` | `transaction_type` outside the ENUM (1265) |
+     *
+     * Everything else — a dropped connection, a deadlock, a lock timeout — is
+     * transient and keeps propagating, because the terminal *should* retry it.
+     */
+    private static function isRowRefused(\PDOException $e): bool
+    {
+        $sqlstate = (string) ($e->errorInfo[0] ?? $e->getCode());
+        return str_starts_with($sqlstate, '23')
+            || str_starts_with($sqlstate, '22')
+            || str_starts_with($sqlstate, '01');
     }
 
     /**

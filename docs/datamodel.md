@@ -444,7 +444,7 @@ Sync metadata for delta synchronization.
 
 **Delta Sync**: Terminal sends last sync timestamp; backend returns records where `updated_at > since`.
 
-**Idempotent Upload**: Backend uses `INSERT IGNORE` with UUID; duplicate transactions are safely ignored.
+**Idempotent Upload**: Backend inserts by client-generated UUID and catches the duplicate-key error alone, so a replayed transaction is accepted without being booked twice. `INSERT IGNORE` is deliberately *not* used: it also swallows the errors that mean a row was refused, which made a lost sale indistinguishable from a replay ([#82](https://github.com/dgloeckner/ruderbar/issues/82)).
 
 ---
 

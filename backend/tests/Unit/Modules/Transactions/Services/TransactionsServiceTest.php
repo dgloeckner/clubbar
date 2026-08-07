@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\Transactions\Services;
 use App\Modules\Transactions\Services\TransactionsService;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Modules\Transactions\DTOs\TransactionBatchResultDto;
+use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Exceptions\NotFoundException;
@@ -132,6 +133,80 @@ class TransactionsServiceTest extends TestCase
         $this->assertSame([], $result->errors);
     }
 
+    /**
+     * Issue #82 — the sale-loss case. A row the database refuses must come
+     * back as *rejected*; reporting it as accepted is what let the terminal
+     * purge a served drink from its offline queue with no record anywhere.
+     */
+    public function test_processBatch_rejects_an_entry_the_database_refuses(): void
+    {
+        $memberId = 'member-1';
+        $tx = ['id' => 'tx-unstorable', 'member_id' => $memberId, 'amount_cents' => 350];
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+
+        $this->transactionsRepository->expects($this->once())
+            ->method('insertTransaction')
+            ->with($tx)
+            ->willThrowException(new TransactionNotStorableException('refused'));
+
+        $result = $this->service->processBatch([$tx]);
+
+        $this->assertSame([], $result->acceptedIds, 'A refused row is never reported as accepted');
+        $this->assertSame(1, $result->rejectedCount);
+        $this->assertSame('unstorable', $result->errors[0]['error']);
+        $this->assertSame('tx-unstorable', $result->errors[0]['transaction_id']);
+    }
+
+    /**
+     * A refusal is per-row. The rest of the batch is unaffected — one bad
+     * entry must not cost the terminal the sales that surround it.
+     */
+    public function test_processBatch_accepts_the_rest_of_the_batch_around_a_refused_entry(): void
+    {
+        $memberId = 'member-1';
+        $goodTx = ['id' => 'tx-good', 'member_id' => $memberId, 'amount_cents' => 100];
+        $badTx = ['id' => 'tx-refused', 'member_id' => $memberId, 'amount_cents' => 200];
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+
+        $this->transactionsRepository->method('insertTransaction')
+            ->willReturnCallback(function (array $tx) use ($goodTx) {
+                if ($tx['id'] === $goodTx['id']) {
+                    return array_merge($goodTx, ['created_at' => '2026-08-07 10:00:00']);
+                }
+                throw new TransactionNotStorableException('refused');
+            });
+
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(100);
+
+        $result = $this->service->processBatch([$goodTx, $badTx]);
+
+        $this->assertSame(['tx-good'], $result->acceptedIds);
+        $this->assertSame(1, $result->rejectedCount);
+        $this->assertSame([$memberId => 100], $result->memberBalances);
+    }
+
+    /**
+     * A transient database failure is not a rejection. The terminal should
+     * retry the whole batch, so the exception must reach the error handler
+     * rather than be recorded as a per-row verdict.
+     */
+    public function test_processBatch_propagates_a_transient_database_failure(): void
+    {
+        $memberId = 'member-1';
+        $tx = ['id' => 'tx-transient', 'member_id' => $memberId, 'amount_cents' => 350];
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+
+        $this->transactionsRepository->method('insertTransaction')
+            ->willThrowException(new \PDOException('server has gone away'));
+
+        $this->expectException(\PDOException::class);
+
+        $this->service->processBatch([$tx]);
+    }
+
     public function test_processBatch_mixed_new_and_duplicate_entries(): void
     {
         $memberId = 'member-1';
@@ -169,10 +244,14 @@ class TransactionsServiceTest extends TestCase
 
         $this->assertSame([], $result->acceptedIds);
         $this->assertSame(1, $result->rejectedCount);
-        // NOTE: actual behaviour — missing member_id error uses the 'id' key,
-        // unlike the not_found/sepa_invalid branches below which use 'transaction_id'.
+        // Every rejection names the transaction under the same key, so the
+        // terminal can read one contract rather than three.
         $this->assertSame(
-            [['id' => 'tx-1', 'error' => 'member_id is required']],
+            [[
+                'error' => 'unstorable',
+                'transaction_id' => 'tx-1',
+                'message' => 'member_id is required',
+            ]],
             $result->errors,
         );
         $this->assertSame([], $result->memberBalances);
