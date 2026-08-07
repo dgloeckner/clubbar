@@ -15,15 +15,17 @@ Sources: [#140](https://github.com/dgloeckner/ruderbar/issues/140) (refund oblig
 
 > ⚠️ **Not legal advice.** Points marked ⚠️ need confirmation from the club's Steuerberater or bank. They are flagged where the research found no authority, not smoothed over.
 
-> ### ⚠️⚠️ Premise under review (2026-08-07)
+> ### ✅ Premise established (2026-08-07)
 >
-> **This ADR's applicability was assumed, not established.** The research ticket behind it was given a premise in its body — *"A club bar selling drinks is a wirtschaftlicher Geschäftsbetrieb, so the Verein carries bookkeeping obligations for it"* — written by the agent, not researched. The researcher worked *inside* that assumption and established what the GoBD requires **given** it applies. Nobody tested whether it applies, or at what intensity.
+> This ADR's applicability was originally **assumed** — the research ticket behind it was handed the premise in its own body. It has since been tested directly ([#174](https://github.com/dgloeckner/ruderbar/issues/174)) and **it holds**:
 >
-> The club is a gemeinnütziger Verein selling to members **at purchase price**, cash-free, at Kaffeekasse scale — plausibly under the § 64 Abs. 3 AO €45,000 Besteuerungsfreigrenze and well under the § 141 AO Buchführungspflicht thresholds. Note that § 14 Satz 2 AO says profit intent is *not* required for a wirtschaftlicher Geschäftsbetrieb, so zero margin likely does not remove the status — but **tax liability disappearing is not the same as record-keeping obligations disappearing**, and the two have been running together here.
+> - **[AEAO zu § 67a Nr. 10](https://ao.bundesfinanzministerium.de/ao/2020/Abgabenordnung/Zweiter-Teil/Dritter-Abschnitt/Paragraf-67a/ae-67a.html)** — a Vereinsgaststätte is a taxable wirtschaftlicher Geschäftsbetrieb *„auch wenn diese Einrichtungen ihr Angebot nur an Mitglieder richten"*. Members-only is refused by name.
+> - **BFH I R 13/13** — the Wettbewerbsgedanke is not an element of § 14 AO at all. "We don't compete with pubs" does not reach the classification.
+> - **§ 14 Satz 2 AO** — profit intent is not required, so selling at purchase price changes nothing.
 >
-> **Most affected: §5 (8-year retention) and §6 (GoBD applies regardless).** §1–§4 rest on BGB and SEPA scheme rules rather than tax bookkeeping and are less exposed; §4's GoBD Rz. 64 linkage requirement is only binding to the extent the GoBD applies at all.
+> **The thresholds remove tax liability and essentially nothing else.** § 64 Abs. 3 AO (now **€50,000** from 1.1.2026) and § 141 AO (€800k/€80k) govern *taxation*, not record-keeping. The duty that actually binds is **§ 63 Abs. 3 AO** — threshold-free — requiring *„ordnungsmäßige Aufzeichnungen über ihre Einnahmen und Ausgaben"* from which a knowledgeable third party can follow transactions in origin and processing.
 >
-> Under test in [#174](https://github.com/dgloeckner/ruderbar/issues/174), which asks in particular whether **per-drink, per-member records** are Buchungsbelege at all, or whether the Beleg is the monthly SEPA collection. **Do not build new decisions on §5 or §6 until that returns.**
+> One relief applies: **§ 65 UStDV** substitutes *„die Werte der erhaltenen Gegenleistungen"* for the whole § 22 Abs. 2–4 UStG catalogue.
 
 ## Decision
 
@@ -48,8 +50,11 @@ The invariant belongs at **settlement time**, not at data entry. Preventing nega
 
 | Window | Applies to | Source |
 |---|---|---|
-| **8 weeks** | Any authorised collection, no reason required | § 675x BGB, EPC SDD Core Rulebook |
-| **13 months** | Collections made **without a valid mandate** — these are *unauthorised* transactions | § 675x BGB |
+| **8 weeks** | Any authorised collection, no reason required | **§ 675x Abs. 4 BGB**, EPC SDD Core Rulebook |
+| **13 months** | Collections made **without a valid mandate** — *unauthorised* transactions | **§ 676b Abs. 2 BGB** (not § 675x; corrected 2026-08-07) |
+| **36 months** | Not a return window — EPC Rulebook §4.2 requires the **creditor to cancel** a mandate unused for 36 months | EPC SDD Core Rulebook §4.2 |
+
+The 36-month rule is a *mandate lifecycle* obligation, not a retention or return rule, and is currently modelled nowhere.
 
 The second window is the one that surprises. A collection made against a member with no signed mandate is reclaimable for over a year, not eight weeks.
 
@@ -74,7 +79,17 @@ A BMF circular binds the tax administration rather than the courts, but it resta
 
 **Not required**: no statute, BMF circular or court decision imposes four-eyes, countersignature, or a Vorstandsbeschluss on a Vereins-Auszahlung. § 40 BGB makes the § 27 Abs. 3 regime dispositive, and the Kassenprüfer has no statutory basis at all. Do not invent this control and then design around it.
 
-**Retention**: 8 years (§ 147 Abs. 3 AO, post-BEG IV), **suspended** while the Festsetzungsfrist runs. No hard automatic deletion.
+**Retention** *(corrected 2026-08-07 — the original flat "8 years" was too short)*:
+
+| Class | Period | Basis |
+|---|---|---|
+| **Transaction journal / member drink records** | **10 years** | § 147 Abs. 1 **Nr. 1** — *Aufzeichnungen*, not Belege |
+| Buchungsbelege | 8 years | § 147 Abs. 1 Nr. 4, post-BEG IV |
+| Remaining classes | 6 → effectively 7 years | § 147 Abs. 3 S. 5 Ablaufhemmung |
+
+All periods run from **31.12. of the year of the last entry** (§ 147 Abs. 4 AO), and are **suspended** while the Festsetzungsfrist runs — so no hard automatic deletion.
+
+⚠️ The 8-vs-10 classification has **no authority post-BEG IV**. The per-drink log is treated as Nr. 1 *Aufzeichnungen* because that is the safer reading, not because a source settles it.
 
 ### 6. The system is outside the TSE regime — conditionally
 
@@ -96,6 +111,16 @@ This matters because the exemption depends on it. Accepting cash anywhere in the
 
 **The GoBD applies regardless** — § 146 Abs. 6 AO and AEAO Nr. 2.1.1 — including to a plain Einnahmen-Überschuss-Rechnung. Einzelaufzeichnung and Unveränderbarkeit are binding.
 
+> ### ⚠️ Read the diagram carefully — cashless does **not** mean fewer obligations
+>
+> The flowchart above answers one question only: *does the TSE regime apply?* It is easy to misread as "cashless is lighter". **For Einzelaufzeichnung it is the opposite.**
+>
+> **AEAO Nr. 2.1.4** and **GoBD Rz. 39** expressly decouple "no TSE" from "no Einzelaufzeichnung". And § 146 Abs. 1 S. 3 AO's escape from single-record-keeping requires **Barzahlung *and* nicht bekannte Personen** — this club fails both limbs: no cash, and every member is known by name. So no cash + known members + an electronic system **removes every available escape** from § 146 Abs. 1 S. 1.
+>
+> **Digitising the Strichliste genuinely raises the burden.** GoBD Rz. 119, 129 and 157: born-digital records must stay electronic, remain machine-evaluable, and cannot be printed-and-purged. The paper tally this system replaces carried none of those duties. That is a real, ongoing project cost.
+>
+> The TSE exit itself gains a second independent ground: **§ 1 Abs. 2 KassenSichV** excludes Waren- und Dienstleistungsautomaten.
+
 ⚠️ **The exit is conditional.** The same AEAO passage extends Kassenfunktion to "virtuelle (Kunden-)Konten" and to value taken "an Geldes statt vor Ort", and states a cash drawer is not required. A **prepaid** member balance reads as in scope. Our post-paid tab — a Forderung — is the better reading, but the research searched specifically for an authority holding that a post-paid Debitorenkonto sits outside § 146a AO and **found none**. This is interpretation, not a holding.
 
 **Architectural consequence: terminal-side top-up is ruled out by design.** Allowing members to load value onto their account would plausibly pull the entire system into the TSE regime. This is not a feature we have merely not built yet; it is one we may not build without re-opening this ADR.
@@ -111,6 +136,27 @@ Per DK **Anlage 3**, the return booking carries: `EREF+` (end-to-end id), `MREF+
 | Expect **`MS03`** ("reason not specified") domestically | Germany suppresses `AM04`/`AC04`/`MD07` for data-protection reasons, so the *reason* is often unavailable |
 
 ⚠️ If a bank books returns collectively rather than individually, the fallback is a manual camt.053 upload — not EBICS.
+
+### 8. Erasure: retain the accounting record, delete the contact data
+
+A member's right to erasure does not defeat the retention duty, but it is **not** blocked wholesale either. The scope of retention is bounded by the scope of the recording duty:
+
+> **GoBD Rz. 113**: *„Der sachliche Umfang der Aufbewahrungspflicht in § 147 Absatz 1 AO besteht grundsätzlich nur im Umfang der Aufzeichnungspflicht"*
+
+So the split is at **field** level, not record level:
+
+| Must be **retained** (restricted, not deleted) | Must be **deleted** |
+|---|---|
+| Per-transaction records — item, quantity, price, timestamp, member link | Email, phone, `preferred_language` |
+| Settlement and monthly totals; payment, return and reversal records | RFID/NFC token, PIN, credentials, session data |
+| IBAN, mandate reference (UMR), the mandate document | Photo/avatar, free-text notes, marketing flags, consent-based data |
+| The identifier tying transactions to the record (GoBD Rz. 64 Ordnungskriterium) | Postal address and date of birth — *unless* they appear on a Beleg the club issues |
+
+**OLG Dresden, 14.12.2021, 4 U 1278/21** decides this at field granularity: *„Ihre Löschungspflicht beschränkt sich auf den Namen, die Anschrift und das Geburtsdatum des Klägers"*, with identifying data **redacted** on retained business records rather than the records destroyed.
+
+Mechanically this is **Art. 17(3)(b) DSGVO** — the erasure obligation simply never arises for the compelled data. It is *not* an Art. 18(1) case: lit. b needs the processing to be unlawful (it is compelled), and lit. c needs the *data subject* to require the data (here the controller is compelled). "Restrict rather than delete" then rests on Art. 5(1)(b)/(c)/(e).
+
+⚠️ **No settled case law squarely holds that Art. 17(3)(b) covers § 147 AO.** It is the universal supervisory view and uncontroversial in practice, but it has not been adjudicated head-on — no BFH, BAG or EuGH decision found.
 
 ## Consequences
 
