@@ -193,6 +193,9 @@ Percentages assume ~85% coverage of each file listed. The floor trails the measu
 
 ## Conventions for every task
 
+> ⚠️ **Before pinning any behaviour, check whether it is already ruled.** [Map #139](https://github.com/dgloeckner/ruderbar/issues/139) holds nine money-semantics rulings, and M2–M6 run straight through the code they govern. Pinning ruled behaviour writes a test that must later be deleted — and reads to a future maintainer as deliberate specification. The protocol is decided in [#166](https://github.com/dgloeckner/ruderbar/issues/166): **no ruling → pin as usual; ruling decided and its fix unblocked → fix first, then cover; ruling decided but blocked, or still open → skip the unit with a named declarative skip** (`markTestSkipped('ruled by #164; see map #139')`). The "Ruled surfaces — do not pin" table and the scheduled-ratchet removal land in [#168](https://github.com/dgloeckner/ruderbar/issues/168); **M2.4 collides with [#145](https://github.com/dgloeckner/ruderbar/issues/145) today.**
+
+
 - **TDD** per CLAUDE.md — write the test first; a test that passes before the assertion exists is proving nothing.
 - **Unit vs Feature**: pure logic and anything with mockable collaborators → `tests/Unit`. Raw SQL, transactions, and constraint behaviour → `tests/Feature` extending `DatabaseTestCase`.
 - **Feature tests follow E2E Pattern 001** — unique data per test, cleaned up in `tearDown`. The `test-backend` job shares one MariaDB service.
@@ -216,6 +219,7 @@ Verified as **not** defects, having been checked directly against the source:
 
 ## References
 
+- [Map #139: money-semantics rulings](https://github.com/dgloeckner/ruderbar/issues/139) — binding on M2–M6; see #166 for the protocol
 - [ADR-0022: Test Strategy and Automation](../adr/0022-test-strategy-and-automation.md) — pyramid, 80% line / 70% branch targets
 - [ADR-0004: Immutable Transaction Storage](../adr/0004-immutable-transaction-storage.md) — why corrections are reverse transactions
 - `backend/patterns/` — Patterns 003 (DTOs), 004 (Service Layer), 005 (Repository Interface) define the seams these tests exploit
