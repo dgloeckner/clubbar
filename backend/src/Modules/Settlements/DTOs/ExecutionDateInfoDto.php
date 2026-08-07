@@ -17,6 +17,7 @@ final readonly class ExecutionDateInfoDto
         public string $minimumDate,
         public int $leadTimeDays,
         public string $rule,
+        public string $today,
     ) {}
 
     public function toArray(): array
@@ -25,6 +26,12 @@ final readonly class ExecutionDateInfoDto
             'minimum_date' => $this->minimumDate,
             'lead_time_days' => $this->leadTimeDays,
             'rule' => $this->rule,
+            // The date `minimum_date` was derived from. A client that builds
+            // `settlement_date` from its own clock instead pairs two calendar
+            // days that need not agree — the browser is a day ahead of a UTC
+            // server every evening east of Greenwich — and the lead-time check
+            // then rejects the pair the server itself proposed.
+            'today' => $this->today,
         ];
     }
 }

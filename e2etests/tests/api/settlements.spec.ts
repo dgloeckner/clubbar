@@ -2,7 +2,7 @@ import { test, expect } from '../../fixtures/auth.fixture';
 import {
   INVALID_EXECUTION_DATES,
   minimumExecutionDate,
-  today as todayIso,
+  serverToday,
 } from '../../utils/dates';
 
 test.describe('Settlements API', () => {
@@ -10,6 +10,14 @@ test.describe('Settlements API', () => {
    * SEPA Config Tests (5 tests)
    */
   test.describe('SEPA Configuration', () => {
+    // The SEPA config is a single global row, and these tests write it and
+    // then assert what came back. Under `fullyParallel` they run concurrently
+    // and clobber each other — A6 posts a name, A7 patches a different one,
+    // and whichever reads second sees the other's value (E2E Pattern 001:
+    // the config cannot be made per-test, so the writers are serialised
+    // instead).
+    test.describe.configure({ mode: 'serial' });
+
     test('A1: GET /sepa-config returns full unmasked config (admin-only)', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.get('/api/admin/sepa-config');
 
@@ -801,7 +809,7 @@ test.describe('Settlements API', () => {
       await testTransactions.createStorno(member.id, 400, `sf-tx-${testId}`, 'adjustment', purchase1);
       await testTransactions.createStorno(member.id, 200, `sf-tx2-${testId}`, 'adjustment', purchase2);
 
-      const today = todayIso();
+      const today = await serverToday(authenticatedRequest);
       const exec = await minimumExecutionDate(authenticatedRequest);
 
       const res = await authenticatedRequest.post('/api/admin/settlements/settle-filter', {
@@ -919,7 +927,7 @@ test.describe('Settlements API', () => {
         data: {
           method: 'direct_debit',
           transaction_ids: ['test-id'],
-          settlement_date: todayIso(),
+          settlement_date: await serverToday(authenticatedRequest),
           execution_date: execDate,
         },
       });
@@ -998,7 +1006,7 @@ test.describe('Settlements API', () => {
         data: {
           method: 'direct_debit',
           transaction_ids: [transactionId],
-          settlement_date: todayIso(),
+          settlement_date: await serverToday(request),
           execution_date: executionDate,
         },
       });
@@ -1020,7 +1028,7 @@ test.describe('Settlements API', () => {
         data: {
           method: 'direct_debit',
           transaction_ids: transactionIds,
-          settlement_date: todayIso(),
+          settlement_date: await serverToday(request),
           execution_date: await minimumExecutionDate(request),
         },
       });

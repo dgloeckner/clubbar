@@ -45,15 +45,23 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { SettlementPreviewMembersItem } from './settlementPreviewMembersItem';
-import type { SettlementPreviewWarningsItem } from './settlementPreviewWarningsItem';
+import type { SettlementPreviewMember } from './settlementPreviewMember';
 
 export interface SettlementPreview {
-  total_amount_cents?: number;
+  /** Members with an active SEPA mandate whose total unsettled position is >= 0 */
+  eligible_members?: SettlementPreviewMember[];
+  /** Members who owe money but hold no active SEPA mandate — remedy is to chase the bank details */
+  ineligible_members?: SettlementPreviewMember[];
+  /** Members whose total unsettled position is negative. Excluded from
+the settlement and from the file; the remedy is the opposite of
+the ineligible bucket's — pay them back (ruling #141, § 812 BGB).
+ */
+  credit_members?: SettlementPreviewMember[];
+  eligible_total?: number;
+  ineligible_total?: number;
+  /** Sum of the credit bucket; negative, or zero if nobody is in credit */
+  credit_total?: number;
+  /** Members placed in any bucket */
   member_count?: number;
-  transaction_count?: number;
-  sepa_eligible_count?: number;
-  sepa_ineligible_count?: number;
-  members?: SettlementPreviewMembersItem[];
-  warnings?: SettlementPreviewWarningsItem[];
+  warnings?: string[];
 }

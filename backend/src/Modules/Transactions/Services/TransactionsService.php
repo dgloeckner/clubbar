@@ -48,14 +48,22 @@ class TransactionsService
                 continue;
             }
 
-            // Check SEPA validity: both iban and mandate_reference must be present
-            if (empty($member['iban']) || empty($member['mandate_reference'])) {
-                $errors[] = [
-                    'error' => 'sepa_invalid',
-                    'transaction_id' => $tx['id'],
-                    'message' => 'SEPA mandate is required to process transactions for this member',
-                ];
-                continue;
+            // #162, ruling #143 §1: a missing mandate is NOT a rejection. The
+            // drink was served against the terminal's last synced state; by the
+            // time the batch arrives the sale is a historical fact and the only
+            // question is whether the row can be stored. Refusing it here would
+            // destroy the record of a sale that happened, bill nobody, and show
+            // the loss on no report. ADR-0020 keeps the preventive half at the
+            // terminal (it blocks at card scan); the server is the backstop and
+            // stores-and-flags. The flag is derived, not stored: the member now
+            // carries an unsettled balance without an active mandate, which is
+            // exactly what puts them in the settlement preview's
+            // `ineligible_members` bucket (#161 §3) for the treasurer.
+            if (!$this->hasActiveMandate($member)) {
+                $this->logger->warning('Transaction stored for member without an active SEPA mandate', [
+                    'member_id' => $tx['member_id'],
+                    'transaction_id' => $tx['id'] ?? null,
+                ]);
             }
 
             try {
@@ -242,6 +250,17 @@ class TransactionsService
         }
         // settlement_date is DATE-only — no timezone conversion needed
         return $row;
+    }
+
+    /**
+     * Mirrors SettlementsService: SEPA validity is the single question "does
+     * this member hold an active mandate" (#164). Kept identical so the sync
+     * flag and the settlement-preview `ineligible_members` bucket never
+     * disagree about who needs the treasurer's attention.
+     */
+    private function hasActiveMandate(array $member): bool
+    {
+        return !empty($member['mandate_reference']) && !empty($member['iban']);
     }
 
     private function generateUuid(): string

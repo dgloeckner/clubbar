@@ -2,7 +2,7 @@ import { test, expect } from '../../fixtures/auth.fixture'
 import { JournalPage } from '../../pages/JournalPage'
 import { SettlementsPage } from '../../pages/SettlementsPage'
 import { generateUUID, createTestMember, createSepaInvalidMember } from '../../utils/transactions'
-import { minimumExecutionDate, today } from '../../utils/dates'
+import { minimumExecutionDate, serverToday } from '../../utils/dates'
 
 /**
  * Journal & Settlements E2E Tests (Consolidated)
@@ -360,7 +360,7 @@ test.describe('Journal & Settlements', () => {
     const settlement1Id = await testTransactions.createSettlement([txn1Id, txn2Id])
 
     // ── Attempt duplicate: txn2 (already settled) + txn3 → must reject ─
-    const todayStr = today()
+    const todayStr = await serverToday(authenticatedRequest)
     const execDate = await minimumExecutionDate(authenticatedRequest)
     const dupResp = await authenticatedRequest.post('/api/admin/settlements', {
       data: {
@@ -462,7 +462,7 @@ test.describe('Journal & Settlements', () => {
   })
 
 
-  test('SEPA validation: stornos and sync reject SEPA-invalid members, accept valid members', async ({
+  test('SEPA validation: stornos reject SEPA-invalid members; sync stores and flags them', async ({
     authenticatedRequest,
     authenticatedTerminalRequest,
   }) => {
@@ -548,12 +548,15 @@ test.describe('Journal & Settlements', () => {
     expect(corrResult.member_id).toBe(validMember.id)
     expect(corrResult.amount_cents).toBe(2000)
 
-    // ── Sync rejected: member without any SEPA data ─────────────────
-    const rejectedTxnId = generateUUID()
+    // ── Sync stores and flags: member without any SEPA data (#162) ──
+    // The drink was already served against the terminal's cached state. The
+    // server stores the sale and lets the settlement layer flag the member;
+    // rejecting here would erase a sale nobody could ever be billed for.
+    const unbankedTxnId = generateUUID()
     const syncReject = await authenticatedTerminalRequest.post('http://localhost:8080/api/sync/transactions', {
       data: {
         transactions: [{
-          id: rejectedTxnId,
+          id: unbankedTxnId,
           member_id: noSepaMember.id,
           type: 'product',
           product_id: generateUUID(),
@@ -567,11 +570,24 @@ test.describe('Journal & Settlements', () => {
     })
     expect(syncReject.status()).toBe(201)
     const rejectResult = await syncReject.json()
-    expect(rejectResult.rejected.count).toBe(1)
-    expect(rejectResult.accepted_ids).toHaveLength(0)
-    expect(rejectResult.rejected.errors[0].error).toBe('sepa_invalid')
-    expect(rejectResult.rejected.errors[0].transaction_id).toBe(rejectedTxnId)
-    expect(rejectResult.rejected.errors[0].message).toContain('SEPA mandate')
+    expect(rejectResult.rejected.count).toBe(0)
+    expect(rejectResult.rejected.errors).toHaveLength(0)
+    expect(rejectResult.accepted_ids).toContain(unbankedTxnId)
+    // The sale counts against the member's unsettled position like any other.
+    expect(rejectResult.member_balances[noSepaMember.id]).toBe(2500)
+
+    // ── The flag: the member surfaces in the treasurer's attention bucket ──
+    // Derived, not stored (ruling #143 §1): an unsettled balance held by a
+    // member without an active mandate is what `ineligible_members` means.
+    const previewResp = await authenticatedRequest.post('http://localhost:8080/api/admin/settlements/preview', {
+      data: { member_id: noSepaMember.id },
+    })
+    expect(previewResp.status()).toBe(200)
+    const preview = await previewResp.json()
+    expect(preview.eligible_members.map((m: { member_id: string }) => m.member_id)).not.toContain(noSepaMember.id)
+    const flagged = preview.ineligible_members.find((m: { member_id: string }) => m.member_id === noSepaMember.id)
+    expect(flagged).toBeTruthy()
+    expect(flagged.balance_cents).toBe(2500)
 
     // ── Sync accepted: valid SEPA member ────────────────────────────
     const acceptedTxnId = generateUUID()
@@ -595,9 +611,9 @@ test.describe('Journal & Settlements', () => {
     expect(acceptResult.accepted_ids).toContain(acceptedTxnId)
     expect(acceptResult.rejected.count).toBe(0)
 
-    // ── Batch: mixed valid and invalid SEPA members ─────────────────
+    // ── Batch: mixed valid and invalid SEPA members, both stored ────
     const batchValidTxnId = generateUUID()
-    const batchInvalidTxnId = generateUUID()
+    const batchUnbankedTxnId = generateUUID()
     const batchResp = await authenticatedTerminalRequest.post('http://localhost:8080/api/sync/transactions', {
       data: {
         transactions: [
@@ -613,7 +629,7 @@ test.describe('Journal & Settlements', () => {
             created_at: new Date().toISOString(),
           },
           {
-            id: batchInvalidTxnId,
+            id: batchUnbankedTxnId,
             member_id: noSepaMember.id,
             type: 'product',
             product_id: generateUUID(),
@@ -629,10 +645,10 @@ test.describe('Journal & Settlements', () => {
     expect(batchResp.status()).toBe(201)
     const batchResult = await batchResp.json()
     expect(batchResult.accepted_ids).toContain(batchValidTxnId)
-    expect(batchResult.accepted_ids).not.toContain(batchInvalidTxnId)
-    expect(batchResult.rejected.count).toBe(1)
-    expect(batchResult.rejected.errors[0].transaction_id).toBe(batchInvalidTxnId)
-    expect(batchResult.rejected.errors[0].error).toBe('sepa_invalid')
+    expect(batchResult.accepted_ids).toContain(batchUnbankedTxnId)
+    expect(batchResult.rejected.count).toBe(0)
+    // Both rows land, and the unbanked member's Deckel keeps growing.
+    expect(batchResult.member_balances[noSepaMember.id]).toBe(5000)
   })
 
   test('journal: create storno via UI modal', async ({

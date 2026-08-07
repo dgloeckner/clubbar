@@ -1162,10 +1162,16 @@ components:
                     type: string
                     description: |
                       Machine-readable rejection code — `not_found` (unknown
-                      member), `sepa_invalid` (no usable mandate) or
-                      `unstorable`. `unstorable` means the database refused the
-                      row and will refuse it again: resubmitting it unchanged
-                      cannot help.
+                      member) or `unstorable`. `unstorable` means the database
+                      refused the row and will refuse it again: resubmitting it
+                      unchanged cannot help.
+
+                      A row is rejected only when it cannot be stored. Business
+                      conditions are never rejections: a member with no usable
+                      SEPA mandate has their sale **stored and accepted** and is
+                      flagged for the treasurer instead (issue #162, ruling #143
+                      §1) — the drink was already served, so refusing the row
+                      would destroy the only record of it.
                   message:
                     type: string
                     description: Human-readable explanation

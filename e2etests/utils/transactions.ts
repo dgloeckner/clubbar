@@ -185,15 +185,21 @@ export interface SettlementData {
  * (issue #11). Use `minimumExecutionDate()` from `utils/dates` to get a valid
  * value from the backend.
  *
+ * `settlementDate` is supplied for the same reason: it must come from the same
+ * clock as the execution date, or the server's own lead-time rule rejects the
+ * pair. Use `serverToday()` from `utils/dates`.
+ *
  * @param transactionIds - IDs of transactions to settle
  * @param executionDate - Valid execution date (YYYY-MM-DD)
+ * @param settlementDate - Server's today (YYYY-MM-DD)
  * @returns Settlement data ready for settlement API
  */
 export const createSettlement = (
   transactionIds: string[],
-  executionDate: string
+  executionDate: string,
+  settlementDate: string
 ): SettlementData => {
-  const today = toIsoDate(new Date())
+  const today = settlementDate
 
   return {
     method: 'direct_debit',

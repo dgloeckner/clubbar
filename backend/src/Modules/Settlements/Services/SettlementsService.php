@@ -48,10 +48,12 @@ class SettlementsService
      */
     public function getExecutionDateInfo(?string $today = null): ExecutionDateInfoDto
     {
-        $base = (new \DateTimeImmutable($today ?? 'today'))->modify('+7 days');
+        $anchor = new \DateTimeImmutable($today ?? 'today');
+        $base = $anchor->modify('+7 days');
 
         return new ExecutionDateInfoDto(
             minimumDate: BankingCalendar::nextBusinessDay($base->format('Y-m-d')),
+            today: $anchor->format('Y-m-d'),
             leadTimeDays: self::LEAD_TIME_DAYS,
             rule: 'execution_date >= today + 7 calendar days, rolled to the next bank business day '
                 . '(Mon-Fri, excluding TARGET2 closing days)',

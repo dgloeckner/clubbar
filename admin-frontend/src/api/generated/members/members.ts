@@ -53,6 +53,7 @@ import type {
   ImportMembersConfirm201,
   ImportMembersConfirmBody,
   ImportMembersPreviewBody,
+  ListCreditBalances200,
   ListMembers200,
   ListMembersParams,
   MandateDocument,
@@ -108,6 +109,23 @@ const createMember = (
       {url: `/admin/members`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: memberCreateRequest
+    },
+      options);
+    }
+  /**
+ * Standing listing of members the club currently owes money — every
+member whose total unsettled position is negative, most-negative
+first. Soft-deleted members are excluded.
+
+Backend-only view (#161 work item 3, non-blocking).
+
+ * @summary List members with a credit balance outstanding
+ */
+const listCreditBalances = (
+    
+ options?: SecondParameter<typeof customInstance<ListCreditBalances200>>,) => {
+      return customInstance<ListCreditBalances200>(
+      {url: `/admin/members/credit-balances`, method: 'GET'
     },
       options);
     }
@@ -295,9 +313,10 @@ const getAdminSepaMandateTemplate = (
     },
       options);
     }
-  return {listMembers,createMember,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm,uploadMandateDocument,getMandateDocument,deleteMandateDocument,getAdminSepaMandateTemplate}};
+  return {listMembers,createMember,listCreditBalances,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm,uploadMandateDocument,getMandateDocument,deleteMandateDocument,getAdminSepaMandateTemplate}};
 export type ListMembersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listMembers']>>>
 export type CreateMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['createMember']>>>
+export type ListCreditBalancesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listCreditBalances']>>>
 export type GetMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['getMember']>>>
 export type UpdateMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['updateMember']>>>
 export type ExportMemberDataResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['exportMemberData']>>>

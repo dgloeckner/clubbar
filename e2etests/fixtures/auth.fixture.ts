@@ -7,7 +7,7 @@ import {
   createStorno,
   createSettlement,
 } from "../utils/transactions";
-import { minimumExecutionDate } from "../utils/dates";
+import { minimumExecutionDate, serverToday } from "../utils/dates";
 import { settlementFactory as buildSettlementFactory, SettlementFactory } from "../utils/settlements";
 import { ProfilePage } from "../pages/ProfilePage";
 import { MainLayoutPage } from "../pages/MainLayoutPage";
@@ -453,7 +453,11 @@ export const test = base.extend<AuthFixtures>({
         // it must be a TARGET2 business day, and the answer moves with the
         // calendar (issue #11).
         const execDate = executionDate ?? (await minimumExecutionDate(authenticatedRequest));
-        const settlementData = createSettlement(transactionIds, execDate);
+        const settlementData = createSettlement(
+          transactionIds,
+          execDate,
+          await serverToday(authenticatedRequest),
+        );
         const response = await authenticatedRequest.post(`${API_BASE}/admin/settlements`, {
           data: settlementData,
         });

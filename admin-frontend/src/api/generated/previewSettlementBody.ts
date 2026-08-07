@@ -46,19 +46,13 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export interface ExecutionDateInfo {
-  /** The server's own calendar day, the one `minimum_date` was derived
-from. Clients must build `settlement_date` from this rather than
-from their local clock: a browser east of UTC is a calendar day
-ahead of a UTC server every evening, and pairing a locally-dated
-`settlement_date` with this `minimum_date` fails the lead-time
-check on a pair the server itself proposed.
+export type PreviewSettlementBody = {
+  from_date?: string;
+  to_date?: string;
+  member_id?: string;
+  /** Drop the `ineligible_members` bucket and its warnings.
+`credit_members` is never suppressed — the club owes those
+members money, so the exclusion must stay visible.
  */
-  today: string;
-  /** Earliest valid execution date; always a bank business day. */
-  minimum_date: string;
-  /** Fixed SEPA lead time in calendar days (ADR-0009). */
-  lead_time_days: number;
-  /** Human-readable statement of the rule, for display in the admin UI. */
-  rule: string;
-}
+  sepa_eligible_only?: boolean;
+};
