@@ -26,12 +26,10 @@ Full clover run: `149 tests, 6507 assertions, OK` — **797 / 5274 statements = 
 
 ### Reproducing the measurement locally
 
-The `backend` container has no coverage driver. Until Task 0.2 lands, install one for the session:
+One command from the repo root (provisions pcov on demand, runs the suite, enforces the floor, prints the least-covered files):
 
 ```bash
-docker compose exec -T backend sh -c 'pecl install pcov && docker-php-ext-enable pcov'
-docker compose exec -T -w /app backend php -d pcov.enabled=1 -d pcov.directory=/app/src vendor/bin/phpunit -c phpunit.xml
-cd backend && php scripts/check-coverage.php coverage/clover.xml 15
+./backend/scripts/coverage.sh          # floor defaults to 15; pass a percentage to override
 ```
 
 Per-file uncovered ranking:
@@ -87,26 +85,40 @@ Every task's success criterion is: **the named tests pass in a full `phpunit` ru
 ### Milestone 0 — Make the gate honest and repeatable
 
 - [x] **0.1** Pin the CI floor to measured coverage (15%) so it blocks regressions instead of failing unconditionally — `.github/workflows/build.yaml`. *Done in `6d83f15`.*
-- [ ] **0.2** Add `pcov` to the backend Docker image and a `composer test:coverage` script, so coverage is one command locally and not a manual `pecl install`.
-- [ ] **0.3** Upload `backend/coverage/clover.xml` as a CI artifact on the `test-backend` job, so a failed floor check can be diagnosed without re-running.
+- [x] **0.2** `backend/scripts/coverage.sh` provisions pcov on demand, runs the suite, enforces the floor and prints the least-covered files; wired up as `composer test:coverage`. No backend Dockerfile introduced (CLAUDE.md: the backend image is stock, nothing to build).
+- [x] **0.3** `test-backend` uploads `backend/coverage/clover.xml` as the `backend-coverage` artifact with `if: always()`, so a failed floor check is diagnosable without a re-run.
 - [x] **0.4** Settle the scope decision above. *Option A chosen 2026-08-07: PHPUnit owns the HTTP layer via a Slim harness; no ADR-0022 amendment needed.*
 
-**Success**: `composer test:coverage` prints the percentage locally; CI artifact downloadable; floor step green.
+**Success**: verified 2026-08-07 — `./backend/scripts/coverage.sh` prints the percentage locally and the floor step is green.
 
 ### Milestone 1 — Money: Settlements & Transactions
 
-Target: these files ≥85%. Projected total after milestone: **~24%**.
+**Status: COMPLETE (2026-08-07).** Measured **26.64%** (1405/5274), ahead of the ~24% projection. Suite grew 149 → 340 tests / 7228 assertions, green on three consecutive full runs.
 
-- [ ] **1.1** `SettlementsService` (142 stmt, 6%) — `tests/Unit/Modules/Settlements/Services/SettlementsServiceTest.php`, repositories mocked.
-  Behaviours: `previewSettlement` date/member/`sepaEligibleOnly` filtering and totals; `createSettlement` rejecting already-settled transactions; `createSettlementByFilters` matching `previewByFilters`; `cancelSettlement` idempotency and refusal on an exported settlement; `markExported` state transition; `getCsvData` row shape; `manualReason` required for `settlement_type = manual`; execution-date business-day guard (extends the existing `ExecutionDateInfoTest`).
-- [ ] **1.2** `SettlementsRepository` (108 stmt, 0%) — `tests/Feature/Modules/Settlements/Repositories/SettlementsRepositoryTest.php` against the DB, following Pattern 001 (unique data per test).
+- [x] **1.1** `SettlementsService` (142 stmt, 6%) — `tests/Unit/Modules/Settlements/Services/SettlementsServiceTest.php`, repositories mocked.
+  Behaviours: `previewSettlement` date/member/`sepaEligibleOnly` filtering and totals; `createSettlement` rejecting already-settled transactions; `createSettlementByFilters` matching `previewByFilters`; `cancelSettlement`; `markExported` state transition; `getCsvData` row shape; `manualReason` passthrough.
+  *Note: the execution-date business-day guard is enforced at the HTTP boundary (`business_day` validator rule, `Settlements/Controllers/AdminController.php:71,104`), not in the service — cover it in Task 6.2, not here.*
+- [x] **1.2** `SettlementsRepository` (108 stmt, 0%) — `tests/Feature/Modules/Settlements/Repositories/SettlementsRepositoryTest.php` against the DB, following Pattern 001 (unique data per test).
   Behaviours: create with items; **negative `amount_cents`** on correction items (signed BIGINT, see memory note); pagination/sort/date-range filters; `is_cancelled` exclusion in lookups.
-- [ ] **1.3** `TransactionsService` (100 stmt, 0%) — `tests/Unit/Modules/Transactions/Services/TransactionsServiceTest.php`.
+- [x] **1.3** `TransactionsService` (100 stmt, 0%) — `tests/Unit/Modules/Transactions/Services/TransactionsServiceTest.php`.
   Behaviours: `processBatch` idempotency on client-generated UUIDs (re-submitting the same batch must not double-book — the core offline-sync guarantee); partial-failure result shape in `TransactionBatchResultDto`; `recordCorrection` producing a reverse transaction with inverted sign and audit entry; sort-key mapping and filter passthrough in `getTransactions`.
-- [ ] **1.4** `TransactionsRepository` (177 stmt, 21%) — extend `tests/Feature/Modules/Transactions/Repositories/TransactionsRepositoryTest.php`.
+- [x] **1.4** `TransactionsRepository` (177 stmt, 21%) — extend `tests/Feature/Modules/Transactions/Repositories/TransactionsRepositoryTest.php`.
   Behaviours: the `settlement_date` correlated subquery; `sort=member` → `m.last_name` mapping; `page/per_page` and `limit/offset` parameter forms; `since` delta queries at MySQL's **second** DATETIME precision.
-- [ ] **1.5** Settlement DTOs + enums (`SettlementDto` 46, `SettlementItemDto` 29, `SettlementPreviewDto` 9, `SettlementType`, `ManualReason`) — `tests/Unit/Modules/Settlements/DTOs/`. Assert `toArray()` key set and cents→formatting exactly as the OpenAPI spec declares.
-- [ ] **1.6** Ratchet the CI floor to **23**.
+- [x] **1.5** Settlement DTOs + enums (`SettlementDto` 46, `SettlementItemDto` 29, `SettlementPreviewDto` 9, `SettlementType`, `ManualReason`) — `tests/Unit/Modules/Settlements/DTOs/`. Assert `toArray()` key set and cents→formatting exactly as the OpenAPI spec declares.
+- [x] **1.6** Ratcheted the CI floor to **25** (measured 26.64%).
+
+Achieved per-file coverage:
+
+| File | Before | After |
+|------|--------|-------|
+| `SettlementsService` | 6% | **100%** |
+| `SettlementsRepository` | 0% | **100%** |
+| `TransactionsService` | 0% | **97%** |
+| `TransactionsRepository` | 21% | **94%** |
+| `SettlementDto` / `SettlementItemDto` / `SettlementPreviewDto` / `SepaConfigDto` | 0% | **100%** |
+| `SettlementType` / `ManualReason` | 0% | **100%** |
+
+Also fixed in passing: `tests/Feature/DatabaseTestCase.php` now sets `PDO::ATTR_EMULATE_PREPARES => false` to match production `bootstrap.php`. Under emulated prepares PDO binds `LIMIT ?`/`OFFSET ?` as quoted strings, which MariaDB's grammar rejects — so *every* `listPaginated()`-style method was untestable, in six repositories. The test harness had been running against different PDO semantics than production.
 
 ### Milestone 2 — Security: Auth, sessions, admin users
 
@@ -168,7 +180,7 @@ Target: **~80% total**.
 | After | Coverage | CI floor |
 |-------|----------|----------|
 | Baseline | 15.11% | 15 |
-| M1 Settlements + Transactions | ~24% | 23 |
+| M1 Settlements + Transactions | **26.64% (actual)** | **25** |
 | M2 Auth + AdminUsers | ~29% | 28 |
 | M3 Members | ~36% | 35 |
 | M4 Reports | ~41% | 40 |
@@ -186,6 +198,21 @@ Percentages assume ~85% coverage of each file listed. The floor trails the measu
 - **Feature tests follow E2E Pattern 001** — unique data per test, cleaned up in `tearDown`. The `test-backend` job shares one MariaDB service.
 - **Verify before committing** — the Test Verification Policy in CLAUDE.md applies. Run the full `phpunit` suite, not just the new file.
 - **One commit per completed task**, message format `Backend Test Coverage M<n>.<t>: <what now passes>`.
+
+## Findings from Milestone 1
+
+Coverage work surfaced three defects in code that had never been exercised. Per the plan's rules no `src/` file was modified; the tests assert **actual current behaviour** with `// NOTE:` comments, so fixing any of these will show up as a deliberate test change rather than a silent one. Each warrants a GitHub issue.
+
+1. **`SettlementsRepository::listPaginated()` ignores the sort key** — `SettlementsRepository.php:159` reads
+   `$sortCol = $sortKey === 'created_at' ? 's.created_at' : 's.created_at';`
+   Both ternary branches are identical, so no requested sort column can ever take effect; only the direction works. User-visible in the admin settlements list. Pinned by `test_listPaginated_sortKey_parameter_has_no_effect_on_order`.
+2. **`SettlementsService::cancelSettlement()` has no state guard** — it calls the repository unconditionally regardless of current `is_cancelled` / `exported_at`. Re-cancelling an already-cancelled settlement, or cancelling one already SEPA-exported, both "succeed": settlement items are deleted and a second audit entry is written. On an exported settlement the local record then no longer matches a file already sent to the bank.
+3. **`TransactionsService::recordCorrection()` writes no audit entry and derives no sign** — there is no `AuditService` in the service's constructor at all. The amount is persisted exactly as passed with `transaction_type = 'correction'`; sign convention is entirely the controller's responsibility and zero/positive corrections are accepted silently. Notable given transactions are append-only ([ADR-0004](../adr/0004-immutable-transaction-storage.md)) and corrections are the only remedy.
+
+Verified as **not** defects, having been checked directly against the source:
+
+- **Batch idempotency holds.** `TransactionsRepository::insertTransaction` uses `INSERT IGNORE`; a duplicate client-generated UUID reports as accepted without double-booking. This is the guarantee the offline-first sync architecture rests on, and it is now locked in by `test_processBatch_duplicate_client_uuid_is_idempotent_not_double_booked`.
+- **The execution-date business-day guard exists**, at the HTTP boundary (`business_day` validator rule, `Settlements/Controllers/AdminController.php:71,104`) rather than in the service. Covered in Task 6.2.
 
 ## References
 

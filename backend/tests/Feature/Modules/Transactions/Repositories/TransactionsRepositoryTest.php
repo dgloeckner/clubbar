@@ -318,4 +318,844 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $this->assertNull($result['dispenser_requested'], 'dispenser_requested should be null when not provided');
         $this->assertNull($result['dispenser_actual'], 'dispenser_actual should be null when not provided');
     }
+
+    // ---------------------------------------------------------------
+    // findByMemberId: type + since filters
+    // ---------------------------------------------------------------
+
+    public function test_findByMemberId_filters_by_type(): void
+    {
+        $memberId = $this->createTestMember('TypeFilter', 'User');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Cola', 'cola', 250);
+
+        $purchaseId = $this->generateUuid();
+        $this->testTransactionIds[] = $purchaseId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$purchaseId, $memberId, $productId, 250, 'purchase', '2026-02-10 10:00:00']);
+
+        $correctionId = $this->generateUuid();
+        $this->testTransactionIds[] = $correctionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$correctionId, $memberId, null, -100, 'correction', 'fix', '2026-02-10 11:00:00']);
+
+        $result = $this->transactionsRepository->findByMemberId($memberId, 50, 0, 'correction');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals($correctionId, $result[0]['id']);
+        $this->assertEquals('correction', $result[0]['transaction_type']);
+    }
+
+    public function test_findByMemberId_filters_by_since(): void
+    {
+        $memberId = $this->createTestMember('SinceFilter', 'User');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Water', 'water', 150);
+
+        $oldId = $this->generateUuid();
+        $this->testTransactionIds[] = $oldId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        // MySQL DATETIME has second precision; separate rows by >= 1 second using explicit timestamps.
+        $stmt->execute([$oldId, $memberId, $productId, 150, 'purchase', '2026-02-10 08:00:00']);
+
+        $newId = $this->generateUuid();
+        $this->testTransactionIds[] = $newId;
+        $stmt->execute([$newId, $memberId, $productId, 150, 'purchase', '2026-02-10 08:00:05']);
+
+        $result = $this->transactionsRepository->findByMemberId($memberId, 50, 0, null, '2026-02-10 08:00:02');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals($newId, $result[0]['id']);
+    }
+
+    public function test_findByMemberId_returns_empty_for_no_match(): void
+    {
+        $memberId = $this->createTestMember('NoMatch', 'User');
+
+        $result = $this->transactionsRepository->findByMemberId($memberId, 50, 0);
+
+        $this->assertSame([], $result);
+    }
+
+    // ---------------------------------------------------------------
+    // listPaginated
+    // ---------------------------------------------------------------
+
+    public function test_listPaginated_filters_by_member_id_and_includes_settlement_date(): void
+    {
+        $memberId = $this->createTestMember('ListMember', 'Alpha');
+        $adminId = $this->createTestAdminUser('list-admin@example.com');
+        $categoryId = $this->createTestCategory('Snacks');
+        $productId = $this->createTestProduct($categoryId, 'Chips', 'chips', 200);
+
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$transactionId, $memberId, $productId, 200, 'purchase', '2026-02-11 09:00:00']);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, '2026-02-11', '2026-02-15', 200, 1, $adminId]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $transactionId, $memberId, 200]);
+
+        $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId]);
+
+        $this->assertEquals(1, $result['total']);
+        $this->assertCount(1, $result['items']);
+        $item = $result['items'][0];
+        $this->assertEquals($transactionId, $item['id']);
+        $this->assertEquals('2026-02-11', $item['settlement_date'], 'Correlated subquery should attach settlement_date');
+        $this->assertEquals('purchase', $item['type'], 'type key should mirror transaction_type');
+        $this->assertNull($item['description']);
+        $this->assertEquals('ListMember Alpha', $item['member_name']);
+    }
+
+    public function test_listPaginated_settlement_date_null_when_settlement_cancelled(): void
+    {
+        $memberId = $this->createTestMember('CancelList', 'Beta');
+        $adminId = $this->createTestAdminUser('cancel-list-admin@example.com');
+        $categoryId = $this->createTestCategory('Snacks');
+        $productId = $this->createTestProduct($categoryId, 'Nuts', 'nuts', 300);
+
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$transactionId, $memberId, $productId, 300, 'purchase', '2026-02-12 09:00:00']);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id, is_cancelled) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, '2026-02-12', '2026-02-16', 300, 1, $adminId, 1]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $transactionId, $memberId, 300]);
+
+        $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId]);
+
+        $this->assertEquals(1, $result['total']);
+        $this->assertNull($result['items'][0]['settlement_date'], 'Cancelled settlements must not be attached');
+    }
+
+    public function test_listPaginated_filters_by_type(): void
+    {
+        $memberId = $this->createTestMember('TypeList', 'Gamma');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Juice', 'juice', 220);
+
+        $purchaseId = $this->generateUuid();
+        $this->testTransactionIds[] = $purchaseId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$purchaseId, $memberId, $productId, 220, 'purchase', '2026-02-13 10:00:00']);
+
+        $correctionId = $this->generateUuid();
+        $this->testTransactionIds[] = $correctionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$correctionId, $memberId, null, -50, 'correction', '2026-02-13 11:00:00']);
+
+        $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId, 'type' => 'correction']);
+
+        $this->assertEquals(1, $result['total']);
+        $this->assertEquals($correctionId, $result['items'][0]['id']);
+    }
+
+    public function test_listPaginated_type_all_returns_every_type(): void
+    {
+        $memberId = $this->createTestMember('TypeAll', 'Delta');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Tea', 'tea', 180);
+
+        $purchaseId = $this->generateUuid();
+        $this->testTransactionIds[] = $purchaseId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$purchaseId, $memberId, $productId, 180, 'purchase', '2026-02-14 10:00:00']);
+
+        $correctionId = $this->generateUuid();
+        $this->testTransactionIds[] = $correctionId;
+        $stmt->execute([$correctionId, $memberId, null, -20, 'correction', '2026-02-14 11:00:00']);
+
+        $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId, 'type' => 'all']);
+
+        $this->assertEquals(2, $result['total']);
+    }
+
+    public function test_listPaginated_filters_by_date_range(): void
+    {
+        $memberId = $this->createTestMember('DateRange', 'Epsilon');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Soda', 'soda', 190);
+
+        $insideId = $this->generateUuid();
+        $this->testTransactionIds[] = $insideId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$insideId, $memberId, $productId, 190, 'purchase', '2026-03-05 12:00:00']);
+
+        $beforeId = $this->generateUuid();
+        $this->testTransactionIds[] = $beforeId;
+        $stmt->execute([$beforeId, $memberId, $productId, 190, 'purchase', '2026-03-01 12:00:00']);
+
+        $afterId = $this->generateUuid();
+        $this->testTransactionIds[] = $afterId;
+        $stmt->execute([$afterId, $memberId, $productId, 190, 'purchase', '2026-03-10 12:00:00']);
+
+        $result = $this->transactionsRepository->listPaginated(50, 0, [
+            'member_id' => $memberId,
+            'date_from' => '2026-03-03',
+            'date_to' => '2026-03-07',
+        ]);
+
+        $this->assertEquals(1, $result['total']);
+        $this->assertEquals($insideId, $result['items'][0]['id']);
+    }
+
+    public function test_listPaginated_search_matches_member_name_notes_and_product(): void
+    {
+        $memberId = $this->createTestMember('Zamboni', 'Uniquesurname');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Uniqueproductname', 'drink', 210);
+
+        $byNameId = $this->generateUuid();
+        $this->testTransactionIds[] = $byNameId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$byNameId, $memberId, null, 210, 'purchase', '2026-03-06 10:00:00']);
+
+        $byProductId = $this->generateUuid();
+        $this->testTransactionIds[] = $byProductId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$byProductId, $memberId, $productId, 210, 'purchase', '2026-03-06 10:05:00']);
+
+        $byNotesId = $this->generateUuid();
+        $this->testTransactionIds[] = $byNotesId;
+        $otherMemberId = $this->createTestMember('Other', 'Person');
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$byNotesId, $otherMemberId, null, -10, 'correction', 'Uniquenotestoken adjustment', '2026-03-06 10:10:00']);
+
+        $resultByName = $this->transactionsRepository->listPaginated(50, 0, ['search' => 'Uniquesurname']);
+        $foundIds = array_column($resultByName['items'], 'id');
+        $this->assertContains($byNameId, $foundIds);
+        $this->assertContains($byProductId, $foundIds, 'Member-based search should return all of that member transactions');
+
+        $resultByProduct = $this->transactionsRepository->listPaginated(50, 0, ['search' => 'uniqueproductname']);
+        $this->assertContains($byProductId, array_column($resultByProduct['items'], 'id'), 'Case-insensitive product search should match');
+
+        $resultByNotes = $this->transactionsRepository->listPaginated(50, 0, ['search' => 'Uniquenotestoken']);
+        $foundNoteIds = array_column($resultByNotes['items'], 'id');
+        $this->assertContains($byNotesId, $foundNoteIds);
+        $this->assertNotContains($byNameId, $foundNoteIds);
+    }
+
+    public function test_listPaginated_settlement_status_filters(): void
+    {
+        $memberId = $this->createTestMember('SettleStatus', 'Zeta');
+        $adminId = $this->createTestAdminUser('settle-status-admin@example.com');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Rum', 'rum', 500);
+
+        $settledTxId = $this->generateUuid();
+        $this->testTransactionIds[] = $settledTxId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settledTxId, $memberId, $productId, 500, 'purchase', '2026-03-07 10:00:00']);
+
+        $unsettledTxId = $this->generateUuid();
+        $this->testTransactionIds[] = $unsettledTxId;
+        $stmt->execute([$unsettledTxId, $memberId, $productId, 500, 'purchase', '2026-03-07 11:00:00']);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, '2026-03-07', '2026-03-10', 500, 1, $adminId]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $settledTxId, $memberId, 500]);
+
+        $unsettledResult = $this->transactionsRepository->listPaginated(50, 0, [
+            'member_id' => $memberId,
+            'settlement_status' => 'unsettled',
+        ]);
+        $this->assertEquals(1, $unsettledResult['total']);
+        $this->assertEquals($unsettledTxId, $unsettledResult['items'][0]['id']);
+
+        $settledResult = $this->transactionsRepository->listPaginated(50, 0, [
+            'member_id' => $memberId,
+            'settlement_status' => 'settled',
+        ]);
+        $this->assertEquals(1, $settledResult['total']);
+        $this->assertEquals($settledTxId, $settledResult['items'][0]['id']);
+    }
+
+    public function test_listPaginated_sort_by_member_name_maps_to_last_name(): void
+    {
+        $memberA = $this->createTestMember('SortA', 'Aaronson');
+        $memberB = $this->createTestMember('SortB', 'Zimmerman');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Milk', 'milk', 100);
+
+        $txA = $this->generateUuid();
+        $this->testTransactionIds[] = $txA;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$txA, $memberA, $productId, 100, 'purchase', '2026-03-08 09:00:00']);
+
+        $txB = $this->generateUuid();
+        $this->testTransactionIds[] = $txB;
+        $stmt->execute([$txB, $memberB, $productId, 100, 'purchase', '2026-03-08 09:01:00']);
+
+        $result = $this->transactionsRepository->listPaginated(50, 0, [
+            'search' => 'Sort',
+        ], 'member', 'asc');
+
+        $ids = array_column($result['items'], 'id');
+        $posA = array_search($txA, $ids, true);
+        $posB = array_search($txB, $ids, true);
+        $this->assertNotFalse($posA);
+        $this->assertNotFalse($posB);
+        $this->assertLessThan($posB, $posA, 'sort=member should order by last_name ascending (Aaronson before Zimmerman)');
+    }
+
+    public function test_listPaginated_sort_by_amount_descending(): void
+    {
+        $memberId = $this->createTestMember('AmountSort', 'User');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Wine', 'wine', 700);
+
+        $lowId = $this->generateUuid();
+        $this->testTransactionIds[] = $lowId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$lowId, $memberId, $productId, 100, 'purchase', '2026-03-09 09:00:00']);
+
+        $highId = $this->generateUuid();
+        $this->testTransactionIds[] = $highId;
+        $stmt->execute([$highId, $memberId, $productId, 700, 'purchase', '2026-03-09 09:01:00']);
+
+        $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId], 'amount', 'desc');
+
+        $this->assertEquals($highId, $result['items'][0]['id']);
+        $this->assertEquals($lowId, $result['items'][1]['id']);
+    }
+
+    public function test_listPaginated_unknown_sort_key_falls_back_to_created_at(): void
+    {
+        $memberId = $this->createTestMember('FallbackSort', 'User');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Cider', 'cider', 260);
+
+        $firstId = $this->generateUuid();
+        $this->testTransactionIds[] = $firstId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$firstId, $memberId, $productId, 260, 'purchase', '2026-03-11 09:00:00']);
+
+        $secondId = $this->generateUuid();
+        $this->testTransactionIds[] = $secondId;
+        $stmt->execute([$secondId, $memberId, $productId, 260, 'purchase', '2026-03-11 09:05:00']);
+
+        $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId], 'not_a_real_sort_key', 'asc');
+
+        $this->assertEquals($firstId, $result['items'][0]['id']);
+        $this->assertEquals($secondId, $result['items'][1]['id']);
+    }
+
+    public function test_listPaginated_paginates_with_limit_and_offset(): void
+    {
+        $memberId = $this->createTestMember('PageMember', 'User');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Espresso', 'coffee', 150);
+
+        $ids = [];
+        for ($i = 0; $i < 3; $i++) {
+            $id = $this->generateUuid();
+            $this->testTransactionIds[] = $id;
+            $ids[] = $id;
+            $stmt = $this->db->prepare(
+                'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            );
+            $stmt->execute([$id, $memberId, $productId, 150, 'purchase', sprintf('2026-03-12 09:0%d:00', $i)]);
+        }
+
+        // Sorted ascending by created_at so ordering of $ids is predictable.
+        $page1 = $this->transactionsRepository->listPaginated(2, 0, ['member_id' => $memberId], 'created_at', 'asc');
+        $page2 = $this->transactionsRepository->listPaginated(2, 2, ['member_id' => $memberId], 'created_at', 'asc');
+
+        $this->assertEquals(3, $page1['total']);
+        $this->assertCount(2, $page1['items']);
+        $this->assertCount(1, $page2['items']);
+        $this->assertEquals($ids[0], $page1['items'][0]['id']);
+        $this->assertEquals($ids[1], $page1['items'][1]['id']);
+        $this->assertEquals($ids[2], $page2['items'][0]['id']);
+    }
+
+    public function test_listPaginated_returns_empty_for_no_match(): void
+    {
+        $memberId = $this->createTestMember('EmptyMatch', 'User');
+
+        $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId]);
+
+        $this->assertEquals(0, $result['total']);
+        $this->assertSame([], $result['items']);
+    }
+
+    // ---------------------------------------------------------------
+    // findUnsettledByIds
+    // ---------------------------------------------------------------
+
+    public function test_findUnsettledByIds_returns_empty_array_for_empty_input(): void
+    {
+        $result = $this->transactionsRepository->findUnsettledByIds([]);
+
+        $this->assertSame([], $result);
+    }
+
+    public function test_findUnsettledByIds_excludes_settled_transactions(): void
+    {
+        $memberId = $this->createTestMember('Unsettled', 'Ids');
+        $adminId = $this->createTestAdminUser('unsettled-ids-admin@example.com');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Vodka', 'vodka', 600);
+
+        $unsettledId = $this->generateUuid();
+        $this->testTransactionIds[] = $unsettledId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$unsettledId, $memberId, $productId, 600, 'purchase', '2026-03-13 09:00:00']);
+
+        $settledId = $this->generateUuid();
+        $this->testTransactionIds[] = $settledId;
+        $stmt->execute([$settledId, $memberId, $productId, 600, 'purchase', '2026-03-13 09:01:00']);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, '2026-03-13', '2026-03-16', 600, 1, $adminId]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $settledId, $memberId, 600]);
+
+        $result = $this->transactionsRepository->findUnsettledByIds([$unsettledId, $settledId]);
+        $foundIds = array_column($result, 'id');
+
+        $this->assertContains($unsettledId, $foundIds);
+        $this->assertNotContains($settledId, $foundIds);
+    }
+
+    // ---------------------------------------------------------------
+    // count / countRecentTransactions / sumRecentAmountCents / sumUnsettledAmountCents
+    // (no filter parameters exist, so we verify via before/after delta on our own inserts)
+    // ---------------------------------------------------------------
+
+    public function test_count_increases_after_insert(): void
+    {
+        $before = $this->transactionsRepository->count();
+
+        $memberId = $this->createTestMember('CountDelta', 'User');
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$transactionId, $memberId, null, 100, 'purchase', date('Y-m-d H:i:s')]);
+
+        $after = $this->transactionsRepository->count();
+
+        $this->assertEquals($before + 1, $after);
+    }
+
+    public function test_countRecentTransactions_counts_transaction_within_window(): void
+    {
+        $before = $this->transactionsRepository->countRecentTransactions(30);
+
+        $memberId = $this->createTestMember('RecentCount', 'User');
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$transactionId, $memberId, null, 150, 'purchase', date('Y-m-d H:i:s')]);
+
+        $after = $this->transactionsRepository->countRecentTransactions(30);
+
+        $this->assertEquals($before + 1, $after);
+    }
+
+    public function test_countRecentTransactions_excludes_old_transaction(): void
+    {
+        $before = $this->transactionsRepository->countRecentTransactions(30);
+
+        $memberId = $this->createTestMember('OldRecentCount', 'User');
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        // Well outside the 30-day window.
+        $stmt->execute([$transactionId, $memberId, null, 150, 'purchase', '2020-01-01 00:00:00']);
+
+        $after = $this->transactionsRepository->countRecentTransactions(30);
+
+        $this->assertEquals($before, $after, 'Old transaction must not be counted as recent');
+    }
+
+    public function test_sumRecentAmountCents_sums_amount_within_window(): void
+    {
+        $before = $this->transactionsRepository->sumRecentAmountCents(30);
+
+        $memberId = $this->createTestMember('SumRecent', 'User');
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$transactionId, $memberId, null, 777, 'purchase', date('Y-m-d H:i:s')]);
+
+        $after = $this->transactionsRepository->sumRecentAmountCents(30);
+
+        $this->assertEquals($before + 777, $after);
+    }
+
+    public function test_sumUnsettledAmountCents_includes_only_unsettled(): void
+    {
+        $before = $this->transactionsRepository->sumUnsettledAmountCents();
+
+        $memberId = $this->createTestMember('SumUnsettled', 'User');
+        $adminId = $this->createTestAdminUser('sum-unsettled-admin@example.com');
+
+        $unsettledId = $this->generateUuid();
+        $this->testTransactionIds[] = $unsettledId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$unsettledId, $memberId, null, 400, 'purchase', date('Y-m-d H:i:s')]);
+
+        $settledId = $this->generateUuid();
+        $this->testTransactionIds[] = $settledId;
+        $stmt->execute([$settledId, $memberId, null, 900, 'purchase', date('Y-m-d H:i:s')]);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 900, 1, $adminId]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $settledId, $memberId, 900]);
+
+        $after = $this->transactionsRepository->sumUnsettledAmountCents();
+
+        $this->assertEquals($before + 400, $after, 'Only the unsettled transaction amount should be added');
+    }
+
+    // ---------------------------------------------------------------
+    // getMemberBalance / getUnsettledMemberBalanceCents / hasMemberInActiveSettlement
+    // ---------------------------------------------------------------
+
+    public function test_getMemberBalance_sums_all_transactions_for_member(): void
+    {
+        $memberId = $this->createTestMember('Balance', 'User');
+
+        $tx1 = $this->generateUuid();
+        $this->testTransactionIds[] = $tx1;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$tx1, $memberId, null, 500, 'purchase', date('Y-m-d H:i:s')]);
+
+        $tx2 = $this->generateUuid();
+        $this->testTransactionIds[] = $tx2;
+        $stmt->execute([$tx2, $memberId, null, -150, 'correction', date('Y-m-d H:i:s')]);
+
+        $balance = $this->transactionsRepository->getMemberBalance($memberId);
+
+        $this->assertEquals(350, $balance);
+    }
+
+    public function test_getMemberBalance_returns_zero_for_member_without_transactions(): void
+    {
+        $memberId = $this->createTestMember('NoTx', 'User');
+
+        $balance = $this->transactionsRepository->getMemberBalance($memberId);
+
+        $this->assertEquals(0, $balance);
+    }
+
+    public function test_getUnsettledMemberBalanceCents_excludes_settled_transactions(): void
+    {
+        $memberId = $this->createTestMember('UnsettledBalance', 'User');
+        $adminId = $this->createTestAdminUser('unsettled-balance-admin@example.com');
+
+        $unsettledId = $this->generateUuid();
+        $this->testTransactionIds[] = $unsettledId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$unsettledId, $memberId, null, 300, 'purchase', date('Y-m-d H:i:s')]);
+
+        $settledId = $this->generateUuid();
+        $this->testTransactionIds[] = $settledId;
+        $stmt->execute([$settledId, $memberId, null, 800, 'purchase', date('Y-m-d H:i:s')]);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 800, 1, $adminId]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $settledId, $memberId, 800]);
+
+        $balance = $this->transactionsRepository->getUnsettledMemberBalanceCents($memberId);
+
+        $this->assertEquals(300, $balance);
+    }
+
+    public function test_hasMemberInActiveSettlement_true_when_in_active_settlement(): void
+    {
+        $memberId = $this->createTestMember('ActiveSettlement', 'User');
+        $adminId = $this->createTestAdminUser('active-settlement-admin@example.com');
+
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$transactionId, $memberId, null, 500, 'purchase', date('Y-m-d H:i:s')]);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 500, 1, $adminId]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $transactionId, $memberId, 500]);
+
+        $this->assertTrue($this->transactionsRepository->hasMemberInActiveSettlement($memberId));
+    }
+
+    public function test_hasMemberInActiveSettlement_false_when_settlement_cancelled(): void
+    {
+        $memberId = $this->createTestMember('CancelledSettlementCheck', 'User');
+        $adminId = $this->createTestAdminUser('cancelled-settlement-check-admin@example.com');
+
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$transactionId, $memberId, null, 500, 'purchase', date('Y-m-d H:i:s')]);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id, is_cancelled) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 500, 1, $adminId, 1]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $transactionId, $memberId, 500]);
+
+        $this->assertFalse($this->transactionsRepository->hasMemberInActiveSettlement($memberId));
+    }
+
+    public function test_hasMemberInActiveSettlement_false_when_never_settled(): void
+    {
+        $memberId = $this->createTestMember('NeverSettled', 'User');
+
+        $this->assertFalse($this->transactionsRepository->hasMemberInActiveSettlement($memberId));
+    }
+
+    // ---------------------------------------------------------------
+    // summarizeUnsettledByFilters / findAllUnsettledByFilters
+    // ---------------------------------------------------------------
+
+    public function test_summarizeUnsettledByFilters_scoped_by_member_id(): void
+    {
+        $memberId = $this->createTestMember('SummaryFilter', 'User');
+        $adminId = $this->createTestAdminUser('summary-filter-admin@example.com');
+
+        $unsettledId = $this->generateUuid();
+        $this->testTransactionIds[] = $unsettledId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$unsettledId, $memberId, null, 250, 'purchase', date('Y-m-d H:i:s')]);
+
+        $settledId = $this->generateUuid();
+        $this->testTransactionIds[] = $settledId;
+        $stmt->execute([$settledId, $memberId, null, 950, 'purchase', date('Y-m-d H:i:s')]);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 950, 1, $adminId]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $settledId, $memberId, 950]);
+
+        $summary = $this->transactionsRepository->summarizeUnsettledByFilters(['member_id' => $memberId]);
+
+        $this->assertEquals(1, $summary['transaction_count']);
+        $this->assertEquals(1, $summary['member_count']);
+        $this->assertEquals(250, $summary['total_amount_cents']);
+    }
+
+    public function test_summarizeUnsettledByFilters_with_search_and_date_range(): void
+    {
+        $memberId = $this->createTestMember('SummarySearch', 'Distinctivename');
+
+        $matchId = $this->generateUuid();
+        $this->testTransactionIds[] = $matchId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$matchId, $memberId, null, 300, 'purchase', '2026-04-05 10:00:00']);
+
+        $outOfRangeId = $this->generateUuid();
+        $this->testTransactionIds[] = $outOfRangeId;
+        $stmt->execute([$outOfRangeId, $memberId, null, 300, 'purchase', '2026-04-20 10:00:00']);
+
+        $summary = $this->transactionsRepository->summarizeUnsettledByFilters([
+            'search' => 'Distinctivename',
+            'date_from' => '2026-04-01',
+            'date_to' => '2026-04-10',
+        ]);
+
+        $this->assertEquals(1, $summary['transaction_count']);
+        $this->assertEquals(300, $summary['total_amount_cents']);
+    }
+
+    public function test_summarizeUnsettledByFilters_returns_zeroes_for_no_match(): void
+    {
+        $memberId = $this->createTestMember('NoUnsettled', 'User');
+
+        $summary = $this->transactionsRepository->summarizeUnsettledByFilters(['member_id' => $memberId]);
+
+        $this->assertEquals(0, $summary['transaction_count']);
+        $this->assertEquals(0, $summary['member_count']);
+        $this->assertEquals(0, $summary['total_amount_cents']);
+    }
+
+    public function test_findAllUnsettledByFilters_returns_ids_ordered_by_created_at_asc(): void
+    {
+        $memberId = $this->createTestMember('AllUnsettled', 'User');
+
+        $earlierId = $this->generateUuid();
+        $this->testTransactionIds[] = $earlierId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$earlierId, $memberId, null, 100, 'purchase', '2026-04-06 08:00:00']);
+
+        $laterId = $this->generateUuid();
+        $this->testTransactionIds[] = $laterId;
+        $stmt->execute([$laterId, $memberId, null, 100, 'purchase', '2026-04-06 09:00:00']);
+
+        $ids = $this->transactionsRepository->findAllUnsettledByFilters(['member_id' => $memberId]);
+
+        $this->assertEquals([$earlierId, $laterId], $ids);
+    }
+
+    public function test_findAllUnsettledByFilters_excludes_settled_transactions(): void
+    {
+        $memberId = $this->createTestMember('AllUnsettledExclude', 'User');
+        $adminId = $this->createTestAdminUser('all-unsettled-exclude-admin@example.com');
+
+        $unsettledId = $this->generateUuid();
+        $this->testTransactionIds[] = $unsettledId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$unsettledId, $memberId, null, 100, 'purchase', date('Y-m-d H:i:s')]);
+
+        $settledId = $this->generateUuid();
+        $this->testTransactionIds[] = $settledId;
+        $stmt->execute([$settledId, $memberId, null, 100, 'purchase', date('Y-m-d H:i:s')]);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 100, 1, $adminId]);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $settledId, $memberId, 100]);
+
+        $ids = $this->transactionsRepository->findAllUnsettledByFilters(['member_id' => $memberId]);
+
+        $this->assertEquals([$unsettledId], $ids);
+    }
+
+    public function test_findAllUnsettledByFilters_returns_empty_for_no_match(): void
+    {
+        $memberId = $this->createTestMember('AllUnsettledEmpty', 'User');
+
+        $ids = $this->transactionsRepository->findAllUnsettledByFilters(['member_id' => $memberId]);
+
+        $this->assertSame([], $ids);
+    }
 }
