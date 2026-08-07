@@ -1,4 +1,12 @@
-# UC-SEPA-03: Member IBAN Management
+# UC-SEPA-03: Member IBAN
+
+> ### ⚠️ Superseded in structure 2026-08-07
+>
+> IBAN is **no longer a member field**. It belongs to the **mandate record** ([ADR-0006](../../adr/0006-sepa-mandate-reference-strategy.md) amended, [#164](https://github.com/dgloeckner/ruderbar/issues/164)) — one record carrying reference, IBAN and signature date, at most one active per member.
+>
+> So *"edit a member's IBAN"* is not an operation. **Changing bank means ending the current mandate and creating a new one**, which is also what SEPA expects. The old mandate row is retained — that is what keeps a returned collection matchable via `MREF+` after the change ([#165](https://github.com/dgloeckner/ruderbar/issues/165)).
+>
+> The IBAN **validation** rules below (ISO 13616 format, mod-97 checksum, real-time feedback) are unchanged and apply when a mandate is created. Management
 
 **Implementation Status**: Implemented
 

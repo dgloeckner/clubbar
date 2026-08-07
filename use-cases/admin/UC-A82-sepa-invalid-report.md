@@ -14,9 +14,24 @@ Admin clicks "SEPA Issues" in navigation or dashboard alert
 
 ## Overview
 
+> ### ⚠️ This became an **alarm**, not a worklist (2026-08-07)
+>
+> The report was designed when a member without SEPA data could still drink and accumulate debt, making this a routine follow-up queue. Under **SEPA-only** ([#171](https://github.com/dgloeckner/ruderbar/issues/171), [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md)) that member cannot use the bar at all, so **this list should be empty in steady state.**
+>
+> Anyone appearing in it is one of exactly two things:
+>
+> | Case | Meaning |
+> |---|---|
+> | Inside the **offline sync window** | Mandate ended after the terminal's last sync; they drank before it knew. Self-resolving |
+> | On a **post-return collection hold** | Their direct debit bounced. They owe money and are locked out until they settle by `bank_transfer` ([UC-A35](./UC-A35-manual-settlement.md)) |
+>
+> Size and surface it accordingly: a short standing alarm worth investigating, not a queue to work through. A long list means something is wrong with the mandate flow, not that the club has a backlog.
+>
+> Note also that credit balances are **not** shown here. The standalone credit-balance report was dropped — payout is absorbed into member offboarding ([#170](https://github.com/dgloeckner/ruderbar/issues/170)).
+
 This report shows members who:
-1. Have missing or invalid SEPA data (cannot use terminal)
-2. Have an open balance (owe money that cannot be collected)
+1. Have **no active SEPA mandate** (cannot use the terminal)
+2. Have an open balance (owe money that cannot currently be collected)
 
 **When members appear here:**
 - Legacy members created before SEPA requirement was enforced

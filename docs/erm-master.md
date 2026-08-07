@@ -15,11 +15,9 @@ erDiagram
         varchar_100 last_name "Last name (nullable for GDPR)"
         varchar_255 email "Contact email"
         varchar_10 preferred_language "ISO 639-1 (e.g., 'de', 'en')"
-        varchar_34 iban "SEPA bank account"
-        varchar_35 mandate_reference UK "SEPA mandate ID"
-        date mandate_signed_at "Mandate signature date"
-        boolean is_active "Active/blocked"
-        datetime deleted_at "Soft-delete timestamp (GDPR)"
+        boolean is_active "Active/blocked (TEMPORARY, e.g. lost card)"
+        datetime deleted_at "Offboarded; erasure completed"
+        date retention_expires_at "When the retained residual may be deleted"
         datetime created_at "Record creation"
         datetime updated_at "Last modification"
     }
@@ -51,23 +49,35 @@ erDiagram
         binary_16 member_id FK "Reference to members"
         binary_16 product_id FK "Reference to products (nullable)"
         int amount_cents "Amount in cents"
-        enum transaction_type "purchase or correction"
+        enum transaction_type "purchase, storno or payout"
         varchar_500 notes "Reason/description"
-        binary_16 related_transaction_id FK "Original transaction (correction)"
+        binary_16 related_transaction_id FK "Reversed transaction (NOT NULL for storno, UNIQUE)"
         binary_16 created_by_terminal_id FK "Recording terminal"
         binary_16 created_by_admin_id FK "Admin (manual entries)"
         datetime created_at "Transaction timestamp"
     }
 
+    mandates {
+        binary_16 id PK "UUID"
+        binary_16 member_id FK "Owning member"
+        varchar_35 reference UK "SEPA mandate ID (UMR)"
+        varchar_34 iban "SEPA bank account"
+        varchar_70 account_holder_name "If different from member"
+        date signed_at "Mandate signature date (REQUIRED)"
+        binary_16 document_id FK "Optional scanned mandate"
+        boolean is_active "At most one active per member"
+        datetime ended_at "Bank change or revocation"
+        datetime created_at "Record creation"
+    }
+
     settlements {
         binary_16 id PK "UUID"
-        enum settlement_type "sepa or manual"
+        enum method "direct_debit, bank_transfer or write_off"
         date settlement_date "Creation date"
         date execution_date "SEPA execution date"
         date period_start "Accounting period start"
         date period_end "Accounting period end"
-        varchar_35 sepa_message_id UK "SEPA XML message ID"
-        enum manual_reason "Reason for manual settlement"
+        varchar_35 sepa_message_id UK "SEPA XML message ID (direct_debit only)"
         int total_amount_cents "Total settlement amount"
         int member_count "Number of members included"
         boolean is_cancelled "Cancellation flag"
@@ -189,12 +199,13 @@ Stores all organization members with payment information.
 | last_name | VARCHAR(100) | NULL | Last name (nullable for GDPR anonymization) |
 | email | VARCHAR(255) | NULL | Contact email address |
 | preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code for product display |
-| iban | VARCHAR(34) | NULL | SEPA bank account (ISO 13616 format + mod-97 checksum) |
-| account_holder_name | VARCHAR(70) | NULL | Account holder name if different from member (SEPA max 70) |
-| mandate_reference | VARCHAR(35) | UNIQUE, NULL | SEPA mandate ID; default = UUID without hyphens |
-| mandate_signed_at | DATE | NULL | Mandate signature date |
-| is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Active (true) or blocked (false) |
-| deleted_at | DATETIME | NULL | Soft-delete timestamp for GDPR anonymization |
+| ~~iban~~ | — | — | **Moved to `mandates`** ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md), amended) |
+| ~~account_holder_name~~ | — | — | **Moved to `mandates`** |
+| ~~mandate_reference~~ | — | — | **Moved to `mandates.reference`** |
+| ~~mandate_signed_at~~ | — | — | **Moved to `mandates.signed_at`**, and now **required** |
+| is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | **Temporary** block — e.g. a lost card. **Not** "left the club" |
+| deleted_at | DATETIME | NULL | Offboarding completed; erasure done. This **is** "gone" |
+| retention_expires_at | DATE | NULL | Stamped at offboarding: 31.12. of last transaction year + 10 years. ⚠️ This is the **earliest** deletion may occur, not a due date — § 147 Abs. 3 S. 5 AO suspends expiry while the Festsetzungsfrist runs. Deletion is a **reviewed, deliberate act**, not an automated sweep ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
@@ -204,9 +215,17 @@ Stores all organization members with payment information.
 - `is_active`
 - `updated_at`
 
-**SEPA Fields**: Nullable at database level (for GDPR anonymization and legacy data), but required at application level for member creation. Members without valid IBAN + mandate_reference cannot use the terminal.
+**SEPA validity** is no longer a member field test. It is *"does this member have an active mandate"* — one lookup against `mandates` ([ADR-0020](../adr/0020-sepa-mandate-requirement-terminal-access.md), amended). Without one the member cannot use the terminal at all.
 
-**GDPR Anonymization**: Sets first_name, last_name, email, iban, mandate_reference to NULL; card_uid to "ANONYMOUS-{uuid}"; is_active to false; deleted_at to timestamp.
+**GDPR erasure** ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) — **deletes the person, not the record**:
+
+| Deleted | Retained (restricted) |
+|---|---|
+| `first_name`, `last_name`, `email`, `phone`, `preferred_language` | Per-transaction records incl. the member link |
+| `card_uid`, credentials, sessions | `mandates` rows: reference, IBAN, signature date, document |
+| Postal address, date of birth ⚠️ *(deletable only while the club issues no invoices)* | Settlement, payment, return and reversal records |
+
+Sets `deleted_at`, and stamps `retention_expires_at`. Restriction is enforced by **access** — restricted rows are not listed, searched, exported or synced — not by a flag each query must remember.
 
 ---
 
@@ -262,6 +281,29 @@ Product catalog with multilingual support.
 
 **Icon Display**: Terminal displays product icon based on `icon_name` field. If NULL, displays default PackageIcon.
 
+### mandates
+
+A mandate is **one record**, or the member has none. At most one active per member; rows are **append-only** — a bank change or revocation ends the current mandate and creates a new one, never mutates in place. That is what keeps a returned collection matchable via `MREF+` after the member moves banks ([ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md) amended, [#164](https://github.com/dgloeckner/ruderbar/issues/164)).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | BINARY(16) | PK | UUID |
+| member_id | BINARY(16) | FK → members.id, NOT NULL | Owning member |
+| reference | VARCHAR(35) | UNIQUE, NOT NULL | SEPA mandate ID (UMR); auto-generated at mandate creation |
+| iban | VARCHAR(34) | NOT NULL | ISO 13616 + mod-97 checksum |
+| account_holder_name | VARCHAR(70) | NULL | If different from member (SEPA max 70) |
+| signed_at | DATE | **NOT NULL** | Mandate signature date. Required — pain.008 demands it, and it must never be fabricated |
+| document_id | BINARY(16) | FK, NULL | Optional scanned mandate; OCR prefill only, not a precondition |
+| is_active | BOOLEAN | NOT NULL | **At most one TRUE per member** — enforce in the DB |
+| ended_at | DATETIME | NULL | Bank change or revocation |
+| created_at | DATETIME | NOT NULL | Record creation |
+
+**Indexes:** `member_id`, `reference` (UNIQUE), `(member_id, is_active)`
+
+**Beleg-bearing** — `reference`, `iban` and `signed_at` survive a GDPR erasure request under [ADR-0029](../adr/0029-two-tier-retention-and-erasure.md). Do not null them on anonymisation; the current code does, and that is a bug.
+
+---
+
 ---
 
 ### transactions
@@ -274,9 +316,9 @@ Immutable, append-only transaction log. No UPDATE or DELETE operations permitted
 | member_id | BINARY(16) | FK → members.id, NOT NULL | Member who made the transaction |
 | product_id | BINARY(16) | FK → products.id, NULL | Product purchased (NULL for manual adjustments) |
 | amount_cents | INT | NOT NULL | Amount in cents (positive = charge; negative = credit/reversal; non-zero; -999999 to +999999) |
-| transaction_type | ENUM | NOT NULL | Type: 'purchase', 'correction' |
+| transaction_type | ENUM | NOT NULL | `purchase` (terminal sale or admin manual purchase) · `storno` (full reversal of one transaction) · `payout` (credit returned at offboarding) |
 | notes | VARCHAR(500) | NULL | Reason/description (required for manual entries) |
-| related_transaction_id | BINARY(16) | FK → transactions.id, NULL | Link to original transaction being corrected |
+| related_transaction_id | BINARY(16) | FK → transactions.id, **NOT NULL for `storno`**, **UNIQUE** | The transaction being reversed. Mandatory linkage — GoBD Rz. 64 ([ADR-0028](../adr/0028-legal-constraints-on-money-handling.md) §4). UNIQUE enforces *stornoable at most once* |
 | created_by_terminal_id | BINARY(16) | FK → terminals.id, NULL | Terminal that recorded the transaction |
 | created_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who created manual entry |
 | created_at | DATETIME | NOT NULL | Transaction timestamp |
@@ -288,7 +330,7 @@ Immutable, append-only transaction log. No UPDATE or DELETE operations permitted
 - `created_at`
 - `related_transaction_id`
 
-**Note:** Corrections are stored as new transactions with negative `amount_cents`. The original transaction remains unchanged.
+**Note:** A **storno** is a new transaction whose `amount_cents` is the **exact negation** of the transaction it references — derived, never supplied by the caller. The original is never modified. There is no free-amount adjustment and no partial storno ([ADR-0004](../adr/0004-immutable-transaction-storage.md), amended).
 
 ---
 
@@ -299,13 +341,13 @@ Settlement records for SEPA collections and manual settlements.
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | BINARY(16) | PK | UUID |
-| settlement_type | ENUM | NOT NULL | Type: 'sepa', 'manual' |
+| method | ENUM | NOT NULL | `direct_debit` (many members, produces pain.008) · `bank_transfer` (one member, money already arrived) · `write_off` (one member, money never arrives). **Only `direct_debit` may be exported** ([#163](https://github.com/dgloeckner/ruderbar/issues/163)) |
 | settlement_date | DATE | NOT NULL | Creation date (auto-set to today) |
 | execution_date | DATE | NULL | SEPA execution date (>= settlement_date + 7 days; NULL for manual) |
 | period_start | DATE | NULL | Accounting period start (optional) |
 | period_end | DATE | NULL | Accounting period end (optional) |
 | sepa_message_id | VARCHAR(35) | UNIQUE, NULL | SEPA XML message ID (auto-generated on first export; NULL for manual) |
-| manual_reason | ENUM | NULL | Reason for manual settlement (required if settlement_type = 'manual') |
+| ~~manual_reason~~ | — | — | **Removed** — replaced by `method`. `notes` remains free text carrying no meaning to the system |
 | total_amount_cents | INT | NOT NULL | Total amount collected in cents (> 0) |
 | member_count | INT | NOT NULL | Number of members included (> 0) |
 | is_cancelled | BOOLEAN | NOT NULL, DEFAULT FALSE | Cancellation flag |
@@ -321,7 +363,7 @@ Settlement records for SEPA collections and manual settlements.
 - `is_cancelled`
 - `settlement_date`
 - `execution_date`
-- `settlement_type`
+- `method`
 
 **Settlement Types:**
 - `sepa`: Standard SEPA Direct Debit settlement with XML export
@@ -333,7 +375,8 @@ Settlement records for SEPA collections and manual settlements.
 - `other_payment`: Member paid via other method
 - `write_off`: Debt written off as uncollectable
 - `goodwill`: Balance cleared as goodwill gesture
-- `correction`: Administrative correction
+- `storno`: Full reversal of exactly one transaction
+- `payout`: Credit returned to a member at offboarding
 - `other`: Other reason (explain in notes)
 
 **Cancellation**: Sets `is_cancelled = true`; linked transactions become unsettled again (available for future settlement).
@@ -629,7 +672,9 @@ When a member requests deletion (GDPR Art. 17):
 | is_active | true | false |
 | deleted_at | NULL | {timestamp} |
 
-**Retained:** `id`, `preferred_language`, `mandate_signed_at`, `created_at`, `updated_at` — required for transaction history linkage.
+**Retained:** `id`, `created_at`, `updated_at`, `retention_expires_at` — plus the whole **retention tier**: `mandates` rows (reference, IBAN, `signed_at`, document), transactions, settlements, payment/return/reversal records.
+
+⚠️ **Corrected 2026-08-07** ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): `preferred_language` is **deleted** — it has no Belegfunktion. `mandate_signed_at` moved to `mandates` and is retained there. The previous list had the mandate fields backwards: `iban` and `mandate_reference` were being nulled although both are Beleg-bearing and required to match a returned collection.
 
 ### Retention Periods
 

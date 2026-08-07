@@ -20,10 +20,15 @@ Admin opens Reports → Member Ranking
 
 ## Display Modes
 
-### Named Mode
-- Shows member names
-- Full detail view
-- For internal use only
+### ~~Named Mode~~ ⚠️ **Conflicts with [ADR-0029](../../adr/0029-two-tier-retention-and-erasure.md)**
+
+~~Shows member names. Full detail view. For internal use only.~~
+
+A **named ranking of members by consumption** is precisely the consumption-profile view ADR-0029 prohibits: it converts a billing record into a behavioural profile, and it is the strongest evidence a supervisory authority would use to argue that a decade of drink records is Art. 9 special-category data (see [`research/art9-rfid-display-retention.md`](../../research/art9-rfid-display-retention.md)).
+
+"For internal use only" is not a mitigation — the concern is the existence of the profile, not who reads it.
+
+**Decision needed:** remove named mode, or keep it under a narrower justification. Anonymised mode is unaffected.
 
 ### Anonymized Mode
 - Shows "Member 1", "Member 2", etc.

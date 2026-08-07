@@ -9,7 +9,7 @@ Member
 - Member has valid RFID card
 - Member exists in local cache
 - Member is active
-- Member has valid SEPA data (IBAN and mandate reference)
+- Member has an **active SEPA mandate** (see [ADR-0006](../../adr/0006-sepa-mandate-reference-strategy.md), amended: a mandate is one record carrying reference, IBAN **and signature date**)
 
 ## Trigger
 Member scans RFID card
@@ -163,9 +163,13 @@ Only **active products in active categories** are shown.
 - Member must remove items to proceed
 - See [UC-T12](./UC-T12-error-scenarios.md) for details
 
-### E5: SEPA Mandate Invalid
-- Member found but `is_sepa_valid = false` (missing IBAN or mandate reference)
-- Display "SEPA mandate missing or invalid" message
+### E5: No Active SEPA Mandate
+- Member found but `is_sepa_valid = false` — **no active mandate**
+- Display a message that says what happened **and what to do about it**. At an unstaffed bar a bare refusal becomes a call to the Kassenwart; the wording matters more here than in a staffed venue.
+
+> ⚠️ **The terminal decides from its last sync.** A member whose mandate ends after that sync is still served until the terminal next syncs. Those drinks are real and already consumed, so the **server stores and flags them — it must never reject them** ([ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md), amended). Two layers: the terminal blocks preventively, where refusal costs nothing because the drink is not yet poured; the server backstops, where it is.
+
+> A member locked out by a returned direct debit is restored by a `bank_transfer` settlement ([UC-A35](../admin/UC-A35-manual-settlement.md)).
 - No product selection allowed
 - Member must contact admin to set up payment details
 - See [UC-T12](./UC-T12-error-scenarios.md) for details
@@ -183,8 +187,8 @@ Only **active products in active categories** are shown.
 - Timeout without checkout: add items, wait for timeout, verify no transactions
 - Balance preview: add items, verify preview = current balance + cart total
 - Product language: verify names display in member's preferred language
-- SEPA invalid: scan card of member without IBAN, verify error message and no product view
-- SEPA invalid (no mandate): scan card of member with IBAN but no mandate_reference, verify error
+- No mandate: scan card of a member with no active mandate, verify the message names the remedy and no product view opens
+- IBAN alone is not enough: a member with an IBAN but no signed mandate must be refused — this is the case the old predicate wrongly admitted
 - Inactive category: deactivate category, verify tab hidden on terminal
 - Inactive category products: products in inactive category hidden even if product is active
 - Empty category: category with no active products not shown as tab

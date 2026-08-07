@@ -15,9 +15,19 @@ Admin opens Settlements → New Settlement
 
 ## Overview
 
-Creates a SEPA Direct Debit settlement for selected transactions. By default, all open transactions of SEPA-valid members are selected, but admin can customize the selection.
+> ### ⚠️ Reshaped 2026-08-07 — selection picks **members**, not transactions
+>
+> [Exclude-and-flag](https://github.com/dgloeckner/ruderbar/issues/141) §1–§2 changed what a settlement contains. A settlement sweeps **every unsettled transaction of each included member**, ignoring the date window and any hand-picked subset. The window and the selection choose *which members take part*; each included member then settles their **whole position**.
+>
+> Why: testing eligibility on a windowed slice while settling only that slice lets an old credit strand outside the run. Overcharged €20 in January, drinks €5 in February — settling February alone debits €5 the member does not owe and leaves the €20 invisible.
+>
+> Consequences: `period_start`/`period_end` become **descriptive**, not a bound on contents; a run may reach back indefinitely; and the transaction picker below is effectively a **member picker**. See [#128](https://github.com/dgloeckner/ruderbar/issues/128) — its cross-page selection bug is in the same screen, and the screen's right shape is not yet designed.
+>
+> Also: a member in **net credit** is excluded entirely, and a member at **exactly zero** is settled (closing the rows out) but generates no line in the file.
 
-Members without valid SEPA data are excluded and must be handled via [UC-A35: Manual Settlement](./UC-A35-manual-settlement.md).
+Creates a SEPA Direct Debit settlement. Selection determines which **members** take part; each included member settles their entire unsettled position.
+
+Members without an **active mandate** are excluded. Under SEPA-only ([ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md)) such a member cannot use the bar at all, so this set should be **empty in steady state** — anyone in it is inside the terminal's offline sync window or on a post-return collection hold. Treat it as an alarm, not a routine worklist ([UC-A82](./UC-A82-sepa-invalid-report.md)).
 
 ## Main Flow
 

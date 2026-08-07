@@ -106,16 +106,25 @@ WHERE entity_type = 'member' AND entity_id = ?
 
 ## Alternative Flows
 
+> ### ⚠️ Superseded by [ADR-0029](../../adr/0029-two-tier-retention-and-erasure.md) (2026-08-07)
+>
+> Erasure is no longer a standalone action with preconditions to satisfy first. It is one step inside **[member offboarding](https://github.com/dgloeckner/ruderbar/issues/173)**, which resolves the final balance and erases in a single atomic action.
+>
+> And erasure **deletes the person, not the record**: contact data goes, the accounting record is *restricted* and retained for up to **10 years** (§ 147 AO), then deleted on a stored expiry date. Both alternate flows below are wrong as written.
+
 ### AF1: Outstanding balance > €0
-- Step 3: System shows "Cannot anonymize: Outstanding balance of €X.XX"
-- Admin must first:
-  - Process settlement, OR
-  - Record cash payment (correction transaction), OR
-  - Write off balance (board resolution + correction transaction)
+
+~~Admin must first process a settlement, record a cash payment, or write off the balance.~~
+
+**Resolved inside offboarding**, not beforehand — and the options have changed: a `bank_transfer` settlement if the member pays, or a **`write_off`** settlement if they do not (reachable only through offboarding). **Cash is not an option** — the club takes none, as policy ([ADR-0028](../../adr/0028-legal-constraints-on-money-handling.md) §6). Neither is a "correction transaction": corrections are now stornos against a *named* transaction and cannot clear a balance.
+
+If the member is in **credit**, offboarding pays it out — § 812 BGB makes that a debt the club owes.
 
 ### AF2: Active settlement includes member
-- Step 3: System shows "Cannot anonymize: Member included in pending settlement"
-- Admin must finalize or cancel settlement first
+
+~~Admin must finalize or cancel settlement first.~~
+
+Only an **unresolved** position blocks erasure — a settlement still collectable or reversible. Historical participation must not block: the current guard matches *any* non-cancelled settlement ever, so after the first settlement run no member can be anonymised at all.
 
 ### AF3: Member already anonymized
 - Step 2: "Anonymize" action not available

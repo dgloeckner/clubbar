@@ -36,7 +36,7 @@ Admin opens member detail or clicks balance
 | Column | Content |
 |--------|---------|
 | Date | Timestamp |
-| Type | Purchase, Correction |
+| Type | Purchase, Storno, Payout |
 | Description | Product name or adjustment reason |
 | Amount | Positive (charge) or negative (credit) |
 | Running total | Balance after transaction |

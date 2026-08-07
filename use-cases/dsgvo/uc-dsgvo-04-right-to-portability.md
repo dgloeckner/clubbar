@@ -83,7 +83,7 @@ Member requests data portability (verbal, written, or email - outside system).
   "transactions": [
     {
       "date": "ISO 8601 timestamp",
-      "type": "consumption|correction",
+      "type": "purchase|storno|payout",
       "product": "Product name",
       "quantity": 1,
       "unit_price_cents": 350,
