@@ -452,22 +452,23 @@ test.describe('Settlements API', () => {
       }
     });
 
-    test('D3: GET /settlements/{id} returns settlement with items', async ({ authenticatedRequest }) => {
-      const listResponse = await authenticatedRequest.get('/api/admin/settlements');
-      const listData = await listResponse.json();
+    test('D3: GET /settlements/{id} returns settlement with items', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 1750 });
 
-      if (listData.data.length === 0) {
-        // eslint-disable-next-line clubbar/no-data-dependent-skip -- #98/#146: ambient settlement data may be absent; fixture work tracked separately, not fixed here
-        test.skip();
-      }
-
-      const settlementId = listData.data[0].id;
-      const response = await authenticatedRequest.get(`/api/admin/settlements/${settlementId}`);
+      const response = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}`);
 
       expect(response.status()).toBe(200);
       const body = await response.json();
-      expect(body.id).toBe(settlementId);
-      expect(Array.isArray(body.items)).toBe(true);
+      expect(body.id).toBe(settlement.id);
+      expect(body.is_cancelled).toBe(false);
+      expect(body.member_count).toBe(1);
+      expect(body.total_amount_cents).toBe(1750);
+
+      // The items are the settled transactions themselves — this test's own.
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].transaction_id).toBe(settlement.transactionIds[0]);
+      expect(body.items[0].member_id).toBe(settlement.memberId);
+      expect(body.items[0].amount_cents).toBe(1750);
     });
   });
 
@@ -486,21 +487,23 @@ test.describe('Settlements API', () => {
       expect(response.status()).toBe(404);
     });
 
-    test('E2: DELETE /settlements/{id} requires reason field', async ({ authenticatedRequest }) => {
-      const listResponse = await authenticatedRequest.get('/api/admin/settlements');
-      const listData = await listResponse.json();
+    test('E2: DELETE /settlements/{id} cancels the settlement and releases its transactions', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 3300 });
 
-      if (listData.data.length === 0) {
-        // eslint-disable-next-line clubbar/no-data-dependent-skip -- #98/#146: ambient settlement data may be absent; fixture work tracked separately, not fixed here
-        test.skip();
-      }
-
-      const settlement = listData.data[0];
       const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}`, {
         data: { reason: 'Test cancellation' },
       });
 
-      expect([204, 422]).toContain(response.status());
+      expect(response.status()).toBe(204);
+
+      // Cancellation is visible on the settlement, and its items are released
+      // so the transactions can be settled again.
+      const after = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}`);
+      expect(after.status()).toBe(200);
+      const body = await after.json();
+      expect(body.is_cancelled).toBe(true);
+      expect(body.cancelled_at).toBeTruthy();
+      expect(body.items).toHaveLength(0);
     });
 
     test('E3: DELETE /settlements/{id} requires authentication', async ({ request }) => {
@@ -525,43 +528,55 @@ test.describe('Settlements API', () => {
       expect([404, 422]).toContain(response.status());
     });
 
-    test('F2: GET /settlements/{id}/export/sepa-xml returns XML when available', async ({ authenticatedRequest }) => {
-      const listResponse = await authenticatedRequest.get('/api/admin/settlements?type=sepa');
-      const listData = await listResponse.json();
-
-      if (listData.data.length === 0) {
-        // eslint-disable-next-line clubbar/no-data-dependent-skip -- #98/#146: ambient settlement data may be absent; fixture work tracked separately, not fixed here
-        test.skip();
-      }
+    test('F2: GET /settlements/{id}/export/sepa-xml debits the settled member', async ({ authenticatedRequest, settlementFactory }) => {
+      // The pain.008 file is the money-critical artefact: it is what the bank
+      // acts on. Assert the collection instruction it carries, not just that
+      // some XML came back.
+      const settlement = await settlementFactory.create({ amountCents: 4250 });
 
       const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${listData.data[0].id}/export/sepa-xml`,
+        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
       );
 
-      expect([200, 409, 422]).toContain(response.status());
-      if (response.status() === 200) {
-        const contentType = response.headers()['content-type'];
-        expect(contentType).toContain('xml');
-      }
+      expect(response.status()).toBe(200);
+      const xml = await response.text();
+
+      // pain.008 direct debit, one collection, for exactly what was settled.
+      expect(xml).toContain('pain.008.001.08');
+      expect(xml).toContain('<NbOfTxs>1</NbOfTxs>');
+      expect(xml).toContain('<InstdAmt Ccy="EUR">42.50</InstdAmt>');
+      expect(xml).toContain(`<ReqdColltnDt>${settlement.executionDate}</ReqdColltnDt>`);
+
+      // …charged to this member, under this member's mandate.
+      expect(xml).toContain(settlement.memberName);
+      expect(xml).toContain(settlement.iban);
+      expect(xml).toContain(`<MndtId>${settlement.mandateReference}</MndtId>`);
     });
 
-    test('F3: GET /settlements/{id}/export/sepa-xml returns correct content type', async ({ authenticatedRequest }) => {
-      const listResponse = await authenticatedRequest.get('/api/admin/settlements?type=sepa');
-      const listData = await listResponse.json();
-
-      if (listData.data.length === 0) {
-        // eslint-disable-next-line clubbar/no-data-dependent-skip -- #98/#146: ambient settlement data may be absent; fixture work tracked separately, not fixed here
-        test.skip();
-      }
+    test('F3: GET /settlements/{id}/export/sepa-xml returns correct content type', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create();
 
       const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${listData.data[0].id}/export/sepa-xml`,
+        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
       );
 
-      if (response.status() === 200) {
-        const contentType = response.headers()['content-type'];
-        expect(contentType).toContain('xml');
-      }
+      expect(response.status()).toBe(200);
+      expect(response.headers()['content-type']).toContain('xml');
+      expect(response.headers()['content-disposition']).toContain(settlement.id);
+    });
+
+    test('F5: GET /settlements/{id}/export/sepa-xml refuses a non-direct-debit settlement', async ({ authenticatedRequest, settlementFactory }) => {
+      // Ruling #163: a member who paid by bank transfer is recorded as a
+      // bank_transfer settlement, and must never reach the bank as a second
+      // collection of the same balance.
+      const settlement = await settlementFactory.create({ method: 'bank_transfer' });
+
+      const response = await authenticatedRequest.get(
+        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
+      );
+
+      expect(response.status()).toBe(409);
+      expect(JSON.stringify(await response.json())).toContain('direct_debit');
     });
 
     test('F4: GET /settlements/{id}/export/sepa-xml requires authentication', async ({ request }) => {
@@ -575,84 +590,83 @@ test.describe('Settlements API', () => {
    * CSV Export Tests (3 tests)
    */
   test.describe('CSV Export', () => {
-    test('G1: GET /settlements/{id}/export/csv generates CSV file', async ({ authenticatedRequest }) => {
-      const listResponse = await authenticatedRequest.get('/api/admin/settlements');
-      const listData = await listResponse.json();
+    test('G1: GET /settlements/{id}/export/csv generates CSV file', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create();
 
-      if (listData.data.length === 0) {
-        // eslint-disable-next-line clubbar/no-data-dependent-skip -- #98/#146: ambient settlement data may be absent; fixture work tracked separately, not fixed here
-        test.skip();
-      }
-
-      const response = await authenticatedRequest.get(`/api/admin/settlements/${listData.data[0].id}/export/csv`);
+      const response = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/csv`);
 
       expect(response.status()).toBe(200);
       expect(response.headers()['content-type']).toContain('csv');
+      expect(response.headers()['content-disposition']).toContain(settlement.id);
     });
 
-    test('G2: GET /settlements/{id}/export/csv has correct format', async ({ authenticatedRequest }) => {
-      const listResponse = await authenticatedRequest.get('/api/admin/settlements');
-      const listData = await listResponse.json();
+    test('G2: GET /settlements/{id}/export/csv has correct format', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 1234 });
 
-      if (listData.data.length === 0) {
-        // eslint-disable-next-line clubbar/no-data-dependent-skip -- #98/#146: ambient settlement data may be absent; fixture work tracked separately, not fixed here
-        test.skip();
-      }
-
-      const response = await authenticatedRequest.get(`/api/admin/settlements/${listData.data[0].id}/export/csv`);
+      const response = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/csv`);
 
       expect(response.status()).toBe(200);
       const csv = await response.text();
-      expect(csv).toContain('Member Name;Email;IBAN;Amount EUR');
-      expect(csv).toContain(';');
+      const [header, ...rows] = csv.trim().split('\n');
+      expect(header).toBe('Member Name;Email;IBAN;Amount EUR');
+      expect(rows).toHaveLength(1);
+      expect(rows[0].split(';')).toEqual([
+        settlement.memberName,
+        settlement.memberEmail,
+        settlement.iban,
+        '12.34',
+      ]);
     });
 
-    test('G3: GET /settlements/{id}/export/csv formats amounts correctly', async ({ authenticatedRequest }) => {
-      const listResponse = await authenticatedRequest.get('/api/admin/settlements');
-      const listData = await listResponse.json();
+    test('G3: GET /settlements/{id}/export/csv formats amounts correctly', async ({ authenticatedRequest, settlementFactory }) => {
+      // Expected strings are worked out from the euro amounts, not recomputed
+      // the way the exporter does it: 5 cents is 0.05 (not 0.5), and a whole
+      // euro amount keeps its trailing zeros.
+      const cases: Array<{ amountCents: number; expectedEur: string }> = [
+        { amountCents: 5, expectedEur: '0.05' },
+        { amountCents: 5000, expectedEur: '50.00' },
+      ];
 
-      const settlementWithItems = listData.data.find((s: any) => s.items && s.items.length > 0);
+      for (const { amountCents, expectedEur } of cases) {
+        const settlement = await settlementFactory.create({ amountCents });
 
-      if (!settlementWithItems) {
-        // eslint-disable-next-line clubbar/no-data-dependent-skip -- #98/#146: ambient settlement data may be absent; fixture work tracked separately, not fixed here
-        test.skip();
+        const response = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/csv`);
+
+        expect(response.status()).toBe(200);
+        const rows = (await response.text()).trim().split('\n').slice(1);
+        expect(rows, `${amountCents} cents must produce exactly one CSV row`).toHaveLength(1);
+        expect(rows[0].split(';')[3], `${amountCents} cents must export as ${expectedEur}`).toBe(expectedEur);
       }
-
-      const response = await authenticatedRequest.get(
-        `/api/admin/settlements/${settlementWithItems.id}/export/csv`,
-      );
-
-      expect(response.status()).toBe(200);
-      const csv = await response.text();
-      expect(csv).toMatch(/\d+\.\d{2}/);
     });
   });
 
   /**
    * Integration Test (1 test)
    */
-  test('H1: E2E workflow - Preview, List, Get Details', async ({ authenticatedRequest }) => {
+  test('H1: E2E workflow - Preview, List, Get Details', async ({ authenticatedRequest, settlementFactory }) => {
+    // This test's own settlement, so the list and detail steps assert against
+    // data it created rather than whatever another test left behind (#146).
+    const settlement = await settlementFactory.create();
+
     // Step 1: Preview settlements
     const preview = await authenticatedRequest.post('/api/admin/settlements/preview');
     expect(preview.status()).toBe(200);
 
-    // Step 2: List settlements
-    const list = await authenticatedRequest.get('/api/admin/settlements');
+    // Step 2: List settlements — ours must be in it
+    const list = await authenticatedRequest.get('/api/admin/settlements?per_page=100');
     expect(list.status()).toBe(200);
     const listData = await list.json();
     expect(Array.isArray(listData.data)).toBe(true);
 
-    // Step 3: If settlement exists, get details
-    if (listData.data.length > 0) {
-      const detail = await authenticatedRequest.get(`/api/admin/settlements/${listData.data[0].id}`);
-      expect(detail.status()).toBe(200);
-      const detailData = await detail.json();
-      // Verify settlement has required fields (settlement_type/manual_reason replaced by `method`, ruling #163)
-      expect(detailData).toHaveProperty('id');
-      expect(detailData).toHaveProperty('settlement_date');
-      expect(detailData).toHaveProperty('items');
-      expect(Array.isArray(detailData.items)).toBe(true);
-    }
+    // Step 3: Get details
+    const detail = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}`);
+    expect(detail.status()).toBe(200);
+    const detailData = await detail.json();
+    // Verify settlement has required fields (settlement_type/manual_reason replaced by `method`, ruling #163)
+    expect(detailData.id).toBe(settlement.id);
+    expect(detailData.method).toBe('direct_debit');
+    expect(detailData.settlement_date).toBe(settlement.settlementDate);
+    expect(detailData.items).toHaveLength(1);
   });
 
   /**

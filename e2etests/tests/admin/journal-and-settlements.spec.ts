@@ -45,6 +45,11 @@ test.describe('Journal & Settlements', () => {
     await testTransactions.createStorno(memberA.id, 2500, `${prefix} corr2`, 'adjustment', purchaseA2)
     await page.waitForTimeout(1100)
     const purchaseA3 = await testTransactions.createSyncTransaction(memberA.id, 1000, `${prefix} purchase-for-corr3`)
+    // The assertion below reads row 0 as "the newest transaction", so the last
+    // storno must be strictly newer than the purchase it reverses — without
+    // this wait the two share a second and the default date-desc sort may put
+    // either first.
+    await page.waitForTimeout(1100)
     const txToSettle = await testTransactions.createStorno(memberA.id, 1000, `${prefix} corr3`, 'adjustment', purchaseA3)
 
     // Member B: 1 purchase with real product (verify product name in Details column)
@@ -146,6 +151,9 @@ test.describe('Journal & Settlements', () => {
     const memberCorr = await testTransactions.createMember(corrPrefix, 'Modal')
     // A storno must name the transaction it reverses — create that purchase first.
     const purchaseForCorr = await testTransactions.createSyncTransaction(memberCorr.id, 4250, `${prefix} purchase-for-modal-corr`)
+    // Same second-precision tie as above: row 0 is only reliably the storno if
+    // it is written a full second after the purchase it reverses.
+    await page.waitForTimeout(1100)
     const corrResp = await authenticatedRequest.post(
       `http://localhost:8080/api/admin/members/${memberCorr.id}/transactions`,
       { data: { reason: 'adjustment', amount_cents: 4250, notes: `corr ${corrPrefix}`, related_transaction_id: purchaseForCorr } },

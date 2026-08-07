@@ -323,6 +323,45 @@ test('filter members by language preference', async ({ authenticatedRequest }) =
 
 ---
 
+## Factories for expensive fixtures
+
+Some subjects take several API calls to set up — a settlement needs a member
+with a valid mandate, a purchase, and the settlement covering it. The
+temptation is to read one out of a list endpoint instead:
+
+```typescript
+// ❌ ANTI-PATTERN: assert against a settlement some other test created
+const list = await authenticatedRequest.get('/api/admin/settlements');
+const { data } = await list.json();
+if (data.length === 0) test.skip();   // silently no coverage at all (#98)
+const settlement = data[0];           // whose? nobody knows
+```
+
+Wrap the setup in a factory fixture instead, so the test still owns its data
+and can assert against amounts and names it chose (ruling
+[#146](https://github.com/dgloeckner/ruderbar/issues/146)):
+
+```typescript
+// ✅ CORRECT: this test's settlement, this test's amount
+test('csv export formats amounts correctly', async ({ authenticatedRequest, settlementFactory }) => {
+  const settlement = await settlementFactory.create({ amountCents: 1234 });
+
+  const response = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/csv`);
+
+  const rows = (await response.text()).trim().split('\n').slice(1);
+  expect(rows[0].split(';')[3]).toBe('12.34');
+});
+```
+
+`settlementFactory` lives in [`utils/settlements.ts`](../utils/settlements.ts)
+and is exposed by [`fixtures/auth.fixture.ts`](../fixtures/auth.fixture.ts).
+
+**A data-dependent `test.skip()` is never the answer.** It reads as coverage in
+a green run while testing nothing, which is how two money bugs reached `main`.
+The `clubbar/no-data-dependent-skip` ESLint rule fails the build on one.
+
+---
+
 ## Verification Checklist
 
 When writing or reviewing tests, verify:
