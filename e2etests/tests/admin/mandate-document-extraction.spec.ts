@@ -85,6 +85,7 @@ test.describe('POST /api/admin/mandate-document/extract — Extraction not confi
     // Skip when backend has LLM configured (returns non-409)
     // This handles both process-env detection and Docker/integration environments
     // where LLM is configured in the backend but not the test process env
+    // eslint-disable-next-line clubbar/no-data-dependent-skip -- #146: gate depends on live probe response, not a static env check; fixture work tracked separately, not fixed here
     test.skip(resp.status() !== 409, 'Backend has LLM configured — endpoint returns non-409')
     expect(resp.status()).toBe(409)
     const body = await resp.json()
@@ -170,6 +171,7 @@ test.describe('Mandate upload — extraction field in response', () => {
       }
     )
     // Skip when backend has LLM (probe returns non-409): extraction would be non-null
+    // eslint-disable-next-line clubbar/no-data-dependent-skip -- #146: gate depends on live probe response, not a static env check; fixture work tracked separately, not fixed here
     test.skip(probe.status() !== 409, 'Backend has LLM configured — extraction will be non-null')
 
     const memberId = await createTestMember(page)

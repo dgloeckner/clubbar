@@ -78,6 +78,7 @@ test.describe('SEPA Configuration Settings', () => {
     const isFirstTimeSetup = initialIban === ''
 
     if (!isFirstTimeSetup) {
+      // eslint-disable-next-line clubbar/no-data-dependent-skip -- #146: ambient config state; fixture work tracked separately, not fixed here
       test.skip() // Skip if already configured (this test is for first-time setup)
     }
 
@@ -199,6 +200,7 @@ test.describe('SEPA Configuration Settings', () => {
     // Check if config exists
     const existingIban = await authenticatedSettingsPage.getIbanValue()
     if (!existingIban) {
+      // eslint-disable-next-line clubbar/no-data-dependent-skip -- #146: ambient config state; fixture work tracked separately, not fixed here
       test.skip() // Skip if no config exists
     }
 

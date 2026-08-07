@@ -31,10 +31,12 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       provider: 'v8',
-      // Pages and interactive components are exercised by the Playwright E2E
-      // suite; unit coverage is measured over the pure logic seams (utils and
-      // hooks), which sit at ~100%. The 80% floor fails the build on
-      // regression (#103).
+      // Delegating pages and interactive components to the Playwright E2E
+      // suite is a ruling (#166, amended there), not an oversight — #168
+      // left it deliberately undisturbed, and patch coverage inherits this
+      // same scope. Unit coverage is measured over the pure logic seams
+      // (utils and hooks), which sit at ~100%. The 80% floor fails the
+      // build on regression (#103).
       include: ['src/utils/**', 'src/hooks/**'],
       thresholds: {
         lines: 80,
