@@ -73,6 +73,30 @@ The procedure covers the step no machine can take — asking the Steuerberater w
 
 ⚠️ **The retention obligation is organisational, not technical.** The club must carry the deletion review in its documented annual process; the system merely makes it answerable.
 
+### Line items keep the member link — and the exposure is managed instead
+
+Per-drink records **retain the member identity**. The alternative — de-identifying line items at settlement, keeping the member only on the aggregate — was considered and rejected.
+
+**Why keep it:** the decisive argument is asymmetry of reversibility, not the balance of risk.
+
+- **Keeping identity is reversible.** If the Steuerberater later confirms the tax record does not need it, the data can be de-identified then.
+- **Stripping it is not.** If a Betriebsprüfung asks for the trail from *"collected €47 from Anna in March"* back to its components and it is gone, the records are not *ordnungsmäßig* → **§ 162 AO Schätzungsbefugnis**, with loss of Gemeinnützigkeit as the tail risk. That failure mode cannot be undone, and it does not scale down for a small club the way a fine does.
+
+**GoBD Rz. 99** — which requires the Einzelaufzeichnungen be retained as the *condition* of booking aggregates — plus Rz. 64's Ordnungskriterium and progressive/retrograde Prüfbarkeit, all point the same way: the link is what the retention requirement exists to preserve.
+
+Note also that **pseudonymising does not help by itself**: `member_id` instead of a name is still personal data while the mapping is held, and the mapping must be held because the member record carries the same retention period. Only destroying the key would change the analysis, and that is exactly what breaks the audit trail.
+
+⚠️ **This is a considered acceptance of residual risk, not a finding that there is none.** Whether a 10-year named consumption history is Art. 9 special-category data is genuinely open — roughly a coin flip, with no authority either way (see [`research/art9-rfid-display-retention.md`](../research/art9-rfid-display-retention.md)). Keeping the link is safe **only if** the exposure is managed, so the following are **binding, not advisory**:
+
+| Control | Rule |
+|---|---|
+| **No consumption-profile views** | No per-member drink-type breakdowns, leaderboards, "favourite drink", or consumption trend charts. This is where a billing record turns into a behavioural profile, and it is what an authority would seize on |
+| **Aggregate statistics must be anonymous** | *"How much beer did we sell in March"* is legitimate and must be answered from aggregates, never by querying named histories — the § 27 Abs. 3 BDSG anonymise-early pattern |
+| **Line-item access is audit-scoped** | Reachable for a Betriebsprüfung; not a routine admin screen |
+| **Disclose it** | The Art. 13 notice must say plainly what is kept and for how long ([#175](https://github.com/dgloeckner/ruderbar/issues/175)) |
+
+⚠️ **[UC-A51 Member Ranking](../use-cases/admin/UC-A51-member-ranking.md) violates the first control today** — `GET /api/admin/reports/member-ranking` ships a *named* "top N members by consumption". It is exactly the feature this control prohibits. Its **anonymised mode is fine**; the named mode is not.
+
 ### The blocking guard tests for an unresolved position
 
 Erasure is blocked only by a position that is **still collectable or reversible** — not by historical participation in a settlement. A settlement completed years ago blocks nothing.
