@@ -8,7 +8,8 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Status | Summary |
 |------|--------|---------|
-| [Backend Test Coverage](./2026-08-07-backend-test-coverage.md) | In Progress (M0 + M1 done — 15.11% → 26.64%) | Issue #103 follow-up — raise PHPUnit line coverage from a measured 15.11% toward ADR-0022's 80%, starting with settlements/transactions (money), auth (security), members (GDPR) |
+| [Critical Remediation](./2026-08-06-critical-remediation.md) | In Progress (decisions reopened 2026-08-07; 5 open on map #139) | Sequenced fix plan for the 11 critical issues, each carrying its governing money-semantics ruling. ⚠️ Coordinate with Backend Test Coverage before its M2 — see issue #166 |
+| [Backend Test Coverage](./2026-08-07-backend-test-coverage.md) | In Progress (M0 + M1 done — 15.11% → 26.64%; #103 merged in PR #154) | Issue #103 follow-up — raise PHPUnit line coverage from a measured 15.11% toward ADR-0022's 80%, starting with settlements/transactions (money), auth (security), members (GDPR) |
 | [SEPA NOTPROVIDED BIC Encoding](./2026-08-05-sepa-notprovided-bic-encoding.md) | In Progress (Tasks 1-4 done; bank file check pending) | Issue #12 — emit `Othr/Id = NOTPROVIDED` instead of `BICFI = NOTPROVIDED` for IBAN-only agents in the pain.008.001.08 export |
 | [SEPA Execution Date: Bank Business Day Rule](./2026-08-05-sepa-execution-date-business-day.md) | Implemented (E2E pending CI) | Issue #11: reject non-business-day `execution_date` (422, weekends + six TARGET2 closing days) on both settlement endpoints, add `GET /settlements/execution-date-info` as the single source of truth, guard the SEPA export |
 | [Terminal: Checkout Double-Tap Guard](./2026-08-05-checkout-double-tap-guard.md) | Implemented | Issue #14: re-entrancy guard in `CartProvider.checkout` plus a disabled/loading checkout button, so a double-tap can no longer create duplicate transactions |
