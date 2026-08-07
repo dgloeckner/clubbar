@@ -47,17 +47,17 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 
 /**
- * @nullable
+ * How this settlement's balance will be collected. Replaces the old
+`settlement_type`/`manual_reason` pair (ruling #163).
+`bank_transfer` and `write_off` settlements must cover exactly one
+member and can never be exported to SEPA.
+
  */
-export type SettlementManualReason = typeof SettlementManualReason[keyof typeof SettlementManualReason] | null;
+export type SettlementCreateRequestMethod = typeof SettlementCreateRequestMethod[keyof typeof SettlementCreateRequestMethod];
 
 
-export const SettlementManualReason = {
-  cash_payment: 'cash_payment',
+export const SettlementCreateRequestMethod = {
+  direct_debit: 'direct_debit',
   bank_transfer: 'bank_transfer',
-  other_payment: 'other_payment',
   write_off: 'write_off',
-  goodwill: 'goodwill',
-  correction: 'correction',
-  other: 'other',
 } as const;

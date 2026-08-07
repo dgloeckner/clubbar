@@ -50,10 +50,14 @@ export interface ManualTransactionRequest {
   /** Positive for charge, negative for credit/reversal (non-zero) */
   amount_cents: number;
   /**
-   * Reason for the correction (required)
+   * Reason for the storno (required)
    * @maxLength 500
    */
   notes: string;
-  /** Optional reference to original transaction */
-  related_transaction_id?: string;
+  /** The transaction this storno reverses (required). A storno must name
+the transaction it reverses (GoBD Rz. 64, "Korrektur- bzw.
+Stornobuchungen"). Naming a transaction that does not exist, or
+that belongs to another member, results in a 404.
+ */
+  related_transaction_id: string;
 }

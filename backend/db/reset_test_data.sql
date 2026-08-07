@@ -33,6 +33,7 @@ DELETE FROM settlements;
 DELETE FROM transactions;
 DELETE FROM products;
 DELETE FROM categories;
+DELETE FROM mandates;
 DELETE FROM members;
 DELETE FROM terminals;
 DELETE FROM audit_log;
@@ -289,7 +290,7 @@ VALUES (
 -- DE02120300000000202051 - Another valid format
 
 -- Member 1: Hans Müller (active rower)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555551-5555-5555-5555-555555555551',
     '0003195661',
@@ -298,17 +299,14 @@ VALUES (
     'hans.mueller@example.de',
     '+49 170 1234567',
     'de',
-    'DE89370400440532013000',
     'Hans Müller',
-    'MANDATE001HANSMUELLER',
-    '2024-01-15',
     1,
     NOW(),
     NOW()
 );
 
 -- Member 2: Maria Schmidt (team captain)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555552-5555-5555-5555-555555555552',
     '0013466849',
@@ -317,17 +315,14 @@ VALUES (
     'maria.schmidt@example.de',
     '+49 171 2345678',
     'de',
-    'DE02120300000000202051',
     'Maria Schmidt',
-    'MANDATE002MARIASCHMIDT',
-    '2024-02-20',
     1,
     NOW(),
     NOW()
 );
 
 -- Member 3: Thomas Weber (English preferred)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555553-5555-5555-5555-555555555553',
     'CARD003',
@@ -336,17 +331,14 @@ VALUES (
     'thomas.weber@example.de',
     '+49 172 3456789',
     'en',
-    'DE89370400440532013000',
     'Thomas Weber',
-    'MANDATE003THOMASWEBER',
-    '2024-03-10',
     1,
     NOW(),
     NOW()
 );
 
 -- Member 4: Anna Fischer (sauna enthusiast)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555554-5555-5555-5555-555555555554',
     'CARD004',
@@ -355,17 +347,14 @@ VALUES (
     'anna.fischer@example.de',
     '+49 173 4567890',
     'de',
-    'DE02120300000000202051',
     'Anna Fischer',
-    'MANDATE004ANNAFISCHER',
-    '2024-01-05',
     1,
     NOW(),
     NOW()
 );
 
 -- Member 5: Michael Bauer (veteran rower)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555555-5555-5555-5555-555555555555',
     'CARD005',
@@ -374,17 +363,14 @@ VALUES (
     'michael.bauer@example.de',
     '+49 174 5678901',
     'de',
-    'DE89370400440532013000',
     'Michael Bauer',
-    'MANDATE005MICHAELBAUER',
-    '2023-11-20',
     1,
     NOW(),
     NOW()
 );
 
 -- Member 6: Sabine Klein (new member)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555556-5555-5555-5555-555555555556',
     'CARD006',
@@ -393,17 +379,14 @@ VALUES (
     'sabine.klein@example.de',
     '+49 175 6789012',
     'de',
-    'DE02120300000000202051',
     'Sabine Klein',
-    'MANDATE006SABINEKLEIN',
-    '2024-06-01',
     1,
     NOW(),
     NOW()
 );
 
 -- Member 7: Peter Hoffmann (board member)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555557-5555-5555-5555-555555555557',
     'CARD007',
@@ -412,17 +395,14 @@ VALUES (
     'peter.hoffmann@example.de',
     '+49 176 7890123',
     'de',
-    'DE89370400440532013000',
     'Peter Hoffmann',
-    'MANDATE007PETERHOFFMANN',
-    '2023-08-15',
     1,
     NOW(),
     NOW()
 );
 
 -- Member 8: Julia Wagner (youth coach)
-INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, iban, account_holder_name, mandate_reference, mandate_signed_at, is_active, created_at, updated_at)
+INSERT INTO members (id, card_uid, first_name, last_name, email, phone, preferred_language, account_holder_name, is_active, created_at, updated_at)
 VALUES (
     '55555558-5555-5555-5555-555555555558',
     'CARD008',
@@ -431,14 +411,25 @@ VALUES (
     'julia.wagner@example.de',
     '+49 177 8901234',
     'de',
-    'DE02120300000000202051',
     'Julia Wagner',
-    'MANDATE008JULIAWAGNER',
-    '2024-04-22',
     1,
     NOW(),
     NOW()
 );
+
+-- ---------------------------------------------------------------------------
+-- 6b. Create Mandates — one active mandate per member, moved off `members` (#164, #165)
+-- ---------------------------------------------------------------------------
+INSERT INTO mandates (id, member_id, active_member_id, reference, iban, signed_at)
+VALUES
+    ('77777771-7777-7777-7777-777777777771', '55555551-5555-5555-5555-555555555551', '55555551-5555-5555-5555-555555555551', 'MANDATE001HANSMUELLER', 'DE89370400440532013000', '2024-01-15'),
+    ('77777772-7777-7777-7777-777777777772', '55555552-5555-5555-5555-555555555552', '55555552-5555-5555-5555-555555555552', 'MANDATE002MARIASCHMIDT', 'DE02120300000000202051', '2024-02-20'),
+    ('77777773-7777-7777-7777-777777777773', '55555553-5555-5555-5555-555555555553', '55555553-5555-5555-5555-555555555553', 'MANDATE003THOMASWEBER', 'DE89370400440532013000', '2024-03-10'),
+    ('77777774-7777-7777-7777-777777777774', '55555554-5555-5555-5555-555555555554', '55555554-5555-5555-5555-555555555554', 'MANDATE004ANNAFISCHER', 'DE02120300000000202051', '2024-01-05'),
+    ('77777775-7777-7777-7777-777777777775', '55555555-5555-5555-5555-555555555555', '55555555-5555-5555-5555-555555555555', 'MANDATE005MICHAELBAUER', 'DE89370400440532013000', '2023-11-20'),
+    ('77777776-7777-7777-7777-777777777776', '55555556-5555-5555-5555-555555555556', '55555556-5555-5555-5555-555555555556', 'MANDATE006SABINEKLEIN', 'DE02120300000000202051', '2024-06-01'),
+    ('77777777-7777-7777-7777-777777777777', '55555557-5555-5555-5555-555555555557', '55555557-5555-5555-5555-555555555557', 'MANDATE007PETERHOFFMANN', 'DE89370400440532013000', '2023-08-15'),
+    ('77777778-7777-7777-7777-777777777778', '55555558-5555-5555-5555-555555555558', '55555558-5555-5555-5555-555555555558', 'MANDATE008JULIAWAGNER', 'DE02120300000000202051', '2024-04-22');
 
 -- ---------------------------------------------------------------------------
 -- 7. Create Terminals

@@ -10,11 +10,11 @@ import { minimumExecutionDate, today } from '../../utils/dates'
  * Five flow-based tests replacing journal.spec.ts, settlements.spec.ts,
  * settlements-e2e.spec.ts, and transactions-sepa-validation.spec.ts (~33 tests → 5 tests):
  *
- * 1. Journal fundamentals: display, search, sort, period, filter, correction
+ * 1. Journal fundamentals: display, search, sort, period, filter, storno
  * 2. Settlement lifecycle: Journal UI settle → Settlements page → CSV + SEPA export
  * 3. Settlement integrity: duplicate transaction rejection, atomicity
  * 4. Settle-all + undo: batch settlement, cancel, verify restoration
- * 5. SEPA validation: corrections and sync reject SEPA-invalid members, accept valid members
+ * 5. SEPA validation: stornos and sync reject SEPA-invalid members, accept valid members
  *
  * Patterns: 001 (test data isolation), 003 (database-agnostic assertions),
  *           004 (parallel safety), 005 (test IDs), 006 (page object), 008 (expect)
@@ -22,7 +22,7 @@ import { minimumExecutionDate, today } from '../../utils/dates'
 
 test.describe('Journal & Settlements', () => {
 
-  test('journal: display transactions, search, sort, period picker, settlement filter, create correction', async ({
+  test('journal: display transactions, search, sort, period picker, settlement filter, create storno', async ({
     page,
     testTransactions,
     authenticatedRequest,
@@ -35,12 +35,17 @@ test.describe('Journal & Settlements', () => {
     const memberB = await testTransactions.createMember(`${prefix}B`, 'Beta')
     const product = await testTransactions.createProduct('JTestBier', 350, 'JTest Beer')
 
-    // Member A: 3 corrections with delays for date sort (MySQL DATETIME = second precision)
-    await testTransactions.createCorrection(memberA.id, 500, `${prefix} corr1`)
+    // Member A: 3 purchase+storno pairs with delays for date sort (MySQL DATETIME = second
+    // precision). Each storno must name a distinct purchase it reverses (UNIQUE constraint
+    // on related_transaction_id), so member A ends up with 6 transactions total.
+    const purchaseA1 = await testTransactions.createSyncTransaction(memberA.id, 500, `${prefix} purchase-for-corr1`)
+    await testTransactions.createStorno(memberA.id, 500, `${prefix} corr1`, 'adjustment', purchaseA1)
     await page.waitForTimeout(1100)
-    await testTransactions.createCorrection(memberA.id, 2500, `${prefix} corr2`)
+    const purchaseA2 = await testTransactions.createSyncTransaction(memberA.id, 2500, `${prefix} purchase-for-corr2`)
+    await testTransactions.createStorno(memberA.id, 2500, `${prefix} corr2`, 'adjustment', purchaseA2)
     await page.waitForTimeout(1100)
-    const txToSettle = await testTransactions.createCorrection(memberA.id, 1000, `${prefix} corr3`)
+    const purchaseA3 = await testTransactions.createSyncTransaction(memberA.id, 1000, `${prefix} purchase-for-corr3`)
+    const txToSettle = await testTransactions.createStorno(memberA.id, 1000, `${prefix} corr3`, 'adjustment', purchaseA3)
 
     // Member B: 1 purchase with real product (verify product name in Details column)
     await testTransactions.createSyncTransaction(memberB.id, 350, `${prefix} purchase`, product.id)
@@ -56,12 +61,13 @@ test.describe('Journal & Settlements', () => {
     // Search by prefix+A (NOT member.first_name which has _ wildcard that backend LIKE doesn't escape)
     await journalPage.search(`${prefix}A`)
     await journalPage.waitForTableToLoad()
-    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(3)
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(6)
 
+    // Rows are sorted by date desc by default, so row 0 is the most recently
+    // created transaction: the storno reversing purchaseA3.
     const row0 = await journalPage.getTransactionRow(0)
     expect(row0.date).toMatch(/\d{2}[./]\d{2}[./]\d{4}/)
-    // Accept both English and German transaction type labels
-    expect(['correction', 'korrektur']).toContain(row0.type.toLowerCase())
+    expect(row0.type.toLowerCase()).toBe('storno')
     expect(row0.member).toContain(`${prefix}A`)
     expect(row0.amount).toMatch(/[\d.,]+/)
 
@@ -76,8 +82,8 @@ test.describe('Journal & Settlements', () => {
     // ── Search: member name isolation ─────────────────────────────────
     await journalPage.search(`${prefix}A`)
     await journalPage.waitForTableToLoad()
-    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(3)
-    for (let i = 0; i < 3; i++) {
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(6)
+    for (let i = 0; i < 6; i++) {
       const r = await journalPage.getTransactionRow(i)
       expect(r.member).not.toContain(`${prefix}B`)
     }
@@ -86,12 +92,12 @@ test.describe('Journal & Settlements', () => {
     // Member name search is case-insensitive (utf8mb4_unicode_ci)
     await journalPage.search(`${prefix}a`)
     await journalPage.waitForTableToLoad()
-    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(3)
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(6)
 
     // Uppercase variant also works
     await journalPage.search(`${prefix}A`.toUpperCase())
     await journalPage.waitForTableToLoad()
-    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(3)
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(6)
 
     // ── Sort by date: toggle asc/desc ─────────────────────────────────
     expect(await journalPage.getHeaderText('date')).toContain('↓')
@@ -128,18 +134,21 @@ test.describe('Journal & Settlements', () => {
 
     await journalPage.filterBySettlementStatus('open')
     await journalPage.waitForTableToLoad()
-    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(2)
+    // 6 total for member A, 1 settled (txToSettle) → 5 remain open
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(5)
     expect(await journalPage.getSettlementDateText(0)).toBe('—')
 
     await journalPage.filterBySettlementStatus('all')
     await journalPage.waitForTableToLoad()
 
-    // ── Create correction via API and verify in journal ────────────────
+    // ── Create storno via API and verify in journal ────────────────
     const corrPrefix = `${prefix}Corr`
     const memberCorr = await testTransactions.createMember(corrPrefix, 'Modal')
+    // A storno must name the transaction it reverses — create that purchase first.
+    const purchaseForCorr = await testTransactions.createSyncTransaction(memberCorr.id, 4250, `${prefix} purchase-for-modal-corr`)
     const corrResp = await authenticatedRequest.post(
-      `http://localhost:8080/api/admin/members/${memberCorr.id}/transactions/correction`,
-      { data: { reason: 'adjustment', amount_cents: 4250, notes: `corr ${corrPrefix}` } },
+      `http://localhost:8080/api/admin/members/${memberCorr.id}/transactions`,
+      { data: { reason: 'adjustment', amount_cents: 4250, notes: `corr ${corrPrefix}`, related_transaction_id: purchaseForCorr } },
     )
     expect(corrResp.status()).toBe(201)
 
@@ -148,9 +157,11 @@ test.describe('Journal & Settlements', () => {
     // Search by member name prefix (backend search matches member name, not notes)
     await journalPage.search(corrPrefix)
     await journalPage.waitForTableToLoad()
-    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(1)
+    // The member now has 2 transactions: the purchase + the storno reversing it.
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(2)
+    // Row 0 is the most recently created: the storno.
     const corrRow = await journalPage.getTransactionRow(0)
-    expect(['correction', 'korrektur']).toContain(corrRow.type.toLowerCase())
+    expect(corrRow.type.toLowerCase()).toBe('storno')
     expect(corrRow.amount).toMatch(/42[,.]50/)
   })
 
@@ -178,12 +189,12 @@ test.describe('Journal & Settlements', () => {
     const member2 = await testTransactions.createMember(`${prefix}2`, 'Steuermann')
     const product = await testTransactions.createProduct(`${prefix}Bier`, 250, `${prefix}Beer`)
 
-    // Member 1: purchase €25.00 + correction €10.00 = €35.00
+    // Member 1: purchase €25.00 + storno €10.00 = €35.00
     const txn1Id = await testTransactions.createSyncTransaction(member1.id, 2500, `${prefix} purch1`, product.id)
-    const txn2Id = await testTransactions.createCorrection(member1.id, 1000, `${prefix} corr1`)
-    // Member 2: purchase €15.00 + correction €5.00 = €20.00
+    const txn2Id = await testTransactions.createStorno(member1.id, 1000, `${prefix} corr1`)
+    // Member 2: purchase €15.00 + storno €5.00 = €20.00
     const txn3Id = await testTransactions.createSyncTransaction(member2.id, 1500, `${prefix} purch2`, product.id)
-    const txn4Id = await testTransactions.createCorrection(member2.id, 500, `${prefix} corr2`)
+    const txn4Id = await testTransactions.createStorno(member2.id, 500, `${prefix} corr2`)
 
     // ── Settle via Journal UI ─────────────────────────────────────────
     const journalPage = new JournalPage(page)
@@ -304,9 +315,9 @@ test.describe('Journal & Settlements', () => {
 
     // ── Setup: member + 3 transactions ────────────────────────────────
     const member = await testTransactions.createMember(prefix, 'Atomic')
-    const txn1Id = await testTransactions.createCorrection(member.id, 1000, `${prefix} txn1`)
-    const txn2Id = await testTransactions.createCorrection(member.id, 2000, `${prefix} txn2`)
-    const txn3Id = await testTransactions.createCorrection(member.id, 3000, `${prefix} txn3`)
+    const txn1Id = await testTransactions.createStorno(member.id, 1000, `${prefix} txn1`)
+    const txn2Id = await testTransactions.createStorno(member.id, 2000, `${prefix} txn2`)
+    const txn3Id = await testTransactions.createStorno(member.id, 3000, `${prefix} txn3`)
 
     // First settlement: txn1 + txn2
     const settlement1Id = await testTransactions.createSettlement([txn1Id, txn2Id])
@@ -319,7 +330,7 @@ test.describe('Journal & Settlements', () => {
         transaction_ids: [txn2Id, txn3Id],
         settlement_date: todayStr,
         execution_date: execDate,
-        settlement_type: 'sepa',
+        method: 'direct_debit',
       },
     })
     expect(dupResp.status()).not.toBe(201)
@@ -355,11 +366,19 @@ test.describe('Journal & Settlements', () => {
     const ts = Date.now()
     const prefix = `SaU${ts}`
 
-    // ── Setup: 2 members + 1 correction each ──────────────────────────
+    // ── Setup: 2 members + 1 storno each ──────────────────────────────
     const member1 = await testTransactions.createMember(`${prefix}A`, 'Buyer')
     const member2 = await testTransactions.createMember(`${prefix}B`, 'Buyer')
-    const txn1Id = await testTransactions.createCorrection(member1.id, 1200, `${prefix} charge1`)
-    const txn2Id = await testTransactions.createCorrection(member2.id, 800, `${prefix} charge2`)
+    // Each storno must name (and reverse) a purchase. Settle that purchase
+    // immediately so only the storno itself remains open — this keeps the
+    // "open" counts and totals below scoped to exactly the 2 stornos.
+    const purchase1 = await testTransactions.createSyncTransaction(member1.id, 1200, `${prefix} purchase1`)
+    await testTransactions.createSettlement([purchase1])
+    const txn1Id = await testTransactions.createStorno(member1.id, 1200, `${prefix} charge1`, 'adjustment', purchase1)
+
+    const purchase2 = await testTransactions.createSyncTransaction(member2.id, 800, `${prefix} purchase2`)
+    await testTransactions.createSettlement([purchase2])
+    const txn2Id = await testTransactions.createStorno(member2.id, 800, `${prefix} charge2`, 'adjustment', purchase2)
 
     // ── Settle-all: search → preview → confirm ───────────────────────
     const journalPage = new JournalPage(page)
@@ -404,7 +423,7 @@ test.describe('Journal & Settlements', () => {
   })
 
 
-  test('SEPA validation: corrections and sync reject SEPA-invalid members, accept valid members', async ({
+  test('SEPA validation: stornos and sync reject SEPA-invalid members, accept valid members', async ({
     authenticatedRequest,
     authenticatedTerminalRequest,
   }) => {
@@ -437,30 +456,52 @@ test.describe('Journal & Settlements', () => {
     const validMember = await validResp.json()
     expect(validMember.is_sepa_valid).toBeTruthy()
 
-    // ── Correction rejected: member without IBAN ────────────────────
+    // ── Storno rejected: member without IBAN ─────────────────────────
+    // The SEPA check happens before the related-transaction lookup, so a
+    // syntactically-valid but non-existent UUID is enough to reach it.
     const corrNoIban = await authenticatedRequest.post(
       `http://localhost:8080/api/admin/members/${noIbanMember.id}/transactions/correct`,
-      { data: { amount_cents: 1000, reason: 'Test correction' } }
+      { data: { amount_cents: 1000, reason: 'Test storno', related_transaction_id: generateUUID() } }
     )
     expect(corrNoIban.status()).toBe(422)
     const errNoIban = await corrNoIban.json()
     expect(errNoIban.error).toBe('sepa_invalid')
     expect(errNoIban.message).toContain('SEPA mandate')
 
-    // ── Correction rejected: member without mandate reference ───────
+    // ── Storno rejected: member without mandate reference ────────────
     const corrNoMandate = await authenticatedRequest.post(
       `http://localhost:8080/api/admin/members/${noMandateMember.id}/transactions/correct`,
-      { data: { amount_cents: 1500, reason: 'Test correction without mandate' } }
+      { data: { amount_cents: 1500, reason: 'Test storno without mandate', related_transaction_id: generateUUID() } }
     )
     expect(corrNoMandate.status()).toBe(422)
     const errNoMandate = await corrNoMandate.json()
     expect(errNoMandate.error).toBe('sepa_invalid')
     expect(errNoMandate.message).toContain('SEPA mandate')
 
-    // ── Correction accepted: valid SEPA member ──────────────────────
+    // ── Storno accepted: valid SEPA member ────────────────────────────
+    // Unlike the rejected cases above, this one reaches the related-transaction
+    // lookup, so it must name a real purchase belonging to this member.
+    const purchaseForValidResp = await authenticatedTerminalRequest.post('http://localhost:8080/api/sync/transactions', {
+      data: {
+        transactions: [{
+          id: generateUUID(),
+          member_id: validMember.id,
+          type: 'product',
+          product_id: generateUUID(),
+          quantity: 1,
+          unit_price_cents: 2000,
+          amount_cents: 2000,
+          notes: 'Purchase to be stornoed',
+          created_at: new Date().toISOString(),
+        }],
+      },
+    })
+    expect(purchaseForValidResp.status()).toBe(201)
+    const purchaseForValid = (await purchaseForValidResp.json()).accepted_ids[0]
+
     const corrValid = await authenticatedRequest.post(
       `http://localhost:8080/api/admin/members/${validMember.id}/transactions/correct`,
-      { data: { amount_cents: 2000, reason: 'Test correction for valid member' } }
+      { data: { amount_cents: 2000, reason: 'Test storno for valid member', related_transaction_id: purchaseForValid } }
     )
     expect(corrValid.status()).toBe(201)
     const corrResult = await corrValid.json()
@@ -555,43 +596,47 @@ test.describe('Journal & Settlements', () => {
     expect(batchResult.rejected.errors[0].error).toBe('sepa_invalid')
   })
 
-  test('journal: create correction via UI modal', async ({
+  test('journal: create storno via UI modal', async ({
     page,
     testTransactions,
   }) => {
     const ts = Date.now()
     const prefix = `CorrUI${ts}`
 
-    // Create a member with SEPA data so they appear in the correction member picker
+    // Create a member with SEPA data so they appear in the storno member picker
     const member = await testTransactions.createMember(`${prefix}First`, `${prefix}Last`)
+    // The storno modal's "related transaction" dropdown lists the selected
+    // member's existing transactions — a storno must name the one it reverses.
+    const purchaseId = await testTransactions.createSyncTransaction(member.id, 750, `${prefix} purchase to storno`)
 
     const journalPage = new JournalPage(page)
     await journalPage.navigate()
     await journalPage.waitForPageLoad()
 
-    // Get baseline count for this member before creating correction
+    // Get baseline count for this member before creating the storno
     await journalPage.search(`${prefix}Last`)
     await journalPage.waitForTableToLoad()
     const countBefore = await journalPage.getTransactionCount()
 
-    // Open correction modal, fill form, submit
-    await journalPage.openCorrectionModal()
-    await journalPage.fillCorrectionForm({
+    // Open storno modal, fill form, submit
+    await journalPage.openStornoModal()
+    await journalPage.fillStornoForm({
       memberId: member.id,
+      relatedTransactionId: purchaseId,
       amountEur: 7.50,   // input displays EUR; backend stores 750 cents
-      reason: `${prefix} UI correction test`,
+      reason: `${prefix} UI storno test`,
     })
-    const response = await journalPage.submitCorrectionForm()
+    const response = await journalPage.submitStornoForm()
 
     // Verify API response
     const body = await response.json()
-    expect(body.transaction_type).toBe('correction')
+    expect(body.transaction_type).toBe('storno')
     expect(body.amount_cents).toBe(750)
 
     // Modal should close after successful submission
-    await journalPage.expectCorrectionModalHidden()
+    await journalPage.expectStornoModalHidden()
 
-    // New correction should appear in the journal for this member
+    // New storno should appear in the journal for this member
     await journalPage.waitForTableToLoad()
     await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 })
       .toBe(countBefore + 1)

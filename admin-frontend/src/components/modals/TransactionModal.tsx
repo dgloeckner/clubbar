@@ -7,7 +7,7 @@
  * Features:
  * - Transaction list with filtering
  * - Date/type/description/amount/running total columns
- * - Filter by type: All, Purchase, Correction
+ * - Filter by type: All, Purchase, Storno
  * - Empty state handling
  * - Error handling
  * - Loading state
@@ -19,7 +19,7 @@ import { useLoading } from '../../context/LoadingContext'
 import { getTransactions } from '../../api/generated/transactions/transactions'
 import type { MemberTransactionHistory } from '../../api/generated'
 
-type TransactionFilter = 'all' | 'purchase' | 'correction'
+type TransactionFilter = 'all' | 'purchase' | 'storno'
 
 interface TransactionModalProps {
   isOpen: boolean
@@ -173,7 +173,7 @@ export function TransactionModal({
         >
           {/* Filter buttons */}
           <div style={{ display: 'flex', gap: theme.spacing.sm, marginBottom: theme.spacing.lg, flexWrap: 'wrap' }}>
-            {(['all', 'purchase', 'correction'] as const).map((filterType) => (
+            {(['all', 'purchase', 'storno'] as const).map((filterType) => (
               <button
                 key={filterType}
                 data-testid={`transaction-filter-${filterType}`}
@@ -190,7 +190,7 @@ export function TransactionModal({
                   transition: `all ${theme.transitions.default}`,
                 }}
               >
-                {filterType === 'all' ? 'All' : filterType === 'purchase' ? 'Purchases' : 'Corrections'}
+                {filterType === 'all' ? 'All' : filterType === 'purchase' ? 'Purchases' : 'Stornos'}
               </button>
             ))}
           </div>
@@ -324,11 +324,11 @@ export function TransactionModal({
                             display: 'inline-block',
                             padding: `2px 6px`,
                             background:
-                              transaction.type === 'correction'
+                              transaction.type === 'storno'
                                 ? 'rgba(59, 130, 246, 0.15)'
                                 : 'rgba(249, 115, 22, 0.15)',
                             color:
-                              transaction.type === 'correction'
+                              transaction.type === 'storno'
                                 ? theme.colors.semantic.primary
                                 : theme.colors.semantic.warning,
                             borderRadius: '4px',
@@ -336,7 +336,7 @@ export function TransactionModal({
                             fontSize: theme.typography.fontSize.xs,
                           }}
                         >
-                          {transaction.type === 'correction' ? 'KORR' : 'PURCH'}
+                          {transaction.type === 'storno' ? 'STORNO' : 'PURCH'}
                         </span>
                       </td>
                       <td

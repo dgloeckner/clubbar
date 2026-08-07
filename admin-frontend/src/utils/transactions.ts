@@ -8,7 +8,8 @@ import { theme } from '../styles/design-system'
 export function formatTransactionType(type: string): string {
   const labels: Record<string, string> = {
     purchase: 'Purchase',
-    correction: 'Correction',
+    storno: 'Storno',
+    payout: 'Payout',
   }
   return labels[type] ?? type
 }
@@ -18,7 +19,8 @@ export function getTransactionTypeColor(
 ): { bg: string; text: string } {
   const colors: Record<string, { bg: string; text: string }> = {
     purchase: { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6' },
-    correction: { bg: 'rgba(251, 146, 60, 0.1)', text: '#f97316' },
+    storno: { bg: 'rgba(251, 146, 60, 0.1)', text: '#f97316' },
+    payout: { bg: 'rgba(168, 85, 247, 0.1)', text: '#a855f7' },
   }
   return colors[type] ?? { bg: 'rgba(107, 114, 128, 0.1)', text: '#64748b' }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Controllers;
 
+use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Shared\Validation\Validator;
@@ -102,7 +103,7 @@ class AdminController
             'transaction_ids' => ['required', 'array'],
             'settlement_date' => ['required', 'date'],
             'execution_date'  => ['required', 'date', 'business_day'],
-            'settlement_type' => ['required', 'in:sepa,manual'],
+            'method'          => ['in:direct_debit,bank_transfer,write_off'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
@@ -118,12 +119,10 @@ class AdminController
             return $this->json($response, $leadTimeError, 422);
         }
 
-        if (($body['settlement_type'] ?? '') === 'manual' && empty($body['manual_reason'])) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'messages' => ['manual_reason' => ['manual_reason is required for manual settlement type']],
-            ], 422);
-        }
+        // Ruling #163: method replaces settlement_type + manual_reason; the
+        // "manual requires a reason" branch that used to live here is gone —
+        // there is no free-text reason left to require.
+        $method = SettlementMethod::from($body['method'] ?? SettlementMethod::DIRECT_DEBIT->value);
 
         $settlement = $this->settlementsService->createSettlement(
             transactionIds: $body['transaction_ids'],
@@ -131,7 +130,7 @@ class AdminController
             executionDate: $body['execution_date'],
             periodStart: $body['period_start'] ?? null,
             periodEnd: $body['period_end'] ?? null,
-            manualReason: $body['manual_reason'] ?? null,
+            method: $method,
             notes: $body['notes'] ?? null,
             adminUserId: $adminId,
         );

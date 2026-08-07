@@ -96,11 +96,11 @@ Read-only cache of member data synced from backend. Used for RFID card lookups.
 - `idx_members_cache_updated_at` on `updated_at` (for sync queries)
 
 **Data NOT cached** (privacy/data minimization):
-- IBAN, mandate_reference, mandate_signed_at
+- IBAN, mandate reference, mandate signature date (now `mandates` rows on the backend — see `erm-master.md`)
 - Contact details (email)
 - deleted_at (anonymized members are removed from cache)
 
-**SEPA Validation**: `is_sepa_valid` is calculated by backend during sync as `(iban IS NOT NULL AND mandate_reference IS NOT NULL)`. Terminal blocks access if `is_sepa_valid = 0`.
+**SEPA Validation**: Banking data moved off `members` onto its own append-only `mandates` table ([#164](https://github.com/dgloeckner/ruderbar/issues/164)), so `is_sepa_valid` is now calculated by the backend during sync as *"does this member have an active mandate"* (a lookup, not an IBAN/reference presence check). Terminal blocks access if `is_sepa_valid = 0`.
 
 ---
 

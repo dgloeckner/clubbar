@@ -7,6 +7,7 @@ namespace Tests\Unit\Modules\Settlements\Services;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
+use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
@@ -15,6 +16,7 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\ValidationException;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
@@ -219,7 +221,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessage('Some transactions are already settled');
 
-        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, null, null, 'admin-1');
+        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
     }
 
     public function test_createSettlement_rejects_when_no_valid_unsettled_transactions_found(): void
@@ -232,7 +234,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessage('No valid unsettled transactions found');
 
-        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, null, null, 'admin-1');
+        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
     }
 
     public function test_createSettlement_persists_items_and_writes_audit_entry(): void
@@ -243,7 +245,7 @@ class SettlementsServiceTest extends TestCase
         ];
         $settlementRow = [
             'id' => 'settlement-1',
-            'manual_reason' => null,
+            'method' => 'direct_debit',
             'settlement_date' => '2026-01-01',
             'execution_date' => '2026-01-15',
             'period_start' => null,
@@ -302,7 +304,7 @@ class SettlementsServiceTest extends TestCase
         $this->db->expects($this->once())->method('commit');
         $this->db->expects($this->never())->method('rollBack');
 
-        $result = $this->service->createSettlement(['tx-1', 'tx-2'], '2026-01-01', '2026-01-15', null, null, null, null, 'admin-1');
+        $result = $this->service->createSettlement(['tx-1', 'tx-2'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
 
         $this->assertInstanceOf(SettlementDto::class, $result);
         $this->assertSame('settlement-1', $result->id);
@@ -310,16 +312,16 @@ class SettlementsServiceTest extends TestCase
         $this->assertSame(2, $result->memberCount);
     }
 
-    public function test_createSettlement_passes_manualReason_through_for_manual_settlements(): void
+    public function test_createSettlement_passes_method_through_for_non_direct_debit_settlements(): void
     {
-        // NOTE: SettlementsService has no settlement_type parameter — manual vs
-        // SEPA is not distinguished here. manualReason is simply persisted
-        // verbatim as an optional free-text/enum value; there is no validation
-        // tying it to a "settlement_type" concept in this service.
+        // Ruling #163: method replaces the old manual_reason free string.
+        // bank_transfer/write_off settlements are still persisted through the
+        // same createSettlement() path — the service just enforces (below)
+        // that they cover exactly one member.
         $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
         $settlementRow = [
             'id' => 'settlement-1',
-            'manual_reason' => 'cash',
+            'method' => 'bank_transfer',
             'settlement_date' => '2026-01-01',
             'execution_date' => '2026-01-15',
             'period_start' => null,
@@ -342,14 +344,37 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository
             ->expects($this->once())
             ->method('create')
-            ->with($this->callback(fn(array $data) => $data['manual_reason'] === 'cash'))
+            ->with($this->callback(fn(array $data) => $data['method'] === 'bank_transfer'))
             ->willReturn($settlementRow);
 
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
-        $result = $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, 'cash', null, 'admin-1');
+        $result = $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::BANK_TRANSFER, null, 'admin-1');
 
-        $this->assertSame('cash', $result->manualReason);
+        $this->assertSame(SettlementMethod::BANK_TRANSFER, $result->method);
+    }
+
+    public function test_createSettlement_rejects_non_direct_debit_settlement_covering_multiple_members(): void
+    {
+        // Ruling #163 + chk_settlements_manual_is_single_member: bank_transfer
+        // and write_off settlements must cover exactly one member. The service
+        // must reject this before it ever reaches the DB, so the caller gets a
+        // 422 instead of a raw SQL CHECK violation.
+        $transactions = [
+            ['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500],
+            ['id' => 'tx-2', 'member_id' => 'member-b', 'amount_cents' => 250],
+        ];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+
+        $this->settlementsRepository->expects($this->never())->method('create');
+        $this->db->expects($this->once())->method('rollBack');
+        $this->db->expects($this->never())->method('commit');
+
+        $this->expectException(ValidationException::class);
+
+        $this->service->createSettlement(['tx-1', 'tx-2'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::WRITE_OFF, null, 'admin-1');
     }
 
     public function test_createSettlement_does_not_validate_execution_date_is_a_business_day(): void
@@ -362,7 +387,7 @@ class SettlementsServiceTest extends TestCase
         $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
         $settlementRow = [
             'id' => 'settlement-1',
-            'manual_reason' => null,
+            'method' => 'direct_debit',
             'settlement_date' => '2026-01-01',
             'execution_date' => '2026-08-09', // a Sunday
             'period_start' => null,
@@ -384,7 +409,7 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('create')->willReturn($settlementRow);
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
 
-        $result = $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-08-09', null, null, null, null, 'admin-1');
+        $result = $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-08-09', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
 
         $this->assertSame('2026-08-09', $result->executionDate);
     }
@@ -404,7 +429,7 @@ class SettlementsServiceTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('db exploded');
 
-        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, null, null, 'admin-1');
+        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
     }
 
     // ── createSettlementByFilters ────────────────────────────────────
@@ -448,7 +473,7 @@ class SettlementsServiceTest extends TestCase
         $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willReturn([
             'id' => 'settlement-1',
-            'manual_reason' => null,
+            'method' => 'direct_debit',
             'settlement_date' => '2026-01-01',
             'execution_date' => '2026-01-15',
             'period_start' => '2026-01-01',
@@ -489,7 +514,7 @@ class SettlementsServiceTest extends TestCase
             ->with($this->callback(fn(array $data) => $data['period_start'] === '2026-02-01' && $data['period_end'] === '2026-02-28'))
             ->willReturn([
                 'id' => 'settlement-1',
-                'manual_reason' => null,
+                'method' => 'direct_debit',
                 'settlement_date' => '2026-02-01',
                 'execution_date' => '2026-02-15',
                 'period_start' => '2026-02-01',
@@ -522,7 +547,7 @@ class SettlementsServiceTest extends TestCase
     {
         $settlementRow = [
             'id' => 'settlement-1',
-            'manual_reason' => null,
+            'method' => 'direct_debit',
             'settlement_date' => '2026-01-01',
             'execution_date' => '2026-01-15',
             'period_start' => null,
@@ -579,7 +604,7 @@ class SettlementsServiceTest extends TestCase
     {
         $settlementRow = [
             'id' => 'settlement-1',
-            'manual_reason' => null,
+            'method' => 'direct_debit',
             'settlement_date' => '2026-01-01',
             'execution_date' => '2026-01-15',
             'period_start' => null,

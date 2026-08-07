@@ -132,31 +132,35 @@ export const createSyncTransaction = (
 }
 
 /**
- * Test data builder for manual corrections
- * Used by admin to adjust member balances
+ * Test data builder for manual stornos
+ * Used by admin to reverse a specific member transaction
  */
-export interface CorrectionTransactionData {
+export interface StornoTransactionData {
   reason: 'adjustment' | 'refund' | 'discount'
   amount_cents: number
   notes: string
+  related_transaction_id: string
 }
 
 /**
- * Create a correction transaction (simulates admin adjustment)
+ * Create a storno transaction (simulates admin reversal of one specific transaction)
  * @param amountCents - Amount in cents
  * @param notes - Transaction notes
- * @param reason - Reason for correction
- * @returns Correction data ready for correction API
+ * @param relatedTransactionId - The transaction this storno reverses (required by the backend)
+ * @param reason - Reason for the storno
+ * @returns Storno data ready for the manual-transaction (storno) API
  */
-export const createCorrection = (
+export const createStorno = (
   amountCents: number = 1000,
-  notes: string = 'Test correction',
+  notes: string = 'Test storno',
+  relatedTransactionId: string,
   reason: 'adjustment' | 'refund' | 'discount' = 'adjustment'
-): CorrectionTransactionData => {
+): StornoTransactionData => {
   return {
     reason,
     amount_cents: amountCents,
     notes,
+    related_transaction_id: relatedTransactionId,
   }
 }
 
@@ -164,7 +168,7 @@ export const createCorrection = (
  * Settlement data builder for creating settlements via API
  */
 export interface SettlementData {
-  settlement_type: 'sepa' | 'manual'
+  method: 'direct_debit' | 'bank_transfer' | 'write_off'
   transaction_ids: string[]
   settlement_date: string
   execution_date: string
@@ -192,7 +196,7 @@ export const createSettlement = (
   const today = toIsoDate(new Date())
 
   return {
-    settlement_type: 'sepa',
+    method: 'direct_debit',
     transaction_ids: transactionIds,
     settlement_date: today,
     execution_date: executionDate,

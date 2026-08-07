@@ -389,13 +389,13 @@ paths:
         Batch upload purchase transactions from terminal to backend.
 
         **Terminal transactions are always purchases**: The terminal only creates purchase transactions
-        (positive amounts). Corrections and adjustments are admin-only operations via the Admin API.
+        (positive amounts). Stornos and payouts are admin-only operations via the Admin API.
         See [ADR-0004](../../adr/0004-immutable-transaction-storage.md) for details.
 
         ## Immutability Guarantee
         - Transactions are **append-only**: only INSERT, never UPDATE or DELETE
         - Once accepted, transaction cannot be modified or deleted
-        - Corrections made by admins via Admin API (not terminal)
+        - Stornos and payouts are made by admins via Admin API (not terminal)
         - Full audit trail preserved: history never lost or hidden
 
         ## Idempotency Guarantee
@@ -577,9 +577,9 @@ paths:
                         created_at: '2025-01-25T14:32:00Z'
                       - id: 550e8400-e29b-41d4-a716-446655440002
                         amount_cents: -350
-                        type: correction
+                        type: storno
                         product_id: null
-                        product_name: Correction
+                        product_name: Storno
                         notes: Duplicate charge
                         created_at: '2025-01-25T14:33:00Z'
                 empty_history:
@@ -662,8 +662,9 @@ components:
         is_sepa_valid:
           type: boolean
           description: |
-            Indicates whether member has valid SEPA data (IBAN and mandate_reference).
-            Calculated by backend as: `iban IS NOT NULL AND mandate_reference IS NOT NULL`.
+            Indicates whether the member has an active SEPA mandate.
+            Banking data lives in the append-only `mandates` table (not on the member
+            record); this is true when the member has an active mandate there.
             If false, terminal should reject member with "SEPA mandate missing" message.
             See [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md).
         deleted_at:
@@ -877,14 +878,15 @@ components:
         A purchase transaction record uploaded from terminal.
 
         **Terminal transactions are always purchases**: The terminal only creates `purchase` type
-        transactions. Corrections and adjustments are made by admins via the Admin API.
+        transactions. Stornos and payouts are made by admins via the Admin API.
 
         **Immutability**: Transactions are append-only and immutable once created. Never modified or deleted.
         See [ADR-0004](../../adr/0004-immutable-transaction-storage.md) for details.
 
-        **Corrections (Admin only)**: If a terminal transaction needs correction, an admin creates
-        a correction transaction via the Admin API. Example: Member charged €5.00 by mistake →
-        Admin creates correction with -€5.00, then optionally a new purchase with correct amount.
+        **Stornos (Admin only)**: If a terminal transaction needs reversing, an admin creates a
+        storno via the Admin API, naming the transaction it reverses (`related_transaction_id`,
+        GoBD Rz. 64). Example: Member charged €5.00 by mistake → Admin stornos that transaction,
+        then optionally records a new purchase with the correct amount.
       properties:
         id:
           type: string
@@ -1206,27 +1208,28 @@ components:
               amount_cents:
                 type: integer
                 description: |
-                  Amount in cents (positive = charge/purchase, negative = credit/correction).
+                  Amount in cents (positive = charge/purchase, negative = credit/storno).
                   Matches [ADR-0001](../../adr/0001-monetary-values-as-integer-cents.md).
               type:
                 type: string
-                enum: [purchase, correction]
+                enum: [purchase, storno, payout]
                 description: |
                   Transaction type.
                   - `purchase`: Product purchase
-                  - `correction`: Correction or adjustment (reverse transaction)
+                  - `storno`: Reversal of one specific transaction (`related_transaction_id` is set)
+                  - `payout`: Money sent out to settle a credit balance (not a reversal)
               product_id:
                 type: string
                 format: uuid
                 nullable: true
-                description: Product purchased (null for corrections/manual adjustments)
+                description: Product purchased (null for stornos/payouts/manual adjustments)
               product_name:
                 type: string
-                description: Display name of product or correction reason (translated to member's language)
+                description: Display name of product or storno reason (translated to member's language)
               product_icon:
                 type: string
                 nullable: true
-                description: Icon name of the purchased product (null for corrections/manual adjustments)
+                description: Icon name of the purchased product (null for stornos/payouts/manual adjustments)
               settlement_id:
                 type: string
                 format: uuid
@@ -1242,7 +1245,7 @@ components:
               notes:
                 type: string
                 nullable: true
-                description: Additional details for correction transactions
+                description: Additional details for storno/payout transactions
               created_at:
                 type: string
                 format: date-time
@@ -1277,9 +1280,9 @@ components:
             created_by_terminal_id: terminal-001
           - id: 550e8400-e29b-41d4-a716-446655440003
             amount_cents: -350
-            type: correction
+            type: storno
             product_id: null
-            product_name: Correction
+            product_name: Storno
             notes: Duplicate charge
             created_at: '2025-01-25T14:33:00Z'
             created_by_terminal_id: null
@@ -1435,7 +1438,10 @@ x-internal-notes: |
   SELECT
     id, card_uid, first_name, last_name, preferred_language,
     is_active,
-    (iban IS NOT NULL AND mandate_reference IS NOT NULL) AS is_sepa_valid,
+    EXISTS (
+      SELECT 1 FROM mandates m
+      WHERE m.member_id = members.id AND m.status = 'active'
+    ) AS is_sepa_valid,
     deleted_at, created_at, updated_at
   FROM members
   WHERE updated_at >= {since_timestamp}
@@ -1476,7 +1482,9 @@ x-internal-notes: |
   ### Transaction Deduplication
   ```
   -- Terminal transactions are always type='purchase' (set by backend)
-  INSERT IGNORE INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at)
+  -- Terminal still sends `created_at` in the request; the column it is stored
+  -- in is `occurred_at` (a server-owned `received_at` is set separately)
+  INSERT IGNORE INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at)
   VALUES (?, ?, ?, ?, 'purchase', ?)
 
   # MySQL/MariaDB: INSERT IGNORE skips duplicates

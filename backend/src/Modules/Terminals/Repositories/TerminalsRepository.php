@@ -18,7 +18,7 @@ class TerminalsRepository
     public function findById(string $id): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT t.*, (SELECT MAX(tx.created_at) FROM transactions tx WHERE tx.created_by_terminal_id = t.id) AS last_transaction_at
+            'SELECT t.*, (SELECT MAX(tx.occurred_at) FROM transactions tx WHERE tx.created_by_terminal_id = t.id) AS last_transaction_at
              FROM terminals t WHERE t.id = ?'
         );
         $stmt->execute([$id]);
@@ -115,7 +115,7 @@ class TerminalsRepository
 
         $dataParams = array_merge($params, [$limit, $offset]);
         $stmt = $this->db->prepare(
-            "SELECT t.*, (SELECT MAX(tx.created_at) FROM transactions tx WHERE tx.created_by_terminal_id = t.id) AS last_transaction_at
+            "SELECT t.*, (SELECT MAX(tx.occurred_at) FROM transactions tx WHERE tx.created_by_terminal_id = t.id) AS last_transaction_at
              FROM terminals t {$whereClause} ORDER BY t.created_at DESC LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);

@@ -7,7 +7,7 @@ class TransactionsLocal extends Table {
   TextColumn get memberId => text().references(MembersCache, #id)();
   TextColumn get productId => text().nullable().references(ProductsCache, #id)();
   IntColumn get amountCents => integer()();
-  TextColumn get transactionType => text()(); // 'purchase' or 'correction'
+  TextColumn get transactionType => text()(); // 'purchase', 'storno', or 'payout'
   TextColumn get notes => text().nullable()();
   TextColumn get createdAt => text()();
   IntColumn get synced => integer().withDefault(Constant(0))();

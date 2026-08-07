@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Settlements\Repositories;
 
 use PDO;
+use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
 
@@ -44,13 +45,13 @@ class SettlementsRepository
     public function findItemsBySettlementId(string $settlementId): array
     {
         $stmt = $this->db->prepare(
-            'SELECT si.*, m.first_name, m.last_name, t.transaction_type, t.notes AS transaction_notes, t.product_id, t.created_at AS transaction_created_at, p.names AS product_names, p.price_cents AS product_price_cents
+            'SELECT si.*, m.first_name, m.last_name, t.transaction_type, t.notes AS transaction_notes, t.product_id, t.occurred_at AS transaction_created_at, p.names AS product_names, p.price_cents AS product_price_cents
              FROM settlement_items si
              LEFT JOIN members m ON si.member_id = m.id
              LEFT JOIN transactions t ON si.transaction_id = t.id
              LEFT JOIN products p ON t.product_id = p.id
              WHERE si.settlement_id = ?
-             ORDER BY m.last_name ASC, t.created_at ASC'
+             ORDER BY m.last_name ASC, t.occurred_at ASC'
         );
         $stmt->execute([$settlementId]);
         return $stmt->fetchAll();
@@ -61,8 +62,8 @@ class SettlementsRepository
         $where = ['NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0)'];
         $params = [];
 
-        if ($fromDate) { $where[] = 't.created_at >= ?'; $params[] = $fromDate; }
-        if ($toDate) { $where[] = 't.created_at <= ?'; $params[] = $toDate . ' 23:59:59'; }
+        if ($fromDate) { $where[] = 't.occurred_at >= ?'; $params[] = $fromDate; }
+        if ($toDate) { $where[] = 't.occurred_at <= ?'; $params[] = $toDate . ' 23:59:59'; }
 
         $whereClause = 'WHERE ' . implode(' AND ', $where);
         $stmt = $this->db->prepare("SELECT t.member_id, SUM(t.amount_cents) as total FROM transactions t {$whereClause} GROUP BY t.member_id");
@@ -81,11 +82,13 @@ class SettlementsRepository
         $now = date('Y-m-d H:i:s');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO settlements (id, manual_reason, settlement_date, execution_date, period_start, period_end, sepa_message_id, total_amount_cents, member_count, is_cancelled, notes, created_by_admin_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO settlements (id, method, settlement_date, execution_date, period_start, period_end, sepa_message_id, total_amount_cents, member_count, is_cancelled, notes, created_by_admin_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id,
-            $data['manual_reason'] ?? null,
+            // A settlement is a direct debit unless the caller says otherwise —
+            // the same default the column carries (#163).
+            $data['method'] ?? SettlementMethod::DIRECT_DEBIT->value,
             $data['settlement_date'],
             $data['execution_date'],
             $data['period_start'] ?? null,
@@ -106,14 +109,20 @@ class SettlementsRepository
 
     public function createItem(array $data): void
     {
+        // active_transaction_id mirrors transaction_id: a freshly created
+        // settlement's claim on the transaction is live (#163). It is the
+        // column later cleared/repointed by correction handling, since
+        // transaction_id itself is no longer unique.
         $stmt = $this->db->prepare(
-            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents, end_to_end_id) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $data['settlement_id'],
             $data['transaction_id'],
+            $data['transaction_id'],
             $data['member_id'],
             (int) $data['amount_cents'],
+            $data['end_to_end_id'] ?? null,
         ]);
     }
 
@@ -166,8 +175,8 @@ class SettlementsRepository
         $stmt = $this->db->prepare(
             "SELECT s.*, a.display_name as admin_display_name,
                 (SELECT COUNT(*) FROM settlement_items si WHERE si.settlement_id = s.id) as transaction_count,
-                (SELECT MIN(t.created_at) FROM settlement_items si JOIN transactions t ON si.transaction_id = t.id WHERE si.settlement_id = s.id) as transaction_date_min,
-                (SELECT MAX(t.created_at) FROM settlement_items si JOIN transactions t ON si.transaction_id = t.id WHERE si.settlement_id = s.id) as transaction_date_max
+                (SELECT MIN(t.occurred_at) FROM settlement_items si JOIN transactions t ON si.transaction_id = t.id WHERE si.settlement_id = s.id) as transaction_date_min,
+                (SELECT MAX(t.occurred_at) FROM settlement_items si JOIN transactions t ON si.transaction_id = t.id WHERE si.settlement_id = s.id) as transaction_date_max
              FROM settlements s LEFT JOIN admin_users a ON s.created_by_admin_id = a.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);

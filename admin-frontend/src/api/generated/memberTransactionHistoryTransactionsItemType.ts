@@ -51,5 +51,6 @@ export type MemberTransactionHistoryTransactionsItemType = typeof MemberTransact
 
 export const MemberTransactionHistoryTransactionsItemType = {
   purchase: 'purchase',
-  correction: 'correction',
+  storno: 'storno',
+  payout: 'payout',
 } as const;

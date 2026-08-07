@@ -36,7 +36,7 @@ import { getTransactionTypeColor, getAmountColor } from '../utils/transactions'
 import { getCurrentLanguage } from '../i18n/config'
 import { getLocalizedName } from '../utils/i18n-helpers'
 import { SettlementConfirmModal } from '../components/modals/SettlementConfirmModal'
-import type { GlobalTransaction, SettlementFilterPreview, MemberListItem } from '../api/generated'
+import type { GlobalTransaction, SettlementFilterPreview, MemberListItem, MemberTransactionHistory } from '../api/generated'
 import { theme } from '../styles/design-system'
 import {
   tableColors,
@@ -143,16 +143,20 @@ export function JournalPage() {
   // value are the same one, and the TARGET2 rule is not duplicated here.
   const { info: executionDateInfo, error: executionDateError } = useExecutionDateInfo(confirmModalOpen)
 
-  // Correction modal state
+  // Storno modal state
   const [showCorrectionModal, setShowCorrectionModal] = useState(false)
   const [members, setMembers] = useState<MemberListItem[]>([])
   const [correctionForm, setCorrectionForm] = useState({
     memberId: '',
+    relatedTransactionId: '',
     amountCents: 0,
     reason: '',
   })
   const [correctionError, setCorrectionError] = useState<string | null>(null)
   const [correctionLoading, setCorrectionLoading] = useState(false)
+  // Candidate transactions the storno may reverse, for the selected member
+  const [memberTransactions, setMemberTransactions] = useState<MemberTransactionHistory['transactions']>([])
+  const [memberTransactionsLoading, setMemberTransactionsLoading] = useState(false)
 
   // Track if component is mounted to prevent state updates on unmounted component
   const isMountedRef = useRef(true)
@@ -275,7 +279,8 @@ export function JournalPage() {
   const handleCreateCorrection = async () => {
     setShowCorrectionModal(true)
     setCorrectionError(null)
-    setCorrectionForm({ memberId: '', amountCents: 0, reason: '' })
+    setCorrectionForm({ memberId: '', relatedTransactionId: '', amountCents: 0, reason: '' })
+    setMemberTransactions([])
 
     // Load members for dropdown
     try {
@@ -289,13 +294,37 @@ export function JournalPage() {
   const handleCorrectionModalClose = () => {
     setShowCorrectionModal(false)
     setCorrectionError(null)
-    setCorrectionForm({ memberId: '', amountCents: 0, reason: '' })
+    setCorrectionForm({ memberId: '', relatedTransactionId: '', amountCents: 0, reason: '' })
+    setMemberTransactions([])
+  }
+
+  // A storno must name the transaction it reverses (GoBD Rz. 64), so once a
+  // member is picked, load that member's transactions as storno candidates.
+  const handleCorrectionMemberChange = async (memberId: string) => {
+    setCorrectionForm((prev) => ({ ...prev, memberId, relatedTransactionId: '' }))
+    setMemberTransactions([])
+    if (!memberId) {
+      return
+    }
+    try {
+      setMemberTransactionsLoading(true)
+      const history = await getTransactions().getMemberTransactions(memberId)
+      setMemberTransactions(history.transactions ?? [])
+    } catch (err) {
+      setCorrectionError('Failed to load transactions for this member')
+    } finally {
+      setMemberTransactionsLoading(false)
+    }
   }
 
   const handleSubmitCorrection = async () => {
     // Validate
     if (!correctionForm.memberId) {
       setCorrectionError('Please select a member')
+      return
+    }
+    if (!correctionForm.relatedTransactionId) {
+      setCorrectionError('Please select the transaction this storno reverses')
       return
     }
     if (!correctionForm.reason.trim()) {
@@ -314,13 +343,14 @@ export function JournalPage() {
       await getTransactions().createManualTransaction(correctionForm.memberId, {
         amount_cents: correctionForm.amountCents,
         notes: correctionForm.reason,
+        related_transaction_id: correctionForm.relatedTransactionId,
       })
 
       // Close modal and reload transactions
       handleCorrectionModalClose()
       await loadTransactions()
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to create correction'
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create storno'
       // Check if it's a SEPA validation error (422)
       if (err instanceof Error && errorMsg.includes('422')) {
         setCorrectionError('Member does not have valid SEPA mandate. Please update member IBAN and mandate reference.')
@@ -429,7 +459,7 @@ export function JournalPage() {
         // and orval is re-run to include it in the generated type
         await getSettlements().createSettlement(
           ({
-            settlement_type: 'sepa',
+            method: 'direct_debit',
             settlement_date: today,
             execution_date: executionDateStr,
             transaction_ids: pendingTransactions.map((tx) => tx.id),
@@ -470,7 +500,7 @@ export function JournalPage() {
         >
           <button
             onClick={handleCreateCorrection}
-            data-testid="journal-create-correction-btn"
+            data-testid="journal-create-storno-btn"
             style={{
               padding: '8px 16px',
               backgroundColor: '#3b82f6',
@@ -1175,10 +1205,10 @@ export function JournalPage() {
           error={confirmError ?? executionDateError}
         />
 
-        {/* Correction Modal */}
+        {/* Storno Modal */}
         {showCorrectionModal && (
           <div
-            data-testid="journal-correction-modal"
+            data-testid="journal-storno-modal"
             style={{
               position: 'fixed',
               top: 0,
@@ -1194,7 +1224,7 @@ export function JournalPage() {
             onClick={handleCorrectionModalClose}
           >
             <div
-              data-testid="journal-correction-modal-content"
+              data-testid="journal-storno-modal-content"
               style={{
                 background: theme.colors.bg.secondary,
                 borderRadius: isMobile ? 0 : theme.borderRadius.lg,
@@ -1208,13 +1238,13 @@ export function JournalPage() {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 data-testid="journal-correction-modal-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
+              <h2 data-testid="journal-storno-modal-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
                 {t('journal.addCorrection')}
               </h2>
 
               {correctionError && (
                 <div
-                  data-testid="journal-correction-error"
+                  data-testid="journal-storno-error"
                   style={{
                     padding: theme.spacing.md,
                     background: `${theme.colors.semantic.danger}20`,
@@ -1236,9 +1266,9 @@ export function JournalPage() {
                     {t('journal.member')} *
                   </label>
                   <select
-                    data-testid="journal-correction-member-select"
+                    data-testid="journal-storno-member-select"
                     value={correctionForm.memberId}
-                    onChange={(e) => setCorrectionForm({ ...correctionForm, memberId: e.target.value })}
+                    onChange={(e) => handleCorrectionMemberChange(e.target.value)}
                     style={{
                       width: '100%',
                       padding: `${theme.spacing.md} 28px ${theme.spacing.md} ${theme.spacing.lg}`,
@@ -1267,13 +1297,56 @@ export function JournalPage() {
                   </select>
                 </div>
 
+                {/* Transaction to reverse — a storno must name the transaction
+                    it reverses (GoBD Rz. 64); it cannot be a free-amount entry. */}
+                <div>
+                  <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
+                    {t('journal.relatedTransaction')} *
+                  </label>
+                  <select
+                    data-testid="journal-storno-related-transaction-select"
+                    value={correctionForm.relatedTransactionId}
+                    disabled={!correctionForm.memberId || memberTransactionsLoading}
+                    onChange={(e) => setCorrectionForm({ ...correctionForm, relatedTransactionId: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: `${theme.spacing.md} 28px ${theme.spacing.md} ${theme.spacing.lg}`,
+                      background: theme.colors.bg.input,
+                      border: `1px solid ${theme.colors.border.light}`,
+                      borderRadius: theme.borderRadius.md,
+                      color: theme.colors.text.primary,
+                      fontSize: theme.typography.fontSize.sm,
+                      boxSizing: 'border-box',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      appearance: 'none',
+                      WebkitAppearance: 'none',
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 10px center',
+                      backgroundSize: '12px',
+                    }}
+                  >
+                    <option value="">
+                      {memberTransactionsLoading
+                        ? t('journal.loadingTransactions')
+                        : t('journal.selectTransaction')}
+                    </option>
+                    {(memberTransactions ?? []).map((transaction) => (
+                      <option key={transaction.id} value={transaction.id}>
+                        {transaction.date} · {((transaction.amount_cents ?? 0) / 100).toFixed(2)}€ · {transaction.description}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Amount */}
                 <div>
                   <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
                     {t('journal.amountEur')} *
                   </label>
                   <input
-                    data-testid="journal-correction-amount-input"
+                    data-testid="journal-storno-amount-input"
                     type="number"
                     step="0.01"
                     value={correctionForm.amountCents / 100}
@@ -1301,7 +1374,7 @@ export function JournalPage() {
                     {t('journal.reason')} *
                   </label>
                   <textarea
-                    data-testid="journal-correction-reason-input"
+                    data-testid="journal-storno-reason-input"
                     value={correctionForm.reason}
                     onChange={(e) => setCorrectionForm({ ...correctionForm, reason: e.target.value })}
                     placeholder={t('journal.reasonPlaceholder')}
@@ -1344,7 +1417,7 @@ export function JournalPage() {
                   <button
                     onClick={handleSubmitCorrection}
                     disabled={correctionLoading}
-                    data-testid="journal-correction-submit-btn"
+                    data-testid="journal-storno-submit-btn"
                     style={{
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                       background: theme.colors.semantic.primary,

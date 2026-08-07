@@ -42,11 +42,11 @@ class ReportsService
         $params = [];
 
         if ($dateFrom) {
-            $conditions[] = 't.created_at >= ?';
+            $conditions[] = 't.occurred_at >= ?';
             $params[] = $dateFrom;
         }
         if ($dateTo) {
-            $conditions[] = 't.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
+            $conditions[] = 't.occurred_at < DATE_ADD(?, INTERVAL 1 DAY)';
             $params[] = $dateTo;
         }
         if ($categoryIds) {
@@ -197,11 +197,11 @@ class ReportsService
         $params = [];
 
         if ($dateFrom) {
-            $conditions[] = 't.created_at >= ?';
+            $conditions[] = 't.occurred_at >= ?';
             $params[] = $dateFrom;
         }
         if ($dateTo) {
-            $conditions[] = 't.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
+            $conditions[] = 't.occurred_at < DATE_ADD(?, INTERVAL 1 DAY)';
             $params[] = $dateTo;
         }
 
@@ -250,9 +250,9 @@ class ReportsService
         $conditions = ['1=1'];
         $params = [];
 
-        $conditions[] = 't.created_at >= ?';
+        $conditions[] = 't.occurred_at >= ?';
         $params[] = $dateFrom;
-        $conditions[] = 't.created_at < DATE_ADD(?, INTERVAL 1 DAY)';
+        $conditions[] = 't.occurred_at < DATE_ADD(?, INTERVAL 1 DAY)';
         $params[] = $dateTo;
 
         if ($terminalId) {
@@ -263,13 +263,15 @@ class ReportsService
         $where = implode(' AND ', $conditions);
 
         // Get all transactions ordered by time
+        // occurred_at (not received_at) drives session grouping: back-to-back sales
+        // at the till, not sync arrival order, define a "session" here.
         $stmt = $this->db->prepare(
-            "SELECT t.id, t.created_by_terminal_id, t.amount_cents, t.created_at,
+            "SELECT t.id, t.created_by_terminal_id, t.amount_cents, t.occurred_at,
                     te.name as terminal_name
              FROM transactions t
              LEFT JOIN terminals te ON t.created_by_terminal_id = te.id
              WHERE {$where}
-             ORDER BY t.created_at ASC"
+             ORDER BY t.occurred_at ASC"
         );
         $stmt->execute($params);
         $transactions = $stmt->fetchAll();
@@ -280,7 +282,7 @@ class ReportsService
         $sessionGapSeconds = 30 * 60;
 
         foreach ($transactions as $tx) {
-            $txTime = strtotime($tx['created_at']);
+            $txTime = strtotime($tx['occurred_at']);
             if ($currentSession === null || ($txTime - $currentSession['last_time']) > $sessionGapSeconds) {
                 if ($currentSession !== null) {
                     $sessions[] = $this->finalizeSession($currentSession);
@@ -305,10 +307,10 @@ class ReportsService
 
         // Hourly distribution (all 24 hours)
         $hourlyStmt = $this->db->prepare(
-            "SELECT HOUR(t.created_at) as hour, COUNT(*) as transaction_count
+            "SELECT HOUR(t.occurred_at) as hour, COUNT(*) as transaction_count
              FROM transactions t
              WHERE {$where}
-             GROUP BY HOUR(t.created_at)
+             GROUP BY HOUR(t.occurred_at)
              ORDER BY hour"
         );
         $hourlyStmt->execute($params);
@@ -378,23 +380,23 @@ class ReportsService
                 'LEFT JOIN members m ON t.member_id = m.id',
             ],
             'day' => [
-                'DATE(t.created_at)',
-                'DATE(t.created_at)',
+                'DATE(t.occurred_at)',
+                'DATE(t.occurred_at)',
                 '',
             ],
             'week' => [
-                "CONCAT(YEAR(t.created_at), '-W', LPAD(WEEK(t.created_at, 1), 2, '0'))",
-                'YEAR(t.created_at), WEEK(t.created_at, 1)',
+                "CONCAT(YEAR(t.occurred_at), '-W', LPAD(WEEK(t.occurred_at, 1), 2, '0'))",
+                'YEAR(t.occurred_at), WEEK(t.occurred_at, 1)',
                 '',
             ],
             'month' => [
-                "DATE_FORMAT(t.created_at, '%Y-%m')",
-                "DATE_FORMAT(t.created_at, '%Y-%m')",
+                "DATE_FORMAT(t.occurred_at, '%Y-%m')",
+                "DATE_FORMAT(t.occurred_at, '%Y-%m')",
                 '',
             ],
             'year' => [
-                'YEAR(t.created_at)',
-                'YEAR(t.created_at)',
+                'YEAR(t.occurred_at)',
+                'YEAR(t.occurred_at)',
                 '',
             ],
         };

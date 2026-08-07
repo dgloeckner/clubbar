@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Services;
 
+use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
@@ -24,6 +25,20 @@ class SepaExportService
     {
         $settlement = $this->settlementsRepository->findById($settlementId);
         if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
+
+        // #163: only direct_debit settlements were ever collected through the
+        // SEPA mandate. Exporting a bank_transfer/write_off settlement would
+        // double-collect the balance from the member's bank account (e.g. a
+        // member pays by bank transfer, the treasurer records it as such, and
+        // someone later exports it anyway — the bank would still debit them).
+        $method = SettlementMethod::tryFrom($settlement['method'] ?? '') ?? SettlementMethod::DIRECT_DEBIT;
+        if (!$method->isSepaExportable()) {
+            throw new BusinessRuleException(sprintf(
+                'Settlement %s uses method "%s" and cannot be exported to SEPA; only direct_debit settlements are exportable',
+                $settlementId,
+                $method->value
+            ));
+        }
 
         $config = $this->sepaConfigRepository->getConfig();
         if (!$config || empty($config['creditor_id']) || empty($config['creditor_name']) || empty($config['creditor_iban'])) {

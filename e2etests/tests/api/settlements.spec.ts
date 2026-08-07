@@ -215,7 +215,7 @@ test.describe('Settlements API', () => {
     test('C1: POST /settlements creates settlement with required fields', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
-          settlement_type: 'sepa',
+          method: 'direct_debit',
           transaction_ids: [],
           settlement_date: '2026-01-26',
           execution_date: '2026-02-02',
@@ -227,14 +227,18 @@ test.describe('Settlements API', () => {
       expect([201, 422]).toContain(response.status());
     });
 
-    test('C2: POST /settlements creates manual settlement with reason', async ({ authenticatedRequest }) => {
+    test('C2: POST /settlements creates a bank_transfer settlement covering a single member', async ({ authenticatedRequest }) => {
+      // Ruling #163: manual_reason: 'cash' no longer exists — cash is ruled out
+      // by design. A member who paid cash is instead recorded as a
+      // bank_transfer (or write_off) settlement, which the SEPA exporter then
+      // refuses to export (see F5 below), preventing the bank from double-
+      // collecting the balance.
       const response = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
-          settlement_type: 'manual',
+          method: 'bank_transfer',
           transaction_ids: [],
           settlement_date: '2026-01-26',
           execution_date: '2026-02-02',
-          manual_reason: 'cash',
         },
       });
 
@@ -244,7 +248,7 @@ test.describe('Settlements API', () => {
     test('C3: POST /settlements rejects execution_date < settlement_date + 7', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
-          settlement_type: 'sepa',
+          method: 'direct_debit',
           transaction_ids: ['test-id'],
           settlement_date: '2026-01-26',
           execution_date: '2026-01-28', // Only 2 days later
@@ -270,7 +274,7 @@ test.describe('Settlements API', () => {
       for (const execDate of [INVALID_EXECUTION_DATES.saturday, INVALID_EXECUTION_DATES.sunday]) {
         const response = await authenticatedRequest.post('/api/admin/settlements', {
           data: {
-            settlement_type: 'sepa',
+            method: 'direct_debit',
             transaction_ids: ['test-id'],
             settlement_date: '2026-07-01',
             execution_date: execDate,
@@ -295,7 +299,7 @@ test.describe('Settlements API', () => {
       for (const execDate of closingDays) {
         const response = await authenticatedRequest.post('/api/admin/settlements', {
           data: {
-            settlement_type: 'sepa',
+            method: 'direct_debit',
             transaction_ids: ['test-id'],
             // Far enough back that the 7-day lead time is never the reason.
             settlement_date: '2026-01-05',
@@ -313,7 +317,7 @@ test.describe('Settlements API', () => {
       // validation, so the failure is about the dummy transaction id, not the date.
       const response = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
-          settlement_type: 'sepa',
+          method: 'direct_debit',
           transaction_ids: ['test-id'],
           settlement_date: '2026-01-05',
           execution_date: '2026-04-07',
@@ -328,7 +332,7 @@ test.describe('Settlements API', () => {
     test('C4: POST /settlements requires transaction_ids', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
-          settlement_type: 'sepa',
+          method: 'direct_debit',
           transaction_ids: [],
           settlement_date: '2026-01-26',
           execution_date: '2026-02-02',
@@ -341,14 +345,17 @@ test.describe('Settlements API', () => {
       expect(body.messages).toBeDefined();
     });
 
-    test('C5: POST /settlements validates manual_reason for manual type', async ({ authenticatedRequest }) => {
+    test('C5: POST /settlements rejects an invalid method value', async ({ authenticatedRequest }) => {
+      // Ruling #163: method replaces settlement_type + manual_reason, so
+      // there is no longer a "manual_reason required" branch — instead the
+      // method value itself is validated against the enum. 'cash' in
+      // particular is deliberately not a valid method.
       const response = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
-          settlement_type: 'manual',
+          method: 'cash',
           transaction_ids: ['test-id'],
           settlement_date: '2026-01-26',
           execution_date: '2026-02-02',
-          // Missing manual_reason
         },
       });
 
@@ -360,7 +367,7 @@ test.describe('Settlements API', () => {
     test('C6: POST /settlements returns settlement with all required fields', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
-          settlement_type: 'sepa',
+          method: 'direct_debit',
           transaction_ids: [],
           settlement_date: '2026-01-26',
           execution_date: '2026-02-02',
@@ -370,7 +377,7 @@ test.describe('Settlements API', () => {
       if (response.status() === 201) {
         const body = await response.json();
         expect(body).toHaveProperty('id');
-        expect(body).toHaveProperty('settlement_type');
+        expect(body).toHaveProperty('method');
         expect(body).toHaveProperty('settlement_date');
         expect(body).toHaveProperty('execution_date');
         expect(body).toHaveProperty('total_amount_cents');
@@ -383,7 +390,7 @@ test.describe('Settlements API', () => {
     test('C7: POST /settlements returns 201 on successful creation', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
-          settlement_type: 'sepa',
+          method: 'direct_debit',
           transaction_ids: [],
           settlement_date: '2026-01-26',
           execution_date: '2026-02-02',
@@ -396,7 +403,7 @@ test.describe('Settlements API', () => {
     test('C8: POST /settlements requires authentication', async ({ request }) => {
       const response = await request.post('/api/admin/settlements', {
         data: {
-          settlement_type: 'sepa',
+          method: 'direct_debit',
           transaction_ids: [],
           settlement_date: '2026-01-26',
           execution_date: '2026-02-02',
@@ -424,7 +431,8 @@ test.describe('Settlements API', () => {
     });
 
     test('D2: GET /settlements returns list with correct structure', async ({ authenticatedRequest }) => {
-      // Note: settlement_type filtering was removed when settlements were unified.
+      // Note: settlement_type/manual_reason filtering was replaced by the
+      // single `method` field (ruling #163) when settlements were unified.
       // Export format (SEPA/CSV) is determined at export time, not at settlement creation.
       const response = await authenticatedRequest.get('/api/admin/settlements');
 
@@ -632,7 +640,7 @@ test.describe('Settlements API', () => {
       const detail = await authenticatedRequest.get(`/api/admin/settlements/${listData.data[0].id}`);
       expect(detail.status()).toBe(200);
       const detailData = await detail.json();
-      // Verify settlement has required fields (settlement_type removed when settlements were unified)
+      // Verify settlement has required fields (settlement_type/manual_reason replaced by `method`, ruling #163)
       expect(detailData).toHaveProperty('id');
       expect(detailData).toHaveProperty('settlement_date');
       expect(detailData).toHaveProperty('items');
@@ -644,10 +652,12 @@ test.describe('Settlements API', () => {
    * Filter Preview Tests (3 tests)
    */
   test.describe('GET /api/admin/settlements/filter-preview', () => {
-    test('returns aggregate stats for unsettled transactions', async ({ authenticatedRequest }) => {
+    test('returns aggregate stats for unsettled transactions', async ({ authenticatedRequest, testTransactions }) => {
       const testId = `prev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-      // Create member + 2 unsettled correction transactions (corrections are unsettled by default)
+      // Create member + 2 unsettled storno transactions (stornos are unsettled by default).
+      // Each storno must name the purchase it reverses; that purchase is settled
+      // immediately so only the storno itself remains unsettled and matches the counts below.
       const memberRes = await authenticatedRequest.post('/api/admin/members', {
         data: {
           first_name: 'FilterPrev',
@@ -661,12 +671,13 @@ test.describe('Settlements API', () => {
       expect(memberRes.status()).toBe(201);
       const member = await memberRes.json();
 
-      await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correction`, {
-        data: { amount_cents: 500, reason: 'adjustment', notes: `fp-note-${testId}` },
-      });
-      await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correction`, {
-        data: { amount_cents: 300, reason: 'adjustment', notes: `fp-note2-${testId}` },
-      });
+      const purchase1 = await testTransactions.createSyncTransaction(member.id, 500, `fp-purchase1-${testId}`);
+      await testTransactions.createSettlement([purchase1]);
+      await testTransactions.createStorno(member.id, 500, `fp-note-${testId}`, 'adjustment', purchase1);
+
+      const purchase2 = await testTransactions.createSyncTransaction(member.id, 300, `fp-purchase2-${testId}`);
+      await testTransactions.createSettlement([purchase2]);
+      await testTransactions.createStorno(member.id, 300, `fp-note2-${testId}`, 'adjustment', purchase2);
 
       const res = await authenticatedRequest.get(
         `/api/admin/settlements/filter-preview?search=${encodeURIComponent(`Test${testId}`)}`,
@@ -682,7 +693,7 @@ test.describe('Settlements API', () => {
       expect(body.total_amount_cents).toBe(800);
     });
 
-    test('search filter reduces result to matching transactions', async ({ authenticatedRequest }) => {
+    test('search filter reduces result to matching transactions', async ({ authenticatedRequest, testTransactions }) => {
       const testId = `srch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const uniqueLastName = `SrchPrev${testId}`;
 
@@ -698,9 +709,12 @@ test.describe('Settlements API', () => {
       });
       expect(memberRes.status()).toBe(201);
       const member = await memberRes.json();
-      await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correction`, {
-        data: { amount_cents: 100, reason: 'adjustment', notes: `srch-note-${testId}` },
-      });
+      // The storno must name the purchase it reverses; settle that purchase
+      // immediately so only the storno remains unsettled (matches the exact
+      // counts asserted below).
+      const purchase = await testTransactions.createSyncTransaction(member.id, 100, `srch-purchase-${testId}`);
+      await testTransactions.createSettlement([purchase]);
+      await testTransactions.createStorno(member.id, 100, `srch-note-${testId}`, 'adjustment', purchase);
 
       // Unfiltered preview should have results
       const unfilteredRes = await authenticatedRequest.get('/api/admin/settlements/filter-preview');
@@ -735,7 +749,7 @@ test.describe('Settlements API', () => {
    * Settle Filter Tests (3 tests)
    */
   test.describe('POST /api/admin/settlements/settle-filter', () => {
-    test('creates settlement for all unsettled transactions matching search filter', async ({ authenticatedRequest }) => {
+    test('creates settlement for all unsettled transactions matching search filter', async ({ authenticatedRequest, testTransactions }) => {
       const testId = `sf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const uniqueLastName = `SFilter${testId}`;
 
@@ -751,12 +765,16 @@ test.describe('Settlements API', () => {
       });
       expect(memberRes.status()).toBe(201);
       const member = await memberRes.json();
-      await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correction`, {
-        data: { amount_cents: 400, reason: 'adjustment', notes: `sf-tx-${testId}` },
-      });
-      await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correction`, {
-        data: { amount_cents: 200, reason: 'adjustment', notes: `sf-tx2-${testId}` },
-      });
+      // Each storno must name the purchase it reverses; settle those purchases
+      // immediately so only the stornos remain unsettled (matches the exact
+      // counts/totals asserted below).
+      const purchase1 = await testTransactions.createSyncTransaction(member.id, 400, `sf-purchase1-${testId}`);
+      await testTransactions.createSettlement([purchase1]);
+      await testTransactions.createStorno(member.id, 400, `sf-tx-${testId}`, 'adjustment', purchase1);
+
+      const purchase2 = await testTransactions.createSyncTransaction(member.id, 200, `sf-purchase2-${testId}`);
+      await testTransactions.createSettlement([purchase2]);
+      await testTransactions.createStorno(member.id, 200, `sf-tx2-${testId}`, 'adjustment', purchase2);
 
       const today = todayIso();
       const exec = await minimumExecutionDate(authenticatedRequest);
@@ -874,7 +892,7 @@ test.describe('Settlements API', () => {
 
       const res = await authenticatedRequest.post('/api/admin/settlements', {
         data: {
-          settlement_type: 'sepa',
+          method: 'direct_debit',
           transaction_ids: ['test-id'],
           settlement_date: todayIso(),
           execution_date: execDate,

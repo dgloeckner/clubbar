@@ -266,8 +266,8 @@
     "settledAt": "Settled At",
     "notSettled": "Not settled",
     "noTransactions": "No transactions found",
-    "addCorrection": "Add Correction",
-    "correction": "Correction",
+    "addCorrection": "Add Storno",
+    "correction": "Storno",
     "settlementSelected": "Settlement (selected)",
     "settlementAll": "Settlement (all)",
     "concludeSettlement": "Conclude Settlement",
@@ -291,6 +291,9 @@
     "details": "Details",
     "settlementDate": "Settlement Date",
     "selectMember": "Select a member...",
+    "relatedTransaction": "Transaction to reverse",
+    "selectTransaction": "Select a transaction...",
+    "loadingTransactions": "Loading transactions...",
     "amountEur": "Amount (EUR)",
     "amountHint": "Positive = charge, Negative = credit",
     "reason": "Reason",
@@ -298,7 +301,8 @@
     "saving": "Saving...",
     "types": {
       "purchase": "Purchase",
-      "correction": "Correction",
+      "storno": "Storno",
+      "payout": "Payout",
       "manual_adjustment": "Manual Adjustment",
       "settlement": "Settlement",
       "reversal": "Reversal"
@@ -544,7 +548,7 @@
     "autoRefresh": "Auto-refresh",
     "refreshNow": "Refresh now",
     "purchase": "Purchase",
-    "correction": "Correction"
+    "storno": "Storno"
   },
   "pagination": {
     "firstPage": "First page",

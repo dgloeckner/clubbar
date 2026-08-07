@@ -11,7 +11,7 @@ class ProductIcons {
   ///
   /// Returns appropriate emoji based on canonical icon name from database.
   /// Falls back to shopping cart icon if not found.
-  /// Returns notepad icon if icon name is null (corrections, manual entries).
+  /// Returns notepad icon if icon name is null (stornos, payouts, manual entries).
   static String getEmoji(String? iconName) {
     if (iconName == null) return '📝';
 
@@ -69,7 +69,8 @@ class ProductIcons {
     'sauna-towel': '🧺',
 
     // Special
-    'correction': '📝',
+    'storno': '📝',
+    'payout': '📝',
     'unknown': '🛒',
   };
 }

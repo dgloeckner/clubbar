@@ -51,5 +51,6 @@ export type ListTransactionsType = typeof ListTransactionsType[keyof typeof List
 
 export const ListTransactionsType = {
   purchase: 'purchase',
-  correction: 'correction',
+  storno: 'storno',
+  payout: 'payout',
 } as const;

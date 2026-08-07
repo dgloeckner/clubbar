@@ -9,6 +9,7 @@ use App\Shared\DTOs\PaginatedResultDto;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\SepaValidationException;
+use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\Logging\Logger;
 use App\Shared\Utils\DateFormatter;
@@ -72,8 +73,22 @@ class TransactionsService
         );
     }
 
-    public function recordCorrection(string $memberId, int $amountCents, string $reason, ?string $adminId = null): array
-    {
+    /**
+     * Record a storno — the reversal of one specific transaction.
+     *
+     * The linkage is mandatory: GoBD Rz. 64 requires a reversal to name what it
+     * reverses, and the database refuses an unlinked storno outright. Deriving
+     * the amount from the original rather than trusting the caller, and lifting
+     * the mandate gate below, are the remaining halves of the storno ruling and
+     * belong to #169 — this method only stops writing rows the schema rejects.
+     */
+    public function recordCorrection(
+        string $memberId,
+        int $amountCents,
+        string $reason,
+        ?string $adminId = null,
+        ?string $relatedTransactionId = null,
+    ): array {
         $member = $this->membersRepository->findById($memberId);
         if (!$member) {
             throw NotFoundException::forResource('Member', $memberId);
@@ -84,15 +99,28 @@ class TransactionsService
             throw new SepaValidationException('SEPA mandate is required to create corrections for this member');
         }
 
+        if ($relatedTransactionId === null) {
+            throw new ValidationException(
+                'A storno must name the transaction it reverses',
+                ['related_transaction_id' => ['related_transaction_id is required']],
+            );
+        }
+
+        $original = $this->transactionsRepository->findById($relatedTransactionId);
+        if (!$original || $original['member_id'] !== $memberId) {
+            throw NotFoundException::forResource('Transaction', $relatedTransactionId);
+        }
+
         $id = $this->generateUuid();
         $result = $this->transactionsRepository->insertTransaction([
             'id' => $id,
             'member_id' => $memberId,
             'product_id' => null,
             'amount_cents' => $amountCents,
-            'transaction_type' => 'correction',
+            'transaction_type' => 'storno',
             'notes' => $reason,
             'created_by_admin_id' => $adminId,
+            'related_transaction_id' => $relatedTransactionId,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
@@ -165,11 +193,11 @@ class TransactionsService
                 $names = is_array($productNames) ? $productNames : (json_decode($productNames, true) ?? []);
                 $row['product_name'] = $names[$language] ?? $names['de'] ?? $names['en'] ?? reset($names) ?: null;
             } else {
-                // No product (e.g. correction/topup): use notes, fallback to type label
+                // No product (a storno or a payout): use notes, fallback to type label
                 $typeLabel = match ($row['transaction_type'] ?? '') {
-                    'correction' => 'Correction',
-                    'topup'      => 'Top-up',
-                    default      => 'Transaction',
+                    'storno' => 'Storno',
+                    'payout' => 'Payout',
+                    default  => 'Transaction',
                 };
                 $row['product_name'] = $row['notes'] ?: $typeLabel;
             }

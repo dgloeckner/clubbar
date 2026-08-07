@@ -8,12 +8,14 @@ use App\Modules\Settlements\DTOs\ExecutionDateInfoDto;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementItemDto;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
+use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Services\AuditService;
@@ -116,7 +118,7 @@ class SettlementsService
         return $this->transactionsRepository->summarizeUnsettledByFilters($filters);
     }
 
-    public function createSettlement(array $transactionIds, string $settlementDate, string $executionDate, ?string $periodStart, ?string $periodEnd, ?string $manualReason, ?string $notes, string $adminUserId): SettlementDto
+    public function createSettlement(array $transactionIds, string $settlementDate, string $executionDate, ?string $periodStart, ?string $periodEnd, SettlementMethod $method, ?string $notes, string $adminUserId): SettlementDto
     {
         $this->db->beginTransaction();
         try {
@@ -135,10 +137,20 @@ class SettlementsService
             $totalAmount = array_sum(array_column($transactions, 'amount_cents'));
             $memberIds = array_unique(array_column($transactions, 'member_id'));
 
+            // Ruling #163: bank_transfer/write_off settlements cover exactly one
+            // member (also enforced in the DB by chk_settlements_manual_is_single_member).
+            // Reject here so the caller gets a 422 instead of a raw SQL CHECK violation.
+            if (!$method->isSepaExportable() && count($memberIds) !== 1) {
+                throw new ValidationException(
+                    'Non-direct-debit settlements must cover exactly one member',
+                    ['method' => ['bank_transfer and write_off settlements must cover exactly one member']],
+                );
+            }
+
             $sepaMessageId = $this->settlementsRepository->getNextSepaMessageId();
 
             $settlement = $this->settlementsRepository->create([
-                'manual_reason' => $manualReason,
+                'method' => $method->value,
                 'settlement_date' => $settlementDate,
                 'execution_date' => $executionDate,
                 'period_start' => $periodStart,
@@ -191,6 +203,7 @@ class SettlementsService
         string $executionDate,
         string $adminUserId,
         ?string $notes = null,
+        SettlementMethod $method = SettlementMethod::DIRECT_DEBIT,
     ): SettlementDto {
         $transactionIds = $this->transactionsRepository->findAllUnsettledByFilters($filters);
         if (empty($transactionIds)) {
@@ -203,7 +216,7 @@ class SettlementsService
             executionDate: $executionDate,
             periodStart: $filters['date_from'] ?? null,
             periodEnd: $filters['date_to'] ?? null,
-            manualReason: null,
+            method: $method,
             notes: $notes,
             adminUserId: $adminUserId,
         );

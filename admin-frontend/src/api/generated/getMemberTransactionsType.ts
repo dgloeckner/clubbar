@@ -52,5 +52,6 @@ export type GetMemberTransactionsType = typeof GetMemberTransactionsType[keyof t
 export const GetMemberTransactionsType = {
   all: 'all',
   purchase: 'purchase',
-  correction: 'correction',
+  storno: 'storno',
+  payout: 'payout',
 } as const;

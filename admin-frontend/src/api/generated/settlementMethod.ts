@@ -46,10 +46,17 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export type SettlementListItemSettlementType = typeof SettlementListItemSettlementType[keyof typeof SettlementListItemSettlementType];
+/**
+ * How this settlement's balance is collected. Replaces the old
+`settlement_type`/`manual_reason` pair (ruling #163). Only
+`direct_debit` settlements can be exported to SEPA.
+
+ */
+export type SettlementMethod = typeof SettlementMethod[keyof typeof SettlementMethod];
 
 
-export const SettlementListItemSettlementType = {
-  sepa: 'sepa',
-  manual: 'manual',
+export const SettlementMethod = {
+  direct_debit: 'direct_debit',
+  bank_transfer: 'bank_transfer',
+  write_off: 'write_off',
 } as const;

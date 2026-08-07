@@ -48,7 +48,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, $productId, 350, 'purchase', '2026-02-01 10:00:00']);
 
@@ -62,9 +62,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
 
         // Link transaction to settlement
         $stmt = $this->db->prepare(
-            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$settlementId, $transactionId, $memberId, 350]);
+        $stmt->execute([$settlementId, $transactionId, $transactionId, $memberId, 350]);
 
         // Act: Fetch transactions for member
         $transactions = $this->transactionsRepository->findByMemberId($memberId, 50, 0);
@@ -89,7 +89,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, $productId, 850, 'purchase', '2026-02-07 14:30:00']);
 
@@ -116,7 +116,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, $productId, 250, 'purchase', '2026-02-07 09:15:00']);
 
@@ -136,13 +136,16 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         // Arrange: Create test data
         $memberId = $this->createTestMember('CorrectionTest', 'User');
 
-        // Create a correction transaction (no product)
+        // Create a storno transaction (no product), referencing an unrelated purchase
+        // as required by the chk_transactions_storno_is_linked constraint.
+        $anchorPurchaseId = $this->createAnchorPurchaseTransaction();
+
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, related_transaction_id, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$transactionId, $memberId, null, -350, 'correction', 'Refund for incorrect charge', '2026-02-06 16:45:00']);
+        $stmt->execute([$transactionId, $memberId, null, -350, 'storno', 'Refund for incorrect charge', $anchorPurchaseId, '2026-02-06 16:45:00']);
 
         // Act: Fetch transactions for member
         $transactions = $this->transactionsRepository->findByMemberId($memberId, 50, 0);
@@ -168,7 +171,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, $productId, 200, 'purchase', '2026-01-15 12:00:00']);
 
@@ -239,6 +242,25 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $stmt->execute([$categoryId, $names, 1]);
 
         return $categoryId;
+    }
+
+    /**
+     * Creates a throwaway member and purchase transaction purely to satisfy
+     * chk_transactions_storno_is_linked / uq_transactions_related_transaction
+     * for a storno fixture that has no other purchase in scope to point at.
+     */
+    private function createAnchorPurchaseTransaction(): string
+    {
+        $anchorMemberId = $this->createTestMember('StornoAnchor', $this->generateUuid());
+
+        $anchorTransactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $anchorTransactionId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$anchorTransactionId, $anchorMemberId, null, 100, 'purchase', date('Y-m-d H:i:s')]);
+
+        return $anchorTransactionId;
     }
 
     private function createTestProduct(string $categoryId, string $name, string $iconName, int $priceCents): string
@@ -332,22 +354,22 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $purchaseId = $this->generateUuid();
         $this->testTransactionIds[] = $purchaseId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$purchaseId, $memberId, $productId, 250, 'purchase', '2026-02-10 10:00:00']);
 
         $correctionId = $this->generateUuid();
         $this->testTransactionIds[] = $correctionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, related_transaction_id, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$correctionId, $memberId, null, -100, 'correction', 'fix', '2026-02-10 11:00:00']);
+        $stmt->execute([$correctionId, $memberId, null, -100, 'storno', 'fix', $purchaseId, '2026-02-10 11:00:00']);
 
-        $result = $this->transactionsRepository->findByMemberId($memberId, 50, 0, 'correction');
+        $result = $this->transactionsRepository->findByMemberId($memberId, 50, 0, 'storno');
 
         $this->assertCount(1, $result);
         $this->assertEquals($correctionId, $result[0]['id']);
-        $this->assertEquals('correction', $result[0]['transaction_type']);
+        $this->assertEquals('storno', $result[0]['transaction_type']);
     }
 
     public function test_findByMemberId_filters_by_since(): void
@@ -359,7 +381,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $oldId = $this->generateUuid();
         $this->testTransactionIds[] = $oldId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         // MySQL DATETIME has second precision; separate rows by >= 1 second using explicit timestamps.
         $stmt->execute([$oldId, $memberId, $productId, 150, 'purchase', '2026-02-10 08:00:00']);
@@ -397,7 +419,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, $productId, 200, 'purchase', '2026-02-11 09:00:00']);
 
@@ -409,9 +431,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $stmt->execute([$settlementId, '2026-02-11', '2026-02-15', 200, 1, $adminId]);
 
         $stmt = $this->db->prepare(
-            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$settlementId, $transactionId, $memberId, 200]);
+        $stmt->execute([$settlementId, $transactionId, $transactionId, $memberId, 200]);
 
         $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId]);
 
@@ -435,7 +457,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, $productId, 300, 'purchase', '2026-02-12 09:00:00']);
 
@@ -466,18 +488,18 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $purchaseId = $this->generateUuid();
         $this->testTransactionIds[] = $purchaseId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$purchaseId, $memberId, $productId, 220, 'purchase', '2026-02-13 10:00:00']);
 
         $correctionId = $this->generateUuid();
         $this->testTransactionIds[] = $correctionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, related_transaction_id, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$correctionId, $memberId, null, -50, 'correction', '2026-02-13 11:00:00']);
+        $stmt->execute([$correctionId, $memberId, null, -50, 'storno', $purchaseId, '2026-02-13 11:00:00']);
 
-        $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId, 'type' => 'correction']);
+        $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId, 'type' => 'storno']);
 
         $this->assertEquals(1, $result['total']);
         $this->assertEquals($correctionId, $result['items'][0]['id']);
@@ -492,13 +514,16 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $purchaseId = $this->generateUuid();
         $this->testTransactionIds[] = $purchaseId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$purchaseId, $memberId, $productId, 180, 'purchase', '2026-02-14 10:00:00']);
 
         $correctionId = $this->generateUuid();
         $this->testTransactionIds[] = $correctionId;
-        $stmt->execute([$correctionId, $memberId, null, -20, 'correction', '2026-02-14 11:00:00']);
+        $correctionStmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, related_transaction_id, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $correctionStmt->execute([$correctionId, $memberId, null, -20, 'storno', $purchaseId, '2026-02-14 11:00:00']);
 
         $result = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId, 'type' => 'all']);
 
@@ -514,7 +539,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $insideId = $this->generateUuid();
         $this->testTransactionIds[] = $insideId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$insideId, $memberId, $productId, 190, 'purchase', '2026-03-05 12:00:00']);
 
@@ -545,14 +570,14 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $byNameId = $this->generateUuid();
         $this->testTransactionIds[] = $byNameId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$byNameId, $memberId, null, 210, 'purchase', '2026-03-06 10:00:00']);
 
         $byProductId = $this->generateUuid();
         $this->testTransactionIds[] = $byProductId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$byProductId, $memberId, $productId, 210, 'purchase', '2026-03-06 10:05:00']);
 
@@ -560,9 +585,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $this->testTransactionIds[] = $byNotesId;
         $otherMemberId = $this->createTestMember('Other', 'Person');
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, notes, related_transaction_id, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$byNotesId, $otherMemberId, null, -10, 'correction', 'Uniquenotestoken adjustment', '2026-03-06 10:10:00']);
+        $stmt->execute([$byNotesId, $otherMemberId, null, -10, 'storno', 'Uniquenotestoken adjustment', $byProductId, '2026-03-06 10:10:00']);
 
         $resultByName = $this->transactionsRepository->listPaginated(50, 0, ['search' => 'Uniquesurname']);
         $foundIds = array_column($resultByName['items'], 'id');
@@ -588,7 +613,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $settledTxId = $this->generateUuid();
         $this->testTransactionIds[] = $settledTxId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$settledTxId, $memberId, $productId, 500, 'purchase', '2026-03-07 10:00:00']);
 
@@ -604,9 +629,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $stmt->execute([$settlementId, '2026-03-07', '2026-03-10', 500, 1, $adminId]);
 
         $stmt = $this->db->prepare(
-            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$settlementId, $settledTxId, $memberId, 500]);
+        $stmt->execute([$settlementId, $settledTxId, $settledTxId, $memberId, 500]);
 
         $unsettledResult = $this->transactionsRepository->listPaginated(50, 0, [
             'member_id' => $memberId,
@@ -633,7 +658,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $txA = $this->generateUuid();
         $this->testTransactionIds[] = $txA;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$txA, $memberA, $productId, 100, 'purchase', '2026-03-08 09:00:00']);
 
@@ -662,7 +687,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $lowId = $this->generateUuid();
         $this->testTransactionIds[] = $lowId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$lowId, $memberId, $productId, 100, 'purchase', '2026-03-09 09:00:00']);
 
@@ -685,7 +710,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $firstId = $this->generateUuid();
         $this->testTransactionIds[] = $firstId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$firstId, $memberId, $productId, 260, 'purchase', '2026-03-11 09:00:00']);
 
@@ -711,7 +736,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
             $this->testTransactionIds[] = $id;
             $ids[] = $id;
             $stmt = $this->db->prepare(
-                'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+                'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
             );
             $stmt->execute([$id, $memberId, $productId, 150, 'purchase', sprintf('2026-03-12 09:0%d:00', $i)]);
         }
@@ -759,7 +784,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $unsettledId = $this->generateUuid();
         $this->testTransactionIds[] = $unsettledId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$unsettledId, $memberId, $productId, 600, 'purchase', '2026-03-13 09:00:00']);
 
@@ -775,9 +800,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $stmt->execute([$settlementId, '2026-03-13', '2026-03-16', 600, 1, $adminId]);
 
         $stmt = $this->db->prepare(
-            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$settlementId, $settledId, $memberId, 600]);
+        $stmt->execute([$settlementId, $settledId, $settledId, $memberId, 600]);
 
         $result = $this->transactionsRepository->findUnsettledByIds([$unsettledId, $settledId]);
         $foundIds = array_column($result, 'id');
@@ -799,7 +824,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, null, 100, 'purchase', date('Y-m-d H:i:s')]);
 
@@ -816,7 +841,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, null, 150, 'purchase', date('Y-m-d H:i:s')]);
 
@@ -833,7 +858,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         // Well outside the 30-day window.
         $stmt->execute([$transactionId, $memberId, null, 150, 'purchase', '2020-01-01 00:00:00']);
@@ -851,7 +876,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, null, 777, 'purchase', date('Y-m-d H:i:s')]);
 
@@ -870,7 +895,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $unsettledId = $this->generateUuid();
         $this->testTransactionIds[] = $unsettledId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$unsettledId, $memberId, null, 400, 'purchase', date('Y-m-d H:i:s')]);
 
@@ -886,9 +911,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 900, 1, $adminId]);
 
         $stmt = $this->db->prepare(
-            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$settlementId, $settledId, $memberId, 900]);
+        $stmt->execute([$settlementId, $settledId, $settledId, $memberId, 900]);
 
         $after = $this->transactionsRepository->sumUnsettledAmountCents();
 
@@ -906,13 +931,16 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $tx1 = $this->generateUuid();
         $this->testTransactionIds[] = $tx1;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$tx1, $memberId, null, 500, 'purchase', date('Y-m-d H:i:s')]);
 
         $tx2 = $this->generateUuid();
         $this->testTransactionIds[] = $tx2;
-        $stmt->execute([$tx2, $memberId, null, -150, 'correction', date('Y-m-d H:i:s')]);
+        $tx2Stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, related_transaction_id, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $tx2Stmt->execute([$tx2, $memberId, null, -150, 'storno', $tx1, date('Y-m-d H:i:s')]);
 
         $balance = $this->transactionsRepository->getMemberBalance($memberId);
 
@@ -936,7 +964,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $unsettledId = $this->generateUuid();
         $this->testTransactionIds[] = $unsettledId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$unsettledId, $memberId, null, 300, 'purchase', date('Y-m-d H:i:s')]);
 
@@ -952,9 +980,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 800, 1, $adminId]);
 
         $stmt = $this->db->prepare(
-            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$settlementId, $settledId, $memberId, 800]);
+        $stmt->execute([$settlementId, $settledId, $settledId, $memberId, 800]);
 
         $balance = $this->transactionsRepository->getUnsettledMemberBalanceCents($memberId);
 
@@ -969,7 +997,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, null, 500, 'purchase', date('Y-m-d H:i:s')]);
 
@@ -981,9 +1009,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 500, 1, $adminId]);
 
         $stmt = $this->db->prepare(
-            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$settlementId, $transactionId, $memberId, 500]);
+        $stmt->execute([$settlementId, $transactionId, $transactionId, $memberId, 500]);
 
         $this->assertTrue($this->transactionsRepository->hasMemberInActiveSettlement($memberId));
     }
@@ -996,7 +1024,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$transactionId, $memberId, null, 500, 'purchase', date('Y-m-d H:i:s')]);
 
@@ -1034,7 +1062,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $unsettledId = $this->generateUuid();
         $this->testTransactionIds[] = $unsettledId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$unsettledId, $memberId, null, 250, 'purchase', date('Y-m-d H:i:s')]);
 
@@ -1050,9 +1078,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 950, 1, $adminId]);
 
         $stmt = $this->db->prepare(
-            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$settlementId, $settledId, $memberId, 950]);
+        $stmt->execute([$settlementId, $settledId, $settledId, $memberId, 950]);
 
         $summary = $this->transactionsRepository->summarizeUnsettledByFilters(['member_id' => $memberId]);
 
@@ -1068,7 +1096,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $matchId = $this->generateUuid();
         $this->testTransactionIds[] = $matchId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$matchId, $memberId, null, 300, 'purchase', '2026-04-05 10:00:00']);
 
@@ -1104,7 +1132,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $earlierId = $this->generateUuid();
         $this->testTransactionIds[] = $earlierId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$earlierId, $memberId, null, 100, 'purchase', '2026-04-06 08:00:00']);
 
@@ -1125,7 +1153,7 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $unsettledId = $this->generateUuid();
         $this->testTransactionIds[] = $unsettledId;
         $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$unsettledId, $memberId, null, 100, 'purchase', date('Y-m-d H:i:s')]);
 
@@ -1141,9 +1169,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $stmt->execute([$settlementId, date('Y-m-d'), date('Y-m-d'), 100, 1, $adminId]);
 
         $stmt = $this->db->prepare(
-            'INSERT INTO settlement_items (settlement_id, transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?)'
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
         );
-        $stmt->execute([$settlementId, $settledId, $memberId, 100]);
+        $stmt->execute([$settlementId, $settledId, $settledId, $memberId, 100]);
 
         $ids = $this->transactionsRepository->findAllUnsettledByFilters(['member_id' => $memberId]);
 

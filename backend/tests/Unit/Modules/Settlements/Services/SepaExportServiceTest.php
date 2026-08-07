@@ -18,7 +18,7 @@ class SepaExportServiceTest extends TestCase
     private const MEMBER_ID_2 = 'a1b2c3d4-0000-0000-0000-000000000002';
     private const XSD_PATH = __DIR__ . '/../../../../../vendor/digitick/sepa-xml/doc/ISO20022/pain/008/001/pain.008.001.08.xsd';
 
-    private function makeService(bool $twoMembers = false, string $executionDate = '2026-04-08'): SepaExportService
+    private function makeService(bool $twoMembers = false, string $executionDate = '2026-04-08', string $method = 'direct_debit'): SepaExportService
     {
         $sepaConfig = $this->createMock(SepaConfigRepository::class);
         $sepaConfig->method('getConfig')->willReturn([
@@ -31,6 +31,7 @@ class SepaExportServiceTest extends TestCase
         $settlements = $this->createMock(SettlementsRepository::class);
         $settlements->method('findById')->willReturn([
             'id' => self::SETTLEMENT_ID,
+            'method' => $method,
             'sepa_message_id' => 'SEPA-TEST-MSG',
             'settlement_date' => '2026-04-01',
             'execution_date' => $executionDate,
@@ -189,5 +190,29 @@ class SepaExportServiceTest extends TestCase
         $nodes = $xpath->query('//p:ReqdColltnDt');
         $this->assertSame(1, $nodes->length, 'Export must carry exactly one ReqdColltnDt');
         $this->assertSame('2026-04-07', $nodes->item(0)->textContent);
+    }
+
+    // ── Method guard (ruling #163) ─────────────────────────────────────
+    //
+    // Only direct_debit settlements were ever collected via the SEPA
+    // mandate. Exporting a bank_transfer/write_off settlement anyway would
+    // double-collect: e.g. a member pays by bank transfer, the treasurer
+    // records that as a bank_transfer settlement, and someone later exports
+    // it regardless — the bank would still debit the member's account.
+
+    public function testExportRejectsBankTransferSettlement(): void
+    {
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/cannot be exported/i');
+
+        $this->makeService(method: 'bank_transfer')->generateSepaXml(self::SETTLEMENT_ID);
+    }
+
+    public function testExportRejectsWriteOffSettlement(): void
+    {
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/cannot be exported/i');
+
+        $this->makeService(method: 'write_off')->generateSepaXml(self::SETTLEMENT_ID);
     }
 }

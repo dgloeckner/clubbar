@@ -45,21 +45,20 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { SettlementCreateRequestManualReason } from './settlementCreateRequestManualReason';
-import type { SettlementCreateRequestSettlementType } from './settlementCreateRequestSettlementType';
+import type { SettlementCreateRequestMethod } from './settlementCreateRequestMethod';
 
 export interface SettlementCreateRequest {
-  settlement_type: SettlementCreateRequestSettlementType;
+  /** How this settlement's balance will be collected. Replaces the old
+`settlement_type`/`manual_reason` pair (ruling #163).
+`bank_transfer` and `write_off` settlements must cover exactly one
+member and can never be exported to SEPA.
+ */
+  method?: SettlementCreateRequestMethod;
   period_start?: string;
   period_end?: string;
-  /** Required for SEPA (>= TODAY + 7 days) */
+  /** Required for direct_debit (>= TODAY + 7 days) */
   execution_date?: string;
-  /** Required for manual settlements */
-  manual_reason?: SettlementCreateRequestManualReason;
-  /**
-   * Required for manual settlements (min 10 chars)
-   * @maxLength 500
-   */
+  /** @maxLength 500 */
   notes?: string;
   /** Optional filter to specific members */
   member_ids?: string[];

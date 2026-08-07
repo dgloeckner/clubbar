@@ -272,7 +272,9 @@ export function getTransactionColor(type: string): string {
       return theme.colors.semantic.info
     case 'reversal':
       return theme.colors.semantic.warning
-    case 'correction':
+    case 'storno':
+      return theme.colors.semantic.info
+    case 'payout':
       return theme.colors.semantic.info
     default:
       return theme.colors.text.secondary

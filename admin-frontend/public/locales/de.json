@@ -266,8 +266,8 @@
     "settledAt": "Abgerechnet am",
     "notSettled": "Nicht abgerechnet",
     "noTransactions": "Keine Buchungen gefunden",
-    "addCorrection": "Korrektur hinzufügen",
-    "correction": "Korrektur",
+    "addCorrection": "Storno hinzufügen",
+    "correction": "Storno",
     "settlementSelected": "Abrechnung (Auswahl)",
     "settlementAll": "Abrechnung (alle)",
     "concludeSettlement": "Abrechnung abschließen",
@@ -291,6 +291,9 @@
     "details": "Details",
     "settlementDate": "Abrechnungsdatum",
     "selectMember": "Mitglied auswählen...",
+    "relatedTransaction": "Zu stornierende Buchung",
+    "selectTransaction": "Buchung auswählen...",
+    "loadingTransactions": "Buchungen werden geladen...",
     "amountEur": "Betrag (EUR)",
     "amountHint": "Positiv = Belastung, Negativ = Gutschrift",
     "reason": "Grund",
@@ -298,7 +301,8 @@
     "saving": "Speichert...",
     "types": {
       "purchase": "Kauf",
-      "correction": "Korrektur",
+      "storno": "Storno",
+      "payout": "Auszahlung",
       "manual_adjustment": "Manuelle Korrektur",
       "settlement": "Abrechnung",
       "reversal": "Storno"
@@ -544,7 +548,7 @@
     "autoRefresh": "Automatische Aktualisierung",
     "refreshNow": "Jetzt aktualisieren",
     "purchase": "Kauf",
-    "correction": "Korrektur"
+    "storno": "Storno"
   },
   "pagination": {
     "firstPage": "Erste Seite",

@@ -93,8 +93,8 @@ const listSettlements = (
   for the earliest valid date rather than computing it.
 - All members with valid SEPA data are included in XML export
 
-**Manual settlements**:
-- Require `manual_reason` and `notes` (min 10 chars)
+**Manual settlements** (`method: bank_transfer` or `write_off`):
+- Must cover exactly one member
 - No SEPA XML export available
 
  * @summary Create settlement

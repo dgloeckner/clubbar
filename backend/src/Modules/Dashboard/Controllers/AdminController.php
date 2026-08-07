@@ -45,17 +45,17 @@ class AdminController
         // Calculate outstanding balance (unsettled transactions)
         $outstandingBalanceCents = $this->transactionsRepository->sumUnsettledAmountCents();
 
-        // Get recent transactions (last 10, ordered by created_at DESC)
+        // Get recent transactions (last 10, ordered by occurred_at DESC)
         $recentTxStmt = $this->db->prepare(
             "SELECT t.id, t.member_id, CONCAT(m.first_name, ' ', m.last_name) as member_name,
                     t.transaction_type as type, t.amount_cents,
-                    p.names as product_names, t.created_at as timestamp,
+                    p.names as product_names, t.occurred_at as timestamp,
                     te.name as terminal_name
              FROM transactions t
              LEFT JOIN members m ON t.member_id = m.id
              LEFT JOIN products p ON t.product_id = p.id
              LEFT JOIN terminals te ON t.created_by_terminal_id = te.id
-             ORDER BY t.created_at DESC
+             ORDER BY t.occurred_at DESC
              LIMIT 10"
         );
         $recentTxStmt->execute();
@@ -104,8 +104,12 @@ class AdminController
         }
 
         // SEPA alerts
+        // Banking data moved to the append-only `mandates` record (#164), so
+        // "missing SEPA data" is now "no mandate in force".
         $sepaIssueCount = (int) $this->db->query(
-            "SELECT COUNT(*) FROM members WHERE (iban IS NULL OR mandate_reference IS NULL) AND deleted_at IS NULL"
+            "SELECT COUNT(*) FROM members m
+              LEFT JOIN mandates md ON md.active_member_id = m.id
+              WHERE md.id IS NULL AND m.deleted_at IS NULL"
         )->fetchColumn();
         $sepaAlert = [
             'count' => $sepaIssueCount,
@@ -162,14 +166,14 @@ class AdminController
 
         // Total revenue for the month
         $stmt = $this->db->prepare(
-            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)'
+            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)'
         );
         $stmt->execute([$startDate, $endDate]);
         $totalRevenueCents = (int) $stmt->fetchColumn();
 
         // Total sold items (count of purchase transactions)
         $stmt = $this->db->prepare(
-            'SELECT COUNT(*) FROM transactions WHERE created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY) AND transaction_type = ?'
+            'SELECT COUNT(*) FROM transactions WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY) AND transaction_type = ?'
         );
         $stmt->execute([$startDate, $endDate, 'purchase']);
         $totalSoldItems = (int) $stmt->fetchColumn();
@@ -179,7 +183,7 @@ class AdminController
             "SELECT p.names, COUNT(*) as sold_count
              FROM transactions t
              JOIN products p ON t.product_id = p.id
-             WHERE t.created_at >= ? AND t.created_at < DATE_ADD(?, INTERVAL 1 DAY)
+             WHERE t.occurred_at >= ? AND t.occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
                AND t.transaction_type = 'purchase'
              GROUP BY p.id
              ORDER BY sold_count DESC
@@ -198,12 +202,12 @@ class AdminController
 
         // Daily revenue
         $stmt = $this->db->prepare(
-            "SELECT DATE(created_at) as date,
+            "SELECT DATE(occurred_at) as date,
                     COALESCE(SUM(amount_cents), 0) as revenue_cents,
                     COUNT(*) as transaction_count
              FROM transactions
-             WHERE created_at >= ? AND created_at < DATE_ADD(?, INTERVAL 1 DAY)
-             GROUP BY DATE(created_at)
+             WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
+             GROUP BY DATE(occurred_at)
              ORDER BY date"
         );
         $stmt->execute([$startDate, $endDate]);
@@ -222,7 +226,7 @@ class AdminController
             "SELECT p.id, p.names, COUNT(*) as sold_count, SUM(t.amount_cents) as revenue_cents
              FROM transactions t
              JOIN products p ON t.product_id = p.id
-             WHERE t.created_at >= ? AND t.created_at < DATE_ADD(?, INTERVAL 1 DAY)
+             WHERE t.occurred_at >= ? AND t.occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
                AND t.transaction_type = 'purchase'
              GROUP BY p.id
              ORDER BY revenue_cents DESC
@@ -247,7 +251,7 @@ class AdminController
                     COUNT(*) as purchase_count, SUM(t.amount_cents) as revenue_cents
              FROM transactions t
              JOIN members m ON t.member_id = m.id
-             WHERE t.created_at >= ? AND t.created_at < DATE_ADD(?, INTERVAL 1 DAY)
+             WHERE t.occurred_at >= ? AND t.occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
                AND t.transaction_type = 'purchase'
              GROUP BY m.id
              ORDER BY revenue_cents DESC
@@ -279,7 +283,7 @@ class AdminController
     private function sumRevenueSince(string $date): int
     {
         $stmt = $this->db->prepare(
-            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE created_at >= ?'
+            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE occurred_at >= ?'
         );
         $stmt->execute([$date]);
         return (int) $stmt->fetchColumn();

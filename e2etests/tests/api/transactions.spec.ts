@@ -91,6 +91,24 @@ function createValidTransaction(memberId: string, productId: string, overrides =
   };
 }
 
+// Helper to create a purchase transaction for a member and return its id.
+// A storno must name the transaction it reverses via `related_transaction_id`
+// (GoBD Rz. 64), so storno tests need a real purchase to point at.
+async function createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, memberId: string, amountCents = 1000) {
+  const product = await createProduct(authenticatedRequest);
+  const transaction = createValidTransaction(memberId, product.id, { amount_cents: amountCents });
+
+  const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+    data: { transactions: [transaction] },
+  });
+
+  if (!response.ok()) {
+    throw new Error(`Failed to create purchase transaction: ${response.status()} - ${await response.text()}`);
+  }
+
+  return transaction.id;
+}
+
 test.describe('Transactions Upload Endpoint', () => {
 
   test('POST /api/sync/transactions accepts single transaction', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
@@ -494,8 +512,8 @@ test.describe('Transaction History Endpoint', () => {
     expect(tx.id).toBeDefined();
     expect(tx.amount_cents).toBeDefined();
     expect(typeof tx.amount_cents).toBe('number');
-    expect(tx.type).toBeDefined(); // 'purchase' or 'correction'
-    expect(tx.product_id).toBeDefined(); // may be null for corrections
+    expect(tx.type).toBeDefined(); // 'purchase', 'storno', or 'payout'
+    expect(tx.product_id).toBeDefined(); // may be null for stornos
     expect(tx.product_name).toBeDefined(); // should be translated to member's language
     expect(tx.created_at).toBeDefined();
   });
@@ -571,9 +589,9 @@ test.describe('Transaction History Endpoint', () => {
 
     const body = await response.json();
 
-    // For corrections (no product_id), product_name should still be set
+    // For stornos (no product_id), product_name should still be set
     for (const tx of body.transactions) {
-      expect(tx.product_name).toBeDefined(); // should be "Correction: ..." or similar
+      expect(tx.product_name).toBeDefined(); // should be "Storno: ..." or similar
     }
   });
 
@@ -591,18 +609,22 @@ test.describe('Transaction History Endpoint', () => {
 });
 
 /**
- * Milestone 3: Manual Corrections (UC-A21)
+ * Milestone 3: Manual Stornos (UC-A21)
  *
- * Tests for admin endpoint to record manual transaction corrections.
+ * Tests for admin endpoint to record manual transaction stornos.
+ * A storno reverses one specific transaction and must name it via
+ * `related_transaction_id` (GoBD Rz. 64); omitting it is a 422.
  * POST /api/admin/members/{memberId}/transactions/correct
  */
-test.describe('Manual Corrections Endpoint', () => {
-  test('POST /api/admin/members/{id}/transactions/correct creates correction transaction', async ({ authenticatedRequest }) => {
+test.describe('Manual Storno Endpoint', () => {
+  test('POST /api/admin/members/{id}/transactions/correct creates storno transaction', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 350);
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: -350,
         reason: 'Refund for duplicate charge',
+        related_transaction_id: purchaseId,
       },
     });
 
@@ -614,18 +636,20 @@ test.describe('Manual Corrections Endpoint', () => {
     expect(body.id).toBeDefined();
     expect(body.member_id).toBe(member.id);
     expect(body.amount_cents).toBe(-350);
-    expect(body.transaction_type).toBe('correction');
+    expect(body.transaction_type).toBe('storno');
     expect(body.notes).toBe('Refund for duplicate charge');
     expect(body.created_by_admin_id).toBeDefined();
     expect(body.created_at).toBeDefined();
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct accepts positive amount', async ({ authenticatedRequest }) => {
+  test('POST /api/admin/members/{id}/transactions/correct accepts positive amount', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 500);
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: 500,
         reason: 'Manual charge for damaged item',
+        related_transaction_id: purchaseId,
       },
     });
 
@@ -634,15 +658,17 @@ test.describe('Manual Corrections Endpoint', () => {
     const body = await response.json();
 
     expect(body.amount_cents).toBe(500);
-    expect(body.transaction_type).toBe('correction');
+    expect(body.transaction_type).toBe('storno');
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct rejects zero amount', async ({ authenticatedRequest }) => {
+  test('POST /api/admin/members/{id}/transactions/correct rejects zero amount', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id);
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: 0,
         reason: 'Invalid zero amount',
+        related_transaction_id: purchaseId,
       },
     });
 
@@ -653,11 +679,13 @@ test.describe('Manual Corrections Endpoint', () => {
     expect(body.errors).toBeDefined();
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct rejects missing reason', async ({ authenticatedRequest }) => {
+  test('POST /api/admin/members/{id}/transactions/correct rejects missing reason', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id);
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: -350,
+        related_transaction_id: purchaseId,
         // missing reason
       },
     });
@@ -669,13 +697,31 @@ test.describe('Manual Corrections Endpoint', () => {
     expect(body.errors.reason).toBeDefined();
   });
 
+  test('POST /api/admin/members/{id}/transactions/correct rejects missing related_transaction_id', async ({ authenticatedRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
+      data: {
+        amount_cents: -350,
+        reason: 'Refund without naming what it reverses',
+        // missing related_transaction_id
+      },
+    });
+
+    expect(response.status()).toBe(422);
+
+    const body = await response.json();
+    expect(body.errors).toBeDefined();
+    expect(body.errors.related_transaction_id).toBeDefined();
+  });
+
   test('POST /api/admin/members/{id}/transactions/correct returns 404 for unknown member', async ({ authenticatedRequest }) => {
     const unknownMemberId = '00000000-0000-0000-0000-000000000000';
 
     const response = await authenticatedRequest.post(`/api/admin/members/${unknownMemberId}/transactions/correct`, {
       data: {
         amount_cents: -350,
-        reason: 'Test correction',
+        reason: 'Test storno',
+        related_transaction_id: randomUUID(),
       },
     });
 
@@ -685,14 +731,33 @@ test.describe('Manual Corrections Endpoint', () => {
     expect(body.error).toBe('not_found');
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct rejects reason exceeding 500 chars', async ({ authenticatedRequest }) => {
+  test('POST /api/admin/members/{id}/transactions/correct returns 404 for unknown related_transaction_id', async ({ authenticatedRequest }) => {
     const member = await createMember(authenticatedRequest);
+
+    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
+      data: {
+        amount_cents: -350,
+        reason: 'Test storno for unknown related transaction',
+        related_transaction_id: randomUUID(),
+      },
+    });
+
+    expect(response.status()).toBe(404);
+
+    const body = await response.json();
+    expect(body.error).toBe('not_found');
+  });
+
+  test('POST /api/admin/members/{id}/transactions/correct rejects reason exceeding 500 chars', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id);
     const longReason = 'A'.repeat(501);
 
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: -350,
         reason: longReason,
+        related_transaction_id: purchaseId,
       },
     });
 
@@ -704,17 +769,19 @@ test.describe('Manual Corrections Endpoint', () => {
 
   test('POST /api/admin/members/{id}/transactions/correct creates transaction appearing in history', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
-    // Record a correction
-    const correctionResponse = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 250);
+    // Record a storno
+    const stornoResponse = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: -250,
-        reason: 'Test correction for history verification',
+        reason: 'Test storno for history verification',
+        related_transaction_id: purchaseId,
       },
     });
 
-    expect(correctionResponse.status()).toBe(201);
+    expect(stornoResponse.status()).toBe(201);
 
-    const correction = await correctionResponse.json();
+    const storno = await stornoResponse.json();
 
     // Add small delay to ensure transaction is persisted
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -726,40 +793,42 @@ test.describe('Manual Corrections Endpoint', () => {
 
     const history = await historyResponse.json();
 
-    // Verify correction appears in history (most recent)
-    const found = history.transactions.find((tx: any) => tx.id === correction.id);
+    // Verify storno appears in history (most recent)
+    const found = history.transactions.find((tx: any) => tx.id === storno.id);
     expect(found).toBeDefined();
-    expect(found?.type).toBe('correction');
+    expect(found?.type).toBe('storno');
     expect(found?.amount_cents).toBe(-250);
   });
 
   test('POST /api/admin/members/{id}/transactions/correct updates member balance', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 1000);
 
-    // Record a correction
+    // Record a storno
     const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
       data: {
         amount_cents: 1000,
         reason: 'Balance adjustment test',
+        related_transaction_id: purchaseId,
       },
     });
 
     expect(response.status()).toBe(201);
 
-    const correction = await response.json();
+    const storno = await response.json();
 
     // Add small delay to ensure transaction is persisted
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Fetch transaction history to verify balance includes correction
+    // Fetch transaction history to verify balance includes the storno
     const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=100`);
 
     expect(historyResponse.ok()).toBeTruthy();
 
     const history = await historyResponse.json();
 
-    // Verify correction is in transactions
-    const found = history.transactions.find((tx: any) => tx.id === correction.id);
+    // Verify storno is in transactions
+    const found = history.transactions.find((tx: any) => tx.id === storno.id);
     expect(found).toBeDefined();
     expect(found?.amount_cents).toBe(1000);
   });
@@ -850,12 +919,12 @@ test.describe('Transaction Export Endpoint', () => {
   });
 
   test('GET /api/admin/transactions/export filters by transaction type', async ({ authenticatedRequest }) => {
-    // Export only corrections
+    // Export only stornos
     const response = await authenticatedRequest.get('/api/admin/transactions/export', {
       params: {
         from_date: fromDate,
         to_date: toDate,
-        type: 'correction',
+        type: 'storno',
       },
     });
 
