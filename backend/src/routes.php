@@ -72,8 +72,11 @@ return function (App $app): void {
         $group->get('/statistics/monthly', [DashboardAdminController::class, 'monthlyStats']);
 
         // Members
+        // Static segments must stay above /members/{memberId} so they are not
+        // swallowed by the placeholder route.
         $group->get('/members', [MembersAdminController::class, 'index']);
         $group->post('/members', [MembersAdminController::class, 'store']);
+        $group->get('/members/credit-balances', [MembersAdminController::class, 'creditBalances']);
         $group->get('/members/{memberId}', [MembersAdminController::class, 'show']);
         $group->patch('/members/{memberId}', [MembersAdminController::class, 'update']);
         $group->delete('/members/{memberId}', [MembersAdminController::class, 'destroy']);

@@ -205,7 +205,8 @@ Two treatments: **fix-first** — the ruling is decided and its fix is unblocked
 | `ReportsService` revenue aggregation (M4) | [#116](https://github.com/dgloeckner/ruderbar/issues/116), plus the `payout` type from [#141](https://github.com/dgloeckner/ruderbar/issues/141) §4 | skip |
 | `TransactionsService::recordCorrection` (M6.2) | [#158](https://github.com/dgloeckner/ruderbar/issues/158) *(open)* | skip |
 | `TransactionsService::processBatch` sync gate (M6.2) | [#143](https://github.com/dgloeckner/ruderbar/issues/143) → fix [#162](https://github.com/dgloeckner/ruderbar/issues/162) | fix-first |
-| `SettlementsService` create/cancel/preview | [#141](https://github.com/dgloeckner/ruderbar/issues/141), [#142](https://github.com/dgloeckner/ruderbar/issues/142) → [#161](https://github.com/dgloeckner/ruderbar/issues/161), [#81](https://github.com/dgloeckner/ruderbar/issues/81)/[#86](https://github.com/dgloeckner/ruderbar/issues/86) | fix-first |
+| ~~`SettlementsService` create/preview~~ | [#141](https://github.com/dgloeckner/ruderbar/issues/141) → [#161](https://github.com/dgloeckner/ruderbar/issues/161) | **fixed** — exclude-and-flag is implemented and covered; pin freely |
+| `SettlementsService::cancelSettlement` | [#142](https://github.com/dgloeckner/ruderbar/issues/142) → [#81](https://github.com/dgloeckner/ruderbar/issues/81)/[#86](https://github.com/dgloeckner/ruderbar/issues/86) | fix-first |
 
 ## Coverage/ruling mechanism (landed in #168)
 

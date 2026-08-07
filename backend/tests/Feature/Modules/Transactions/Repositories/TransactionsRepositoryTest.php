@@ -764,6 +764,67 @@ class TransactionsRepositoryTest extends DatabaseTestCase
     }
 
     // ---------------------------------------------------------------
+    // findUnsettledByMemberIds (#161 §2 — the whole-position sweep)
+    // ---------------------------------------------------------------
+
+    public function test_findUnsettledByMemberIds_returns_empty_array_for_empty_input(): void
+    {
+        $this->assertSame([], $this->transactionsRepository->findUnsettledByMemberIds([]));
+    }
+
+    public function test_findUnsettledByMemberIds_returns_the_members_whole_unsettled_position(): void
+    {
+        $memberId = $this->createTestMember('Sweep', 'Member');
+        $otherMemberId = $this->createTestMember('SweepOther', 'Member');
+        $adminId = $this->createTestAdminUser('sweep-admin@example.com');
+        $categoryId = $this->createTestCategory('SweepCategory');
+        $productId = $this->createTestProduct($categoryId, 'SweepProduct', 'mug', 500);
+
+        $insert = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, related_transaction_id, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+
+        // Already collected in January — must not be swept up a second time.
+        $settledId = $this->generateUuid();
+        $this->testTransactionIds[] = $settledId;
+        $insert->execute([$settledId, $memberId, $productId, 2000, 'purchase', null, '2026-01-10 10:00:00']);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute([$settlementId, '2026-01-31', '2026-02-07', 2000, 1, $adminId]);
+        $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
+        )->execute([$settlementId, $settledId, $settledId, $memberId, 2000]);
+
+        // The credit from reversing it, plus a February drink: both unsettled,
+        // and both outside any February-only window.
+        $stornoId = $this->generateUuid();
+        $this->testTransactionIds[] = $stornoId;
+        $insert->execute([$stornoId, $memberId, $productId, -2000, 'storno', $settledId, '2026-01-11 10:00:00']);
+
+        $februaryId = $this->generateUuid();
+        $this->testTransactionIds[] = $februaryId;
+        $insert->execute([$februaryId, $memberId, $productId, 500, 'purchase', null, '2026-02-10 10:00:00']);
+
+        // Another member's unsettled row must not leak into the sweep.
+        $otherId = $this->generateUuid();
+        $this->testTransactionIds[] = $otherId;
+        $insert->execute([$otherId, $otherMemberId, $productId, 700, 'purchase', null, '2026-02-10 10:00:00']);
+
+        $rows = $this->transactionsRepository->findUnsettledByMemberIds([$memberId]);
+
+        $ids = array_column($rows, 'id');
+        sort($ids);
+        $expected = [$stornoId, $februaryId];
+        sort($expected);
+
+        $this->assertSame($expected, $ids);
+        $this->assertSame(-1500, array_sum(array_map(static fn(array $r): int => (int) $r['amount_cents'], $rows)));
+    }
+
+    // ---------------------------------------------------------------
     // findUnsettledByIds
     // ---------------------------------------------------------------
 

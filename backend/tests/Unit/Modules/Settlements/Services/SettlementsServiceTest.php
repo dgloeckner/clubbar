@@ -60,43 +60,108 @@ class SettlementsServiceTest extends TestCase
         ], $overrides);
     }
 
+    /**
+     * Stub the collaborators the sweep needs: every member of $transactions
+     * holds an active mandate, and their whole unsettled position is exactly
+     * the transactions given.
+     *
+     * @param list<array{id: string, member_id: string, amount_cents: int}> $transactions
+     */
+    private function stubEligibleSweep(array $transactions): void
+    {
+        $positions = [];
+        foreach ($transactions as $tx) {
+            $positions[$tx['member_id']] = ($positions[$tx['member_id']] ?? 0) + $tx['amount_cents'];
+        }
+
+        $memberMap = [];
+        foreach (array_keys($positions) as $memberId) {
+            $memberMap[] = [$memberId, $this->member($memberId)];
+        }
+
+        $this->transactionsRepository->method('findUnsettledByMemberIds')->willReturn($transactions);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn($positions);
+        $this->membersRepository->method('findById')->willReturnMap($memberMap);
+    }
+
+    /** A persisted settlement row, as the repository returns it. */
+    private function settlementRow(array $overrides = []): array
+    {
+        return array_merge([
+            'id' => 'settlement-1',
+            'method' => 'direct_debit',
+            'settlement_date' => '2026-01-01',
+            'execution_date' => '2026-01-15',
+            'period_start' => null,
+            'period_end' => null,
+            'sepa_message_id' => 'SEPA-XYZ',
+            'total_amount_cents' => 0,
+            'member_count' => 1,
+            'is_cancelled' => 0,
+            'cancelled_at' => null,
+            'exported_at' => null,
+            'notes' => null,
+            'created_at' => '2026-01-01 10:00:00',
+            'created_by_admin_id' => 'admin-1',
+        ], $overrides);
+    }
+
     // ── previewSettlement ────────────────────────────────────────────
 
-    public function test_previewSettlement_returns_empty_dto_when_no_balances(): void
+    public function test_previewSettlement_returns_empty_dto_when_nobody_participates(): void
     {
-        $this->settlementsRepository->method('calculateMemberBalances')->willReturn([]);
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([]);
 
         $result = $this->service->previewSettlement('2026-01-01', '2026-01-31');
 
         $this->assertInstanceOf(SettlementPreviewDto::class, $result);
         $this->assertSame([], $result->eligibleMembers);
         $this->assertSame([], $result->ineligibleMembers);
+        $this->assertSame([], $result->creditMembers);
         $this->assertSame(0, $result->eligibleTotal);
         $this->assertSame(0, $result->ineligibleTotal);
+        $this->assertSame(0, $result->creditTotal);
         $this->assertSame(0, $result->memberCount);
         $this->assertSame([], $result->warnings);
     }
 
-    public function test_previewSettlement_passes_date_range_to_repository(): void
+    public function test_previewSettlement_selects_participants_by_window_but_totals_by_whole_position(): void
     {
+        $memberId = 'carry-forward-member';
+
+        // The window picks who is in the run ...
         $this->settlementsRepository
             ->expects($this->once())
-            ->method('calculateMemberBalances')
-            ->with('2026-01-01', '2026-01-31')
-            ->willReturn([]);
+            ->method('findParticipantMemberIds')
+            ->with('2026-02-01', '2026-02-28', null)
+            ->willReturn([$memberId]);
 
-        $this->service->previewSettlement('2026-01-01', '2026-01-31');
+        // ... and the balance tested is their whole unsettled position (#161 §1).
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('calculateUnsettledPositions')
+            ->with([$memberId])
+            ->willReturn([$memberId => -1500]);
+
+        $this->membersRepository->method('findById')->willReturn($this->member($memberId));
+
+        $result = $this->service->previewSettlement('2026-02-01', '2026-02-28');
+
+        $this->assertSame([], $result->eligibleMembers);
+        $this->assertCount(1, $result->creditMembers);
+        $this->assertSame(-1500, $result->creditMembers[0]['balance_cents']);
     }
 
     public function test_previewSettlement_filters_by_memberId(): void
     {
         $memberIdA = 'member-a';
-        $memberIdB = 'member-b';
 
-        $this->settlementsRepository->method('calculateMemberBalances')->willReturn([
-            $memberIdA => 1000,
-            $memberIdB => 2000,
-        ]);
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('findParticipantMemberIds')
+            ->with(null, null, $memberIdA)
+            ->willReturn([$memberIdA]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$memberIdA => 1000]);
 
         $this->membersRepository
             ->expects($this->once())
@@ -115,7 +180,8 @@ class SettlementsServiceTest extends TestCase
         $eligibleId = 'eligible-member';
         $ineligibleId = 'ineligible-member';
 
-        $this->settlementsRepository->method('calculateMemberBalances')->willReturn([
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$eligibleId, $ineligibleId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
             $eligibleId => 1500,
             $ineligibleId => 500,
         ]);
@@ -135,14 +201,39 @@ class SettlementsServiceTest extends TestCase
         $this->assertSame(500, $result->ineligibleTotal);
         $this->assertSame(2, $result->memberCount);
         $this->assertCount(1, $result->warnings);
-        $this->assertStringContainsString('not SEPA-eligible', $result->warnings[0]);
+        $this->assertStringContainsString('no active SEPA mandate', $result->warnings[0]);
     }
 
-    public function test_previewSettlement_member_inactive_is_ineligible(): void
+    /**
+     * Ruling #173 / #161: deactivation is temporary (a lost card), so it must
+     * not strand debt the member genuinely owes.
+     */
+    public function test_previewSettlement_inactive_member_with_a_mandate_is_still_collected(): void
     {
         $memberId = 'inactive-member';
-        $this->settlementsRepository->method('calculateMemberBalances')->willReturn([$memberId => 100]);
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$memberId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$memberId => 100]);
         $this->membersRepository->method('findById')->willReturn($this->member($memberId, ['is_active' => 0]));
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertCount(1, $result->eligibleMembers);
+        $this->assertCount(0, $result->ineligibleMembers);
+    }
+
+    /**
+     * Eligibility is one question against the member's active mandate (#164),
+     * not a conjunction of loose columns. An empty IBAN string used to count
+     * as valid on the dashboard and invalid here.
+     */
+    public function test_previewSettlement_member_without_an_active_mandate_is_ineligible(): void
+    {
+        $memberId = 'no-mandate-member';
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$memberId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$memberId => 100]);
+        $this->membersRepository->method('findById')->willReturn(
+            $this->member($memberId, ['iban' => '', 'mandate_reference' => null])
+        );
 
         $result = $this->service->previewSettlement();
 
@@ -150,12 +241,85 @@ class SettlementsServiceTest extends TestCase
         $this->assertCount(1, $result->ineligibleMembers);
     }
 
+    /**
+     * Ruling #141: a member in credit is excluded entirely — from the
+     * settlement and from the file — and reported in their own bucket, because
+     * the remedy (pay them back) is the opposite of the ineligible bucket's
+     * (chase the bank details).
+     */
+    public function test_previewSettlement_member_in_credit_is_excluded_into_its_own_bucket(): void
+    {
+        $creditId = 'credit-member';
+        $owingId = 'owing-member';
+
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$creditId, $owingId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
+            $creditId => -1500,
+            $owingId => 500,
+        ]);
+        $this->membersRepository->method('findById')->willReturnMap([
+            [$creditId, $this->member($creditId)],
+            [$owingId, $this->member($owingId)],
+        ]);
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertSame([$owingId], array_column($result->eligibleMembers, 'member_id'));
+        $this->assertSame([], $result->ineligibleMembers);
+        $this->assertSame([$creditId], array_column($result->creditMembers, 'member_id'));
+        $this->assertSame(-1500, $result->creditTotal);
+        $this->assertSame(500, $result->eligibleTotal);
+        $this->assertSame(2, $result->memberCount);
+        $this->assertCount(1, $result->warnings);
+        $this->assertStringContainsString('in credit', $result->warnings[0]);
+    }
+
+    /**
+     * A member in credit is excluded whatever their mandate says: the club owes
+     * them money, so "chase the bank details" is not the remedy.
+     */
+    public function test_previewSettlement_credit_beats_missing_mandate(): void
+    {
+        $memberId = 'credit-without-mandate';
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$memberId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$memberId => -200]);
+        $this->membersRepository->method('findById')->willReturn(
+            $this->member($memberId, ['iban' => null, 'mandate_reference' => null])
+        );
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertSame([], $result->ineligibleMembers);
+        $this->assertCount(1, $result->creditMembers);
+    }
+
+    /**
+     * Ruling #141: a zero position settles — it closes the rows out — but gets
+     * no line in the file. The GDPR zero-balance anonymisation check depends on
+     * those rows actually closing.
+     */
+    public function test_previewSettlement_zero_position_is_eligible_and_closes_out(): void
+    {
+        $memberId = 'net-zero-member';
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$memberId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$memberId => 0]);
+        $this->membersRepository->method('findById')->willReturn($this->member($memberId));
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertCount(1, $result->eligibleMembers);
+        $this->assertSame(0, $result->eligibleMembers[0]['balance_cents']);
+        $this->assertSame([], $result->creditMembers);
+        $this->assertSame([], $result->warnings);
+    }
+
     public function test_previewSettlement_sepaEligibleOnly_drops_ineligible_members_and_warnings(): void
     {
         $eligibleId = 'eligible-member';
         $ineligibleId = 'ineligible-member';
 
-        $this->settlementsRepository->method('calculateMemberBalances')->willReturn([
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$eligibleId, $ineligibleId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
             $eligibleId => 1500,
             $ineligibleId => 500,
         ]);
@@ -175,10 +339,28 @@ class SettlementsServiceTest extends TestCase
         $this->assertSame(1, $result->memberCount);
     }
 
+    /**
+     * Credit exclusion is never silenced: sepa_eligible_only is about missing
+     * bank details, and a credit member still has to be paid back.
+     */
+    public function test_previewSettlement_sepaEligibleOnly_still_reports_credit_members(): void
+    {
+        $creditId = 'credit-member';
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$creditId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$creditId => -900]);
+        $this->membersRepository->method('findById')->willReturn($this->member($creditId));
+
+        $result = $this->service->previewSettlement(sepaEligibleOnly: true);
+
+        $this->assertCount(1, $result->creditMembers);
+        $this->assertCount(1, $result->warnings);
+    }
+
     public function test_previewSettlement_skips_members_that_no_longer_exist(): void
     {
         $missingId = 'missing-member';
-        $this->settlementsRepository->method('calculateMemberBalances')->willReturn([$missingId => 100]);
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$missingId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$missingId => 100]);
         $this->membersRepository->method('findById')->willReturn(null);
 
         $result = $this->service->previewSettlement();
@@ -263,6 +445,7 @@ class SettlementsServiceTest extends TestCase
 
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->stubEligibleSweep($transactions);
         $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-ABC123');
 
         $this->settlementsRepository
@@ -339,6 +522,7 @@ class SettlementsServiceTest extends TestCase
 
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->stubEligibleSweep($transactions);
         $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
 
         $this->settlementsRepository
@@ -367,6 +551,7 @@ class SettlementsServiceTest extends TestCase
 
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->stubEligibleSweep($transactions);
 
         $this->settlementsRepository->expects($this->never())->method('create');
         $this->db->expects($this->once())->method('rollBack');
@@ -405,6 +590,7 @@ class SettlementsServiceTest extends TestCase
 
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->stubEligibleSweep($transactions);
         $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willReturn($settlementRow);
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
@@ -420,6 +606,7 @@ class SettlementsServiceTest extends TestCase
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn([
             ['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500],
         ]);
+        $this->stubEligibleSweep([['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]]);
         $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willThrowException(new \RuntimeException('db exploded'));
 
@@ -430,6 +617,125 @@ class SettlementsServiceTest extends TestCase
         $this->expectExceptionMessage('db exploded');
 
         $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+    }
+
+    /**
+     * #161 §2: once a member is in the run, the run sweeps their whole
+     * unsettled position. Settling only the posted slice would reintroduce the
+     * very overpayment §1 exists to prevent.
+     */
+    public function test_createSettlement_sweeps_the_members_whole_unsettled_position(): void
+    {
+        $posted = [['id' => 'tx-feb', 'member_id' => 'member-a', 'amount_cents' => 500]];
+        $wholePosition = [
+            ['id' => 'tx-jan-storno', 'member_id' => 'member-a', 'amount_cents' => -200],
+            ['id' => 'tx-feb', 'member_id' => 'member-a', 'amount_cents' => 500],
+        ];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($posted);
+        $this->stubEligibleSweep($wholePosition);
+        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
+
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('create')
+            ->with($this->callback(fn(array $data) => $data['total_amount_cents'] === 300 && $data['member_count'] === 1))
+            ->willReturn($this->settlementRow(['total_amount_cents' => 300, 'member_count' => 1]));
+
+        $settled = [];
+        $this->settlementsRepository
+            ->expects($this->exactly(2))
+            ->method('createItem')
+            ->willReturnCallback(function (array $data) use (&$settled): void { $settled[] = $data['transaction_id']; });
+
+        $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
+
+        $this->service->createSettlement(['tx-feb'], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+
+        $this->assertSame(['tx-jan-storno', 'tx-feb'], $settled, 'The January credit must be swept in with the February purchase');
+    }
+
+    /**
+     * #161 §6: eligibility was tested at preview and nowhere else, so a client
+     * could post ids the preview had flagged and settle them anyway. The
+     * preview's verdict is now binding.
+     */
+    public function test_createSettlement_rejects_members_without_an_active_mandate(): void
+    {
+        $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->transactionsRepository->method('findUnsettledByMemberIds')->willReturn($transactions);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn(['member-a' => 500]);
+        $this->membersRepository->method('findById')->willReturn(
+            $this->member('member-a', ['iban' => null, 'mandate_reference' => null])
+        );
+
+        $this->settlementsRepository->expects($this->never())->method('create');
+        $this->db->expects($this->once())->method('rollBack');
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('no active SEPA mandate');
+
+        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+    }
+
+    /**
+     * Ruling #141: a member whose total unsettled position is negative is
+     * excluded entirely. Posting their transactions must not settle them.
+     */
+    public function test_createSettlement_rejects_members_in_credit(): void
+    {
+        $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->transactionsRepository->method('findUnsettledByMemberIds')->willReturn($transactions);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn(['member-a' => -1500]);
+        $this->membersRepository->method('findById')->willReturn($this->member('member-a'));
+
+        $this->settlementsRepository->expects($this->never())->method('create');
+        $this->db->expects($this->once())->method('rollBack');
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('in credit');
+
+        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+    }
+
+    /**
+     * Ruling #141: zero settles. The rows close out — which the GDPR
+     * zero-balance anonymisation check depends on — and the export writes no
+     * line for it.
+     */
+    public function test_createSettlement_settles_a_net_zero_member(): void
+    {
+        $wholePosition = [
+            ['id' => 'tx-purchase', 'member_id' => 'member-a', 'amount_cents' => 500],
+            ['id' => 'tx-payout', 'member_id' => 'member-a', 'amount_cents' => -500],
+        ];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($wholePosition);
+        $this->stubEligibleSweep($wholePosition);
+        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
+
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('create')
+            ->with($this->callback(fn(array $data) => $data['total_amount_cents'] === 0 && $data['member_count'] === 1))
+            ->willReturn($this->settlementRow(['total_amount_cents' => 0, 'member_count' => 1]));
+
+        $this->settlementsRepository->expects($this->exactly(2))->method('createItem');
+        $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
+
+        $result = $this->service->createSettlement(
+            ['tx-purchase', 'tx-payout'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1'
+        );
+
+        $this->assertSame(0, $result->totalAmountCents);
     }
 
     // ── createSettlementByFilters ────────────────────────────────────
@@ -469,6 +775,10 @@ class SettlementsServiceTest extends TestCase
             ['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500],
             ['id' => 'tx-2', 'member_id' => 'member-b', 'amount_cents' => 750],
         ]);
+        $this->stubEligibleSweep([
+            ['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500],
+            ['id' => 'tx-2', 'member_id' => 'member-b', 'amount_cents' => 750],
+        ]);
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
         $this->settlementsRepository->method('create')->willReturn([
@@ -505,6 +815,7 @@ class SettlementsServiceTest extends TestCase
         $this->transactionsRepository->method('findUnsettledByIds')->willReturn([
             ['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500],
         ]);
+        $this->stubEligibleSweep([['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]]);
         $this->settlementsRepository->method('hasConflicts')->willReturn([]);
         $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
 
@@ -530,6 +841,75 @@ class SettlementsServiceTest extends TestCase
                 'created_by_admin_id' => 'admin-1',
             ]);
         $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
+
+        $this->service->createSettlementByFilters($filters, '2026-02-01', '2026-02-15', 'admin-1');
+    }
+
+
+    /**
+     * The filter path is a sweep, not a hand-picked list, so an excluded
+     * member is dropped and the rest of the run proceeds — exclude-and-flag,
+     * rather than failing the whole run (ruling #141).
+     */
+    public function test_createSettlementByFilters_drops_credit_and_unmandated_members(): void
+    {
+        $filters = ['date_from' => '2026-02-01', 'date_to' => '2026-02-28'];
+        $matched = [
+            ['id' => 'tx-owing', 'member_id' => 'member-owing', 'amount_cents' => 500],
+            ['id' => 'tx-credit', 'member_id' => 'member-credit', 'amount_cents' => 100],
+            ['id' => 'tx-nomandate', 'member_id' => 'member-nomandate', 'amount_cents' => 300],
+        ];
+
+        $this->transactionsRepository->method('findAllUnsettledByFilters')->willReturn(array_column($matched, 'id'));
+        // Arg-aware: the sweep narrows the id list before re-fetching it.
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturnCallback(
+            fn(array $ids) => array_values(array_filter($matched, fn(array $tx) => in_array($tx['id'], $ids, true)))
+        );
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
+            'member-owing' => 500,
+            'member-credit' => -900,
+            'member-nomandate' => 300,
+        ]);
+        $this->membersRepository->method('findById')->willReturnMap([
+            ['member-owing', $this->member('member-owing')],
+            ['member-credit', $this->member('member-credit')],
+            ['member-nomandate', $this->member('member-nomandate', ['iban' => null, 'mandate_reference' => null])],
+        ]);
+
+        $this->transactionsRepository
+            ->expects($this->once())
+            ->method('findUnsettledByMemberIds')
+            ->with(['member-owing'])
+            ->willReturn([['id' => 'tx-owing', 'member_id' => 'member-owing', 'amount_cents' => 500]]);
+
+        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('create')
+            ->with($this->callback(fn(array $data) => $data['total_amount_cents'] === 500 && $data['member_count'] === 1))
+            ->willReturn($this->settlementRow(['total_amount_cents' => 500]));
+        $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
+
+        $result = $this->service->createSettlementByFilters($filters, '2026-02-01', '2026-02-15', 'admin-1');
+
+        $this->assertSame(500, $result->totalAmountCents);
+    }
+
+    public function test_createSettlementByFilters_throws_when_every_matched_member_is_excluded(): void
+    {
+        $filters = ['date_from' => '2026-02-01', 'date_to' => '2026-02-28'];
+        $matched = [['id' => 'tx-credit', 'member_id' => 'member-credit', 'amount_cents' => 100]];
+
+        $this->transactionsRepository->method('findAllUnsettledByFilters')->willReturn(['tx-credit']);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($matched);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn(['member-credit' => -900]);
+        $this->membersRepository->method('findById')->willReturn($this->member('member-credit'));
+
+        $this->settlementsRepository->expects($this->never())->method('create');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('No collectable members');
 
         $this->service->createSettlementByFilters($filters, '2026-02-01', '2026-02-15', 'admin-1');
     }
@@ -775,5 +1155,42 @@ class SettlementsServiceTest extends TestCase
         $this->assertSame('', $result[0]['email']);
         $this->assertSame('', $result[0]['iban']);
         $this->assertSame(100, $result[0]['amount_cents']);
+    }
+
+    // ------------------------------------------------------------------
+    // listCreditBalances (#161 work item 3)
+    // ------------------------------------------------------------------
+
+    public function test_listCreditBalances_maps_rows_to_dtos_and_sums_the_total(): void
+    {
+        $rows = [
+            ['member_id' => 'member-a', 'first_name' => 'Max', 'last_name' => 'Mustermann', 'balance_cents' => -1500],
+            ['member_id' => 'member-b', 'first_name' => 'Erika', 'last_name' => 'Musterfrau', 'balance_cents' => -500],
+        ];
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('findMembersInCredit')
+            ->willReturn($rows);
+
+        $result = $this->service->listCreditBalances();
+
+        $this->assertSame(-2000, $result['total_credit_cents']);
+        $this->assertCount(2, $result['items']);
+        $this->assertSame('member-a', $result['items'][0]->memberId);
+        $this->assertSame('Max', $result['items'][0]->firstName);
+        $this->assertSame('Mustermann', $result['items'][0]->lastName);
+        $this->assertSame(-1500, $result['items'][0]->balanceCents);
+        $this->assertSame('member-b', $result['items'][1]->memberId);
+        $this->assertSame(-500, $result['items'][1]->balanceCents);
+    }
+
+    public function test_listCreditBalances_returns_empty_list_and_zero_total_when_nobody_is_in_credit(): void
+    {
+        $this->settlementsRepository->method('findMembersInCredit')->willReturn([]);
+
+        $result = $this->service->listCreditBalances();
+
+        $this->assertSame([], $result['items']);
+        $this->assertSame(0, $result['total_credit_cents']);
     }
 }

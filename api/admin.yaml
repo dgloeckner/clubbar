@@ -365,6 +365,38 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /admin/members/credit-balances:
+    get:
+      tags: [Members]
+      summary: List members with a credit balance outstanding
+      description: |
+        Standing listing of members the club currently owes money — every
+        member whose total unsettled position is negative, most-negative
+        first. Soft-deleted members are excluded.
+
+        Backend-only view (#161 work item 3, non-blocking).
+      operationId: listCreditBalances
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Members currently in credit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CreditBalance'
+                  total_credit_cents:
+                    type: integer
+                    description: Sum of all outstanding credit balances (negative, or zero if nobody is in credit)
+                    example: -2500
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /admin/members/{memberId}:
     parameters:
       - $ref: '#/components/parameters/memberId'
@@ -1343,32 +1375,47 @@ paths:
                 message: SEPA configuration is incomplete
 
   /admin/settlements/preview:
-    get:
+    post:
       tags: [Settlements]
-      summary: Preview unsettled transactions
+      summary: Preview a settlement run
       description: |
-        Get a preview of transactions available for settlement.
+        What a collection run would contain, and who it would leave out and
+        why (ruling #141, issue #161).
+
+        `from_date`/`to_date` select the run's **participants** — the members
+        with unsettled activity in that window. They do not bound the amounts:
+        each participant's whole unsettled position is what is tested and, on
+        inclusion, what is swept. Members split into three buckets by that
+        total: `> 0` and `= 0` are eligible (zero settles but produces no line
+        in the pain.008), `< 0` is excluded into `credit_members`.
 
         **Use Cases**: UC-A30, UC-SEPA-06
       operationId: previewSettlement
       security:
         - sessionAuth: []
-      parameters:
-        - name: date_from
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: date_to
-          in: query
-          schema:
-            type: string
-            format: date
-        - name: member_id
-          in: query
-          schema:
-            type: string
-            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from_date:
+                  type: string
+                  format: date
+                to_date:
+                  type: string
+                  format: date
+                member_id:
+                  type: string
+                  format: uuid
+                sepa_eligible_only:
+                  type: boolean
+                  default: false
+                  description: |
+                    Drop the `ineligible_members` bucket and its warnings.
+                    `credit_members` is never suppressed — the club owes those
+                    members money, so the exclusion must stay visible.
       responses:
         '200':
           description: Settlement preview
@@ -2909,6 +2956,21 @@ components:
           type: string
           format: date-time
 
+    CreditBalance:
+      type: object
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        balance_cents:
+          type: integer
+          description: Total unsettled position, negative because the club owes this member money
+          example: -1500
+
     ExtractionField:
       type: object
       nullable: true
@@ -3592,52 +3654,59 @@ components:
     SettlementPreview:
       type: object
       properties:
-        total_amount_cents:
+        eligible_members:
+          type: array
+          description: Members with an active SEPA mandate whose total unsettled position is >= 0
+          items:
+            $ref: '#/components/schemas/SettlementPreviewMember'
+        ineligible_members:
+          type: array
+          description: Members who owe money but hold no active SEPA mandate — remedy is to chase the bank details
+          items:
+            $ref: '#/components/schemas/SettlementPreviewMember'
+        credit_members:
+          type: array
+          description: |
+            Members whose total unsettled position is negative. Excluded from
+            the settlement and from the file; the remedy is the opposite of
+            the ineligible bucket's — pay them back (ruling #141, § 812 BGB).
+          items:
+            $ref: '#/components/schemas/SettlementPreviewMember'
+        eligible_total:
           type: integer
+        ineligible_total:
+          type: integer
+        credit_total:
+          type: integer
+          description: Sum of the credit bucket; negative, or zero if nobody is in credit
+          example: -1500
         member_count:
           type: integer
-        transaction_count:
-          type: integer
-        sepa_eligible_count:
-          type: integer
-        sepa_ineligible_count:
-          type: integer
-        members:
-          type: array
-          items:
-            type: object
-            properties:
-              member_id:
-                type: string
-                format: uuid
-              member_name:
-                type: string
-              transaction_count:
-                type: integer
-              amount_cents:
-                type: integer
-              iban_status:
-                type: string
-                enum: [valid, missing, invalid]
-              mandate_status:
-                type: string
-                enum: [present, missing]
-              warnings:
-                type: array
-                items:
-                  type: string
+          description: Members placed in any bucket
         warnings:
           type: array
           items:
-            type: object
-            properties:
-              type:
-                type: string
-              member_id:
-                type: string
-                format: uuid
-              member_name:
-                type: string
+            type: string
+
+    SettlementPreviewMember:
+      type: object
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        balance_cents:
+          type: integer
+          description: The member's whole unsettled position, not the window's slice
+        iban:
+          type: string
+          nullable: true
+        mandate_reference:
+          type: string
+          nullable: true
 
     SettlementCreateRequest:
       type: object

@@ -57,23 +57,99 @@ class SettlementsRepository
         return $stmt->fetchAll();
     }
 
-    public function calculateMemberBalances(?string $fromDate = null, ?string $toDate = null): array
+    /** A transaction belongs to nobody's settlement yet. */
+    private const UNSETTLED =
+        'NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id '
+        . 'WHERE si.transaction_id = t.id AND s.is_cancelled = 0)';
+
+    /**
+     * Every member with unsettled activity inside the run's window — the
+     * participants of the run, and nothing more (#161, ruling #141).
+     *
+     * The window says *which* run this is; it does not bound what the run
+     * collects. Once a member participates, the whole of their unsettled
+     * position is swept and tested — see calculateUnsettledPositions().
+     *
+     * @return list<string>
+     */
+    public function findParticipantMemberIds(?string $fromDate = null, ?string $toDate = null, ?string $memberId = null): array
     {
-        $where = ['NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0)'];
+        $where = [self::UNSETTLED];
         $params = [];
 
         if ($fromDate) { $where[] = 't.occurred_at >= ?'; $params[] = $fromDate; }
         if ($toDate) { $where[] = 't.occurred_at <= ?'; $params[] = $toDate . ' 23:59:59'; }
+        if ($memberId) { $where[] = 't.member_id = ?'; $params[] = $memberId; }
+
+        $whereClause = 'WHERE ' . implode(' AND ', $where);
+        $stmt = $this->db->prepare("SELECT DISTINCT t.member_id FROM transactions t {$whereClause}");
+        $stmt->execute($params);
+
+        return array_map(static fn(array $row): string => $row['member_id'], $stmt->fetchAll());
+    }
+
+    /**
+     * The signed total each member currently owes (positive) or is owed
+     * (negative), over *all* unsettled transactions regardless of when they
+     * occurred (#161 §1, ruling #141).
+     *
+     * Date-bounding this sum is the bug the issue describes: a €20 credit in
+     * January and a €5 drink in February netted to +5 for a February run,
+     * debiting money the member does not owe and stranding the credit.
+     *
+     * @param list<string> $memberIds Restrict to these members; empty means all.
+     * @return array<string, int>
+     */
+    public function calculateUnsettledPositions(array $memberIds = []): array
+    {
+        $where = [self::UNSETTLED];
+        $params = [];
+
+        if (!empty($memberIds)) {
+            [$placeholders, $inParams] = SafeQuery::inClause(array_values($memberIds), 'string');
+            $where[] = "t.member_id IN ({$placeholders})";
+            $params = $inParams;
+        }
 
         $whereClause = 'WHERE ' . implode(' AND ', $where);
         $stmt = $this->db->prepare("SELECT t.member_id, SUM(t.amount_cents) as total FROM transactions t {$whereClause} GROUP BY t.member_id");
         $stmt->execute($params);
 
-        $balances = [];
+        $positions = [];
         foreach ($stmt->fetchAll() as $row) {
-            $balances[$row['member_id']] = (int) $row['total'];
+            $positions[$row['member_id']] = (int) $row['total'];
         }
-        return $balances;
+        return $positions;
+    }
+
+    /**
+     * Members whose total unsettled position is negative — the club owes
+     * them money (#161 work item 3). Same UNSETTLED predicate as
+     * calculateUnsettledPositions(), summed and filtered in SQL so sorting
+     * and the member join stay the database's job.
+     *
+     * Soft-deleted members are excluded: nothing actionable comes from
+     * surfacing a credit owed to a member record that no longer exists.
+     *
+     * @return list<array{member_id: string, first_name: string, last_name: string, balance_cents: int}>
+     */
+    public function findMembersInCredit(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT t.member_id, m.first_name, m.last_name, SUM(t.amount_cents) as balance_cents
+             FROM transactions t
+             JOIN members m ON m.id = t.member_id
+             WHERE ' . self::UNSETTLED . ' AND m.deleted_at IS NULL
+             GROUP BY t.member_id, m.first_name, m.last_name
+             HAVING SUM(t.amount_cents) < 0
+             ORDER BY balance_cents ASC'
+        );
+
+        $rows = $stmt->fetchAll();
+        foreach ($rows as &$row) {
+            $row['balance_cents'] = (int) $row['balance_cents'];
+        }
+        return $rows;
     }
 
     public function create(array $data): array

@@ -448,6 +448,7 @@ class ServiceFactory implements ContainerInterface
             $this->getValidator(),
             $this->getSepaConfigService(),
             $this->getMandateDocumentService(),
+            $this->getSettlementsService(),
         ));
     }
 
