@@ -190,6 +190,28 @@ class TransactionsRepository
         return ['items' => $items, 'total' => $total];
     }
 
+    /**
+     * Every unsettled transaction belonging to the given members, whenever it
+     * occurred (#161 §2, ruling #141).
+     *
+     * A settlement run sweeps each participant's whole unsettled position:
+     * settling only the slice inside the run's window is what let a January
+     * credit sit unsettled and invisible while February was collected in full.
+     *
+     * @param list<string> $memberIds
+     */
+    public function findUnsettledByMemberIds(array $memberIds): array
+    {
+        if (empty($memberIds)) return [];
+
+        [$placeholders, $params] = SafeQuery::inClause(array_values($memberIds), 'string');
+        $stmt = $this->db->prepare(
+            "SELECT t.* FROM transactions t WHERE t.member_id IN ({$placeholders}) AND NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0) ORDER BY t.occurred_at ASC"
+        );
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
     public function findUnsettledByIds(array $transactionIds): array
     {
         if (empty($transactionIds)) return [];

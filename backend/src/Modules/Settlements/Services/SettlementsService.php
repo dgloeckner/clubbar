@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Services;
 
+use App\Modules\Settlements\DTOs\CreditBalanceDto;
 use App\Modules\Settlements\DTOs\ExecutionDateInfoDto;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementItemDto;
@@ -57,42 +58,59 @@ class SettlementsService
         );
     }
 
+    /**
+     * What a collection run would contain, and who it would leave out and why
+     * (ruling #141, issue #161).
+     *
+     * The date window selects the run's *participants* — the members with
+     * unsettled activity in it. It does not bound the amounts: each
+     * participant's whole unsettled position is what gets tested and, on
+     * inclusion, what gets swept.
+     */
     public function previewSettlement(?string $fromDate = null, ?string $toDate = null, ?string $memberId = null, bool $sepaEligibleOnly = false): SettlementPreviewDto
     {
-        $balances = $this->settlementsRepository->calculateMemberBalances($fromDate, $toDate);
-
-        if ($memberId) {
-            $balances = array_filter($balances, fn($k) => $k === $memberId, ARRAY_FILTER_USE_KEY);
-        }
-
-        $memberIds = array_keys($balances);
+        $memberIds = $this->settlementsRepository->findParticipantMemberIds($fromDate, $toDate, $memberId);
         if (empty($memberIds)) {
             return new SettlementPreviewDto([], [], 0, 0, 0, []);
         }
 
+        $positions = $this->settlementsRepository->calculateUnsettledPositions($memberIds);
+
         $eligible = [];
         $ineligible = [];
+        $credit = [];
         $warnings = [];
 
         foreach ($memberIds as $mid) {
             $member = $this->membersRepository->findById($mid);
             if (!$member) continue;
 
+            $balance = $positions[$mid] ?? 0;
             $entry = [
                 'member_id' => $mid,
                 'first_name' => $member['first_name'],
                 'last_name' => $member['last_name'],
-                'balance_cents' => $balances[$mid],
+                'balance_cents' => $balance,
                 'iban' => $member['iban'] ?? null,
                 'mandate_reference' => $member['mandate_reference'] ?? null,
             ];
 
-            $isSepaEligible = !empty($member['iban']) && !empty($member['mandate_reference']) && (bool) $member['is_active'];
-            if ($isSepaEligible) {
+            // Credit is tested first and reported even under sepa_eligible_only:
+            // the club owes this member money (§ 812 BGB), so "chase the bank
+            // details" is not the remedy and the exclusion must never be silent.
+            if ($balance < 0) {
+                $credit[] = $entry;
+                $warnings[] = "Member {$member['first_name']} {$member['last_name']} is in credit and is excluded from collection";
+                continue;
+            }
+
+            if ($this->hasActiveMandate($member)) {
+                // Zero settles too — it closes the rows out. Only the export
+                // decides not to write a file line for it.
                 $eligible[] = $entry;
             } elseif (!$sepaEligibleOnly) {
                 $ineligible[] = $entry;
-                $warnings[] = "Member {$member['first_name']} {$member['last_name']} is not SEPA-eligible";
+                $warnings[] = "Member {$member['first_name']} {$member['last_name']} has no active SEPA mandate";
             }
         }
 
@@ -101,9 +119,23 @@ class SettlementsService
             ineligibleMembers: $ineligible,
             eligibleTotal: array_sum(array_column($eligible, 'balance_cents')),
             ineligibleTotal: array_sum(array_column($ineligible, 'balance_cents')),
-            memberCount: count($eligible) + count($ineligible),
+            memberCount: count($eligible) + count($ineligible) + count($credit),
             warnings: $warnings,
+            creditMembers: $credit,
+            creditTotal: array_sum(array_column($credit, 'balance_cents')),
         );
+    }
+
+    /**
+     * SEPA validity is one question — does the member hold an active mandate
+     * (#164) — asked of the mandate record the member row joins in, not a
+     * conjunction of loosely-maintained columns. `is_active` is deliberately
+     * not part of it: deactivation is temporary (a lost card), and must not
+     * strand debt the member genuinely owes (ruling #173).
+     */
+    private function hasActiveMandate(array $member): bool
+    {
+        return !empty($member['mandate_reference']) && !empty($member['iban']);
     }
 
     /**
@@ -129,13 +161,38 @@ class SettlementsService
             }
 
             // Fetch transactions
-            $transactions = $this->transactionsRepository->findUnsettledByIds($transactionIds);
-            if (empty($transactions)) {
+            $posted = $this->transactionsRepository->findUnsettledByIds($transactionIds);
+            if (empty($posted)) {
                 throw new BusinessRuleException('No valid unsettled transactions found');
             }
 
+            // The posted ids say *who* is being settled; the run then covers
+            // each of those members in full (#161 §2).
+            $memberIds = array_values(array_unique(array_column($posted, 'member_id')));
+
+            // #161 §6: the preview's verdict is binding. Posting ids the
+            // preview flagged used to settle them regardless, because creation
+            // validated nothing at all.
+            $partition = $this->partitionByCollectability($memberIds, $method);
+            if (!empty($partition['ineligible']) || !empty($partition['credit'])) {
+                $messages = [];
+                if (!empty($partition['ineligible'])) {
+                    $messages['ineligible_member_ids'] =
+                        ['These members have no active SEPA mandate: ' . implode(', ', $partition['ineligible'])];
+                }
+                if (!empty($partition['credit'])) {
+                    $messages['credit_member_ids'] =
+                        ['These members are in credit and are excluded from collection: ' . implode(', ', $partition['credit'])];
+                }
+
+                throw new ValidationException(
+                    'Some members cannot be settled — ' . implode('; ', array_map(fn(array $m) => $m[0], $messages)),
+                    $messages,
+                );
+            }
+
+            $transactions = $this->transactionsRepository->findUnsettledByMemberIds($memberIds);
             $totalAmount = array_sum(array_column($transactions, 'amount_cents'));
-            $memberIds = array_unique(array_column($transactions, 'member_id'));
 
             // Ruling #163: bank_transfer/write_off settlements cover exactly one
             // member (also enforced in the DB by chk_settlements_manual_is_single_member).
@@ -193,7 +250,50 @@ class SettlementsService
     }
 
     /**
+     * Split a run's participants into those it can collect from and those it
+     * must leave out, with the reason kept distinct (ruling #141, #161 §3).
+     *
+     * @param list<string> $memberIds
+     * @return array{collectable: list<string>, ineligible: list<string>, credit: list<string>}
+     */
+    private function partitionByCollectability(array $memberIds, SettlementMethod $method): array
+    {
+        $positions = $this->settlementsRepository->calculateUnsettledPositions($memberIds);
+
+        $collectable = [];
+        $ineligible = [];
+        $credit = [];
+
+        foreach ($memberIds as $memberId) {
+            // A negative position means the club owes this member money, so no
+            // settlement may touch them whatever their bank details say.
+            if (($positions[$memberId] ?? 0) < 0) {
+                $credit[] = $memberId;
+                continue;
+            }
+
+            $member = $this->membersRepository->findById($memberId);
+
+            // Only a direct debit needs a mandate: a bank transfer is the
+            // member paying their own tab, and a write-off collects nothing.
+            if ($method->isSepaExportable() && ($member === null || !$this->hasActiveMandate($member))) {
+                $ineligible[] = $memberId;
+                continue;
+            }
+
+            $collectable[] = $memberId;
+        }
+
+        return ['collectable' => $collectable, 'ineligible' => $ineligible, 'credit' => $credit];
+    }
+
+    /**
      * Create a settlement for all unsettled transactions matching the given filters.
+     *
+     * Unlike createSettlement(), which is handed a list the admin picked and
+     * refuses it if anything in it cannot be collected, this path is a sweep:
+     * members it cannot collect from are excluded and the run proceeds
+     * (exclude-and-flag, ruling #141).
      *
      * @param array{ date_from?: string, date_to?: string, search?: string, member_id?: string } $filters
      */
@@ -210,8 +310,24 @@ class SettlementsService
             throw new BusinessRuleException('No unsettled transactions found for the given filters');
         }
 
+        $matched = $this->transactionsRepository->findUnsettledByIds($transactionIds);
+        $memberIds = array_values(array_unique(array_column($matched, 'member_id')));
+        $collectable = $this->partitionByCollectability($memberIds, $method)['collectable'];
+        if (empty($collectable)) {
+            throw new BusinessRuleException(
+                'No collectable members matched the given filters — every match is in credit or has no active SEPA mandate'
+            );
+        }
+
+        $collectableIds = [];
+        foreach ($matched as $transaction) {
+            if (in_array($transaction['member_id'], $collectable, true)) {
+                $collectableIds[] = $transaction['id'];
+            }
+        }
+
         return $this->createSettlement(
-            transactionIds: $transactionIds,
+            transactionIds: $collectableIds,
             settlementDate: $settlementDate,
             executionDate: $executionDate,
             periodStart: $filters['date_from'] ?? null,
@@ -293,5 +409,23 @@ class SettlementsService
         );
 
         return $result;
+    }
+
+    /**
+     * Standing "credit balances outstanding" listing under Members (#161 work
+     * item 3, non-blocking) — every member the club currently owes money,
+     * most-negative first, with the sum of what is owed.
+     *
+     * @return array{items: list<CreditBalanceDto>, total_credit_cents: int}
+     */
+    public function listCreditBalances(): array
+    {
+        $rows = $this->settlementsRepository->findMembersInCredit();
+        $items = array_map(fn(array $row) => CreditBalanceDto::fromRow($row), $rows);
+
+        return [
+            'items' => $items,
+            'total_credit_cents' => array_sum(array_column($rows, 'balance_cents')),
+        ];
     }
 }

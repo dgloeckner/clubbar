@@ -677,8 +677,8 @@ test.describe('Settlements API', () => {
       const testId = `prev-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
       // Create member + 2 unsettled storno transactions (stornos are unsettled by default).
-      // Each storno must name the purchase it reverses; that purchase is settled
-      // immediately so only the storno itself remains unsettled and matches the counts below.
+      // Each storno must name the purchase it reverses; those purchases are settled
+      // first so only the stornos themselves remain unsettled.
       const memberRes = await authenticatedRequest.post('/api/admin/members', {
         data: {
           first_name: 'FilterPrev',
@@ -692,12 +692,15 @@ test.describe('Settlements API', () => {
       expect(memberRes.status()).toBe(201);
       const member = await memberRes.json();
 
+      // Both purchases are collected in ONE settlement before either storno
+      // exists. A settlement sweeps the member's whole unsettled position
+      // (ruling #141, #161 §2), so settling them one at a time would drag the
+      // first storno in with the second purchase and leave nothing to preview.
       const purchase1 = await testTransactions.createSyncTransaction(member.id, 500, `fp-purchase1-${testId}`);
-      await testTransactions.createSettlement([purchase1]);
-      await testTransactions.createStorno(member.id, 500, `fp-note-${testId}`, 'adjustment', purchase1);
-
       const purchase2 = await testTransactions.createSyncTransaction(member.id, 300, `fp-purchase2-${testId}`);
-      await testTransactions.createSettlement([purchase2]);
+      await testTransactions.createSettlement([purchase1, purchase2]);
+
+      await testTransactions.createStorno(member.id, 500, `fp-note-${testId}`, 'adjustment', purchase1);
       await testTransactions.createStorno(member.id, 300, `fp-note2-${testId}`, 'adjustment', purchase2);
 
       const res = await authenticatedRequest.get(
@@ -786,15 +789,16 @@ test.describe('Settlements API', () => {
       });
       expect(memberRes.status()).toBe(201);
       const member = await memberRes.json();
-      // Each storno must name the purchase it reverses; settle those purchases
-      // immediately so only the stornos remain unsettled (matches the exact
-      // counts/totals asserted below).
+      // Each storno must name the purchase it reverses. Both purchases are
+      // collected in one settlement first, so only the stornos remain
+      // unsettled — a settlement sweeps the member's whole unsettled position
+      // (ruling #141, #161 §2), so settling them separately would sweep the
+      // first storno up with the second purchase.
       const purchase1 = await testTransactions.createSyncTransaction(member.id, 400, `sf-purchase1-${testId}`);
-      await testTransactions.createSettlement([purchase1]);
-      await testTransactions.createStorno(member.id, 400, `sf-tx-${testId}`, 'adjustment', purchase1);
-
       const purchase2 = await testTransactions.createSyncTransaction(member.id, 200, `sf-purchase2-${testId}`);
-      await testTransactions.createSettlement([purchase2]);
+      await testTransactions.createSettlement([purchase1, purchase2]);
+
+      await testTransactions.createStorno(member.id, 400, `sf-tx-${testId}`, 'adjustment', purchase1);
       await testTransactions.createStorno(member.id, 200, `sf-tx2-${testId}`, 'adjustment', purchase2);
 
       const today = todayIso();
@@ -926,6 +930,224 @@ test.describe('Settlements API', () => {
         expect(messages).not.toContain('business day');
         expect(messages).not.toContain('7 days');
       }
+    });
+  });
+
+  /**
+   * Credit exclusion and the whole-position sweep (issue #161, ruling #141).
+   *
+   * A member's total unsettled position decides everything: `> 0` collect,
+   * `= 0` settle without a file line, `< 0` exclude entirely. The run's date
+   * window picks who takes part; it never bounds the amount.
+   *
+   * Every test builds its own member, purchases and settlements (E2E Pattern
+   * 001), so nothing here depends on seed data or on another test's rows.
+   */
+  test.describe('Credit exclusion and whole-position sweep (#161)', () => {
+    const IBAN = 'DE89370400440532013000';
+
+    function suffix(): string {
+      return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+    }
+
+    async function createMember(request: any, withMandate: boolean) {
+      const id = suffix();
+      const data: Record<string, unknown> = {
+        first_name: 'Credit',
+        last_name: `Case${id}`,
+        email: `credit-${id}@test.example`,
+        preferred_language: 'de',
+      };
+      if (withMandate) {
+        data.iban = IBAN;
+        data.mandate_signed_at = '2024-01-01';
+      }
+
+      const response = await request.post('/api/admin/members', { data });
+      expect(response.status(), await response.text()).toBe(201);
+      return await response.json();
+    }
+
+    async function syncPurchase(terminalRequest: any, memberId: string, amountCents: number, occurredAt?: string) {
+      const transactionId = crypto.randomUUID();
+      const response = await terminalRequest.post('/api/sync/transactions', {
+        data: {
+          transactions: [
+            {
+              id: transactionId,
+              member_id: memberId,
+              type: 'product',
+              product_id: crypto.randomUUID(),
+              quantity: 1,
+              unit_price_cents: amountCents,
+              amount_cents: amountCents,
+              notes: `Credit-case purchase ${suffix()}`,
+              created_at: occurredAt ?? new Date().toISOString(),
+            },
+          ],
+        },
+      });
+      expect(response.status(), await response.text()).toBe(201);
+      return transactionId;
+    }
+
+    /** A credit only exists once money has actually been collected and then reversed. */
+    async function collectThenStorno(request: any, memberId: string, transactionId: string, amountCents: number) {
+      const executionDate = await minimumExecutionDate(request);
+      const settled = await request.post('/api/admin/settlements', {
+        data: {
+          method: 'direct_debit',
+          transaction_ids: [transactionId],
+          settlement_date: todayIso(),
+          execution_date: executionDate,
+        },
+      });
+      expect(settled.status(), await settled.text()).toBe(201);
+
+      const storno = await request.post(`/api/admin/members/${memberId}/transactions`, {
+        data: {
+          amount_cents: -amountCents,
+          reason: 'refund',
+          notes: 'Overcharged — reversed',
+          related_transaction_id: transactionId,
+        },
+      });
+      expect(storno.status(), await storno.text()).toBe(201);
+    }
+
+    async function settle(request: any, transactionIds: string[]) {
+      return await request.post('/api/admin/settlements', {
+        data: {
+          method: 'direct_debit',
+          transaction_ids: transactionIds,
+          settlement_date: todayIso(),
+          execution_date: await minimumExecutionDate(request),
+        },
+      });
+    }
+
+    test('B5: a member whose carried-forward credit outweighs the window lands in credit_members', async ({
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+    }) => {
+      const member = await createMember(authenticatedRequest, true);
+      const january = await syncPurchase(authenticatedTerminalRequest, member.id, 2000);
+      await collectThenStorno(authenticatedRequest, member.id, january, 2000);
+      await syncPurchase(authenticatedTerminalRequest, member.id, 500);
+
+      const response = await authenticatedRequest.post('/api/admin/settlements/preview', {
+        data: { member_id: member.id },
+      });
+
+      expect(response.status()).toBe(200);
+      const body = await response.json();
+      expect(body.eligible_members).toEqual([]);
+      expect(body.credit_members).toHaveLength(1);
+      expect(body.credit_members[0].member_id).toBe(member.id);
+      // −20 € carried forward against a 5 € drink: the window's +500 is not the answer.
+      expect(body.credit_members[0].balance_cents).toBe(-1500);
+      expect(body.credit_total).toBe(-1500);
+      expect(JSON.stringify(body.warnings)).toContain('in credit');
+    });
+
+    test('C9: POST /settlements refuses to debit a member who is in credit', async ({
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+    }) => {
+      const member = await createMember(authenticatedRequest, true);
+      const january = await syncPurchase(authenticatedTerminalRequest, member.id, 2000);
+      await collectThenStorno(authenticatedRequest, member.id, january, 2000);
+      const february = await syncPurchase(authenticatedTerminalRequest, member.id, 500);
+
+      const response = await settle(authenticatedRequest, [february]);
+
+      expect(response.status()).toBe(422);
+      expect(JSON.stringify(await response.json())).toContain('in credit');
+
+      // Both rows carry forward: still unsettled, still visible.
+      const preview = await authenticatedRequest.post('/api/admin/settlements/preview', {
+        data: { member_id: member.id },
+      });
+      expect((await preview.json()).credit_members[0].balance_cents).toBe(-1500);
+    });
+
+    test('C10: POST /settlements sweeps the whole unsettled position, not just the posted ids', async ({
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+    }) => {
+      const member = await createMember(authenticatedRequest, true);
+      const earlier = await syncPurchase(authenticatedTerminalRequest, member.id, 700);
+      const posted = await syncPurchase(authenticatedTerminalRequest, member.id, 300);
+
+      const response = await settle(authenticatedRequest, [posted]);
+
+      expect(response.status(), await response.text()).toBe(201);
+      const settlement = await response.json();
+      expect(settlement.total_amount_cents).toBe(1000);
+
+      const detail = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}`);
+      const settledIds = (await detail.json()).items.map((item: any) => item.transaction_id).sort();
+      expect(settledIds).toEqual([earlier, posted].sort());
+    });
+
+    test('C11: POST /settlements refuses member ids the preview flagged as unmandated', async ({
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+    }) => {
+      // The tab is run up while the mandate is valid, then the mandate is
+      // revoked (ADR-0020 blocks the bar, but the debt stays owed). This is
+      // the shape #164 gives eligibility: one question about an active mandate.
+      const member = await createMember(authenticatedRequest, true);
+      const transactionId = await syncPurchase(authenticatedTerminalRequest, member.id, 900);
+
+      const revoke = await authenticatedRequest.patch(`/api/admin/members/${member.id}`, {
+        data: { iban: '' },
+      });
+      expect(revoke.status(), await revoke.text()).toBe(200);
+      expect((await revoke.json()).is_sepa_valid).toBe(false);
+
+      const response = await settle(authenticatedRequest, [transactionId]);
+
+      expect(response.status()).toBe(422);
+      expect(JSON.stringify(await response.json())).toContain('no active SEPA mandate');
+    });
+
+    test('F6: a net-zero member settles but gets no line in the pain.008', async ({
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+    }) => {
+      const paying = await createMember(authenticatedRequest, true);
+      const payingTx = await syncPurchase(authenticatedTerminalRequest, paying.id, 2500);
+
+      const netZero = await createMember(authenticatedRequest, true);
+      const netZeroTx = await syncPurchase(authenticatedTerminalRequest, netZero.id, 1000);
+      const storno = await authenticatedRequest.post(`/api/admin/members/${netZero.id}/transactions`, {
+        data: {
+          amount_cents: -1000,
+          reason: 'refund',
+          notes: 'Cancelled order',
+          related_transaction_id: netZeroTx,
+        },
+      });
+      expect(storno.status(), await storno.text()).toBe(201);
+
+      const response = await settle(authenticatedRequest, [payingTx, netZeroTx]);
+      expect(response.status(), await response.text()).toBe(201);
+      const settlement = await response.json();
+
+      // Zero settles: the rows close out, which the GDPR zero-balance
+      // anonymisation check depends on.
+      expect(settlement.member_count).toBe(2);
+      expect(settlement.total_amount_cents).toBe(2500);
+
+      const detail = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}`);
+      const settledMembers = new Set((await detail.json()).items.map((item: any) => item.member_id));
+      expect(settledMembers.has(netZero.id)).toBe(true);
+
+      const xml = await (await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).text();
+      expect(xml).toContain(`<NbOfTxs>1</NbOfTxs>`);
+      expect(xml).toContain(paying.last_name);
+      expect(xml).not.toContain(netZero.last_name);
     });
   });
 });

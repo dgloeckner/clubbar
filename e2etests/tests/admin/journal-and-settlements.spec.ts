@@ -127,20 +127,30 @@ test.describe('Journal & Settlements', () => {
     expect(await journalPage.getTransactionCount()).toBeGreaterThan(0)
 
     // ── Settlement status filter + settlement date column ─────────────
+    // A settlement now sweeps the member's WHOLE unsettled position (#161 §1),
+    // so posting txToSettle above settled all 6 of member A's transactions,
+    // not just the one named. To still exercise the "open" side of the
+    // filter with a genuinely open row, add one more transaction for member A
+    // *after* that settlement — it has nothing to be swept into.
+    const purchaseA4 = await testTransactions.createSyncTransaction(memberA.id, 1500, `${prefix} purchase-after-settlement`)
+
     await journalPage.search(`${prefix}A`)
     await journalPage.waitForTableToLoad()
 
     await journalPage.filterBySettlementStatus('settled')
     await journalPage.waitForTableToLoad()
-    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(1)
+    // All 6 pre-settlement transactions were swept in; purchaseA4 was created
+    // afterwards and is not settled.
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(6)
     const settledDate = await journalPage.getSettlementDateText(0)
     expect(settledDate).toMatch(/\d{2}[.\/]\d{2}[.\/]\d{4}/)
     expect(settledDate).not.toBe('—')
 
     await journalPage.filterBySettlementStatus('open')
     await journalPage.waitForTableToLoad()
-    // 6 total for member A, 1 settled (txToSettle) → 5 remain open
-    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(5)
+    // Only purchaseA4 (created after the settlement) remains open.
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(1)
+    await journalPage.expectTransactionRowVisible(purchaseA4)
     expect(await journalPage.getSettlementDateText(0)).toBe('—')
 
     await journalPage.filterBySettlementStatus('all')
@@ -197,10 +207,15 @@ test.describe('Journal & Settlements', () => {
     const member2 = await testTransactions.createMember(`${prefix}2`, 'Steuermann')
     const product = await testTransactions.createProduct(`${prefix}Bier`, 250, `${prefix}Beer`)
 
-    // Member 1: purchase €25.00 + storno €10.00 = €35.00
+    // Member 1: purchase €25.00 + storno €10.00 = €35.00. createStorno() with
+    // no related_transaction_id auto-creates the purchase it reverses, so
+    // member1 actually ends up with 3 open transactions (purch1 + the auto
+    // anchor purchase + the storno) = €45.00, all of which the settlement
+    // below sweeps in (#161 §1).
     const txn1Id = await testTransactions.createSyncTransaction(member1.id, 2500, `${prefix} purch1`, product.id)
     const txn2Id = await testTransactions.createStorno(member1.id, 1000, `${prefix} corr1`)
-    // Member 2: purchase €15.00 + storno €5.00 = €20.00
+    // Member 2: purchase €15.00 + storno €5.00 = €20.00, plus the auto anchor
+    // purchase (€5.00) = €25.00 swept.
     const txn3Id = await testTransactions.createSyncTransaction(member2.id, 1500, `${prefix} purch2`, product.id)
     const txn4Id = await testTransactions.createStorno(member2.id, 500, `${prefix} corr2`)
 
@@ -241,7 +256,10 @@ test.describe('Journal & Settlements', () => {
     await settlementsPage.expectSettlementRowVisible(settlementId)
 
     expect((await settlementsPage.getSettlementMemberCount(settlementId))?.trim()).toMatch(/^2\s/)
-    expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/55[,.]00/)
+    // 45.00 (member1) + 25.00 (member2) = 70.00 — the settlement sweeps each
+    // member's whole unsettled position (#161 §1), including the auto anchor
+    // purchases createStorno() created for txn2Id/txn4Id above.
+    expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/70[,.]00/)
     expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Aktiv')
 
     // ── Export summary CSV (via UI button) ───────────────────────────
@@ -288,9 +306,10 @@ test.describe('Journal & Settlements', () => {
     expect(xml).toContain('Steuermann')
     expect(xml).toContain(member1.mandate_reference)
     expect(xml).toContain(member2.mandate_reference)
-    // Member totals: member1 = €35.00, member2 = €20.00
-    expect(xml).toContain('35.00')
-    expect(xml).toContain('20.00')
+    // Member totals: member1 = €45.00 (incl. auto anchor purchase), member2 =
+    // €25.00 (incl. auto anchor purchase) — see the sweep note above (#161 §1).
+    expect(xml).toContain('45.00')
+    expect(xml).toContain('25.00')
     // ReqdColltnDt must be the settlement's own execution date. It previously
     // came from the library's today + 5 fallback because the payment info used
     // an unrecognised key, so the admin's date never reached the file (#11).
@@ -321,16 +340,26 @@ test.describe('Journal & Settlements', () => {
     const ts = Date.now()
     const prefix = `Dup${ts}`
 
-    // ── Setup: member + 3 transactions ────────────────────────────────
-    const member = await testTransactions.createMember(prefix, 'Atomic')
-    const txn1Id = await testTransactions.createStorno(member.id, 1000, `${prefix} txn1`)
-    const txn2Id = await testTransactions.createStorno(member.id, 2000, `${prefix} txn2`)
-    const txn3Id = await testTransactions.createStorno(member.id, 3000, `${prefix} txn3`)
+    // ── Setup: two members so the settlement sweep (#161 §1) can't merge
+    // their positions — a settlement now settles the NAMED MEMBER'S whole
+    // unsettled position, not just the posted transaction ids, so if txn3
+    // belonged to the same member as txn1/txn2 it would already be settled
+    // by the first settlement below and this test couldn't tell "duplicate
+    // rejected" apart from "already swept".
+    const memberA = await testTransactions.createMember(`${prefix}A`, 'Atomic')
+    const memberB = await testTransactions.createMember(`${prefix}B`, 'Atomic')
+    // createStorno() with no related_transaction_id auto-creates the purchase
+    // it reverses, so each storno below actually adds 2 open transactions
+    // (anchor purchase + storno) of equal amount.
+    const txn1Id = await testTransactions.createStorno(memberA.id, 1000, `${prefix} txn1`)
+    const txn2Id = await testTransactions.createStorno(memberA.id, 2000, `${prefix} txn2`)
+    const txn3Id = await testTransactions.createStorno(memberB.id, 3000, `${prefix} txn3`)
 
-    // First settlement: txn1 + txn2
+    // First settlement: names memberA via txn1 + txn2, sweeping ALL of
+    // memberA's open transactions — 4 items (2 anchors + 2 stornos), 6000 total.
     const settlement1Id = await testTransactions.createSettlement([txn1Id, txn2Id])
 
-    // ── Attempt duplicate: txn2 + txn3 → must reject ──────────────────
+    // ── Attempt duplicate: txn2 (already settled) + txn3 → must reject ─
     const todayStr = today()
     const execDate = await minimumExecutionDate(authenticatedRequest)
     const dupResp = await authenticatedRequest.post('/api/admin/settlements', {
@@ -350,20 +379,22 @@ test.describe('Journal & Settlements', () => {
     expect(s1Resp.status()).toBe(200)
     const s1 = await s1Resp.json()
     expect(s1.id).toBe(settlement1Id)
-    expect(s1.total_amount_cents).toBe(3000) // 1000 + 2000
-    expect(s1.items.length).toBe(2)
+    expect(s1.total_amount_cents).toBe(6000) // memberA's anchor+storno pairs: 1000+1000+2000+2000
+    expect(s1.items.length).toBe(4)
     expect(s1.is_cancelled).toBe(false)
 
-    // ── Verify txn3 still unsettled ───────────────────────────────────
+    // ── Verify memberB's txn3 (and its auto anchor purchase) still unsettled ──
     const journalPage = new JournalPage(page)
     await journalPage.navigate()
     await journalPage.waitForPageLoad()
-    // Search by prefix (NOT member.first_name — backend LIKE doesn't escape underscore)
-    await journalPage.search(prefix)
+    // Search by memberB's own prefix (NOT member.first_name — backend LIKE
+    // doesn't escape underscore) so memberA's rows don't interfere.
+    await journalPage.search(`${prefix}B`)
     await journalPage.waitForTableToLoad()
     await journalPage.filterBySettlementStatus('open')
     await journalPage.waitForTableToLoad()
-    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBeGreaterThanOrEqual(1)
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(2)
+    await journalPage.expectTransactionRowVisible(txn3Id)
   })
 
 

@@ -133,10 +133,10 @@ class SettlementsRepositoryTest extends DatabaseTestCase
     }
 
     // ------------------------------------------------------------------
-    // calculateMemberBalances
+    // calculateUnsettledPositions / findParticipantMemberIds (#161, ruling #141)
     // ------------------------------------------------------------------
 
-    public function test_calculateMemberBalances_sums_unsettled_transactions_and_excludes_settled(): void
+    public function test_calculateUnsettledPositions_sums_unsettled_transactions_and_excludes_settled(): void
     {
         $adminId = $this->createTestAdminUser('balance-admin@example.com');
         $memberId = $this->createTestMember('Balance', 'Member');
@@ -156,13 +156,13 @@ class SettlementsRepositoryTest extends DatabaseTestCase
             'amount_cents' => 300,
         ]);
 
-        $balances = $this->settlementsRepository->calculateMemberBalances();
+        $balances = $this->settlementsRepository->calculateUnsettledPositions();
 
         $this->assertArrayHasKey($memberId, $balances);
         $this->assertEquals(300, $balances[$memberId], 'Only the unsettled transaction should count towards the balance');
     }
 
-    public function test_calculateMemberBalances_includes_transactions_settled_by_cancelled_settlement(): void
+    public function test_calculateUnsettledPositions_includes_transactions_settled_by_cancelled_settlement(): void
     {
         $adminId = $this->createTestAdminUser('cancelbal-admin@example.com');
         $memberId = $this->createTestMember('CancelBal', 'Member');
@@ -178,29 +178,235 @@ class SettlementsRepositoryTest extends DatabaseTestCase
             'amount_cents' => 500,
         ]);
 
-        $balances = $this->settlementsRepository->calculateMemberBalances();
+        $balances = $this->settlementsRepository->calculateUnsettledPositions();
 
         $this->assertArrayHasKey($memberId, $balances, 'Transactions "settled" only by a cancelled settlement remain unsettled');
         $this->assertEquals(500, $balances[$memberId]);
     }
 
-    public function test_calculateMemberBalances_filters_by_date_range(): void
+    /**
+     * The January/February scenario from #161: a €20 credit booked in January
+     * and a €5 purchase in February. Settling February alone used to compute
+     * +500 and debit money the member does not owe. The exclusion test is on
+     * the member's *total* unsettled position, so the window must not bound it.
+     */
+    public function test_calculateUnsettledPositions_ignores_the_settlement_window(): void
     {
-        $memberId = $this->createTestMember('DateRange', 'Member');
-        $categoryId = $this->createTestCategory('DateRangeCategory');
-        $productId = $this->createTestProduct($categoryId, 'DateRangeProduct', 'mug', 100);
+        $adminId = $this->createTestAdminUser('carry-admin@example.com');
+        $memberId = $this->createTestMember('Carry', 'Forward');
+        $categoryId = $this->createTestCategory('CarryCategory');
+        $productId = $this->createTestProduct($categoryId, 'CarryProduct', 'mug', 500);
 
-        // Inside range
-        $this->createTestTransaction($memberId, $productId, 100, 'purchase', '2026-05-15 10:00:00');
-        // Before range
-        $this->createTestTransaction($memberId, $productId, 999, 'purchase', '2026-05-01 10:00:00');
-        // After range
-        $this->createTestTransaction($memberId, $productId, 999, 'purchase', '2026-05-31 10:00:00');
+        // January: €20 was collected, then stornoed — the club owes €20 back.
+        // The purchase is settled, so only the storno remains unsettled.
+        $januaryPurchase = $this->createTestTransaction($memberId, $productId, 2000, 'purchase', '2026-01-10 10:00:00');
+        $januarySettlement = $this->createSettlementRow($adminId, '2026-01-31', '2026-02-07', 2000, 1);
+        $this->settlementsRepository->createItem([
+            'settlement_id' => $januarySettlement,
+            'transaction_id' => $januaryPurchase,
+            'member_id' => $memberId,
+            'amount_cents' => 2000,
+        ]);
+        $this->createTestTransaction($memberId, $productId, -2000, 'storno', '2026-01-11 10:00:00', $januaryPurchase);
+        // February: a €5 drink.
+        $this->createTestTransaction($memberId, $productId, 500, 'purchase', '2026-02-10 10:00:00');
 
-        $balances = $this->settlementsRepository->calculateMemberBalances('2026-05-10', '2026-05-20');
+        $positions = $this->settlementsRepository->calculateUnsettledPositions([$memberId]);
 
-        $this->assertArrayHasKey($memberId, $balances);
-        $this->assertEquals(100, $balances[$memberId], 'Only the transaction inside the date range should be summed');
+        $this->assertSame(
+            -1500,
+            $positions[$memberId],
+            'The unsettled position is the whole carried-forward balance, not the February slice',
+        );
+    }
+
+    public function test_calculateUnsettledPositions_restricted_to_the_given_members(): void
+    {
+        $categoryId = $this->createTestCategory('RestrictCategory');
+        $productId = $this->createTestProduct($categoryId, 'RestrictProduct', 'mug', 100);
+        $wanted = $this->createTestMember('Wanted', 'Member');
+        $other = $this->createTestMember('Other', 'Member');
+
+        $this->createTestTransaction($wanted, $productId, 100, 'purchase', '2026-06-01 10:00:00');
+        $this->createTestTransaction($other, $productId, 700, 'purchase', '2026-06-01 10:00:00');
+
+        $positions = $this->settlementsRepository->calculateUnsettledPositions([$wanted]);
+
+        $this->assertSame([$wanted => 100], $positions);
+    }
+
+    public function test_findParticipantMemberIds_selects_members_with_unsettled_activity_in_the_window(): void
+    {
+        $categoryId = $this->createTestCategory('ParticipantCategory');
+        $productId = $this->createTestProduct($categoryId, 'ParticipantProduct', 'mug', 100);
+        $inside = $this->createTestMember('Inside', 'Window');
+        $outside = $this->createTestMember('Outside', 'Window');
+
+        $this->createTestTransaction($inside, $productId, 100, 'purchase', '2026-05-15 10:00:00');
+        $this->createTestTransaction($outside, $productId, 999, 'purchase', '2026-05-31 10:00:00');
+
+        $participants = $this->settlementsRepository->findParticipantMemberIds('2026-05-10', '2026-05-20');
+
+        $this->assertContains($inside, $participants);
+        $this->assertNotContains($outside, $participants);
+    }
+
+    public function test_findParticipantMemberIds_can_be_narrowed_to_a_single_member(): void
+    {
+        $categoryId = $this->createTestCategory('SingleParticipantCategory');
+        $productId = $this->createTestProduct($categoryId, 'SingleParticipantProduct', 'mug', 100);
+        $wanted = $this->createTestMember('SingleWanted', 'Member');
+        $other = $this->createTestMember('SingleOther', 'Member');
+
+        $this->createTestTransaction($wanted, $productId, 100, 'purchase', '2026-07-01 10:00:00');
+        $this->createTestTransaction($other, $productId, 100, 'purchase', '2026-07-01 10:00:00');
+
+        $participants = $this->settlementsRepository->findParticipantMemberIds(null, null, $wanted);
+
+        $this->assertSame([$wanted], $participants);
+    }
+
+    // ------------------------------------------------------------------
+    // findMembersInCredit (#161 work item 3)
+    // ------------------------------------------------------------------
+
+    public function test_findMembersInCredit_returns_member_with_net_credit(): void
+    {
+        $adminId = $this->createTestAdminUser('credit-admin@example.com');
+        $memberId = $this->createTestMember('Credit', 'Owed');
+        $categoryId = $this->createTestCategory('CreditCategory');
+        $productId = $this->createTestProduct($categoryId, 'CreditProduct', 'mug', 2000);
+
+        // A settled €20 purchase, then stornoed (unsettled) — the club owes €20.
+        $purchase = $this->createTestTransaction($memberId, $productId, 2000, 'purchase', '2026-01-10 10:00:00');
+        $settlementId = $this->createSettlementRow($adminId, '2026-01-31', '2026-02-07', 2000, 1);
+        $this->settlementsRepository->createItem([
+            'settlement_id' => $settlementId,
+            'transaction_id' => $purchase,
+            'member_id' => $memberId,
+            'amount_cents' => 2000,
+        ]);
+        $this->createTestTransaction($memberId, $productId, -2000, 'storno', '2026-01-11 10:00:00', $purchase);
+
+        $result = $this->settlementsRepository->findMembersInCredit();
+
+        $entry = $this->findByMemberId($result, $memberId);
+        $this->assertNotNull($entry, 'Member with a net credit must appear in the listing');
+        $this->assertSame(-2000, $entry['balance_cents']);
+        $this->assertSame('Credit', $entry['first_name']);
+        $this->assertSame('Owed', $entry['last_name']);
+    }
+
+    public function test_findMembersInCredit_excludes_member_whose_storno_nets_to_zero(): void
+    {
+        $memberId = $this->createTestMember('Zeroed', 'Out');
+        $categoryId = $this->createTestCategory('ZeroCategory');
+        $productId = $this->createTestProduct($categoryId, 'ZeroProduct', 'mug', 1000);
+
+        // Both purchase and its storno are unsettled — nets to 0, not a credit.
+        $purchase = $this->createTestTransaction($memberId, $productId, 1000, 'purchase', '2026-03-01 10:00:00');
+        $this->createTestTransaction($memberId, $productId, -1000, 'storno', '2026-03-01 11:00:00', $purchase);
+
+        $result = $this->settlementsRepository->findMembersInCredit();
+
+        $this->assertNull($this->findByMemberId($result, $memberId), 'A position netting to zero is not a credit');
+    }
+
+    public function test_findMembersInCredit_excludes_member_who_owes_money(): void
+    {
+        $memberId = $this->createTestMember('Owes', 'Money');
+        $categoryId = $this->createTestCategory('OwesCategory');
+        $productId = $this->createTestProduct($categoryId, 'OwesProduct', 'mug', 400);
+
+        $this->createTestTransaction($memberId, $productId, 400, 'purchase', '2026-03-05 10:00:00');
+
+        $result = $this->settlementsRepository->findMembersInCredit();
+
+        $this->assertNull($this->findByMemberId($result, $memberId), 'A positive (owed) position must not be listed as a credit');
+    }
+
+    public function test_findMembersInCredit_excludes_settled_transactions(): void
+    {
+        $adminId = $this->createTestAdminUser('settled-credit-admin@example.com');
+        $memberId = $this->createTestMember('AllSettled', 'Member');
+        $categoryId = $this->createTestCategory('AllSettledCategory');
+        $productId = $this->createTestProduct($categoryId, 'AllSettledProduct', 'mug', 1500);
+
+        // Storno itself is settled too — nothing unsettled remains, so no credit shows.
+        $purchase = $this->createTestTransaction($memberId, $productId, 1500, 'purchase', '2026-04-01 10:00:00');
+        $storno = $this->createTestTransaction($memberId, $productId, -1500, 'storno', '2026-04-01 11:00:00', $purchase);
+        $settlementId = $this->createSettlementRow($adminId, '2026-04-02', '2026-04-05', 0, 1);
+        $this->settlementsRepository->createItem([
+            'settlement_id' => $settlementId,
+            'transaction_id' => $purchase,
+            'member_id' => $memberId,
+            'amount_cents' => 1500,
+        ]);
+        $this->settlementsRepository->createItem([
+            'settlement_id' => $settlementId,
+            'transaction_id' => $storno,
+            'member_id' => $memberId,
+            'amount_cents' => -1500,
+        ]);
+
+        $result = $this->settlementsRepository->findMembersInCredit();
+
+        $this->assertNull($this->findByMemberId($result, $memberId), 'A fully settled position must not be listed');
+    }
+
+    public function test_findMembersInCredit_excludes_soft_deleted_members(): void
+    {
+        $memberId = $this->createTestMember('Deleted', 'Member');
+        $categoryId = $this->createTestCategory('DeletedCategory');
+        $productId = $this->createTestProduct($categoryId, 'DeletedProduct', 'mug', 1000);
+
+        $purchase = $this->createTestTransaction($memberId, $productId, 1000, 'purchase', '2026-04-10 10:00:00');
+        $this->createTestTransaction($memberId, $productId, -1000, 'storno', '2026-04-10 11:00:00', $purchase);
+
+        $this->db->prepare('UPDATE members SET deleted_at = ? WHERE id = ?')
+            ->execute(['2026-04-11 00:00:00', $memberId]);
+
+        $result = $this->settlementsRepository->findMembersInCredit();
+
+        $this->assertNull($this->findByMemberId($result, $memberId), 'Soft-deleted members must be excluded from the credit listing');
+    }
+
+    public function test_findMembersInCredit_orders_most_negative_first(): void
+    {
+        $adminId = $this->createTestAdminUser('order-credit-admin@example.com');
+        $categoryId = $this->createTestCategory('OrderCategory');
+        $productId = $this->createTestProduct($categoryId, 'OrderProduct', 'mug', 100);
+        $small = $this->createTestMember('SmallCredit', 'Member');
+        $large = $this->createTestMember('LargeCredit', 'Member');
+
+        $smallPurchase = $this->createTestTransaction($small, $productId, 500, 'purchase', '2026-05-01 10:00:00');
+        $smallSettlementId = $this->createSettlementRow($adminId, '2026-05-02', '2026-05-05', 500, 1);
+        $this->settlementsRepository->createItem([
+            'settlement_id' => $smallSettlementId,
+            'transaction_id' => $smallPurchase,
+            'member_id' => $small,
+            'amount_cents' => 500,
+        ]);
+        $this->createTestTransaction($small, $productId, -500, 'storno', '2026-05-01 11:00:00', $smallPurchase);
+
+        $largePurchase = $this->createTestTransaction($large, $productId, 3000, 'purchase', '2026-05-01 10:00:00');
+        $largeSettlementId = $this->createSettlementRow($adminId, '2026-05-02', '2026-05-05', 3000, 1);
+        $this->settlementsRepository->createItem([
+            'settlement_id' => $largeSettlementId,
+            'transaction_id' => $largePurchase,
+            'member_id' => $large,
+            'amount_cents' => 3000,
+        ]);
+        $this->createTestTransaction($large, $productId, -3000, 'storno', '2026-05-01 11:00:00', $largePurchase);
+
+        $result = $this->settlementsRepository->findMembersInCredit();
+
+        $smallIndex = $this->findIndexByMemberId($result, $small);
+        $largeIndex = $this->findIndexByMemberId($result, $large);
+
+        $this->assertNotFalse($smallIndex);
+        $this->assertNotFalse($largeIndex);
+        $this->assertLessThan($smallIndex, $largeIndex, 'The larger (more negative) credit must sort before the smaller one');
     }
 
     // ------------------------------------------------------------------
@@ -678,5 +884,25 @@ class SettlementsRepositoryTest extends DatabaseTestCase
     {
         $stmt = $this->db->prepare('UPDATE settlements SET created_at = ? WHERE id = ?');
         $stmt->execute([$createdAt, $settlementId]);
+    }
+
+    private function findByMemberId(array $rows, string $memberId): ?array
+    {
+        foreach ($rows as $row) {
+            if ($row['member_id'] === $memberId) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    private function findIndexByMemberId(array $rows, string $memberId): int|false
+    {
+        foreach ($rows as $index => $row) {
+            if ($row['member_id'] === $memberId) {
+                return $index;
+            }
+        }
+        return false;
     }
 }

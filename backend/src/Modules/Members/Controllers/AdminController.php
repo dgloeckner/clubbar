@@ -8,6 +8,7 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Shared\Validation\Validator;
 use App\Modules\Settlements\Services\SepaConfigService;
+use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Members\Services\MandateDocumentService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -19,6 +20,7 @@ class AdminController
         private Validator $validator,
         private SepaConfigService $sepaConfigService,
         private MandateDocumentService $mandateDocumentService,
+        private SettlementsService $settlementsService,
     ) {}
 
     public function index(Request $request, Response $response): Response
@@ -221,6 +223,20 @@ class AdminController
         $member = $this->membersService->anonymizeMember($memberId, $adminId);
 
         return $this->json($response, $member->toArray());
+    }
+
+    /**
+     * Standing "credit balances outstanding" listing under Members (#161
+     * work item 3) — every member the club currently owes money.
+     */
+    public function creditBalances(Request $request, Response $response): Response
+    {
+        $result = $this->settlementsService->listCreditBalances();
+
+        return $this->json($response, [
+            'items' => array_map(fn($item) => $item->toArray(), $result['items']),
+            'total_credit_cents' => $result['total_credit_cents'],
+        ]);
     }
 
     public function downloadMandateTemplate(Request $request, Response $response): Response

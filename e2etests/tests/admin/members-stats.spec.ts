@@ -49,16 +49,22 @@ test.describe('Members Page Statistics', () => {
     })
     expect(inactiveResp.status()).toBe(201)
 
-    // Product + 3 transactions (3 × 350 = 1050 cents) → balance increases
+    // Settlement → last settlement date updates. Settle this member's first
+    // transaction BEFORE creating the 3 × 350 purchases below: a settlement now
+    // sweeps the named member's WHOLE unsettled position (#161 §1), so if the
+    // 350-cent purchases already existed at settlement time they'd be swept in
+    // too and the "balance increases by 1050" assertion below would no longer
+    // hold.
     const balanceMember = await testTransactions.createMember('StBalance')
     const product = await testTransactions.createProduct('StProd', 350, 'StProduct')
+    const txId = await testTransactions.createSyncTransaction(balanceMember.id, 500, 'settle-test', product.id)
+    await testTransactions.createSettlement([txId])
+
+    // 3 unsettled transactions (3 × 350 = 1050 cents), created after the
+    // settlement above so they stay open → balance increases
     for (let i = 0; i < 3; i++) {
       await testTransactions.createSyncTransaction(balanceMember.id, 350, 'stat-test', product.id)
     }
-
-    // Settlement → last settlement date updates
-    const txId = await testTransactions.createSyncTransaction(balanceMember.id, 500, 'settle-test', product.id)
-    await testTransactions.createSettlement([txId])
 
     // ── Reload and verify stats ─────────────────────────────────────────
     const dashboardResp2 = page.waitForResponse(
