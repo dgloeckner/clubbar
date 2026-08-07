@@ -28,6 +28,16 @@
             "Tests\\": "tests/"
         }
     },
+    "scripts": {
+        "test": "phpunit -c phpunit.xml --no-coverage",
+        "test:coverage": "scripts/coverage.sh",
+        "check-coverage": "php scripts/check-coverage.php coverage/clover.xml"
+    },
+    "scripts-descriptions": {
+        "test": "Run the unit + feature suites without coverage (fast).",
+        "test:coverage": "Run the suite with pcov in the backend container, enforce the floor, and list the least-covered files. Run from the host.",
+        "check-coverage": "Enforce a floor against an existing coverage/clover.xml; pass the percentage as an argument."
+    },
     "config": {
         "optimize-autoloader": true,
         "sort-packages": true,
