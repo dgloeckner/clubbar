@@ -47,7 +47,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 
 export interface BankLookupResponse {
-  /** 8-digit Bankleitzahl (BLZ) extracted from IBAN */
+  /** 8-digit Bankleitzahl (BLZ) that was looked up */
   bank_code?: string;
   /**
    * Full bank name from Bundesbank BLZ file

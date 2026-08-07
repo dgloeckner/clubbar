@@ -58,9 +58,9 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
   export const getBankCodes = () => {
 /**
- * Resolves bank name, BIC, and location from a German IBAN using the Bundesbank BLZ (Bankleitzahl) lookup table. Returns null fields for non-German IBANs or unknown bank codes.
+ * Resolves bank name, BIC, and location from a German BLZ (Bankleitzahl) using the Bundesbank lookup table. Takes only the 8-digit BLZ instead of the full IBAN so account numbers never appear in access logs. Returns null fields for invalid or unknown bank codes.
 
- * @summary Look up bank info by IBAN
+ * @summary Look up bank info by BLZ
  */
 const bankLookup = (
     params: BankLookupParams,

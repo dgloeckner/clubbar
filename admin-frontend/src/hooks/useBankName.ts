@@ -32,9 +32,11 @@ export function useBankName(iban: string): string | null {
       const controller = new AbortController()
       abortRef.current = controller
 
+      // Send only the BLZ (positions 4-11 of a German IBAN), never the
+      // full IBAN - query strings end up in access logs.
       axiosInstance
         .get('/admin/bank-lookup', {
-          params: { iban: normalized },
+          params: { blz: normalized.substring(4, 12) },
           signal: controller.signal,
         })
         .then((res: { data?: { bank_name?: string | null } }) => {

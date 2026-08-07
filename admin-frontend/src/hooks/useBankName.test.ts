@@ -57,9 +57,10 @@ describe('useBankName', () => {
     })
 
     expect(getMock).toHaveBeenCalledTimes(1)
+    // Only the BLZ is sent - never the full IBAN (it would end up in access logs).
     expect(getMock).toHaveBeenCalledWith(
       '/admin/bank-lookup',
-      expect.objectContaining({ params: { iban: VALID_DE_IBAN } })
+      expect.objectContaining({ params: { blz: '37040044' } })
     )
     expect(result.current).toBe('Commerzbank')
   })
@@ -83,7 +84,7 @@ describe('useBankName', () => {
     expect(getMock).toHaveBeenCalledTimes(1)
     expect(getMock).toHaveBeenCalledWith(
       '/admin/bank-lookup',
-      expect.objectContaining({ params: { iban: 'DE02100100100006820101' } })
+      expect.objectContaining({ params: { blz: '10010010' } })
     )
     expect(result.current).toBe('Commerzbank')
   })
