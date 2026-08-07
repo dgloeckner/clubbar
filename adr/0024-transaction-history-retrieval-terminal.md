@@ -8,7 +8,7 @@
 
 ## Context
 
-The terminal displays member transaction history to provide visibility into recent purchases and corrections. Current design (ADR-0012) specifies that terminal stores only its own outgoing transactions; complete history is maintained on backend.
+The terminal displays member transaction history to provide visibility into recent purchases and stornos. Current design (ADR-0012) specifies that terminal stores only its own outgoing transactions; complete history is maintained on backend.
 
 Key requirements and constraints:
 
@@ -91,9 +91,9 @@ sequenceDiagram
     {
       "id": "550e8400-e29b-41d4-a716-446655440003",
       "amount_cents": -350,
-      "type": "correction",
+      "type": "storno",
       "product_id": null,
-      "product_name": "Correction: Wrong amount",
+      "product_name": "Storno: Wrong amount",
       "notes": "Member scanned twice - reversed",
       "created_at": "2025-01-25T14:33:00Z",
       "created_by_admin_id": null,
@@ -201,7 +201,7 @@ Cache transaction history in SQLite; display cached data when offline (with stal
 
 **Cons**:
 - Adds caching logic, cache invalidation, state management complexity
-- Users may act on stale data (see old balance, miss recent corrections)
+- Users may act on stale data (see old balance, miss recent stornos)
 - Confusing UX: which history is correct, cached or backend?
 - Cache bloat: SQLite grows with transaction history
 - Requires periodic cache updates (adds to sync burden)
@@ -252,7 +252,7 @@ Remove transaction history feature entirely from terminal.
 **Pros**: Simplifies implementation; no API endpoint needed
 **Cons**:
 - Members lose visibility into purchases
-- Can't see when/what was purchased or any corrections
+- Can't see when/what was purchased or any stornos
 - Reduces transparency and trust
 - Doesn't meet use case UC-T02 requirements
 

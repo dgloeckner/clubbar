@@ -52,12 +52,14 @@ UPDATE transactions SET amount_cents = 380 WHERE id = 'uuid1';  -- PROBLEM!
 
 ## Decision
 
-**Purchase transactions are immutable and append-only. Once created, they are never modified or deleted. Corrections are made via reverse transactions (negative amounts). Settlement marks transactions as "paid" without modifying them; SEPA exports enable external bank processing.**
+**Purchase transactions are immutable and append-only. Once created, they are never modified or deleted. A booking is corrected by a *storno* — a reverse transaction that names the transaction it reverses and negates it exactly. Settlement marks transactions as "paid" without modifying them; SEPA exports enable external bank processing.**
+
+> **Amended 2026-08-07.** The original decision allowed a free-amount `correction` in two shapes: linked to an original, or standalone. The standalone shape is **removed** — see [#158](https://github.com/dgloeckner/ruderbar/issues/158) and [#170](https://github.com/dgloeckner/ruderbar/issues/170), and [ADR-0028](./0028-legal-constraints-on-money-handling.md) §4 for the GoBD Rz. 64 requirement that made an optional link insufficient. Amended text is marked inline.
 
 ### Core Principles
 
 1. **Append-only transactions**: Only INSERT allowed; no UPDATE or DELETE on transactions table
-2. **Corrections via reverse transactions**: Error detected → create new transaction with negative amount (never modify original)
+2. **Corrections via storno**: Error detected → create a storno naming the original (`related_transaction_id`, never NULL), with the amount derived as the exact negation. The amount is never supplied by the caller. A transaction can be stornoed at most once, and a storno cannot itself be stornoed.
 3. **Immutable history**: Complete audit trail preserved; nothing lost or hidden
 4. **UUID-based identity**: Each transaction has permanent, unique identifier
 5. **Timestamp immutable**: created_at never changes; reflects actual time transaction occurred
@@ -72,19 +74,21 @@ UPDATE transactions SET amount_cents = 380 WHERE id = 'uuid1';  -- PROBLEM!
 CREATE TABLE transactions (
   id BINARY(16) PRIMARY KEY,
   member_id BINARY(16) NOT NULL,
-  product_id BINARY(16),                    -- NULL for manual entries/corrections
-  amount_cents INT NOT NULL,                -- Positive: purchase, Negative: correction/refund
+  product_id BINARY(16),                    -- NULL for manual purchases and stornos
+  amount_cents INT NOT NULL,                -- Positive: purchase, Negative: storno (derived, never typed)
   created_at DATETIME NOT NULL,             -- Immutable: actual transaction time
-  notes VARCHAR(500),                       -- Optional: reason for correction
-  transaction_type ENUM(
-    'purchase',                             -- Normal product purchase at terminal (positive amount)
-    'correction'                            -- Any correction or adjustment (+/- amount; manual entries, refunds, fixes)
+  notes VARCHAR(500),                       -- Reason (required for storno)
+  transaction_type ENUM(                    -- AMENDED 2026-08-07
+    'purchase',                             -- Terminal sale, or admin manual purchase (product_id NULL)
+    'storno',                               -- Full reversal of exactly one transaction; amount derived
+    'payout'                                -- Money returned to a member in credit (offboarding only)
   ) NOT NULL,
 
   -- Audit fields (immutable)
   created_by_terminal_id BINARY(16),        -- Which terminal created this
   created_by_admin_id BINARY(16),           -- Which admin (if manual entry)
-  related_transaction_id BINARY(16),        -- Optional: points to original transaction if correcting specific purchase
+  related_transaction_id BINARY(16),        -- AMENDED: NOT NULL for 'storno' (GoBD Rz. 64); NULL otherwise
+                                            -- UNIQUE: a transaction may be stornoed at most once
 
   -- Sync status (terminal-only; not relevant to backend)
   synced BOOLEAN DEFAULT FALSE,
@@ -244,20 +248,24 @@ External bank processing (outside system): CSV imported into bank software; tran
 
 Error correction requires creating new correction transaction (never modify original):
 
-**Scenario A**: Member charged €5.00 instead of €3.50 (linked correction)
+**Scenario A**: Member charged €5.00 instead of €3.50
 
 **Approach:**
-1. Create correction transaction: amount_cents = -500, transaction_type = 'correction', related_transaction_id = original_id, notes = 'Wrong amount'
-2. Create new purchase transaction: amount_cents = 350, transaction_type = 'purchase'
-3. Result: Member balance = 500 - 500 + 350 = 350 cents (€3.50)
-4. Audit trail preserved: All three transactions visible; linked via related_transaction_id
+1. Storno the original: `transaction_type = 'storno'`, `related_transaction_id = original_id`, `notes = 'Wrong amount'`. `amount_cents = -500` is **derived**, not supplied.
+2. Create a new purchase: `amount_cents = 350`, `transaction_type = 'purchase'`
+3. Result: member balance = 500 − 500 + 350 = 350 cents (€3.50)
+4. Audit trail preserved: all three transactions visible, linked via `related_transaction_id`
 
-**Scenario B**: Manual balance adjustment (standalone correction)
+There is no partial correction. Reverse the whole booking, then book the right one.
 
-**Approach:**
-1. Create correction transaction: amount_cents = -200, transaction_type = 'correction', related_transaction_id = NULL, notes = 'Goodwill credit for service issue'
-2. Result: Member balance reduced by €2.00
-3. No link to specific transaction; standalone adjustment
+**Scenario B**: ~~Manual balance adjustment (standalone correction)~~ — **REMOVED 2026-08-07**
+
+A standalone adjustment with `related_transaction_id = NULL` is **no longer a supported operation**. Two reasons:
+
+- **GoBD Rz. 64** requires a correction be traceable to the booking it corrects, and Rz. 73 rejects a free-text reason as sufficient at volume ([ADR-0028](./0028-legal-constraints-on-money-handling.md) §4). An *optional* foreign key cannot express a mandatory rule.
+- Every real instance turned out to be something else ([#170](https://github.com/dgloeckner/ruderbar/issues/170)): a drink that should be stornoed, a drink that was never booked, a charge that is a manual `purchase`, or a credit returned at offboarding as a `payout`.
+
+The original example — *"Goodwill credit for service issue"* — is the case that does not survive. Beyond the audit-trail objection, crediting a member's tab as a gesture is **Mitgliederbegünstigung** and constrained by § 55 AO for a gemeinnütziger Verein. If the club ever needs it, it gets its own transaction type, as `payout` did; it must never return as a free-amount correction.
 
 ---
 
@@ -273,7 +281,7 @@ Error correction requires creating new correction transaction (never modify orig
 ✅ **GDPR-compliant**: Transaction records contain no PII after member anonymization — only UUID linkage remains. Retained per [Art. 17(3)(b) GDPR](https://gdpr-info.eu/art-17-gdpr/) exception for legal obligations (§ 147 AO). Anonymized transaction data falls outside GDPR scope per [Recital 26](https://gdpr-info.eu/recitals/no-26/)
 ✅ **Dispute resolution**: Full evidence of purchases and corrections
 ✅ **Compliance-ready**: Complete history for audits
-✅ **Easy corrections**: Reversals clearly link to originals (related_transaction_id)
+✅ **Corrections are always traceable**: every storno links to its original by construction, not by convention
 ✅ **Separate concerns**: Transactions immutable; settlement is accounting operation
 
 ### Negative
