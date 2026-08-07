@@ -375,6 +375,54 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(typeof body.member_balances[member2.id]).toBe('number');
   });
 
+  /**
+   * Issue #83 — the balance every user-facing surface reports is the member's
+   * *unsettled* position (ruling #141), not a lifetime sum over every
+   * transaction ever booked. A settlement run collects the tab; the Deckel the
+   * member sees next must not still contain what they already paid.
+   */
+  test('POST /api/sync/transactions excludes settled transactions from member_balances', async ({ authenticatedRequest, authenticatedTerminalRequest, settlementFactory }) => {
+    // The factory gives this member one 2500 purchase, already swept into a
+    // settlement of its own.
+    const settlement = await settlementFactory.create({ amountCents: 2500 });
+    const product = await createProduct(authenticatedRequest);
+
+    // A fresh purchase after the settlement — the only thing still owed.
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: {
+        transactions: [
+          createValidTransaction(settlement.memberId, product.id, { amount_cents: 700 }),
+        ],
+      },
+    });
+
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+
+    // 700, not 3200: the settled 2500 is gone from the member's tab.
+    expect(body.member_balances[settlement.memberId]).toBe(700);
+  });
+
+  test('GET /api/admin/members/{id}/transactions excludes settled transactions from current_balance_cents', async ({ authenticatedRequest, settlementFactory }) => {
+    const settlement = await settlementFactory.create({ amountCents: 2500 });
+
+    const response = await authenticatedRequest.get(
+      `/api/admin/members/${settlement.memberId}/transactions`,
+    );
+
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+
+    // The history below still lists the settled purchase; the figure on top is
+    // what the member owes, which the settlement brought back to zero.
+    expect(body.current_balance_cents).toBe(0);
+    expect(body.transactions.length).toBeGreaterThan(0);
+  });
+
+  // recordCorrection's third balance surface, `new_balance_cents`, has no HTTP
+  // seam to assert at: the controller returns the storno row flat and drops the
+  // balance. It is covered by TransactionsServiceTest instead.
+
   test('POST /api/sync/transactions returns zero balance for empty transaction', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
     const product = await createProduct(authenticatedRequest);

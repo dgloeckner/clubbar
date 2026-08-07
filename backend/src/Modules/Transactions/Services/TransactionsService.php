@@ -62,7 +62,7 @@ class TransactionsService
 
         $memberBalances = [];
         foreach (array_keys($affectedMemberIds) as $memberId) {
-            $memberBalances[$memberId] = $this->transactionsRepository->getMemberBalance($memberId);
+            $memberBalances[$memberId] = $this->transactionsRepository->getUnsettledMemberBalanceCents($memberId);
         }
 
         return new TransactionBatchResultDto(
@@ -124,7 +124,7 @@ class TransactionsService
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
-        $balance = $this->transactionsRepository->getMemberBalance($memberId);
+        $balance = $this->transactionsRepository->getUnsettledMemberBalanceCents($memberId);
 
         return [
             'transaction' => is_array($result) ? $this->formatTransactionTimestamps($result) : $result,
@@ -148,7 +148,7 @@ class TransactionsService
 
     public function getMemberTransactionHistory(string $memberId, ?string $type = null): array
     {
-        $balance = $this->transactionsRepository->getMemberBalance($memberId);
+        $balance = $this->transactionsRepository->getUnsettledMemberBalanceCents($memberId);
         $transactions = $this->transactionsRepository->findByMemberId($memberId, 1000, 0, $type);
         $transactions = array_map(fn(array $row) => $this->formatTransactionTimestamps($row), $transactions);
 

@@ -54,13 +54,17 @@ class TransactionsRepository
         return $this->findById($data['id']);
     }
 
-    public function getMemberBalance(string $memberId): int
-    {
-        $stmt = $this->db->prepare('SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE member_id = ?');
-        $stmt->execute([$memberId]);
-        return (int) $stmt->fetchColumn();
-    }
-
+    /**
+     * A member's Deckel: what they still owe the club, positive, or the credit
+     * the club owes them, negative. Settled transactions drop out — a member
+     * whose tab has been collected is back at zero (ruling #141).
+     *
+     * This is the *only* per-member balance. The lifetime sum over every
+     * transaction ever booked used to sit beside it and was what the terminal
+     * and the admin panel actually displayed; it ignored settlement runs and
+     * therefore grew forever, so #83 deleted it rather than leave a second,
+     * plausible-looking figure within reach.
+     */
     public function getUnsettledMemberBalanceCents(string $memberId): int
     {
         $stmt = $this->db->prepare(

@@ -1163,10 +1163,16 @@ components:
           type: object
           additionalProperties:
             type: integer
-            description: Balance in cents (positive = owes, negative = credit)
+            description: Unsettled balance in cents (positive = owes, negative = credit)
           description: |
             Updated member balances after transaction acceptance.
             Key: member_id (UUID), Value: balance_cents
+
+            This is the member's Deckel — their **unsettled** position, i.e. the
+            sum of transactions not yet claimed by a live settlement (ruling
+            [#141](https://github.com/dgloeckner/ruderbar/issues/141)). A
+            settlement run brings it back to zero; it is not a lifetime sum.
+
             Terminal must atomically update members_balance cache with these values.
             See [ADR-0023](../../adr/0023-terminal-balance-state-management.md) for details.
       required:
