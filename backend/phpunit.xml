@@ -20,4 +20,12 @@
             <directory>src</directory>
         </include>
     </source>
+    <!-- Reports are only produced when a coverage driver (pcov/xdebug) is
+         loaded; CI enables pcov and enforces a floor via
+         scripts/check-coverage.php. Without a driver PHPUnit just warns. -->
+    <coverage includeUncoveredFiles="true">
+        <report>
+            <clover outputFile="coverage/clover.xml"/>
+        </report>
+    </coverage>
 </phpunit>

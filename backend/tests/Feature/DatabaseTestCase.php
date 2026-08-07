@@ -32,6 +32,9 @@ abstract class DatabaseTestCase extends TestCase
         $this->db = new PDO($dsn, $user, $password, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            // Match production bootstrap.php: emulated prepares quote bound LIMIT/OFFSET
+            // integers as strings, which MariaDB rejects. Native prepares avoid this.
+            PDO::ATTR_EMULATE_PREPARES => false,
         ]);
 
         // Create mock logger (logs nothing during tests)

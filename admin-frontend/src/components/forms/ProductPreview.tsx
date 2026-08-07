@@ -5,6 +5,7 @@
  */
 
 import { getProductIcon } from '../icons/IconRegistry'
+import { parsePriceToCents } from '../../utils/price'
 
 interface ProductPreviewProps {
   name: string
@@ -15,10 +16,9 @@ interface ProductPreviewProps {
 export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
   // Format price like terminal: "3,50 €"
   const formatPrice = (priceStr: string) => {
-    if (!priceStr) return '0,00 €'
-    const num = parseFloat(priceStr)
-    if (isNaN(num)) return '0,00 €'
-    return num.toFixed(2).replace('.', ',') + ' €'
+    const cents = parsePriceToCents(priceStr)
+    if (cents === null) return '0,00 €'
+    return (cents / 100).toFixed(2).replace('.', ',') + ' €'
   }
 
   // Get icon component

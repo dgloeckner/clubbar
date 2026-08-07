@@ -108,6 +108,12 @@ jobs:
         run: npm run lint
         working-directory: admin-frontend
 
+      # Runs vitest with the v8 coverage provider; the thresholds in
+      # vite.config.ts fail this step on coverage regression (#103).
+      - name: Unit tests (coverage-gated)
+        run: npm run test:coverage
+        working-directory: admin-frontend
+
   test-backend:
     needs: [changes]
     if: needs.changes.outputs.full == 'true' || needs.changes.outputs.backend == 'true'
@@ -138,6 +144,7 @@ jobs:
           php-version: '8.3'
           tools: composer
           extensions: pdo_mysql, mbstring
+          coverage: pcov
 
       - name: Cache Composer packages
         uses: actions/cache@v4
@@ -161,18 +168,36 @@ jobs:
           "
         working-directory: backend
 
-      - name: Run unit tests
-        run: php vendor/bin/phpunit -c phpunit.xml --testsuite Unit
-        working-directory: backend
-
-      - name: Run feature tests
-        run: php vendor/bin/phpunit -c phpunit.xml --testsuite Feature
+      # One combined run so the clover report reflects Unit + Feature
+      # together (two runs would overwrite each other's report).
+      - name: Run unit & feature tests (with coverage)
+        run: php vendor/bin/phpunit -c phpunit.xml
         working-directory: backend
         env:
           DB_HOST: 127.0.0.1
           DB_NAME: clubbar
           DB_USER: clubbar
           DB_PASS: clubbar
+
+      # PHPUnit only reports coverage; this step is the enforcement half.
+      # The floor is a ratchet toward the 80% rule in CLAUDE.md (#103): it is
+      # pinned just below measured coverage so it blocks regressions today, and
+      # is raised as each milestone of plans/2026-08-07-backend-test-coverage.md
+      # lands. Measured 26.64% after Milestone 1 (settlements + transactions).
+      - name: Enforce coverage floor
+        run: php scripts/check-coverage.php coverage/clover.xml 25
+        working-directory: backend
+
+      # Uploaded even when the floor check fails — that is exactly when the
+      # per-file breakdown is needed to see what regressed.
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage/clover.xml
+          retention-days: 14
+          if-no-files-found: warn
 
   build-frontend:
     needs: [changes]

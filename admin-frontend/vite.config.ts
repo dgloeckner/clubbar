@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 const apiProxy = {
@@ -26,5 +26,22 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true
+  },
+  test: {
+    environment: 'node',
+    coverage: {
+      provider: 'v8',
+      // Pages and interactive components are exercised by the Playwright E2E
+      // suite; unit coverage is measured over the pure logic seams (utils and
+      // hooks), which sit at ~100%. The 80% floor fails the build on
+      // regression (#103).
+      include: ['src/utils/**', 'src/hooks/**'],
+      thresholds: {
+        lines: 80,
+        functions: 80,
+        branches: 80,
+        statements: 80,
+      },
+    },
   }
 })
