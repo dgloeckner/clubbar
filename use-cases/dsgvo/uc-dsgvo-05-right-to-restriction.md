@@ -7,7 +7,20 @@
 
 ## Summary
 
-A member requests that their data processing be restricted (but not deleted). The system implements this by deactivating the member account.
+A member requests that their data processing be restricted (but not deleted).
+
+> ### ⚠️ Corrected 2026-08-07 — restriction is not deactivation
+>
+> Deactivating the account is an **access** control, not a restriction of processing: the club keeps processing the member's data for settlement, reporting and sync exactly as before. Equating the two overstates what the system does.
+>
+> Two distinct things now exist ([ADR-0029](../../adr/0029-two-tier-retention-and-erasure.md)):
+>
+> | | Mechanism |
+> |---|---|
+> | **Art. 18 restriction on request** | The situations in the table below — genuinely restrict processing, do not merely block the card |
+> | **Retention-tier restriction** | Automatic after offboarding: the accounting record is kept but not listed, searched, exported or synced. Not an Art. 18 case — it rests on **Art. 17(3)(b)** plus Art. 5(1)(b)/(c)/(e) |
+>
+> ⚠️ The **tax-retention** case is *not* an Art. 18(1) case at all: lit. b needs the processing to be unlawful (it is legally compelled) and lit. c needs the *data subject* to require the data (here the controller is compelled). Do not implement retention as an Art. 18 restriction.
 
 ## When Restriction Applies
 
