@@ -56,6 +56,8 @@ A BMF circular binds the tax administration rather than the courts, but it resta
 
 **Two operations, not one.** A goodwill credit is a *new* Geschäftsvorfall, not a Stornobuchung — Rz. 64 never reaches it. Reversing a specific booking and adjusting a balance are legally distinct acts, and only the first requires linkage. A single optional foreign key cannot express this distinction.
 
+> **Resolved differently than this implies.** The distinction was removed rather than modelled: the standalone adjustment is not a supported operation at all, so `related_transaction_id` is simply mandatory. See [#158](https://github.com/dgloeckner/ruderbar/issues/158) and [#170](https://github.com/dgloeckner/ruderbar/issues/170) — every real goodwill case turned out to be a storno or a drink never booked.
+
 ### 5. Payouts require a document trail, not a second signature
 
 **Required**: the Rz. 77 Beleg fields — unique identifier, amount, sufficient explanation, date, responsible issuer — plus a unique tie to the actual bank line. Rz. 73 rules out statement-number alone, which makes a persisted end-to-end identifier a GoBD requirement for **outbound** payouts, not only for matching inbound returns.
@@ -77,6 +79,10 @@ flowchart TD
 ```
 
 § 1 Abs. 1 KassenSichV and AEAO zu § 146a Nr. 1.2 require *at least partly* **baren** Zahlungsvorgängen. This system takes no cash, so: no TSE, no DSFinV-K, no Belegausgabepflicht, no Kassenbuch, no Kassensturzfähigkeit.
+
+**"No cash" is a policy, not an observation.** The bar is unstaffed and self-service: members scan a card and pour their own drink, so there is no cash handling at the point of sale *by construction*. Payment happens later, between the member and the treasurer, away from the bar — and only by direct debit or, after a returned collection, bank transfer. `cash` is deliberately absent from the settlement reasons the system accepts ([#170](https://github.com/dgloeckner/ruderbar/issues/170)).
+
+This matters because the exemption depends on it. Accepting cash anywhere in the payment process — even a member handing the Kassenwart notes for their tab — would reopen this analysis. Treat re-admitting cash as an ADR change, not a feature.
 
 **The GoBD applies regardless** — § 146 Abs. 6 AO and AEAO Nr. 2.1.1 — including to a plain Einnahmen-Überschuss-Rechnung. Einzelaufzeichnung and Unveränderbarkeit are binding.
 
