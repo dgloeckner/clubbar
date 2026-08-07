@@ -15,6 +15,16 @@ Sources: [#140](https://github.com/dgloeckner/ruderbar/issues/140) (refund oblig
 
 > ⚠️ **Not legal advice.** Points marked ⚠️ need confirmation from the club's Steuerberater or bank. They are flagged where the research found no authority, not smoothed over.
 
+> ### ⚠️⚠️ Premise under review (2026-08-07)
+>
+> **This ADR's applicability was assumed, not established.** The research ticket behind it was given a premise in its body — *"A club bar selling drinks is a wirtschaftlicher Geschäftsbetrieb, so the Verein carries bookkeeping obligations for it"* — written by the agent, not researched. The researcher worked *inside* that assumption and established what the GoBD requires **given** it applies. Nobody tested whether it applies, or at what intensity.
+>
+> The club is a gemeinnütziger Verein selling to members **at purchase price**, cash-free, at Kaffeekasse scale — plausibly under the § 64 Abs. 3 AO €45,000 Besteuerungsfreigrenze and well under the § 141 AO Buchführungspflicht thresholds. Note that § 14 Satz 2 AO says profit intent is *not* required for a wirtschaftlicher Geschäftsbetrieb, so zero margin likely does not remove the status — but **tax liability disappearing is not the same as record-keeping obligations disappearing**, and the two have been running together here.
+>
+> **Most affected: §5 (8-year retention) and §6 (GoBD applies regardless).** §1–§4 rest on BGB and SEPA scheme rules rather than tax bookkeeping and are less exposed; §4's GoBD Rz. 64 linkage requirement is only binding to the extent the GoBD applies at all.
+>
+> Under test in [#174](https://github.com/dgloeckner/ruderbar/issues/174), which asks in particular whether **per-drink, per-member records** are Buchungsbelege at all, or whether the Beleg is the monthly SEPA collection. **Do not build new decisions on §5 or §6 until that returns.**
+
 ## Decision
 
 **The system is bound by the constraints below. Any design decision that contradicts one of them is wrong, regardless of how convenient it is.**
