@@ -45,20 +45,21 @@ if($s>$c) printf("%-70s %5d uncovered of %4d\n",str_replace("/app/src/","",(stri
 
 ---
 
-## Scope decision: does PHPUnit own the HTTP layer?
+## Scope decision: PHPUnit owns the HTTP layer — **Option A** (decided 2026-08-07)
 
-This has to be settled before Milestone 1, because it decides whether >80% is reachable at all.
+Controllers + middleware + wiring are **1791 of 5274 statements (34%)**. If PHPUnit never touches them, the ceiling is **3483/5274 = 66%** — ADR-0022's 80% line-coverage target would be mathematically unreachable.
 
-Controllers + middleware + wiring are **1791 of 5274 statements (34%)**. If PHPUnit never touches them, the ceiling is **3483/5274 = 66%** — ADR-0022's 80% line-coverage target is mathematically unreachable.
+**Decision: A.** PHPUnit drives controllers and middleware in-process through a Slim request harness (Milestone 6). Playwright asserts the API *contract*; PHPUnit asserts the *branches* — the 400/401/403/404/422 paths, malformed bodies, missing params — in milliseconds and with no server running. `<source>` in `phpunit.xml` stays as-is (all of `src`), and ADR-0022's 80% keeps its plain meaning.
 
-| Option | Ceiling | Trade-off |
-|--------|---------|-----------|
-| **A (recommended)** — add a Slim request harness (Milestone 6) so PHPUnit drives controllers/middleware in-process | ~95% | Some overlap with Playwright API tests, but PHPUnit covers the error/validation branches Playwright doesn't, in milliseconds and with no server running |
-| **B** — HTTP layer stays Playwright's job (ADR-0022 §Test Categories); exclude `Controllers/`, `Middleware/`, `routes.php`, `ServiceFactory.php` from `<source>` in `phpunit.xml` | ~95% *of the reduced 3483* | Honest metric, no duplication, but the gate stops noticing untested controller code and ADR-0022's 80% needs restating as "80% of non-HTTP code" |
+Division of labour, to keep the overlap deliberate rather than accidental:
 
-**Recommendation: A.** Playwright asserts the API contract; PHPUnit asserts the branches. They answer different questions, and A keeps the ADR-0022 number meaningful. Option B is defensible — it just needs an ADR-0022 amendment, which is a user decision.
+| | Playwright (`e2etests/`) | PHPUnit (`tests/Feature/Http*`) |
+|---|---|---|
+| Happy-path endpoint contract | ✅ owns it | ❌ do not duplicate |
+| Error/validation branches | spot checks only | ✅ owns it |
+| Full stack incl. frontend + real HTTP | ✅ | ❌ in-process only |
 
-Milestones 1–5 are identical under either option. Milestone 6 is where they diverge.
+**Rejected: Option B** — excluding `Controllers/`, `Middleware/`, `routes.php`, `ServiceFactory.php` from `<source>` and restating ADR-0022 as "80% of non-HTTP code". Defensible and duplication-free, but it blinds the gate to untested controller code and needs an ADR amendment.
 
 ---
 
@@ -88,7 +89,7 @@ Every task's success criterion is: **the named tests pass in a full `phpunit` ru
 - [x] **0.1** Pin the CI floor to measured coverage (15%) so it blocks regressions instead of failing unconditionally — `.github/workflows/build.yaml`. *Done in `6d83f15`.*
 - [ ] **0.2** Add `pcov` to the backend Docker image and a `composer test:coverage` script, so coverage is one command locally and not a manual `pecl install`.
 - [ ] **0.3** Upload `backend/coverage/clover.xml` as a CI artifact on the `test-backend` job, so a failed floor check can be diagnosed without re-running.
-- [ ] **0.4** Settle the scope decision above (Option A or B) and record it — an ADR-0022 amendment if B.
+- [x] **0.4** Settle the scope decision above. *Option A chosen 2026-08-07: PHPUnit owns the HTTP layer via a Slim harness; no ADR-0022 amendment needed.*
 
 **Success**: `composer test:coverage` prints the percentage locally; CI artifact downloadable; floor step green.
 
@@ -114,7 +115,7 @@ Target: these files ≥85%. Projected total: **~29%**.
 - [ ] **2.1** `AuthService` + `TokenService` + `SessionRepository` — constant-time credential comparison (regression guard for C1 in `2026-03-17-security-critical-fixes.md`), inactive-admin rejection, session create/lookup/expiry.
 - [ ] **2.2** `TotpService` (20 stmt, 0%) — `generateSecret` entropy/format, `verifyCode` accept/reject inside and outside the time window, `encrypt`/`decrypt` round-trip, and `decrypt` returning `false` on a tampered ciphertext.
 - [ ] **2.3** `AdminUsersService` (111 stmt, 0%) + `AdminUsersRepository` (65) + `AdminUserDto` (23) — password hashing never round-trips plaintext; **self-deactivation refused**; `resetAdminPassword` clearing the TOTP secret; `verifyCurrentPassword` on wrong password; duplicate-email handling.
-- [ ] **2.4** Middleware: `AdminSessionAuth` (27), `TerminalTokenAuth` (26), `CsrfMiddleware` (13), `RateLimitMiddleware` (20) — unauthenticated → 401, bad CSRF → 403, and the 10-failures/15-min → 429 rule. Needs the Slim harness from Task 6.1 if Option A is chosen; otherwise test the middleware classes directly with hand-built PSR-7 requests.
+- [ ] **2.4** Middleware: `AdminSessionAuth` (27), `TerminalTokenAuth` (26), `CsrfMiddleware` (13), `RateLimitMiddleware` (20) — unauthenticated → 401, bad CSRF → 403, and the 10-failures/15-min → 429 rule. **Depends on Task 6.1** — pull the Slim harness forward to here, since these four are the first tests that need it and Milestone 2 is where they belong by priority.
 - [ ] **2.5** Ratchet the CI floor to **28**.
 
 ### Milestone 3 — Privacy: Members & mandate documents
@@ -150,19 +151,15 @@ Target: ≥80% each. Projected total: **~54%**.
 - [ ] **5.8** *(lower priority)* LLM/Vision clients — `AnthropicClient` (95), `OpenAiClient` (71), `LlmClientFactory` (17), `GoogleVisionClient` (27). These wrap cURL; they need an injectable transport seam first. Treat the refactor as part of the task, or defer and accept ~4% of total coverage staying at 0.
 - [ ] **5.9** Ratchet the CI floor to **52**.
 
-### Milestone 6 — HTTP layer *(shape depends on Task 0.4)*
+### Milestone 6 — HTTP layer
 
 Target: **~80% total**.
 
-**Under Option A:**
-
-- [ ] **6.1** `tests/Feature/HttpTestCase.php` — boots the real Slim app from `bootstrap.php` against the test DB and dispatches PSR-7 requests in-process, with helpers for an authenticated admin session and a terminal bearer token. This single harness is what makes Milestones 2.4 and 6.2 cheap.
+- [ ] **6.1** `tests/Feature/HttpTestCase.php` — boots the real Slim app from `bootstrap.php` against the test DB and dispatches PSR-7 requests in-process, with helpers for an authenticated admin session and a terminal bearer token. This single harness is what makes Tasks 2.4 and 6.2 cheap. **Built early, in Milestone 2** — listed here for cohesion.
 - [ ] **6.2** One controller test class per module (Settlements 178, Dashboard 176, Products 132, Members 126, Transactions 124, AdminUsers 88, Terminals 83, Auth 201, Reports 53, Sync 49+17+11, AuditLog 45, MandateDocument 44, Extraction 36, SepaConfig 21, BankCodes 23, Health 4). Focus on the **error branches** Playwright does not exercise: 400/401/403/404/422 shapes, malformed bodies, missing params. Happy paths stay Playwright's job — do not re-litigate them here.
 - [ ] **6.3** `ErrorHandler` (41), `CorsMiddleware` (15), `JsonBodyParser` (14), `TerminalOasValidator` (8) — exercised through the harness.
 - [ ] **6.4** `routes.php` (94) and `ServiceFactory` (122) fall out of 6.1–6.3 for free; add a smoke test asserting every registered route resolves and every factory method constructs.
 - [ ] **6.5** Ratchet the CI floor to **78**, then to **80** once green twice.
-
-**Under Option B:** replace 6.1–6.4 with a single task — narrow `<source>` in `phpunit.xml` to exclude `Controllers/`, `Middleware/`, `routes.php`, `ServiceFactory.php`; recompute the floor against the reduced denominator; amend ADR-0022 to state the metric excludes the Playwright-owned HTTP layer.
 
 ---
 
@@ -176,7 +173,7 @@ Target: **~80% total**.
 | M3 Members | ~36% | 35 |
 | M4 Reports | ~41% | 40 |
 | M5 Remaining domain + Shared | ~54% | 52 |
-| M6 HTTP layer (Option A) | ~80% | 80 |
+| M6 HTTP layer | ~80% | 80 |
 
 Percentages assume ~85% coverage of each file listed. The floor trails the measurement by 1–2 points so ordinary refactoring does not turn CI red.
 
