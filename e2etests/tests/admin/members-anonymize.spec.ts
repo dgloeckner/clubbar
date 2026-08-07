@@ -14,6 +14,7 @@ test.describe('Members Anonymize Button', () => {
 
   test('anonymize button is visible in table row actions', async ({ authenticatedMembersPage }) => {
     const rowCount = await authenticatedMembersPage.getMemberRowCount()
+    // eslint-disable-next-line clubbar/no-data-dependent-skip -- #146: ambient member data may be absent; fixture work tracked separately, not fixed here
     test.skip(rowCount === 0, 'No members in table to test')
 
     const anonymizeButtons = authenticatedMembersPage.page.locator('[data-testid^="members-table-action-anonymize-"]')
@@ -86,6 +87,7 @@ test.describe('Members Anonymize Button', () => {
 
   test('delete button is replaced by anonymize button', async ({ authenticatedMembersPage }) => {
     const rowCount = await authenticatedMembersPage.getMemberRowCount()
+    // eslint-disable-next-line clubbar/no-data-dependent-skip -- #146: ambient member data may be absent; fixture work tracked separately, not fixed here
     test.skip(rowCount === 0, 'No members in table to test')
 
     // Delete button should NOT exist

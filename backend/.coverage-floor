@@ -1,0 +1,11 @@
+# Never-decrease backend coverage floor (issue #168, ruling #166).
+#
+# This number only ever goes up, and only as part of the PR that earns the
+# increase by adding the coverage. Scheduled ratchet targets (e.g. "+5% by
+# next quarter") were considered and abandoned — they drift out of sync with
+# reality and become a lie the team has to explain away. Raising this file
+# is itself the record of progress; a DROP shows up as a diff a reviewer can
+# reject.
+#
+# Current measured backend coverage: 26.64%.
+25

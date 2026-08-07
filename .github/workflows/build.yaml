@@ -114,6 +114,17 @@ jobs:
         run: npm run test:coverage
         working-directory: admin-frontend
 
+      # Consumed by the patch-coverage job, which gates both projects from
+      # their clover reports (#168 §3). vitest emits clover by default.
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: admin-frontend/coverage/clover.xml
+          retention-days: 14
+          if-no-files-found: warn
+
   test-backend:
     needs: [changes]
     if: needs.changes.outputs.full == 'true' || needs.changes.outputs.backend == 'true'
@@ -180,12 +191,12 @@ jobs:
           DB_PASS: clubbar
 
       # PHPUnit only reports coverage; this step is the enforcement half.
-      # The floor is a ratchet toward the 80% rule in CLAUDE.md (#103): it is
-      # pinned just below measured coverage so it blocks regressions today, and
-      # is raised as each milestone of plans/2026-08-07-backend-test-coverage.md
-      # lands. Measured 26.64% after Milestone 1 (settlements + transactions).
+      # The floor now lives in backend/.coverage-floor rather than in this
+      # argument (#168 §2, ruling #166): it never decreases, and is raised by
+      # the PR that earns it, so a drop shows up as a diff instead of an
+      # invisible edit to a workflow line.
       - name: Enforce coverage floor
-        run: php scripts/check-coverage.php coverage/clover.xml 25
+        run: php scripts/check-coverage.php coverage/clover.xml
         working-directory: backend
 
       # Uploaded even when the floor check fails — that is exactly when the
@@ -198,6 +209,104 @@ jobs:
           path: backend/coverage/clover.xml
           retention-days: 14
           if-no-files-found: warn
+
+  # The skip lint rule (#168 §4, ruling #146): a data-dependent test.skip()
+  # reads as coverage while verifying nothing, so it fails at authoring time
+  # rather than after a green-but-hollow run.
+  lint-e2e:
+    needs: [changes]
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: e2etests/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: e2etests
+
+      # The rule is itself code, and it gates the whole suite — it gets tests.
+      - name: Test the lint rules
+        run: npm run test:lint-rules
+        working-directory: e2etests
+
+      - name: Lint E2E specs
+        run: npm run lint
+        working-directory: e2etests
+
+  # 80% of the lines this branch changed must be covered (#168 §3, ruling
+  # #146). This coexists with the never-decrease floor and fails differently:
+  # the floor blocks regression, patch coverage blocks new untested code.
+  #
+  # Scope is not declared here — it inherits each project's own measurement
+  # scope, because a file the project does not measure never appears in its
+  # clover report. That keeps the frontend's delegation of pages and
+  # components to Playwright (ruled on #166) undisturbed.
+  patch-coverage:
+    needs: [changes, lint, test-backend]
+    # Skipped upstream jobs must not cascade, and a red upstream build is
+    # already reported — no value in a second failure from stale reports.
+    # main has no merge-base to diff against; this is a branch gate.
+    if: |
+      always() && !cancelled()
+      && github.ref != 'refs/heads/main'
+      && github.event_name != 'release'
+      && (needs.lint.result == 'success' || needs['test-backend'].result == 'success')
+      && needs.lint.result != 'failure'
+      && needs['test-backend'].result != 'failure'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the gate diffs against the merge-base with main
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+
+      # Either report may legitimately be absent: a backend-only change never
+      # runs the frontend job, and vice versa.
+      - name: Download backend coverage
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-coverage
+          path: reports/backend
+
+      - name: Download frontend coverage
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-coverage
+          path: reports/frontend
+
+      - name: Enforce patch coverage
+        run: |
+          set -euo pipefail
+          base="$(git merge-base origin/main HEAD)"
+          echo "Merge base with main: $base"
+          git diff --unified=0 "$base" HEAD > changes.diff
+
+          args=()
+          for report in reports/backend/clover.xml reports/frontend/clover.xml; do
+            if [ -f "$report" ]; then
+              args+=("--clover=$report")
+            fi
+          done
+
+          if [ ${#args[@]} -eq 0 ]; then
+            echo "No coverage reports produced — nothing to gate."
+            exit 0
+          fi
+
+          php scripts/check-patch-coverage.php --diff=changes.diff --min=80 "${args[@]}"
 
   build-frontend:
     needs: [changes]
