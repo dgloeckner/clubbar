@@ -350,6 +350,11 @@ jobs:
       && needs['build-frontend'].result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2]
+        shardTotal: [2]
 
     steps:
       - uses: actions/checkout@v4
@@ -451,7 +456,7 @@ jobs:
         working-directory: e2etests
 
       - name: Run E2E tests
-        run: npx playwright test --project=api-tests --project=admin-chromium --project=admin-mobile
+        run: npx playwright test --project=api-tests --project=admin-chromium --project=admin-mobile --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
         working-directory: e2etests
         env:
           CI: true
@@ -461,7 +466,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shardIndex }}
           path: e2etests/playwright-report/
           retention-days: 14
 
@@ -469,7 +474,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ matrix.shardIndex }}
           path: e2etests/test-results/
           retention-days: 14
 
