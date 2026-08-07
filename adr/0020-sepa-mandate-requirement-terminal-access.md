@@ -40,7 +40,7 @@ The organization requires that **all members have valid SEPA data before they ca
 >
 > The terminal decides from its **last synced state**, so a member whose SEPA data is cleared after that sync is still served until the terminal next syncs. Those drinks are real and already consumed.
 >
-> **The server must therefore store and flag such transactions, never reject them.** Rejecting at sync destroys the record of a sale that actually happened — revenue lost silently, unrecoverable, because the beer is gone either way. `TransactionsService::processBatch` currently rejects them (`sepa_invalid`); that is a defect, tracked as [#162](https://github.com/dgloeckner/ruderbar/issues/162).
+> **The server must therefore store and flag such transactions, never reject them.** Rejecting at sync destroys the record of a sale that actually happened — revenue lost silently, unrecoverable, because the beer is gone either way. `TransactionsService::processBatch` rejected them (`sepa_invalid`) until [#162](https://github.com/dgloeckner/ruderbar/issues/162); that rejection is removed — the row is stored and accepted, and the member is flagged by surfacing in the settlement preview's `ineligible_members` bucket ([#161](https://github.com/dgloeckner/ruderbar/issues/161) §3). The flag is derived, not stored, so it clears by itself once the member supplies their IBAN.
 >
 > Two layers, deliberately: **terminal blocks (preventive, costs nothing — the drink is not yet poured); server stores and flags (backstop, because by then it is).** See [#143](https://github.com/dgloeckner/ruderbar/issues/143) and [#171](https://github.com/dgloeckner/ruderbar/issues/171).
 >
