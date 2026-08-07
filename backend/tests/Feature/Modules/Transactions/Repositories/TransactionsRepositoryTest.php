@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Transactions\Repositories;
 
+use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use Tests\Feature\DatabaseTestCase;
 
@@ -199,6 +200,118 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $this->assertEquals($transactionId, $transaction['id']);
         $this->assertNull($transaction['settlement_id'], 'settlement_id should be null when settlement is cancelled');
         $this->assertNull($transaction['settlement_date'], 'settlement_date should be null when settlement is cancelled');
+    }
+
+    /**
+     * A replayed sync batch must be absorbed, not doubled: the same client
+     * UUID arriving twice is the terminal retrying, and ADR-0004 makes that
+     * safe by construction. The second call reports "already stored" (null)
+     * and leaves the single row untouched.
+     */
+    public function test_insertTransaction_returns_null_when_the_id_is_already_stored(): void
+    {
+        $memberId = $this->createTestMember('IdempotentInsert', 'User');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Beer', 'beer', 350);
+
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+        $row = [
+            'id' => $transactionId,
+            'member_id' => $memberId,
+            'product_id' => $productId,
+            'amount_cents' => 350,
+            'created_at' => '2026-08-07 10:00:00',
+        ];
+
+        $first = $this->transactionsRepository->insertTransaction($row);
+        $second = $this->transactionsRepository->insertTransaction($row);
+
+        $this->assertIsArray($first, 'The first insert stores the row and returns it');
+        $this->assertNull($second, 'A replay of the same id is absorbed, not stored again');
+
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM transactions WHERE id = ?');
+        $stmt->execute([$transactionId]);
+        $this->assertSame(1, (int) $stmt->fetchColumn(), 'Exactly one row exists after the replay');
+    }
+
+    /**
+     * Issue #82 — a row the database refuses is a *lost sale*, not a duplicate.
+     * `INSERT IGNORE` downgraded every ignorable error to a warning, so a
+     * dangling `member_id` looked identical to a replay: zero rows affected.
+     * The caller was then told the sale had been accepted and the terminal
+     * dropped it from its offline queue. Only errno 1062 may be swallowed;
+     * everything else must reach the caller.
+     */
+    public function test_insertTransaction_raises_a_row_the_database_refuses(): void
+    {
+        $unknownMemberId = $this->generateUuid(); // No such member — foreign key violation
+
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+
+        $this->expectException(TransactionNotStorableException::class);
+
+        $this->transactionsRepository->insertTransaction([
+            'id' => $transactionId,
+            'member_id' => $unknownMemberId,
+            'product_id' => null,
+            'amount_cents' => 350,
+            'created_at' => '2026-08-07 10:00:00',
+        ]);
+    }
+
+    /**
+     * Terminals send the sale time as ISO 8601 with a `Z` — a value the
+     * DATETIME column cannot take. `INSERT IGNORE` coerced it and raised a
+     * truncation warning nobody read; under a plain INSERT it would refuse a
+     * perfectly ordinary sale, so the conversion is now explicit. The stored
+     * instant is the one the terminal claimed (ruling #144), offset applied.
+     */
+    public function test_insertTransaction_stores_an_iso_8601_sale_time_as_the_utc_instant(): void
+    {
+        $memberId = $this->createTestMember('IsoOccurredAt', 'User');
+
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+
+        $this->transactionsRepository->insertTransaction([
+            'id' => $transactionId,
+            'member_id' => $memberId,
+            'product_id' => null,
+            'amount_cents' => 350,
+            'created_at' => '2026-08-07T16:23:15.780+02:00',
+        ]);
+
+        $stmt = $this->db->prepare('SELECT occurred_at FROM transactions WHERE id = ?');
+        $stmt->execute([$transactionId]);
+
+        $this->assertSame('2026-08-07 14:23:15', $stmt->fetchColumn());
+    }
+
+    /**
+     * `STRICT_TRANS_TABLES` reports a value outside `transaction_type`'s ENUM
+     * as a *truncation* (SQLSTATE 01000), not an integrity violation — the one
+     * refusal class that does not look like one. It is also the exact case
+     * #82 names as reachable from a terminal today, so it gets its own test.
+     */
+    public function test_insertTransaction_raises_a_transaction_type_outside_the_enum(): void
+    {
+        $memberId = $this->createTestMember('BadEnumInsert', 'User');
+
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+
+        $this->expectException(TransactionNotStorableException::class);
+
+        $this->transactionsRepository->insertTransaction([
+            'id' => $transactionId,
+            'member_id' => $memberId,
+            'product_id' => null,
+            'amount_cents' => 350,
+            'transaction_type' => 'not_a_real_type',
+            'created_at' => '2026-08-07 10:00:00',
+        ]);
     }
 
     // Helper methods to create test data

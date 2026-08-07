@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Transactions\Services;
 
 use App\Modules\Transactions\DTOs\TransactionBatchResultDto;
+use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Exceptions\NotFoundException;
@@ -30,7 +31,14 @@ class TransactionsService
 
         foreach ($transactions as $tx) {
             if (empty($tx['member_id'])) {
-                $errors[] = ['id' => $tx['id'] ?? null, 'error' => 'member_id is required'];
+                // Defensive: SyncController rejects the whole batch with a 422
+                // before this runs. Shaped like every other rejection so the
+                // response stays one contract.
+                $errors[] = [
+                    'error' => 'unstorable',
+                    'transaction_id' => $tx['id'] ?? null,
+                    'message' => 'member_id is required',
+                ];
                 continue;
             }
 
@@ -50,13 +58,26 @@ class TransactionsService
                 continue;
             }
 
-            $result = $this->transactionsRepository->insertTransaction($tx);
-            if ($result === null) {
-                // Duplicate - treat as accepted (idempotent)
-                $acceptedIds[] = $tx['id'];
-            } else {
-                $acceptedIds[] = $tx['id'];
+            try {
+                // A null return means the id was already stored — the terminal
+                // is replaying the batch, which ADR-0004 makes safe. Either way
+                // the transaction is on the server, so either way it is accepted.
+                $this->transactionsRepository->insertTransaction($tx);
+            } catch (TransactionNotStorableException $e) {
+                // #82: a row the database refused. Never report it as accepted —
+                // the terminal would purge a served drink from its offline queue
+                // and the sale would exist nowhere. Only this row is rejected;
+                // the rest of the batch still lands. Transient failures are not
+                // caught here: they propagate so the terminal retries the batch.
+                $errors[] = [
+                    'error' => 'unstorable',
+                    'transaction_id' => $tx['id'] ?? null,
+                    'message' => 'Transaction could not be stored and was not accepted',
+                ];
+                continue;
             }
+
+            $acceptedIds[] = $tx['id'];
             $affectedMemberIds[$tx['member_id']] = true;
         }
 

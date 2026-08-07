@@ -308,7 +308,7 @@ flowchart TB
 |----------|----------|
 | Network unreachable | Continue local operation; transactions queued |
 | Sync interrupted | Retry in next cycle; partial sync acceptable |
-| Duplicate transaction sent | Backend deduplicates via UUID (`INSERT IGNORE`) |
+| Duplicate transaction sent | Backend deduplicates via UUID (duplicate-key error caught; see [#82](https://github.com/dgloeckner/ruderbar/issues/82)) |
 | Response lost after upload | Terminal resends; backend ignores duplicate |
 | Terminal restart | Sync state persisted; resumes cleanly |
 | Unknown card scanned | Display "Unknown member" message |
