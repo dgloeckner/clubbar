@@ -274,7 +274,13 @@ class TransactionsServiceTest extends TestCase
         );
     }
 
-    public function test_processBatch_rejects_entry_when_member_lacks_sepa_mandate(): void
+    /**
+     * #162 / ruling #143 §1: the drink was already served, so by sync time the
+     * only question is whether the row can be stored. A missing mandate is a
+     * billing obstacle, not a storage one — rejecting here would destroy the
+     * record of a sale that happened and bill nobody for it.
+     */
+    public function test_processBatch_stores_and_accepts_entry_when_member_lacks_sepa_mandate(): void
     {
         $tx = ['id' => 'tx-1', 'member_id' => 'member-1', 'amount_cents' => -100];
 
@@ -283,20 +289,18 @@ class TransactionsServiceTest extends TestCase
             'iban' => null,
             'mandate_reference' => null,
         ]);
-        $this->transactionsRepository->expects($this->never())->method('insertTransaction');
+        $this->transactionsRepository->expects($this->once())
+            ->method('insertTransaction')
+            ->with($tx)
+            ->willReturn(array_merge($tx, ['created_at' => '2026-01-01 10:00:00']));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(-100);
 
         $result = $this->service->processBatch([$tx]);
 
-        $this->assertSame([], $result->acceptedIds);
-        $this->assertSame(1, $result->rejectedCount);
-        $this->assertSame(
-            [[
-                'error' => 'sepa_invalid',
-                'transaction_id' => 'tx-1',
-                'message' => 'SEPA mandate is required to process transactions for this member',
-            ]],
-            $result->errors,
-        );
+        $this->assertSame(['tx-1'], $result->acceptedIds);
+        $this->assertSame(0, $result->rejectedCount);
+        $this->assertSame([], $result->errors);
+        $this->assertSame(['member-1' => -100], $result->memberBalances);
     }
 
     public function test_processBatch_partial_failure_mixes_accepted_and_rejected(): void
