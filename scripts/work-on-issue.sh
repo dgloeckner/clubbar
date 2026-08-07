@@ -378,4 +378,4 @@ if [ "$CLAIM" -eq 1 ]; then
 fi
 
 command -v claude >/dev/null || { echo "claude CLI not found" >&2; exit 1; }
-exec claude "$PROMPT"
+exec claude --model opus "$PROMPT"
