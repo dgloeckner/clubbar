@@ -786,14 +786,17 @@ test.describe('Manual Storno Endpoint', () => {
     // Add small delay to ensure transaction is persisted
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Fetch transaction history (with terminal auth)
-    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=1`);
+    // Fetch transaction history (with terminal auth).
+    // Not `limit=1`: the purchase and its storno are written within the same
+    // second, and MySQL DATETIME has second precision, so which of the two
+    // sorts first is a coin toss. Ask for both and find the storno by id.
+    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=10`);
 
     expect(historyResponse.ok()).toBeTruthy();
 
     const history = await historyResponse.json();
 
-    // Verify storno appears in history (most recent)
+    // Verify storno appears in history
     const found = history.transactions.find((tx: any) => tx.id === storno.id);
     expect(found).toBeDefined();
     expect(found?.type).toBe('storno');

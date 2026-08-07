@@ -8,6 +8,7 @@ import {
   createSettlement,
 } from "../utils/transactions";
 import { minimumExecutionDate } from "../utils/dates";
+import { settlementFactory as buildSettlementFactory, SettlementFactory } from "../utils/settlements";
 import { ProfilePage } from "../pages/ProfilePage";
 import { MainLayoutPage } from "../pages/MainLayoutPage";
 import { ProductsPage } from "../pages/ProductsPage";
@@ -66,6 +67,12 @@ interface AuthFixtures {
     token: string;
   };
   testTransactions: TestTransactionsFixture;
+  /**
+   * Per-test settlement factory (issue #98, ruling #146): creates a member,
+   * a purchase and a settlement that cover them, so settlement tests never
+   * have to read — or skip on — settlements another test happened to create.
+   */
+  settlementFactory: SettlementFactory;
   profilePage: ProfilePage;
   mainLayoutPage: MainLayoutPage;
   productsPage: ProductsPage;
@@ -462,6 +469,10 @@ export const test = base.extend<AuthFixtures>({
     };
 
     await use(fixture);
+  },
+
+  settlementFactory: async ({ authenticatedRequest, authenticatedTerminalRequest }, use) => {
+    await use(buildSettlementFactory(authenticatedRequest, authenticatedTerminalRequest));
   },
 
   profilePage: async ({ page }, use) => {
