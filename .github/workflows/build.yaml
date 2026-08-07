@@ -125,8 +125,47 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  test-backend:
+  # Backend deps only ever change with backend/composer.lock, so installing
+  # them once here and handing the vendor/ tree to every downstream job beats
+  # running `composer install` three times (test-backend, test-e2e, and again
+  # inside build-package.sh for the production package).
+  build-backend:
     needs: [changes]
+    # Same gate as build-frontend: test-e2e needs a backend to run against
+    # even on an admin- or e2e-only change, where test-backend itself is
+    # skipped.
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          extensions: pdo_mysql, mbstring
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+        working-directory: backend
+
+      - name: Upload backend vendor
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-vendor
+          path: backend/vendor/
+          retention-days: 1
+
+  test-backend:
+    needs: [changes, build-backend]
     if: needs.changes.outputs.full == 'true' || needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-24.04
 
@@ -157,16 +196,11 @@ jobs:
           extensions: pdo_mysql, mbstring
           coverage: pcov
 
-      - name: Cache Composer packages
-        uses: actions/cache@v4
+      - name: Download backend vendor
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.composer/cache
-          key: composer-${{ hashFiles('backend/composer.lock') }}
-          restore-keys: composer-
-
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
-        working-directory: backend
+          name: backend-vendor
+          path: backend/vendor/
 
       - name: Run database migrations
         run: |
@@ -338,7 +372,7 @@ jobs:
           retention-days: 1
 
   test-e2e:
-    needs: [changes, lint, test-backend, build-frontend]
+    needs: [changes, lint, test-backend, build-frontend, build-backend]
     # A skipped dependency must not cascade into skipping this job (lint is
     # skipped for a backend-only change), so gate on failure rather than on
     # the default "all needs succeeded".
@@ -348,8 +382,14 @@ jobs:
       && needs.lint.result != 'failure'
       && needs['test-backend'].result != 'failure'
       && needs['build-frontend'].result == 'success'
+      && needs['build-backend'].result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2]
+        shardTotal: [2]
 
     steps:
       - uses: actions/checkout@v4
@@ -369,16 +409,11 @@ jobs:
             admin-frontend/package-lock.json
             e2etests/package-lock.json
 
-      - name: Cache Composer packages
-        uses: actions/cache@v4
+      - name: Download backend vendor
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.composer/cache
-          key: composer-${{ hashFiles('backend/composer.lock') }}
-          restore-keys: composer-
-
-      - name: Install backend dependencies
-        run: composer install --no-interaction --prefer-dist
-        working-directory: backend
+          name: backend-vendor
+          path: backend/vendor/
 
       - name: Prepare writable directories
         run: chmod -R 777 backend/logs backend/storage
@@ -451,7 +486,7 @@ jobs:
         working-directory: e2etests
 
       - name: Run E2E tests
-        run: npx playwright test --project=api-tests --project=admin-chromium --project=admin-mobile
+        run: npx playwright test --project=api-tests --project=admin-chromium --project=admin-mobile --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
         working-directory: e2etests
         env:
           CI: true
@@ -461,7 +496,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shardIndex }}
           path: e2etests/playwright-report/
           retention-days: 14
 
@@ -469,13 +504,13 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-traces
+          name: playwright-traces-${{ matrix.shardIndex }}
           path: e2etests/test-results/
           retention-days: 14
 
   test-package:
     name: Build & Test Package
-    needs: [changes, test-e2e]
+    needs: [changes, test-e2e, build-backend]
     if: |
       always() && !cancelled()
       && needs.changes.outputs.web == 'true'
@@ -514,6 +549,16 @@ jobs:
         with:
           name: admin-frontend-dist
           path: admin-frontend/dist/
+
+      # Pre-warms backend/vendor from the shared dev install so
+      # build-package.sh's `composer install --no-dev` only has to prune
+      # dev-only packages and rebuild the optimized autoloader, instead of
+      # reinstalling everything from scratch.
+      - name: Download backend vendor
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-vendor
+          path: backend/vendor/
 
       - name: Assemble package
         run: |
