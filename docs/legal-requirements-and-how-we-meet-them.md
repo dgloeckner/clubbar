@@ -73,10 +73,24 @@ Related: crediting members' tabs as a reward (the goodwill credit, deliberately 
 
 ## What is still open
 
+**Engineering:**
+
 | | |
 |---|---|
-| 3.5, 3.6 | Art. 13 notice and legal bases — [#175](https://github.com/dgloeckner/ruderbar/issues/175), research running |
-| 2.5 | The 36-month mandate-cancellation duty is modelled nowhere |
-| 4 | The at-cost pricing question — for the club, not the code |
-| ⚠️ | Prepaid/post-paid boundary under § 146a AO — no authority either way |
-| ⚠️ | Whether a Verzeichnis von Verarbeitungstätigkeiten (Art. 30) and a Datenschutzbeauftragter (§ 38 BDSG) are required — in #175's scope |
+| 2.5 | The 36-month mandate-cancellation duty (EPC §4.2) is modelled nowhere |
+| 3.5, 3.6 | ✅ **Answered** in [#175](https://github.com/dgloeckner/ruderbar/issues/175) — Art. 13 content and legal bases settled; BGH II ZR 132/24 makes Vereinsbeitritt a Vertrag under Art. 6(1)(b) |
+| — | [#177](https://github.com/dgloeckner/ruderbar/issues/177) remove the named member ranking — it violates the no-profiling control, and Art. 13(2)(f) makes that control a legal commitment |
+| ⚠️ | Prepaid/post-paid boundary under § 146a AO — no authority either way. Mitigated: terminal-side top-up is ruled out **by design** |
+
+**The club's, not the code's** — tracked as `owner-action`:
+
+| | |
+|---|---|
+| [#178](https://github.com/dgloeckner/ruderbar/issues/178) | Steuerberater: does **at-cost pricing** endanger Gemeinnützigkeit? ⚠️ largest exposure surfaced |
+| [#179](https://github.com/dgloeckner/ruderbar/issues/179) | Steuerberater: must the tax record **identify the member on every line item**? A "no" only ever reduces work |
+| [#180](https://github.com/dgloeckner/ruderbar/issues/180) | Vorstand: adopt a **Barordnung** — BGH Rn. 23 makes the Satzung define lit. b's scope |
+| [#181](https://github.com/dgloeckner/ruderbar/issues/181) | **Art. 30 Verzeichnis** — required; the *nicht nur gelegentlich* exception bites |
+| [#182](https://github.com/dgloeckner/ruderbar/issues/182) | Kassenprüfung: adopt the **annual retention and data-protection reviews** |
+| [#183](https://github.com/dgloeckner/ruderbar/issues/183) | Bank: are returns booked **individually**? If not, manual entry fails |
+
+A **Datenschutzbeauftragter is not required** (§ 38 BDSG threshold 20; realistic count 3–6) — ⚠️ but that depends on keeping admin-panel logins narrow.
