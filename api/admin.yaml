@@ -3307,6 +3307,12 @@ components:
           format: uuid
         current_balance_cents:
           type: integer
+          description: |
+            The member's **unsettled** position — what they still owe (positive)
+            or the credit the club owes them (negative), per ruling
+            [#141](https://github.com/dgloeckner/ruderbar/issues/141).
+            The `transactions` list below is the full history and still contains
+            transactions this figure excludes because a settlement claimed them.
         transactions:
           type: array
           items:

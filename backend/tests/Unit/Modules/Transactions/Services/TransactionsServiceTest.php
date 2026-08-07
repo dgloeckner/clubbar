@@ -66,7 +66,7 @@ class TransactionsServiceTest extends TestCase
             ->willReturn(array_merge($tx, ['created_at' => '2026-01-01 10:00:00']));
 
         $this->transactionsRepository->expects($this->once())
-            ->method('getMemberBalance')
+            ->method('getUnsettledMemberBalanceCents')
             ->with($memberId)
             ->willReturn(-500);
 
@@ -77,6 +77,31 @@ class TransactionsServiceTest extends TestCase
         $this->assertSame(0, $result->rejectedCount);
         $this->assertSame([], $result->errors);
         $this->assertSame([$memberId => -500], $result->memberBalances);
+    }
+
+    public function test_processBatch_reports_the_unsettled_position_not_the_lifetime_sum(): void
+    {
+        // #83: the balance the terminal caches and shows as the member's Deckel
+        // is their *unsettled* position (ruling #141). A lifetime sum over every
+        // transaction ever booked ignores settlement runs and grows forever, so
+        // the member is shown a Deckel they have already paid.
+        $memberId = 'member-1';
+        $tx = ['id' => 'tx-1', 'member_id' => $memberId, 'amount_cents' => 300];
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+        $this->transactionsRepository->method('insertTransaction')
+            ->willReturn(array_merge($tx, ['created_at' => '2026-01-01 10:00:00']));
+
+        // The member has 1100 booked over their lifetime, of which 800 has been
+        // swept into a settlement. Only the remaining 300 is still owed.
+        $this->transactionsRepository->expects($this->once())
+            ->method('getUnsettledMemberBalanceCents')
+            ->with($memberId)
+            ->willReturn(300);
+
+        $result = $this->service->processBatch([$tx]);
+
+        $this->assertSame([$memberId => 300], $result->memberBalances);
     }
 
     public function test_processBatch_duplicate_client_uuid_is_idempotent_not_double_booked(): void
@@ -95,7 +120,7 @@ class TransactionsServiceTest extends TestCase
             ->with($tx)
             ->willReturn(null);
 
-        $this->transactionsRepository->method('getMemberBalance')->willReturn(-300);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(-300);
 
         $result = $this->service->processBatch([$tx]);
 
@@ -122,13 +147,13 @@ class TransactionsServiceTest extends TestCase
                 [$dupTx, null],
             ]);
 
-        $this->transactionsRepository->method('getMemberBalance')->willReturn(-300);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(-300);
 
         $result = $this->service->processBatch([$newTx, $dupTx]);
 
         $this->assertSame(['tx-new', 'tx-dup'], $result->acceptedIds);
         $this->assertSame(0, $result->rejectedCount);
-        // getMemberBalance is only queried once per distinct affected member,
+        // The balance is only queried once per distinct affected member,
         // even though two transactions in the batch touched that member.
         $this->assertSame([$memberId => -300], $result->memberBalances);
     }
@@ -212,7 +237,7 @@ class TransactionsServiceTest extends TestCase
             ->with($goodTx)
             ->willReturn(array_merge($goodTx, ['created_at' => '2026-01-01 10:00:00']));
 
-        $this->transactionsRepository->method('getMemberBalance')->with($memberId)->willReturn(-100);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->with($memberId)->willReturn(-100);
 
         $result = $this->service->processBatch([$goodTx, $badTx]);
 
@@ -229,7 +254,7 @@ class TransactionsServiceTest extends TestCase
     {
         $this->membersRepository->expects($this->never())->method('findById');
         $this->transactionsRepository->expects($this->never())->method('insertTransaction');
-        $this->transactionsRepository->expects($this->never())->method('getMemberBalance');
+        $this->transactionsRepository->expects($this->never())->method('getUnsettledMemberBalanceCents');
 
         $result = $this->service->processBatch([]);
 
@@ -289,7 +314,7 @@ class TransactionsServiceTest extends TestCase
             ]);
 
         $this->transactionsRepository->expects($this->once())
-            ->method('getMemberBalance')
+            ->method('getUnsettledMemberBalanceCents')
             ->with($memberId)
             ->willReturn(-1500);
 
@@ -300,6 +325,36 @@ class TransactionsServiceTest extends TestCase
         // formatTransactionTimestamps converts created_at to ISO 8601 UTC
         $this->assertSame('2026-01-01T10:00:00Z', $result['transaction']['created_at']);
         $this->assertSame(-1500, $result['new_balance_cents']);
+    }
+
+    public function test_recordCorrection_reports_the_unsettled_position_not_the_lifetime_sum(): void
+    {
+        // #83: new_balance_cents is what the Kassenwart reads back after a
+        // storno. It must be the member's unsettled position (ruling #141), not
+        // a lifetime sum that still counts transactions already collected.
+        $memberId = 'member-1';
+        $relatedTransactionId = 'tx-original';
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+        $this->transactionsRepository->method('findById')
+            ->with($relatedTransactionId)
+            ->willReturn(['id' => $relatedTransactionId, 'member_id' => $memberId, 'amount_cents' => 500]);
+        $this->transactionsRepository->method('insertTransaction')->willReturn([
+            'id' => 'generated-id',
+            'member_id' => $memberId,
+            'amount_cents' => -500,
+            'transaction_type' => 'storno',
+            'created_at' => '2026-01-01 10:00:00',
+        ]);
+
+        $this->transactionsRepository->expects($this->once())
+            ->method('getUnsettledMemberBalanceCents')
+            ->with($memberId)
+            ->willReturn(-500);
+
+        $result = $this->service->recordCorrection($memberId, -500, 'Wrong drink', 'admin-1', $relatedTransactionId);
+
+        $this->assertSame(-500, $result['new_balance_cents']);
     }
 
     public function test_recordCorrection_accepts_zero_amount_and_records_it_as_is(): void
@@ -327,7 +382,7 @@ class TransactionsServiceTest extends TestCase
                 'created_at' => '2026-01-01 10:00:00',
             ]);
 
-        $this->transactionsRepository->method('getMemberBalance')->willReturn(0);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
 
         $result = $this->service->recordCorrection($memberId, 0, 'No-op correction', null, $relatedTransactionId);
 
@@ -360,7 +415,7 @@ class TransactionsServiceTest extends TestCase
                 'created_at' => '2026-01-01 10:00:00',
             ]);
 
-        $this->transactionsRepository->method('getMemberBalance')->willReturn(2000);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(2000);
 
         $result = $this->service->recordCorrection($memberId, 2000, 'Goodwill credit', null, $relatedTransactionId);
 
@@ -477,7 +532,7 @@ class TransactionsServiceTest extends TestCase
         $memberId = 'member-1';
 
         $this->transactionsRepository->expects($this->once())
-            ->method('getMemberBalance')
+            ->method('getUnsettledMemberBalanceCents')
             ->with($memberId)
             ->willReturn(-750);
 
@@ -494,6 +549,26 @@ class TransactionsServiceTest extends TestCase
         $this->assertSame(-750, $result['current_balance_cents']);
         $this->assertCount(1, $result['transactions']);
         $this->assertSame('2026-01-01T10:00:00Z', $result['transactions'][0]['created_at']);
+    }
+
+    public function test_getMemberTransactionHistory_reports_the_unsettled_position_not_the_lifetime_sum(): void
+    {
+        // #83: current_balance_cents heads the member's history in the admin
+        // panel. The history below it lists every transaction ever booked, but
+        // the figure on top is what the member still owes — their unsettled
+        // position (ruling #141), which settlement runs bring back to zero.
+        $memberId = 'member-1';
+
+        $this->transactionsRepository->expects($this->once())
+            ->method('getUnsettledMemberBalanceCents')
+            ->with($memberId)
+            ->willReturn(300);
+
+        $this->transactionsRepository->method('findByMemberId')->willReturn([]);
+
+        $result = $this->service->getMemberTransactionHistory($memberId);
+
+        $this->assertSame(300, $result['current_balance_cents']);
     }
 
     // ------------------------------------------------------------------

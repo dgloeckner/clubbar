@@ -982,10 +982,10 @@ class TransactionsRepositoryTest extends DatabaseTestCase
     }
 
     // ---------------------------------------------------------------
-    // getMemberBalance / getUnsettledMemberBalanceCents / hasMemberInActiveSettlement
+    // getUnsettledMemberBalanceCents / hasMemberInActiveSettlement
     // ---------------------------------------------------------------
 
-    public function test_getMemberBalance_sums_all_transactions_for_member(): void
+    public function test_getUnsettledMemberBalanceCents_nets_stornos_against_purchases(): void
     {
         $memberId = $this->createTestMember('Balance', 'User');
 
@@ -1003,16 +1003,16 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         );
         $tx2Stmt->execute([$tx2, $memberId, null, -150, 'storno', $tx1, date('Y-m-d H:i:s')]);
 
-        $balance = $this->transactionsRepository->getMemberBalance($memberId);
+        $balance = $this->transactionsRepository->getUnsettledMemberBalanceCents($memberId);
 
         $this->assertEquals(350, $balance);
     }
 
-    public function test_getMemberBalance_returns_zero_for_member_without_transactions(): void
+    public function test_getUnsettledMemberBalanceCents_returns_zero_for_member_without_transactions(): void
     {
         $memberId = $this->createTestMember('NoTx', 'User');
 
-        $balance = $this->transactionsRepository->getMemberBalance($memberId);
+        $balance = $this->transactionsRepository->getUnsettledMemberBalanceCents($memberId);
 
         $this->assertEquals(0, $balance);
     }
