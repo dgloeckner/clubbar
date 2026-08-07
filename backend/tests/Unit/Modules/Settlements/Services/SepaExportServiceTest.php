@@ -18,8 +18,12 @@ class SepaExportServiceTest extends TestCase
     private const MEMBER_ID_2 = 'a1b2c3d4-0000-0000-0000-000000000002';
     private const XSD_PATH = __DIR__ . '/../../../../../vendor/digitick/sepa-xml/doc/ISO20022/pain/008/001/pain.008.001.08.xsd';
 
-    private function makeService(bool $twoMembers = false, string $executionDate = '2026-04-08', string $method = 'direct_debit'): SepaExportService
-    {
+    private function makeService(
+        bool $twoMembers = false,
+        string $executionDate = '2026-04-08',
+        string $method = 'direct_debit',
+        ?array $items = null,
+    ): SepaExportService {
         $sepaConfig = $this->createMock(SepaConfigRepository::class);
         $sepaConfig->method('getConfig')->willReturn([
             'creditor_id' => 'DE98ZZZ09999999999',
@@ -36,9 +40,11 @@ class SepaExportServiceTest extends TestCase
             'settlement_date' => '2026-04-01',
             'execution_date' => $executionDate,
         ]);
-        $items = [['member_id' => self::MEMBER_ID, 'amount_cents' => 500]];
-        if ($twoMembers) {
-            $items[] = ['member_id' => self::MEMBER_ID_2, 'amount_cents' => 750];
+        if ($items === null) {
+            $items = [['member_id' => self::MEMBER_ID, 'amount_cents' => 500]];
+            if ($twoMembers) {
+                $items[] = ['member_id' => self::MEMBER_ID_2, 'amount_cents' => 750];
+            }
         }
         $settlements->method('findItemsBySettlementId')->willReturn($items);
 
@@ -62,7 +68,7 @@ class SepaExportServiceTest extends TestCase
 
     public function testGeneratesPain008001V08Document(): void
     {
-        $xml = $this->makeService()->generateSepaXml(self::SETTLEMENT_ID);
+        $xml = $this->makeService()->export(self::SETTLEMENT_ID)->xml;
 
         $dom = new \DOMDocument();
         $this->assertTrue($dom->loadXML($xml), 'Export must be well-formed XML');
@@ -76,7 +82,7 @@ class SepaExportServiceTest extends TestCase
 
     public function testExportContainsCoreDirectDebitStructure(): void
     {
-        $xml = $this->makeService()->generateSepaXml(self::SETTLEMENT_ID);
+        $xml = $this->makeService()->export(self::SETTLEMENT_ID)->xml;
 
         $dom = new \DOMDocument();
         $dom->loadXML($xml);
@@ -93,7 +99,7 @@ class SepaExportServiceTest extends TestCase
 
     public function testIbanOnlySubmissionUsesOthrIdNotProvidedForAgents(): void
     {
-        $xml = $this->makeService()->generateSepaXml(self::SETTLEMENT_ID);
+        $xml = $this->makeService()->export(self::SETTLEMENT_ID)->xml;
 
         $dom = new \DOMDocument();
         $dom->loadXML($xml);
@@ -119,7 +125,7 @@ class SepaExportServiceTest extends TestCase
 
     public function testExportValidatesAgainstOfficialXsd(): void
     {
-        $xml = $this->makeService(twoMembers: true)->generateSepaXml(self::SETTLEMENT_ID);
+        $xml = $this->makeService(twoMembers: true)->export(self::SETTLEMENT_ID)->xml;
 
         $dom = new \DOMDocument();
         $dom->loadXML($xml);
@@ -133,7 +139,7 @@ class SepaExportServiceTest extends TestCase
 
     public function testEndToEndIdsAreUniquePerTransaction(): void
     {
-        $xml = $this->makeService(twoMembers: true)->generateSepaXml(self::SETTLEMENT_ID);
+        $xml = $this->makeService(twoMembers: true)->export(self::SETTLEMENT_ID)->xml;
 
         $dom = new \DOMDocument();
         $dom->loadXML($xml);
@@ -159,7 +165,7 @@ class SepaExportServiceTest extends TestCase
         $this->expectExceptionMessageMatches('/business day/i');
 
         // 2026-08-09 is the Sunday reported in issue #11.
-        $this->makeService(executionDate: '2026-08-09')->generateSepaXml(self::SETTLEMENT_ID);
+        $this->makeService(executionDate: '2026-08-09')->export(self::SETTLEMENT_ID);
     }
 
     public function testExportRejectsTarget2ClosingDay(): void
@@ -167,7 +173,7 @@ class SepaExportServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
 
         // Good Friday — a weekday, so only the holiday set catches it.
-        $this->makeService(executionDate: '2026-04-03')->generateSepaXml(self::SETTLEMENT_ID);
+        $this->makeService(executionDate: '2026-04-03')->export(self::SETTLEMENT_ID);
     }
 
     /**
@@ -180,7 +186,7 @@ class SepaExportServiceTest extends TestCase
      */
     public function testExportEmitsTheSettlementExecutionDateAsRequestedCollectionDate(): void
     {
-        $xml = $this->makeService(executionDate: '2026-04-07')->generateSepaXml(self::SETTLEMENT_ID);
+        $xml = $this->makeService(executionDate: '2026-04-07')->export(self::SETTLEMENT_ID)->xml;
 
         $dom = new \DOMDocument();
         $dom->loadXML($xml);
@@ -205,7 +211,7 @@ class SepaExportServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessageMatches('/cannot be exported/i');
 
-        $this->makeService(method: 'bank_transfer')->generateSepaXml(self::SETTLEMENT_ID);
+        $this->makeService(method: 'bank_transfer')->export(self::SETTLEMENT_ID);
     }
 
     public function testExportRejectsWriteOffSettlement(): void
@@ -213,6 +219,81 @@ class SepaExportServiceTest extends TestCase
         $this->expectException(BusinessRuleException::class);
         $this->expectExceptionMessageMatches('/cannot be exported/i');
 
-        $this->makeService(method: 'write_off')->generateSepaXml(self::SETTLEMENT_ID);
+        $this->makeService(method: 'write_off')->export(self::SETTLEMENT_ID);
+    }
+
+    // ── Credit exclusion (issue #80, ruling #141) ──────────────────────
+    //
+    // A member whose settlement items net to a credit is owed money by the
+    // club (§ 812 BGB). abs() turned that credit into a collection: a net
+    // -15.00 EUR position became a +15.00 EUR debit instruction, taking 15
+    // EUR the member does not owe. Exclude-and-flag: no file line, and the
+    // member is reported so the treasurer can refund by hand.
+
+    /**
+     * @return array<int, array{member_id: string, amount_cents: int}>
+     */
+    private static function itemsNetting(int $memberOneCents, int $memberTwoCents): array
+    {
+        return [
+            ['member_id' => self::MEMBER_ID, 'amount_cents' => $memberOneCents],
+            ['member_id' => self::MEMBER_ID_2, 'amount_cents' => $memberTwoCents],
+        ];
+    }
+
+    public function testMemberInCreditIsNotDebited(): void
+    {
+        // Mustermann was refunded a mis-charged round and nets to -15.00 EUR;
+        // Musterfrau owes 7.50 EUR.
+        $xml = $this->makeService(items: self::itemsNetting(-1500, 750))
+            ->export(self::SETTLEMENT_ID)->xml;
+
+        $dom = new \DOMDocument();
+        $dom->loadXML($xml);
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('p', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.08');
+
+        $amounts = [];
+        foreach ($xpath->query('//p:InstdAmt') as $node) {
+            $amounts[] = $node->textContent;
+        }
+
+        $this->assertSame(['7.50'], $amounts, 'Only the member who owes money may appear in the file');
+        $this->assertSame('7.50', $xpath->query('//p:CtrlSum')->item(0)->textContent);
+    }
+
+    public function testMemberInCreditIsReportedToTheTreasurer(): void
+    {
+        $result = $this->makeService(items: self::itemsNetting(-1500, 750))
+            ->export(self::SETTLEMENT_ID);
+
+        $this->assertSame(
+            [[
+                'member_id' => self::MEMBER_ID,
+                'first_name' => 'Max',
+                'last_name' => 'Mustermann',
+                'balance_cents' => -1500,
+            ]],
+            $result->creditExcludedMembers,
+            'A member excluded for being in credit must be reported, never silently dropped'
+        );
+    }
+
+    public function testMemberWhoNetsToZeroIsClosedOutRatherThanExcluded(): void
+    {
+        // A credit and its payout cancel: nothing to collect, nothing owed.
+        // The rows still settle, so this is not an exclusion the treasurer
+        // must act on — the boundary the ruling draws at exactly zero.
+        $result = $this->makeService(items: self::itemsNetting(0, 750))
+            ->export(self::SETTLEMENT_ID);
+
+        $this->assertSame([], $result->creditExcludedMembers);
+
+        $dom = new \DOMDocument();
+        $dom->loadXML($result->xml);
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('p', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.08');
+
+        $this->assertSame(1, $xpath->query('//p:DrctDbtTxInf')->length, 'A zero position gets no file line');
     }
 }

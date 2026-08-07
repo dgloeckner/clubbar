@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Services;
 
+use App\Modules\Settlements\DTOs\SepaExportResultDto;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Members\Repositories\MembersRepository;
@@ -21,7 +22,13 @@ class SepaExportService
         private SettlementsRepository $settlementsRepository,
     ) {}
 
-    public function generateSepaXml(string $settlementId): string
+    /**
+     * Build the pain.008 file for a settlement, together with the members the
+     * file deliberately omits. Callers get both or neither: the omissions are
+     * not recoverable from the XML, and #114 records what happens when they
+     * are dropped on the floor.
+     */
+    public function export(string $settlementId): SepaExportResultDto
     {
         $settlement = $this->settlementsRepository->findById($settlementId);
         if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
@@ -104,11 +111,28 @@ class SepaExportService
         );
 
         $sequence = 0;
+        $creditExcludedMembers = [];
         foreach ($memberTotals as $entry) {
             $member = $this->membersRepository->findById($entry['member_id']);
             if (!$member || empty($member['iban']) || empty($member['mandate_reference'])) continue;
 
-            $amountCents = abs($entry['amount_cents']);
+            // #80 / ruling #141 (exclude-and-flag): guard the *signed* total.
+            // abs() ran before the guard, so a net credit of -1500 became a
+            // +1500 debit — collecting money the club owes the member
+            // (§ 812 BGB). A credit gets no file line; it carries forward and
+            // is refunded by hand.
+            $amountCents = (int) $entry['amount_cents'];
+            if ($amountCents < 0) {
+                $creditExcludedMembers[] = [
+                    'member_id' => $entry['member_id'],
+                    'first_name' => $member['first_name'],
+                    'last_name' => $member['last_name'],
+                    'balance_cents' => $amountCents,
+                ];
+                continue;
+            }
+            // Only zero remains: it closes the rows out without a collection
+            // instruction, and is not an exclusion — nothing is owed either way.
             if ($amountCents <= 0) continue;
 
             $sequence++;
@@ -131,7 +155,7 @@ class SepaExportService
         $xml = $directDebit->asXML();
         $this->validateSepaXml($xml);
 
-        return $xml;
+        return new SepaExportResultDto($xml, $creditExcludedMembers);
     }
 
     private function buildRemittanceInfo(array $config, string $settlementDate): string
