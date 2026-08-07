@@ -60,14 +60,14 @@ Member scans RFID card
 | Time | Transaction time (e.g., "14:32") |
 | Product | Product name (in member's language) |
 | Quantity | If > 1, show "2x Product Name" |
-| Amount | Positive (charge) or negative (correction) |
+| Amount | Positive (charge) or negative (storno) |
 
 ### Transaction Types
 
 | Type | Display | Amount Color |
 |------|---------|--------------|
 | Purchase | Product name | Red/negative |
-| Correction | "Correction: [Product]" or reason | Green/positive |
+| Storno | "Storno: [Product]" or reason | Green/positive |
 
 ### Grouping
 - Transactions grouped by date
@@ -112,7 +112,7 @@ Product View     Transaction List
 ## Test Derivation
 - View balance: scan, tap balance, verify detail screen shown
 - Transaction list: verify transactions from last 90 days displayed
-- Correct amounts: verify purchase shows as charge, correction shows as credit
+- Correct amounts: verify purchase shows as charge, storno shows as credit
 - Date grouping: verify transactions grouped by date
 - Sort order: verify newest transactions first
 - Empty history: new member, verify "No recent transactions" message

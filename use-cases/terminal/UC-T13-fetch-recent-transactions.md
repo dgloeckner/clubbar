@@ -23,7 +23,7 @@ Member taps "View Transactions", "Transaction History", or balance detail area s
 5. Terminal displays formatted transaction list:
    - Date grouped (Today, Yesterday, Last week, etc.)
    - Time and product name per transaction
-   - Amount (red for charges, green for corrections)
+   - Amount (red for charges, green for stornos)
    - Sorted by date (newest first)
 6. Member scrolls through transactions
 7. Member taps back or waits for timeout
@@ -77,10 +77,10 @@ Member taps "View Transactions", "Transaction History", or balance detail area s
 **Response Fields Per Transaction**:
 - `id` (UUID): Transaction identifier
 - `amount_cents` (int): Amount (positive=charge, negative=credit)
-- `type` (enum): 'purchase' or 'correction'
+- `type` (enum): 'purchase', 'storno' or 'payout'
 - `product_name` (string): What was purchased or reason
 - `created_at` (ISO 8601): When transaction occurred
-- `notes` (string, optional): Reason for correction
+- `notes` (string): Reason — required for a storno
 
 **Error Responses**:
 - 404: Member not found
@@ -96,14 +96,14 @@ Member taps "View Transactions", "Transaction History", or balance detail area s
 | Product | Product name in member's language | "Pils" |
 | Quantity | "2x Product" if qty > 1 | "2x Sprite" |
 | Amount | €X.XX with color coding | €3.50 (red) or €-3.50 (green) |
-| Type Correction | "Correction: [reason]" | "Correction: Wrong amount" |
+| Type Storno | "Storno: [reason]" | "Storno: Wrong amount" |
 
 ## Transaction Type Display
 
 | Type | Display | Example |
 |------|---------|---------|
 | Purchase | Product name | "Pils" |
-| Correction | "Correction: [reason]" or "Refund" | "Correction: Duplicate charge" |
+| Storno | "Storno: [reason]" | "Storno: Duplicate charge" |
 
 ## Offline Requirement
 

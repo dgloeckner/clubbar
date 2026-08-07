@@ -27,7 +27,7 @@ Admin opens Reports → Transactions → Export
 | Date range | From/to dates (required) |
 | Member | Specific member or all |
 | Product | Specific product or all |
-| Type | Purchase, Correction, or all |
+| Type | Purchase, Storno, Payout, or all |
 
 ## CSV Format
 
@@ -42,7 +42,7 @@ date;member_name;product;type;amount
 | date | ISO timestamp |
 | member_name | Full name |
 | product | Product name (empty for adjustments) |
-| type | purchase/correction |
+| type | purchase/storno/payout |
 | amount | Signed decimal |
 
 ## Filename Format

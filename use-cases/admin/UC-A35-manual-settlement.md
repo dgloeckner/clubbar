@@ -82,15 +82,40 @@ Works on a list of selected transactions. Admin can settle any combination of tr
 
 ## Settlement Reasons
 
-| Reason | Description | Example Comment |
-|--------|-------------|-----------------|
-| `cash_payment` | Member paid in cash | "Cash received 2025-01-23, receipt #1234" |
-| `bank_transfer` | Member paid via manual bank transfer | "Transfer received, ref: MEMBER-123" |
-| `other_payment` | Other payment method | "PayPal payment received" |
-| `write_off` | Debt written off as uncollectable | "Approved by treasurer, member unreachable" |
-| `goodwill` | Balance cleared as goodwill | "Service issue compensation" |
-| `correction` | Administrative correction | "Duplicate transaction removed" |
-| `other` | Other reason | (Explain in comment) |
+> **Rewritten 2026-08-07** ([#163](https://github.com/dgloeckner/ruderbar/issues/163)). `settlement_type` + `manual_reason` are replaced by a **single method field**, and four of the seven reasons below are removed.
+
+A settlement carries one **method**:
+
+| Method | Members | Produces a file | Money |
+|--------|---------|-----------------|-------|
+| `direct_debit` | many | yes, pain.008 | collected by the bank |
+| `bank_transfer` | **exactly one** | no | already arrived |
+| `write_off` | **exactly one** | no | never arrives |
+
+**Only `direct_debit` settlements may be exported.** That is what prevents a settlement recorded as already-paid from being sent to the bank and collected a second time.
+
+### Removed methods
+
+| Removed | Why |
+|---|---|
+| `cash_payment` | The club takes **no cash**, as policy — this is what holds up the KassenSichV position in [ADR-0028 §6](../../adr/0028-legal-constraints-on-money-handling.md) |
+| `goodwill` | Ruled out entirely ([#170](https://github.com/dgloeckner/ruderbar/issues/170)) — it was value from nothing, with no linked event. Never existed in the backend; it was spec drift |
+| `correction` | Corrections are stornos on individual transactions ([UC-A23](./UC-A23-storno.md)), never settlements |
+| `other_payment`, `other` | With cash gone and SEPA-only, there is no fourth way money moves. Needing `other` would mean something is undesigned |
+
+### Scope and cancellation
+
+`bank_transfer` and `write_off` cover **exactly one member and that member's whole unsettled position**. There is no transaction picker and no typed amount, so a partial payment cannot be expressed: if a member transfers less than they owe, no settlement is recorded and the tab stands.
+
+Cancellation follows one rule — **a settlement can be cancelled while no money has moved**:
+
+| Method | Cancellable |
+|---|---|
+| `direct_debit` | until submitted, execution date as backstop |
+| `bank_transfer` | **never** — the money already arrived |
+| `write_off` | yes |
+
+⚠️ **`write_off` is reachable only through member offboarding** ([#173](https://github.com/dgloeckner/ruderbar/issues/173)). It cannot be initiated standalone: under SEPA-only a member who cannot pay is locked out of the bar, so their debt stops growing and does not need forgiving while they remain a member.
 
 ## Comment Requirements
 
@@ -159,4 +184,5 @@ Works on a list of selected transactions. Admin can settle any combination of tr
 
 - [UC-A30: Create Settlement (SEPA)](./UC-A30-create-settlement.md) - SEPA settlements
 - [UC-A82: SEPA Issues Report](./UC-A82-sepa-invalid-report.md) - Members needing manual settlement
-- [UC-A21: Manual Booking](./UC-A21-manual-booking.md) - Add correction transactions
+- [UC-A23: Storno](./UC-A23-storno.md) - Reverse an individual transaction
+- [UC-A21: Manual Purchase](./UC-A21-manual-purchase.md) - Book a charge with no terminal involved

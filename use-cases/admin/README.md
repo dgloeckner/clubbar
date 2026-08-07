@@ -7,7 +7,7 @@ Use cases for the Admin Panel web application (React SPA for desktop browsers).
 The admin panel provides management and accounting functions for the bar system:
 - Member management (CRUD, RFID assignment, SEPA data)
 - Product management (CRUD, categories, pricing)
-- Transaction oversight and corrections
+- Transaction oversight and stornos
 - Settlement creation and SEPA export
 - Reporting and audit logging
 
@@ -45,7 +45,8 @@ The admin panel provides management and accounting functions for the bar system:
 | ID | Name | Description |
 |----|------|-------------|
 | [UC-A20](./UC-A20-view-tab.md) | View Tab | See member balance and history |
-| [UC-A21](./UC-A21-manual-booking.md) | Manual Booking | Add correction or adjustment |
+| [UC-A21](./UC-A21-manual-purchase.md) | Manual Purchase | Book a charge served away from the terminal |
+| [UC-A23](./UC-A23-storno.md) | Storno | Reverse one transaction in full |
 | [UC-A22](./UC-A22-export-transactions.md) | Export Transactions | Download transaction CSV |
 
 ### Settlements
