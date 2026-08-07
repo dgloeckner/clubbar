@@ -36,6 +36,16 @@ The organization requires that **all members have valid SEPA data before they ca
 
 **Members must have valid SEPA data (IBAN and mandate_reference) to use the terminal. Terminal access is blocked at card scan if SEPA data is missing or invalid. There is no grace period.**
 
+> **Amended 2026-08-07 — the offline window and the server's role.** This ADR specifies the *preventive* half correctly: the terminal blocks at card scan, checking `is_sepa_valid` from its last sync. It does not say what the **server** does with transactions that arrive anyway, and that gap was being filled the wrong way.
+>
+> The terminal decides from its **last synced state**, so a member whose SEPA data is cleared after that sync is still served until the terminal next syncs. Those drinks are real and already consumed.
+>
+> **The server must therefore store and flag such transactions, never reject them.** Rejecting at sync destroys the record of a sale that actually happened — revenue lost silently, unrecoverable, because the beer is gone either way. `TransactionsService::processBatch` currently rejects them (`sepa_invalid`); that is a defect, tracked as [#162](https://github.com/dgloeckner/ruderbar/issues/162).
+>
+> Two layers, deliberately: **terminal blocks (preventive, costs nothing — the drink is not yet poured); server stores and flags (backstop, because by then it is).** See [#143](https://github.com/dgloeckner/ruderbar/issues/143) and [#171](https://github.com/dgloeckner/ruderbar/issues/171).
+>
+> Note also that this ADR's principle 1 defines validity as `iban IS NOT NULL AND mandate_reference IS NOT NULL`, which — via [ADR-0006](./0006-sepa-mandate-reference-strategy.md)'s auto-generated reference — is satisfied by typing an IBAN alone. Whether that is strong enough to gate bar access is open on [#164](https://github.com/dgloeckner/ruderbar/issues/164).
+
 ### Core Principles
 
 1. **SEPA status is derived, not stored**: Calculated from `iban IS NOT NULL AND mandate_reference IS NOT NULL`
