@@ -26,6 +26,26 @@ The system stores a single editable mandate_reference field per member. All mand
 
 **Mandate reference is stored as an editable field in the members table, initialized with member UUID with hyphens removed (32 characters) at member creation time. Admins can override this reference if an existing mandate has a different reference. The system does not track mandate metadata (signature dates, revocation status, lifecycle states) - all mandate management is performed outside the system.**
 
+> ### ⚠️ Amended 2026-08-07 — a mandate is now a record
+>
+> **What changed:** the mandate reference moves out of `members` into a dedicated `mandates` record, and the **signature date becomes tracked and required**. See [#164](https://github.com/dgloeckner/ruderbar/issues/164).
+>
+> ```
+> mandate:  member · reference · iban · signed_at · document (optional) · active
+> ```
+>
+> A member has **at most one active mandate**. Rows are **append-only**: a bank change or revocation *ends* the current mandate and creates a new one; nothing is mutated in place.
+>
+> **Why the original position could not hold.** pain.008 **requires** a mandate signature date. With nothing tracked, the exporter had to invent one — `SepaExportService.php:110` fell back to the settlement date, telling the bank a member signed on a day they signed nothing. "Manage mandates outside the system" was never fully achievable while also generating collection files from inside it.
+>
+> Two facts unknown when this ADR was written (2025-01-23) settle it:
+> - A collection made **without a valid mandate is reclaimable for 13 months**, not the usual 8 weeks ([ADR-0028](./0028-legal-constraints-on-money-handling.md) §3).
+> - A returned collection is matched by `MREF+`. With the reference mutable on `members`, a member changing bank destroys the only key that resolves a return arriving for the previous collection ([#165](https://github.com/dgloeckner/ruderbar/issues/165)). An append-only mandate record fixes this by construction.
+>
+> **What survives.** The auto-generated reference (Core Principles 1, 2, 6) is unchanged — it is simply generated at *mandate* creation rather than member creation, and it stays admin-editable. The instinct behind Principles 4, 5 and 7 also survives: there is still **no status enum, no expiry logic, no amendment history, no revocation reasons, no sequence-type tracking**. Only the three fields that *constitute* a mandate are tracked, plus an active flag.
+>
+> **What is overturned.** Principle 3's placement (`members` table), and the claim that signature dates are tracked outside the system. See the revised Alternative 3 below.
+
 ### Core Principles
 
 1. **Direct initialization**: Initialize with UUID minus hyphens on member creation
@@ -139,7 +159,13 @@ Create dedicated sepa_mandates table (1:1 with members).
 - No benefit over member table (mandate is 1:1 with member)
 - Complicates queries and migration
 
-**Rejected**: Mandate reference better stored directly in members table.
+~~**Rejected**: Mandate reference better stored directly in members table.~~
+
+> **✅ Adopted 2026-08-07.** The rejection rested on "mandate is 1:1 with member" — and that premise is false over time. A member who changes bank or revokes and re-signs has **several** mandates across their membership, of which one is active. The relationship is 1:many, and modelling it as 1:1 is what makes a returned collection unmatchable after a bank change.
+>
+> The stated cost — an extra table and a join — is real and accepted. What it buys is larger: partial states become structurally impossible (the row exists or it does not), and `is_sepa_valid` collapses from a multi-field expression written four inconsistent ways across the codebase into a single lookup.
+>
+> The "complicates migration" objection does not apply: the system is pre-launch, with no mandates to migrate.
 
 ---
 

@@ -48,7 +48,7 @@ The organization requires that **all members have valid SEPA data before they ca
 
 ### Core Principles
 
-1. **SEPA status is derived, not stored**: Calculated from `iban IS NOT NULL AND mandate_reference IS NOT NULL`
+1. **SEPA status is derived, not stored**: ~~Calculated from `iban IS NOT NULL AND mandate_reference IS NOT NULL`~~ — **amended 2026-08-07**: derived from *whether the member has an active mandate*. Still derived rather than stored; the source changed. See [#164](https://github.com/dgloeckner/ruderbar/issues/164).
 2. **Terminal validates at login**: Card scan triggers SEPA check before showing products
 3. **Clear error message**: Member sees specific message directing them to admin
 4. **No grace period**: SEPA data required from day one (part of onboarding)
@@ -57,11 +57,23 @@ The organization requires that **all members have valid SEPA data before they ca
 
 ### SEPA Validity Check
 
+**Amended 2026-08-07.** The original check was:
+
 ```
 is_sepa_valid = (iban IS NOT NULL) AND (mandate_reference IS NOT NULL)
 ```
 
-No separate status field stored. Validity derived from existing fields.
+That predicate could not carry the weight this ADR puts on it. Under [ADR-0006](./0006-sepa-mandate-reference-strategy.md) the mandate reference was **auto-generated** the moment an IBAN was entered, so both fields became non-NULL together — and "has a valid SEPA mandate" collapsed to **"somebody typed an IBAN"**. Bar access was gated on data entry, not on a mandate existing.
+
+The check is now:
+
+```
+is_sepa_valid = member has an active mandate
+```
+
+where a mandate is a single record carrying reference, IBAN **and signature date** ([#164](https://github.com/dgloeckner/ruderbar/issues/164)). Still derived, still no stored status field — but now derived from something that reflects a real-world event: a member actually signed.
+
+This also removes a divergence this ADR's phrasing helped create. `Dashboard`'s raw SQL implemented the check as `iban IS NULL OR mandate_reference IS NULL`, while `MemberDto`, `previewSettlement()`, `SepaExportService` and `processBatch()` all used `empty()`. A member with `iban = ''` therefore counted as **valid** on the dashboard and **invalid** everywhere else. One lookup replaces four expressions.
 
 ### Terminal Login Flow
 
