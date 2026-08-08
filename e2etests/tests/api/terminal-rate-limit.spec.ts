@@ -17,10 +17,10 @@ import { TEST_CREDENTIALS } from '../../config/test-credentials';
  *          -e "TRUNCATE terminal_auth_attempts;"
  *
  *   3. Run serially (parallel workers would race the rate limit counter):
- *        npm test -- tests/api/terminal-rate-limit.spec.ts --workers=1
+ *        npm run test:rate-limit -- --grep "Terminal auth"
  *
- * These tests are excluded from normal `npm test` runs (see playwright.config.ts testIgnore).
- * They skip automatically if rate limiting appears to be disabled in the backend.
+ * These tests live in the `rate-limit` project, which no default run includes —
+ * `npm test` names its projects explicitly and api-tests ignores this file.
  */
 
 test.describe.configure({ mode: 'serial' });

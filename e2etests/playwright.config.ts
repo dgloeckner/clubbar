@@ -47,9 +47,12 @@ export default defineConfig({
     {
       name: 'api-tests',
       testDir: './tests/api',
-      // Exclude serial rate-limit tests — they require an empty terminal_auth_attempts table
-      // and must be run explicitly: npm test -- tests/api/terminal-rate-limit.spec.ts --workers=1
-      testIgnore: /terminal-rate-limit\.spec\.ts/,
+      // Exclude serial rate-limit tests — they require an empty attempts table and
+      // the corresponding DISABLE_*_RATE_LIMITING flag removed from docker-compose.yml.
+      // Run explicitly, e.g.:
+      //   npm test -- tests/api/terminal-rate-limit.spec.ts --workers=1
+      //   npm test -- tests/api/auth-rate-limit.spec.ts --workers=1
+      testIgnore: /(terminal-rate-limit|auth-rate-limit)\.spec\.ts/,
       use: {
         // No browser needed for API tests
       },
@@ -89,6 +92,18 @@ export default defineConfig({
         baseURL: process.env.TERMINAL_URL || 'http://localhost:5174',
         hasTouch: true,
       },
+    },
+
+    // Serial rate-limit tests — excluded from api-tests above, and not part of the
+    // `npm test` project list, because they deliberately exhaust an attempt window
+    // and would then 429 every other test's login. Run them on their own, against
+    // a truncated attempts table and with the matching DISABLE_*_RATE_LIMITING flag
+    // removed from docker-compose.yml:
+    //   npm run test:rate-limit
+    {
+      name: 'rate-limit',
+      testDir: './tests/api',
+      testMatch: /(terminal-rate-limit|auth-rate-limit)\.spec\.ts/,
     },
 
     // Package smoke tests - only run when PACKAGE_TEST=1

@@ -6,13 +6,13 @@ namespace App\Modules\Auth\Controllers;
 
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Auth\Services\TotpService;
+use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Shared\Services\AuditService;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Validation\Validator;
-use PDO;
 use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -21,6 +21,12 @@ class AuthController
 {
     use JsonResponder;
 
+    /**
+     * Failed TOTP codes tolerated within one MFA-pending session before it is
+     * destroyed and the password must be entered again (ruling #145).
+     */
+    public const MFA_MAX_ATTEMPTS = 5;
+
     public function __construct(
         private AuthService $authService,
         private AdminUsersService $adminUsersService,
@@ -28,7 +34,7 @@ class AuthController
         private TotpService $totpService,
         private AuditService $auditService,
         private Validator $validator,
-        private PDO $pdo,
+        private LoginAttemptsRepository $loginAttempts,
     ) {}
 
     public function login(Request $request, Response $response): Response
@@ -45,10 +51,8 @@ class AuthController
         $admin = $this->authService->authenticate($body['email'], $body['password']);
 
         if (!$admin) {
-            // Record failed login attempt for rate limiting
-            $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
-            $stmt = $this->pdo->prepare('INSERT INTO login_attempts (ip_address, email) VALUES (:ip, :email)');
-            $stmt->execute(['ip' => $ip, 'email' => $body['email']]);
+            // Record failed login attempt against both rate-limit dimensions
+            $this->loginAttempts->record($this->clientIp($request), $body['email']);
 
             $this->auditService->log(
                 action: AuditAction::LOGIN_FAILED,
@@ -58,10 +62,9 @@ class AuthController
             return $this->json($response, ['error' => 'invalid_credentials', 'message' => 'Invalid credentials'], 401);
         }
 
-        // Clear rate limit counter on successful password verification
-        $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
-        $stmt = $this->pdo->prepare('DELETE FROM login_attempts WHERE ip_address = :ip');
-        $stmt->execute(['ip' => $ip]);
+        // The attempt counter is NOT cleared here. A correct password is only half
+        // an authentication; clearing it before the second factor let an attacker
+        // mint a fresh MFA window on demand and brute-force TOTP forever (#78).
 
         // Start session and regenerate ID to prevent session fixation
         if (session_status() === PHP_SESSION_NONE) {
@@ -73,13 +76,21 @@ class AuthController
         // Branch 1: TOTP enrolled — issue MFA-pending session, do not authenticate yet
         if ((int) ($admin['totp_enabled'] ?? 0) === 1) {
             $_SESSION['mfa_pending_user_id'] = $admin['id'];
+            // Kept alongside the id so the MFA rate limiter can resolve the account
+            // under attack before the controller runs.
+            $_SESSION['mfa_pending_email'] = $admin['email'];
             $_SESSION['mfa_pending_expires'] = time() + 300; // 5 minutes TTL
+            $_SESSION['mfa_failed_attempts'] = 0;
             unset($_SESSION['admin_user_id'], $_SESSION['csrf_token'], $_SESSION['totp_setup_required']);
 
             return $this->json($response, ['requiresMfa' => true]);
         }
 
-        // Branch 2: TOTP not enrolled — full session with mandatory setup gate
+        // Branch 2: TOTP not enrolled — full session with mandatory setup gate.
+        // This is a completed authentication (there is no second factor to pass),
+        // so the account's attempt rows are forgiven here.
+        $this->loginAttempts->clearForEmail($admin['email']);
+
         $_SESSION['admin_user_id'] = $admin['id'];
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         $_SESSION['totp_setup_required'] = true;
@@ -99,8 +110,13 @@ class AuthController
     }
 
     /**
-     * POST /api/auth/mfa (public)
+     * POST /api/auth/mfa (public, rate-limited)
      * Exchange a valid MFA-pending session + TOTP code for a fully authenticated session.
+     *
+     * Guessing is bounded on two levels (ruling #145): the pending session dies
+     * after MFA_MAX_ATTEMPTS bad codes, and every bad code is also written to
+     * login_attempts. The second is what closes the re-mint loop — a counter that
+     * outlives the session an attacker can throw away and re-create at will.
      */
     public function mfa(Request $request, Response $response): Response
     {
@@ -113,7 +129,7 @@ class AuthController
         $pendingExpires = $_SESSION['mfa_pending_expires'] ?? 0;
 
         if (!$pendingUserId || time() > $pendingExpires) {
-            return $this->json($response, ['error' => 'invalid_credentials', 'message' => 'MFA session expired or not found'], 401);
+            return $this->json($response, ['error' => 'mfa_session_expired', 'message' => 'MFA session expired or not found'], 401);
         }
 
         $body = $request->getParsedBody() ?? [];
@@ -136,15 +152,24 @@ class AuthController
 
         $secret = $this->totpService->decrypt($encryptedSecret);
         if ($secret === false || !$this->totpService->verifyCode($secret, $body['code'])) {
-            // Do not destroy MFA-pending session — user may retry within TTL
-            return $this->json($response, ['error' => 'invalid_credentials', 'message' => 'Invalid TOTP code'], 401);
+            return $this->rejectMfaCode($request, $response, $admin);
         }
 
         // Upgrade to fully authenticated session
         session_regenerate_id(true);
         $_SESSION['admin_user_id'] = $admin['id'];
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-        unset($_SESSION['mfa_pending_user_id'], $_SESSION['mfa_pending_expires'], $_SESSION['totp_setup_required']);
+        unset(
+            $_SESSION['mfa_pending_user_id'],
+            $_SESSION['mfa_pending_email'],
+            $_SESSION['mfa_pending_expires'],
+            $_SESSION['mfa_failed_attempts'],
+            $_SESSION['totp_setup_required'],
+        );
+
+        // Full authentication reached — only now are this account's attempts forgiven,
+        // and only this account's: rows for other admins on the same IP keep counting.
+        $this->loginAttempts->clearForEmail($admin['email']);
 
         $this->adminUsersRepository->updateById($admin['id'], ['last_login_at' => date('Y-m-d H:i:s')]);
 
@@ -160,6 +185,50 @@ class AuthController
             'admin' => $this->formatAdmin($admin, true),
             'csrf_token' => $_SESSION['csrf_token'],
         ]);
+    }
+
+    /**
+     * A wrong TOTP code: record it on both rate-limit dimensions, audit it, and
+     * count it against the pending session's allowance.
+     *
+     * Below the cap the session survives so a user who fat-fingered a digit can
+     * retry within the TTL. At the cap the pending state is destroyed and the
+     * password must be entered again — which now runs into the rate limiter,
+     * because the failures were persisted rather than thrown away with the session.
+     */
+    private function rejectMfaCode(Request $request, Response $response, array $admin): Response
+    {
+        $this->loginAttempts->record($this->clientIp($request), $admin['email']);
+
+        $this->auditService->log(
+            action: AuditAction::LOGIN_FAILED,
+            entityType: EntityType::ADMIN_USER,
+            entityId: $admin['id'],
+        );
+
+        $failures = ((int) ($_SESSION['mfa_failed_attempts'] ?? 0)) + 1;
+        $_SESSION['mfa_failed_attempts'] = $failures;
+
+        if ($failures >= self::MFA_MAX_ATTEMPTS) {
+            unset(
+                $_SESSION['mfa_pending_user_id'],
+                $_SESSION['mfa_pending_email'],
+                $_SESSION['mfa_pending_expires'],
+                $_SESSION['mfa_failed_attempts'],
+            );
+
+            return $this->json($response, [
+                'error' => 'mfa_attempts_exceeded',
+                'message' => 'Too many invalid codes. Please sign in again.',
+            ], 401);
+        }
+
+        return $this->json($response, ['error' => 'invalid_credentials', 'message' => 'Invalid TOTP code'], 401);
+    }
+
+    private function clientIp(Request $request): string
+    {
+        return $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
     }
 
     /**
