@@ -200,14 +200,27 @@ test.describe('Admin Members Page', () => {
 
     await authenticatedMembersPage.setStatusFilter('all')
 
-    // ── Sorting: created date column ────────────────────────────────────
+    // ── Sorting: created date and card UID columns (#125) ───────────────
+    // Both headers used to render a sort arrow over rows the API had ordered
+    // newest-first regardless, so the parameter sent and the resulting order
+    // are both asserted.
     await authenticatedMembersPage.expectCreatedColumnHeaderVisible()
     const dateBefore = await authenticatedMembersPage.getMemberCreatedDateAtRowIndex(0)
     expect(dateBefore).toMatch(/^\d{2}\.\d{2}\.\d{4}$/)
 
-    await authenticatedMembersPage.clickCreatedColumnHeader()
-    const dateAfter = await authenticatedMembersPage.getMemberCreatedDateAtRowIndex(0)
-    expect(dateAfter).toMatch(/^\d{2}\.\d{2}\.\d{4}$/)
+    await authenticatedMembersPage.clickCreatedColumnHeader('created_at_asc')
+    const dates = await authenticatedMembersPage.getMemberCreatedDates()
+    expect(dates.length).toBeGreaterThan(1)
+    const dateKeys = dates.map((d) => d.split('.').reverse().join(''))
+    expect(dateKeys).toEqual([...dateKeys].sort())
+
+    await authenticatedMembersPage.clickCardUidColumnHeader('card_uid_asc')
+    const cardUids = await authenticatedMembersPage.getMemberCardUids()
+    const withCard = cardUids.filter((uid) => uid !== '—')
+    expect(withCard.length).toBeGreaterThan(0)
+    expect(withCard).toEqual([...withCard].sort())
+    // Cardless members are listed after every member that has one.
+    expect(cardUids.slice(0, withCard.length)).toEqual(withCard)
 
     // ── Card-edit interaction: clear card → verify filter change ────────
     await authenticatedMembersPage.clickEditButtonForMember(`${prefix}A`)

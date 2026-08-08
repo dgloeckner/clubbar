@@ -68,4 +68,11 @@ export interface SettlementPreviewMember {
   iban?: string | null;
   /** @nullable */
   mandate_reference?: string | null;
+  /**
+   * Why this member is held. Present only on entries in the
+`held_members` bucket.
+
+   * @nullable
+   */
+  collection_hold_reason?: string | null;
 }

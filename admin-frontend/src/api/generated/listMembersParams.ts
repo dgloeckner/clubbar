@@ -98,7 +98,10 @@ has_card_uid?: ListMembersHasCardUid;
  */
 search?: string;
 /**
- * Sort field and direction
+ * Sort field and direction. `name` orders by last name then first
+name; `balance` orders by the unsettled balance; members without a
+card UID sort last in both `card_uid` directions.
+
  */
 sort_by?: ListMembersSortBy;
 };

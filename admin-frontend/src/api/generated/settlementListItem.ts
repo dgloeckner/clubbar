@@ -58,6 +58,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type { SettlementListItemMethod } from './settlementListItemMethod';
+import type { SettlementListItemStatus } from './settlementListItemStatus';
+import type { SettlementReversal } from './settlementReversal';
 
 export interface SettlementListItem {
   id?: string;
@@ -87,5 +89,31 @@ export interface SettlementListItem {
    * @nullable
    */
   cancellation_blocked_reason?: string | null;
+  /** Where the settlement stands, derived on every read from
+`is_cancelled`, the reversal rows, `submitted_at` and
+`exported_at` (ruling #148 §6). There is no status column, so
+nothing can drift out of step with it.
+ */
+  status?: SettlementListItemStatus;
+  /** Human-readable form of `status`. */
+  status_label?: string;
+  /** Whether a reverse request would currently be accepted — the exact
+mirror of `is_cancellable`. A settlement is one or the other,
+never both; a cancelled one is neither.
+ */
+  is_reversible?: boolean;
+  /**
+   * Human-readable reason reversal is unavailable. Null when
+`is_reversible` is true.
+
+   * @nullable
+   */
+  reversal_blocked_reason?: string | null;
+  /** How many of this settlement's members carry a reversal. */
+  reversed_member_count?: number;
+  /** The reversal events, present on the single-settlement read. The
+list endpoint does not join them and returns an empty array.
+ */
+  reversals?: SettlementReversal[];
   created_at?: string;
 }

@@ -69,10 +69,18 @@ the settlement and from the file; the remedy is the opposite of
 the ineligible bucket's — pay them back (ruling #141, § 812 BGB).
  */
   credit_members?: SettlementPreviewMember[];
+  /** Members on collection hold after a returned direct debit (ruling
+#148 §4). Excluded from the run until an admin clears the hold;
+each entry carries `collection_hold_reason` so the exclusion is
+never silent.
+ */
+  held_members?: SettlementPreviewMember[];
   eligible_total?: number;
   ineligible_total?: number;
   /** Sum of the credit bucket; negative, or zero if nobody is in credit */
   credit_total?: number;
+  /** Sum of what the held members owe */
+  held_total?: number;
   /** Members placed in any bucket */
   member_count?: number;
   warnings?: string[];

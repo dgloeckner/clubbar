@@ -346,10 +346,36 @@ class MembersRepository
         $balanceSort = '(SELECT COALESCE(SUM(t.amount_cents), 0) FROM transactions t'
             . ' WHERE t.member_id = m.id'
             . ' AND ' . UnsettledTransactions::UNSETTLED . ')';
-        $columnMap = ['id' => 'm.id', 'first_name' => 'm.first_name', 'last_name' => 'm.last_name', 'balance' => $balanceSort, 'created_at' => 'm.created_at'];
+        // Each key maps to the columns it orders by, in order. `name` is what
+        // the admin list sends for its Name column, and a member list sorted by
+        // name is expected to read like a phone book: last name first, first
+        // name to break the tie.
+        $columnMap = [
+            'id' => ['m.id'],
+            'name' => ['m.last_name', 'm.first_name'],
+            'first_name' => ['m.first_name'],
+            'last_name' => ['m.last_name'],
+            'card_uid' => ['m.card_uid'],
+            'balance' => [$balanceSort],
+            'created_at' => ['m.created_at'],
+        ];
         $col = SafeQuery::column($sortKey, array_keys($columnMap));
-        $sortColumn = $columnMap[$col];
         $dir = SafeQuery::direction($sortOrder);
+
+        $terms = array_map(fn(string $column): string => "{$column} {$dir}", $columnMap[$col]);
+
+        // Most members have no card, and MariaDB sorts NULL first ascending —
+        // which would fill the first page of a "sort by Card-UID" with rows
+        // that have none. Cardless members go last in both directions instead.
+        if ($col === 'card_uid') {
+            array_unshift($terms, '(m.card_uid IS NULL) ASC');
+        }
+
+        // `created_at` has second resolution and an import creates many members
+        // inside the same second, so an id tiebreaker is what keeps a row from
+        // appearing on two pages of the same listing — or on neither.
+        $terms[] = 'm.id ASC';
+        $orderBy = implode(', ', $terms);
 
         $from = 'FROM members m ' . self::MANDATE_JOIN . " {$whereClause}";
 
@@ -359,7 +385,7 @@ class MembersRepository
 
         $dataParams = array_merge($params, [$limit, $offset]);
         $stmt = $this->db->prepare(
-            'SELECT m.*, ' . self::MANDATE_COLUMNS . " {$from} ORDER BY {$sortColumn} {$dir} LIMIT ? OFFSET ?"
+            'SELECT m.*, ' . self::MANDATE_COLUMNS . " {$from} ORDER BY {$orderBy} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
         $items = $stmt->fetchAll();

@@ -60,11 +60,13 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 import type {
   AnonymizeMember200,
   AnonymizeMemberBody,
+  CollectionHold,
   ExportMemberDataBody,
   GdprExport,
   ImportMembersConfirm201,
   ImportMembersConfirmBody,
   ImportMembersPreviewBody,
+  ListCollectionHolds200,
   ListCreditBalances200,
   ListMembers200,
   ListMembersParams,
@@ -138,6 +140,40 @@ const listCreditBalances = (
  options?: SecondParameter<typeof customInstance<ListCreditBalances200>>,) => {
       return customInstance<ListCreditBalances200>(
       {url: `/admin/members/credit-balances`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * Standing listing of every member the next collection run will skip
+after a returned direct debit, and why (ruling #148 §4).
+
+It sits beside credit balances for the same reason that one does: an
+exclusion nobody can see is an exclusion nobody ever resolves.
+
+ * @summary List members on collection hold
+ */
+const listCollectionHolds = (
+    
+ options?: SecondParameter<typeof customInstance<ListCollectionHolds200>>,) => {
+      return customInstance<ListCollectionHolds200>(
+      {url: `/admin/members/collection-holds`, method: 'GET'
+    },
+      options);
+    }
+  /**
+ * Let the next collection run reach this member again (ruling #148 §5).
+
+`collection_hold_reason` is retained so the record of why the member
+was held survives; `cleared_at` and `cleared_by_admin_id` say who
+released them.
+
+ * @summary Clear a member's collection hold
+ */
+const clearCollectionHold = (
+    memberId: string,
+ options?: SecondParameter<typeof customInstance<CollectionHold>>,) => {
+      return customInstance<CollectionHold>(
+      {url: `/admin/members/${memberId}/collection-hold/clear`, method: 'POST'
     },
       options);
     }
@@ -325,10 +361,12 @@ const getAdminSepaMandateTemplate = (
     },
       options);
     }
-  return {listMembers,createMember,listCreditBalances,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm,uploadMandateDocument,getMandateDocument,deleteMandateDocument,getAdminSepaMandateTemplate}};
+  return {listMembers,createMember,listCreditBalances,listCollectionHolds,clearCollectionHold,getMember,updateMember,exportMemberData,anonymizeMember,importMembersPreview,importMembersConfirm,uploadMandateDocument,getMandateDocument,deleteMandateDocument,getAdminSepaMandateTemplate}};
 export type ListMembersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listMembers']>>>
 export type CreateMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['createMember']>>>
 export type ListCreditBalancesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listCreditBalances']>>>
+export type ListCollectionHoldsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['listCollectionHolds']>>>
+export type ClearCollectionHoldResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['clearCollectionHold']>>>
 export type GetMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['getMember']>>>
 export type UpdateMemberResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['updateMember']>>>
 export type ExportMemberDataResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getMembers>['exportMemberData']>>>

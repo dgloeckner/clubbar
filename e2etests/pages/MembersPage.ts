@@ -533,20 +533,55 @@ export class MembersPage extends BasePage {
     await expect(header).toBeVisible()
   }
 
-  async clickCreatedColumnHeader() {
-    // Click the "Created" column header to toggle sort
-    const header = this.page.getByTestId('members-table-header-created')
-    await expect(header).toBeVisible()
-    await header.click()
+  async clickCreatedColumnHeader(expectedSortBy: 'created_at_asc' | 'created_at_desc' = 'created_at_asc') {
+    await this.clickSortableHeader('members-table-header-created', expectedSortBy)
+  }
 
-    // Wait for API to process sort change
-    await this.page.waitForResponse((resp) => resp.url().includes('/api/admin/members') && resp.status() === 200)
+  async clickCardUidColumnHeader(expectedSortBy: 'card_uid_asc' | 'card_uid_desc' = 'card_uid_asc') {
+    await this.clickSortableHeader('members-table-header-card-uid', expectedSortBy)
+  }
+
+  /**
+   * Click a sortable column header and wait for the list it asks the API for.
+   *
+   * The expected `sort_by` is part of the contract, not a detail: the Card-UID
+   * header used to send `created_at_desc` whatever it displayed (#125).
+   */
+  private async clickSortableHeader(testId: string, expectedSortBy: string) {
+    const header = this.page.getByTestId(testId)
+    await expect(header).toBeVisible()
+
+    const responsePromise = this.page.waitForResponse((resp) => {
+      try {
+        const url = new URL(resp.url())
+        return (
+          url.pathname.includes('/api/admin/members') &&
+          url.searchParams.get('sort_by') === expectedSortBy &&
+          resp.status() === 200
+        )
+      } catch {
+        return false
+      }
+    })
+
+    await header.click()
+    await responsePromise
   }
 
   async getMemberCreatedDateAtRowIndex(rowIndex: number): Promise<string> {
     // Get created date at specific row index
     const dateCell = this.page.locator('[data-testid^="members-table-cell-created-"]').nth(rowIndex)
     return await dateCell.textContent() || ''
+  }
+
+  /** The created dates of the visible rows, top to bottom, as rendered. */
+  async getMemberCreatedDates(): Promise<string[]> {
+    return await this.page.locator('[data-testid^="members-table-cell-created-"]').allTextContents()
+  }
+
+  /** The card UIDs of the visible rows, top to bottom; cardless rows render an em dash. */
+  async getMemberCardUids(): Promise<string[]> {
+    return await this.page.getByTestId('member-card-uid').allTextContents()
   }
 
   /**

@@ -57,17 +57,55 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { SettlementReversalReason } from './settlementReversalReason';
 
-export type ListMembersSortBy = typeof ListMembersSortBy[keyof typeof ListMembersSortBy];
+/**
+ * One member's collection undone after the money moved (ruling #148).
+Append-only: there is no update and no delete, because the derived
+settlement status is computed from these rows.
 
+ */
+export interface SettlementReversal {
+  id?: string;
+  settlement_id?: string;
+  member_id?: string;
+  /** @nullable */
+  first_name?: string | null;
+  /** @nullable */
+  last_name?: string | null;
+  /** `bank_return` places the member on collection hold; `club_error`
+does not, because re-collection is the point of recording one.
 
-export const ListMembersSortBy = {
-  name_asc: 'name_asc',
-  name_desc: 'name_desc',
-  card_uid_asc: 'card_uid_asc',
-  card_uid_desc: 'card_uid_desc',
-  balance_asc: 'balance_asc',
-  balance_desc: 'balance_desc',
-  created_at_asc: 'created_at_asc',
-  created_at_desc: 'created_at_desc',
-} as const;
+There is deliberately no finer classification of *why* the bank
+returned it: in Germany AM04, AC04, MD07 and RR01-04 are
+suppressed for data-protection reasons and collapse into
+"sonstige Gründe".
+ */
+  reason?: SettlementReversalReason;
+  reason_label?: string;
+  /** The sum of that member's items in the settlement. Derived, never
+supplied by the caller.
+ */
+  amount_cents?: number;
+  amount_eur?: number;
+  /**
+   * The reference on the return booking, capped at the ISO 20022
+length. The original Verwendungszweck never comes back — DK
+replaces `SVWZ` with the constant RETURN/REFUND — so this is the
+only thread back to the return.
+
+   * @maxLength 35
+   * @nullable
+   */
+  bank_reference?: string | null;
+  /**
+   * @maxLength 1000
+   * @nullable
+   */
+  notes?: string | null;
+  /** @nullable */
+  created_by_admin_id?: string | null;
+  /** @nullable */
+  created_by_admin_name?: string | null;
+  created_at?: string;
+}
