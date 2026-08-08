@@ -243,17 +243,21 @@ test.describe('Transactions Upload Endpoint', () => {
   });
 
   /**
-   * Issue #82, the sale-loss case. `transaction_type` is client-controlled and
-   * a value outside the ENUM is a row MariaDB refuses. It used to be swallowed
+   * Issue #82, the sale-loss case: a row MariaDB refuses used to be swallowed
    * by `INSERT IGNORE` and returned in `accepted_ids`, at which point the
    * terminal purged a served drink from its offline queue and no record of the
    * sale existed anywhere. A refused row is reported as rejected.
+   *
+   * The refusal is provoked with an over-long `dispenser_tx_id` (the column is
+   * VARCHAR(16)). It used to be provoked with a `transaction_type` outside the
+   * ENUM, which no longer reaches SQL at all: #79's allowlist forces that field
+   * server-side. The vehicle changed; what #82 asserts did not.
    */
   test('POST /api/sync/transactions never accepts a transaction the database refuses', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
     const product = await createProduct(authenticatedRequest);
     const transaction = createValidTransaction(member.id, product.id, {
-      transaction_type: 'not_a_real_type',
+      dispenser_tx_id: 'D'.repeat(64),
     });
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
@@ -282,7 +286,7 @@ test.describe('Transactions Upload Endpoint', () => {
     const good = createValidTransaction(member.id, product.id, { amount_cents: 350 });
     const refused = createValidTransaction(member.id, product.id, {
       amount_cents: 700,
-      transaction_type: 'not_a_real_type',
+      dispenser_tx_id: 'D'.repeat(64),
     });
 
     const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
@@ -1321,5 +1325,181 @@ test.describe('Transaction Export Endpoint', () => {
     expect(storedTransaction.dispenser_tx_id).toBeNull();
     expect(storedTransaction.dispenser_requested).toBeNull();
     expect(storedTransaction.dispenser_actual).toBeNull();
+  });
+});
+
+/**
+ * Issue #79 / ruling #144 §3 — field authority on the sync path.
+ *
+ * `processBatch` used to hand the whole client array to the repository, which
+ * read `transaction_type`, `related_transaction_id` and `created_by_admin_id`
+ * straight out of it. A terminal token could therefore forge a storno; and
+ * since #169 made the UNIQUE index on `related_transaction_id` the arbiter of
+ * "stornoable at most once", the forged row *consumed the slot* and the
+ * treasurer's genuine storno of that purchase was refused forever.
+ *
+ * These are the regression tests for the allowlist that closes it. They assert
+ * stored state, not just the 201 — the whole defect was a happily-accepted
+ * batch writing something other than what the contract says it may write.
+ */
+test.describe('Terminal sync field authority (#79)', () => {
+  async function storedTransaction(authenticatedRequest, memberId: string, transactionId: string) {
+    const response = await authenticatedRequest.get(`/api/admin/members/${memberId}/transactions`);
+    expect(response.ok()).toBeTruthy();
+
+    const history = await response.json();
+    const stored = history.transactions.find((tx) => tx.id === transactionId);
+    expect(stored).toBeDefined();
+    return stored;
+  }
+
+  test('a batch claiming transaction_type storno stores a purchase', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, {
+      transaction_type: 'storno',
+    });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.status()).toBe(201);
+    expect((await response.json()).accepted_ids).toContain(transaction.id);
+
+    const stored = await storedTransaction(authenticatedRequest, member.id, transaction.id);
+    expect(stored.transaction_type).toBe('purchase');
+  });
+
+  test('a batch claiming transaction_type payout stores a purchase', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, {
+      transaction_type: 'payout',
+    });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.status()).toBe(201);
+
+    const stored = await storedTransaction(authenticatedRequest, member.id, transaction.id);
+    expect(stored.transaction_type).toBe('purchase');
+  });
+
+  /**
+   * The denial-of-correction guard. It is the one that will silently rot if
+   * only the enum is fixed: nulling the link is what keeps the reversal slot
+   * free for the treasurer.
+   */
+  test('a supplied related_transaction_id is stored as null and the purchase stays stornoable', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 1000);
+
+    const product = await createProduct(authenticatedRequest);
+    const forged = createValidTransaction(member.id, product.id, {
+      transaction_type: 'storno',
+      related_transaction_id: purchaseId,
+    });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [forged] },
+    });
+    expect(response.status()).toBe(201);
+
+    const stored = await storedTransaction(authenticatedRequest, member.id, forged.id);
+    expect(stored.related_transaction_id).toBeNull();
+
+    // The reversal slot was never consumed: the treasurer can still storno.
+    const storno = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: 'Bernd scanned Annas card by mistake' },
+    });
+    expect(storno.status()).toBe(201);
+    expect((await storno.json()).related_transaction_id).toBe(purchaseId);
+  });
+
+  test('a supplied created_by_admin_id is stored as null', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, {
+      created_by_admin_id: randomUUID(),
+    });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+    expect(response.status()).toBe(201);
+
+    const stored = await storedTransaction(authenticatedRequest, member.id, transaction.id);
+    expect(stored.created_by_admin_id).toBeNull();
+    // ...and the row still carries the terminal that actually booked it.
+    expect(stored.created_by_terminal_id).not.toBeNull();
+  });
+
+  test('a client-supplied notes field never reaches the row', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, {
+      notes: 'Refund approved by the treasurer',
+    });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+    expect(response.status()).toBe(201);
+
+    const stored = await storedTransaction(authenticatedRequest, member.id, transaction.id);
+    expect(stored.notes).toBeNull();
+  });
+
+  /**
+   * Ruling #144 §2: an implausible sale time is stored *exactly as sent* and
+   * flagged, never rewritten and never rejected. Clamping it would make a dead
+   * clock battery indistinguishable from a probing attacker, and refusing it
+   * would cost the club an evening's revenue over a hardware fault. The
+   * unforgeable anchor is `received_at`, which the server stamps.
+   *
+   * The backdating attack itself is already defused: settlement sweeps the
+   * member's entire unsettled position regardless of date (#141), so the
+   * backdated sale is still collected — asserted here as the balance.
+   */
+  test('a backdated sale time is stored as sent, accepted, and still owed', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, {
+      amount_cents: 350,
+      created_at: '2019-01-02T03:04:05Z',
+    });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+    expect(body.accepted_ids).toContain(transaction.id);
+    expect(body.member_balances[member.id]).toBe(350);
+
+    const stored = await storedTransaction(authenticatedRequest, member.id, transaction.id);
+    expect(stored.created_at).toContain('2019-01-02T03:04:05');
+  });
+
+  test('a sale time in the far future is stored as sent and accepted', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, {
+      created_at: '2036-05-06T07:08:09Z',
+    });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+
+    expect(response.status()).toBe(201);
+    expect((await response.json()).accepted_ids).toContain(transaction.id);
+
+    const stored = await storedTransaction(authenticatedRequest, member.id, transaction.id);
+    expect(stored.created_at).toContain('2036-05-06T07:08:09');
   });
 });

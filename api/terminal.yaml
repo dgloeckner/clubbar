@@ -890,6 +890,16 @@ components:
         storno via the Admin API, naming the transaction it reverses (`related_transaction_id`,
         GoBD Rz. 64). Example: Member charged €5.00 by mistake → Admin stornos that transaction,
         then optionally records a new purchase with the correct amount.
+
+        **Field authority** (#79, ruling #144 §3): the fields below are the *only* ones a terminal
+        may send. `transaction_type`, `related_transaction_id`, `created_by_admin_id`,
+        `created_by_terminal_id` and `received_at` are server-owned; the sync endpoint builds its
+        insert from an allowlist and would discard them regardless. `additionalProperties: false`
+        turns "the spec lists these fields" into "the spec permits these fields", so future field
+        creep on this endpoint is a test failure rather than a silent capability. It is defence in
+        depth *behind* the server-side allowlist, never a substitute: request validation is
+        non-enforcing outside test, so the invariant cannot live in middleware.
+      additionalProperties: false
       properties:
         id:
           type: string
@@ -918,6 +928,26 @@ components:
           description: |
             Timestamp when transaction occurred (immutable).
             Terminal time (UTC). Reflects actual time transaction was created, not when uploaded.
+
+            Stored exactly as sent and flagged when implausible — never rewritten and never
+            rejected (ruling #144 §2). Clamping would make a flat clock battery and a probing
+            attacker indistinguishable; rejecting would refuse an evening's real revenue over a
+            hardware fault. The server's own `received_at` is the anchor beside it.
+        dispenser_tx_id:
+          type: string
+          maxLength: 16
+          nullable: true
+          description: Dispenser hardware transaction reference, when the product was dispensed.
+        dispenser_requested:
+          type: integer
+          nullable: true
+          description: Quantity asked of the dispenser, counted in whatever it dispenses.
+        dispenser_actual:
+          type: integer
+          nullable: true
+          description: |
+            Quantity the dispenser reports it actually delivered, counted in whatever it dispenses.
+            May differ from `dispenser_requested` when the hardware falls short.
       required:
         - id
         - member_id

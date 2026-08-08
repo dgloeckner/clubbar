@@ -354,6 +354,116 @@ class TransactionsServiceTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // processBatch — implausible sale times (#79, ruling #144 §2)
+    //
+    // occurred_at is terminal-owned and stays exactly as sent: clamping it
+    // would make a dead clock battery indistinguishable from a probing
+    // attacker, and rejecting would cost the club an evening's revenue over a
+    // hardware fault (the failure mode ruling #143 forbids). The server's
+    // answer is a flag, and received_at is the unforgeable anchor beside it.
+    // ------------------------------------------------------------------
+
+    private function saleAt(string $occurredAt): array
+    {
+        return ['id' => 'tx-1', 'member_id' => 'member-1', 'amount_cents' => 350, 'created_at' => $occurredAt];
+    }
+
+    private function expectAccepted(array $tx): void
+    {
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember('member-1'));
+        $this->transactionsRepository->method('insertTransaction')->willReturn($tx);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(350);
+    }
+
+    public function test_processBatch_flags_a_sale_time_absurdly_far_in_the_past(): void
+    {
+        $tx = $this->saleAt('2019-01-02T03:04:05Z');
+        $this->expectAccepted($tx);
+
+        $this->logger->expects($this->once())
+            ->method('warning')
+            ->with(
+                $this->stringContains('implausible sale time'),
+                $this->callback(fn (array $ctx) => $ctx['transaction_id'] === 'tx-1'
+                    && $ctx['occurred_at'] === '2019-01-02T03:04:05Z'),
+            );
+
+        $result = $this->service->processBatch([$tx]);
+
+        // Flagged, not refused.
+        $this->assertSame(['tx-1'], $result->acceptedIds);
+        $this->assertSame(0, $result->rejectedCount);
+    }
+
+    public function test_processBatch_flags_a_sale_time_in_the_far_future(): void
+    {
+        $tx = $this->saleAt((new \DateTimeImmutable('+30 days'))->format(DATE_ATOM));
+        $this->expectAccepted($tx);
+
+        $this->logger->expects($this->once())
+            ->method('warning')
+            ->with($this->stringContains('implausible sale time'), $this->anything());
+
+        $result = $this->service->processBatch([$tx]);
+
+        $this->assertSame(['tx-1'], $result->acceptedIds);
+    }
+
+    public function test_processBatch_stores_an_implausible_sale_time_exactly_as_sent(): void
+    {
+        $tx = $this->saleAt('2019-01-02T03:04:05Z');
+
+        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember('member-1'));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(350);
+
+        // Never rewritten on its way to the insert — ADR-0004's ledger records
+        // what the terminal claimed, and the flag sits beside it.
+        $this->transactionsRepository->expects($this->once())
+            ->method('insertTransaction')
+            ->with($this->callback(fn (array $row) => $row['created_at'] === '2019-01-02T03:04:05Z'))
+            ->willReturn($tx);
+
+        $this->service->processBatch([$tx]);
+    }
+
+    public function test_processBatch_does_not_flag_a_sale_time_from_an_offline_weekend(): void
+    {
+        // ADR-0012: a batch legitimately arrives days late carrying real sale
+        // times. Flagging those would drown the real signal.
+        $tx = $this->saleAt((new \DateTimeImmutable('-3 days'))->format(DATE_ATOM));
+        $this->expectAccepted($tx);
+
+        $this->logger->expects($this->never())->method('warning');
+
+        $result = $this->service->processBatch([$tx]);
+
+        $this->assertSame(['tx-1'], $result->acceptedIds);
+    }
+
+    public function test_processBatch_does_not_flag_a_sale_time_a_few_minutes_ahead(): void
+    {
+        // Ordinary terminal clock skew, not a claim about the future.
+        $tx = $this->saleAt((new \DateTimeImmutable('+5 minutes'))->format(DATE_ATOM));
+        $this->expectAccepted($tx);
+
+        $this->logger->expects($this->never())->method('warning');
+
+        $this->service->processBatch([$tx]);
+    }
+
+    public function test_processBatch_does_not_flag_an_unparseable_sale_time(): void
+    {
+        // Nothing to judge: the database refuses the row and #82 reports it as
+        // unstorable, which is a rejection rather than a flag.
+        $tx = $this->saleAt('not-a-timestamp');
+        $this->expectAccepted($tx);
+
+        $this->logger->expects($this->never())->method('warning');
+
+        $this->service->processBatch([$tx]);
+    }
+
+    // ------------------------------------------------------------------
     // storno
     // ------------------------------------------------------------------
 
