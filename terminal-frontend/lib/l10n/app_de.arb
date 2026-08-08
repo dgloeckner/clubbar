@@ -687,5 +687,24 @@
   "errorStatusLoadFailed": "Der Terminal-Status konnte nicht geladen werden – bitte erneut versuchen.",
   "@errorStatusLoadFailed": {
     "description": "TerminalErrorKey.statusLoadFailed — status modal could not gather terminal state"
+  },
+  "failedSalesWarning": "{count, plural, =1{1 Verkauf wurde nicht gespeichert – bitte einem Admin melden} other{{count} Verkäufe wurden nicht gespeichert – bitte einem Admin melden}}",
+  "@failedSalesWarning": {
+    "description": "Persistent staff warning while quarantined sales exist (issue #152)",
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "failedSalesTitle": "Nicht gespeicherte Verkäufe",
+  "@failedSalesTitle": {
+    "description": "Title of the failed-sales screen"
+  },
+  "failedSalesInstruction": "Diese Verkäufe sind nicht beim Server angekommen und werden nicht abgerechnet. Bitte einem Admin melden.",
+  "@failedSalesInstruction": {
+    "description": "What staff must do about quarantined sales"
+  },
+  "failedSalesUnknownMember": "Unbekanntes Mitglied",
+  "@failedSalesUnknownMember": {
+    "description": "Shown instead of a name when the local cache no longer knows the member"
   }
 }

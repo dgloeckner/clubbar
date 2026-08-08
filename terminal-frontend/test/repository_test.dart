@@ -1022,6 +1022,55 @@ void main() {
       expect(txns.length, equals(1));
       expect(txns.first.id, equals('txn-2'));
     });
+
+    group('quarantine', () {
+      Future<void> insertUnsynced(String id, {String member = 'member-1'}) async {
+        await db.into(db.transactionsLocal).insert(
+              TransactionsLocalCompanion(
+                id: Value(id),
+                memberId: Value(member),
+                amountCents: const Value(350),
+                transactionType: const Value('purchase'),
+                createdAt: const Value('2025-02-01T12:00:00Z'),
+                synced: const Value(0),
+              ),
+            );
+      }
+
+      test('a quarantined sale leaves the sync queue but is kept locally',
+          () async {
+        await createTestMember('member-1');
+        await insertUnsynced('txn-1');
+        await insertUnsynced('txn-2');
+
+        await repo.quarantineTransactions({'txn-1': 'unstorable'});
+
+        final queued = await repo.getUnsyncedTransactions();
+        expect(queued.map((t) => t.id), equals(['txn-2']));
+
+        final quarantined = await repo.getQuarantinedTransactions();
+        expect(quarantined.map((t) => t.id), equals(['txn-1']));
+        expect(quarantined.single.quarantineReason, equals('unstorable'));
+        expect(quarantined.single.quarantinedAt, isNotNull);
+      });
+
+      test('quarantining is idempotent — a repeated id keeps one row', () async {
+        await createTestMember('member-1');
+        await insertUnsynced('txn-1');
+
+        await repo.quarantineTransactions({'txn-1': 'unstorable'});
+        await repo.quarantineTransactions({'txn-1': 'unstorable'});
+
+        expect(await repo.getQuarantinedCount(), equals(1));
+      });
+
+      test('nothing quarantined means no staff warning', () async {
+        await createTestMember('member-1');
+        await insertUnsynced('txn-1');
+
+        expect(await repo.getQuarantinedCount(), equals(0));
+      });
+    });
   });
 
   group('SyncRepository', () {

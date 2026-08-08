@@ -15,6 +15,7 @@ import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/locale_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/quarantine_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
@@ -335,11 +336,18 @@ Future<Widget> buildTestApp(
   // Load products into provider so the UI has data
   await productsProvider.refreshProducts();
 
+  final quarantineProvider = QuarantineProvider(
+    transactionsRepo: transactionsRepo,
+    membersRepo: membersRepo,
+  );
+  await quarantineProvider.refresh();
+
   final syncProvider = SyncProvider(
     syncService: syncService,
     membersProvider: membersProvider,
     productsProvider: productsProvider,
     networkService: networkService,
+    quarantineProvider: quarantineProvider,
   );
 
   final cartProvider = CartProvider(
@@ -360,6 +368,7 @@ Future<Widget> buildTestApp(
     cartProvider: cartProvider,
     sessionController: sessionController,
     syncProvider: syncProvider,
+    quarantineProvider: quarantineProvider,
     membersRepository: membersRepo,
     transactionsRepository: transactionsRepo,
     configService: configService,

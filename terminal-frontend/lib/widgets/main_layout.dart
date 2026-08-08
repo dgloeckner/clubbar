@@ -7,6 +7,7 @@ import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/clubbar_header.dart';
+import 'package:clubbar_terminal/widgets/failed_sales_banner.dart';
 import 'package:clubbar_terminal/widgets/status_info_modal.dart';
 
 /// Main layout with persistent header across all screens.
@@ -75,14 +76,23 @@ class MainLayout extends StatelessWidget {
       body: Listener(
         behavior: HitTestBehavior.translucent,
         onPointerDown: (_) => session.recordActivity(),
-        child: Stack(
+        child: Column(
           children: [
-            child,
-            if (session.showTimeoutWarning)
-              _TimeoutWarningOverlay(
-                secondsLeft: session.warningSecondsLeft,
-                onContinue: session.recordActivity,
+            // Above everything, on every screen: a sale the backend refused is
+            // money nobody will ever bill unless staff act (issue #152).
+            const FailedSalesBanner(),
+            Expanded(
+              child: Stack(
+                children: [
+                  child,
+                  if (session.showTimeoutWarning)
+                    _TimeoutWarningOverlay(
+                      secondsLeft: session.warningSecondsLeft,
+                      onContinue: session.recordActivity,
+                    ),
+                ],
               ),
+            ),
           ],
         ),
       ),

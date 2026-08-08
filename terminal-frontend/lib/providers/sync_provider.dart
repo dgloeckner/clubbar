@@ -4,6 +4,7 @@ import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/error_signal.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/quarantine_provider.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/services/sync_service.dart';
 
@@ -15,6 +16,9 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
   final MembersProvider _membersProvider;
   final ProductsProvider _productsProvider;
   final NetworkService _networkService;
+
+  /// Optional: absent in tests and in headless setups that have no UI to warn.
+  final QuarantineProvider? _quarantineProvider;
 
   bool _isSyncing = false;
   bool _disposed = false;
@@ -29,10 +33,12 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
     required MembersProvider membersProvider,
     required ProductsProvider productsProvider,
     required NetworkService networkService,
+    QuarantineProvider? quarantineProvider,
   })  : _syncService = syncService,
         _membersProvider = membersProvider,
         _productsProvider = productsProvider,
-        _networkService = networkService;
+        _networkService = networkService,
+        _quarantineProvider = quarantineProvider;
 
   bool get isSyncing => _isSyncing;
   DateTime? get lastSyncTime => _lastSyncTime;
@@ -78,6 +84,10 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
         // Refresh other providers
         await _membersProvider.refreshMembers();
         await _productsProvider.refreshProducts();
+
+        // A sync cycle is the only thing that can quarantine a sale, so this
+        // is where the staff warning learns about one (issue #152).
+        await _quarantineProvider?.refresh();
 
         _lastSyncTime = DateTime.now();
         _retryCount = 0;

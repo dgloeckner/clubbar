@@ -46,3 +46,6 @@ app.*.map.json
 
 # OAS generated client
 lib/generated/
+
+# Test run artifacts (scripts/run-tests.sh)
+test-results/

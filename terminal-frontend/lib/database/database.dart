@@ -45,7 +45,7 @@ class ClubBarDatabase extends _$ClubBarDatabase {
   ClubBarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -141,6 +141,15 @@ class ClubBarDatabase extends _$ClubBarDatabase {
             await m.database.customStatement(
                 'UPDATE OR IGNORE "members_cache" SET "card_uid" = UPPER("card_uid") '
                 'WHERE "card_uid" IS NOT NULL AND "card_uid" <> UPPER("card_uid")');
+          }
+          if (from < 9) {
+            // Quarantine for permanently rejected sales (issue #152). A row
+            // the backend refuses can never be stored by resubmitting it, so
+            // it leaves the sync queue and waits here for staff to report.
+            await _addColumnIfNotExists(
+                m, 'transactions_local', 'quarantined_at', 'TEXT');
+            await _addColumnIfNotExists(
+                m, 'transactions_local', 'quarantine_reason', 'TEXT');
           }
         },
       );
