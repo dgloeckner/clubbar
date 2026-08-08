@@ -141,8 +141,12 @@ test.describe('MandateDocumentSection — upload and replace', () => {
     const secondResp = await secondUploadResponse
     const secondDoc = await secondResp.json()
     expect(secondDoc.original_filename).toBe('test-mandate.pdf')
-    // A genuinely new upload, not a stale re-render of the first response
-    expect(secondDoc.uploaded_at).not.toBe(firstDoc.uploaded_at)
+    // A genuinely new document, not the first row read back: the PDF is a few hundred
+    // bytes where the JPEG is megabytes. This used to compare `uploaded_at`, but that
+    // is `mandate_documents.updated_at` — a TIMESTAMP, so it has second resolution, and
+    // the replace happens well inside one second of the first upload whenever the runner
+    // is quick. Same second, same string, failed assertion, nothing actually wrong.
+    expect(secondDoc.file_size_bytes).not.toBe(firstDoc.file_size_bytes)
 
     await expect(page.getByTestId('mandate-document-stored')).toBeVisible()
 
