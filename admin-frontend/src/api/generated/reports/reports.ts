@@ -114,10 +114,15 @@ const exportReport = (
       options);
     }
   /**
- * Retrieve member ranking by consumption.
+ * Retrieve the anonymous member ranking by consumption.
+
+Rows are labelled by their ordinal position in this response
+("Member 1", "Member 2", …) and never by member name. The label is not
+stable across reports, so rows cannot be re-identified by
+cross-referencing two responses. There is no named mode: a named
+consumption ranking is a profile, which ADR-0029 prohibits.
 
 **Use Case**: UC-A51
-**Status**: Not implemented — action needed (2026-03-07 audit)
 
  * @summary Get member ranking
  */
@@ -131,7 +136,9 @@ const getMemberRanking = (
       options);
     }
   /**
- * Export the member ranking as CSV, with the same filters as the list endpoint.
+ * Export the anonymous member ranking as CSV, with the same filters as the
+list endpoint. The Member column carries the same ordinal labels
+("Member 1", "Member 2", …) — the export has no named mode either.
 
 **Use Case**: UC-A51
 

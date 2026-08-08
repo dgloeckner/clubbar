@@ -73,7 +73,6 @@ class AdminController
         $data = $this->reportsService->getMemberRanking(
             dateFrom: $params['date_from'] ?? null,
             dateTo: $params['date_to'] ?? null,
-            anonymize: filter_var($params['anonymize'] ?? 'false', FILTER_VALIDATE_BOOLEAN),
             limit: (int) ($params['limit'] ?? 25),
         );
 
@@ -112,7 +111,6 @@ class AdminController
         $csv = $this->reportsService->exportMemberRankingCsv(
             dateFrom: $params['date_from'] ?? null,
             dateTo: $params['date_to'] ?? null,
-            anonymize: filter_var($params['anonymize'] ?? 'false', FILTER_VALIDATE_BOOLEAN),
             limit: (int) ($params['limit'] ?? 25),
         );
 

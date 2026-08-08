@@ -167,9 +167,10 @@ test.describe('Reports Page - Mobile', () => {
       await rankingTab.scrollIntoViewIfNeeded()
       await rankingTab.click()
 
-      // Ranking-specific filters should appear
+      // Ranking-specific filters should appear. There is no display-mode
+      // toggle — the ranking is always anonymous (#177).
       await expect(page.getByTestId('ranking-limit-trigger')).toBeVisible()
-      await expect(page.getByTestId('ranking-anonymize')).toBeVisible()
+      await expect(page.getByTestId('ranking-anonymize')).toHaveCount(0)
     })
 
     test('should load ranking table on mobile', async ({ page }) => {

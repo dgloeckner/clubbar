@@ -59,11 +59,11 @@ interface MemberRankingParams {
   date_from?: string
   date_to?: string
   limit?: number
-  anonymize?: boolean
 }
 
 interface MemberRankingRow {
   rank: number
+  /** Always the ordinal label "Member N" — the ranking has no named mode (#177). */
   member_name: string
   total_amount_cents: number
   transaction_count: number
@@ -75,7 +75,6 @@ interface MemberRankingResponse {
     date_from: string
     date_to: string
     limit: number
-    anonymized: boolean
     total_members: number
   }
 }
@@ -158,7 +157,6 @@ async function getMemberRanking(params: MemberRankingParams = {}, signal?: Abort
       date_from: params.date_from ?? '',
       date_to: params.date_to ?? '',
       limit: params.limit ?? 25,
-      anonymized: params.anonymize ?? false,
       total_members: rows.length,
     },
   }
@@ -232,7 +230,6 @@ import {
   tableColors,
   tableSpacing,
 } from '../styles/tableTokens'
-import { Toggle } from '../components/common/Toggle'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -481,7 +478,6 @@ export function ReportsPage() {
   const [reportError, setReportError] = useState<string | null>(null)
 
   // ── Member ranking (tab 4) state ──
-  const [rankingAnonymize, setRankingAnonymize] = useState(false)
   const [rankingLimit, setRankingLimit] = useState<number>(25)
   const [rankingData, setRankingData] = useState<MemberRankingResponse | null>(null)
   const [rankingLoading, setRankingLoading] = useState(false)
@@ -526,7 +522,6 @@ export function ReportsPage() {
         date_from: dateFrom,
         date_to: dateTo,
         limit: rankingLimit,
-        anonymize: rankingAnonymize,
       }
       const data = await getMemberRanking(params, signal)
       if (signal.aborted) return
@@ -537,7 +532,7 @@ export function ReportsPage() {
     } finally {
       if (!signal.aborted) setRankingLoading(false)
     }
-  }, [dateFrom, dateTo, rankingLimit, rankingAnonymize, rankingRequest, t])
+  }, [dateFrom, dateTo, rankingLimit, rankingRequest, t])
 
   const loadTerminalActivity = useCallback(async () => {
     const signal = terminalRequest.next()
@@ -596,7 +591,6 @@ export function ReportsPage() {
       params.group_by = groupBy
     } else if (activeTab === 'member-ranking') {
       params.limit = rankingLimit
-      params.anonymize = rankingAnonymize
     }
     try {
       await exportReport(activeTab, params)
@@ -972,26 +966,6 @@ export function ReportsPage() {
               { value: '100', label: '100' },
             ]}
           />
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-            <label
-              style={{
-                fontSize: theme.typography.fontSize.xs,
-                color: theme.colors.text.secondary,
-                marginBottom: '4px',
-                display: 'block',
-              }}
-            >
-              {t('reports.anonymize')}
-            </label>
-            <div style={{ display: 'flex', alignItems: 'center', height: '34px' }}>
-              <Toggle
-                isEnabled={rankingAnonymize}
-                onChange={setRankingAnonymize}
-                size="small"
-                testId="ranking-anonymize"
-              />
-            </div>
-          </div>
           <button
             data-testid="report-apply-filter"
             onClick={handleApplyFilter}
@@ -1017,7 +991,19 @@ export function ReportsPage() {
             {exportSection}
 
             <div data-testid="ranking-table" style={cardStyle}>
-              <h3 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('reports.memberRankingTitle')}</h3>
+              <h3 style={{ margin: 0, marginBottom: theme.spacing.xs }}>{t('reports.memberRankingTitle')}</h3>
+              {/* The ranking has no named mode (#177) — say so, so nobody hunts for the toggle. */}
+              <p
+                data-testid="ranking-anonymous-note"
+                style={{
+                  margin: 0,
+                  marginBottom: theme.spacing.lg,
+                  fontSize: theme.typography.fontSize.xs,
+                  color: theme.colors.text.secondary,
+                }}
+              >
+                {t('reports.rankingAnonymousNote')}
+              </p>
               {rankingData.rows.length > 0 ? (
                 <div style={{ overflowX: 'auto' }}>
                   <table style={tableElementStyles}>

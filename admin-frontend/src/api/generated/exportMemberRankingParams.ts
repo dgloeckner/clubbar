@@ -62,10 +62,6 @@ export type ExportMemberRankingParams = {
 date_from?: string;
 date_to?: string;
 /**
- * Write anonymized member names
- */
-anonymize?: boolean;
-/**
  * Backend clamps to the 1-100 range regardless of the value sent
  * @minimum 1
  * @maximum 100

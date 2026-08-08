@@ -18,7 +18,7 @@ class ReportsServiceExportsCsvTest extends TestCase
     /**
      * @param list<array<string, mixed>> $rows
      */
-    private function rankingCsv(array $rows, bool $anonymize = false): string
+    private function rankingCsv(array $rows): string
     {
         $service = $this->getMockBuilder(ReportsService::class)
             ->disableOriginalConstructor()
@@ -27,7 +27,7 @@ class ReportsServiceExportsCsvTest extends TestCase
 
         $service->method('getMemberRanking')->willReturn(['data' => $rows]);
 
-        return $service->exportMemberRankingCsv(null, null, $anonymize, 25);
+        return $service->exportMemberRankingCsv(null, null, 25);
     }
 
     /**
@@ -54,35 +54,16 @@ class ReportsServiceExportsCsvTest extends TestCase
     public function test_ranking_writes_semicolons_and_euros(): void
     {
         $csv = $this->rankingCsv([
-            ['rank' => 1, 'member_name' => 'Anna Meier', 'total_amount_cents' => 123456, 'transaction_count' => 40],
-            ['rank' => 2, 'member_name' => 'Ben Schulz', 'total_amount_cents' => 500, 'transaction_count' => 2],
+            ['rank' => 1, 'member_name' => 'Member 1', 'total_amount_cents' => 123456, 'transaction_count' => 40],
+            ['rank' => 2, 'member_name' => 'Member 2', 'total_amount_cents' => 500, 'transaction_count' => 2],
         ]);
 
         $this->assertSame(
             "Rank;Member;Total EUR;Transactions\n"
-            . "1;Anna Meier;1234.56;40\n"
-            . "2;Ben Schulz;5.00;2\n",
+            . "1;Member 1;1234.56;40\n"
+            . "2;Member 2;5.00;2\n",
             $csv
         );
-    }
-
-    public function test_ranking_quotes_a_member_name_containing_the_delimiter(): void
-    {
-        $csv = $this->rankingCsv([
-            ['rank' => 1, 'member_name' => 'Meier; Hans', 'total_amount_cents' => 100, 'transaction_count' => 1],
-        ]);
-
-        $this->assertStringContainsString('1;"Meier; Hans";1.00;1', $csv);
-    }
-
-    public function test_ranking_carries_the_anonymized_names_it_was_given(): void
-    {
-        $csv = $this->rankingCsv([
-            ['rank' => 1, 'member_name' => 'Member 1', 'total_amount_cents' => 100, 'transaction_count' => 1],
-        ], anonymize: true);
-
-        $this->assertStringContainsString('1;Member 1;1.00;1', $csv);
-        $this->assertStringNotContainsString('Meier', $csv);
     }
 
     public function test_ranking_writes_a_header_alone_when_nobody_bought_anything(): void

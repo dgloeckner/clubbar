@@ -60,7 +60,9 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
 export type GetMemberRanking200DataItem = {
   rank?: number;
-  /** Real name or "Member N" if anonymized */
+  /** Always the ordinal label "Member N", where N is the
+row's rank in this response. Never a real name.
+ */
   member_name?: string;
   total_amount_cents?: number;
   transaction_count?: number;
