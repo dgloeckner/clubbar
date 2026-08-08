@@ -9,11 +9,13 @@ use App\Modules\Settlements\DTOs\ExecutionDateInfoDto;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementItemDto;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
+use App\Modules\Settlements\DTOs\SettlementReversalDto;
 use App\Modules\Settlements\Domain\CancellationGate;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
@@ -35,6 +37,7 @@ class SettlementsService
         private TransactionsRepository $transactionsRepository,
         private AuditService $auditService,
         private PDO $db,
+        private SettlementReversalsRepository $reversalsRepository,
     ) {}
 
     /**
@@ -82,6 +85,7 @@ class SettlementsService
         $eligible = [];
         $ineligible = [];
         $credit = [];
+        $held = [];
         $warnings = [];
 
         foreach ($memberIds as $mid) {
@@ -107,6 +111,17 @@ class SettlementsService
                 continue;
             }
 
+            // A hold outranks a missing mandate: the member's last collection
+            // came back, and until somebody looks at that, their bank details
+            // are not the question (ruling #148 §4).
+            if (!empty($member['collection_hold'])) {
+                $entry['collection_hold_reason'] = $member['collection_hold_reason'] ?? null;
+                $held[] = $entry;
+                $warnings[] = "Member {$member['first_name']} {$member['last_name']} is on collection hold and is excluded from collection"
+                    . (empty($member['collection_hold_reason']) ? '' : ": {$member['collection_hold_reason']}");
+                continue;
+            }
+
             if ($this->hasActiveMandate($member)) {
                 // Zero settles too — it closes the rows out. Only the export
                 // decides not to write a file line for it.
@@ -122,10 +137,12 @@ class SettlementsService
             ineligibleMembers: $ineligible,
             eligibleTotal: array_sum(array_column($eligible, 'balance_cents')),
             ineligibleTotal: array_sum(array_column($ineligible, 'balance_cents')),
-            memberCount: count($eligible) + count($ineligible) + count($credit),
+            memberCount: count($eligible) + count($ineligible) + count($credit) + count($held),
             warnings: $warnings,
             creditMembers: $credit,
             creditTotal: array_sum(array_column($credit, 'balance_cents')),
+            heldMembers: $held,
+            heldTotal: array_sum(array_column($held, 'balance_cents')),
         );
     }
 
@@ -177,7 +194,7 @@ class SettlementsService
             // preview flagged used to settle them regardless, because creation
             // validated nothing at all.
             $partition = $this->partitionByCollectability($memberIds, $method);
-            if (!empty($partition['ineligible']) || !empty($partition['credit'])) {
+            if (!empty($partition['ineligible']) || !empty($partition['credit']) || !empty($partition['held'])) {
                 $messages = [];
                 if (!empty($partition['ineligible'])) {
                     $messages['ineligible_member_ids'] =
@@ -186,6 +203,10 @@ class SettlementsService
                 if (!empty($partition['credit'])) {
                     $messages['credit_member_ids'] =
                         ['These members are in credit and are excluded from collection: ' . implode(', ', $partition['credit'])];
+                }
+                if (!empty($partition['held'])) {
+                    $messages['held_member_ids'] =
+                        ['These members are on collection hold after a returned direct debit: ' . implode(', ', $partition['held'])];
                 }
 
                 throw new ValidationException(
@@ -254,10 +275,11 @@ class SettlementsService
 
     /**
      * Split a run's participants into those it can collect from and those it
-     * must leave out, with the reason kept distinct (ruling #141, #161 §3).
+     * must leave out, with the reason kept distinct (ruling #141, #161 §3,
+     * ruling #148 §4).
      *
      * @param list<string> $memberIds
-     * @return array{collectable: list<string>, ineligible: list<string>, credit: list<string>}
+     * @return array{collectable: list<string>, ineligible: list<string>, credit: list<string>, held: list<string>}
      */
     private function partitionByCollectability(array $memberIds, SettlementMethod $method): array
     {
@@ -266,6 +288,7 @@ class SettlementsService
         $collectable = [];
         $ineligible = [];
         $credit = [];
+        $held = [];
 
         foreach ($memberIds as $memberId) {
             // A negative position means the club owes this member money, so no
@@ -277,6 +300,16 @@ class SettlementsService
 
             $member = $this->membersRepository->findById($memberId);
 
+            // A hold stops *collection*, and only collection. A bank transfer
+            // is the member paying their own tab and a write-off gives up on
+            // the money — both are ways out of a hold, so neither may be
+            // blocked by one, or a returned direct debit would strand the debt
+            // with no way to resolve it.
+            if ($method->isSepaExportable() && $member !== null && !empty($member['collection_hold'])) {
+                $held[] = $memberId;
+                continue;
+            }
+
             // Only a direct debit needs a mandate: a bank transfer is the
             // member paying their own tab, and a write-off collects nothing.
             if ($method->isSepaExportable() && ($member === null || !$this->hasActiveMandate($member))) {
@@ -287,7 +320,7 @@ class SettlementsService
             $collectable[] = $memberId;
         }
 
-        return ['collectable' => $collectable, 'ineligible' => $ineligible, 'credit' => $credit];
+        return ['collectable' => $collectable, 'ineligible' => $ineligible, 'credit' => $credit, 'held' => $held];
     }
 
     /**
@@ -318,7 +351,8 @@ class SettlementsService
         $collectable = $this->partitionByCollectability($memberIds, $method)['collectable'];
         if (empty($collectable)) {
             throw new BusinessRuleException(
-                'No collectable members matched the given filters — every match is in credit or has no active SEPA mandate'
+                'No collectable members matched the given filters — every match is in credit, on collection hold, '
+                . 'or has no active SEPA mandate'
             );
         }
 
@@ -349,7 +383,16 @@ class SettlementsService
         $items = $this->settlementsRepository->findItemsBySettlementId($settlementId);
         $itemDtos = array_map(fn($row) => SettlementItemDto::fromRow($row), $items);
 
-        return SettlementDto::fromRow($settlement, $itemDtos);
+        // The reversal events ride along on the single-settlement read: they
+        // are what the derived status is computed from (ruling #148 §6), so
+        // showing the status without them would leave the admin panel unable
+        // to say *why* a settlement reads "partly reversed".
+        $reversals = array_map(
+            static fn(array $row) => SettlementReversalDto::fromRow($row),
+            $this->reversalsRepository->findBySettlementId($settlementId),
+        );
+
+        return SettlementDto::fromRow($settlement, $itemDtos, $reversals);
     }
 
     public function listSettlements(int $limit, int $offset, ?string $status = null, string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $dateFrom = null, ?string $dateTo = null): PaginatedResultDto

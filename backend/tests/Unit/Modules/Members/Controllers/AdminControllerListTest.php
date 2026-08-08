@@ -8,6 +8,7 @@ use App\Modules\Members\Controllers\AdminController;
 use App\Modules\Members\Services\MandateDocumentService;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Settlements\Services\SepaConfigService;
+use App\Modules\Settlements\Services\CollectionHoldService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Exceptions\InvalidQueryParameterException;
@@ -41,6 +42,7 @@ class AdminControllerListTest extends TestCase
             $this->createMock(SepaConfigService::class),
             $this->createMock(MandateDocumentService::class),
             $this->createMock(SettlementsService::class),
+            $this->createMock(CollectionHoldService::class),
         );
     }
 

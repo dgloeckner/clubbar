@@ -8,6 +8,7 @@ use App\Modules\Settlements\Controllers\AdminController;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Services\SepaExportService;
+use App\Modules\Settlements\Services\SettlementReversalService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Exceptions\InvalidQueryParameterException;
@@ -39,6 +40,7 @@ class AdminControllerListTest extends TestCase
             $this->service,
             $this->createMock(SepaExportService::class),
             new Validator($this->createMock(\PDO::class)),
+            $this->createMock(SettlementReversalService::class),
         );
     }
 

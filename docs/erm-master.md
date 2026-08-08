@@ -587,6 +587,14 @@ Centralized audit trail for all master data changes.
 - `settlement_create` — Settlement created
 - `settlement_cancel` — Settlement cancelled
 - `settlement_export` — Settlement CSV/XML exported
+- `settlement_submit` — Exported file handed to the bank ([#81](https://github.com/dgloeckner/ruderbar/issues/81))
+- `settlement_reverse` — Money that already moved has come back ([#196](https://github.com/dgloeckner/clubbar/issues/196))
+- `transaction_storno` — A booking reversed in full ([#169](https://github.com/dgloeckner/ruderbar/issues/169))
+- `collection_hold_placed` — A bank return stopped the next run re-debiting a member
+- `collection_hold_cleared` — An admin released that member back into the next run
+- `totp_enrolled` / `totp_reset` — Second factor enrolled or reset
+- `mandate_document_upload` / `mandate_document_delete` — Mandate scan stored or removed
+- `activate` / `deactivate` / `reorder` — Status and ordering changes
 
 **Indexes:**
 - `admin_user_id`

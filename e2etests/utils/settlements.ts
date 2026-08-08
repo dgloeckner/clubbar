@@ -21,6 +21,26 @@ export interface SettlementFixtureOptions {
   amountCents?: number
   /** Settlement method (ruling #163). Default 'direct_debit' — the only SEPA-exportable one. */
   method?: SettlementMethod
+  /**
+   * How many members the settlement covers. Default 1.
+   *
+   * Reversal is per-member (ruling #148), so its tests need a run whose other
+   * members can be shown to stay settled. Each member gets their own purchase
+   * of `amountCents`; a non-direct-debit settlement must stay at one member
+   * (ruling #163) and the factory refuses more.
+   */
+  memberCount?: number
+}
+
+/** One member of a factory-built settlement. */
+export interface CreatedSettlementMember {
+  id: string
+  /** "First Last" — exactly as the CSV export renders it. */
+  name: string
+  email: string
+  mandateReference: string
+  amountCents: number
+  transactionId: string
 }
 
 export interface CreatedSettlement {
@@ -35,6 +55,8 @@ export interface CreatedSettlement {
   transactionIds: string[]
   settlementDate: string
   executionDate: string
+  /** Every member the settlement covers; the fields above describe the first. */
+  members: CreatedSettlementMember[]
 }
 
 export interface SettlementFactory {
@@ -85,6 +107,67 @@ export async function ensureSepaConfigured(request: APIRequestContext): Promise<
 }
 
 /**
+ * One member with one unsettled purchase, entered the way production does it:
+ * the member through the admin API, the purchase through terminal sync.
+ */
+async function createMemberWithPurchase(
+  adminRequest: APIRequestContext,
+  terminalRequest: APIRequestContext,
+  amountCents: number
+): Promise<CreatedSettlementMember> {
+  const suffix = uniqueSuffix()
+  const firstName = 'Settle'
+  const lastName = `Fixture${suffix}`
+  const email = `settle-${suffix}@test.example`
+
+  const memberResponse = await adminRequest.post('/api/admin/members', {
+    data: {
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      preferred_language: 'de',
+      iban: FACTORY_IBAN,
+      mandate_signed_at: '2024-01-01',
+    },
+  })
+  if (memberResponse.status() !== 201) {
+    throw new Error(`Factory could not create member (${memberResponse.status()}): ${await memberResponse.text()}`)
+  }
+  const member = await memberResponse.json()
+
+  const transactionId = crypto.randomUUID()
+  const syncResponse = await terminalRequest.post('/api/sync/transactions', {
+    data: {
+      transactions: [
+        {
+          id: transactionId,
+          member_id: member.id,
+          type: 'product',
+          product_id: crypto.randomUUID(),
+          quantity: 1,
+          unit_price_cents: amountCents,
+          amount_cents: amountCents,
+          notes: `Factory purchase ${suffix}`,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    },
+  })
+  if (syncResponse.status() !== 201) {
+    throw new Error(`Factory could not sync purchase (${syncResponse.status()}): ${await syncResponse.text()}`)
+  }
+
+  return {
+    id: member.id,
+    name: `${firstName} ${lastName}`,
+    email,
+    mandateReference: member.mandate_reference,
+    amountCents,
+    transactionId,
+  }
+}
+
+/**
  * Build the factory over an authenticated admin context and a terminal
  * context (purchases enter through the terminal sync API, as they do in
  * production).
@@ -97,49 +180,19 @@ export function settlementFactory(
     async create(options: SettlementFixtureOptions = {}): Promise<CreatedSettlement> {
       const amountCents = options.amountCents ?? 2500
       const method = options.method ?? 'direct_debit'
-      const suffix = uniqueSuffix()
+      const memberCount = options.memberCount ?? 1
+
+      if (memberCount > 1 && method !== 'direct_debit') {
+        // Ruling #163, enforced by the DB CHECK: a bank_transfer or write_off
+        // covers exactly one member. Failing here beats a confusing 422.
+        throw new Error(`A ${method} settlement covers exactly one member; asked for ${memberCount}`)
+      }
 
       await ensureSepaConfigured(adminRequest)
 
-      const firstName = 'Settle'
-      const lastName = `Fixture${suffix}`
-      const email = `settle-${suffix}@test.example`
-
-      const memberResponse = await adminRequest.post('/api/admin/members', {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          preferred_language: 'de',
-          iban: FACTORY_IBAN,
-          mandate_signed_at: '2024-01-01',
-        },
-      })
-      if (memberResponse.status() !== 201) {
-        throw new Error(`Factory could not create member (${memberResponse.status()}): ${await memberResponse.text()}`)
-      }
-      const member = await memberResponse.json()
-
-      const transactionId = crypto.randomUUID()
-      const syncResponse = await terminalRequest.post('/api/sync/transactions', {
-        data: {
-          transactions: [
-            {
-              id: transactionId,
-              member_id: member.id,
-              type: 'product',
-              product_id: crypto.randomUUID(),
-              quantity: 1,
-              unit_price_cents: amountCents,
-              amount_cents: amountCents,
-              notes: `Factory purchase ${suffix}`,
-              created_at: new Date().toISOString(),
-            },
-          ],
-        },
-      })
-      if (syncResponse.status() !== 201) {
-        throw new Error(`Factory could not sync purchase (${syncResponse.status()}): ${await syncResponse.text()}`)
+      const members: CreatedSettlementMember[] = []
+      for (let i = 0; i < memberCount; i++) {
+        members.push(await createMemberWithPurchase(adminRequest, terminalRequest, amountCents))
       }
 
       const settlementDate = await serverToday(adminRequest)
@@ -148,7 +201,7 @@ export function settlementFactory(
       const settlementResponse = await adminRequest.post('/api/admin/settlements', {
         data: {
           method,
-          transaction_ids: [transactionId],
+          transaction_ids: members.map((m) => m.transactionId),
           settlement_date: settlementDate,
           execution_date: executionDate,
           period_start: settlementDate,
@@ -162,17 +215,20 @@ export function settlementFactory(
       }
       const settlement = await settlementResponse.json()
 
+      const [first] = members
+
       return {
         id: settlement.id,
-        memberId: member.id,
-        memberName: `${firstName} ${lastName}`,
-        memberEmail: email,
+        memberId: first.id,
+        memberName: first.name,
+        memberEmail: first.email,
         iban: FACTORY_IBAN,
-        mandateReference: member.mandate_reference,
+        mandateReference: first.mandateReference,
         amountCents,
-        transactionIds: [transactionId],
+        transactionIds: members.map((m) => m.transactionId),
         settlementDate,
         executionDate,
+        members,
       }
     },
   }

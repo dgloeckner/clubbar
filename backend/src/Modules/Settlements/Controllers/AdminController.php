@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Controllers;
 
+use App\Modules\Settlements\Enums\ReversalReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
+use App\Modules\Settlements\Services\SettlementReversalService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Shared\Validation\Validator;
@@ -23,6 +25,7 @@ class AdminController
         private SettlementsService $settlementsService,
         private SepaExportService $sepaExportService,
         private Validator $validator,
+        private SettlementReversalService $reversalService,
     ) {}
 
     /**
@@ -218,6 +221,49 @@ class AdminController
         }
 
         return $this->json($response, $settlement->toArray());
+    }
+
+    /**
+     * Record that the bank clawed a collection back (#196, ruling #148).
+     *
+     * One mechanism at per-member granularity: `member_ids` names who came
+     * back, and omitting it means every member of the settlement — the
+     * whole-settlement undo, not a second code path.
+     */
+    public function reverse(Request $request, Response $response, array $args): Response
+    {
+        $id = $args['id'];
+        $adminId = $request->getAttribute('admin_user_id');
+        $body = $request->getParsedBody() ?? [];
+
+        if (!$this->validator->validate($body, [
+            'reason'         => ['required', 'in:bank_return,club_error'],
+            'member_ids'     => ['array'],
+            // ISO 20022 caps every reference at 35 characters, and the column
+            // is sized for exactly that.
+            'bank_reference' => ['string', 'max:35'],
+            'notes'          => ['string', 'max:1000'],
+        ])) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        $this->reversalService->reverse(
+            settlementId: $id,
+            memberIds: $body['member_ids'] ?? null,
+            reason: ReversalReason::from($body['reason']),
+            bankReference: $body['bank_reference'] ?? null,
+            notes: $body['notes'] ?? null,
+            adminUserId: $adminId,
+        );
+
+        // The settlement itself is the answer: its derived status, the members
+        // still settled, and the reversals just recorded.
+        $settlement = $this->settlementsService->getSettlement($id);
+        if (!$settlement) {
+            return $this->json($response, ['error' => 'not_found', 'message' => 'Settlement not found'], 404);
+        }
+
+        return $this->json($response, $settlement->toArray(), 201);
     }
 
     public function exportSepa(Request $request, Response $response, array $args): Response

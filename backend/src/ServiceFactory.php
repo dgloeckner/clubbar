@@ -19,6 +19,8 @@ use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Repositories\SessionRepository;
+use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
+use App\Modules\Settlements\Repositories\CollectionHoldRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
@@ -41,6 +43,8 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Settlements\Services\SepaExportService;
+use App\Modules\Settlements\Services\SettlementReversalService;
+use App\Modules\Settlements\Services\CollectionHoldService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Terminals\Services\TerminalsService;
 use App\Modules\Transactions\Services\TransactionsService;
@@ -227,6 +231,16 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(SettlementsRepository::class, fn() => new SettlementsRepository($this->pdo, $this->logger));
     }
 
+    public function getSettlementReversalsRepository(): SettlementReversalsRepository
+    {
+        return $this->resolve(SettlementReversalsRepository::class, fn() => new SettlementReversalsRepository($this->pdo, $this->logger));
+    }
+
+    public function getCollectionHoldRepository(): CollectionHoldRepository
+    {
+        return $this->resolve(CollectionHoldRepository::class, fn() => new CollectionHoldRepository($this->pdo, $this->logger));
+    }
+
     public function getTerminalsRepository(): TerminalsRepository
     {
         return $this->resolve(TerminalsRepository::class, fn() => new TerminalsRepository($this->pdo, $this->logger));
@@ -341,6 +355,27 @@ class ServiceFactory implements ContainerInterface
             $this->getTransactionsRepository(),
             $this->getAuditService(),
             $this->pdo,
+            $this->getSettlementReversalsRepository(),
+        ));
+    }
+
+    public function getSettlementReversalService(): SettlementReversalService
+    {
+        return $this->resolve(SettlementReversalService::class, fn() => new SettlementReversalService(
+            $this->getSettlementsRepository(),
+            $this->getSettlementReversalsRepository(),
+            $this->getCollectionHoldRepository(),
+            $this->getAuditService(),
+            $this->pdo,
+        ));
+    }
+
+    public function getCollectionHoldService(): CollectionHoldService
+    {
+        return $this->resolve(CollectionHoldService::class, fn() => new CollectionHoldService(
+            $this->getCollectionHoldRepository(),
+            $this->getMembersRepository(),
+            $this->getAuditService(),
         ));
     }
 
@@ -506,6 +541,7 @@ class ServiceFactory implements ContainerInterface
             $this->getSepaConfigService(),
             $this->getMandateDocumentService(),
             $this->getSettlementsService(),
+            $this->getCollectionHoldService(),
         ));
     }
 
@@ -549,7 +585,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getSettlementsAdminController(): SettlementsAdminController
     {
-        return $this->resolve(SettlementsAdminController::class, fn() => new SettlementsAdminController($this->getSettlementsService(), $this->getSepaExportService(), $this->getValidator()));
+        return $this->resolve(SettlementsAdminController::class, fn() => new SettlementsAdminController($this->getSettlementsService(), $this->getSepaExportService(), $this->getValidator(), $this->getSettlementReversalService()));
     }
 
     public function getSepaConfigController(): SepaConfigController

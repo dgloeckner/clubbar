@@ -7,12 +7,20 @@ namespace App\Modules\Settlements\DTOs;
 final readonly class SettlementPreviewDto
 {
     /**
-     * Three buckets, not two (#161 §3, ruling #141).
+     * Four buckets, not two (#161 §3, ruling #141; ruling #148 §4).
      *
-     * `ineligibleMembers` and `creditMembers` are both excluded from the run,
-     * but they need opposite remedies — chase the member's bank details versus
-     * pay the member back — so folding them into one warning list hides the
-     * distinction the treasurer has to act on.
+     * Every member excluded from the run appears in exactly one of them,
+     * because each needs a different remedy and folding them into one warning
+     * list hides the distinction the treasurer has to act on:
+     *
+     * | bucket       | why excluded                  | remedy                    |
+     * |--------------|-------------------------------|---------------------------|
+     * | `ineligible` | no active SEPA mandate        | chase the bank details    |
+     * | `credit`     | the club owes them money      | pay the member back        |
+     * | `held`       | their last collection bounced | investigate, then clear it |
+     *
+     * The hold bucket is the one that must never be silent: a held member is
+     * skipped run after run until somebody clears it.
      */
     public function __construct(
         public array $eligibleMembers,
@@ -23,6 +31,8 @@ final readonly class SettlementPreviewDto
         public array $warnings,
         public array $creditMembers = [],
         public int $creditTotal = 0,
+        public array $heldMembers = [],
+        public int $heldTotal = 0,
     ) {}
 
     public function toArray(): array
@@ -31,9 +41,11 @@ final readonly class SettlementPreviewDto
             'eligible_members' => $this->eligibleMembers,
             'ineligible_members' => $this->ineligibleMembers,
             'credit_members' => $this->creditMembers,
+            'held_members' => $this->heldMembers,
             'eligible_total' => $this->eligibleTotal,
             'ineligible_total' => $this->ineligibleTotal,
             'credit_total' => $this->creditTotal,
+            'held_total' => $this->heldTotal,
             'member_count' => $this->memberCount,
             'warnings' => $this->warnings,
         ];
