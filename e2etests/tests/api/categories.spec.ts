@@ -274,7 +274,9 @@ test.describe('Categories API - Terminal Sync', () => {
     expect(typeof body.count).toBe('number');
     expect(typeof body.has_more).toBe('boolean');
 
-    const found = body.data.find((c: any) => c.id === created.id);
+    // Sync keeps its own cursor envelope, keyed by entity — the admin list's
+    // `data` envelope is a different contract and does not apply here.
+    const found = body.categories.find((c: any) => c.id === created.id);
     expect(found).toBeDefined();
   });
 
