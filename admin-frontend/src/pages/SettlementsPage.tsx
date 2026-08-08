@@ -463,7 +463,8 @@ export function SettlementsPage() {
                       <button
                         data-testid={`settlements-undo-btn-${settlement.id}`}
                         onClick={() => handleUndoSettlement(settlement.id ?? '')}
-                        disabled={settlement.is_cancelled}
+                        disabled={settlement.is_cancelled || settlement.is_cancellable === false}
+                        title={settlement.cancellation_blocked_reason ?? undefined}
                         style={{
                           padding: '5px 10px',
                           backgroundColor: settlement.is_cancelled ? '#6b7280' : '#ef4444',
@@ -832,7 +833,7 @@ export function SettlementsPage() {
                             <button
                               data-testid={`settlements-undo-btn-${settlement.id}`}
                               onClick={() => handleUndoSettlement(settlement.id ?? '')}
-                              disabled={settlement.is_cancelled}
+                              disabled={settlement.is_cancelled || settlement.is_cancellable === false}
                               style={{
                                 padding: '4px 8px',
                                 backgroundColor:
@@ -860,7 +861,7 @@ export function SettlementsPage() {
                                   e.currentTarget.style.backgroundColor = '#ef4444'
                                 }
                               }}
-                              title={t('common.undo')}
+                              title={settlement.cancellation_blocked_reason ?? t('common.undo')}
                             >
                               ↩
                             </button>

@@ -170,13 +170,17 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $productId = $this->createTestProduct($categoryId, 'CancelBalProduct', 'mug', 500);
 
         $transactionId = $this->createTestTransaction($memberId, $productId, 500, 'purchase', '2026-04-05 10:00:00');
-        $settlementId = $this->createSettlementRow($adminId, '2026-04-06', '2026-04-07', 500, 1, isCancelled: true);
+        $settlementId = $this->createSettlementRow($adminId, '2026-04-06', '2026-04-07', 500, 1);
         $this->settlementsRepository->createItem([
             'settlement_id' => $settlementId,
             'transaction_id' => $transactionId,
             'member_id' => $memberId,
             'amount_cents' => 500,
         ]);
+        // Cancelled through the operation that cancels, not by flipping the
+        // flag: what frees the transaction is the released claim, and only
+        // cancelSettlement() releases it.
+        $this->settlementsRepository->cancelSettlement($settlementId, $adminId);
 
         $balances = $this->settlementsRepository->calculateUnsettledPositions();
 
@@ -498,7 +502,7 @@ class SettlementsRepositoryTest extends DatabaseTestCase
     // cancelSettlement
     // ------------------------------------------------------------------
 
-    public function test_cancelSettlement_marks_cancelled_and_removes_items(): void
+    public function test_cancelSettlement_marks_cancelled_and_keeps_the_items_it_releases(): void
     {
         $adminId = $this->createTestAdminUser('cancel-admin@example.com');
         $cancellerId = $this->createTestAdminUser('canceller-admin@example.com');
@@ -524,13 +528,101 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $this->assertEquals($cancellerId, $settlement['cancelled_by_admin_id']);
         $this->assertNotNull($settlement['cancelled_at']);
 
+        // Ruling #142 §3: the rows are the record of what this settlement
+        // contained, so they survive; only their *claim* on the transaction is
+        // released, by nulling active_transaction_id.
         $items = $this->settlementsRepository->findItemsBySettlementId($settlementId);
-        $this->assertCount(0, $items, 'Settlement items must be removed when a settlement is cancelled');
+        $this->assertCount(1, $items, 'A cancelled settlement still records what it contained');
+        $this->assertEquals($transactionId, $items[0]['transaction_id']);
+        $this->assertNull($items[0]['active_transaction_id'], 'Cancellation releases the claim on the transaction');
+    }
+
+    public function test_cancelSettlement_frees_the_transaction_for_a_later_settlement(): void
+    {
+        // The point of releasing the claim: the transaction is unsettled again
+        // and a second settlement may take it — which the UNIQUE index on
+        // active_transaction_id would otherwise forbid (#81, #142 §3).
+        $adminId = $this->createTestAdminUser('recancel-admin@example.com');
+        $memberId = $this->createTestMember('Recancel', 'Member');
+        $categoryId = $this->createTestCategory('RecancelCategory');
+        $productId = $this->createTestProduct($categoryId, 'RecancelProduct', 'mug', 400);
+        $transactionId = $this->createTestTransaction($memberId, $productId, 400, 'purchase', '2026-06-20 10:00:00');
+
+        $firstId = $this->createSettlementRow($adminId, '2026-06-21', '2026-06-22', 400, 1);
+        $this->settlementsRepository->createItem([
+            'settlement_id' => $firstId,
+            'transaction_id' => $transactionId,
+            'member_id' => $memberId,
+            'amount_cents' => 400,
+        ]);
+
+        $this->assertNotEmpty(
+            $this->settlementsRepository->hasConflicts([$transactionId]),
+            'While the first settlement is live the transaction is claimed'
+        );
+
+        $this->settlementsRepository->cancelSettlement($firstId, $adminId);
+
+        $this->assertSame(
+            [],
+            $this->settlementsRepository->hasConflicts([$transactionId]),
+            'After cancellation the transaction is unclaimed'
+        );
+
+        $secondId = $this->createSettlementRow($adminId, '2026-06-25', '2026-06-26', 400, 1);
+        $this->settlementsRepository->createItem([
+            'settlement_id' => $secondId,
+            'transaction_id' => $transactionId,
+            'member_id' => $memberId,
+            'amount_cents' => 400,
+        ]);
+
+        $this->assertCount(1, $this->settlementsRepository->findItemsBySettlementId($secondId));
+        $this->assertCount(
+            1,
+            $this->settlementsRepository->findItemsBySettlementId($firstId),
+            'The cancelled settlement keeps its history even after the transaction is re-settled'
+        );
+    }
+
+    public function test_two_live_settlements_cannot_claim_the_same_transaction(): void
+    {
+        // The database, not the application, is what makes double-settlement
+        // impossible — including under two concurrent runs (#142 §3).
+        $adminId = $this->createTestAdminUser('doubleclaim-admin@example.com');
+        $memberId = $this->createTestMember('Double', 'Claim');
+        $categoryId = $this->createTestCategory('DoubleClaimCategory');
+        $productId = $this->createTestProduct($categoryId, 'DoubleClaimProduct', 'mug', 150);
+        $transactionId = $this->createTestTransaction($memberId, $productId, 150, 'purchase', '2026-06-20 10:00:00');
+
+        $firstId = $this->createSettlementRow($adminId, '2026-06-21', '2026-06-22', 150, 1);
+        $secondId = $this->createSettlementRow($adminId, '2026-06-21', '2026-06-22', 150, 1);
+
+        $item = ['transaction_id' => $transactionId, 'member_id' => $memberId, 'amount_cents' => 150];
+        $this->settlementsRepository->createItem($item + ['settlement_id' => $firstId]);
+
+        $this->expectException(\PDOException::class);
+        $this->settlementsRepository->createItem($item + ['settlement_id' => $secondId]);
     }
 
     // ------------------------------------------------------------------
     // markExported
     // ------------------------------------------------------------------
+
+    public function test_markSubmitted_records_the_moment_and_the_admin(): void
+    {
+        // The point of no return (#142 §1): after this the settlement can only
+        // be reversed, so who reported it and when is part of the record.
+        $adminId = $this->createTestAdminUser('submit-admin@example.com');
+        $submitterId = $this->createTestAdminUser('submitter-admin@example.com');
+        $settlementId = $this->createSettlementRow($adminId, '2026-06-21', '2026-06-22', 250, 1);
+
+        $this->assertTrue($this->settlementsRepository->markSubmitted($settlementId, $submitterId));
+
+        $settlement = $this->settlementsRepository->findById($settlementId);
+        $this->assertNotNull($settlement['submitted_at']);
+        $this->assertEquals($submitterId, $settlement['submitted_by_admin_id']);
+    }
 
     public function test_markExported_sets_exported_at(): void
     {
@@ -723,10 +815,11 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         ]);
 
         $cancelledTxId = $this->createTestTransaction($memberId, $productId, 200, 'purchase', '2026-07-01 11:00:00');
-        $cancelledSettlementId = $this->createSettlementRow($adminId, '2026-07-04', '2026-07-05', 200, 1, isCancelled: true);
+        $cancelledSettlementId = $this->createSettlementRow($adminId, '2026-07-04', '2026-07-05', 200, 1);
         $this->settlementsRepository->createItem([
             'settlement_id' => $cancelledSettlementId, 'transaction_id' => $cancelledTxId, 'member_id' => $memberId, 'amount_cents' => 200,
         ]);
+        $this->settlementsRepository->cancelSettlement($cancelledSettlementId, $adminId);
 
         $unsettledTxId = $this->createTestTransaction($memberId, $productId, 200, 'purchase', '2026-07-01 12:00:00');
 

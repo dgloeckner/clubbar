@@ -143,8 +143,7 @@ class TransactionsRepository
              WHERE t.member_id = ?
                AND NOT EXISTS (
                    SELECT 1 FROM settlement_items si
-                   JOIN settlements s ON si.settlement_id = s.id
-                   WHERE si.transaction_id = t.id AND s.is_cancelled = 0
+                   WHERE si.active_transaction_id = t.id
                )'
         );
         $stmt->execute([$memberId]);
@@ -156,8 +155,7 @@ class TransactionsRepository
         $stmt = $this->db->prepare(
             'SELECT EXISTS (
                 SELECT 1 FROM settlement_items si
-                JOIN settlements s ON si.settlement_id = s.id
-                WHERE si.member_id = ? AND s.is_cancelled = 0
+                WHERE si.member_id = ? AND si.active_transaction_id IS NOT NULL
             )'
         );
         $stmt->execute([$memberId]);
@@ -190,8 +188,8 @@ class TransactionsRepository
                     s.settlement_date
              FROM transactions t
              LEFT JOIN products p ON t.product_id = p.id
-             LEFT JOIN settlement_items si ON t.id = si.transaction_id
-             LEFT JOIN settlements s ON si.settlement_id = s.id AND s.is_cancelled = 0
+             LEFT JOIN settlement_items si ON si.active_transaction_id = t.id
+             LEFT JOIN settlements s ON si.settlement_id = s.id
              {$whereClause}
              ORDER BY t.occurred_at DESC
              LIMIT {$limit} OFFSET {$offset}"
@@ -230,9 +228,9 @@ class TransactionsRepository
         }
         if (isset($filters['settlement_status'])) {
             if ($filters['settlement_status'] === 'unsettled') {
-                $where[] = 'NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0)';
+                $where[] = 'NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)';
             } elseif ($filters['settlement_status'] === 'settled') {
-                $where[] = 'EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0)';
+                $where[] = 'EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)';
             }
         }
 
@@ -250,7 +248,7 @@ class TransactionsRepository
         $dataParams = array_merge($params, [$limit, $offset]);
         // occurred_at is the terminal-owned sale time; the API still calls it created_at until #172 renames the contract.
         $stmt = $this->db->prepare(
-            "SELECT t.*, t.occurred_at AS created_at, CONCAT(m.first_name, ' ', m.last_name) as member_name, m.first_name, m.last_name, m.email, p.names as product_names, (SELECT s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0 LIMIT 1) as settlement_date FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
+            "SELECT t.*, t.occurred_at AS created_at, CONCAT(m.first_name, ' ', m.last_name) as member_name, m.first_name, m.last_name, m.email, p.names as product_names, (SELECT s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.active_transaction_id = t.id LIMIT 1) as settlement_date FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
 
@@ -280,7 +278,7 @@ class TransactionsRepository
 
         [$placeholders, $params] = SafeQuery::inClause(array_values($memberIds), 'string');
         $stmt = $this->db->prepare(
-            "SELECT t.* FROM transactions t WHERE t.member_id IN ({$placeholders}) AND NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0) ORDER BY t.occurred_at ASC"
+            "SELECT t.* FROM transactions t WHERE t.member_id IN ({$placeholders}) AND NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id) ORDER BY t.occurred_at ASC"
         );
         $stmt->execute($params);
         return $stmt->fetchAll();
@@ -292,7 +290,7 @@ class TransactionsRepository
 
         [$placeholders, $params] = SafeQuery::inClause($transactionIds, 'string');
         $stmt = $this->db->prepare(
-            "SELECT t.* FROM transactions t WHERE t.id IN ({$placeholders}) AND NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0)"
+            "SELECT t.* FROM transactions t WHERE t.id IN ({$placeholders}) AND NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)"
         );
         $stmt->execute($params);
         return $stmt->fetchAll();
@@ -327,8 +325,7 @@ class TransactionsRepository
              FROM transactions t
              WHERE NOT EXISTS (
                  SELECT 1 FROM settlement_items si
-                 JOIN settlements s ON si.settlement_id = s.id
-                 WHERE si.transaction_id = t.id AND s.is_cancelled = 0
+                 WHERE si.active_transaction_id = t.id
              )'
         );
         $stmt->execute();
@@ -345,7 +342,7 @@ class TransactionsRepository
     public function summarizeUnsettledByFilters(array $filters = []): array
     {
         $where = [
-            'NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0)',
+            'NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)',
         ];
         $params = [];
 
@@ -401,7 +398,7 @@ class TransactionsRepository
     public function findAllUnsettledByFilters(array $filters = []): array
     {
         $where = [
-            'NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id = t.id AND s.is_cancelled = 0)',
+            'NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)',
         ];
         $params = [];
 

@@ -1503,6 +1503,17 @@ paths:
         Transactions linked to this settlement will have their settlement_id cleared
         and become available for new settlements.
 
+        A settlement can only be cancelled while no money has actually moved:
+        - `direct_debit` — cancellable until it is marked submitted
+          (`POST .../submit`), and, as a backstop once `submitted_at` was
+          never set, until its `execution_date` has passed. Generating the
+          SEPA XML export (`exported_at`) does **not** lock the settlement —
+          the file can be regenerated, and the settlement stays cancellable
+          until submission is actually reported.
+        - `bank_transfer` — never cancellable; the transfer is manual and
+          immediate.
+        - `write_off` — always cancellable; no money moves.
+
         **Note**: Uses DELETE method (updated 2026-03-07 audit to match implementation).
       operationId: cancelSettlement
       security:
@@ -1519,7 +1530,49 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Settlement already cancelled
+          description: |
+            Settlement is not cancellable — already cancelled, already
+            submitted to the bank, past its `execution_date`, or a
+            `bank_transfer` settlement. Reverse it instead.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/settlements/{settlementId}/submit:
+    parameters:
+      - name: settlementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Settlements]
+      summary: Mark settlement submitted
+      description: |
+        Record that the exported SEPA file has been handed off to the bank.
+
+        This is the point of no return: once a `direct_debit` settlement is
+        marked submitted, it can no longer be cancelled — only reversed.
+      operationId: submitSettlement
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Settlement marked submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settlement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            Settlement cannot be marked submitted — already submitted, never
+            exported, cancelled, or not a `direct_debit` settlement.
           content:
             application/json:
               schema:
@@ -1576,6 +1629,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Settlement is cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '412':
           description: Settlement not of SEPA type
           content:
@@ -3550,6 +3609,15 @@ components:
           type: string
           format: uuid
           nullable: true
+        is_cancellable:
+          type: boolean
+          description: Whether a cancel request would currently be accepted.
+        cancellation_blocked_reason:
+          type: string
+          nullable: true
+          description: |
+            Human-readable reason cancellation is unavailable. Null when
+            `is_cancellable` is true.
         created_at:
           type: string
           format: date-time
@@ -3607,6 +3675,15 @@ components:
           type: string
           format: uuid
           nullable: true
+        is_cancellable:
+          type: boolean
+          description: Whether a cancel request would currently be accepted.
+        cancellation_blocked_reason:
+          type: string
+          nullable: true
+          description: |
+            Human-readable reason cancellation is unavailable. Null when
+            `is_cancellable` is true.
         notes:
           type: string
           nullable: true

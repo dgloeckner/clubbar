@@ -67,4 +67,7 @@ export interface SettlementListItem {
   /** @nullable */
   submitted_by_admin_id?: string | null;
   created_at?: string;
+  is_cancellable?: boolean;
+  /** @nullable */
+  cancellation_blocked_reason?: string | null;
 }

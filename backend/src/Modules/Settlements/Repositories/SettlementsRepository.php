@@ -57,10 +57,17 @@ class SettlementsRepository
         return $stmt->fetchAll();
     }
 
-    /** A transaction belongs to nobody's settlement yet. */
+    /**
+     * A transaction belongs to no live settlement.
+     *
+     * `active_transaction_id` is the live claim and nothing else: a settlement
+     * that was cancelled keeps its items but releases them by nulling this
+     * column (ruling #142 §3), and many NULLs coexist in the UNIQUE index. That
+     * makes this one column both the definition of "settled" and the database's
+     * guarantee that two runs cannot collect the same drink.
+     */
     private const UNSETTLED =
-        'NOT EXISTS (SELECT 1 FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id '
-        . 'WHERE si.transaction_id = t.id AND s.is_cancelled = 0)';
+        'NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)';
 
     /**
      * Every member with unsettled activity inside the run's window — the
@@ -202,11 +209,25 @@ class SettlementsRepository
         ]);
     }
 
+    /**
+     * Release a settlement's claim on its transactions without erasing what it
+     * contained (ruling #142 §3).
+     *
+     * This used to `DELETE` the items, which is why a cancelled settlement's
+     * CSV export came back empty and why the `is_cancelled` guards elsewhere
+     * were dead code. Nulling `active_transaction_id` instead frees the
+     * transactions — many NULLs coexist in a UNIQUE column, which is how a
+     * transaction becomes settleable again — while the rows survive as history.
+     *
+     * The caller wraps both writes in a transaction; on its own this method is
+     * not atomic (#86).
+     */
     public function cancelSettlement(string $id, string $adminUserId): bool
     {
         $now = date('Y-m-d H:i:s');
 
-        $this->db->prepare('DELETE FROM settlement_items WHERE settlement_id = ?')->execute([$id]);
+        $this->db->prepare('UPDATE settlement_items SET active_transaction_id = NULL WHERE settlement_id = ?')
+            ->execute([$id]);
 
         $stmt = $this->db->prepare('UPDATE settlements SET is_cancelled = 1, cancelled_at = ?, cancelled_by_admin_id = ?, updated_at = ? WHERE id = ?');
         $result = $stmt->execute([$now, $adminUserId, $now, $id]);
@@ -220,6 +241,19 @@ class SettlementsRepository
         $now = date('Y-m-d H:i:s');
         $stmt = $this->db->prepare('UPDATE settlements SET exported_at = ?, updated_at = ? WHERE id = ?');
         return $stmt->execute([$now, $now, $id]);
+    }
+
+    /** The moment the exported file reached the bank — see SettlementsService::markSubmitted(). */
+    public function markSubmitted(string $id, string $adminUserId): bool
+    {
+        $now = date('Y-m-d H:i:s');
+        $stmt = $this->db->prepare(
+            'UPDATE settlements SET submitted_at = ?, submitted_by_admin_id = ?, updated_at = ? WHERE id = ?'
+        );
+        $result = $stmt->execute([$now, $adminUserId, $now, $id]);
+
+        $this->logger->info('Settlement submitted to the bank', ['id' => $id]);
+        return $result;
     }
 
     public function listPaginated(int $limit, int $offset, ?string $status = null, string $sortKey = 'created_at', string $sortOrder = 'desc', ?string $dateFrom = null, ?string $dateTo = null): array
@@ -272,7 +306,7 @@ class SettlementsRepository
 
         [$placeholders, $params] = SafeQuery::inClause($transactionIds, 'string');
         $stmt = $this->db->prepare(
-            "SELECT si.transaction_id, s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.transaction_id IN ({$placeholders}) AND s.is_cancelled = 0"
+            "SELECT si.transaction_id, s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.active_transaction_id IN ({$placeholders})"
         );
         $stmt->execute($params);
         return $stmt->fetchAll();

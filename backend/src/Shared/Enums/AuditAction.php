@@ -20,6 +20,8 @@ enum AuditAction: string
     case SETTLEMENT_CREATE = 'settlement_create';
     case SETTLEMENT_CANCEL = 'settlement_cancel';
     case SETTLEMENT_EXPORT = 'settlement_export';
+    /** The exported file reached the bank — the point cancellation ends (#81). */
+    case SETTLEMENT_SUBMIT = 'settlement_submit';
     case TOTP_ENROLLED = 'totp_enrolled';
     case TOTP_RESET = 'totp_reset';
     case MANDATE_DOCUMENT_UPLOAD = 'mandate_document_upload';

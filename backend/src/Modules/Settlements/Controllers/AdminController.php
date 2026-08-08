@@ -210,6 +210,25 @@ class AdminController
         return $this->json($response, $settlement->toArray());
     }
 
+    /**
+     * Record that the exported file is now with the bank (#81, ruling #142) —
+     * after this the settlement can only be reversed, never cancelled.
+     */
+    public function markSubmitted(Request $request, Response $response, array $args): Response
+    {
+        $id = $args['id'];
+        $adminId = $request->getAttribute('admin_user_id');
+
+        $this->settlementsService->markSubmitted($id, $adminId);
+
+        $settlement = $this->settlementsService->getSettlement($id);
+        if (!$settlement) {
+            return $this->json($response, ['error' => 'not_found', 'message' => 'Settlement not found'], 404);
+        }
+
+        return $this->json($response, $settlement->toArray());
+    }
+
     public function exportSepa(Request $request, Response $response, array $args): Response
     {
         $id = $args['id'];

@@ -136,6 +136,7 @@ return function (App $app): void {
         $group->get('/settlements/{id}', [SettlementsAdminController::class, 'show']);
         $group->delete('/settlements/{id}', [SettlementsAdminController::class, 'destroy']);
         $group->delete('/settlements/{id}/cancel', [SettlementsAdminController::class, 'cancel']);
+    $group->post('/settlements/{id}/submit', [SettlementsAdminController::class, 'markSubmitted']);
         $group->get('/settlements/{id}/export/sepa-xml', [SettlementsAdminController::class, 'exportSepa']);
         $group->get('/settlements/{id}/export/csv', [SettlementsAdminController::class, 'exportCsv']);
         $group->get('/settlements/{id}/export-transactions', [SettlementsAdminController::class, 'exportTransactionsCsv']);

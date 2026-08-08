@@ -1021,9 +1021,25 @@ class SettlementsServiceTest extends TestCase
         $this->service->cancelSettlement('missing-id', 'admin-1');
     }
 
+    /**
+     * A settlement row as the gate sees it: a direct debit, not cancelled, not
+     * submitted, execution date comfortably ahead — i.e. cancellable.
+     */
+    private function cancellableRow(array $overrides = []): array
+    {
+        return array_merge([
+            'id' => 'settlement-1',
+            'method' => SettlementMethod::DIRECT_DEBIT->value,
+            'is_cancelled' => 0,
+            'exported_at' => null,
+            'submitted_at' => null,
+            'execution_date' => (new \DateTimeImmutable('today'))->modify('+7 days')->format('Y-m-d'),
+        ], $overrides);
+    }
+
     public function test_cancelSettlement_delegates_to_repository_and_writes_audit_entry(): void
     {
-        $settlementRow = ['id' => 'settlement-1', 'is_cancelled' => 0];
+        $settlementRow = $this->cancellableRow();
         $this->settlementsRepository->method('findById')->willReturn($settlementRow);
         $this->settlementsRepository
             ->expects($this->once())
@@ -1048,33 +1064,205 @@ class SettlementsServiceTest extends TestCase
         $this->assertTrue($result);
     }
 
-    public function test_cancelSettlement_does_not_guard_against_double_cancellation(): void
+    // ── the cancellability gate (#81, ruling #142 as generalised by #163) ──
+    //
+    // A settlement may be cancelled while no money has moved. Everything below
+    // is one rule seen from a different side.
+
+    public function test_cancelSettlement_refuses_an_already_cancelled_settlement(): void
     {
-        // NOTE: SettlementsService::cancelSettlement has no is_cancelled guard —
-        // it looks the settlement up by id (regardless of its cancelled state)
-        // and unconditionally calls the repository's cancelSettlement again,
-        // which would re-run the DELETE/UPDATE. This documents the current
-        // behaviour rather than an intended safeguard.
-        $alreadyCancelledRow = ['id' => 'settlement-1', 'is_cancelled' => 1];
-        $this->settlementsRepository->method('findById')->willReturn($alreadyCancelledRow);
-        $this->settlementsRepository->expects($this->once())->method('cancelSettlement')->willReturn(true);
+        // Cancelling twice is a conflict, not a no-op to paper over: the second
+        // call must not re-run the release of the items.
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow(['is_cancelled' => 1]));
+        $this->settlementsRepository->expects($this->never())->method('cancelSettlement');
 
-        $result = $this->service->cancelSettlement('settlement-1', 'admin-1');
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/already been cancelled/i');
 
-        $this->assertTrue($result);
+        $this->service->cancelSettlement('settlement-1', 'admin-1');
     }
 
-    public function test_cancelSettlement_does_not_guard_against_cancelling_an_exported_settlement(): void
+    public function test_cancelSettlement_allows_an_exported_settlement_whose_execution_date_is_still_ahead(): void
     {
-        // NOTE: There is no check on exported_at either — an already-exported
-        // settlement can still be "cancelled" through this service method.
-        $exportedRow = ['id' => 'settlement-1', 'is_cancelled' => 0, 'exported_at' => '2026-01-02 09:00:00'];
-        $this->settlementsRepository->method('findById')->willReturn($exportedRow);
+        // Generating the file is not sending it. Locking here would strand the
+        // ordinary case of downloading a file, spotting a wrong amount, and
+        // never submitting it.
+        $this->settlementsRepository->method('findById')->willReturn(
+            $this->cancellableRow(['exported_at' => '2026-01-02 09:00:00'])
+        );
         $this->settlementsRepository->expects($this->once())->method('cancelSettlement')->willReturn(true);
 
-        $result = $this->service->cancelSettlement('settlement-1', 'admin-1');
+        $this->assertTrue($this->service->cancelSettlement('settlement-1', 'admin-1'));
+    }
 
-        $this->assertTrue($result);
+    public function test_cancelSettlement_refuses_a_settlement_submitted_to_the_bank(): void
+    {
+        // This is the double-debit path of #81: the bank has the file, so
+        // returning its transactions to the unsettled pool would collect them
+        // a second time.
+        $this->settlementsRepository->method('findById')->willReturn(
+            $this->cancellableRow(['exported_at' => '2026-01-02 09:00:00', 'submitted_at' => '2026-01-02 10:00:00'])
+        );
+        $this->settlementsRepository->expects($this->never())->method('cancelSettlement');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/submitted to the bank.*revers/is');
+
+        $this->service->cancelSettlement('settlement-1', 'admin-1');
+    }
+
+    public function test_cancelSettlement_refuses_a_settlement_whose_execution_date_has_passed(): void
+    {
+        // The backstop against a forgotten "mark submitted" click: by the
+        // execution date the money has almost certainly moved anyway.
+        $this->settlementsRepository->method('findById')->willReturn(
+            $this->cancellableRow(['execution_date' => (new \DateTimeImmutable('today'))->modify('-1 day')->format('Y-m-d')])
+        );
+        $this->settlementsRepository->expects($this->never())->method('cancelSettlement');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/execution date.*revers/is');
+
+        $this->service->cancelSettlement('settlement-1', 'admin-1');
+    }
+
+    public function test_cancelSettlement_allows_a_settlement_executing_today(): void
+    {
+        // The gate is execution_date >= today, so the day itself is still open.
+        $this->settlementsRepository->method('findById')->willReturn(
+            $this->cancellableRow(['execution_date' => (new \DateTimeImmutable('today'))->format('Y-m-d')])
+        );
+        $this->settlementsRepository->expects($this->once())->method('cancelSettlement')->willReturn(true);
+
+        $this->assertTrue($this->service->cancelSettlement('settlement-1', 'admin-1'));
+    }
+
+    public function test_cancelSettlement_refuses_a_bank_transfer_settlement(): void
+    {
+        // Ruling #163: the money a bank transfer records has already arrived,
+        // so there is nothing to un-move — reversal is the only remedy.
+        $this->settlementsRepository->method('findById')->willReturn(
+            $this->cancellableRow(['method' => SettlementMethod::BANK_TRANSFER->value])
+        );
+        $this->settlementsRepository->expects($this->never())->method('cancelSettlement');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/already transferred|bank transfer/i');
+
+        $this->service->cancelSettlement('settlement-1', 'admin-1');
+    }
+
+    public function test_cancelSettlement_allows_a_write_off_after_its_execution_date(): void
+    {
+        // A write-off never moves money, so neither submission nor the
+        // execution date can lock it.
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow([
+            'method' => SettlementMethod::WRITE_OFF->value,
+            'execution_date' => '2020-01-01',
+        ]));
+        $this->settlementsRepository->expects($this->once())->method('cancelSettlement')->willReturn(true);
+
+        $this->assertTrue($this->service->cancelSettlement('settlement-1', 'admin-1'));
+    }
+
+    public function test_cancelSettlement_rolls_back_when_releasing_the_items_fails(): void
+    {
+        // #86: releasing the items and flagging the settlement are two writes.
+        // A crash between them would leave a live settlement with no claims,
+        // whose transactions silently count as unsettled.
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow());
+        $this->settlementsRepository->method('cancelSettlement')
+            ->willThrowException(new \RuntimeException('database went away'));
+
+        $this->db->expects($this->once())->method('beginTransaction');
+        $this->db->expects($this->never())->method('commit');
+        $this->db->expects($this->once())->method('rollBack');
+
+        $this->expectException(\RuntimeException::class);
+
+        $this->service->cancelSettlement('settlement-1', 'admin-1');
+    }
+
+    // ── markSubmitted ────────────────────────────────────────────────
+
+    public function test_markSubmitted_records_who_submitted_and_when(): void
+    {
+        $this->settlementsRepository->method('findById')->willReturn(
+            $this->cancellableRow(['exported_at' => '2026-01-02 09:00:00'])
+        );
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('markSubmitted')
+            ->with('settlement-1', 'admin-1')
+            ->willReturn(true);
+
+        $this->auditService->expects($this->once())->method('log');
+
+        $this->assertTrue($this->service->markSubmitted('settlement-1', 'admin-1'));
+    }
+
+    public function test_markSubmitted_refuses_a_settlement_that_was_never_exported(): void
+    {
+        // Submission means "the file I generated is now with the bank"; there
+        // is no file until the export ran.
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow());
+        $this->settlementsRepository->expects($this->never())->method('markSubmitted');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/export/i');
+
+        $this->service->markSubmitted('settlement-1', 'admin-1');
+    }
+
+    public function test_markSubmitted_refuses_a_settlement_already_submitted(): void
+    {
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow([
+            'exported_at' => '2026-01-02 09:00:00',
+            'submitted_at' => '2026-01-02 10:00:00',
+        ]));
+        $this->settlementsRepository->expects($this->never())->method('markSubmitted');
+
+        $this->expectException(BusinessRuleException::class);
+
+        $this->service->markSubmitted('settlement-1', 'admin-1');
+    }
+
+    public function test_markSubmitted_refuses_a_cancelled_settlement(): void
+    {
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow([
+            'exported_at' => '2026-01-02 09:00:00',
+            'is_cancelled' => 1,
+        ]));
+        $this->settlementsRepository->expects($this->never())->method('markSubmitted');
+
+        $this->expectException(BusinessRuleException::class);
+
+        $this->service->markSubmitted('settlement-1', 'admin-1');
+    }
+
+    public function test_markSubmitted_refuses_a_non_direct_debit_settlement(): void
+    {
+        // Only a direct debit is ever handed to a bank; a bank transfer or a
+        // write-off has no file to submit (#163).
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow([
+            'method' => SettlementMethod::WRITE_OFF->value,
+            'exported_at' => '2026-01-02 09:00:00',
+        ]));
+        $this->settlementsRepository->expects($this->never())->method('markSubmitted');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/direct-debit/i');
+
+        $this->service->markSubmitted('settlement-1', 'admin-1');
+    }
+
+    public function test_markSubmitted_throws_notFoundException_when_missing(): void
+    {
+        $this->settlementsRepository->method('findById')->willReturn(null);
+
+        $this->expectException(NotFoundException::class);
+
+        $this->service->markSubmitted('missing-id', 'admin-1');
     }
 
     // ── markExported ─────────────────────────────────────────────────
@@ -1102,6 +1290,19 @@ class SettlementsServiceTest extends TestCase
         $result = $this->service->markExported('settlement-1', 'admin-1');
 
         $this->assertTrue($result);
+    }
+
+    public function test_markExported_refuses_a_cancelled_settlement(): void
+    {
+        // A cancelled run collects nothing; stamping it exported would claim a
+        // file went to the bank for it (#114, #142 §5).
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow(['is_cancelled' => 1]));
+        $this->settlementsRepository->expects($this->never())->method('markExported');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/cancelled/i');
+
+        $this->service->markExported('settlement-1', 'admin-1');
     }
 
     // ── getCsvData ───────────────────────────────────────────────────
