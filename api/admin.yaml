@@ -2401,6 +2401,53 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /admin/reports/member-ranking/export:
+    get:
+      tags: [Reports]
+      summary: Export member ranking as CSV
+      description: |
+        Export the member ranking as CSV, with the same filters as the list endpoint.
+
+        **Use Case**: UC-A51
+      operationId: exportMemberRanking
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: anonymize
+          in: query
+          description: Write anonymized member names
+          schema:
+            type: boolean
+            default: false
+        - name: limit
+          in: query
+          description: Backend clamps to the 1-100 range regardless of the value sent
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /admin/reports/terminal-activity:
     get:
       tags: [Reports]
@@ -2438,6 +2485,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TerminalActivityReport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/reports/terminal-activity/export:
+    get:
+      tags: [Reports]
+      summary: Export terminal activity as CSV
+      description: |
+        Export the terminal activity report as CSV. The file carries the same three
+        blocks the report shows: sessions, hourly distribution, and terminal summary.
+
+        **Use Case**: UC-A52
+      operationId: exportTerminalActivity
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: date_from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: terminal_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':

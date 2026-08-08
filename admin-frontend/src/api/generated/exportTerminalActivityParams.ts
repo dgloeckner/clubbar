@@ -58,9 +58,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export interface Setup2faResponse {
-  /** otpauth:// URI to render as a QR code */
-  qrCode: string;
-  /** Plain-text TOTP secret, shown as a manual-entry fallback */
-  secret: string;
-}
+export type ExportTerminalActivityParams = {
+date_from: string;
+date_to: string;
+terminal_id?: string;
+};

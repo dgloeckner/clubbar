@@ -58,9 +58,17 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export interface Setup2faResponse {
-  /** otpauth:// URI to render as a QR code */
-  qrCode: string;
-  /** Plain-text TOTP secret, shown as a manual-entry fallback */
-  secret: string;
-}
+export type ExportMemberRankingParams = {
+date_from?: string;
+date_to?: string;
+/**
+ * Write anonymized member names
+ */
+anonymize?: boolean;
+/**
+ * Backend clamps to the 1-100 range regardless of the value sent
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};

@@ -491,6 +491,7 @@
     "groupByYear": "Year",
     "applyFilter": "Apply",
     "exportCsv": "Export CSV",
+    "exportFailed": "CSV export failed: {{message}}",
     "summaryRevenue": "Total Revenue",
     "summaryUniqueMembers": "Active Members",
     "summaryCount": "Transactions",
