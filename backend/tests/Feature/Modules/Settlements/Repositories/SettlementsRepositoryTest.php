@@ -609,6 +609,21 @@ class SettlementsRepositoryTest extends DatabaseTestCase
     // markExported
     // ------------------------------------------------------------------
 
+    public function test_markSubmitted_records_the_moment_and_the_admin(): void
+    {
+        // The point of no return (#142 §1): after this the settlement can only
+        // be reversed, so who reported it and when is part of the record.
+        $adminId = $this->createTestAdminUser('submit-admin@example.com');
+        $submitterId = $this->createTestAdminUser('submitter-admin@example.com');
+        $settlementId = $this->createSettlementRow($adminId, '2026-06-21', '2026-06-22', 250, 1);
+
+        $this->assertTrue($this->settlementsRepository->markSubmitted($settlementId, $submitterId));
+
+        $settlement = $this->settlementsRepository->findById($settlementId);
+        $this->assertNotNull($settlement['submitted_at']);
+        $this->assertEquals($submitterId, $settlement['submitted_by_admin_id']);
+    }
+
     public function test_markExported_sets_exported_at(): void
     {
         $adminId = $this->createTestAdminUser('export-admin@example.com');

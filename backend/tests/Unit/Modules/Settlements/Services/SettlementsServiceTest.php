@@ -1240,6 +1240,22 @@ class SettlementsServiceTest extends TestCase
         $this->service->markSubmitted('settlement-1', 'admin-1');
     }
 
+    public function test_markSubmitted_refuses_a_non_direct_debit_settlement(): void
+    {
+        // Only a direct debit is ever handed to a bank; a bank transfer or a
+        // write-off has no file to submit (#163).
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow([
+            'method' => SettlementMethod::WRITE_OFF->value,
+            'exported_at' => '2026-01-02 09:00:00',
+        ]));
+        $this->settlementsRepository->expects($this->never())->method('markSubmitted');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/direct-debit/i');
+
+        $this->service->markSubmitted('settlement-1', 'admin-1');
+    }
+
     public function test_markSubmitted_throws_notFoundException_when_missing(): void
     {
         $this->settlementsRepository->method('findById')->willReturn(null);
