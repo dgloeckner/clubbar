@@ -188,7 +188,7 @@ export function CategoriesPage() {
       setSelectedIcon(null)
 
       // Then reload categories
-      list.reload()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setFormError(err.response?.data?.message || err.message || `Failed to ${modalMode} category`)
@@ -203,7 +203,7 @@ export function CategoriesPage() {
       // Deactivating is immediate (no confirmation)
       try {
         await getProducts().updateCategory(category.id, { is_active: false })
-        list.reload()
+        await list.reload()
       } catch (err: unknown) {
         if (axios.isAxiosError(err)) {
           setError(err.response?.data?.message || err.message || 'Failed to deactivate category')
@@ -252,7 +252,7 @@ export function CategoriesPage() {
       }
 
       setConfirmDialog(null)
-      list.reload()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || err.message || 'Failed to perform action')

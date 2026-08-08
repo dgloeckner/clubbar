@@ -244,7 +244,7 @@ export function MembersPage() {
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
 
       // Reload members list with the active filters still applied
-      list.reload()
+      await list.reload()
 
       setError(null)
     } catch (err: unknown) {
@@ -296,7 +296,7 @@ export function MembersPage() {
       await getMembersFactory().updateMember(member.id, { is_active: !member.is_active })
 
       // Reload members list with the active filters still applied
-      list.reload()
+      await list.reload()
 
       setError(null)
     } catch (err: unknown) {
@@ -314,7 +314,7 @@ export function MembersPage() {
       await getMembersFactory().anonymizeMember(member.id, {})
 
       // Reload members list with the active filters still applied
-      list.reload()
+      await list.reload()
 
       setAnonymizeConfirm(null)
       setError(null)

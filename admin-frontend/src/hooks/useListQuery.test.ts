@@ -226,6 +226,54 @@ describe('useListQuery', () => {
     expect(result.current.sortDirection).toBe('desc')
   })
 
+  it('reload issues the request immediately, without the search debounce', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ items: [], total: 0 })
+    const { result } = await renderListQuery(fetcher)
+
+    act(() => {
+      result.current.setSearch('ann')
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    fetcher.mockClear()
+
+    // A reload follows a mutation the admin already committed. Waiting out the
+    // search debounce — or a React commit — would leave the list stale for as
+    // long as anything watching the request count thinks it has settled.
+    act(() => {
+      void result.current.reload()
+    })
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('reload resolves only once the new page is in state', async () => {
+    let resolveReload: ((page: { items: Row[]; total: number }) => void) | undefined
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockImplementationOnce(
+        () => new Promise<{ items: Row[]; total: number }>((resolve) => (resolveReload = resolve))
+      )
+    const { result } = await renderListQuery(fetcher)
+
+    let settled = false
+    await act(async () => {
+      void result.current.reload().then(() => {
+        settled = true
+      })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(settled).toBe(false)
+
+    await act(async () => {
+      resolveReload?.({ items: [{ id: 'reloaded' }], total: 1 })
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(settled).toBe(true)
+    expect(result.current.items).toEqual([{ id: 'reloaded' }])
+  })
+
   it('reload re-runs the current query, filters and page included', async () => {
     const fetcher = vi.fn().mockResolvedValue({ items: [], total: 500 })
     const { result } = await renderListQuery(fetcher)

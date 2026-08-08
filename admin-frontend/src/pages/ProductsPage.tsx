@@ -232,7 +232,7 @@ export function ProductsPage() {
       setShowModal(false)
 
       // Reload product list to show newly created product
-      list.reload()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to create product'
@@ -286,7 +286,7 @@ export function ProductsPage() {
       setModalMode('create')
       setShowModal(false)
       // Reload product list to reflect updated product
-      list.reload()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update product'
@@ -309,7 +309,7 @@ export function ProductsPage() {
   async function handleStatusToggle(product: ProductWithExtras) {
     try {
       await getProducts().updateProduct(product.id!, { is_active: !product.is_active })
-      list.reload()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || err.message || 'Failed to update product status')
@@ -325,7 +325,7 @@ export function ProductsPage() {
     try {
       await getProducts().deleteProduct(confirmDialog.productId)
       setConfirmDialog(null)
-      list.reload()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || err.message || 'Failed to delete product')

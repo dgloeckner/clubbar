@@ -90,8 +90,17 @@ export interface UseListQueryResult<TItem, TFilters, TSortKey extends string> {
   setFilter: <K extends keyof TFilters>(key: K, value: TFilters[K]) => void
   setFilters: (patch: Partial<TFilters>) => void
 
-  /** Re-runs the current query — used after a create/update/delete. */
-  reload: () => void
+  /**
+   * Re-runs the current query — used after a create/update/delete.
+   *
+   * Issues the request immediately rather than scheduling one, and resolves
+   * once the new page is in state, so `await reload()` in a mutation handler
+   * leaves the list up to date. Deferring it to an effect instead let the
+   * pending-request count reach zero between the mutation and the reload, and
+   * anything watching the global loading indicator to know the list had
+   * settled — the E2E suite does exactly that — saw a list that had not.
+   */
+  reload: () => Promise<void>
 }
 
 const DEFAULT_DEBOUNCE_MS = 500
@@ -157,48 +166,59 @@ export function useListQuery<TItem, TFilters extends object, TSortKey extends st
   })
   const [search, setSearchState] = useState('')
   const [filters, setFiltersState] = useState<TFilters>(initialFilters)
-  const [reloadToken, setReloadToken] = useState(0)
 
-  // Run the query. Any change to the query itself, plus every explicit reload,
-  // lands here — there is no second fetch path that could drift from this one.
-  useEffect(() => {
+  // The live query, readable by `runQuery` without making it a dependency of
+  // anything — `runQuery` has to stay identity-stable so the effect below is
+  // driven by the query alone.
+  const queryRef = useRef({ page, pageSize, sort, search, filters })
+  queryRef.current = { page, pageSize, sort, search, filters }
+
+  const controllerRef = useRef<AbortController | null>(null)
+
+  // The single fetch path. The loader effect and every explicit reload call
+  // this, so there is no second implementation that could drift from it.
+  const runQuery = useCallback(async () => {
+    // Whatever was in flight is now answering a question nobody is asking.
+    controllerRef.current?.abort()
     const controller = new AbortController()
+    controllerRef.current = controller
 
-    const run = async () => {
-      setLoading(true)
-      try {
-        const result = await fetcherRef.current({
-          page,
-          pageSize,
-          sortKey: sort.key,
-          sortDirection: sort.direction,
-          search,
-          filters,
-          signal: controller.signal,
-        })
-        // A superseded query must not publish its result over the newer one.
-        if (controller.signal.aborted) return
-        setItems(result.items)
-        setTotal(result.total)
-        setError(null)
-      } catch (err) {
-        if (controller.signal.aborted || isAbortError(err)) return
-        setItems([])
-        setTotal(0)
-        setError(parseErrorRef.current(err))
-      } finally {
-        if (!controller.signal.aborted) setLoading(false)
-      }
+    const { page, pageSize, sort, search, filters } = queryRef.current
+    setLoading(true)
+    try {
+      const result = await fetcherRef.current({
+        page,
+        pageSize,
+        sortKey: sort.key,
+        sortDirection: sort.direction,
+        search,
+        filters,
+        signal: controller.signal,
+      })
+      // A superseded query must not publish its result over the newer one.
+      if (controller.signal.aborted) return
+      setItems(result.items)
+      setTotal(result.total)
+      setError(null)
+    } catch (err) {
+      if (controller.signal.aborted || isAbortError(err)) return
+      setItems([])
+      setTotal(0)
+      setError(parseErrorRef.current(err))
+    } finally {
+      if (!controller.signal.aborted) setLoading(false)
     }
+  }, [])
 
+  useEffect(() => {
     // Typing in the search box fires a request per keystroke without this.
-    const timer = setTimeout(run, search ? searchDebounceMs : 0)
+    const timer = setTimeout(runQuery, search ? searchDebounceMs : 0)
 
     return () => {
       clearTimeout(timer)
-      controller.abort()
+      controllerRef.current?.abort()
     }
-  }, [page, pageSize, sort, search, filters, reloadToken, searchDebounceMs])
+  }, [page, pageSize, sort, search, filters, searchDebounceMs, runQuery])
 
   const totalPages = pageSize > 0 ? Math.ceil(total / pageSize) : 0
 
@@ -261,9 +281,9 @@ export function useListQuery<TItem, TFilters extends object, TSortKey extends st
     setPageState(1)
   }, [])
 
-  const reload = useCallback(() => {
-    setReloadToken((token) => token + 1)
-  }, [])
+  // Not debounced and not deferred: a reload follows a mutation the admin has
+  // already committed, so it neither waits on the search box nor on a render.
+  const reload = useCallback(() => runQuery(), [runQuery])
 
   return {
     items,

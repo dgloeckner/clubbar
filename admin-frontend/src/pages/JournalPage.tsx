@@ -260,7 +260,7 @@ export function JournalPage() {
 
       setStornoTarget(null)
       setStornoReason('')
-      list.reload()
+      await list.reload()
     } catch (err) {
       // Read the backend's own error code rather than sniffing the message —
       // both refusals are states a second admin can legitimately race us into,
@@ -280,7 +280,7 @@ export function JournalPage() {
       // Either refusal means our view of this row is stale — the row is
       // already reversed. Refresh so the action disables itself.
       if (code === 'already_stornoed') {
-        list.reload()
+        await list.reload()
       }
     } finally {
       setStornoLoading(false)

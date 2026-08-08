@@ -186,7 +186,7 @@ export function SettlementsPage() {
       const blob = await getSettlementsFactory().downloadSepaXml(settlementId)
       downloadBlob(blob as unknown as Blob, `sepa-${settlementId}.xml`)
       // Reload list so status updates to "Exported"
-      list.reload()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)
@@ -239,7 +239,7 @@ export function SettlementsPage() {
     try {
       setError(null)
       await getSettlementsFactory().cancelSettlement(settlementId)
-      list.reload()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)
