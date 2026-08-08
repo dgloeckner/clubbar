@@ -57,10 +57,11 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { Error } from './error';
 
-export interface Setup2faResponse {
-  /** otpauth:// URI to render as a QR code */
-  qrCode: string;
-  /** Plain-text TOTP secret, shown as a manual-entry fallback */
-  secret: string;
-}
+/**
+ * Rate limit reached: 5 failed authentication attempts within 15 minutes,
+counted per source IP and per account. Windowed, never a permanent lock.
+
+ */
+export type TooManyAttemptsResponse = Error;

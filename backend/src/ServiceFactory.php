@@ -17,6 +17,7 @@ use App\Modules\Members\Repositories\MandateDocumentRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
+use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Repositories\SessionRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
@@ -211,6 +212,11 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(SepaConfigRepository::class, fn() => new SepaConfigRepository($this->pdo, $this->logger));
     }
 
+    public function getLoginAttemptsRepository(): LoginAttemptsRepository
+    {
+        return $this->resolve(LoginAttemptsRepository::class, fn() => new LoginAttemptsRepository($this->pdo));
+    }
+
     public function getSessionRepository(): SessionRepository
     {
         return $this->resolve(SessionRepository::class, fn() => new SessionRepository($this->pdo, $this->logger));
@@ -387,18 +393,69 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(ErrorHandler::class, fn() => new ErrorHandler($this->logger, $this->config->debug));
     }
 
+    /**
+     * Password step: the account under attack is named in the request body.
+     */
     public function getRateLimitMiddleware(): RateLimitMiddleware
     {
-        return $this->resolve(RateLimitMiddleware::class, fn() => new RateLimitMiddleware($this->pdo));
+        return $this->resolve(RateLimitMiddleware::class, fn() => new RateLimitMiddleware(
+            $this->getLoginAttemptsRepository(),
+            5,
+            15,
+            $this->loginRateLimitDisabled(),
+            static function (\Psr\Http\Message\ServerRequestInterface $request): ?string {
+                $body = $request->getParsedBody();
+                $email = is_array($body) ? ($body['email'] ?? null) : null;
+                return is_string($email) ? $email : null;
+            },
+        ));
+    }
+
+    /**
+     * MFA step: the request body carries only a code, so the account comes from
+     * the MFA-pending session written by the password step (#78).
+     */
+    public function getMfaRateLimitMiddleware(): RateLimitMiddleware
+    {
+        return new RateLimitMiddleware(
+            $this->getLoginAttemptsRepository(),
+            5,
+            15,
+            $this->loginRateLimitDisabled(),
+            static function (): ?string {
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_name('_session');
+                    session_start();
+                }
+                $email = $_SESSION['mfa_pending_email'] ?? null;
+                return is_string($email) ? $email : null;
+            },
+        );
+    }
+
+    /**
+     * Disabled via DISABLE_LOGIN_RATE_LIMITING=true (e.g. in test environments,
+     * where the suite deliberately fails logins). The dedicated rate-limit specs
+     * are excluded from the default E2E run and require it switched back on.
+     */
+    private function loginRateLimitDisabled(): bool
+    {
+        return Env::get('DISABLE_LOGIN_RATE_LIMITING', 'false') === 'true';
     }
 
     public function getTerminalRateLimitMiddleware(): RateLimitMiddleware
     {
         // Not cached via resolve() — returns a fresh instance with terminal-specific config.
-        // Uses a different table and higher threshold than the login rate limiter.
+        // Uses a different table and higher threshold than the login rate limiter, and no
+        // account dimension: terminal auth presents a token, not an account.
         // Disabled via DISABLE_TERMINAL_RATE_LIMITING=true (e.g. in test environments).
         $disabled = Env::get('DISABLE_TERMINAL_RATE_LIMITING', 'false') === 'true';
-        return new RateLimitMiddleware($this->pdo, 'terminal_auth_attempts', 10, 15, $disabled);
+        return new RateLimitMiddleware(
+            new LoginAttemptsRepository($this->pdo, 'terminal_auth_attempts'),
+            10,
+            15,
+            $disabled,
+        );
     }
 
     public function getTerminalOasValidator(): \Psr\Http\Server\MiddlewareInterface
@@ -432,7 +489,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTotpService(),
             $this->getAuditService(),
             $this->getValidator(),
-            $this->pdo,
+            $this->getLoginAttemptsRepository(),
         ));
     }
 

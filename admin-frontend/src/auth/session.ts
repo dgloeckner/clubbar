@@ -34,11 +34,26 @@ export interface LoginSessionResult {
   requiresMfa?: boolean
   requiresTotpSetup?: boolean
   message: string
+  /** API error code (e.g. `mfa_attempts_exceeded`), when the request failed with one. */
+  errorCode?: string
   data?: {
     admin_id: string
     email: string
     display_name: string
     locale: string
+  }
+}
+
+/** Pull the API's error code and message out of a failed request. */
+function toFailure(error: unknown, fallbackMessage: string): LoginSessionResult {
+  if (!axios.isAxiosError(error)) {
+    return { success: false, message: fallbackMessage }
+  }
+  const data = error.response?.data as { error?: string; message?: string } | undefined
+  return {
+    success: false,
+    errorCode: data?.error,
+    message: data?.message ?? fallbackMessage,
   }
 }
 
@@ -94,10 +109,7 @@ export async function loginWithSession(credentials: {
       data: toLoginData(r.admin),
     }
   } catch (error: unknown) {
-    const message = axios.isAxiosError(error)
-      ? (error.response?.data?.message as string | undefined) ?? 'Login failed'
-      : 'Login failed'
-    return { success: false, message }
+    return toFailure(error, 'Login failed')
   }
 }
 
@@ -114,10 +126,9 @@ export async function submitMfaWithSession(code: string): Promise<LoginSessionRe
       data: toLoginData(r.admin),
     }
   } catch (error: unknown) {
-    const message = axios.isAxiosError(error)
-      ? (error.response?.data?.message as string | undefined) ?? 'Invalid code'
-      : 'Invalid code'
-    return { success: false, message }
+    // The error code matters here: five wrong codes destroy the pending session
+    // server-side (#78), and asking for a sixth would be asking into the void.
+    return toFailure(error, 'Invalid code')
   }
 }
 

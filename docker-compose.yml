@@ -66,6 +66,11 @@ services:
       # Disables terminal token rate limiting so parallel API tests don't hit 429.
       # To run terminal-rate-limit.spec.ts, remove this line and restart the container.
       DISABLE_TERMINAL_RATE_LIMITING: "true"
+      # Same for login/MFA: the suite fails logins on purpose and, since #78, a
+      # successful login no longer wipes the counter for the whole IP — so without
+      # this the first handful of negative tests would 429 everything after them.
+      # To run auth-rate-limit.spec.ts, remove this line and restart the container.
+      DISABLE_LOGIN_RATE_LIMITING: "true"
 
       # Database Configuration
       DB_HOST: database

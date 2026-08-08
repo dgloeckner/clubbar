@@ -238,6 +238,7 @@ export * from './terminalActivityReportHourlyDistributionItem';
 export * from './terminalActivityReportSessionsItem';
 export * from './terminalActivityReportTerminalsItem';
 export * from './terminalWithToken';
+export * from './tooManyAttemptsResponse';
 export * from './transaction';
 export * from './transactionTransactionType';
 export * from './unauthorizedResponse';
