@@ -106,8 +106,18 @@ axiosInstance.interceptors.response.use(
 export const customInstance = <T>(
   config: AxiosRequestConfig,
   options?: { signal?: AbortSignal }
-): Promise<T> =>
-  axiosInstance({ ...config, signal: options?.signal }).then(({ data }) => data)
+): Promise<T> => {
+  // The instance defaults to Content-Type: application/json (set above). Generated
+  // multipart endpoints (uploadMandateDocument, extractMandateDocument, ...) pass a
+  // FormData body without overriding that header — axios then sends the JSON
+  // Content-Type with a multipart body, and the backend never sees any uploaded
+  // files. Clearing it here lets the browser set the correct
+  // "multipart/form-data; boundary=..." header itself.
+  const headers =
+    config.data instanceof FormData ? { ...config.headers, 'Content-Type': undefined } : config.headers
+
+  return axiosInstance({ ...config, headers, signal: options?.signal }).then(({ data }) => data)
+}
 
 // ─── File download ────────────────────────────────────────────────────────────
 

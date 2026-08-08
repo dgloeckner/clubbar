@@ -44,9 +44,9 @@ async function createTestMember(page: Page): Promise<{ id: string; lastName: str
 
 /**
  * Wait for the mandate-document upload response regardless of status, then assert 200
- * with the response body in the failure message — a filtered-to-200 waitForResponse
- * predicate would otherwise time out opaquely on any non-200 response (e.g. a rejected
- * upload), masking the real reason.
+ * with the response body AND the actual request diagnostics in the failure message — a
+ * filtered-to-200 waitForResponse predicate would otherwise time out opaquely on any
+ * non-200 response (e.g. a rejected upload), masking the real reason.
  */
 async function waitForUploadResponse(page: Page, memberId: string): Promise<PlaywrightResponse> {
   const resp = await page.waitForResponse(
@@ -55,7 +55,17 @@ async function waitForUploadResponse(page: Page, memberId: string): Promise<Play
       r.request().method() === 'POST',
     { timeout: 20000 }
   )
-  expect(resp.status(), await resp.text().catch(() => '<no body>')).toBe(200)
+  if (resp.status() !== 200) {
+    const req = resp.request()
+    const postData = req.postDataBuffer()
+    const diagnostics = {
+      status: resp.status(),
+      body: await resp.text().catch(() => '<no body>'),
+      requestContentType: req.headers()['content-type'] ?? '<none>',
+      requestBodyBytes: postData?.length ?? '<null>',
+    }
+    expect(resp.status(), JSON.stringify(diagnostics)).toBe(200)
+  }
   return resp
 }
 
@@ -102,7 +112,7 @@ test.describe('MandateDocumentSection — upload and replace', () => {
       firstResp = await firstUploadResponse
     } catch (err) {
       throw new Error(
-        `Upload response never arrived. Browser console errors captured: ${JSON.stringify(consoleErrors)}`,
+        `Upload failed. Browser console errors captured: ${JSON.stringify(consoleErrors)}`,
         { cause: err }
       )
     }
