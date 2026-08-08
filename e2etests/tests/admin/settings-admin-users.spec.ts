@@ -483,6 +483,91 @@ test.describe('Admin Users Management', () => {
   })
 
   /**
+   * Test: A rejected create is reported in the modal (#91)
+   *
+   * A duplicate email used to fail silently: the modal stayed open with no
+   * message and no field highlight, and the text surfaced later above the
+   * unrelated SEPA form.
+   *
+   * E2E Verification Flow:
+   * 1. Create an admin so its email is taken
+   * 2. Try to create a second admin with the same email
+   * 3. Verify the modal reports the rejection and stays open
+   * 4. Verify nothing was persisted (the admin is still there exactly once)
+   * 5. Verify the message does not leak onto the SEPA tab
+   */
+  test('should report a duplicate email inside the create modal', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickAdminUsersTab()
+
+    // Arrange: an admin whose email is now taken
+    const testData = generateTestAdminUser()
+    await authenticatedSettingsPage.clickCreateAdminButton()
+    await authenticatedSettingsPage.fillCreateAdminForm(testData)
+    await authenticatedSettingsPage.clickCreateAdminConfirm()
+    await authenticatedSettingsPage.waitForPasswordModal()
+    await authenticatedSettingsPage.closePasswordModal()
+
+    // The list reloads after the create; wait for the new row before acting
+    await expect
+      .poll(() => authenticatedSettingsPage.countAdminUsersWithEmail(testData.email))
+      .toBe(1)
+
+    // Act: same email, different display name
+    await authenticatedSettingsPage.clickCreateAdminButton()
+    await authenticatedSettingsPage.fillCreateAdminForm({
+      email: testData.email,
+      display_name: `${testData.display_name} duplicate`,
+    })
+    await authenticatedSettingsPage.clickCreateAdminConfirm()
+
+    // Assert: the reason is on screen, in the modal the admin is looking at
+    const message = await authenticatedSettingsPage.expectCreateAdminModalError()
+    expect(message).toContain('already exists')
+
+    // Assert: the rejected input is marked, not just described
+    await authenticatedSettingsPage.expectCreateAdminFieldError('email')
+
+    // Assert: nothing was created — the email is still on exactly one row
+    await authenticatedSettingsPage.closeCreateAdminModal()
+    expect(await authenticatedSettingsPage.countAdminUsersWithEmail(testData.email)).toBe(1)
+
+    // Assert: the message did not follow the admin to another tab
+    await authenticatedSettingsPage.clickSepaTab()
+    await authenticatedSettingsPage.expectNoErrorMessage()
+  })
+
+  /**
+   * Test: Empty required fields are caught before the request (#91)
+   *
+   * Submit used to be enabled with empty values, which were sent straight to
+   * the API and rejected with a 422 nothing rendered.
+   */
+  test('should reject an empty create admin form without calling the API', async ({
+    authenticatedSettingsPage,
+  }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickAdminUsersTab()
+
+    // Watch for a POST that must never happen (parallel-safe, Pattern 004)
+    let createRequestFired = false
+    authenticatedSettingsPage.page.on('response', (resp) => {
+      if (resp.url().includes('/api/admin/admin-users') && resp.request().method() === 'POST') {
+        createRequestFired = true
+      }
+    })
+
+    await authenticatedSettingsPage.clickCreateAdminButton()
+    await authenticatedSettingsPage.clickCreateAdminConfirm()
+
+    // Assert: both empty fields are named, and the modal stays open
+    await authenticatedSettingsPage.expectCreateAdminFieldError('email')
+    await authenticatedSettingsPage.expectCreateAdminFieldError('display-name')
+    expect(await authenticatedSettingsPage.isCreateAdminModalVisible()).toBe(true)
+    expect(createRequestFired).toBe(false)
+  })
+
+  /**
    * Test: Admin users table displays current admins
    *
    * E2E Verification Flow:

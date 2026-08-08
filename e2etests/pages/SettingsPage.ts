@@ -44,7 +44,8 @@ export class SettingsPage {
     this.creditorIdWarning = page.getByTestId('settings-sepa-alert-warning')
     this.saveButton = page.getByTestId('settings-sepa-save-button')
     this.cancelButton = page.getByTestId('settings-sepa-cancel-button')
-    this.errorMessage = page.getByTestId('settings-sepa-error-message')
+    // One banner for the whole page: every tab reports its failures there (#91)
+    this.errorMessage = page.getByTestId('settings-error-message')
     this.successMessage = page.getByTestId('settings-sepa-success-message')
     this.loadingIndicator = page.getByTestId('settings-page-loading')
     this.ibanValidationIndicator = page.getByTestId('settings-sepa-validation-creditor_iban')
@@ -410,6 +411,42 @@ export class SettingsPage {
   }
 
   /**
+   * Expect the create admin modal to report a failure, and to stay open so the
+   * typed values are still there to correct (#91)
+   */
+  async expectCreateAdminModalError(): Promise<string> {
+    const modalError = this.page.getByTestId('settings-admin-create-error')
+    await expect(modalError).toBeVisible()
+    await expect(this.page.getByTestId('settings-admin-create-modal')).toBeVisible()
+    return (await modalError.textContent()) ?? ''
+  }
+
+  /**
+   * Expect the create admin modal to reject a field before anything is sent
+   */
+  async expectCreateAdminFieldError(field: 'email' | 'display-name') {
+    await expect(this.page.getByTestId(`settings-admin-create-${field}-error`)).toBeVisible()
+  }
+
+  /**
+   * Expect the create terminal modal to report a failure, and to stay open so
+   * the typed values are still there to correct (#91)
+   */
+  async expectCreateTerminalModalError(): Promise<string> {
+    const modalError = this.page.getByTestId('settings-terminal-create-error')
+    await expect(modalError).toBeVisible()
+    await expect(this.page.getByTestId('settings-terminal-create-modal')).toBeVisible()
+    return (await modalError.textContent()) ?? ''
+  }
+
+  /**
+   * Expect the create terminal modal to reject a field before anything is sent
+   */
+  async expectCreateTerminalFieldError(field: 'name' | 'device-id') {
+    await expect(this.page.getByTestId(`settings-terminal-create-${field}-error`)).toBeVisible()
+  }
+
+  /**
    * Get generated password from password display modal
    */
   async getGeneratedPassword(): Promise<string | null> {
@@ -544,6 +581,15 @@ export class SettingsPage {
       displayName: nameText?.trim() || '',
       status,
     }
+  }
+
+  /**
+   * How many rows carry this email. Counting a known email instead of the whole
+   * table (Pattern 003) keeps the assertion valid while other workers add rows,
+   * and survives a list that is still reloading.
+   */
+  async countAdminUsersWithEmail(email: string): Promise<number> {
+    return await this.page.locator(`[data-testid^="settings-admin-user-email-"]:text-is("${email}")`).count()
   }
 
   /**
@@ -869,6 +915,15 @@ export class SettingsPage {
       device_id: deviceIdText?.trim() || '',
       status,
     }
+  }
+
+  /**
+   * How many rows carry this terminal name. Counting a known name instead of
+   * the whole table (Pattern 003) keeps the assertion valid while other workers
+   * add rows, and survives a list that is still reloading.
+   */
+  async countTerminalsWithName(name: string): Promise<number> {
+    return await this.page.locator(`[data-testid^="settings-terminal-name-"]:text-is("${name}")`).count()
   }
 
   /**
