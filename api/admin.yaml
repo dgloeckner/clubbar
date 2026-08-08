@@ -100,6 +100,10 @@ paths:
         Authenticate admin user with email and password.
         On success, creates a session and sets a secure cookie.
 
+        Failed attempts are counted on two windowed dimensions — per source IP and
+        per account, 5 per 15 minutes each — and are forgiven only after a *full*
+        authentication (password **and** second factor), scoped to that account.
+
         **Use Case**: UC-A01
       operationId: login
       requestBody:
@@ -132,14 +136,7 @@ paths:
                 error: invalid_credentials
                 message: Invalid email or password
         '429':
-          description: Too many login attempts
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: rate_limited
-                message: Too many login attempts. Please try again later.
+          $ref: '#/components/responses/TooManyAttempts'
 
   /auth/logout:
     post:
@@ -269,6 +266,11 @@ paths:
         Exchange a valid MFA-pending session (issued by POST /auth/login when
         `requiresMfa` is true) plus a TOTP code for a fully authenticated session.
 
+        Guessing is bounded on two levels: the pending session is destroyed after
+        5 wrong codes, and every wrong code is also recorded against the login
+        rate limiter (per IP and per account) so the bound survives an attacker
+        who simply re-authenticates for a fresh session.
+
         **Use Case**: UC-A01
       operationId: verifyMfa
       requestBody:
@@ -292,11 +294,20 @@ paths:
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
-          description: MFA session expired, not found, or code invalid
+          description: |
+            Code invalid (`invalid_credentials`), attempt cap reached and the
+            pending session destroyed (`mfa_attempts_exceeded`), or no valid
+            pending session (`mfa_session_expired`). The last two mean the
+            password must be entered again.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                error: mfa_attempts_exceeded
+                message: Too many invalid codes. Please sign in again.
+        '429':
+          $ref: '#/components/responses/TooManyAttempts'
 
   /auth/2fa/setup:
     post:
@@ -3129,6 +3140,23 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ValidationErrorResponse'
+    TooManyAttempts:
+      description: |
+        Rate limit reached: 5 failed authentication attempts within 15 minutes,
+        counted per source IP and per account. Windowed, never a permanent lock.
+      headers:
+        Retry-After:
+          description: Seconds until the window expires
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: too_many_attempts
+            message: Too many failed authentication attempts. Please try again later.
+            retry_after_seconds: 900
 
   schemas:
     # --------------------------------------------------------------------------

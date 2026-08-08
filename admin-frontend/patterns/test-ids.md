@@ -808,7 +808,7 @@ data-testid="settings-sepa-char-counter-creditor_address_street"  // Char counte
 data-testid="settings-sepa-char-counter-creditor_address_city"    // Char counter (70 max)
 data-testid="settings-sepa-validation-creditor_iban"        // IBAN validation indicator
 data-testid="settings-sepa-alert-warning"                   // Warning alert
-data-testid="settings-sepa-error-message"                   // Error message banner
+data-testid="settings-error-message"                        // Page-level error banner (shared by all Settings tabs)
 data-testid="settings-sepa-success-message"                 // Success message banner
 
 // Actions
@@ -842,8 +842,11 @@ data-testid="settings-admin-reactivate-button-{id}"         // Reactivate button
 ### Create Admin Modal
 ```typescript
 data-testid="settings-admin-create-modal"                   // Modal container
+data-testid="settings-admin-create-error"                   // Failure banner inside the modal
 data-testid="settings-admin-create-email"                   // Email input
+data-testid="settings-admin-create-email-error"             // Message under the email input
 data-testid="settings-admin-create-display-name"            // Display name input
+data-testid="settings-admin-create-display-name-error"      // Message under the display name input
 data-testid="settings-admin-create-locale"                  // Locale dropdown
 data-testid="settings-admin-create-confirm-button"          // Create button
 data-testid="settings-admin-create-cancel-button"           // Cancel button
@@ -852,11 +855,32 @@ data-testid="settings-admin-create-cancel-button"           // Cancel button
 ### Edit Admin Modal
 ```typescript
 data-testid="settings-admin-edit-modal"                     // Modal container
+data-testid="settings-admin-edit-error"                     // Failure banner inside the modal
 data-testid="settings-admin-edit-email"                     // Email input
+data-testid="settings-admin-edit-email-error"               // Message under the email input
 data-testid="settings-admin-edit-display-name"              // Display name input
+data-testid="settings-admin-edit-display-name-error"        // Message under the display name input
 data-testid="settings-admin-edit-locale"                    // Locale dropdown
 data-testid="settings-admin-edit-confirm-button"            // Update button
 data-testid="settings-admin-edit-cancel-button"             // Cancel button
+```
+
+### Terminal Modals
+```typescript
+data-testid="settings-terminal-create-modal"                // Create modal container
+data-testid="settings-terminal-create-error"                // Failure banner inside the modal
+data-testid="settings-terminal-create-name"                 // Terminal name input
+data-testid="settings-terminal-create-name-error"           // Message under the name input
+data-testid="settings-terminal-create-device-id"            // Device ID input
+data-testid="settings-terminal-create-device-id-error"      // Message under the device ID input
+data-testid="settings-terminal-create-confirm-button"       // Create button
+data-testid="settings-terminal-create-cancel-button"        // Cancel button
+data-testid="settings-terminal-edit-modal"                  // Edit modal container
+data-testid="settings-terminal-edit-error"                  // Failure banner inside the modal
+data-testid="settings-terminal-edit-name"                   // Terminal name input
+data-testid="settings-terminal-edit-name-error"             // Message under the name input
+data-testid="settings-terminal-edit-confirm-button"         // Save button
+data-testid="settings-terminal-edit-cancel-button"          // Cancel button
 ```
 
 ### Password Display Modal
@@ -872,5 +896,6 @@ data-testid="settings-admin-password-copy-button"           // Copy & Close butt
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2 | 2026-08-08 | Settings errors: page-level banner plus modal and per-field markers (#91) |
 | 1.1 | 2026-01-30 | Added Settings page test IDs reference |
 | 1.0 | 2026-01-26 | Initial pattern documentation |

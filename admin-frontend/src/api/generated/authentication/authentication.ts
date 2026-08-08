@@ -86,6 +86,10 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * Authenticate admin user with email and password.
 On success, creates a session and sets a secure cookie.
 
+Failed attempts are counted on two windowed dimensions — per source IP and
+per account, 5 per 15 minutes each — and are forgiven only after a *full*
+authentication (password **and** second factor), scoped to that account.
+
 **Use Case**: UC-A01
 
  * @summary Admin login
@@ -174,6 +178,11 @@ const updateProfile = (
   /**
  * Exchange a valid MFA-pending session (issued by POST /auth/login when
 `requiresMfa` is true) plus a TOTP code for a fully authenticated session.
+
+Guessing is bounded on two levels: the pending session is destroyed after
+5 wrong codes, and every wrong code is also recorded against the login
+rate limiter (per IP and per account) so the bound survives an attacker
+who simply re-authenticates for a fresh session.
 
 **Use Case**: UC-A01
 

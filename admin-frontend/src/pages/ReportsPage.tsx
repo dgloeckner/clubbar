@@ -18,6 +18,7 @@ import {
 } from 'recharts'
 import { getReports } from '../api/generated/reports/reports'
 import type { GetReportGroupBy } from '../api/generated'
+import { toIsoDate } from '../utils/dates'
 
 // ─── Local Types (UI-facing, mapped from generated API types) ─────────────────
 
@@ -209,7 +210,7 @@ async function exportReport(
     const url = `/api/admin/reports/${reportType}?${query}`
     const a = document.createElement('a')
     a.href = url
-    a.download = `report-${reportType}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `report-${reportType}-${toIsoDate(new Date())}.csv`
     a.click()
     return
   }
@@ -223,7 +224,7 @@ async function exportReport(
   const objectUrl = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = objectUrl
-  a.download = `report-${reportType}-${new Date().toISOString().slice(0, 10)}.csv`
+  a.download = `report-${reportType}-${toIsoDate(new Date())}.csv`
   a.click()
   URL.revokeObjectURL(objectUrl)
 }
@@ -241,13 +242,20 @@ import { Toggle } from '../components/forms/Toggle'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Seed range for the report filters: the last 30 local calendar days.
+ *
+ * Built with `toIsoDate`, not `toISOString()` — the latter converts to UTC
+ * first, so a German admin opening this page before 02:00 local would get
+ * `date_to = yesterday` and silently lose today's transactions (#95).
+ */
 function defaultDateRange(): { date_from: string; date_to: string } {
   const to = new Date()
   const from = new Date()
   from.setDate(from.getDate() - 30)
   return {
-    date_from: from.toISOString().slice(0, 10),
-    date_to: to.toISOString().slice(0, 10),
+    date_from: toIsoDate(from),
+    date_to: toIsoDate(to),
   }
 }
 

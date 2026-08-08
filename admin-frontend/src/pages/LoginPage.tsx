@@ -385,5 +385,7 @@ export function LoginPage() {
     }
   }
 
-  return <LoginForm onSubmit={handleSubmit} loading={loading} error={localError} />
+  // `error` covers the case where the MFA step ended on its own — the attempt cap
+  // or the rate limiter sent us back here, and the reason must not vanish with it.
+  return <LoginForm onSubmit={handleSubmit} loading={loading} error={localError ?? error} />
 }
