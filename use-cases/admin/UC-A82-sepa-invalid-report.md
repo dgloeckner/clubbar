@@ -104,7 +104,7 @@ Clicking badge navigates to this report.
 
 **Resolution Options:**
 1. **Add SEPA data** → Member can use terminal and be included in future SEPA settlements
-2. **Manual settlement** → Clear balance via cash/transfer/write-off (member still cannot use terminal)
+2. **Manual settlement** → Clear the balance by bank transfer or write-off — the club takes no cash ([ADR-0028](../../adr/0028-legal-constraints-on-money-handling.md) §6). The member still cannot use the terminal until an active mandate exists
 
 ## Postconditions
 - Report displayed with current data

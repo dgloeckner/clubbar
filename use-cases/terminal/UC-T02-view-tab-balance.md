@@ -9,6 +9,8 @@ Member
 ## Preconditions
 - Member has valid RFID card
 - Member exists in local cache
+- Member is active
+- Member has an **active mandate** — viewing the tab balance happens inside a session, and a member without one is refused at card scan before any product or balance view opens (see [UC-T01](./UC-T01-book-product-to-tab.md) E5, [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md), amended)
 
 ## Trigger
 Member scans RFID card
@@ -119,5 +121,5 @@ Product View     Transaction List
 - Scroll: member with many transactions, verify scroll works
 - Back navigation: tap back, verify return to product view
 - Timeout: view transactions, wait for timeout, verify return to idle
-- Corrections: verify corrections shown with product name or reason
+- Storno: verify a storno is shown with product name or reason
 - Offline data: verify cached transactions shown when offline

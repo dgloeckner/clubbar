@@ -34,14 +34,14 @@ Admin opens Reports → Transactions → Export
 ```
 date;member_name;product;type;amount
 2024-01-15 14:23:00;Max Mustermann;Beer 0.5L;purchase;3.50
-2024-01-15 14:25:00;Max Mustermann;;adjustment;-3.50
+2024-01-15 14:25:00;Max Mustermann;Beer 0.5L;storno;-3.50
 ```
 
 | Column | Content |
 |--------|---------|
 | date | ISO timestamp |
 | member_name | Full name |
-| product | Product name (empty for adjustments) |
+| product | Product name; empty for a manual purchase, and repeated from the original row for a storno |
 | type | purchase/storno/payout |
 | amount | Signed decimal |
 

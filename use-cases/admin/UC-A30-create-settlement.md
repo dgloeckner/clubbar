@@ -95,9 +95,8 @@ Transaction included if member meets ALL conditions:
 
 | Condition | Check |
 |-----------|-------|
-| IBAN present | `iban IS NOT NULL` |
+| Active mandate | The member has an active mandate record, which carries the reference, the IBAN and the signature date ([ADR-0006](../../adr/0006-sepa-mandate-reference-strategy.md), amended) |
 | IBAN valid | Passes checksum validation |
-| Mandate reference present | `mandate_reference IS NOT NULL` |
 | Account active | `is_active = TRUE` |
 | Not anonymized | `deleted_at IS NULL` |
 

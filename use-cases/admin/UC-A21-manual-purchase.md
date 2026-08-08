@@ -49,7 +49,7 @@ To undo a manual purchase, storno it like any other transaction ([UC-A23](./UC-A
 
 This is the **only remaining place** in the system where an admin types a money amount. Everything else derives its amount: a storno negates its original exactly, a settlement sums the transactions it covers. That makes this path worth guarding — the audit entry is not optional, and the confirmation should restate member, amount and reason before committing.
 
-It is deliberately *not* a new transaction type. A drink served at a club party is a purchase; the only thing distinguishing it is that no product record and no terminal were involved. Calling it a correction was the original conflation this rewrite undoes.
+It is deliberately *not* a new transaction type. A drink served at a club party is a purchase; the only thing distinguishing it is that no product record and no terminal were involved. Calling it a correction — the word that now means a storno against a named transaction — was the original conflation this rewrite undoes.
 
 ## Postconditions
 - Transaction created: `transaction_type = 'purchase'`, `product_id = NULL`, `created_by_admin_id` set

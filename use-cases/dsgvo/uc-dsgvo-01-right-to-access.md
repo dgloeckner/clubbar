@@ -41,7 +41,7 @@ Member submits data access request (verbal, written, or email - outside system).
 |---------|--------|
 | Personal data | first_name, last_name, card_uid, preferred_language, member_since, is_active |
 | Banking data | iban (full, unmasked), mandate_reference |
-| Transactions | date, product_name, quantity, unit_price, total_amount, type (consumption/correction), correction_reason |
+| Transactions | date, product_name, quantity, unit_price, total_amount, type (purchase/storno/payout), reason, related_transaction_id (set on a storno) |
 | Settlements | period_start, period_end, total_amount, transaction_count, execution_date |
 | Current balance | outstanding_amount, pending_transaction_count |
 

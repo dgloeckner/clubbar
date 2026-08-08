@@ -58,7 +58,7 @@ The admin panel provides management and accounting functions for the bar system:
 | [UC-A32](./UC-A32-download-csv.md) | Download CSV | Export for verification |
 | [UC-A33](./UC-A33-settlement-history.md) | Settlement History | List past settlements |
 | [UC-A34](./UC-A34-settlement-details.md) | Settlement Details | View settlement breakdown |
-| [UC-A35](./UC-A35-manual-settlement.md) | Manual Settlement | Settle without SEPA (cash, transfer, write-off) |
+| [UC-A35](./UC-A35-manual-settlement.md) | Manual Settlement | Settle without SEPA (bank transfer, write-off) |
 
 ### Product Management
 
