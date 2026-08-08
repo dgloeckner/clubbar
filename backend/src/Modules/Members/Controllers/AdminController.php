@@ -10,11 +10,16 @@ use App\Shared\Validation\Validator;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Members\Services\MandateDocumentService;
+use App\Shared\Http\JsonResponder;
+use App\Shared\Http\ListQuery;
+use App\Shared\Http\PaginatedResponse;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AdminController
 {
+    use JsonResponder;
+
     public function __construct(
         private MembersService $membersService,
         private Validator $validator,
@@ -26,33 +31,7 @@ class AdminController
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-
-        // Validate limit: reject non-numeric or values exceeding 100
-        $rawLimit = $params['per_page'] ?? $params['limit'] ?? null;
-        if ($rawLimit !== null) {
-            if (!is_numeric($rawLimit) || (int) $rawLimit != $rawLimit) {
-                return $this->json($response, [
-                    'error' => 'invalid_request',
-                    'messages' => ['limit' => ['limit must be a positive integer']],
-                ], 400);
-            }
-            if ((int) $rawLimit > 100) {
-                return $this->json($response, [
-                    'error' => 'invalid_request',
-                    'messages' => ['limit' => ['limit must not exceed 100']],
-                ], 400);
-            }
-        }
-
-        // Support both page/per_page (frontend) and limit/offset (direct) formats
-        $limit = (int) ($rawLimit ?? 50);
-        $page = (int) ($params['page'] ?? 1);
-        $offset = isset($params['offset']) ? (int) $params['offset'] : ($page - 1) * $limit;
-
-        // Support both sort/order (frontend) and sort_key/sort_order (direct) formats
-        $sortKey = $params['sort'] ?? $params['sort_key'] ?? 'created_at';
-        $sortOrder = $params['order'] ?? $params['sort_order'] ?? 'desc';
-        $search = $params['search'] ?? null;
+        $query = ListQuery::fromParams($params);
 
         // Support both filters[is_active] (nested) and is_active (direct) formats
         $filters = [];
@@ -93,19 +72,16 @@ class AdminController
             $filters['sepa_status'] = $sepaParam;
         }
 
-        $result = $this->membersService->listMembers($limit, $offset, $filters, $sortKey, $sortOrder, $search);
+        $result = $this->membersService->listMembers(
+            $query->perPage,
+            $query->offset,
+            $filters,
+            $query->sortKey,
+            $query->sortOrder,
+            $query->search,
+        );
 
-        $data = $result->toArray();
-        $totalPages = $limit > 0 ? (int) ceil($result->total / $limit) : 1;
-        return $this->json($response, [
-            'data' => $data['items'],
-            'pagination' => [
-                'page' => $page,
-                'per_page' => $limit,
-                'total' => $result->total,
-                'total_pages' => $totalPages,
-            ],
-        ]);
+        return $this->json($response, PaginatedResponse::fromQuery($result->items, $result->total, $query));
     }
 
     public function store(Request $request, Response $response): Response
@@ -246,11 +222,5 @@ class AdminController
         return $response
             ->withHeader('Content-Type', 'application/pdf')
             ->withHeader('Content-Disposition', 'attachment; filename="sepa-mandate-template.pdf"');
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

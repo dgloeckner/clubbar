@@ -4,6 +4,15 @@ declare(strict_types=1);
 
 namespace App\Shared\DTOs;
 
+/**
+ * One page of rows and how many there are in total — what a list service
+ * returns.
+ *
+ * It used to serialise itself as `{items,total,limit,offset,has_more}`, which
+ * is how two endpoints came to answer in a shape the API spec never described
+ * (issue #119). Rendering now belongs to App\Shared\Http\PaginatedResponse;
+ * this stays a plain carrier between the repository and the controller.
+ */
 final readonly class PaginatedResultDto
 {
     public function __construct(
@@ -12,26 +21,4 @@ final readonly class PaginatedResultDto
         public int $limit,
         public int $offset,
     ) {}
-
-    public function hasMore(): bool
-    {
-        return ($this->offset + $this->limit) < $this->total;
-    }
-
-    public function toArray(): array
-    {
-        $items = array_map(function ($item) {
-            return is_object($item) && method_exists($item, 'toArray')
-                ? $item->toArray()
-                : (is_array($item) ? $item : (array) $item);
-        }, $this->items);
-
-        return [
-            'items' => $items,
-            'total' => $this->total,
-            'limit' => $this->limit,
-            'offset' => $this->offset,
-            'has_more' => $this->hasMore(),
-        ];
-    }
 }

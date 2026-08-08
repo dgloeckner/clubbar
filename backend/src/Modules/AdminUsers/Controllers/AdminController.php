@@ -7,11 +7,16 @@ namespace App\Modules\AdminUsers\Controllers;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Shared\Validation\Validator;
+use App\Shared\Http\JsonResponder;
+use App\Shared\Http\ListQuery;
+use App\Shared\Http\PaginatedResponse;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AdminController
 {
+    use JsonResponder;
+
     public function __construct(
         private AdminUsersService $adminUsersService,
         private AdminUsersRepository $adminUsersRepository,
@@ -21,11 +26,7 @@ class AdminController
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-
-        // Convert page-based to offset-based pagination
-        $page = (int) ($params['page'] ?? 1);
-        $perPage = (int) ($params['per_page'] ?? 20);
-        $offset = ($page - 1) * $perPage;
+        $query = ListQuery::fromParams($params, defaultPerPage: 20);
 
         $filters = [];
         if (isset($params['status'])) {
@@ -35,18 +36,9 @@ class AdminController
             $filters['status'] = $isActive ? 'active' : 'inactive';
         }
 
-        $result = $this->adminUsersService->listAdminUsers($perPage, $offset, $filters);
+        $result = $this->adminUsersService->listAdminUsers($query->perPage, $query->offset, $filters);
 
-        // Wrap response to match expected format
-        return $this->json($response, [
-            'data' => $result->items,
-            'pagination' => [
-                'total' => $result->total,
-                'page' => $page,
-                'per_page' => $perPage,
-                'has_more' => ($offset + $perPage) < $result->total,
-            ],
-        ]);
+        return $this->json($response, PaginatedResponse::fromQuery($result->items, $result->total, $query));
     }
 
     public function store(Request $request, Response $response): Response
@@ -163,11 +155,5 @@ class AdminController
             'admin' => $result['admin']->toArray(),
             'password' => $result['password'],
         ]);
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

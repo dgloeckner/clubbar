@@ -8,11 +8,16 @@ use App\Modules\Products\Services\CategoriesService;
 use App\Modules\Products\Services\ProductsService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Validation\Validator;
+use App\Shared\Http\JsonResponder;
+use App\Shared\Http\ListQuery;
+use App\Shared\Http\PaginatedResponse;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AdminController
 {
+    use JsonResponder;
+
     public function __construct(
         private CategoriesService $categoriesService,
         private ProductsService $productsService,
@@ -25,7 +30,10 @@ class AdminController
     {
         $categories = $this->categoriesService->listCategories();
 
-        return $this->json($response, ['categories' => $categories]);
+        // Categories are few and always returned whole, but the key is `data`
+        // like every other list — a fifth spelling for a fifth endpoint is how
+        // the frontend ended up with a fallback chain per screen (#119).
+        return $this->json($response, ['data' => $categories]);
     }
 
     public function storeCategory(Request $request, Response $response): Response
@@ -110,19 +118,14 @@ class AdminController
     {
         $params = $request->getQueryParams();
 
-        // Validate query parameters
-        $validationData = [
-            'per_page' => $params['per_page'] ?? null,
-            'page' => $params['page'] ?? null,
+        // Pagination and sorting are ListQuery's business; what is left here
+        // is the filter vocabulary, which is genuinely per-endpoint.
+        if (!$this->validator->validate([
             'status' => $params['status'] ?? null,
             'category_id' => $params['category_id'] ?? null,
             'sort_by' => $params['sort_by'] ?? null,
             'search' => $params['search'] ?? null,
-        ];
-
-        if (!$this->validator->validate($validationData, [
-            'per_page' => ['nullable', 'integer', 'gt:0'],
-            'page' => ['nullable', 'integer', 'gt:0'],
+        ], [
             'status' => ['nullable', 'in:all,active,inactive'],
             'category_id' => ['nullable', 'uuid'],
             'sort_by' => ['nullable', 'in:name_asc,name_desc,price_asc,price_desc,category_asc,category_desc,created_at_asc,created_at_desc'],
@@ -131,15 +134,7 @@ class AdminController
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
-        $limit = (int) ($params['per_page'] ?? $params['limit'] ?? 50);
-        $limit = min($limit, 100); // Enforce maximum limit
-        $offset = (int) ($params['page'] ?? 1);
-        $offset = ($offset - 1) * $limit; // Convert page number to offset
-
-        // Parse combined sort_by parameter (e.g., "price_asc" => sortBy="price", sortOrder="asc")
-        // Default to created_at desc so newest products appear first
-        $sortByParam = $params['sort_by'] ?? 'created_at_desc';
-        [$sortBy, $sortOrder] = $this->parseSortBy($sortByParam);
+        $query = ListQuery::fromParams($params);
 
         $filters = [];
         if (isset($params['category_id'])) {
@@ -148,30 +143,19 @@ class AdminController
         if (isset($params['status'])) {
             $filters['status'] = $params['status'];
         }
-        if (!empty($params['search'])) {
-            $filters['search'] = $params['search'];
+        if ($query->search !== null) {
+            $filters['search'] = $query->search;
         }
 
-        $result = $this->productsService->listProducts($limit, $offset, $filters, $sortBy, $sortOrder);
+        $result = $this->productsService->listProducts(
+            $query->perPage,
+            $query->offset,
+            $filters,
+            $query->sortKey,
+            $query->sortOrder,
+        );
 
-        return $this->json($response, $result->toArray());
-    }
-
-    private function parseSortBy(string $sortBy): array
-    {
-        // Map combined sort parameters to [field, direction]
-        $map = [
-            'name_asc' => ['name', 'asc'],
-            'name_desc' => ['name', 'desc'],
-            'price_asc' => ['price', 'asc'],
-            'price_desc' => ['price', 'desc'],
-            'category_asc' => ['category', 'asc'],
-            'category_desc' => ['category', 'desc'],
-            'created_at_asc' => ['created_at', 'asc'],
-            'created_at_desc' => ['created_at', 'desc'],
-        ];
-
-        return $map[$sortBy] ?? ['created_at', 'desc'];
+        return $this->json($response, PaginatedResponse::fromQuery($result->items, $result->total, $query));
     }
 
     public function storeProduct(Request $request, Response $response): Response
@@ -243,11 +227,5 @@ class AdminController
         $this->productsService->deleteProduct($productId, $adminId);
 
         return $response->withStatus(204);
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

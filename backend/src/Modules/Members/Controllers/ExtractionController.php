@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Modules\Members\Controllers;
 
 use App\Modules\Members\Contracts\ExtractionServiceInterface;
+use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class ExtractionController
 {
+    use JsonResponder;
+
     private const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'];
 
     public function __construct(
@@ -74,11 +77,5 @@ class ExtractionController
                 'message' => 'Extraction failed. Check server logs for details.',
             ], 500);
         }
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

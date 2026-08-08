@@ -6,11 +6,16 @@ namespace App\Modules\AuditLog\Controllers;
 
 use App\Modules\AuditLog\DTOs\AuditLogDto;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
+use App\Shared\Http\JsonResponder;
+use App\Shared\Http\ListQuery;
+use App\Shared\Http\PaginatedResponse;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AdminController
 {
+    use JsonResponder;
+
     public function __construct(
         private AuditLogRepository $auditLogRepository,
     ) {}
@@ -18,9 +23,7 @@ class AdminController
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        $page = (int) ($params['page'] ?? 1);
-        $perPage = (int) ($params['per_page'] ?? $params['limit'] ?? 50);
-        $offset = isset($params['offset']) ? (int) $params['offset'] : ($page - 1) * $perPage;
+        $query = ListQuery::fromParams($params);
 
         $nested = $params['filters'] ?? [];
 
@@ -54,7 +57,7 @@ class AdminController
             $filters['entity_id'] = $entityId;
         }
 
-        $result = $this->auditLogRepository->listWithFilters($perPage, $offset, $filters);
+        $result = $this->auditLogRepository->listWithFilters($query->perPage, $query->offset, $filters);
 
         // Convert raw database rows to DTOs (Backend Pattern 004)
         $items = array_map(
@@ -62,21 +65,6 @@ class AdminController
             $result['items']
         );
 
-        $totalPages = $perPage > 0 ? (int) ceil($result['total'] / $perPage) : 1;
-        return $this->json($response, [
-            'data' => $items,
-            'pagination' => [
-                'page' => $page,
-                'per_page' => $perPage,
-                'total' => $result['total'],
-                'total_pages' => $totalPages,
-            ],
-        ]);
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+        return $this->json($response, PaginatedResponse::fromQuery($items, (int) $result['total'], $query));
     }
 }

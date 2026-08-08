@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Modules\Reports\Controllers;
 
 use App\Modules\Reports\Services\ReportsService;
+use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AdminController
 {
+    use JsonResponder;
+
     public function __construct(private ReportsService $reportsService) {}
 
     /**
@@ -103,11 +106,5 @@ class AdminController
         );
 
         return $this->json($response, $data);
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

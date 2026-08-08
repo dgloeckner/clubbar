@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Repositories;
 
+use App\Shared\Utils\Uuid;
 use PDO;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
+use App\Shared\Repository\UnsettledTransactions;
 
 class SettlementsRepository
 {
@@ -58,16 +60,10 @@ class SettlementsRepository
     }
 
     /**
-     * A transaction belongs to no live settlement.
-     *
-     * `active_transaction_id` is the live claim and nothing else: a settlement
-     * that was cancelled keeps its items but releases them by nulling this
-     * column (ruling #142 §3), and many NULLs coexist in the UNIQUE index. That
-     * makes this one column both the definition of "settled" and the database's
-     * guarantee that two runs cannot collect the same drink.
+     * What "unsettled" means lives in UnsettledTransactions — this repository
+     * and TransactionsRepository each used to spell it out for themselves.
      */
-    private const UNSETTLED =
-        'NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)';
+    private const UNSETTLED = UnsettledTransactions::UNSETTLED;
 
     /**
      * Every member with unsettled activity inside the run's window — the
@@ -81,12 +77,15 @@ class SettlementsRepository
      */
     public function findParticipantMemberIds(?string $fromDate = null, ?string $toDate = null, ?string $memberId = null): array
     {
-        $where = [self::UNSETTLED];
-        $params = [];
-
-        if ($fromDate) { $where[] = 't.occurred_at >= ?'; $params[] = $fromDate; }
-        if ($toDate) { $where[] = 't.occurred_at <= ?'; $params[] = $toDate . ' 23:59:59'; }
-        if ($memberId) { $where[] = 't.member_id = ?'; $params[] = $memberId; }
+        // No members/products join here, so the search clause is not available.
+        [$where, $params] = UnsettledTransactions::buildUnsettledWhere(
+            array_filter([
+                'date_from' => $fromDate,
+                'date_to'   => $toDate,
+                'member_id' => $memberId,
+            ]),
+            supportsSearch: false,
+        );
 
         $whereClause = 'WHERE ' . implode(' AND ', $where);
         $stmt = $this->db->prepare("SELECT DISTINCT t.member_id FROM transactions t {$whereClause}");
@@ -161,7 +160,7 @@ class SettlementsRepository
 
     public function create(array $data): array
     {
-        $id = $data['id'] ?? $this->generateUuid();
+        $id = $data['id'] ?? Uuid::v4();
         $now = date('Y-m-d H:i:s');
 
         $stmt = $this->db->prepare(
@@ -306,7 +305,7 @@ class SettlementsRepository
         }
         if ($dateTo) {
             $where[] = 's.created_at <= ?';
-            $params[] = $dateTo . ' 23:59:59';
+            $params[] = UnsettledTransactions::endOfDay($dateTo);
         }
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -332,7 +331,7 @@ class SettlementsRepository
 
     public function getNextSepaMessageId(): string
     {
-        $uuid = $this->generateUuid();
+        $uuid = Uuid::v4();
         return 'SEPA-' . substr(str_replace('-', '', $uuid), 0, 12);
     }
 
@@ -356,13 +355,5 @@ class SettlementsRepository
     public function countPending(): int
     {
         return (int) $this->db->query('SELECT COUNT(*) FROM settlements WHERE is_cancelled = 0 AND exported_at IS NULL')->fetchColumn();
-    }
-
-    private function generateUuid(): string
-    {
-        $data = random_bytes(16);
-        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
-        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }

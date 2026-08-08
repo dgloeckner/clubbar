@@ -13,11 +13,14 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Validation\Validator;
 use PDO;
+use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AuthController
 {
+    use JsonResponder;
+
     public function __construct(
         private AuthService $authService,
         private AdminUsersService $adminUsersService,
@@ -374,11 +377,5 @@ class AuthController
             'last_login_at' => $admin['last_login_at'] ?? null,
             'totp_enabled' => $totpEnabled || (bool) ($admin['totp_enabled'] ?? false),
         ];
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

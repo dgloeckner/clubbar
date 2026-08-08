@@ -7,11 +7,16 @@ namespace App\Modules\Terminals\Controllers;
 use App\Modules\Terminals\Services\TerminalsService;
 use App\Shared\Exceptions\DuplicateResourceException;
 use App\Shared\Validation\Validator;
+use App\Shared\Http\JsonResponder;
+use App\Shared\Http\ListQuery;
+use App\Shared\Http\PaginatedResponse;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AdminController
 {
+    use JsonResponder;
+
     public function __construct(
         private TerminalsService $terminalsService,
         private Validator $validator,
@@ -20,12 +25,7 @@ class AdminController
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-
-        // Support page/per_page (frontend) format
-        $perPage = (int) ($params['per_page'] ?? $params['limit'] ?? 50);
-        $perPage = min($perPage, 100);
-        $page = (int) ($params['page'] ?? 1);
-        $offset = ($page - 1) * $perPage;
+        $query = ListQuery::fromParams($params);
 
         // Support is_active filter with proper string-to-bool conversion
         $isActive = null;
@@ -33,19 +33,9 @@ class AdminController
             $isActive = filter_var($params['is_active'], FILTER_VALIDATE_BOOLEAN);
         }
 
-        $result = $this->terminalsService->listTerminals($perPage, $offset, $isActive);
+        $result = $this->terminalsService->listTerminals($query->perPage, $query->offset, $isActive);
 
-        $lastPage = $perPage > 0 ? (int) ceil($result->total / $perPage) : 1;
-
-        return $this->json($response, [
-            'data' => $result->items,
-            'pagination' => [
-                'total' => $result->total,
-                'per_page' => $perPage,
-                'current_page' => $page,
-                'last_page' => max(1, $lastPage),
-            ],
-        ]);
+        return $this->json($response, PaginatedResponse::fromQuery($result->items, $result->total, $query));
     }
 
     public function store(Request $request, Response $response): Response
@@ -155,11 +145,5 @@ class AdminController
         $this->terminalsService->revokeAccess($id, $adminId);
 
         return $this->json($response, ['message' => 'Terminal access revoked']);
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

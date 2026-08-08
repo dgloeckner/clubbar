@@ -15,6 +15,7 @@ use App\Shared\Exceptions\ValidationException;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\DuplicateResourceException;
 use App\Shared\Exceptions\InvalidCredentialsException;
+use App\Shared\Exceptions\InvalidQueryParameterException;
 use Slim\Psr7\Response;
 
 class ErrorHandler implements MiddlewareInterface
@@ -47,6 +48,12 @@ class ErrorHandler implements MiddlewareInterface
                 // Add validation errors if available
                 if ($e instanceof ValidationException) {
                     $body['errors'] = $e->getErrors();
+                }
+
+                // Malformed query parameters report per-parameter messages
+                // under `messages`, the shape list endpoints have always used.
+                if ($e instanceof InvalidQueryParameterException) {
+                    $body['messages'] = $e->getMessages();
                 }
             } else {
                 // Fallback for non-AppException types

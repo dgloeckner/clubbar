@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Products\Repositories;
 
+use App\Shared\Utils\Uuid;
 use PDO;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
@@ -67,7 +68,7 @@ class CategoriesRepository
 
     public function create(array $data): array
     {
-        $id = $data['id'] ?? $this->generateUuid();
+        $id = $data['id'] ?? Uuid::v4();
         $now = date('Y-m-d H:i:s');
         $names = is_array($data['names']) ? json_encode($data['names']) : $data['names'];
 
@@ -126,13 +127,5 @@ class CategoriesRepository
     public function count(): int
     {
         return (int) $this->db->query('SELECT COUNT(*) FROM categories')->fetchColumn();
-    }
-
-    private function generateUuid(): string
-    {
-        $data = random_bytes(16);
-        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
-        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }

@@ -6,6 +6,7 @@ namespace App\Modules\Reports\Services;
 
 use App\Modules\Reports\DTOs\ReportDto;
 use App\Modules\Reports\DTOs\ReportRowDto;
+use App\Shared\Utils\Csv;
 use PDO;
 
 class ReportsService
@@ -167,19 +168,21 @@ class ReportsService
         // Use a large page to get all data
         $report = $this->getReport($reportType, $dateFrom, $dateTo, $groupBy, null, null, 1, 10000);
 
-        $lines = [];
-        $lines[] = implode(',', ['Dimension', 'Revenue (cents)', 'Count', '% of Total']);
-        foreach ($report->data as $row) {
-            $arr = $row->toArray();
-            $lines[] = implode(',', [
-                '"' . str_replace('"', '""', $arr['dimension']) . '"',
-                $arr['revenue_cents'],
-                $arr['count'],
-                $arr['percent_of_total'],
-            ]);
-        }
+        // Euros, semicolons and RFC 4180 quoting, like every other export
+        // (#119) — this one used to write commas and raw cents.
+        return Csv::build(
+            ['Dimension', 'Revenue EUR', 'Count', '% of Total'],
+            array_map(static function ($row): array {
+                $arr = $row->toArray();
 
-        return implode("\n", $lines) . "\n";
+                return [
+                    $arr['dimension'],
+                    Csv::money((int) $arr['revenue_cents']),
+                    $arr['count'],
+                    $arr['percent_of_total'],
+                ];
+            }, $report->data),
+        );
     }
 
     /**
