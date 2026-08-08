@@ -57,24 +57,31 @@ test.describe('MandateDocumentSection — upload and replace', () => {
     await expect(page.getByTestId('mandate-document-dropzone')).toBeVisible()
 
     // ── Initial upload (JPEG — exercises the client-side compression path) ──
+    // Uses the realistic 2400x1800 fixture, not the ~281-byte stub: browser-image-compression
+    // resizes/re-encodes via a web worker, and a degenerate near-empty image is an edge case
+    // the library isn't necessarily built to handle — a real photo is what production sees.
+    await page.getByTestId('mandate-document-input').setInputFiles({
+      name: 'test-mandate-large.jpg',
+      mimeType: 'image/jpeg',
+      buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate-large.jpg')),
+    })
+    // Compression runs in a web worker and can take a while under CI's parallel load —
+    // matches the timeout convention in mandate-document-extraction.spec.ts.
+    await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 })
+
+    // Only start listening once the upload button is about to be clicked — creating this
+    // earlier races the wait's own timeout against however long file selection takes.
     const firstUploadResponse = page.waitForResponse(
       (resp) =>
         resp.url().includes(`/api/admin/members/${memberId}/mandate-document`) &&
         resp.request().method() === 'POST' &&
-        resp.status() === 200
+        resp.status() === 200,
+      { timeout: 15000 }
     )
-    await page.getByTestId('mandate-document-input').setInputFiles({
-      name: 'test-mandate.jpg',
-      mimeType: 'image/jpeg',
-      buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate.jpg')),
-    })
-    // Client-side compression (browser-image-compression, web worker) can take a while
-    // under CI's parallel load — matches the timeout convention in mandate-document-extraction.spec.ts.
-    await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 })
     await page.getByTestId('mandate-document-upload-btn').click()
 
     const firstDoc = await (await firstUploadResponse).json()
-    expect(firstDoc.original_filename).toBe('test-mandate.jpg')
+    expect(firstDoc.original_filename).toBe('test-mandate-large.jpg')
 
     await expect(page.getByTestId('mandate-document-stored')).toBeVisible()
     await expect(page.getByTestId('mandate-document-dropzone')).not.toBeVisible()
@@ -83,20 +90,22 @@ test.describe('MandateDocumentSection — upload and replace', () => {
     await page.getByTestId('mandate-document-replace-btn').click()
     await expect(page.getByTestId('mandate-document-dropzone')).toBeVisible()
 
-    const secondUploadResponse = page.waitForResponse(
-      (resp) =>
-        resp.url().includes(`/api/admin/members/${memberId}/mandate-document`) &&
-        resp.request().method() === 'POST' &&
-        resp.status() === 200
-    )
     await page.getByTestId('mandate-document-input').setInputFiles({
       name: 'test-mandate.pdf',
       mimeType: 'application/pdf',
       buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate.pdf')),
     })
-    // PDFs skip client-side compression, but keep the same generous timeout for headroom
-    // under CI's parallel load, matching mandate-document-extraction.spec.ts's convention.
+    // PDFs skip client-side compression — this should be near-instant, but keep some
+    // headroom for CI's parallel load, matching the convention used above.
     await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 })
+
+    const secondUploadResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes(`/api/admin/members/${memberId}/mandate-document`) &&
+        resp.request().method() === 'POST' &&
+        resp.status() === 200,
+      { timeout: 15000 }
+    )
     await page.getByTestId('mandate-document-upload-btn').click()
 
     const secondDoc = await (await secondUploadResponse).json()
