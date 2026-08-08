@@ -8,6 +8,7 @@
  */
 
 import { test, expect } from '../../fixtures/pageObjects'
+import { SettingsPage } from '../../pages'
 
 /**
  * Helper: Generate unique string for test data isolation
@@ -159,8 +160,9 @@ test.describe('Admin Users Management', () => {
     // Assert: Copy button is visible
     await expect(authenticatedSettingsPage.page.getByTestId('settings-admin-password-copy-button')).toBeVisible()
 
-    // Act: Copy password closes the modal (handleCopy calls onClose after writing to clipboard)
+    // Act: Copy the password — the modal stays open until the copy is confirmed (#126)
     await authenticatedSettingsPage.copyPasswordToClipboard()
+    await authenticatedSettingsPage.expectPasswordModalVisible()
   })
 
   /**
@@ -506,5 +508,82 @@ test.describe('Admin Users Management', () => {
 
     // Should have at least one admin (the test user)
     expect(count).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * Issue #126: a generated password is shown exactly once, so the modal must not
+ * discard it on a stray click or on a clipboard write that never succeeded.
+ */
+test.describe('Password modal — one-time secret handling', () => {
+  /**
+   * Create an admin user and leave the password modal open on screen.
+   */
+  async function openPasswordModal(settingsPage: SettingsPage): Promise<string> {
+    await settingsPage.waitForLoad()
+    await settingsPage.clickAdminUsersTab()
+
+    await settingsPage.clickCreateAdminButton()
+    await settingsPage.fillCreateAdminForm(generateTestAdminUser())
+    await settingsPage.clickCreateAdminConfirm()
+    await settingsPage.waitForPasswordModal()
+
+    const password = await settingsPage.getGeneratedPassword()
+    expect(password).not.toBeNull()
+    expect(password!.length).toBeGreaterThan(0)
+    return password!
+  }
+
+  test('keeps the password when the backdrop is clicked', async ({ authenticatedSettingsPage }) => {
+    const password = await openPasswordModal(authenticatedSettingsPage)
+
+    // Act: click outside the dialog, where the old backdrop handler used to close it
+    await authenticatedSettingsPage.clickPasswordModalBackdrop()
+
+    // Assert: the secret is still on screen, unchanged
+    await authenticatedSettingsPage.expectPasswordModalVisible()
+    expect(await authenticatedSettingsPage.getGeneratedPassword()).toBe(password)
+
+    // And the explicit acknowledgement still closes it
+    await authenticatedSettingsPage.closePasswordModal()
+    await authenticatedSettingsPage.expectPasswordModalHidden()
+  })
+
+  test('confirms the copy and keeps the password until acknowledged', async ({
+    authenticatedSettingsPage,
+  }) => {
+    await authenticatedSettingsPage.grantClipboardPermissions()
+    const password = await openPasswordModal(authenticatedSettingsPage)
+
+    // Act: copy the password
+    await authenticatedSettingsPage.copyPasswordToClipboard()
+
+    // Assert: the write is confirmed and the clipboard really holds the password
+    await authenticatedSettingsPage.expectPasswordCopyConfirmed()
+    expect(await authenticatedSettingsPage.readClipboard()).toBe(password)
+
+    // Assert: copying alone does not discard the secret
+    await authenticatedSettingsPage.expectPasswordModalVisible()
+    expect(await authenticatedSettingsPage.getGeneratedPassword()).toBe(password)
+
+    await authenticatedSettingsPage.closePasswordModal()
+    await authenticatedSettingsPage.expectPasswordModalHidden()
+  })
+
+  test('keeps the password visible when the clipboard write fails', async ({
+    authenticatedSettingsPage,
+  }) => {
+    const password = await openPasswordModal(authenticatedSettingsPage)
+
+    // Arrange: a clipboard that rejects, as on a non-secure origin
+    await authenticatedSettingsPage.breakClipboard()
+
+    // Act
+    await authenticatedSettingsPage.copyPasswordToClipboard()
+
+    // Assert: the failure is reported and the password is still recoverable
+    await authenticatedSettingsPage.expectPasswordCopyFailed()
+    await authenticatedSettingsPage.expectPasswordModalVisible()
+    expect(await authenticatedSettingsPage.getGeneratedPassword()).toBe(password)
   })
 })

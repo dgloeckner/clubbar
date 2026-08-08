@@ -8,6 +8,7 @@
  */
 
 import { test, expect } from '../../fixtures/pageObjects'
+import { SettingsPage } from '../../pages'
 
 /**
  * Helper: Generate unique string for test data isolation
@@ -276,5 +277,82 @@ test.describe('Terminal Devices Management', () => {
 
     const newCount = await authenticatedSettingsPage.getTerminalCount()
     expect(newCount).toBe(initialCount)
+  })
+})
+
+/**
+ * Issue #126: a terminal token is shown exactly once, so the modal must not
+ * discard it on a stray click or on a clipboard write that never succeeded.
+ */
+test.describe('Terminal token modal — one-time secret handling', () => {
+  /**
+   * Create a terminal and leave the token modal open on screen.
+   */
+  async function openTokenModal(settingsPage: SettingsPage): Promise<string> {
+    await settingsPage.waitForLoad()
+    await settingsPage.clickTerminalsTab()
+
+    await settingsPage.clickCreateTerminalButton()
+    await settingsPage.fillCreateTerminalForm(generateTestTerminal())
+    await settingsPage.clickCreateTerminalConfirm()
+    await settingsPage.waitForTokenModal()
+
+    const token = await settingsPage.getGeneratedToken()
+    expect(token).not.toBeNull()
+    expect(token!.length).toBeGreaterThan(0)
+    return token!
+  }
+
+  test('keeps the token when the backdrop is clicked', async ({ authenticatedSettingsPage }) => {
+    const token = await openTokenModal(authenticatedSettingsPage)
+
+    // Act: click outside the dialog, where the old backdrop handler used to close it
+    await authenticatedSettingsPage.clickTokenModalBackdrop()
+
+    // Assert: the secret is still on screen, unchanged
+    await authenticatedSettingsPage.expectTokenModalVisible()
+    expect(await authenticatedSettingsPage.getGeneratedToken()).toBe(token)
+
+    // And the explicit acknowledgement still closes it
+    await authenticatedSettingsPage.closeTokenModal()
+    await authenticatedSettingsPage.expectTokenModalHidden()
+  })
+
+  test('confirms the copy and keeps the token until acknowledged', async ({
+    authenticatedSettingsPage,
+  }) => {
+    await authenticatedSettingsPage.grantClipboardPermissions()
+    const token = await openTokenModal(authenticatedSettingsPage)
+
+    // Act: copy the token
+    await authenticatedSettingsPage.copyTokenToClipboard()
+
+    // Assert: the write is confirmed and the clipboard really holds the token
+    await authenticatedSettingsPage.expectTokenCopyConfirmed()
+    expect(await authenticatedSettingsPage.readClipboard()).toBe(token)
+
+    // Assert: copying alone does not discard the secret
+    await authenticatedSettingsPage.expectTokenModalVisible()
+    expect(await authenticatedSettingsPage.getGeneratedToken()).toBe(token)
+
+    await authenticatedSettingsPage.closeTokenModal()
+    await authenticatedSettingsPage.expectTokenModalHidden()
+  })
+
+  test('keeps the token visible when the clipboard write fails', async ({
+    authenticatedSettingsPage,
+  }) => {
+    const token = await openTokenModal(authenticatedSettingsPage)
+
+    // Arrange: a clipboard that rejects, as on a non-secure origin
+    await authenticatedSettingsPage.breakClipboard()
+
+    // Act
+    await authenticatedSettingsPage.copyTokenToClipboard()
+
+    // Assert: the failure is reported and the token is still recoverable
+    await authenticatedSettingsPage.expectTokenCopyFailed()
+    await authenticatedSettingsPage.expectTokenModalVisible()
+    expect(await authenticatedSettingsPage.getGeneratedToken()).toBe(token)
   })
 })

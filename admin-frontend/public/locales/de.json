@@ -428,7 +428,14 @@
     "rotateTokenConfirm": "API-Token rotieren? Das alte Token wird sofort ungültig.",
     "tokenGenerated": "API-Token generiert",
     "tokenWarning": "Kopieren Sie dieses Token jetzt. Es wird nicht erneut angezeigt.",
-    "tokenRotated": "Neues API-Token generiert. Das alte Token ist nicht mehr gültig."
+    "tokenRotated": "Neues API-Token generiert. Das alte Token ist nicht mehr gültig.",
+    "passwordGenerated": "Passwort erstellt",
+    "passwordWarning": "Kopieren Sie dieses Passwort jetzt. Es wird nicht erneut angezeigt.",
+    "secretCopy": "Kopieren",
+    "secretCopyAgain": "Erneut kopieren",
+    "secretCopied": "In die Zwischenablage kopiert.",
+    "secretCopyFailed": "Kopieren fehlgeschlagen. Der Wert oben ist markiert — kopieren Sie ihn manuell, bevor Sie schließen.",
+    "secretAcknowledge": "Ich habe es gespeichert"
   },
   "auditLog": {
     "title": "Audit-Log",
