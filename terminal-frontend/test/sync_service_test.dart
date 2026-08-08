@@ -347,7 +347,7 @@ void main() {
                   errors: [
                     TransactionBatchResponse$Rejected$Errors$Item(
                       transactionId: 'txn-1',
-                      reason: 'member_not_found',
+                      error: 'member_not_found',
                     ),
                   ],
                 ),
