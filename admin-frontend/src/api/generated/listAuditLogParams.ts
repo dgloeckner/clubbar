@@ -59,6 +59,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type { ListAuditLogAction } from './listAuditLogAction';
 import type { ListAuditLogEntityType } from './listAuditLogEntityType';
+import type { ListAuditLogSortBy } from './listAuditLogSortBy';
 import type { PageParameter } from './pageParameter';
 import type { PerPageParameter } from './perPageParameter';
 
@@ -84,4 +85,8 @@ entity_id?: string;
  * Search in entity ID, admin email, or IP address
  */
 search?: string;
+/**
+ * Sort field and direction
+ */
+sort_by?: ListAuditLogSortBy;
 };

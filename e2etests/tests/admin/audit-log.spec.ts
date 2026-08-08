@@ -243,26 +243,33 @@ test.describe('UC-A81: Audit Log', () => {
   })
 
   test.describe('Sorting', () => {
+    /** `dd.mm.yyyy, hh:mm` → a string that sorts chronologically. */
+    const sortable = (rendered: string): string => {
+      const [date, time = ''] = rendered.split(',').map((part) => part.trim())
+      const [day, month, year] = date.split('.')
+      return `${year}${month}${day}${time.replace(':', '')}`
+    }
+
+    // #125: the header toggled a local flag the request never carried, so the
+    // arrow pointed up while the rows stayed newest-first. Both halves are
+    // asserted here — the parameter the click sends, and the order it yields.
     test('should sort by timestamp', async ({ authenticatedAuditLogPage }) => {
-      const initialCount = await authenticatedAuditLogPage.getTableRowCount()
+      const newestFirst = await authenticatedAuditLogPage.getTimestamps()
+      expect(newestFirst.length).toBeGreaterThan(1)
+      const descendingKeys = newestFirst.map(sortable)
+      expect(descendingKeys).toEqual([...descendingKeys].sort().reverse())
 
-      if (initialCount > 1) {
-        // Get initial first timestamp
-        const firstTimestampBefore = await authenticatedAuditLogPage.getTimestamp(0)
+      await authenticatedAuditLogPage.sortByTimestamp('created_at_asc')
 
-        // Click sort to reverse order
-        await authenticatedAuditLogPage.sortByTimestamp()
+      const oldestFirst = await authenticatedAuditLogPage.getTimestamps()
+      const ascendingKeys = oldestFirst.map(sortable)
+      expect(ascendingKeys).toEqual([...ascendingKeys].sort())
 
-        // First timestamp should be different now (or same if only 1 page)
-        const firstTimestampAfter = await authenticatedAuditLogPage.getTimestamp(0)
+      // Toggling back returns to the order the page opened with.
+      await authenticatedAuditLogPage.sortByTimestamp('created_at_desc')
 
-        // Verify sort interaction completed without crashing; timestamps are readable strings.
-        // (Both may be equal when ≤2 audit entries exist — that is acceptable.)
-        expect(typeof firstTimestampBefore).toBe('string')
-        expect(firstTimestampBefore!.length).toBeGreaterThan(0)
-        expect(typeof firstTimestampAfter).toBe('string')
-        expect(firstTimestampAfter!.length).toBeGreaterThan(0)
-      }
+      const backToNewestFirst = (await authenticatedAuditLogPage.getTimestamps()).map(sortable)
+      expect(backToNewestFirst).toEqual([...backToNewestFirst].sort().reverse())
     })
   })
 

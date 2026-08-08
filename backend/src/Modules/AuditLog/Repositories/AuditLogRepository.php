@@ -42,7 +42,13 @@ class AuditLogRepository
         return $stmt->rowCount();
     }
 
-    public function listWithFilters(int $limit, int $offset, array $filters = []): array
+    /**
+     * @param array<string, mixed> $filters
+     * @param string $sortKey Only `created_at` is orderable; anything else is
+     *        rejected rather than silently ignored, because the audit screen
+     *        used to render a sort arrow over an unchanged order (#125).
+     */
+    public function listWithFilters(int $limit, int $offset, array $filters = [], string $sortKey = 'created_at', string $sortOrder = 'desc'): array
     {
         $where = [];
         $params = [];
@@ -79,13 +85,19 @@ class AuditLogRepository
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
+        $columnMap = ['created_at' => 'al.created_at'];
+        $sortColumn = $columnMap[SafeQuery::column($sortKey, array_keys($columnMap))];
+        $dir = SafeQuery::direction($sortOrder);
+
         $countStmt = $this->db->prepare("SELECT COUNT(*) FROM audit_log al {$whereClause}");
         $countStmt->execute($params);
         $total = (int) $countStmt->fetchColumn();
 
+        // Entries written inside the same second are ordered by their insertion
+        // id, so paging through the log cannot show a row twice or skip one.
         $dataParams = array_merge($params, [$limit, $offset]);
         $stmt = $this->db->prepare(
-            "SELECT al.*, au.display_name as admin_user_name FROM audit_log al LEFT JOIN admin_users au ON al.admin_user_id = au.id {$whereClause} ORDER BY al.created_at DESC LIMIT ? OFFSET ?"
+            "SELECT al.*, au.display_name as admin_user_name FROM audit_log al LEFT JOIN admin_users au ON al.admin_user_id = au.id {$whereClause} ORDER BY {$sortColumn} {$dir}, al.id {$dir} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
 

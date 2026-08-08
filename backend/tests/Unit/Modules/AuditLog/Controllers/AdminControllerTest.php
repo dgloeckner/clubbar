@@ -125,6 +125,40 @@ class AdminControllerTest extends TestCase
         $this->assertSame(4, $body['pagination']['page']);
     }
 
+    public function test_index_defaults_to_newest_first(): void
+    {
+        $this->repository->expects($this->once())
+            ->method('listWithFilters')
+            ->with(50, 0, [], 'created_at', 'desc')
+            ->willReturn(['items' => [], 'total' => 0]);
+
+        $this->controller->index($this->get('/api/admin/audit-log'), new Response());
+    }
+
+    /**
+     * The bug this endpoint had (#125): the audit screen's sort control was
+     * decorative, because no sort parameter reached the query at all.
+     */
+    public function test_index_forwards_the_combined_sort_by_dialect(): void
+    {
+        $this->repository->expects($this->once())
+            ->method('listWithFilters')
+            ->with(50, 0, [], 'created_at', 'asc')
+            ->willReturn(['items' => [], 'total' => 0]);
+
+        $this->controller->index($this->get('/api/admin/audit-log', ['sort_by' => 'created_at_asc']), new Response());
+    }
+
+    public function test_index_forwards_sort_and_order(): void
+    {
+        $this->repository->expects($this->once())
+            ->method('listWithFilters')
+            ->with(50, 0, [], 'created_at', 'asc')
+            ->willReturn(['items' => [], 'total' => 0]);
+
+        $this->controller->index($this->get('/api/admin/audit-log', ['sort' => 'created_at', 'order' => 'asc']), new Response());
+    }
+
     public function test_index_refuses_a_per_page_over_the_cap(): void
     {
         $this->repository->expects($this->never())->method('listWithFilters');

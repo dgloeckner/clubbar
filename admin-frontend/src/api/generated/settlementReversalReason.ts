@@ -58,16 +58,20 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export type ListMembersSortBy = typeof ListMembersSortBy[keyof typeof ListMembersSortBy];
+/**
+ * `bank_return` places the member on collection hold; `club_error`
+does not, because re-collection is the point of recording one.
+
+There is deliberately no finer classification of *why* the bank
+returned it: in Germany AM04, AC04, MD07 and RR01-04 are
+suppressed for data-protection reasons and collapse into
+"sonstige Gründe".
+
+ */
+export type SettlementReversalReason = typeof SettlementReversalReason[keyof typeof SettlementReversalReason];
 
 
-export const ListMembersSortBy = {
-  name_asc: 'name_asc',
-  name_desc: 'name_desc',
-  card_uid_asc: 'card_uid_asc',
-  card_uid_desc: 'card_uid_desc',
-  balance_asc: 'balance_asc',
-  balance_desc: 'balance_desc',
-  created_at_asc: 'created_at_asc',
-  created_at_desc: 'created_at_desc',
+export const SettlementReversalReason = {
+  bank_return: 'bank_return',
+  club_error: 'club_error',
 } as const;

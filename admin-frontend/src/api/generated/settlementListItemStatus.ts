@@ -58,16 +58,21 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export type ListMembersSortBy = typeof ListMembersSortBy[keyof typeof ListMembersSortBy];
+/**
+ * Where the settlement stands, derived on every read from
+`is_cancelled`, the reversal rows, `submitted_at` and
+`exported_at` (ruling #148 §6). There is no status column, so
+nothing can drift out of step with it.
+
+ */
+export type SettlementListItemStatus = typeof SettlementListItemStatus[keyof typeof SettlementListItemStatus];
 
 
-export const ListMembersSortBy = {
-  name_asc: 'name_asc',
-  name_desc: 'name_desc',
-  card_uid_asc: 'card_uid_asc',
-  card_uid_desc: 'card_uid_desc',
-  balance_asc: 'balance_asc',
-  balance_desc: 'balance_desc',
-  created_at_asc: 'created_at_asc',
-  created_at_desc: 'created_at_desc',
+export const SettlementListItemStatus = {
+  cancelled: 'cancelled',
+  fully_reversed: 'fully_reversed',
+  partly_reversed: 'partly_reversed',
+  submitted: 'submitted',
+  exported: 'exported',
+  draft: 'draft',
 } as const;

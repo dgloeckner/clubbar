@@ -57,7 +57,13 @@ class AdminController
             $filters['entity_id'] = $entityId;
         }
 
-        $result = $this->auditLogRepository->listWithFilters($query->perPage, $query->offset, $filters);
+        $result = $this->auditLogRepository->listWithFilters(
+            $query->perPage,
+            $query->offset,
+            $filters,
+            $query->sortKey,
+            $query->sortOrder,
+        );
 
         // Convert raw database rows to DTOs (Backend Pattern 004)
         $items = array_map(

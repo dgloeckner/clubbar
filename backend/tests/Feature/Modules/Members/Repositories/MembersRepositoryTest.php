@@ -619,6 +619,103 @@ class MembersRepositoryTest extends DatabaseTestCase
         return (int) $stmt->fetchColumn();
     }
 
+    // ------------------------------------------------------------------
+    // Sorting by the columns the admin list actually offers (#125: the Name
+    // and Card-UID headers rendered a sort arrow over an unchanged order,
+    // because neither key reached the query)
+    // ------------------------------------------------------------------
+
+    public function test_listPaginated_sorts_by_name_last_name_first(): void
+    {
+        $marker = $this->sortMarker();
+        $bravo = $this->createTestMember('Zoe', "{$marker}Bravo");
+        $alphaBea = $this->createTestMember('Bea', "{$marker}Alpha");
+        $alphaAnn = $this->createTestMember('Ann', "{$marker}Alpha");
+
+        $ascending = $this->membersRepository->listPaginated(10, 0, [], 'name', 'asc', $marker);
+
+        // Same last name, so the first name decides — a member list sorted by
+        // name reads like a phone book.
+        $this->assertSame(
+            [$alphaAnn, $alphaBea, $bravo],
+            array_column($ascending['items'], 'id')
+        );
+
+        $descending = $this->membersRepository->listPaginated(10, 0, [], 'name', 'desc', $marker);
+
+        $this->assertSame(
+            [$bravo, $alphaBea, $alphaAnn],
+            array_column($descending['items'], 'id')
+        );
+    }
+
+    public function test_listPaginated_sorts_by_card_uid_with_cardless_members_last(): void
+    {
+        $marker = $this->sortMarker();
+        $withoutCard = $this->createTestMember('NoCard', $marker);
+        $highCard = $this->createTestMember('HighCard', $marker);
+        $lowCard = $this->createTestMember('LowCard', $marker);
+        $this->assignCardUid($highCard, 'FFFF' . strtoupper(substr(str_replace('-', '', $highCard), 0, 8)));
+        $this->assignCardUid($lowCard, '0000' . strtoupper(substr(str_replace('-', '', $lowCard), 0, 8)));
+
+        $ascending = $this->membersRepository->listPaginated(10, 0, [], 'card_uid', 'asc', $marker);
+
+        $this->assertSame(
+            [$lowCard, $highCard, $withoutCard],
+            array_column($ascending['items'], 'id')
+        );
+
+        // Most members have no card. Sorting descending must not bury the
+        // cards behind every member that has none, so NULLs stay last.
+        $descending = $this->membersRepository->listPaginated(10, 0, [], 'card_uid', 'desc', $marker);
+
+        $this->assertSame(
+            [$highCard, $lowCard, $withoutCard],
+            array_column($descending['items'], 'id')
+        );
+    }
+
+    public function test_listPaginated_pages_are_disjoint_when_rows_share_a_timestamp(): void
+    {
+        $marker = $this->sortMarker();
+        // Created within the same second, which `created_at` cannot tell apart.
+        $ids = [
+            $this->createTestMember('PageOne', $marker),
+            $this->createTestMember('PageTwo', $marker),
+            $this->createTestMember('PageThree', $marker),
+        ];
+
+        $paged = [];
+        for ($offset = 0; $offset < 3; $offset++) {
+            $page = $this->membersRepository->listPaginated(1, $offset, [], 'created_at', 'desc', $marker);
+            $paged[] = $page['items'][0]['id'];
+        }
+
+        sort($ids);
+        $seen = $paged;
+        sort($seen);
+        $this->assertSame($ids, $seen, 'Every member must appear on exactly one page');
+    }
+
+    public function test_listPaginated_rejects_a_sort_key_it_cannot_order_by(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->membersRepository->listPaginated(10, 0, [], 'iban', 'asc');
+    }
+
+    /** A per-test name fragment, so a sort assertion only sees its own rows. */
+    private function sortMarker(): string
+    {
+        return 'Srt' . strtoupper(substr(str_replace('-', '', $this->generateUuid()), 0, 10));
+    }
+
+    private function assignCardUid(string $memberId, string $cardUid): void
+    {
+        $stmt = $this->db->prepare('UPDATE members SET card_uid = ? WHERE id = ?');
+        $stmt->execute([$cardUid, $memberId]);
+    }
+
     private function createTestMember(string $firstName, string $lastName): string
     {
         $memberId = $this->generateUuid();

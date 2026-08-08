@@ -15,7 +15,7 @@ import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, Sc
 import { downloadBlob } from '../api/client'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
-import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, ListMembersSortBy, MemberCreateRequest, MemberUpdateRequest } from '../api/generated'
+import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, MemberCreateRequest, MemberUpdateRequest } from '../api/generated'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { MobileFilterRow } from '../components/tables/MobileFilterRow'
@@ -27,6 +27,7 @@ import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { validateIban } from '../utils/iban'
 import { toIsoDate } from '../utils/dates'
+import { buildMemberSortBy, type MemberSortKey } from '../utils/memberSort'
 import { useBankName } from '../hooks/useBankName'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { useListQuery } from '../hooks/useListQuery'
@@ -45,12 +46,6 @@ import {
 
 const PER_PAGE = 20
 
-// Build sort_by param from sortKey + sortDirection
-function buildSortBy(key: string, dir: 'asc' | 'desc'): ListMembersSortBy {
-  if (key === 'first_name' || key === 'last_name') return dir === 'asc' ? 'name_asc' : 'name_desc'
-  return 'created_at_desc' // API only supports created_at_desc for date sorting
-}
-
 function normalizeCardUid(raw: string | null | undefined): string {
   if (!raw) return ''
   // Strip common separators (hyphens, spaces, colons), then remove non-hex chars
@@ -58,8 +53,6 @@ function normalizeCardUid(raw: string | null | undefined): string {
   // Only use the result if it has enough hex chars to be a plausible UID (≥4)
   return cleaned.length >= 4 ? cleaned : ''
 }
-
-type MemberSortKey = 'first_name' | 'last_name' | 'created_at' | 'card_uid'
 
 interface MemberFilters {
   status: 'all' | 'active' | 'inactive'
@@ -92,7 +85,7 @@ export function MembersPage() {
       const params: ListMembersParams = {
         page,
         per_page: pageSize,
-        sort_by: buildSortBy(sortKey, sortDirection),
+        sort_by: buildMemberSortBy(sortKey, sortDirection),
       }
       if (search) params.search = search
       if (filters.status !== 'all') params.status = filters.status as ListMembersStatus
@@ -1101,9 +1094,10 @@ export function MembersPage() {
                   <th style={headerCellBaseStyle}>
                     <SortableTableHeader
                       label={t('common.name')}
-                      sortKey="first_name"
+                      sortKey="last_name"
                       currentSort={{ key: list.sortKey, direction: list.sortDirection }}
                       onSort={(key: string, direction: 'asc' | 'desc') => list.setSort(key as MemberSortKey, direction)}
+                      testId="members-table-header-name"
                     />
                   </th>
                   <th style={{ ...headerCellBaseStyle, width: '150px' }}>
@@ -1112,6 +1106,7 @@ export function MembersPage() {
                       sortKey="card_uid"
                       currentSort={{ key: list.sortKey, direction: list.sortDirection }}
                       onSort={(key: string, direction: 'asc' | 'desc') => list.setSort(key as MemberSortKey, direction)}
+                      testId="members-table-header-card-uid"
                     />
                   </th>
                   <th style={{ ...headerCellBaseStyle, width: '120px' }}>

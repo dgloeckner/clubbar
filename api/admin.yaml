@@ -459,11 +459,22 @@ paths:
             type: string
         - name: sort_by
           in: query
-          description: Sort field and direction
+          description: |
+            Sort field and direction. `name` orders by last name then first
+            name; `balance` orders by the unsettled balance; members without a
+            card UID sort last in both `card_uid` directions.
           schema:
             type: string
-            enum: [name_asc, name_desc, balance_asc, balance_desc, created_at_desc]
-            default: name_asc
+            enum:
+              - name_asc
+              - name_desc
+              - card_uid_asc
+              - card_uid_desc
+              - balance_asc
+              - balance_desc
+              - created_at_asc
+              - created_at_desc
+            default: created_at_desc
       responses:
         '200':
           description: List of members
@@ -2762,6 +2773,13 @@ paths:
           description: Search in entity ID, admin email, or IP address
           schema:
             type: string
+        - name: sort_by
+          in: query
+          description: Sort field and direction
+          schema:
+            type: string
+            enum: [created_at_desc, created_at_asc]
+            default: created_at_desc
       responses:
         '200':
           description: Audit log entries

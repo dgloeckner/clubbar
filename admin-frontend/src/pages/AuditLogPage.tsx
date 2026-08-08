@@ -9,7 +9,7 @@ import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useLoading } from '../context/LoadingContext'
 import { getAuditLog } from '../api/generated/audit-log/audit-log'
-import type { AuditLogEntry, ListAuditLogParams } from '../api/generated'
+import type { AuditLogEntry, ListAuditLogParams, ListAuditLogSortBy } from '../api/generated'
 import { ListAuditLogAction, ListAuditLogEntityType } from '../api/generated'
 import {
   tableWrapperStyles,
@@ -95,19 +95,20 @@ export function AuditLogPage() {
   // Paging, filters and the debounced search all live in the shared list-query
   // state (#121).
   //
-  // The sort direction is held but not sent: /admin/audit-log takes no sort or
-  // order parameter, so the control has always been decorative. Adding one is an
-  // API change, tracked separately — keeping the state here at least means the
-  // header and the mobile dropdown agree on what they display.
+  // The sort direction is sent as `sort_by=created_at_<direction>`: the header
+  // arrow and the mobile dropdown used to toggle a value the request never
+  // carried, so the list showed an ascending arrow over newest-first rows
+  // (#125). Timestamp is the only orderable column the endpoint offers.
   const list = useListQuery<AuditLogEntry, AuditLogFilters, 'created_at'>({
     initialFilters: { dateFrom: '', dateTo: '', adminId: '', action: '', entityType: '' },
     initialSortKey: 'created_at',
     initialSortDirection: 'desc',
     initialPageSize: 50,
-    fetcher: async ({ page, pageSize, search, filters, signal }) => {
+    fetcher: async ({ page, pageSize, sortDirection, search, filters, signal }) => {
       const params: ListAuditLogParams = {
         page,
         per_page: pageSize,
+        sort_by: `created_at_${sortDirection}` as ListAuditLogSortBy,
         date_from: filters.dateFrom || undefined,
         date_to: filters.dateTo || undefined,
         admin_user_id: filters.adminId || undefined,

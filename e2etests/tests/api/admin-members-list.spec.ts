@@ -1,3 +1,4 @@
+import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from '../../fixtures/auth.fixture';
 
 /**
@@ -157,5 +158,117 @@ test.describe('Admin Members List Endpoint', () => {
     });
 
     expect(response.status()).toBe(400);
+  });
+
+  /**
+   * Sorting (#125).
+   *
+   * The admin list offers a Name, a Card-UID and a Member-since column. Every
+   * one of them has to reach the query: the members endpoint used to answer
+   * `card_uid_asc` and `created_at_asc` with the newest-first order, so the
+   * header arrow and the rows disagreed.
+   *
+   * Each test creates its own members and scopes the request with `search`,
+   * so the assertions hold no matter what else the database holds or what
+   * runs in parallel (Patterns 001 and 004).
+   */
+  test.describe('Sorting', () => {
+    /** A token unique to one test, used as both a name prefix and the search scope. */
+    function sortToken(): string {
+      return `Srt${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.replace(/[^A-Za-z0-9]/g, '')
+    }
+
+    async function createMember(
+      request: APIRequestContext,
+      fields: Record<string, unknown>,
+    ): Promise<string> {
+      const response = await request.post('/api/admin/members', {
+        data: { preferred_language: 'de', ...fields },
+      });
+      expect(response.status()).toBe(201);
+
+      return (await response.json()).id;
+    }
+
+    test('GET /api/admin/members sorts by name, last name before first name', async ({ authenticatedRequest }) => {
+      const token = sortToken();
+      const bravo = await createMember(authenticatedRequest, {
+        first_name: 'Zoe', last_name: `${token}Bravo`, email: `${token}-zoe@test.com`,
+      });
+      const alphaBea = await createMember(authenticatedRequest, {
+        first_name: 'Bea', last_name: `${token}Alpha`, email: `${token}-bea@test.com`,
+      });
+      const alphaAnn = await createMember(authenticatedRequest, {
+        first_name: 'Ann', last_name: `${token}Alpha`, email: `${token}-ann@test.com`,
+      });
+
+      const ascending = await authenticatedRequest.get('/api/admin/members', {
+        params: { search: token, sort_by: 'name_asc' },
+      });
+      expect(ascending.status()).toBe(200);
+      const ascendingIds = (await ascending.json()).data.map((m: { id: string }) => m.id);
+      expect(ascendingIds).toEqual([alphaAnn, alphaBea, bravo]);
+
+      const descending = await authenticatedRequest.get('/api/admin/members', {
+        params: { search: token, sort_by: 'name_desc' },
+      });
+      const descendingIds = (await descending.json()).data.map((m: { id: string }) => m.id);
+      expect(descendingIds).toEqual([bravo, alphaBea, alphaAnn]);
+    });
+
+    test('GET /api/admin/members sorts by card UID, cardless members last', async ({ authenticatedRequest }) => {
+      const token = sortToken();
+      const hex = Date.now().toString(16).toUpperCase().slice(-8);
+      const withoutCard = await createMember(authenticatedRequest, {
+        first_name: 'NoCard', last_name: token, email: `${token}-none@test.com`,
+      });
+      const highCard = await createMember(authenticatedRequest, {
+        first_name: 'HighCard', last_name: token, email: `${token}-high@test.com`,
+        card_uid: `FFFF${hex}`,
+      });
+      const lowCard = await createMember(authenticatedRequest, {
+        first_name: 'LowCard', last_name: token, email: `${token}-low@test.com`,
+        card_uid: `0000${hex}`,
+      });
+
+      const ascending = await authenticatedRequest.get('/api/admin/members', {
+        params: { search: token, sort_by: 'card_uid_asc' },
+      });
+      expect(ascending.status()).toBe(200);
+      const ascendingIds = (await ascending.json()).data.map((m: { id: string }) => m.id);
+      expect(ascendingIds).toEqual([lowCard, highCard, withoutCard]);
+
+      // Most members have no card at all, so they stay at the end in both
+      // directions rather than burying the cards behind them.
+      const descending = await authenticatedRequest.get('/api/admin/members', {
+        params: { search: token, sort_by: 'card_uid_desc' },
+      });
+      const descendingIds = (await descending.json()).data.map((m: { id: string }) => m.id);
+      expect(descendingIds).toEqual([highCard, lowCard, withoutCard]);
+    });
+
+    test('GET /api/admin/members sorts oldest first when asked for created_at_asc', async ({ authenticatedRequest }) => {
+      const ascending = await authenticatedRequest.get('/api/admin/members', {
+        params: { sort_by: 'created_at_asc', per_page: 50 },
+      });
+      expect(ascending.status()).toBe(200);
+      const ascendingDates = (await ascending.json()).data.map((m: { created_at: string }) => m.created_at);
+      expect(ascendingDates.length).toBeGreaterThan(1);
+      expect([...ascendingDates].sort()).toEqual(ascendingDates);
+
+      const descending = await authenticatedRequest.get('/api/admin/members', {
+        params: { sort_by: 'created_at_desc', per_page: 50 },
+      });
+      const descendingDates = (await descending.json()).data.map((m: { created_at: string }) => m.created_at);
+      expect([...descendingDates].sort().reverse()).toEqual(descendingDates);
+    });
+
+    test('GET /api/admin/members refuses a column it cannot sort by', async ({ authenticatedRequest }) => {
+      const response = await authenticatedRequest.get('/api/admin/members', {
+        params: { sort: 'iban', order: 'asc' },
+      });
+
+      expect(response.status()).toBe(422);
+    });
   });
 });

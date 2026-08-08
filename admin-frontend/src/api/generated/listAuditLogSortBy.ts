@@ -58,16 +58,10 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export type ListMembersSortBy = typeof ListMembersSortBy[keyof typeof ListMembersSortBy];
+export type ListAuditLogSortBy = typeof ListAuditLogSortBy[keyof typeof ListAuditLogSortBy];
 
 
-export const ListMembersSortBy = {
-  name_asc: 'name_asc',
-  name_desc: 'name_desc',
-  card_uid_asc: 'card_uid_asc',
-  card_uid_desc: 'card_uid_desc',
-  balance_asc: 'balance_asc',
-  balance_desc: 'balance_desc',
-  created_at_asc: 'created_at_asc',
+export const ListAuditLogSortBy = {
   created_at_desc: 'created_at_desc',
+  created_at_asc: 'created_at_asc',
 } as const;

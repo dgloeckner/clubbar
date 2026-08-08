@@ -226,11 +226,34 @@ export class AuditLogPage extends BasePage {
    * SORTING
    */
 
-  async sortByTimestamp() {
-    // Sorting is client-side only — the frontend toggles local sortDirection state
-    // but does not send a sort parameter to the API. Just click the header.
+  /**
+   * Toggle the timestamp sort and wait for the list the API answers with.
+   *
+   * @param expectedSortBy The `sort_by` value the click must send (#125: the
+   *        header used to toggle a local flag the request never carried).
+   */
+  async sortByTimestamp(expectedSortBy: 'created_at_asc' | 'created_at_desc') {
+    const responsePromise = this.page.waitForResponse((resp) => {
+      try {
+        const url = new URL(resp.url())
+        return (
+          url.pathname.includes('/api/admin/audit-log') &&
+          url.searchParams.get('sort_by') === expectedSortBy &&
+          resp.status() === 200
+        )
+      } catch {
+        return false
+      }
+    })
+
     const header = this.page.locator('[data-testid="audit-log-table"] th').first()
     await header.click()
+    await responsePromise
+  }
+
+  /** The timestamps of the visible rows, top to bottom, as rendered. */
+  async getTimestamps(): Promise<string[]> {
+    return await this.page.locator('[data-testid^="audit-log-timestamp-"]').allTextContents()
   }
 
   /**
