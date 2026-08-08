@@ -17,6 +17,7 @@ export function LoadingIndicator({ show }: LoadingIndicatorProps) {
 
   return (
     <div
+      data-testid="loading-indicator"
       style={{
         position: 'fixed',
         top: 0,

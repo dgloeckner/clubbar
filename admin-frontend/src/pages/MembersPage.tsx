@@ -9,7 +9,6 @@ import { StatCard } from '../components/common/StatCard'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
-import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
 import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ScanIcon } from '../components/icons'
 import { downloadBlob } from '../api/client'
@@ -22,7 +21,7 @@ import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
-import { Toggle } from '../components/forms/Toggle'
+import { Toggle } from '../components/common/Toggle'
 import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { validateIban } from '../utils/iban'
@@ -64,7 +63,6 @@ export function MembersPage() {
   const { t } = useTranslation()
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
-  const { setIsLoading } = useLoading()
   // The dashboard metrics are a second, independent stream, so they get their
   // own abort slot — the member list's lives inside useListQuery (#96).
   const metricsRequest = useLatestRequest()
@@ -140,13 +138,6 @@ export function MembersPage() {
 
   const mobileSortValue = list.sortValue
 
-  // Mirror the list's own loading into the global indicator, and clear it on
-  // unmount so navigating away mid-request cannot strand the spinner.
-  useEffect(() => {
-    setIsLoading(loading)
-    return () => setIsLoading(false)
-  }, [loading, setIsLoading])
-
   // Load dashboard metrics (active members count, outstanding balance, last settlement date)
   useEffect(() => {
     const loadDashboardMetrics = async (signal: AbortSignal) => {
@@ -185,14 +176,12 @@ export function MembersPage() {
     e.preventDefault()
 
     try {
-      setIsLoading(true)
       // Clear previous form errors
       setFormErrors({})
 
       // Client-side IBAN validation
       if (formData.iban && !validateIban(formData.iban)) {
         setFormErrors({ iban: t('members.validation.invalidIban') })
-        setIsLoading(false)
         return
       }
 
@@ -281,15 +270,12 @@ export function MembersPage() {
       } else {
         setError(err instanceof Error ? err.message : 'Failed to save member')
       }
-    } finally {
-      setIsLoading(false)
     }
   }
 
   // Handle status toggle (activate/deactivate)
   const handleStatusToggle = async (member: MemberListItem) => {
     try {
-      setIsLoading(true)
       if (!member.id) return
       // Only send the field that needs to be updated
       await getMembersFactory().updateMember(member.id, { is_active: !member.is_active })
@@ -300,15 +286,12 @@ export function MembersPage() {
       setError(null)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to update member status')
-    } finally {
-      setIsLoading(false)
     }
   }
 
   // Handle anonymize member (GDPR Art. 17)
   const handleAnonymize = async (member: MemberListItem) => {
     try {
-      setIsLoading(true)
       if (!member.id) return
       await getMembersFactory().anonymizeMember(member.id, {})
 
@@ -326,8 +309,6 @@ export function MembersPage() {
         setError(err instanceof Error ? err.message : 'Failed to anonymize member')
       }
       setAnonymizeConfirm(null)
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -669,7 +650,7 @@ export function MembersPage() {
                   {/* Row 1: toggle + name */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                     <Toggle
-                      enabled={member.is_active ?? false}
+                      isEnabled={member.is_active ?? false}
                       onChange={() => handleStatusToggle(member)}
                       size="small"
                       testId={`members-status-toggle-${member.id}`}

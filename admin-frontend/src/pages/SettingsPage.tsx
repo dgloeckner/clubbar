@@ -7,7 +7,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
-import { useLoading } from '../context/LoadingContext'
 import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
 import { getAdminUsers } from '../api/generated/admin-users/admin-users'
 import { getTerminals } from '../api/generated/terminals/terminals'
@@ -41,7 +40,6 @@ import {
 
 export function SettingsPage() {
   const { t } = useTranslation()
-  const { setIsLoading } = useLoading()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
 
@@ -125,7 +123,6 @@ export function SettingsPage() {
     const loadConfig = async () => {
       try {
         setLoading(true)
-        setIsLoading(true)
         let config: SepaConfig | null = null
         try {
           const result = await getSepaConfiguration().getSepaConfig()
@@ -159,14 +156,13 @@ export function SettingsPage() {
         setError(getApiErrorMessage(err, t('settings.errors.loadSettings')))
       } finally {
         setLoading(false)
-        setIsLoading(false)
       }
     }
 
     loadConfig()
     // `t` is deliberately not a dependency: re-running this on a language
     // switch would refetch the config and discard unsaved edits.
-  }, [setIsLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load admin users when admin-users tab is active
   useEffect(() => {

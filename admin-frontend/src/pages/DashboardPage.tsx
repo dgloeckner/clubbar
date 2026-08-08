@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
-import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
@@ -16,7 +15,6 @@ const AUTO_REFRESH_INTERVAL = 10_000 // 10 seconds
 export function DashboardPage() {
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
-  const { setIsLoading } = useLoading()
   const { formatPrice, formatDateTime, formatRelativeDate } = useFormatters()
 
   const [data, setData] = useState<DashboardResponse | null>(null)
@@ -25,15 +23,14 @@ export function DashboardPage() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const request = useLatestRequest()
 
-  const fetchDashboard = useCallback(async (showGlobalLoading = true) => {
+  const fetchDashboard = useCallback(async (showSkeleton = true) => {
     // A slow backend lets tick N land after tick N+1; without this the older
     // answer would overwrite the newer one. The newest tick wins, and the
     // in-flight request dies with the page.
     const signal = request.next()
     try {
-      if (showGlobalLoading) {
+      if (showSkeleton) {
         setLoading(true)
-        setIsLoading(true)
       }
       const response = await getDashboard().getDashboardMetrics({ signal })
       if (signal.aborted) return
@@ -45,10 +42,9 @@ export function DashboardPage() {
     } finally {
       if (!signal.aborted) {
         setLoading(false)
-        setIsLoading(false)
       }
     }
-  }, [request, setIsLoading, t])
+  }, [request, t])
 
   // Initial load + auto-refresh
   useEffect(() => {

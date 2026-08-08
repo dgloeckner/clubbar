@@ -14,7 +14,7 @@
  * />
  */
 
-import { Toggle } from '../forms/Toggle'
+import { Toggle } from '../common/Toggle'
 import { tableSpacing } from '../../styles/tableTokens'
 
 interface StatusToggleCellProps {
@@ -40,7 +40,7 @@ export function StatusToggleCell({
         textAlign: 'center',
       }}
     >
-      <Toggle enabled={enabled} onChange={onChange} size={size} testId={testId} />
+      <Toggle isEnabled={enabled} onChange={onChange} size={size} testId={testId} />
     </td>
   )
 }
