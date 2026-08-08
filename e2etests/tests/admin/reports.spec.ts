@@ -428,10 +428,21 @@ test.describe('Reports Page', () => {
 
   test.describe('Data Integration', () => {
     test('revenue API response should have valid structure', async ({ page }) => {
+      // Let the load started by beforeEach finish before listening for the next
+      // response. This test used to arm the waiter and then navigate to
+      // /reports a second time, so the waiter could match the *first* page's
+      // response — and a navigation discards the body of any response belonging
+      // to the document it replaces, which surfaced as "Protocol error
+      // (Network.getResponseBody): No resource with given identifier found".
+      await waitForReportLoaded(page)
+
       const responsePromise = page.waitForResponse(
         (resp) => resp.url().includes('/reports/revenue') && resp.status() === 200
       )
-      await page.goto('/reports')
+      // Re-request in place rather than navigating again: the document stays
+      // alive, so its response body stays readable. Same shape as the sibling
+      // tests, which trigger their request from the loaded page.
+      await page.getByTestId('report-apply-filter').click()
       const response = await responsePromise
 
       const body = await response.json()

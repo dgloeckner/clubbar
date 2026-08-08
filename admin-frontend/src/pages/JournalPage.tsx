@@ -18,13 +18,14 @@
  */
 
 import axios from 'axios'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useExecutionDateInfo } from '../hooks/useExecutionDateInfo'
+import { useLatestRequest } from '../hooks/useLatestRequest'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { SettlementStatusFilter } from '../components/forms/SettlementStatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
@@ -160,8 +161,9 @@ export function JournalPage() {
   const [stornoError, setStornoError] = useState<string | null>(null)
   const [stornoLoading, setStornoLoading] = useState(false)
 
-  // Track if component is mounted to prevent state updates on unmounted component
-  const isMountedRef = useRef(true)
+  // Guards state updates against both unmount and superseded requests — an
+  // is-mounted flag only covers the first of those.
+  const listRequest = useLatestRequest()
 
   // Mobile state
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -193,23 +195,25 @@ export function JournalPage() {
 
   // Subscribe to global loading state on mount
   useEffect(() => {
-    isMountedRef.current = true
     const unsubscribe = onLoadingStateChange(() => {
       // Component will re-render when loading state changes due to state updates
     })
-    return () => {
-      isMountedRef.current = false
-      unsubscribe()
-    }
+    return () => unsubscribe()
   }, [])
 
-  // Load transactions when filters, sorting, or pagination changes
+  // Load transactions when filters, sorting, or pagination changes. Claiming
+  // the signal before the debounce means a superseded query is already dead by
+  // the time its response could land.
   useEffect(() => {
-    const timer = setTimeout(loadTransactions, search ? 500 : 0)
-    return () => clearTimeout(timer)
-  }, [currentPage, pageSize, dateFrom, dateTo, settlementStatus, search, sortKey, sortDirection])
+    const signal = listRequest.next()
+    const timer = setTimeout(() => loadTransactions(signal), search ? 500 : 0)
+    return () => {
+      clearTimeout(timer)
+      listRequest.abort()
+    }
+  }, [currentPage, pageSize, dateFrom, dateTo, settlementStatus, search, sortKey, sortDirection]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadTransactions() {
+  async function loadTransactions(signal: AbortSignal = listRequest.next()) {
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }))
 
@@ -222,30 +226,30 @@ export function JournalPage() {
         sort: sortKey as 'created_at' | 'amount' | 'type' | 'member',
         order: sortDirection,
         settlement_status: settlementStatus !== 'all' ? settlementStatus as 'open' | 'settled' : undefined,
-      })
+      }, { signal })
+
+      // Only update state if this is still the current request
+      if (signal.aborted) return
 
       const resolvedItems = localizeTransactionItems(result.data ?? [])
 
-      // Only update state if component is still mounted
-      if (isMountedRef.current) {
-        setState((prev) => ({
-          ...prev,
-          transactions: resolvedItems,
-          totalItems: result.pagination?.total ?? 0,
-          loading: false,
-        }))
-      }
+      setState((prev) => ({
+        ...prev,
+        transactions: resolvedItems,
+        totalItems: result.pagination?.total ?? 0,
+        loading: false,
+      }))
     } catch (err) {
-      // Only update state if component is still mounted
-      if (isMountedRef.current) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to load transactions'
-        setState((prev) => ({
-          ...prev,
-          transactions: [],
-          loading: false,
-          error: errorMsg,
-        }))
-      }
+      // Only update state if this is still the current request
+      if (signal.aborted) return
+
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load transactions'
+      setState((prev) => ({
+        ...prev,
+        transactions: [],
+        loading: false,
+        error: errorMsg,
+      }))
     }
   }
 
