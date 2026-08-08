@@ -4,6 +4,7 @@ import {
   minimumExecutionDate,
   serverToday,
 } from '../../utils/dates';
+import { ensureSepaConfigured } from '../../utils/settlements';
 
 test.describe('Settlements API', () => {
   /**
@@ -192,6 +193,37 @@ test.describe('Settlements API', () => {
       expect(response.status()).toBe(422);
       const body = await response.json();
       expect(body.error).toBe('validation_failed');
+    });
+  });
+
+  /**
+   * SEPA mandate template (#100).
+   *
+   * `GET /admin/sepa-mandate-template` is the blank mandate form the club
+   * hands a new member to sign. It is rendered from the creditor config, and
+   * had no API coverage — a broken template only surfaced when someone
+   * downloaded it.
+   */
+  test.describe('SEPA Mandate Template', () => {
+    test('A11: GET /sepa-mandate-template returns a PDF', async ({ authenticatedRequest }) => {
+      await ensureSepaConfigured(authenticatedRequest);
+
+      const response = await authenticatedRequest.get('/api/admin/sepa-mandate-template');
+
+      expect(response.status(), await response.text()).toBe(200);
+      expect(response.headers()['content-type']).toContain('application/pdf');
+      expect(response.headers()['content-disposition']).toContain('sepa-mandate-template.pdf');
+
+      // A PDF, not an error page that merely arrived with the right header.
+      const body = await response.body();
+      expect(body.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+      expect(body.length).toBeGreaterThan(1000);
+    });
+
+    test('A12: GET /sepa-mandate-template requires authentication', async ({ request }) => {
+      const response = await request.get('/api/admin/sepa-mandate-template');
+
+      expect([301, 302, 401, 403]).toContain(response.status());
     });
   });
 
@@ -688,6 +720,195 @@ test.describe('Settlements API', () => {
   });
 
   /**
+   * The /cancel route itself (#100).
+   *
+   * `DELETE /settlements/{id}/cancel` is the route the admin UI calls, and it
+   * is not the same endpoint as the `DELETE /settlements/{id}` alias the E
+   * block above exercises: it answers 200 with the settlement as it now
+   * stands, where the alias answers a bodyless 204. The undo button reads
+   * that body. Until now the route was only ever reached through the
+   * settle-all + undo UI flow in `tests/admin/journal-and-settlements.spec.ts`,
+   * so a regression in its response — or in the gate it applies — showed up
+   * nowhere at the API layer.
+   *
+   * The cancellation rules themselves live in one place, `CancellationGate`,
+   * and are asserted here against this route rather than assumed to hold
+   * because the alias has them: routing one of the two past the gate is
+   * exactly the mistake this block exists to catch.
+   */
+  test.describe('Settlement Cancellation via /cancel (#100)', () => {
+    test('I1: DELETE /settlements/{id}/cancel answers 200 with the cancelled settlement and releases its transactions', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 4200 });
+
+      const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`, {
+        data: { reason: 'Wrong amount spotted before submission' },
+      });
+
+      expect(response.status(), await response.text()).toBe(200);
+
+      // The body is the settlement after cancellation — this is what the undo
+      // button renders, so it must not be the pre-cancellation state.
+      const body = await response.json();
+      expect(body.id).toBe(settlement.id);
+      expect(body.is_cancelled).toBe(true);
+      expect(body.cancelled_at).toBeTruthy();
+      expect(body.is_cancellable).toBe(false);
+      expect(body.total_amount_cents).toBe(4200);
+
+      // Items survive as the record of what the run contained (#142 §3).
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].transaction_id).toBe(settlement.transactionIds[0]);
+
+      // …and the released transaction counts as unsettled again.
+      const journal = await authenticatedRequest.get(
+        `/api/admin/transactions?member_id=${settlement.memberId}&settlement_status=unsettled`,
+      );
+      expect(journal.status()).toBe(200);
+      const unsettled = (await journal.json()).data as Array<{ id: string }>;
+      expect(unsettled.map((t) => t.id)).toContain(settlement.transactionIds[0]);
+    });
+
+    test('I2: the returned body matches what a fresh read of the settlement reports', async ({ authenticatedRequest, settlementFactory }) => {
+      // The route re-reads the settlement after cancelling rather than
+      // echoing the row it started from; if that ever regresses to the stale
+      // copy the UI would show a settlement that still looks live.
+      const settlement = await settlementFactory.create({ amountCents: 1600 });
+
+      const cancelled = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
+      expect(cancelled.status()).toBe(200);
+
+      const reread = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}`);
+      expect(reread.status()).toBe(200);
+      expect(await cancelled.json()).toEqual(await reread.json());
+    });
+
+    test('I3: the cancellation reason is recorded in the audit log', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 900 });
+      const reason = `Duplicate run ${Date.now()}`;
+
+      expect(
+        (await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`, {
+          data: { reason },
+        })).status(),
+      ).toBe(200);
+
+      const audit = await authenticatedRequest.get(
+        `/api/admin/audit-log?filters[entity_id]=${settlement.id}&filters[action]=settlement_cancel`,
+      );
+      expect(audit.status()).toBe(200);
+      const entries = (await audit.json()).data as Array<{ action: string; new_values: Record<string, unknown> }>;
+      const entry = entries.find((e) => e.action === 'settlement_cancel');
+      expect(entry, 'cancelling a settlement must leave an audit entry').toBeDefined();
+      expect(entry!.new_values).toHaveProperty('is_cancelled', true);
+      expect(entry!.new_values).toHaveProperty('reason', reason);
+    });
+
+    test('I4: a cancellation without a reason is accepted', async ({ authenticatedRequest, settlementFactory }) => {
+      // The endpoint takes no request body at all (api/admin.yaml), and the
+      // admin UI sends none — SettlementsPage calls cancelSettlement(id) with
+      // nothing attached. Rejecting the empty body would break the undo
+      // button, so "no reason" is a supported call, recorded as a null reason.
+      const settlement = await settlementFactory.create({ amountCents: 750 });
+
+      const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
+
+      expect(response.status(), await response.text()).toBe(200);
+      expect((await response.json()).is_cancelled).toBe(true);
+    });
+
+    test('I5: DELETE /settlements/{id}/cancel returns 404 for an unknown settlement', async ({ authenticatedRequest }) => {
+      const response = await authenticatedRequest.delete(
+        `/api/admin/settlements/${crypto.randomUUID()}/cancel`,
+        { data: { reason: 'Test' } },
+      );
+
+      expect(response.status()).toBe(404);
+    });
+
+    test('I6: DELETE /settlements/{id}/cancel requires authentication', async ({ request }) => {
+      const response = await request.delete('/api/admin/settlements/test-id/cancel', {
+        data: { reason: 'Test' },
+      });
+
+      expect([301, 302, 401, 403]).toContain(response.status());
+    });
+
+    test('I7: cancelling an already-cancelled settlement is a conflict', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 1250 });
+
+      expect((await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`)).status()).toBe(200);
+
+      const second = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
+      expect(second.status()).toBe(409);
+      expect((await second.json()).message).toMatch(/already been cancelled/i);
+    });
+
+    test('I8: an exported settlement is still cancellable — generating the file is not sending it', async ({ authenticatedRequest, settlementFactory }) => {
+      // Deliberately not a blocker (#142 §1): locking on `exported_at` would
+      // strand the ordinary case of downloading the pain.008, spotting a wrong
+      // amount, and never submitting it. Submission is the point of no return
+      // (I9), and it is `submitted_at` that records it.
+      const settlement = await settlementFactory.create({ amountCents: 3100 });
+
+      expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200);
+
+      const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
+
+      expect(response.status(), await response.text()).toBe(200);
+      const body = await response.json();
+      expect(body.exported_at).toBeTruthy();
+      expect(body.is_cancelled).toBe(true);
+
+      // The transactions really are released, not just flagged.
+      const journal = await authenticatedRequest.get(
+        `/api/admin/transactions?member_id=${settlement.memberId}&settlement_status=unsettled`,
+      );
+      const unsettled = (await journal.json()).data as Array<{ id: string }>;
+      expect(unsettled.map((t) => t.id)).toContain(settlement.transactionIds[0]);
+    });
+
+    test('I9: a settlement submitted to the bank refuses cancellation and keeps its transactions claimed', async ({ authenticatedRequest, settlementFactory }) => {
+      // The #81 double debit: the file is with the bank, so releasing the
+      // transactions would let a later run collect the same money twice.
+      const settlement = await settlementFactory.create({ amountCents: 2600 });
+
+      expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200);
+      expect((await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/submit`)).status()).toBe(200);
+
+      const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
+
+      expect(response.status()).toBe(409);
+      const message = (await response.json()).message as string;
+      expect(message).toMatch(/submitted to the bank/i);
+      expect(message).toMatch(/revers/i);
+
+      const journal = await authenticatedRequest.get(
+        `/api/admin/transactions?member_id=${settlement.memberId}&settlement_status=unsettled`,
+      );
+      const unsettled = (await journal.json()).data as Array<{ id: string }>;
+      expect(unsettled.map((t) => t.id)).not.toContain(settlement.transactionIds[0]);
+    });
+
+    test('I10: a bank-transfer settlement cannot be cancelled through /cancel either', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 480, method: 'bank_transfer' });
+
+      const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
+
+      expect(response.status()).toBe(409);
+      expect((await response.json()).message).toMatch(/revers/i);
+    });
+
+    test('I11: a write-off can always be cancelled through /cancel — no money ever moved', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 260, method: 'write_off' });
+
+      const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`);
+
+      expect(response.status(), await response.text()).toBe(200);
+      expect((await response.json()).is_cancelled).toBe(true);
+    });
+  });
+
+  /**
    * SEPA XML Export Tests (4 tests)
    */
   test.describe('SEPA XML Export', () => {
@@ -836,6 +1057,71 @@ test.describe('Settlements API', () => {
         expect(rows, `${amountCents} cents must produce exactly one CSV row`).toHaveLength(1);
         expect(rows[0].split(';')[3], `${amountCents} cents must export as ${expectedEur}`).toBe(expectedEur);
       }
+    });
+  });
+
+  /**
+   * Per-transaction CSV export (#100).
+   *
+   * `GET /settlements/{id}/export-transactions` is the line-by-line companion
+   * to the per-member `/export/csv` above — it is what a treasurer opens to
+   * see which purchases a collection was made of. It had no test presence
+   * anywhere in the repo.
+   */
+  test.describe('Transaction CSV Export', () => {
+    test('J1: GET /settlements/{id}/export-transactions returns one row per settled transaction', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 1875 });
+
+      const response = await authenticatedRequest.get(
+        `/api/admin/settlements/${settlement.id}/export-transactions`,
+      );
+
+      expect(response.status()).toBe(200);
+      expect(response.headers()['content-type']).toContain('csv');
+      expect(response.headers()['content-disposition']).toContain(settlement.id);
+
+      const [header, ...rows] = (await response.text()).trim().split('\n');
+      const columns = header.split(';');
+      expect(columns).toContain('transaction_id');
+      expect(columns).toContain('member_name');
+      expect(columns).toContain('amount_cents');
+
+      expect(rows).toHaveLength(1);
+      const fields = rows[0].split(';');
+      expect(fields[columns.indexOf('transaction_id')]).toBe(settlement.transactionIds[0]);
+      expect(fields[columns.indexOf('member_name')]).toBe(settlement.memberName);
+      expect(fields[columns.indexOf('amount_cents')]).toBe('1875');
+    });
+
+    test('J2: a cancelled settlement still exports the transactions it contained', async ({ authenticatedRequest, settlementFactory }) => {
+      // Cancellation releases the claim but keeps the items (#142 §3), so the
+      // export of a cancelled run stays a usable record of what it covered.
+      const settlement = await settlementFactory.create({ amountCents: 640 });
+
+      expect((await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}/cancel`)).status()).toBe(200);
+
+      const response = await authenticatedRequest.get(
+        `/api/admin/settlements/${settlement.id}/export-transactions`,
+      );
+
+      expect(response.status()).toBe(200);
+      const rows = (await response.text()).trim().split('\n').slice(1);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toContain(settlement.transactionIds[0]);
+    });
+
+    test('J3: GET /settlements/{id}/export-transactions returns 404 for an unknown settlement', async ({ authenticatedRequest }) => {
+      const response = await authenticatedRequest.get(
+        `/api/admin/settlements/${crypto.randomUUID()}/export-transactions`,
+      );
+
+      expect(response.status()).toBe(404);
+    });
+
+    test('J4: GET /settlements/{id}/export-transactions requires authentication', async ({ request }) => {
+      const response = await request.get('/api/admin/settlements/test-id/export-transactions');
+
+      expect([301, 302, 401, 403]).toContain(response.status());
     });
   });
 

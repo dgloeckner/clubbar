@@ -1,6 +1,7 @@
 import { test, expect, APIRequestContext } from "@playwright/test";
 import { TEST_CREDENTIALS } from "../../config/test-credentials";
 import { generateTotp } from "../../utils/totp";
+import { loginAs } from "../../utils/csrf";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -424,6 +425,130 @@ test.describe("Admin Authentication", () => {
       );
 
       expect(response.status()).toBe(404);
+    });
+  });
+
+  /**
+   * PATCH /api/auth/profile (#100).
+   *
+   * The endpoint an admin uses to change their own display name, email and
+   * UI language. It was only ever reached indirectly through the profile
+   * page, so neither its validation nor the fact that it persists anything
+   * was asserted at the API layer.
+   *
+   * Every test edits a throwaway admin's own profile, never the seeded
+   * account other tests log in with (E2E Pattern 001) — a stray email change
+   * there would lock the rest of the suite out.
+   */
+  test.describe("PATCH /api/auth/profile", () => {
+    /** Create a fresh admin and return a fully-logged-in context for it. */
+    async function freshAdminContext(
+      request: APIRequestContext,
+      playwright: Parameters<typeof loginAs>[0],
+    ) {
+      const { cookieString, csrfToken } = await login(
+        request,
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+      );
+
+      const suffix = `${Date.now()}${Math.random().toString(36).slice(2, 7)}`;
+      const createResponse = await request.post(`${API_BASE}/admin/admin-users`, {
+        headers: { cookie: cookieString, "X-CSRF-Token": csrfToken },
+        data: {
+          email: `profile-${suffix}@test.example.com`,
+          display_name: "Profile Test Admin",
+          locale: "de",
+        },
+      });
+      expect(createResponse.status(), await createResponse.text()).toBe(201);
+      const { admin, password } = await createResponse.json();
+
+      const context = await loginAs(playwright, admin.email, password);
+      return { admin, context };
+    }
+
+    test("should update the caller's own display name, email and locale", async ({
+      request,
+      playwright,
+    }) => {
+      const { admin, context } = await freshAdminContext(request, playwright);
+      const newEmail = `renamed-${Date.now()}@test.example.com`;
+
+      try {
+        const response = await context.patch(`${API_BASE}/auth/profile`, {
+          data: {
+            display_name: "Renamed Admin",
+            email: newEmail,
+            locale: "en",
+          },
+        });
+
+        expect(response.status(), await response.text()).toBe(200);
+        const body = await response.json();
+        expect(body.message).toBe("Profile updated");
+        expect(body.admin.id).toBe(admin.id);
+        expect(body.admin.display_name).toBe("Renamed Admin");
+        expect(body.admin.email).toBe(newEmail);
+        expect(body.admin.locale).toBe("en");
+
+        // Persisted, not just echoed back.
+        const profile = await context.get(`${API_BASE}/auth/profile`);
+        expect(profile.status()).toBe(200);
+        const stored = (await profile.json()).admin;
+        expect(stored.display_name).toBe("Renamed Admin");
+        expect(stored.email).toBe(newEmail);
+        expect(stored.locale).toBe("en");
+      } finally {
+        await context.dispose();
+      }
+    });
+
+    test("should reject an unsupported locale", async ({
+      request,
+      playwright,
+    }) => {
+      const { context } = await freshAdminContext(request, playwright);
+
+      try {
+        const response = await context.patch(`${API_BASE}/auth/profile`, {
+          data: { locale: "fr" },
+        });
+
+        expect(response.status()).toBe(422);
+        const body = await response.json();
+        expect(body.error).toBe("validation_failed");
+        expect(body.messages).toHaveProperty("locale");
+      } finally {
+        await context.dispose();
+      }
+    });
+
+    test("should reject a malformed email", async ({ request, playwright }) => {
+      const { admin, context } = await freshAdminContext(request, playwright);
+
+      try {
+        const response = await context.patch(`${API_BASE}/auth/profile`, {
+          data: { email: "not-an-email" },
+        });
+
+        expect(response.status()).toBe(422);
+        expect((await response.json()).messages).toHaveProperty("email");
+
+        // The rejected value never reached the account.
+        const stored = (await (await context.get(`${API_BASE}/auth/profile`)).json()).admin;
+        expect(stored.email).toBe(admin.email);
+      } finally {
+        await context.dispose();
+      }
+    });
+
+    test("should require authentication", async ({ request }) => {
+      const response = await request.patch(`${API_BASE}/auth/profile`, {
+        data: { display_name: "Nobody" },
+      });
+
+      expect([301, 302, 401, 403]).toContain(response.status());
     });
   });
 
