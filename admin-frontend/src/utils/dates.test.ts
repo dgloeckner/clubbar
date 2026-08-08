@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { toIsoDate } from './dates'
+import { parseApiDate, toIsoDate } from './dates'
+
+describe('the timezone these tests run in', () => {
+  it('is not UTC — on UTC none of the assertions below can fail', () => {
+    // UTC is the single zone where local and UTC calendar days always agree,
+    // so a suite pinned to it certifies date handling it never exercised.
+    // vite.config.ts pins a non-UTC default; this guards that pin (#95).
+    expect(new Date().getTimezoneOffset()).not.toBe(0)
+  })
+})
 
 describe('toIsoDate', () => {
   it('formats a date as YYYY-MM-DD', () => {
@@ -22,5 +31,75 @@ describe('toIsoDate', () => {
 
   it('handles the year boundary', () => {
     expect(toIsoDate(new Date(2026, 11, 31, 22, 0))).toBe('2026-12-31')
+  })
+
+  it('names every hour of a day as that same day', () => {
+    // The filter ranges on Journal, Settlements and Reports are built from
+    // this. An admin loading a page at any hour must get today's date, not
+    // whatever day it happens to be in Greenwich (#95).
+    for (let hour = 0; hour < 24; hour++) {
+      expect(toIsoDate(new Date(2026, 7, 5, hour, 30))).toBe('2026-08-05')
+    }
+  })
+})
+
+describe('parseApiDate', () => {
+  it('reads a date-only string as the local calendar day', () => {
+    // `new Date('2026-01-23')` is UTC midnight, which Intl then renders as the
+    // 22nd for anyone west of Greenwich.
+    expect(toIsoDate(parseApiDate('2026-01-23'))).toBe('2026-01-23')
+  })
+
+  it('anchors a date-only string at local midnight', () => {
+    const date = parseApiDate('2026-01-23')
+    expect(date.getHours()).toBe(0)
+    expect(date.getMinutes()).toBe(0)
+    expect(date.getSeconds()).toBe(0)
+    expect(date.getMilliseconds()).toBe(0)
+  })
+
+  it('survives truncation to midnight, which is what relative labels do', () => {
+    // `formatRelativeDate` calls setHours(0, 0, 0, 0) before comparing. On a
+    // UTC-parsed value that step moves the date to the previous calendar day.
+    const date = parseApiDate('2026-01-23')
+    date.setHours(0, 0, 0, 0)
+    expect(toIsoDate(date)).toBe('2026-01-23')
+  })
+
+  it('round-trips every day of a month', () => {
+    for (let day = 1; day <= 31; day++) {
+      const iso = `2026-01-${String(day).padStart(2, '0')}`
+      expect(toIsoDate(parseApiDate(iso))).toBe(iso)
+    }
+  })
+
+  it('leaves a timestamp to the platform parser — it is an instant, not a day', () => {
+    expect(parseApiDate('2026-08-05T22:15:00Z').toISOString()).toBe(
+      '2026-08-05T22:15:00.000Z'
+    )
+  })
+
+  it('does not roll an out-of-range date forward', () => {
+    expect(parseApiDate('2026-02-30').getTime()).toBeNaN()
+    expect(parseApiDate('2026-13-01').getTime()).toBeNaN()
+    expect(parseApiDate('2026-00-10').getTime()).toBeNaN()
+    expect(parseApiDate('2026-01-32').getTime()).toBeNaN()
+  })
+
+  it('returns an invalid date for unparseable input', () => {
+    expect(parseApiDate('not a date').getTime()).toBeNaN()
+    expect(parseApiDate('').getTime()).toBeNaN()
+  })
+
+  it('keeps two-digit years out of the 1900s', () => {
+    expect(parseApiDate('0050-01-01').getFullYear()).toBe(50)
+  })
+
+  it('accepts a leap day', () => {
+    expect(toIsoDate(parseApiDate('2028-02-29'))).toBe('2028-02-29')
+  })
+
+  it('rejects a leap day in a common year', () => {
+    expect(parseApiDate('2027-02-29').getTime()).toBeNaN()
   })
 })

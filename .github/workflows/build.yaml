@@ -114,6 +114,14 @@ jobs:
         run: npm run test:coverage
         working-directory: admin-frontend
 
+      # The run above uses the non-UTC default pinned in vite.config.ts. A
+      # UTC-vs-local defect only shows on one side of Greenwich, though —
+      # `date_to` rolls forward west of it, date-only values render a day
+      # early east of it — so the suite runs on both sides (#95).
+      - name: Unit tests (both sides of Greenwich)
+        run: npm run test:timezones
+        working-directory: admin-frontend
+
       # Consumed by the patch-coverage job, which gates both projects from
       # their clover reports (#168 §3). vitest emits clover by default.
       - name: Upload coverage report
