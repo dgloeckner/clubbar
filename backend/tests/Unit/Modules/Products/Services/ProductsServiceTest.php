@@ -49,4 +49,39 @@ class ProductsServiceTest extends TestCase
         // (items created during query execution won't be lost on next sync)
         $this->assertSame(9999999999999, $result->cursor);
     }
+
+    public function test_syncSince_cursor_covers_every_row_it_returned(): void
+    {
+        $newest = (new \DateTime('2026-01-01 10:00:03'))->getTimestamp();
+
+        $this->productsRepository
+            ->method('findModifiedSince')
+            ->willReturn([
+                $this->productRow('2026-01-01 10:00:01'),
+                $this->productRow('2026-01-01 10:00:03'),
+            ]);
+
+        $result = $this->productsService->syncSince(0);
+
+        // Those seconds are long over, so the cursor steps past the newest one
+        // rather than re-sending it forever (#84).
+        $this->assertSame(($newest + 1) * 1000, $result->cursor);
+    }
+
+    private function productRow(string $updatedAt): array
+    {
+        return [
+            'id' => 'prod-' . $updatedAt,
+            'category_id' => 'cat-1',
+            'names' => ['de' => 'Bier', 'en' => 'Beer'],
+            'descriptions' => [],
+            'price_cents' => 250,
+            'is_active' => 1,
+            'requires_dispenser' => 0,
+            'icon_name' => null,
+            'created_at' => $updatedAt,
+            'updated_at' => $updatedAt,
+            'deleted_at' => null,
+        ];
+    }
 }

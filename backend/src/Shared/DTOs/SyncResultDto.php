@@ -22,17 +22,4 @@ final readonly class SyncResultDto
             'has_more' => $this->hasMore,
         ];
     }
-
-    /**
-     * Convert MySQL datetime string (YYYY-MM-DD HH:MM:SS) to Unix timestamp in milliseconds.
-     */
-    public static function dateToTimestamp(?string $dateStr): int
-    {
-        if ($dateStr === null) {
-            return (int) (microtime(true) * 1000);
-        }
-        // Parse MySQL datetime format and convert to milliseconds
-        $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $dateStr);
-        return $dt ? $dt->getTimestamp() * 1000 : (int) (microtime(true) * 1000);
-    }
 }
