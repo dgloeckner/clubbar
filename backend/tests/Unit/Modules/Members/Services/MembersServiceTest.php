@@ -8,6 +8,8 @@ use App\Modules\Members\Services\MembersService;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
+use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
@@ -17,6 +19,7 @@ class MembersServiceTest extends TestCase
     private TransactionsRepository $transactionsRepository;
     private AuditService $auditService;
     private AuditLogRepository $auditLogRepository;
+    private \PDO $db;
     private MembersService $membersService;
 
     protected function setUp(): void
@@ -28,13 +31,15 @@ class MembersServiceTest extends TestCase
         $this->transactionsRepository = $this->createMock(TransactionsRepository::class);
         $this->auditService = $this->createMock(AuditService::class);
         $this->auditLogRepository = $this->createMock(AuditLogRepository::class);
+        $this->db = $this->createMock(\PDO::class);
 
         // Create service instance
         $this->membersService = new MembersService(
             $this->membersRepository,
             $this->transactionsRepository,
             $this->auditService,
-            $this->auditLogRepository
+            $this->auditLogRepository,
+            $this->db,
         );
     }
 
@@ -52,5 +57,239 @@ class MembersServiceTest extends TestCase
         // When no rows found, cursor echoes back $since to avoid race conditions
         // (items created during query execution won't be lost on next sync)
         $this->assertSame(9999999999999, $result->cursor);
+    }
+
+    // ── anonymizeMember ────────────────────────────────────
+
+    private function member(string $id, array $overrides = []): array
+    {
+        return array_merge([
+            'id' => $id,
+            'first_name' => 'Max',
+            'last_name' => 'Mustermann',
+            'email' => 'max@example.com',
+            'phone' => '+491234567',
+            'card_uid' => 'CARD-1',
+            'preferred_language' => 'de',
+            'is_active' => 1,
+            'iban' => 'DE89370400440532013000',
+            'account_holder_name' => 'Max Mustermann',
+            'mandate_reference' => 'F3332CA866B249E7A202BFBF4836B605',
+            'mandate_signed_at' => '2026-01-01',
+            'deleted_at' => null,
+            'created_at' => '2026-01-01 00:00:00',
+            'updated_at' => '2026-01-01 00:00:00',
+        ], $overrides);
+    }
+
+    public function test_anonymizeMember_throws_notFoundException_when_missing(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')->willReturn(null);
+
+        $this->expectException(NotFoundException::class);
+
+        $this->membersService->anonymizeMember('missing-member', 'admin-1');
+    }
+
+    public function test_anonymizeMember_refuses_a_member_already_anonymized(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn($this->member('member-1', ['deleted_at' => '2026-01-01 00:00:00']));
+
+        $this->membersRepository->expects($this->never())->method('anonymize');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('already anonymized');
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_refuses_an_outstanding_balance(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')->willReturn($this->member('member-1'));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(1500);
+
+        $this->membersRepository->expects($this->never())->method('anonymize');
+        $this->db->expects($this->never())->method('beginTransaction');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('outstanding balance of €15.00');
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_refuses_an_outstanding_credit_balance(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')->willReturn($this->member('member-1'));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(-1500);
+
+        $this->membersRepository->expects($this->never())->method('anonymize');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('outstanding balance of -€15.00');
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_refuses_a_member_in_an_active_settlement(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')->willReturn($this->member('member-1'));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(true);
+
+        $this->membersRepository->expects($this->never())->method('anonymize');
+        $this->db->expects($this->never())->method('beginTransaction');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('active settlement');
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_succeeds_with_a_zero_balance_and_no_active_settlement(): void
+    {
+        $before = $this->member('member-1');
+        $after = $this->member('member-1', [
+            'first_name' => null,
+            'last_name' => null,
+            'email' => null,
+            'phone' => null,
+            'card_uid' => 'ANON-abc123',
+            'account_holder_name' => null,
+            'is_active' => 0,
+            'deleted_at' => '2026-08-08 12:00:00',
+        ]);
+
+        $this->membersRepository->expects($this->exactly(2))
+            ->method('findByIdIncludingDeleted')
+            ->willReturnOnConsecutiveCalls($before, $after);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+
+        $this->membersRepository->expects($this->once())
+            ->method('anonymize')
+            ->with('member-1')
+            ->willReturn(true);
+
+        $this->db->expects($this->once())->method('beginTransaction');
+        $this->db->expects($this->once())->method('commit');
+        $this->db->expects($this->never())->method('rollBack');
+
+        $result = $this->membersService->anonymizeMember('member-1', 'admin-1');
+
+        $this->assertNull($result->firstName);
+        $this->assertNull($result->lastName);
+        $this->assertNull($result->email);
+        $this->assertSame('2026-08-08 12:00:00', $result->deletedAt);
+    }
+
+    public function test_anonymizeMember_scrubs_prior_audit_history(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn($this->member('member-1'), $this->member('member-1', ['deleted_at' => '2026-08-08 12:00:00']));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+        $this->membersRepository->method('anonymize')->willReturn(true);
+
+        $this->auditLogRepository->expects($this->once())
+            ->method('scrubByEntityId')
+            ->with('member', 'member-1');
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_writes_a_pii_free_audit_entry(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn($this->member('member-1'), $this->member('member-1', ['deleted_at' => '2026-08-08 12:00:00']));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+        $this->membersRepository->method('anonymize')->willReturn(true);
+
+        $this->auditService->expects($this->once())
+            ->method('log')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                'member-1',
+                null,
+                $this->callback(function (?array $newValues): bool {
+                    // Only the anonymization timestamp is logged — no name, email,
+                    // phone, iban, or any other PII may leak into the audit trail.
+                    return $newValues === ['deleted_at' => '2026-08-08 12:00:00'];
+                }),
+                'admin-1',
+            );
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_rolls_back_and_rethrows_when_the_repository_reports_failure(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')->willReturn($this->member('member-1'));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+        $this->membersRepository->method('anonymize')->willReturn(false);
+
+        $this->auditLogRepository->expects($this->never())->method('scrubByEntityId');
+        $this->auditService->expects($this->never())->method('log');
+
+        $this->db->expects($this->once())->method('beginTransaction');
+        $this->db->expects($this->once())->method('rollBack');
+        $this->db->expects($this->never())->method('commit');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('Anonymization failed');
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    /**
+     * A crash between nulling the member's PII and scrubbing its audit
+     * history must not leave a half-anonymized member: the row's PII is
+     * gone but old audit entries (and the anonymization record itself)
+     * still reference it in plain text. The write must roll back as one
+     * unit.
+     */
+    public function test_anonymizeMember_rolls_back_the_member_row_when_scrubbing_audit_history_fails(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')->willReturn($this->member('member-1'));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+
+        $this->membersRepository->expects($this->once())->method('anonymize')->willReturn(true);
+
+        $this->auditLogRepository->method('scrubByEntityId')
+            ->willThrowException(new \RuntimeException('database gone away'));
+
+        $this->auditService->expects($this->never())->method('log');
+
+        $this->db->expects($this->once())->method('beginTransaction');
+        $this->db->expects($this->once())->method('rollBack');
+        $this->db->expects($this->never())->method('commit');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('database gone away');
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_rolls_back_when_writing_the_audit_entry_fails(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn($this->member('member-1'), $this->member('member-1', ['deleted_at' => '2026-08-08 12:00:00']));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+        $this->membersRepository->method('anonymize')->willReturn(true);
+
+        $this->auditService->method('log')->willThrowException(new \RuntimeException('audit write failed'));
+
+        $this->db->expects($this->once())->method('beginTransaction');
+        $this->db->expects($this->once())->method('rollBack');
+        $this->db->expects($this->never())->method('commit');
+
+        $this->expectException(\RuntimeException::class);
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
     }
 }

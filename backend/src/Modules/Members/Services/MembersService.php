@@ -18,6 +18,7 @@ use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Shared\Services\AuditService;
+use PDO;
 
 class MembersService
 {
@@ -26,6 +27,7 @@ class MembersService
         private TransactionsRepository $transactionsRepository,
         private AuditService $auditService,
         private AuditLogRepository $auditLogRepository,
+        private PDO $db,
         private ?BankCodeService $bankCodeService = null,
     ) {}
 
@@ -252,26 +254,36 @@ class MembersService
             throw new BusinessRuleException('Cannot anonymize: member included in active settlement');
         }
 
-        // Anonymize the member record (all PII → NULL)
-        $anonymized = $this->membersRepository->anonymize($memberId);
-        if (!$anonymized) {
-            throw new BusinessRuleException('Anonymization failed');
+        // Anonymize the member record, scrub prior audit history, and log the
+        // anonymization as a single unit — a crash between these writes must
+        // not leave a half-anonymized member with intact PII in the audit log.
+        $this->db->beginTransaction();
+        try {
+            $anonymized = $this->membersRepository->anonymize($memberId);
+            if (!$anonymized) {
+                throw new BusinessRuleException('Anonymization failed');
+            }
+
+            // Scrub all historical audit log entries for this member (GDPR Art. 17)
+            $this->auditLogRepository->scrubByEntityId('member', $memberId);
+
+            // Fetch the updated member record
+            $updatedMember = $this->membersRepository->findByIdIncludingDeleted($memberId);
+
+            // Create anonymization audit entry with NO PII
+            $this->auditService->log(
+                action: AuditAction::ANONYMIZE,
+                entityType: EntityType::MEMBER,
+                entityId: $memberId,
+                newValues: ['deleted_at' => $updatedMember['deleted_at']],
+                adminUserId: $adminUserId,
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
         }
-
-        // Scrub all historical audit log entries for this member (GDPR Art. 17)
-        $this->auditLogRepository->scrubByEntityId('member', $memberId);
-
-        // Fetch the updated member record
-        $updatedMember = $this->membersRepository->findByIdIncludingDeleted($memberId);
-
-        // Create anonymization audit entry with NO PII
-        $this->auditService->log(
-            action: AuditAction::ANONYMIZE,
-            entityType: EntityType::MEMBER,
-            entityId: $memberId,
-            newValues: ['deleted_at' => $updatedMember['deleted_at']],
-            adminUserId: $adminUserId,
-        );
 
         return MemberAdminDto::fromRow($updatedMember);
     }
