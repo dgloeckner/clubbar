@@ -335,7 +335,14 @@ class MembersRepository
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        $columnMap = ['id' => 'm.id', 'first_name' => 'm.first_name', 'last_name' => 'm.last_name', 'balance' => 'balance_cents', 'created_at' => 'm.created_at'];
+        // `members` carries no balance column (#164 moved money out to
+        // `transactions`); sorting by balance orders on the same unsettled
+        // position `TransactionsRepository::getUnsettledMemberBalanceCents`
+        // reports for a single member (#83), evaluated per row here.
+        $balanceSort = '(SELECT COALESCE(SUM(t.amount_cents), 0) FROM transactions t'
+            . ' WHERE t.member_id = m.id'
+            . ' AND NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id))';
+        $columnMap = ['id' => 'm.id', 'first_name' => 'm.first_name', 'last_name' => 'm.last_name', 'balance' => $balanceSort, 'created_at' => 'm.created_at'];
         $col = SafeQuery::column($sortKey, array_keys($columnMap));
         $sortColumn = $columnMap[$col];
         $dir = SafeQuery::direction($sortOrder);

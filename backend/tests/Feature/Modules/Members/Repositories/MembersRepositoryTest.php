@@ -11,6 +11,9 @@ class MembersRepositoryTest extends DatabaseTestCase
 {
     private MembersRepository $membersRepository;
     private array $testMemberIds = [];
+    private array $testTransactionIds = [];
+    private array $testAdminUserIds = [];
+    private array $testSettlementIds = [];
 
     protected function setUp(): void
     {
@@ -20,8 +23,15 @@ class MembersRepositoryTest extends DatabaseTestCase
 
     protected function tearDown(): void
     {
-        // Clean up test members
+        // FK order: settlement_items -> settlements/transactions -> members/admin_users
+        if (!empty($this->testSettlementIds)) {
+            $placeholders = implode(',', array_fill(0, count($this->testSettlementIds), '?'));
+            $this->db->prepare("DELETE FROM settlement_items WHERE settlement_id IN ({$placeholders})")->execute($this->testSettlementIds);
+        }
+        $this->cleanupTestData('settlements', $this->testSettlementIds);
+        $this->cleanupTestData('transactions', $this->testTransactionIds);
         $this->cleanupTestData('members', $this->testMemberIds);
+        $this->cleanupTestData('admin_users', $this->testAdminUserIds);
         parent::tearDown();
     }
 
@@ -344,6 +354,73 @@ class MembersRepositoryTest extends DatabaseTestCase
     }
 
     // ------------------------------------------------------------------
+    // Sorting (#112: `sort=balance` referenced a `balance_cents` column that
+    // does not exist on `members` and crashed every request that used it)
+    // ------------------------------------------------------------------
+
+    public function test_listPaginated_sorts_by_balance_without_crashing(): void
+    {
+        $result = $this->membersRepository->listPaginated(10, 0, [], 'balance', 'desc');
+
+        $this->assertArrayHasKey('items', $result);
+        $this->assertArrayHasKey('total', $result);
+    }
+
+    public function test_listPaginated_orders_by_unsettled_balance(): void
+    {
+        $owesLittle = $this->createTestMember('OwesLittle', 'Member');
+        $this->createTestTransaction($owesLittle, -500, '2026-01-01 10:00:00');
+
+        $owesMost = $this->createTestMember('OwesMost', 'Member');
+        $this->createTestTransaction($owesMost, -2000, '2026-01-01 10:00:00');
+
+        $inCredit = $this->createTestMember('InCredit', 'Member');
+        $this->createTestTransaction($inCredit, 1000, '2026-01-01 10:00:00');
+
+        // No id-based filter exists on listPaginated, so pull a page large
+        // enough to cover the whole test dataset and pick out the three rows
+        // we care about, preserving the balance order the query returned.
+        $ascending = $this->membersRepository->listPaginated(1000, 0, [], 'balance', 'asc');
+
+        $testIds = [$owesLittle, $owesMost, $inCredit];
+        $orderedIds = array_values(array_intersect(
+            array_column($ascending['items'], 'id'),
+            $testIds
+        ));
+
+        $this->assertSame([$owesMost, $owesLittle, $inCredit], $orderedIds);
+    }
+
+    public function test_listPaginated_balance_sort_ignores_settled_transactions(): void
+    {
+        // A settled debt must not count toward the balance a member is sorted
+        // by — only the unsettled position does (#83).
+        $stillOwing = $this->createTestMember('StillOwing', 'Member');
+        $this->createTestTransaction($stillOwing, -5000, '2026-01-01 10:00:00');
+
+        $settledUp = $this->createTestMember('SettledUp', 'Member');
+        $settledTransactionId = $this->createTestTransaction($settledUp, -5000, '2026-01-01 10:00:00');
+
+        $adminId = $this->createTestAdminUser("balance-sort-admin-{$settledUp}@example.com");
+        $settlementId = $this->createSettlementRow($adminId, '2026-01-02', '2026-01-03', 5000, 1);
+        $this->markTransactionSettled($settlementId, $settledTransactionId, $settledUp, -5000);
+
+        $ascending = $this->membersRepository->listPaginated(1000, 0, [], 'balance', 'asc');
+
+        $testIds = [$stillOwing, $settledUp];
+        $orderedIds = array_values(array_intersect(
+            array_column($ascending['items'], 'id'),
+            $testIds
+        ));
+
+        $this->assertSame(
+            [$stillOwing, $settledUp],
+            $orderedIds,
+            'a settled debt must not count as an outstanding balance'
+        );
+    }
+
+    // ------------------------------------------------------------------
     // Banking data, which lives on the append-only mandate record (#164)
     // ------------------------------------------------------------------
 
@@ -502,5 +579,70 @@ class MembersRepositoryTest extends DatabaseTestCase
         $stmt->execute([$memberId]);
 
         return (int) $stmt->fetchColumn();
+    }
+
+    private function createTestMember(string $firstName, string $lastName): string
+    {
+        $memberId = $this->generateUuid();
+        $this->testMemberIds[] = $memberId;
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO members (id, first_name, last_name, email, preferred_language, is_active) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$memberId, $firstName, $lastName, strtolower($firstName) . '-' . substr($memberId, 0, 8) . '@example.com', 'de', 1]);
+
+        return $memberId;
+    }
+
+    private function createTestTransaction(string $memberId, int $amountCents, string $occurredAt): string
+    {
+        $transactionId = $this->generateUuid();
+        $this->testTransactionIds[] = $transactionId;
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$transactionId, $memberId, $amountCents, 'purchase', $occurredAt]);
+
+        return $transactionId;
+    }
+
+    private function createTestAdminUser(string $email): string
+    {
+        $adminId = $this->generateUuid();
+        $this->testAdminUserIds[] = $adminId;
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO admin_users (id, email, password_hash, display_name, is_active) VALUES (?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$adminId, $email, password_hash('test123', PASSWORD_BCRYPT), 'Test Admin', 1]);
+
+        return $adminId;
+    }
+
+    private function createSettlementRow(
+        string $adminId,
+        string $settlementDate,
+        string $executionDate,
+        int $totalAmountCents,
+        int $memberCount
+    ): string {
+        $id = $this->generateUuid();
+        $this->testSettlementIds[] = $id;
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$id, $settlementDate, $executionDate, $totalAmountCents, $memberCount, $adminId]);
+
+        return $id;
+    }
+
+    private function markTransactionSettled(string $settlementId, string $transactionId, string $memberId, int $amountCents): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$settlementId, $transactionId, $transactionId, $memberId, $amountCents]);
     }
 }
