@@ -17,7 +17,7 @@
  * Settlement details view was removed - no additional value beyond list view.
  */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { theme } from '../styles/design-system'
@@ -28,6 +28,7 @@ import { useFormatters } from '../hooks/useFormatters'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { StatusFilter } from '../components/forms/StatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
+import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -102,10 +103,12 @@ export function SettlementsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(defaultPageSize)
 
-  // Filters
-  const [period, setPeriod] = useState('3m')
-  const [dateFrom, setDateFrom] = useState<string | undefined>(undefined)
-  const [dateTo, setDateTo] = useState<string | undefined>(undefined)
+  // Filters. The initial range is derived from the default preset here rather
+  // than announced by the PeriodPicker from an effect — that effect re-fired on
+  // every render and reset the page, so paging was impossible (#89).
+  const [period, setPeriod] = useState<PeriodKey>(DEFAULT_PERIOD)
+  const [dateFrom, setDateFrom] = useState<string | undefined>(() => getPeriodRange(DEFAULT_PERIOD).dateFrom)
+  const [dateTo, setDateTo] = useState<string | undefined>(() => getPeriodRange(DEFAULT_PERIOD).dateTo)
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'cancelled'>('all')
 
   // Sorting
@@ -120,7 +123,7 @@ export function SettlementsPage() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const mobileFilterCount = [
-    period !== '3m' ? 1 : 0,
+    period !== DEFAULT_PERIOD ? 1 : 0,
     statusFilter !== 'all' ? 1 : 0,
   ].reduce((a, b) => a + b, 0)
 
@@ -183,13 +186,14 @@ export function SettlementsPage() {
   }
 
 
-  // Handle period change from PeriodPicker
-  const handlePeriodChange = (from: string | undefined, to: string | undefined, periodKey: string) => {
+  // Handle period change from PeriodPicker. Memoized so the picker sees a
+  // stable handler identity across renders (#89).
+  const handlePeriodChange = useCallback((from: string | undefined, to: string | undefined, periodKey: PeriodKey) => {
     setPeriod(periodKey)
     setDateFrom(from)
     setDateTo(to)
     setCurrentPage(1)
-  }
+  }, [])
 
   const handleExportSepa = async (settlementId: string) => {
     try {
