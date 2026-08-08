@@ -86,14 +86,14 @@ sequenceDiagram
         T->>T: Skip sync, retry later
     else Connected
         T->>B: 2. GET /sync/members?since={last_sync_ts}
-        B->>DB: SELECT * WHERE updated_at > since OR (deleted_at > since AND deleted_at IS NOT NULL)
+        B->>DB: SELECT * WHERE updated_at >= since OR (deleted_at >= since AND deleted_at IS NOT NULL)
         DB-->>B: Changed members + tombstones
         B-->>T: Delta response with cursor
         T->>T: Filter: deleted_at != null → remove from cache
         T->>T: Filter: deleted_at == null → UPSERT into members_cache
 
         T->>B: 3. GET /sync/products?since={last_sync_ts}
-        B->>DB: SELECT * WHERE updated_at > since
+        B->>DB: SELECT * WHERE updated_at >= since
         DB-->>B: Changed products
         B-->>T: Delta response
         T->>T: UPSERT into products_cache
@@ -117,18 +117,27 @@ sequenceDiagram
 
 ### Delta Sync Protocol Implementation
 
+> **Amended 2026-08-08.** The original decision made the delta window's lower bound **exclusive** (`> cursor`) to stop an item at the cursor from re-syncing forever. `TIMESTAMP` has second precision, so that rule silently dropped every row written later in the cursor's own second — permanently, since no later sync looks at that second again. See [#84](https://github.com/dgloeckner/clubbar/issues/84). The bound is now **inclusive**, and the anti-loop guarantee moved to the cursor rule instead: the cursor only steps past a second once that second is over. Amended text is marked inline.
+
 #### Timestamp Protocol
 
 **Client-Server Protocol:**
 - Clients send `since` parameter in **milliseconds** (Unix timestamp * 1000)
-- Backend repositories convert to seconds only when needed for SQL `DATE()` function
-- Responses include `cursor` field (milliseconds) representing "all changes before this timestamp have been processed"
+- Backend repositories truncate to whole seconds for the SQL comparison, since the columns store nothing finer
+- Responses include `cursor` field (milliseconds) meaning "every change *before* this second has been delivered" — amended 2026-08-08: the cursor's own second is explicitly **not** claimed as processed, which is what makes the inclusive bound below safe
 
-**Cursor Semantics:**
+**Cursor Semantics** (amended 2026-08-08):
 ```
-cursor = timestamp of last item in result set (if results exist)
-         OR input `since` value (if no results)
+no rows returned  → cursor = input `since` value
+rows returned     → latest = newest updated_at/deleted_at across all returned rows
+                    latest second already over at query time → cursor = latest + 1 second
+                    query ran inside that second            → cursor = latest
+cursor never moves backwards below the input `since`
 ```
+
+The newest timestamp is taken across **both** columns of **every** returned row, not from the last row's `updated_at`: both columns are nullable, and a tombstone may carry only `deleted_at`.
+
+"Query time" is the second in which the query was **issued**, captured before it runs. Taking it afterwards would let a write land in that second after the snapshot but before the comparison, and be stepped over.
 
 **Rationale for returning input cursor when no results:**
 
@@ -154,22 +163,37 @@ Solution: Return input cursor when no results:
 
 **Performance impact**: Negligible. Index seeks on `(updated_at, deleted_at)` are O(log n), cheap even when re-checking the same time window.
 
-#### Query Operator Choice
+#### Query Operator Choice (amended 2026-08-08)
 
-**Use `>` (strictly greater than), not `>=` (greater or equal):**
+**Use `>=` (greater or equal), not `>` (strictly greater than):**
 
 ```sql
--- CORRECT: Only items strictly after cursor
-WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
-
--- WRONG: Re-syncs items at exact cursor timestamp infinitely
+-- CORRECT: the cursor's own second is still in the window
 WHERE updated_at >= ? OR (deleted_at >= ? AND deleted_at IS NOT NULL)
+
+-- WRONG: loses every row written later in the cursor's own second, for good
+WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
 ```
 
 **Rationale:**
-- Cursor represents "all changes up to and including this timestamp have been processed"
-- Using `>=` would re-sync the last item from previous batch in every subsequent sync
-- With `>`, items at exact cursor timestamp are excluded (already processed)
+
+`TIMESTAMP` resolves to whole seconds, so a cursor cannot distinguish two writes inside one second:
+
+| Time | Event | Stored `updated_at` |
+|------|-------|---------------------|
+| 12:00:00.2 | Member A updated | `12:00:00` |
+| 12:00:00.5 | Terminal syncs, receives A, stores cursor `12:00:00` | — |
+| 12:00:00.8 | Member B updated | `12:00:00` |
+
+With `>`, every later sync asks for `> 12:00:00` and B is never delivered to that terminal. Nothing heals it: the row is only picked up if some unrelated later edit moves its timestamp. For products this means a terminal selling at a stale price indefinitely.
+
+The original objection to `>=` — that the boundary row re-syncs forever — is answered by the cursor rule above rather than by the operator. The cursor holds inside an open second and steps past it once it is over, so the boundary second repeats at most until it closes, not indefinitely.
+
+**Why a repeat is acceptable and a miss is not:**
+- Sync payloads are keyed by `id` and applied as upserts on the terminal, so re-delivering a row is a no-op
+- A missed price or membership change is silent and unbounded in time
+
+**Rejected alternatives:** holding the cursor a fixed second back (same effect, but re-sends a full second on every poll even when idle) and adding a monotonic version/sequence column (removes the precision problem outright, but requires a schema change and a new write path on every table; reconsider if sub-second ordering is ever needed for another reason).
 
 #### Deletion Protocol (Tombstones)
 
@@ -187,39 +211,24 @@ CREATE INDEX idx_categories_sync_combined ON categories(updated_at, deleted_at);
 CREATE INDEX idx_products_sync_combined ON products(updated_at, deleted_at);
 ```
 
-**Sync Query Pattern:**
-```php
-public function findModifiedSince(int $sinceTimestamp): array
-{
-    $sinceSeconds = (int) ($sinceTimestamp / 1000);
-    $sinceDate = date('Y-m-d H:i:s', $sinceSeconds);
+**Sync Query Pattern** (amended 2026-08-08) — the lower bound is the cursor truncated to whole seconds, applied inclusively to both columns, ordered by whichever of the two is newer:
 
-    // Use > (not >=) to avoid re-syncing items at exact cursor
-    $stmt = $this->db->prepare(
-        'SELECT * FROM members
-         WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
-         ORDER BY COALESCE(updated_at, deleted_at) ASC'
-    );
-    $stmt->execute([$sinceDate, $sinceDate]);
-    return $stmt->fetchAll();
-}
+```
+findModifiedSince(sinceMs):
+    bound = truncate sinceMs to seconds, as a MySQL datetime
+    SELECT * FROM <table>
+     WHERE updated_at >= bound OR (deleted_at >= bound AND deleted_at IS NOT NULL)
+     ORDER BY COALESCE(updated_at, deleted_at) ASC
 ```
 
-**Service Layer Cursor Logic:**
-```php
-public function syncSince(int $since): SyncResultDto
-{
-    $rows = $this->membersRepository->findModifiedSince($since);
-    $members = array_map(fn($row) => MemberDto::fromRow($row), $rows);
+**Service Layer Cursor Logic** (amended 2026-08-08) — the same rule for every syncable entity, so it lives in one shared helper (`App\Shared\Sync\SyncCursor`) rather than being restated per module:
 
-    // When no changes: return input cursor to avoid race condition
-    // (items created during query execution won't be lost)
-    $cursor = !empty($rows)
-        ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
-        : $since;  // NOT microtime(true) * 1000
-
-    return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
-}
+```
+syncSince(since):
+    queriedAt = current second          # before the query, not after
+    rows      = findModifiedSince(since)
+    cursor    = SyncCursor::next(rows, since, queriedAt)   # see Cursor Semantics above
+    return { items: map(rows), cursor, hasMore: false }
 ```
 
 **Terminal DTOs:**
@@ -253,7 +262,7 @@ await _membersRepo.upsertMembers(activeMembers);
 **Why soft delete (tombstones) instead of hard delete:**
 - Terminals must learn about deletions during sync
 - Hard deletes (SQL DELETE) provide no mechanism for sync notification
-- Tombstones appear in delta sync results (deleted_at > since)
+- Tombstones appear in delta sync results (deleted_at >= since)
 - Terminal receives deleted items and removes them from local cache
 - Audit trail preserved (who deleted, when)
 
@@ -318,12 +327,14 @@ await _membersRepo.upsertMembers(activeMembers);
 - **Delayed visibility**: Transactions not visible in admin panel until synced
 - **Balance discrepancy**: Member's displayed balance excludes unsynced transactions from other terminals
 - **No real-time updates**: Price changes require sync cycle to propagate
+- **Boundary re-delivery** (amended 2026-08-08): a terminal polling inside the newest second of a delta receives that second's rows again on its next poll
 
 ### Mitigations
 
 1. **Stale data**: Display "Last synced: X minutes ago" indicator; warn after extended offline periods
 2. **Balance accuracy**: Show "Local balance" disclaimer; full balance requires backend query
 3. **Offline warning**: Alert after 1 hour offline; prominent warning after 24 hours
+4. **Boundary re-delivery**: bounded to one second's worth of rows and to the lifetime of that second; payloads are upserts keyed by `id`, so a repeat leaves the terminal's cache unchanged
 
 ---
 

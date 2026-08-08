@@ -442,7 +442,7 @@ Sync metadata for delta synchronization.
 | categories | Backend → Terminal | Delta sync via `?since=` timestamp |
 | transactions | Terminal → Backend | Batch upload; idempotent via UUID |
 
-**Delta Sync**: Terminal sends last sync timestamp; backend returns records where `updated_at > since`.
+**Delta Sync**: Terminal sends last sync timestamp; backend returns records where `updated_at >= since`. The bound is inclusive because the column has second precision: a strict `>` would lose every row written later in the cursor's own second, permanently ([#84](https://github.com/dgloeckner/clubbar/issues/84)). The cursor only advances past a second once that second is over, so the boundary is re-sent at most until then — see [ADR-0012](../adr/0012-eventual-consistency-frontend-caching.md) §Query Operator Choice.
 
 **Idempotent Upload**: Backend inserts by client-generated UUID and catches the duplicate-key error alone, so a replayed transaction is accepted without being booked twice. `INSERT IGNORE` is deliberately *not* used: it also swallows the errors that mean a row was refused, which made a lost sale indistinguishable from a replay ([#82](https://github.com/dgloeckner/ruderbar/issues/82)).
 
