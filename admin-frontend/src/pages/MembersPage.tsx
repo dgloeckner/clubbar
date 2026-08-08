@@ -182,12 +182,7 @@ export function MembersPage() {
   // signal pass it in; the mutation handlers take the default and supersede
   // whatever the loader effect has in flight.
   const fetchMembers = useCallback(async (signal: AbortSignal = listRequest.next()) => {
-    // The table spinner is raised and cleared here rather than by the effect,
-    // because a mutation reload supersedes the effect's request: whoever aborts
-    // the previous fetch has to take over responsibility for the spinner, or it
-    // would spin forever on the request that never gets to finish.
     try {
-      setLoading(true)
       const response = await getMembersFactory().listMembers(buildListParams(), { signal })
       if (signal.aborted) return
       setMembers(response.data ?? [])
@@ -198,6 +193,10 @@ export function MembersPage() {
       if (signal.aborted) return
       throw err
     } finally {
+      // The spinner is raised by the loader effect, but cleared here — a
+      // mutation reload supersedes the effect's request, and that request's
+      // `finally` is then skipped. Whoever ends up being the current request
+      // clears the spinner, so it cannot keep turning on a cancelled fetch.
       if (!signal.aborted) setLoading(false)
     }
   }, [buildListParams, listRequest])
@@ -206,6 +205,7 @@ export function MembersPage() {
   useEffect(() => {
     const loadMembers = async (signal: AbortSignal) => {
       try {
+        setLoading(true)
         setIsLoading(true)
 
         await fetchMembers(signal)
