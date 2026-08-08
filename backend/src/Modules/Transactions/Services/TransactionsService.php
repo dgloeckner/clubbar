@@ -70,6 +70,8 @@ class TransactionsService
                 ]);
             }
 
+            $this->flagImplausibleSaleTime($tx);
+
             try {
                 // A null return means the id was already stored — the terminal
                 // is replaying the batch, which ADR-0004 makes safe. Either way
@@ -276,6 +278,73 @@ class TransactionsService
      * flag and the settlement-preview `ineligible_members` bucket never
      * disagree about who needs the treasurer's attention.
      */
+    /**
+     * How far ahead of the server's clock a sale time may sit before it stops
+     * being terminal clock skew and starts being a claim about the future.
+     */
+    private const FUTURE_SALE_TOLERANCE_SECONDS = 3600;
+
+    /**
+     * How far back a sale time may sit before it stops being an offline stretch
+     * (ADR-0012 permits days) and starts being a dead clock battery or a
+     * backdating attempt. Generous on purpose: the flag must stay rare enough
+     * to be worth reading.
+     */
+    private const STALE_SALE_TOLERANCE_SECONDS = 90 * 86400;
+
+    /**
+     * Flag a sale time that cannot be true, and store it anyway (#79, ruling
+     * #144 §2).
+     *
+     * The value is never rewritten and never rejected. Clamping would erase the
+     * evidence — a terminal with a flat clock battery and an attacker probing
+     * the ledger look identical once the value is corrected in place — and
+     * silently editing a recorded fact sits badly with ADR-0004's append-only
+     * ledger. Rejecting would refuse an evening's real revenue over a hardware
+     * fault, which is exactly what ruling #143 forbids. `received_at`, stamped
+     * by the database, is the anchor that makes the claim checkable later.
+     *
+     * The backdating attack this originally guarded is separately defused:
+     * settlement sweeps a member's entire unsettled position regardless of date
+     * (#141), so a backdated sale is still collected.
+     */
+    private function flagImplausibleSaleTime(array $tx): void
+    {
+        $occurredAt = $tx['created_at'] ?? null;
+        if (!is_string($occurredAt) || $occurredAt === '') {
+            return;
+        }
+
+        try {
+            $soldAt = new \DateTimeImmutable($occurredAt);
+        } catch (\Exception) {
+            // Nothing to judge. The database refuses the row and #82 reports it
+            // as unstorable — a rejection, not a flag.
+            return;
+        }
+
+        $skewSeconds = $soldAt->getTimestamp() - time();
+
+        $direction = match (true) {
+            $skewSeconds > self::FUTURE_SALE_TOLERANCE_SECONDS => 'future',
+            -$skewSeconds > self::STALE_SALE_TOLERANCE_SECONDS => 'stale',
+            default => null,
+        };
+
+        if ($direction === null) {
+            return;
+        }
+
+        $this->logger->warning('Transaction stored with an implausible sale time', [
+            'transaction_id' => $tx['id'] ?? null,
+            'member_id' => $tx['member_id'] ?? null,
+            'terminal_id' => $tx['created_by_terminal_id'] ?? null,
+            'occurred_at' => $occurredAt,
+            'skew_seconds' => $skewSeconds,
+            'direction' => $direction,
+        ]);
+    }
+
     private function hasActiveMandate(array $member): bool
     {
         return !empty($member['mandate_reference']) && !empty($member['iban']);

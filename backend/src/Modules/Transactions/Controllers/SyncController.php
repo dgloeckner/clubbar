@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Transactions\Controllers;
 
 use App\Modules\Transactions\Services\TransactionsService;
+use App\Modules\Transactions\Sync\TerminalTransactionAllowlist;
 use App\Shared\Exceptions\NotFoundException;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -64,16 +65,20 @@ class SyncController
             return $this->json($response, ['error' => 'validation_failed', 'details' => $validationErrors], 422);
         }
 
-        // Inject authenticated terminal ID into each transaction
+        // #79, ruling #144 §3: rebuild every row from an explicit allowlist.
+        // Passing the client array through let a terminal token set
+        // `transaction_type`, `related_transaction_id` and
+        // `created_by_admin_id` — enough to forge a storno and, since #169 made
+        // the UNIQUE index on `related_transaction_id` the arbiter of
+        // "stornoable at most once", to permanently block the genuine one.
+        // The terminal id comes from the authenticated token, never the payload.
         $terminalId = $request->getAttribute('terminal_id');
-        if ($terminalId) {
-            foreach ($transactions as &$tx) {
-                $tx['created_by_terminal_id'] = $terminalId;
-            }
-            unset($tx);
+        $rows = [];
+        foreach ($transactions as $tx) {
+            $rows[] = TerminalTransactionAllowlist::build(is_array($tx) ? $tx : [], $terminalId);
         }
 
-        $result = $this->transactionsService->processBatch($transactions);
+        $result = $this->transactionsService->processBatch($rows);
 
         return $this->json($response, $result->toArray(), 201);
     }
