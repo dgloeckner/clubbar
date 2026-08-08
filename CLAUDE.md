@@ -783,6 +783,76 @@ cat test-results.json | jq '.suites[].tests[] | select(.status=="fail")'
 - **Attribution**: All contributors credited in CONTRIBUTORS.md
 - **DCO**: Contributions must include sign-off (e.g., `git commit -s`)
 
+## Cloud sessions
+
+Applies to Claude Code cloud sessions (`CLAUDE_CODE_REMOTE=true`). On a local machine none of this runs — the scripts below are no-ops off the cloud.
+
+### dockerd is not started for you
+
+The session image ships Docker but does not run the daemon: the environment cache snapshots the filesystem, not running processes, so every session — and every *resume* — starts with no `dockerd` and `docker` fails with **"Cannot connect to the Docker daemon"**. Setup scripts are skipped once the cache exists, so the fix lives in the repo instead.
+
+`scripts/ensure-docker.sh` starts the daemon and is wired in as a **SessionStart hook** (`.claude/settings.json`, matcher `startup|resume`). It is idempotent, waits for readiness with a bounded timeout (`ENSURE_DOCKER_TIMEOUT`, default 60s), and **always exits 0** so a Docker problem can never block the session from starting.
+
+**How to tell whether the hook ran:**
+
+```bash
+docker info > /dev/null 2>&1 && echo "daemon up" || echo "daemon DOWN"
+tail -5 logs/ensure-docker.log     # "Docker daemon ready after Ns." / "already running"
+```
+
+If the daemon is down, run the hook by hand — it is safe to run at any time:
+
+```bash
+scripts/ensure-docker.sh
+```
+
+### The compose stack is NOT running at session start
+
+The hook starts **only the daemon**. It deliberately does not start the containers: it runs on every session and resume and blocks Claude from launching, while the stack costs 30–90s and a chunk of RAM that most sessions never need.
+
+**Integration and E2E tests need the stack up first:**
+
+```bash
+cd backend && composer install && cd ..   # once per session — /app is a bind mount, so
+                                          # without vendor/ every request 500s
+scripts/dev-stack.sh up
+scripts/dev-stack.sh wait                 # blocks until services are actually READY
+
+# Migrate + seed. install.php refuses while backend/storage/.installed exists, and
+# that marker is committed — so a fresh clone (every cloud session is one) has to
+# clear it before the first migrate. Do not commit the deletion.
+rm -f backend/storage/.installed
+curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"
+curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=seed"
+
+cd e2etests && npm install && npm test
+```
+
+`scripts/dev-stack.sh`:
+
+| Command | Behaviour |
+|---------|-----------|
+| `up [SERVICE...]` | Calls `ensure-docker.sh`, then `docker compose up -d` |
+| `wait [SERVICE...]` | Blocks until every service is healthy. Bounded by `DEV_STACK_TIMEOUT` (default 180s); exits **2** on timeout and prints which service failed plus its last 30 log lines |
+| `down [ARG...]` | `docker compose down` (a no-op if the daemon is not running) |
+
+`up` is not enough on its own: `docker compose up -d` returns once containers are *created*, well before the backend answers HTTP. Readiness comes from compose healthchecks — `database` (`healthcheck.sh --connect`), `backend` (`/api/health`), `admin-frontend` (HTTP 200 on `/`). Note that `wait` does **not** use `docker compose up --wait`: that flag reports success for a container still inside its healthcheck `start_period`, which is exactly the window that matters here.
+
+### Container registry allowlist
+
+Image pulls go through the environment's registry allowlist. **That allowlist is configured in the Claude Code cloud environment settings, not in this repo.** If a pull fails, it is fixed by an admin in the environment settings — do not work around it from code: no daemon mirror configuration, no registry rewriting, no insecure-registry entries.
+
+Non-default hosts this project needs:
+
+| Host | Why |
+|------|-----|
+| `pkg-containers.githubusercontent.com` | GHCR blobs |
+| `production.cloudfront.docker.com` | Docker Hub legacy CDN |
+| `*.r2.cloudflarestorage.com` | Docker Hub R2 layer storage |
+| `quay.io`, `*.quay.io` | Keycloak |
+| `*.azurecr.io`, `*.blob.core.windows.net` | ACR manifests / layers |
+| `maven.pkg.github.com` | Defaults cover only `npm.pkg.github.com` |
+
 ## Agent skills
 
 ### Issue tracker

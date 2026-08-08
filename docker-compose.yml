@@ -9,7 +9,9 @@ services:
     image: mariadb:10.11
     container_name: clubbar-db
     restart: unless-stopped
-    platform: linux/arm64
+    # No `platform:` pin — mariadb:10.11 is a multi-arch image, so Docker picks the
+    # host's native architecture. Pinning linux/arm64 made the container unrunnable
+    # on amd64 hosts (cloud sessions, CI): "exec format error".
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: clubbar
@@ -111,6 +113,16 @@ services:
     depends_on:
       database:
         condition: service_healthy
+    # /api/health needs no database, so this reports exactly what callers care
+    # about: Apache + PHP-FPM are serving the app. Without it `docker compose up
+    # --wait` returns while the backend is still booting and tests fail with
+    # connection refused. start_period covers supervisord bringing up the pool.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   # =============================================================================
   # Admin Frontend - React + Apache (production-like, mass hoster compatible)
@@ -127,6 +139,13 @@ services:
       - "5173:80"
     depends_on:
       - backend
+    # httpd:2.4-alpine ships BusyBox wget, not curl.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   # =============================================================================
   # Terminal Frontend - React + Vite (dev server for web preview)
