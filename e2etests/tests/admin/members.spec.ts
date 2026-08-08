@@ -233,6 +233,101 @@ test.describe('Admin Members Page', () => {
   })
 
 
+  test('mutations reload the list with every active filter (#92): save, status toggle, anonymize', async ({
+    authenticatedMembersPage,
+    page,
+  }) => {
+    const ts = Date.now()
+    const prefix = `Keep${ts}`
+
+    // ── Setup: three members via API ────────────────────────────────────
+    // A: SEPA-valid, with card  → must stay hidden behind both filters below
+    // B: SEPA-valid, no card    → target of the save
+    // C: SEPA-missing, no card  → target of the status toggle and anonymize
+    await createMemberViaPage(page, {
+      firstName: `${prefix}A`,
+      lastName: 'SepaCard',
+      email: `${prefix}a@t.com`,
+      cardUid: `B${ts.toString().slice(-10)}`,
+    })
+    await createMemberViaPage(page, {
+      firstName: `${prefix}B`,
+      lastName: 'NoCard',
+      email: `${prefix}b@t.com`,
+    })
+    const memberC = await createMemberViaPage(page, {
+      firstName: `${prefix}C`,
+      lastName: 'NoSepa',
+      email: `${prefix}c@t.com`,
+      withSepa: false,
+    })
+
+    await authenticatedMembersPage.navigate()
+    await authenticatedMembersPage.expectPageVisible()
+    await authenticatedMembersPage.search(prefix)
+
+    // Matches only the list query (GET /api/admin/members?…), never the
+    // single-member GET/PATCH which carry the id in the path instead.
+    const listReload = () =>
+      page.waitForResponse(
+        (resp) =>
+          resp.url().includes('/api/admin/members?') &&
+          resp.request().method() === 'GET' &&
+          resp.status() === 200,
+        { timeout: 15000 },
+      )
+
+    // ── 1. Editing a member keeps the card filter ───────────────────────
+    await authenticatedMembersPage.setCardFilter('without')
+    await authenticatedMembersPage.expectMemberVisibleInTable(`${prefix}B`)
+    await authenticatedMembersPage.expectMemberNotVisibleInTable(`${prefix}A`)
+
+    await authenticatedMembersPage.clickEditButtonForMember(`${prefix}B`)
+    await authenticatedMembersPage.expectFormModalVisible()
+    await authenticatedMembersPage.fillAccountHolderName(`Holder${ts}`)
+
+    const saveReload = listReload()
+    await authenticatedMembersPage.submitForm()
+    await authenticatedMembersPage.expectFormModalHidden()
+
+    const saveParams = new URL((await saveReload).url()).searchParams
+    expect(saveParams.get('has_card_uid')).toBe('without')
+    expect(saveParams.get('search')).toBe(prefix)
+    await authenticatedMembersPage.expectMemberVisibleInTable(`${prefix}B`)
+    await authenticatedMembersPage.expectMemberNotVisibleInTable(`${prefix}A`)
+
+    // ── 2. Toggling status keeps the SEPA filter ────────────────────────
+    await authenticatedMembersPage.setCardFilter('all')
+    await authenticatedMembersPage.setSepaFilter('missing')
+    await authenticatedMembersPage.expectMemberVisibleInTable(`${prefix}C`)
+    await authenticatedMembersPage.expectMemberNotVisibleInTable(`${prefix}A`)
+
+    const toggleReload = listReload()
+    await authenticatedMembersPage.toggleStatusForMember(memberC.id)
+
+    const toggleParams = new URL((await toggleReload).url()).searchParams
+    expect(toggleParams.get('sepa_status')).toBe('invalid')
+    expect(toggleParams.get('search')).toBe(prefix)
+    await authenticatedMembersPage.expectMemberVisibleInTable(`${prefix}C`)
+    await authenticatedMembersPage.expectMemberNotVisibleInTable(`${prefix}A`)
+
+    // ── 3. Anonymizing keeps the SEPA filter ────────────────────────────
+    // The anonymized member drops out of the search itself (its name is
+    // erased), so the surviving assertion is that A stays filtered out.
+    await authenticatedMembersPage.clickAnonymizeButtonForMember(memberC.id)
+    await authenticatedMembersPage.expectAnonymizeConfirmVisible()
+
+    const anonymizeReload = listReload()
+    await authenticatedMembersPage.confirmAnonymize()
+    await authenticatedMembersPage.expectAnonymizeConfirmHidden()
+
+    const anonymizeParams = new URL((await anonymizeReload).url()).searchParams
+    expect(anonymizeParams.get('sepa_status')).toBe('invalid')
+    expect(anonymizeParams.get('search')).toBe(prefix)
+    await authenticatedMembersPage.expectMemberNotVisibleInTable(`${prefix}A`)
+  })
+
+
   test('card UID validation: format, auto-uppercase, duplicate inline error', async ({
     authenticatedMembersPage,
     page,
