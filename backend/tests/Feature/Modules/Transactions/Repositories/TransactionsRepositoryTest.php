@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Transactions\Repositories;
 
+use App\Modules\Transactions\Exceptions\TransactionAlreadyStornoedException;
 use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use Tests\Feature\DatabaseTestCase;
@@ -311,6 +312,154 @@ class TransactionsRepositoryTest extends DatabaseTestCase
             'amount_cents' => 350,
             'transaction_type' => 'not_a_real_type',
             'created_at' => '2026-08-07 10:00:00',
+        ]);
+    }
+
+    /**
+     * findStornoFor() is the clean "already stornoed" lookup used both to
+     * answer that question and to show the linkage in the journal.
+     */
+    public function test_findStornoFor_returns_null_when_transaction_has_no_storno(): void
+    {
+        $purchaseId = $this->createAnchorPurchaseTransaction();
+
+        $result = $this->transactionsRepository->findStornoFor($purchaseId);
+
+        $this->assertNull($result);
+    }
+
+    public function test_findStornoFor_returns_the_storno_row(): void
+    {
+        $memberId = $this->createTestMember('StornoLookup', 'User');
+
+        $purchaseId = $this->generateUuid();
+        $this->testTransactionIds[] = $purchaseId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$purchaseId, $memberId, null, 350, 'purchase', '2026-03-01 10:00:00']);
+
+        $stornoId = $this->generateUuid();
+        $this->testTransactionIds[] = $stornoId;
+        $stornoStmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, related_transaction_id, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stornoStmt->execute([$stornoId, $memberId, null, -350, 'storno', $purchaseId, '2026-03-01 11:00:00']);
+
+        $result = $this->transactionsRepository->findStornoFor($purchaseId);
+
+        $this->assertNotNull($result);
+        $this->assertSame($stornoId, $result['id']);
+        $this->assertSame('storno', $result['transaction_type']);
+        $this->assertSame($purchaseId, $result['related_transaction_id']);
+    }
+
+    public function test_findStornoFor_returns_null_for_unknown_transaction_id(): void
+    {
+        $result = $this->transactionsRepository->findStornoFor($this->generateUuid());
+
+        $this->assertNull($result);
+    }
+
+    public function test_insertStorno_returns_the_stored_row(): void
+    {
+        $memberId = $this->createTestMember('InsertStornoOk', 'User');
+
+        $purchaseId = $this->generateUuid();
+        $this->testTransactionIds[] = $purchaseId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$purchaseId, $memberId, null, 350, 'purchase', '2026-03-02 10:00:00']);
+
+        $stornoId = $this->generateUuid();
+        $this->testTransactionIds[] = $stornoId;
+
+        $result = $this->transactionsRepository->insertStorno([
+            'id' => $stornoId,
+            'member_id' => $memberId,
+            'product_id' => null,
+            'amount_cents' => -350,
+            'transaction_type' => 'storno',
+            'related_transaction_id' => $purchaseId,
+            'created_at' => '2026-03-02 11:00:00',
+        ]);
+
+        $this->assertIsArray($result, 'insertStorno should return the stored row');
+        $this->assertSame($stornoId, $result['id']);
+        $this->assertSame('storno', $result['transaction_type']);
+        $this->assertSame($purchaseId, $result['related_transaction_id']);
+    }
+
+    /**
+     * The unique index on `related_transaction_id` is the true arbiter of
+     * "stornoable at most once" (#169) — `insertTransaction()` absorbs the
+     * duplicate key as a batch replay (returns null), and `insertStorno()`
+     * reads that null as "already stornoed" rather than a silent no-op.
+     */
+    public function test_insertStorno_throws_when_a_storno_already_exists(): void
+    {
+        $memberId = $this->createTestMember('DoubleStorno', 'User');
+
+        $purchaseId = $this->generateUuid();
+        $this->testTransactionIds[] = $purchaseId;
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$purchaseId, $memberId, null, 350, 'purchase', '2026-03-03 10:00:00']);
+
+        $firstStornoId = $this->generateUuid();
+        $this->testTransactionIds[] = $firstStornoId;
+        $this->transactionsRepository->insertStorno([
+            'id' => $firstStornoId,
+            'member_id' => $memberId,
+            'product_id' => null,
+            'amount_cents' => -350,
+            'transaction_type' => 'storno',
+            'related_transaction_id' => $purchaseId,
+            'created_at' => '2026-03-03 11:00:00',
+        ]);
+
+        $secondStornoId = $this->generateUuid();
+        $this->testTransactionIds[] = $secondStornoId;
+
+        $this->expectException(TransactionAlreadyStornoedException::class);
+
+        $this->transactionsRepository->insertStorno([
+            'id' => $secondStornoId,
+            'member_id' => $memberId,
+            'product_id' => null,
+            'amount_cents' => -350,
+            'transaction_type' => 'storno',
+            'related_transaction_id' => $purchaseId,
+            'created_at' => '2026-03-03 12:00:00',
+        ]);
+    }
+
+    /**
+     * A storno without a `related_transaction_id` violates
+     * `chk_transactions_storno_is_linked` — a row the database refuses for a
+     * reason other than "already stornoed", which `insertStorno()` must let
+     * propagate as `TransactionNotStorableException` rather than mask as a
+     * duplicate.
+     */
+    public function test_insertStorno_rethrows_a_row_the_database_refuses_for_another_reason(): void
+    {
+        $memberId = $this->createTestMember('UnlinkedStorno', 'User');
+
+        $stornoId = $this->generateUuid();
+        $this->testTransactionIds[] = $stornoId;
+
+        $this->expectException(TransactionNotStorableException::class);
+
+        $this->transactionsRepository->insertStorno([
+            'id' => $stornoId,
+            'member_id' => $memberId,
+            'product_id' => null,
+            'amount_cents' => -350,
+            'transaction_type' => 'storno',
+            'related_transaction_id' => null,
+            'created_at' => '2026-03-04 10:00:00',
         ]);
     }
 

@@ -134,37 +134,23 @@ class TransactionsRepository
      */
     public function insertStorno(array $data): array
     {
-        try {
-            $result = $this->insertTransaction($data);
-        } catch (\PDOException $e) {
-            if (self::isDuplicateRelatedTransaction($e)) {
-                throw new TransactionAlreadyStornoedException(
-                    'This transaction has already been stornoed',
-                    0,
-                    $e,
-                );
-            }
-            throw $e;
-        }
+        $result = $this->insertTransaction($data);
 
         if ($result === null) {
-            // insertTransaction() absorbed a duplicate key. The storno's own id
-            // is freshly generated, so the collision can only be the unique
-            // index on related_transaction_id.
+            // `null` means insertTransaction() absorbed a duplicate key. It does
+            // not say *which* one, but for a storno there is only one candidate:
+            // the id is freshly generated per call, so the collision is the
+            // unique index on related_transaction_id — this transaction already
+            // has a storno.
+            //
+            // Note this is the ONLY path. Catching a PDOException here as well
+            // would be dead code: isDuplicateKey() matches errno 1062 without
+            // regard to which index raised it, so insertTransaction() converts
+            // the violation to `null` before it can propagate.
             throw new TransactionAlreadyStornoedException('This transaction has already been stornoed');
         }
 
         return $result;
-    }
-
-    /**
-     * A duplicate-key error against the unique index on `related_transaction_id`
-     * specifically — i.e. "already stornoed" rather than "id already stored".
-     */
-    private static function isDuplicateRelatedTransaction(\PDOException $e): bool
-    {
-        return self::isDuplicateKey($e)
-            && str_contains((string) ($e->errorInfo[2] ?? ''), 'uq_transactions_related_transaction');
     }
 
     /**
