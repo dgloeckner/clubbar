@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Core Design Principles:**
 - **Offline-first**: Terminal operates fully offline; syncs periodically when connected
 - **Eventually consistent**: Frontend maintains local cache; periodic delta sync with backend
-- **Immutable transactions**: Transactions are append-only; corrections via reverse transactions (see [ADR-0004](./adr/0004-immutable-transaction-storage.md))
+- **Immutable transactions**: Transactions are append-only; a booking is corrected by a *storno* that names it and negates it exactly (see [ADR-0004](./adr/0004-immutable-transaction-storage.md))
 - **Conflict-free sync**: Immutable design eliminates UPDATE/DELETE conflicts across terminals
 - **User privacy**: Personal data anonymizable (GDPR Art. 17); booking history retained separately
 - **Idempotent APIs**: Client-generated UUIDs ensure safe retry semantics

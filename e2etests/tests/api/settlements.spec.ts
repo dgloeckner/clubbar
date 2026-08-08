@@ -837,8 +837,8 @@ test.describe('Settlements API', () => {
       const purchase2 = await testTransactions.createSyncTransaction(member.id, 300, `fp-purchase2-${testId}`);
       await testTransactions.createSettlement([purchase1, purchase2]);
 
-      await testTransactions.createStorno(member.id, 500, `fp-note-${testId}`, 'adjustment', purchase1);
-      await testTransactions.createStorno(member.id, 300, `fp-note2-${testId}`, 'adjustment', purchase2);
+      await testTransactions.createStorno(member.id, 500, `fp-note-${testId}`, purchase1);
+      await testTransactions.createStorno(member.id, 300, `fp-note2-${testId}`, purchase2);
 
       const res = await authenticatedRequest.get(
         `/api/admin/settlements/filter-preview?search=${encodeURIComponent(`Test${testId}`)}`,
@@ -851,7 +851,11 @@ test.describe('Settlements API', () => {
       expect(typeof body.total_amount_cents).toBe('number');
       expect(body.transaction_count).toBe(2);
       expect(body.member_count).toBe(1);
-      expect(body.total_amount_cents).toBe(800);
+      // Both underlying purchases are already settled and excluded (NOT EXISTS
+      // settlement_items); only the two stornos remain unsettled, and a storno's
+      // amount is always the exact negation of what it reverses (#169), not a
+      // freely-typed adjustment: -500 + -300 = -800.
+      expect(body.total_amount_cents).toBe(-800);
     });
 
     test('search filter reduces result to matching transactions', async ({ authenticatedRequest, testTransactions }) => {
@@ -875,7 +879,7 @@ test.describe('Settlements API', () => {
       // counts asserted below).
       const purchase = await testTransactions.createSyncTransaction(member.id, 100, `srch-purchase-${testId}`);
       await testTransactions.createSettlement([purchase]);
-      await testTransactions.createStorno(member.id, 100, `srch-note-${testId}`, 'adjustment', purchase);
+      await testTransactions.createStorno(member.id, 100, `srch-note-${testId}`, purchase);
 
       // Unfiltered preview should have results
       const unfilteredRes = await authenticatedRequest.get('/api/admin/settlements/filter-preview');
@@ -890,7 +894,9 @@ test.describe('Settlements API', () => {
 
       expect(filtered.transaction_count).toBe(1);
       expect(filtered.member_count).toBe(1);
-      expect(filtered.total_amount_cents).toBe(100);
+      // The purchase is already settled and excluded; only the storno remains,
+      // and its amount is the exact negation of the purchase it reversed (#169).
+      expect(filtered.total_amount_cents).toBe(-100);
       expect(filtered.transaction_count).toBeLessThan(unfiltered.transaction_count);
     });
 
@@ -926,17 +932,21 @@ test.describe('Settlements API', () => {
       });
       expect(memberRes.status()).toBe(201);
       const member = await memberRes.json();
-      // Each storno must name the purchase it reverses. Both purchases are
-      // collected in one settlement first, so only the stornos remain
-      // unsettled — a settlement sweeps the member's whole unsettled position
-      // (ruling #141, #161 §2), so settling them separately would sweep the
-      // first storno up with the second purchase.
+      // Each storno must name the purchase it reverses (#169), and its amount
+      // is always the exact negation of that purchase — a member whose only
+      // open items are stornos has a net-negative (credit) position, and
+      // settle-filter excludes credit members from the sweep entirely
+      // (ruling #141) rather than collect from them. So one purchase is left
+      // untouched to keep this member's net position positive and
+      // collectable, while the other two are each reversed in full — the
+      // sweep still has to pick up all five open items (3 purchases + 2
+      // stornos), it just nets out to the untouched purchase's amount.
+      const anchor = await testTransactions.createSyncTransaction(member.id, 1000, `sf-anchor-${testId}`);
       const purchase1 = await testTransactions.createSyncTransaction(member.id, 400, `sf-purchase1-${testId}`);
       const purchase2 = await testTransactions.createSyncTransaction(member.id, 200, `sf-purchase2-${testId}`);
-      await testTransactions.createSettlement([purchase1, purchase2]);
 
-      await testTransactions.createStorno(member.id, 400, `sf-tx-${testId}`, 'adjustment', purchase1);
-      await testTransactions.createStorno(member.id, 200, `sf-tx2-${testId}`, 'adjustment', purchase2);
+      await testTransactions.createStorno(member.id, 400, `sf-tx-${testId}`, purchase1);
+      await testTransactions.createStorno(member.id, 200, `sf-tx2-${testId}`, purchase2);
 
       const today = await serverToday(authenticatedRequest);
       const exec = await minimumExecutionDate(authenticatedRequest);
@@ -954,9 +964,10 @@ test.describe('Settlements API', () => {
       expect(settlement).toHaveProperty('id');
       expect(settlement).toHaveProperty('settlement_date', today);
       expect(settlement).toHaveProperty('execution_date', exec);
-      // Should have settled exactly 1 member with 2 transactions totalling 600 cents
+      // 1 member, 5 transactions swept (anchor + 2 purchase/storno pairs),
+      // netting to the untouched anchor's 1000 cents: 1000 + (400-400) + (200-200).
       expect(settlement.member_count).toBe(1);
-      expect(settlement.total_amount_cents).toBe(600);
+      expect(settlement.total_amount_cents).toBe(1000);
     });
 
     test('returns 422 when settlement_date is missing', async ({ authenticatedRequest }) => {
@@ -1128,7 +1139,12 @@ test.describe('Settlements API', () => {
       return transactionId;
     }
 
-    /** A credit only exists once money has actually been collected and then reversed. */
+    /**
+     * A credit only exists once money has actually been collected and then
+     * reversed. `memberId` is unused now that the storno endpoint reads the
+     * member from the target transaction (#169), but kept in the signature
+     * to avoid touching every call site.
+     */
     async function collectThenStorno(request: any, memberId: string, transactionId: string, amountCents: number) {
       const executionDate = await minimumExecutionDate(request);
       const settled = await request.post('/api/admin/settlements', {
@@ -1141,12 +1157,11 @@ test.describe('Settlements API', () => {
       });
       expect(settled.status(), await settled.text()).toBe(201);
 
-      const storno = await request.post(`/api/admin/members/${memberId}/transactions`, {
+      // amountCents is no longer sent — the storno's amount is always the
+      // exact negation of the target transaction, derived by the backend.
+      const storno = await request.post(`/api/admin/transactions/${transactionId}/storno`, {
         data: {
-          amount_cents: -amountCents,
-          reason: 'refund',
-          notes: 'Overcharged — reversed',
-          related_transaction_id: transactionId,
+          reason: 'Overcharged — reversed',
         },
       });
       expect(storno.status(), await storno.text()).toBe(201);
@@ -1258,12 +1273,11 @@ test.describe('Settlements API', () => {
 
       const netZero = await createMember(authenticatedRequest, true);
       const netZeroTx = await syncPurchase(authenticatedTerminalRequest, netZero.id, 1000);
-      const storno = await authenticatedRequest.post(`/api/admin/members/${netZero.id}/transactions`, {
+      // The amount is derived as the exact negation of netZeroTx (#169) —
+      // there's no amount_cents to type any more.
+      const storno = await authenticatedRequest.post(`/api/admin/transactions/${netZeroTx}/storno`, {
         data: {
-          amount_cents: -1000,
-          reason: 'refund',
-          notes: 'Cancelled order',
-          related_transaction_id: netZeroTx,
+          reason: 'Cancelled order',
         },
       });
       expect(storno.status(), await storno.text()).toBe(201);

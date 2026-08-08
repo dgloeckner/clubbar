@@ -114,9 +114,9 @@ Enums serialize as their **backing string value**, not the PHP name:
 | Enum | Valid values | Used in |
 |------|-------------|---------|
 | `preferred_language` | `de`, `en`, `fr` | Members |
-| `transaction_type` | `purchase`, `deposit`, `correction` | Transactions |
+| `transaction_type` | `purchase`, `storno`, `payout` | Transactions |
 | `settlement_type` | `sepa`, `manual` | Settlements |
-| `audit_action` | `create`, `update`, `delete`, `anonymize`, `export`, `login`, `login_failed` | Audit log |
+| `audit_action` | `create`, `update`, `delete`, `anonymize`, `export`, `login`, `login_failed`, `transaction_storno`, `settlement_*`, … (full list in `App\Shared\Enums\AuditAction`) | Audit log |
 
 **In tests**: Always use the backing string (`"de"` not `"German"`).
 

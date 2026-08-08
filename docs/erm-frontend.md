@@ -156,7 +156,7 @@ Local write queue for transactions. Created on terminal, uploaded to backend dur
 |--------|------|-------------|-------------|
 | `id` | TEXT | PRIMARY KEY | Client-generated UUID (idempotency key) |
 | `member_id` | TEXT | NOT NULL, FK | Reference to `members_cache.id` |
-| `product_id` | TEXT | NULL, FK | Reference to `products_cache.id` (NULL for manual adjustments) |
+| `product_id` | TEXT | NULL, FK | Reference to `products_cache.id` (NULL for stornos and payouts) |
 | `amount_cents` | INTEGER | NOT NULL | Amount in cents (positive = charge; negative = credit/reversal; non-zero) |
 | `transaction_type` | TEXT | NOT NULL, DEFAULT 'purchase' | Type: 'purchase' or 'correction' |
 | `notes` | TEXT | NULL | Reason/description (optional) |

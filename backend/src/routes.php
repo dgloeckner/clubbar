@@ -108,9 +108,12 @@ return function (App $app): void {
         $group->get('/transactions', [TransactionsAdminController::class, 'getTransactions']);
         $group->get('/transactions/export', [TransactionsAdminController::class, 'exportTransactions']);
         $group->get('/members/{memberId}/transactions', [TransactionsAdminController::class, 'getTransactionHistory']);
-        $group->post('/members/{memberId}/transactions', [TransactionsAdminController::class, 'recordCorrection']);
-        $group->post('/members/{memberId}/transactions/correction', [TransactionsAdminController::class, 'recordCorrection']);
-        $group->post('/members/{memberId}/transactions/correct', [TransactionsAdminController::class, 'recordCorrection']);
+        // Storno: the transaction is the subject, not a parameter. No amount is
+        // accepted — it is derived as the exact negation of the target (#169).
+        // The three POST routes that used to sit here took a freely-typed
+        // amount against a member; a correction *is* a storno (#158), and there
+        // is no manual-purchase endpoint to replace them (UC-A21 rejected).
+        $group->post('/transactions/{transactionId}/storno', [TransactionsAdminController::class, 'storno']);
 
         // Admin users
         $group->get('/admin-users', [AdminUsersAdminController::class, 'index']);

@@ -162,7 +162,7 @@ test('domain: action sequence description', async ({
 
   // ── Setup: create test data via API ──────────────────────────────
   const memberA = await testTransactions.createMember(`${prefix}A`, 'Alpha')
-  await testTransactions.createCorrection(memberA.id, 500, `${prefix} corr1`)
+  await testTransactions.createStorno(memberA.id, 500, `${prefix} corr1`)
 
   // ── Navigate and verify display ──────────────────────────────────
   const journalPage = new JournalPage(page)

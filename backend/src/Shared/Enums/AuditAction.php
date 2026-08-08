@@ -17,6 +17,8 @@ enum AuditAction: string
     case LOGOUT = 'logout';
     case LOGIN_FAILED = 'login_failed';
     case EXPORT = 'export';
+    /** A booking reversed in full (#169). The only admin-initiated transaction. */
+    case TRANSACTION_STORNO = 'transaction_storno';
     case SETTLEMENT_CREATE = 'settlement_create';
     case SETTLEMENT_CANCEL = 'settlement_cancel';
     case SETTLEMENT_EXPORT = 'settlement_export';

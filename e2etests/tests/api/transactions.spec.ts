@@ -39,6 +39,28 @@ async function createMember(authenticatedRequest) {
   return await response.json();
 }
 
+// Helper to create a member with no IBAN and no SEPA mandate.
+// A storno must still be possible for them: it reduces what they owe, and
+// gating a debt reduction on the ability to collect is inverted (#158 §1).
+async function createMemberWithoutMandate(authenticatedRequest) {
+  const uniqueId = randomUUID().substring(0, 8);
+
+  const response = await authenticatedRequest.post('/api/admin/members', {
+    data: {
+      first_name: `NoMandate${uniqueId}`,
+      last_name: `Member${uniqueId}`,
+      email: `nomandate${uniqueId}@example.com`,
+      preferred_language: 'de',
+    },
+  });
+
+  if (!response.ok()) {
+    throw new Error(`Failed to create member without mandate: ${response.status()} - ${await response.text()}`);
+  }
+
+  return await response.json();
+}
+
 // Helper to create test category
 async function createCategory(authenticatedRequest) {
   const response = await authenticatedRequest.post('/api/admin/categories', {
@@ -770,231 +792,278 @@ test.describe('Transaction History Endpoint', () => {
 });
 
 /**
- * Milestone 3: Manual Stornos (UC-A21)
+ * Storno (UC-A23)
  *
- * Tests for admin endpoint to record manual transaction stornos.
- * A storno reverses one specific transaction and must name it via
- * `related_transaction_id` (GoBD Rz. 64); omitting it is a 422.
- * POST /api/admin/members/{memberId}/transactions/correct
+ * POST /api/admin/transactions/{id}/storno  { reason }
+ *
+ * The transaction is the subject of the operation, not a parameter of it.
+ * There is no amount field anywhere in this contract: the amount is derived as
+ * the exact negation of the target, and the member is read from the target too.
+ * This replaces the free-amount correction endpoint removed in #169.
  */
-test.describe('Manual Storno Endpoint', () => {
-  test('POST /api/admin/members/{id}/transactions/correct creates storno transaction', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+test.describe('Storno Endpoint', () => {
+  test('derives the amount as the exact negation, with no amount supplied', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
     const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 350);
-    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
-      data: {
-        amount_cents: -350,
-        reason: 'Refund for duplicate charge',
-        related_transaction_id: purchaseId,
-      },
+
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: 'Bernd scanned Annas card by mistake' },
     });
 
     expect(response.status()).toBe(201);
 
     const body = await response.json();
-
-    // Verify response structure
     expect(body.id).toBeDefined();
     expect(body.member_id).toBe(member.id);
     expect(body.amount_cents).toBe(-350);
     expect(body.transaction_type).toBe('storno');
-    expect(body.notes).toBe('Refund for duplicate charge');
+    expect(body.related_transaction_id).toBe(purchaseId);
+    expect(body.notes).toBe('Bernd scanned Annas card by mistake');
     expect(body.created_by_admin_id).toBeDefined();
-    expect(body.created_at).toBeDefined();
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct accepts positive amount', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+  test('ignores any amount the caller tries to smuggle in', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
     const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 500);
-    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
-      data: {
-        amount_cents: 500,
-        reason: 'Manual charge for damaged item',
-        related_transaction_id: purchaseId,
-      },
+
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: 'Wrong booking', amount_cents: -99999, member_id: randomUUID() },
     });
 
     expect(response.status()).toBe(201);
 
     const body = await response.json();
-
-    expect(body.amount_cents).toBe(500);
-    expect(body.transaction_type).toBe('storno');
+    // Derived from the target, never from the request body.
+    expect(body.amount_cents).toBe(-500);
+    expect(body.member_id).toBe(member.id);
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct rejects zero amount', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+  test('leaves the original transaction untouched', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
-    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id);
-    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
-      data: {
-        amount_cents: 0,
-        reason: 'Invalid zero amount',
-        related_transaction_id: purchaseId,
-      },
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 700);
+
+    const before = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=100`);
+    const originalBefore = (await before.json()).transactions.find((tx: any) => tx.id === purchaseId);
+
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: 'Append-only check' },
+    });
+    expect(response.status()).toBe(201);
+
+    const after = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=100`);
+    const originalAfter = (await after.json()).transactions.find((tx: any) => tx.id === purchaseId);
+
+    expect(originalAfter).toEqual(originalBefore);
+  });
+
+  test('refuses a second storno of the same transaction with 409', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 350);
+
+    const first = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: 'First storno' },
+    });
+    expect(first.status()).toBe(201);
+
+    const second = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: 'Second storno of the same booking' },
+    });
+
+    expect(second.status()).toBe(409);
+    const body = await second.json();
+    expect(body.error).toBe('already_stornoed');
+  });
+
+  test('the second storno is refused by the database, not only by the service', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    // The service's own "already stornoed?" lookup is a courtesy, not the
+    // guarantee. Firing both attempts concurrently defeats it: both read
+    // "not yet stornoed" before either writes, so whichever loses can only be
+    // stopped by the unique index on related_transaction_id. Exactly one must
+    // survive (#169 acceptance criteria).
+    const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 350);
+
+    const attempts = await Promise.all(
+      [1, 2, 3].map((n) =>
+        authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+          data: { reason: `Concurrent attempt ${n}` },
+        }),
+      ),
+    );
+
+    const statuses = attempts.map((r) => r.status()).sort();
+    expect(statuses.filter((s) => s === 201)).toHaveLength(1);
+    expect(statuses.filter((s) => s === 409)).toHaveLength(2);
+
+    // And the journal holds exactly one storno for that purchase.
+    const history = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=100`);
+    const stornos = (await history.json()).transactions.filter(
+      (tx: any) => tx.type === 'storno',
+    );
+    expect(stornos).toHaveLength(1);
+  });
+
+  test('refuses to storno a storno with 422', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 350);
+
+    const storno = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: 'The original mistake' },
+    });
+    expect(storno.status()).toBe(201);
+    const stornoId = (await storno.json()).id;
+
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${stornoId}/storno`, {
+      data: { reason: 'Undoing the undo' },
     });
 
     expect(response.status()).toBe(422);
-
     const body = await response.json();
-    expect(body.message).toBeDefined();
-    expect(body.errors).toBeDefined();
+    expect(body.error).toBe('cannot_storno_a_storno');
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct rejects missing reason', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+  test('allows stornoing a transaction for a member with no SEPA mandate', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    // A storno *reduces* what the member owes. Gating a debt reduction on the
+    // ability to collect is inverted — #158 §1. The old endpoint rejected this
+    // with a SepaValidationException.
+    const member = await createMemberWithoutMandate(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 420);
+
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: 'No mandate, still stornoable' },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+    expect(body.amount_cents).toBe(-420);
+  });
+
+  test('writes an audit entry naming admin, target transaction and reason', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 350);
+    const reason = `Audited storno ${randomUUID().substring(0, 8)}`;
+
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason },
+    });
+    expect(response.status()).toBe(201);
+    const storno = await response.json();
+
+    const auditResponse = await authenticatedRequest.get(
+      `/api/admin/audit-log?entity_id=${storno.id}&per_page=50`,
+    );
+    expect(auditResponse.ok()).toBeTruthy();
+    const audit = await auditResponse.json();
+    const items = audit.items ?? audit.data ?? audit;
+
+    const entry = items.find((e: any) => e.entity_id === storno.id);
+    expect(entry).toBeDefined();
+    expect(entry.entity_type).toBe('transaction');
+    expect(entry.action).toBe('transaction_storno');
+    expect(entry.admin_user_id).toBeTruthy();
+    expect(JSON.stringify(entry.new_values)).toContain(reason);
+    expect(JSON.stringify(entry.new_values)).toContain(purchaseId);
+  });
+
+  test('rejects a missing reason with 422', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
     const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id);
-    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
-      data: {
-        amount_cents: -350,
-        related_transaction_id: purchaseId,
-        // missing reason
-      },
+
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: {},
     });
 
     expect(response.status()).toBe(422);
-
     const body = await response.json();
-    expect(body.errors).toBeDefined();
     expect(body.errors.reason).toBeDefined();
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct rejects missing related_transaction_id', async ({ authenticatedRequest }) => {
+  test('rejects a blank reason with 422', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
-    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
-      data: {
-        amount_cents: -350,
-        reason: 'Refund without naming what it reverses',
-        // missing related_transaction_id
-      },
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id);
+
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: '   ' },
     });
 
     expect(response.status()).toBe(422);
-
     const body = await response.json();
-    expect(body.errors).toBeDefined();
-    expect(body.errors.related_transaction_id).toBeDefined();
+    expect(body.errors.reason).toBeDefined();
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct returns 404 for unknown member', async ({ authenticatedRequest }) => {
-    const unknownMemberId = '00000000-0000-0000-0000-000000000000';
+  test('rejects a reason exceeding 500 chars with 422', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id);
 
-    const response = await authenticatedRequest.post(`/api/admin/members/${unknownMemberId}/transactions/correct`, {
-      data: {
-        amount_cents: -350,
-        reason: 'Test storno',
-        related_transaction_id: randomUUID(),
-      },
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: 'A'.repeat(501) },
+    });
+
+    expect(response.status()).toBe(422);
+    const body = await response.json();
+    expect(body.errors.reason).toBeDefined();
+  });
+
+  test('returns 404 for an unknown transaction', async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${randomUUID()}/storno`, {
+      data: { reason: 'Nothing to reverse' },
     });
 
     expect(response.status()).toBe(404);
-
     const body = await response.json();
     expect(body.error).toBe('not_found');
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct returns 404 for unknown related_transaction_id', async ({ authenticatedRequest }) => {
-    const member = await createMember(authenticatedRequest);
-
-    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
-      data: {
-        amount_cents: -350,
-        reason: 'Test storno for unknown related transaction',
-        related_transaction_id: randomUUID(),
-      },
-    });
-
-    expect(response.status()).toBe(404);
-
-    const body = await response.json();
-    expect(body.error).toBe('not_found');
-  });
-
-  test('POST /api/admin/members/{id}/transactions/correct rejects reason exceeding 500 chars', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
-    const member = await createMember(authenticatedRequest);
-    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id);
-    const longReason = 'A'.repeat(501);
-
-    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
-      data: {
-        amount_cents: -350,
-        reason: longReason,
-        related_transaction_id: purchaseId,
-      },
-    });
-
-    expect(response.status()).toBe(422);
-
-    const body = await response.json();
-    expect(body.errors.reason).toBeDefined();
-  });
-
-  test('POST /api/admin/members/{id}/transactions/correct creates transaction appearing in history', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+  test('the storno appears in the member history and reduces the balance', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
     const member = await createMember(authenticatedRequest);
     const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 250);
-    // Record a storno
-    const stornoResponse = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
-      data: {
-        amount_cents: -250,
-        reason: 'Test storno for history verification',
-        related_transaction_id: purchaseId,
-      },
+
+    const response = await authenticatedRequest.post(`/api/admin/transactions/${purchaseId}/storno`, {
+      data: { reason: 'History check' },
     });
+    expect(response.status()).toBe(201);
+    const storno = await response.json();
 
-    expect(stornoResponse.status()).toBe(201);
-
-    const storno = await stornoResponse.json();
-
-    // Add small delay to ensure transaction is persisted
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Fetch transaction history (with terminal auth).
-    // Not `limit=1`: the purchase and its storno are written within the same
-    // second, and MySQL DATETIME has second precision, so which of the two
-    // sorts first is a coin toss. Ask for both and find the storno by id.
-    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=10`);
-
+    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=100`);
     expect(historyResponse.ok()).toBeTruthy();
-
     const history = await historyResponse.json();
 
-    // Verify storno appears in history
     const found = history.transactions.find((tx: any) => tx.id === storno.id);
     expect(found).toBeDefined();
     expect(found?.type).toBe('storno');
     expect(found?.amount_cents).toBe(-250);
+
+    // Purchase and its storno net to zero.
+    const net = history.transactions
+      .filter((tx: any) => tx.id === purchaseId || tx.id === storno.id)
+      .reduce((sum: number, tx: any) => sum + tx.amount_cents, 0);
+    expect(net).toBe(0);
   });
 
-  test('POST /api/admin/members/{id}/transactions/correct updates member balance', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+  test('the free-amount correction endpoints are gone', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    // #169 acceptance: no endpoint anywhere accepts a caller-supplied amount.
     const member = await createMember(authenticatedRequest);
-    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 1000);
+    const purchaseId = await createPurchaseTransaction(authenticatedRequest, authenticatedTerminalRequest, member.id, 350);
+    const payload = {
+      data: { amount_cents: -350, reason: 'Free amount', related_transaction_id: purchaseId },
+    };
 
-    // Record a storno
-    const response = await authenticatedRequest.post(`/api/admin/members/${member.id}/transactions/correct`, {
-      data: {
-        amount_cents: 1000,
-        reason: 'Balance adjustment test',
-        related_transaction_id: purchaseId,
-      },
-    });
+    // 405 where the path still serves GET (the member's history), 404 where the
+    // path is gone entirely. What matters is that neither books anything.
+    for (const path of [
+      `/api/admin/members/${member.id}/transactions`,
+      `/api/admin/members/${member.id}/transactions/correction`,
+      `/api/admin/members/${member.id}/transactions/correct`,
+    ]) {
+      const response = await authenticatedRequest.post(path, payload);
+      expect([404, 405], `POST ${path} must not be routable`).toContain(response.status());
+    }
 
-    expect(response.status()).toBe(201);
-
-    const storno = await response.json();
-
-    // Add small delay to ensure transaction is persisted
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Fetch transaction history to verify balance includes the storno
-    const historyResponse = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=100`);
-
-    expect(historyResponse.ok()).toBeTruthy();
-
-    const history = await historyResponse.json();
-
-    // Verify storno is in transactions
-    const found = history.transactions.find((tx: any) => tx.id === storno.id);
-    expect(found).toBeDefined();
-    expect(found?.amount_cents).toBe(1000);
+    // And nothing was written: the purchase still stands alone.
+    const history = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${member.id}?limit=100`);
+    const transactions = (await history.json()).transactions;
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].id).toBe(purchaseId);
   });
 });
 

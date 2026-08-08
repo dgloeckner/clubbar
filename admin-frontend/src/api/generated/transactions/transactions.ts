@@ -50,8 +50,8 @@ import type {
   GetMemberTransactionsParams,
   ListTransactions200,
   ListTransactionsParams,
-  ManualTransactionRequest,
   MemberTransactionHistory,
+  StornoRequest,
   Transaction
 } from './..';
 
@@ -80,24 +80,40 @@ const getMemberTransactions = (
       options);
     }
   /**
- * Create a storno for a member — the reversal of one specific transaction.
+ * Reverse one specific transaction, in full.
 
-**Use Case**: UC-A21
+**Use Case**: UC-A23
 
-A storno must name the transaction it reverses via `related_transaction_id`
-(GoBD Rz. 64, *"Korrektur- bzw. Stornobuchungen"*); omitting it is a 422.
-A reason is required for audit purposes.
+The transaction is the subject of the operation, not a parameter of it.
+**There is no amount parameter**: the amount is derived as the exact
+negation of the referenced transaction and can never be supplied by the
+caller. This is what removes the sign-convention and zero-amount error
+classes entirely.
 
- * @summary Create manual transaction (storno)
+The resulting row names what it reverses via `related_transaction_id`
+(GoBD Rz. 64, *"Korrektur- bzw. Stornobuchungen"*), which is never null
+for a storno.
+
+Rules:
+  * A transaction may be stornoed **at most once** — a second attempt is
+    a `409`, refused by a unique index rather than only by the service.
+  * A storno may **not** itself be stornoed — `422`. Book a new purchase.
+  * A **settled** transaction may be stornoed. This puts the member in
+    credit, which is legal and expected (ADR-0028 §1).
+  * A member with **no valid SEPA mandate** may be stornoed. A storno
+    *reduces* what the member owes; gating a debt reduction on the
+    ability to collect would be inverted.
+
+ * @summary Storno a transaction
  */
-const createManualTransaction = (
-    memberId: string,
-    manualTransactionRequest: ManualTransactionRequest,
+const stornoTransaction = (
+    transactionId: string,
+    stornoRequest: StornoRequest,
  options?: SecondParameter<typeof customInstance<Transaction>>,) => {
       return customInstance<Transaction>(
-      {url: `/admin/members/${memberId}/transactions`, method: 'POST',
+      {url: `/admin/transactions/${transactionId}/storno`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
-      data: manualTransactionRequest
+      data: stornoRequest
     },
       options);
     }
@@ -130,8 +146,8 @@ const listTransactions = (
     },
       options);
     }
-  return {getMemberTransactions,createManualTransaction,exportTransactions,listTransactions}};
+  return {getMemberTransactions,stornoTransaction,exportTransactions,listTransactions}};
 export type GetMemberTransactionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['getMemberTransactions']>>>
-export type CreateManualTransactionResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['createManualTransaction']>>>
+export type StornoTransactionResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['stornoTransaction']>>>
 export type ExportTransactionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['exportTransactions']>>>
 export type ListTransactionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getTransactions>['listTransactions']>>>

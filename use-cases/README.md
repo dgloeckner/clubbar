@@ -36,7 +36,7 @@ Complete index of all use cases across domains, with implementation status.
 | ID | Name | Status | Link |
 |----|------|--------|------|
 | UC-A20 | View Tab | Implemented (diverges) | [UC-A20](./admin/UC-A20-view-tab.md) |
-| UC-A21 | Manual Purchase | Not implemented — replaces the former "Manual Booking" | [UC-A21](./admin/UC-A21-manual-purchase.md) |
+| UC-A21 | ~~Manual Purchase~~ | **Rejected 2026-08-08** — will not be built; kept as a tombstone | [UC-A21](./admin/UC-A21-manual-purchase.md) |
 | UC-A22 | Export Transactions | Implemented (diverges) | [UC-A22](./admin/UC-A22-export-transactions.md) |
 | UC-A23 | Storno | Not implemented | [UC-A23](./admin/UC-A23-storno.md) |
 

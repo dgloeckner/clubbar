@@ -74,7 +74,7 @@ Each module lives in `src/Modules/{Name}/` with Controllers, Services, Repositor
 | `GET` | `/api/admin/transactions` | List (paginated, filterable) |
 | `GET` | `/api/admin/transactions/export` | Export CSV |
 | `GET` | `/api/admin/members/{memberId}/transactions` | Member transaction history |
-| `POST` | `/api/admin/members/{memberId}/transactions/correction` | Record correction |
+| `POST` | `/api/admin/transactions/{transactionId}/storno` | Reverse one transaction; `{reason}` only — the amount is derived as the exact negation and is never accepted from the caller (#169) |
 
 **Terminal endpoints:**
 
@@ -83,7 +83,7 @@ Each module lives in `src/Modules/{Name}/` with Controllers, Services, Repositor
 | `POST` | `/api/sync/transactions` | Submit transaction batch |
 | `GET` | `/api/terminal/transactions/{memberId}` | Member history for terminal |
 
-**Transactions are immutable** (ADR-0004). No UPDATE or DELETE. Corrections are reverse transactions.
+**Transactions are immutable** (ADR-0004). No UPDATE or DELETE. A booking is corrected by a **storno** — a reverse transaction naming the one it reverses, with the amount derived as the exact negation. There is no free-amount adjustment and no admin-booked purchase (#169).
 
 ---
 

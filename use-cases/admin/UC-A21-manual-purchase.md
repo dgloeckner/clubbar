@@ -1,79 +1,55 @@
-# UC-A21: Manual Purchase
+# UC-A21: Manual Purchase — ~~Not built~~
 
-**Implementation Status**: Not implemented — replaces the former "Manual Booking"
+**Implementation Status**: **Rejected 2026-08-08** — will not be built. This use case is kept as a tombstone so the reasoning survives and the idea is not re-proposed.
 
-> **Renamed and narrowed 2026-08-07.** This use case previously described a free-amount booking of *any* sign, covering four different operations at once: fixing a terminal error, crediting a member, charging for drinks served away from the terminal, and adjusting a balance. Those have been separated ([#170](https://github.com/dgloeckner/ruderbar/issues/170)):
+> **Rejected 2026-08-08.** Manual purchase was the last surviving shape of the free-amount booking. [#170](https://github.com/dgloeckner/ruderbar/issues/170) kept it on the strength of a single scenario — *drinks served where the terminal could not reach* — and [#169](https://github.com/dgloeckner/ruderbar/issues/169) was to build it. On review that scenario does not survive contact with what the terminal actually is. See **Why this was rejected** below.
 >
-> | Was | Now |
-> |---|---|
-> | Correction: fix terminal error | [UC-A23: Storno](./UC-A23-storno.md) |
-> | Credit: refund, compensation | payout, inside member offboarding |
-> | **Manual charge: event without terminal** | **this use case** |
-> | Balance adjustment: reconciliation | **removed** — see below |
->
-> A standalone balance adjustment is no longer supported. Every real instance turned out to be a storno, a drink never booked, a manual purchase, or an offboarding payout. See [ADR-0004](../../adr/0004-immutable-transaction-storage.md) (amended) and [ADR-0028 §4](../../adr/0028-legal-constraints-on-money-handling.md).
+> This reverses the "✅ Manual purchase" row of #170's resolution table. It does not reopen anything else that ruling decided: storno is built ([UC-A23](./UC-A23-storno.md)), goodwill credit stays rejected, cash stays forbidden, payout stays absorbed into offboarding.
 
-## Actor
-Admin
+## What it would have been
 
-## Preconditions
-- Admin is logged in
-- Member exists
+An admin books a charge against a member with no terminal involved: a `purchase` with `product_id = NULL`, a typed positive amount and a reason. The trigger was a club event or a party on the terrace where someone kept a paper tally, transcribed days later.
 
-## Trigger
-Drinks were served where the terminal could not reach — a club event, a party on the terrace — and someone kept a paper tally.
+## Why this was rejected
 
-## Main Flow
-1. Admin opens the member
-2. Admin clicks "Manual Purchase"
-3. Admin enters amount and reason
-4. Admin submits
-5. System creates a `purchase` transaction with `product_id = NULL`
-6. System writes an audit entry
-7. Member's Deckel increases
+**1. "The terminal could not reach" is not a connectivity problem — it is already solved.**
 
-## Form Fields
+The terminal is offline-first by construction ([ADR-0012](../../adr/0012-eventual-consistency-frontend-caching.md)). Card scanning, member lookup, product selection and transaction recording are all listed as *fully functional offline*; transactions queue locally and sync when connectivity returns. The system warns after 1 hour offline and prominently after 24, and monitoring merely *alerts* on terminals offline longer than that — continued operation is expected, not exceptional. A terminal at a party with no network still books drinks correctly.
 
-| Field | Required | Validation |
-|-------|----------|------------|
-| Amount | Yes | **Positive**, max 2 decimal places, non-zero |
-| Reason | Yes | Non-empty, max 500 chars |
+**2. Bar service away from the fridge is a deployment question, and the deployment already exists.**
 
-## Amount Convention
+Multi-terminal is a first-class concept, not a future one: ADR-0012 ("Multiple terminals may operate simultaneously"), [ADR-0015](../../adr/0015-authentication-and-authorization-strategy.md), and [UC-A51](./UC-A51-create-terminal.md), which registers each terminal with its own name, device ID and token. Terminals are architecturally identical — there is no primary/secondary distinction to prevent a second one. The terminal is a Raspberry Pi with a touchscreen and a USB RFID reader; it needs power and a surface, not a network. For a club event, the answer is a terminal there — using the evidence-grade path — rather than a typed amount entered later.
 
-**Positive only.** A manual purchase is a charge — money the member owes. There is no negative form: a member is never credited by this route.
+**3. It would have been the only place in the system where a human types a money amount.**
 
-To undo a manual purchase, storno it like any other transaction ([UC-A23](./UC-A23-storno.md)).
+This use case said so itself, and treated it as a reason for guardrails. It is better read as a reason not to have the path: everything else in the system *derives* its amount. A storno negates its original exactly. A settlement sums the transactions it covers. Manual settlement covers exactly one member's whole position ([#163](https://github.com/dgloeckner/ruderbar/issues/163) — "no picker, no typed amount"). Removing the last typed amount is what makes that a property of the system rather than a coincidence.
 
-## Notes
+**4. It is the unlinked booking, in the form that disqualified goodwill credit.**
 
-This is the **only remaining place** in the system where an admin types a money amount. Everything else derives its amount: a storno negates its original exactly, a settlement sums the transactions it covers. That makes this path worth guarding — the audit entry is not optional, and the confirmation should restate member, amount and reason before committing.
+#170 rejected goodwill because it is "the unlinked adjustment in its purest form — nothing to point at". A manual purchase is equally unlinked: no product, no terminal, no prior booking, nothing for an auditor to trace it to. GoBD Rz. 64 does not reach either of them — both are new Geschäftsvorfälle rather than Stornobuchungen — so unlinkedness was the whole objection to goodwill, and it applies here identically. What separated them was direction (a charge, not a credit) and § 55 AO. That is a real distinction for *tax* purposes, but not one about evidence.
 
-It is deliberately *not* a new transaction type. A drink served at a club party is a purchase; the only thing distinguishing it is that no product record and no terminal were involved. Calling it a correction — the word that now means a storno against a named transaction — was the original conflation this rewrite undoes.
+**5. It digitises the Strichliste, which raises the compliance burden rather than lowering it.**
 
-## Postconditions
-- Transaction created: `transaction_type = 'purchase'`, `product_id = NULL`, `created_by_admin_id` set
-- Member's unsettled balance increased
-- Audit log entry recording admin, member, amount and reason
+[ADR-0028](../../adr/0028-legal-constraints-on-money-handling.md) and [the legal requirements map](../../docs/legal-requirements-and-how-we-meet-them.md) both flag this explicitly: born-digital records must stay electronic and machine-evaluable and cannot be printed and purged (GoBD Rz. 119, 129, 157) — *"the paper tally this system replaces carried none of those duties."* Transcribing a tally into the journal days later creates the weakest-evidence rows in the system, resting on somebody's handwriting, and then binds them to duties the paper never had.
 
-## Error Cases
+## What to do instead
 
-### E1: Zero or negative amount
-- Display "Amount must be greater than zero"
+| Situation | Answer |
+|---|---|
+| Club event, party on the terrace | Put a terminal there. It works offline; a second one is a registered terminal ([UC-A51](./UC-A51-create-terminal.md)) |
+| The drink sold there is not in the catalogue | Add the product ([UC-A12](./UC-A12-create-product.md)); the terminal then books it like any other |
+| A booking is wrong | [UC-A23: Storno](./UC-A23-storno.md) — the only way to correct a booking |
+| A departing member owes or is owed money | Offboarding: write-off or payout ([#173](https://github.com/dgloeckner/ruderbar/issues/173)) |
 
-### E2: Missing reason
-- Display "Reason is required"
+## If this is ever revisited
 
-## Test Derivation
-- Positive amount: balance increases by exactly that amount
-- Zero amount: validation error
-- Negative amount: validation error
-- Missing reason: validation error
-- Transaction appears in the member's history and in the Journal
-- Audit log contains the booking with its reason
-- The created transaction can subsequently be stornoed
+The bar to clear is not "is the terrace case real" — it is **why a terminal cannot be there**. A recurring event where a terminal is genuinely impossible, and where the drinks sold are not in the catalogue, would be a new argument. Volume alone would not be: the more often it happens, the stronger the case for a terminal rather than for typing amounts.
+
+It must not return under the name *correction*. That word now means a storno against a named transaction, and the conflation of the two is what [#158](https://github.com/dgloeckner/ruderbar/issues/158) and #169 exist to undo.
 
 ## Related
-- [UC-A23: Storno](./UC-A23-storno.md) — the only way to undo this
+- [UC-A23: Storno](./UC-A23-storno.md) — the only supported way to correct a booking
 - [UC-A20: View Tab](./UC-A20-view-tab.md)
-- [ADR-0004: Immutable Transaction Storage](../../adr/0004-immutable-transaction-storage.md)
+- [ADR-0004: Immutable Transaction Storage](../../adr/0004-immutable-transaction-storage.md) — amended for storno-only
+- [ADR-0012: Eventual Consistency and Frontend Caching](../../adr/0012-eventual-consistency-frontend-caching.md) — the offline guarantees this rejection rests on
+- [ADR-0028: Legal Constraints on Money Handling](../../adr/0028-legal-constraints-on-money-handling.md) §4

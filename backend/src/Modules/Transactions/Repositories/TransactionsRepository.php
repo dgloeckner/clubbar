@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Transactions\Repositories;
 
 use PDO;
+use App\Modules\Transactions\Exceptions\TransactionAlreadyStornoedException;
 use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
@@ -98,6 +99,58 @@ class TransactionsRepository
     {
         return ($e->errorInfo[0] ?? null) === '23000'
             && ((int) ($e->errorInfo[1] ?? 0)) === 1062;
+    }
+
+    /**
+     * The storno that reverses this transaction, if it has one.
+     *
+     * Used for the clean "already stornoed" answer and to show the linkage in
+     * the journal. The unique index guarantees there is at most one.
+     */
+    public function findStornoFor(string $transactionId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT *, occurred_at AS created_at FROM transactions
+             WHERE related_transaction_id = ? AND transaction_type = ? LIMIT 1'
+        );
+        $stmt->execute([$transactionId, 'storno']);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * Store a storno, letting the database arbitrate whether it is the first.
+     *
+     * This exists because `insertTransaction()` reads *every* duplicate key as
+     * a terminal replaying its batch and answers `null`. For a storno that is
+     * exactly wrong: the unique index on `related_transaction_id` is what makes
+     * "stornoable at most once" true, and swallowing its violation would report
+     * the second storno as a success that wrote nothing. The service's own
+     * already-stornoed lookup cannot cover this — two concurrent requests both
+     * read "not yet stornoed" before either writes, so the index is the only
+     * arbiter (#169).
+     *
+     * @throws TransactionAlreadyStornoedException when this transaction already has a storno
+     * @throws TransactionNotStorableException when the database refuses the row for any other reason
+     */
+    public function insertStorno(array $data): array
+    {
+        $result = $this->insertTransaction($data);
+
+        if ($result === null) {
+            // `null` means insertTransaction() absorbed a duplicate key. It does
+            // not say *which* one, but for a storno there is only one candidate:
+            // the id is freshly generated per call, so the collision is the
+            // unique index on related_transaction_id — this transaction already
+            // has a storno.
+            //
+            // Note this is the ONLY path. Catching a PDOException here as well
+            // would be dead code: isDuplicateKey() matches errno 1062 without
+            // regard to which index raised it, so insertTransaction() converts
+            // the violation to `null` before it can propagate.
+            throw new TransactionAlreadyStornoedException('This transaction has already been stornoed');
+        }
+
+        return $result;
     }
 
     /**
@@ -248,7 +301,12 @@ class TransactionsRepository
         $dataParams = array_merge($params, [$limit, $offset]);
         // occurred_at is the terminal-owned sale time; the API still calls it created_at until #172 renames the contract.
         $stmt = $this->db->prepare(
-            "SELECT t.*, t.occurred_at AS created_at, CONCAT(m.first_name, ' ', m.last_name) as member_name, m.first_name, m.last_name, m.email, p.names as product_names, (SELECT s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.active_transaction_id = t.id LIMIT 1) as settlement_date FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
+            // stornoed_by_transaction_id makes the linkage visible in both
+            // directions (#169). related_transaction_id points from a storno to
+            // its original; without the reverse the journal could only show the
+            // original as reversed when its storno happened to land on the same
+            // page, and the row action could not be reliably disabled.
+            "SELECT t.*, t.occurred_at AS created_at, CONCAT(m.first_name, ' ', m.last_name) as member_name, m.first_name, m.last_name, m.email, p.names as product_names, (SELECT s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.active_transaction_id = t.id LIMIT 1) as settlement_date, (SELECT st.id FROM transactions st WHERE st.related_transaction_id = t.id AND st.transaction_type = 'storno' LIMIT 1) as stornoed_by_transaction_id FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
 

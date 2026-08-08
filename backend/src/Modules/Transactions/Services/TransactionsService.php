@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace App\Modules\Transactions\Services;
 
 use App\Modules\Transactions\DTOs\TransactionBatchResultDto;
+use App\Modules\Transactions\Exceptions\CannotStornoAStornoException;
+use App\Modules\Transactions\Exceptions\TransactionAlreadyStornoedException;
 use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
+use App\Shared\Enums\AuditAction;
+use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\NotFoundException;
-use App\Shared\Exceptions\SepaValidationException;
-use App\Shared\Exceptions\ValidationException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\Logging\Logger;
+use App\Shared\Services\AuditService;
 use App\Shared\Utils\DateFormatter;
 
 class TransactionsService
@@ -20,6 +23,7 @@ class TransactionsService
     public function __construct(
         private TransactionsRepository $transactionsRepository,
         private MembersRepository $membersRepository,
+        private AuditService $auditService,
         private Logger $logger,
     ) {}
 
@@ -103,61 +107,75 @@ class TransactionsService
     }
 
     /**
-     * Record a storno — the reversal of one specific transaction.
+     * Storno a transaction — reverse one specific booking, in full.
      *
-     * The linkage is mandatory: GoBD Rz. 64 requires a reversal to name what it
-     * reverses, and the database refuses an unlinked storno outright. Deriving
-     * the amount from the original rather than trusting the caller, and lifting
-     * the mandate gate below, are the remaining halves of the storno ruling and
-     * belong to #169 — this method only stops writing rows the schema rejects.
+     * The transaction is the subject of the operation, not a parameter of it
+     * (UC-A23, #169). Everything the storno needs is read from the target:
+     *
+     * - the **amount** is the exact negation of the original, and cannot be
+     *   supplied by the caller. This is what deletes the sign-convention and
+     *   zero-amount error classes rather than validating them away;
+     * - the **member** comes from the original too, so a storno can never be
+     *   booked against somebody else's tab.
+     *
+     * There is no SEPA mandate gate. A storno *reduces* what the member owes,
+     * and gating a debt reduction on the ability to collect is inverted — it
+     * blocked the § 812 BGB remedy for exactly the members who could not be
+     * billed (#158 §1, ADR-0028 §1).
+     *
+     * @throws NotFoundException when no such transaction exists
+     * @throws CannotStornoAStornoException when the target is itself a storno
+     * @throws TransactionAlreadyStornoedException when the target already has a storno
      */
-    public function recordCorrection(
-        string $memberId,
-        int $amountCents,
-        string $reason,
-        ?string $adminId = null,
-        ?string $relatedTransactionId = null,
-    ): array {
-        $member = $this->membersRepository->findById($memberId);
-        if (!$member) {
-            throw NotFoundException::forResource('Member', $memberId);
+    public function storno(string $transactionId, string $reason, ?string $adminId = null): array
+    {
+        $original = $this->transactionsRepository->findById($transactionId);
+        if (!$original) {
+            throw NotFoundException::forResource('Transaction', $transactionId);
         }
 
-        // Check SEPA validity: both iban and mandate_reference must be present
-        if (empty($member['iban']) || empty($member['mandate_reference'])) {
-            throw new SepaValidationException('SEPA mandate is required to create corrections for this member');
-        }
-
-        if ($relatedTransactionId === null) {
-            throw new ValidationException(
-                'A storno must name the transaction it reverses',
-                ['related_transaction_id' => ['related_transaction_id is required']],
+        if (($original['transaction_type'] ?? null) === 'storno') {
+            throw new CannotStornoAStornoException(
+                'A storno cannot itself be stornoed. Book a new purchase instead.',
             );
         }
 
-        $original = $this->transactionsRepository->findById($relatedTransactionId);
-        if (!$original || $original['member_id'] !== $memberId) {
-            throw NotFoundException::forResource('Transaction', $relatedTransactionId);
+        // A courtesy check so the common case reports cleanly. It is not the
+        // guarantee — the unique index on related_transaction_id is, and
+        // insertStorno() surfaces its refusal (see there).
+        if ($this->transactionsRepository->findStornoFor($transactionId) !== null) {
+            throw new TransactionAlreadyStornoedException('This transaction has already been stornoed');
         }
 
-        $id = $this->generateUuid();
-        $result = $this->transactionsRepository->insertTransaction([
-            'id' => $id,
+        $memberId = $original['member_id'];
+        $stored = $this->transactionsRepository->insertStorno([
+            'id' => $this->generateUuid(),
             'member_id' => $memberId,
             'product_id' => null,
-            'amount_cents' => $amountCents,
+            'amount_cents' => -((int) $original['amount_cents']),
             'transaction_type' => 'storno',
             'notes' => $reason,
             'created_by_admin_id' => $adminId,
-            'related_transaction_id' => $relatedTransactionId,
+            'related_transaction_id' => $transactionId,
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
-        $balance = $this->transactionsRepository->getUnsettledMemberBalanceCents($memberId);
+        $this->auditService->log(
+            action: AuditAction::TRANSACTION_STORNO,
+            entityType: EntityType::TRANSACTION,
+            entityId: $stored['id'],
+            newValues: [
+                'related_transaction_id' => $transactionId,
+                'member_id' => $memberId,
+                'amount_cents' => (int) $stored['amount_cents'],
+                'reason' => $reason,
+            ],
+            adminUserId: $adminId,
+        );
 
         return [
-            'transaction' => is_array($result) ? $this->formatTransactionTimestamps($result) : $result,
-            'new_balance_cents' => $balance,
+            'transaction' => $this->formatTransactionTimestamps($stored),
+            'new_balance_cents' => $this->transactionsRepository->getUnsettledMemberBalanceCents($memberId),
         ];
     }
 

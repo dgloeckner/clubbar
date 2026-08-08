@@ -268,8 +268,6 @@ export function getTransactionColor(type: string): string {
   switch (type) {
     case 'purchase':
       return theme.colors.semantic.danger
-    case 'manual_adjustment':
-      return theme.colors.semantic.info
     case 'reversal':
       return theme.colors.semantic.warning
     case 'storno':

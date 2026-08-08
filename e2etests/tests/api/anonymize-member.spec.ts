@@ -175,9 +175,12 @@ test.describe('GDPR Member Anonymization', () => {
 
     // Zero the balance by reversing the two purchases. There is no free-amount
     // adjustment any more: a storno names one transaction and reverses it in
-    // full, so clearing a tab of two purchases takes two stornos.
-    await testTransactions.createStorno(member.id, -300, 'Zero out for anonymization', 'refund', txId1);
-    await testTransactions.createStorno(member.id, -500, 'Zero out for anonymization', 'refund', txId2);
+    // full (its amount derived as the exact negation, #169), so clearing a
+    // tab of two purchases takes two stornos. amountCents is passed for
+    // documentation only — createStorno() ignores it when relatedTransactionId
+    // is supplied.
+    await testTransactions.createStorno(member.id, -300, 'Zero out for anonymization', txId1);
+    await testTransactions.createStorno(member.id, -500, 'Zero out for anonymization', txId2);
 
     // Anonymize
     const anonResponse = await authenticatedRequest.post(`${API_BASE}/admin/members/${member.id}/anonymize`);

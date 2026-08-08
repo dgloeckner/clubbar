@@ -7,19 +7,23 @@ namespace Tests\Unit\Modules\Transactions\Services;
 use App\Modules\Transactions\Services\TransactionsService;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Modules\Transactions\DTOs\TransactionBatchResultDto;
+use App\Modules\Transactions\Exceptions\CannotStornoAStornoException;
+use App\Modules\Transactions\Exceptions\TransactionAlreadyStornoedException;
 use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\DTOs\PaginatedResultDto;
+use App\Shared\Enums\AuditAction;
+use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\NotFoundException;
-use App\Shared\Exceptions\SepaValidationException;
-use App\Shared\Exceptions\ValidationException;
 use App\Shared\Logging\Logger;
+use App\Shared\Services\AuditService;
 use PHPUnit\Framework\TestCase;
 
 class TransactionsServiceTest extends TestCase
 {
     private TransactionsRepository $transactionsRepository;
     private MembersRepository $membersRepository;
+    private AuditService $auditService;
     private Logger $logger;
     private TransactionsService $service;
 
@@ -29,11 +33,13 @@ class TransactionsServiceTest extends TestCase
 
         $this->transactionsRepository = $this->createMock(TransactionsRepository::class);
         $this->membersRepository = $this->createMock(MembersRepository::class);
+        $this->auditService = $this->createMock(AuditService::class);
         $this->logger = $this->createMock(Logger::class);
 
         $this->service = new TransactionsService(
             $this->transactionsRepository,
             $this->membersRepository,
+            $this->auditService,
             $this->logger,
         );
     }
@@ -348,219 +354,250 @@ class TransactionsServiceTest extends TestCase
     }
 
     // ------------------------------------------------------------------
-    // recordCorrection
+    // storno
     // ------------------------------------------------------------------
 
-    public function test_recordCorrection_creates_transaction_with_type_storno_and_given_amount(): void
+    public function test_storno_derives_amount_as_exact_negation_of_original(): void
     {
-        // NOTE: actual behaviour — this service does NOT compute a reversal/inverse
-        // amount and does NOT write a separate audit-log entry (no AuditService is
-        // injected into this class at all). It records a single new immutable row
-        // with transaction_type "storno" using amountCents exactly as passed by
-        // the caller (sign convention is the caller's responsibility; deriving the
-        // amount from the original transaction is deferred to issue #169). What IS
-        // enforced is the linkage: relatedTransactionId is mandatory and must name
-        // an existing transaction belonging to the same member.
+        $transactionId = 'tx-original';
         $memberId = 'member-1';
-        $relatedTransactionId = 'tx-original';
-
-        $this->membersRepository->expects($this->once())
-            ->method('findById')
-            ->with($memberId)
-            ->willReturn($this->sepaValidMember($memberId));
 
         $this->transactionsRepository->expects($this->once())
             ->method('findById')
-            ->with($relatedTransactionId)
-            ->willReturn(['id' => $relatedTransactionId, 'member_id' => $memberId, 'amount_cents' => 1500]);
+            ->with($transactionId)
+            ->willReturn(['id' => $transactionId, 'member_id' => $memberId, 'transaction_type' => 'purchase', 'amount_cents' => -1500]);
+
+        $this->transactionsRepository->method('findStornoFor')->with($transactionId)->willReturn(null);
 
         $this->transactionsRepository->expects($this->once())
-            ->method('insertTransaction')
-            ->with($this->callback(function (array $data) use ($memberId, $relatedTransactionId) {
-                return $data['member_id'] === $memberId
-                    && $data['amount_cents'] === -1500
+            ->method('insertStorno')
+            ->with($this->callback(function (array $data) use ($memberId, $transactionId) {
+                return $data['amount_cents'] === 1500
+                    && $data['member_id'] === $memberId
                     && $data['transaction_type'] === 'storno'
-                    && $data['notes'] === 'Refund for wrong charge'
-                    && $data['product_id'] === null
-                    && $data['created_by_admin_id'] === 'admin-1'
-                    && $data['related_transaction_id'] === $relatedTransactionId
-                    && is_string($data['id']) && $data['id'] !== ''
-                    && is_string($data['created_at']);
+                    && $data['related_transaction_id'] === $transactionId
+                    && $data['product_id'] === null;
             }))
             ->willReturn([
-                'id' => 'generated-id',
+                'id' => 'storno-id',
                 'member_id' => $memberId,
-                'amount_cents' => -1500,
+                'amount_cents' => 1500,
                 'transaction_type' => 'storno',
-                'notes' => 'Refund for wrong charge',
+                'related_transaction_id' => $transactionId,
                 'created_at' => '2026-01-01 10:00:00',
             ]);
 
-        $this->transactionsRepository->expects($this->once())
-            ->method('getUnsettledMemberBalanceCents')
-            ->with($memberId)
-            ->willReturn(-1500);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->with($memberId)->willReturn(1500);
 
-        $result = $this->service->recordCorrection($memberId, -1500, 'Refund for wrong charge', 'admin-1', $relatedTransactionId);
+        $result = $this->service->storno($transactionId, 'Refund for wrong charge', 'admin-1');
 
-        $this->assertSame(-1500, $result['transaction']['amount_cents']);
+        $this->assertSame(1500, $result['transaction']['amount_cents']);
         $this->assertSame('storno', $result['transaction']['transaction_type']);
         // formatTransactionTimestamps converts created_at to ISO 8601 UTC
         $this->assertSame('2026-01-01T10:00:00Z', $result['transaction']['created_at']);
-        $this->assertSame(-1500, $result['new_balance_cents']);
+        $this->assertSame(1500, $result['new_balance_cents']);
     }
 
-    public function test_recordCorrection_reports_the_unsettled_position_not_the_lifetime_sum(): void
+    public function test_storno_of_a_negative_amount_original_produces_a_positive_storno(): void
     {
-        // #83: new_balance_cents is what the Kassenwart reads back after a
-        // storno. It must be the member's unsettled position (ruling #141), not
-        // a lifetime sum that still counts transactions already collected.
+        $transactionId = 'tx-original';
         $memberId = 'member-1';
-        $relatedTransactionId = 'tx-original';
 
-        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
         $this->transactionsRepository->method('findById')
-            ->with($relatedTransactionId)
-            ->willReturn(['id' => $relatedTransactionId, 'member_id' => $memberId, 'amount_cents' => 500]);
-        $this->transactionsRepository->method('insertTransaction')->willReturn([
-            'id' => 'generated-id',
-            'member_id' => $memberId,
-            'amount_cents' => -500,
-            'transaction_type' => 'storno',
-            'created_at' => '2026-01-01 10:00:00',
-        ]);
+            ->willReturn(['id' => $transactionId, 'member_id' => $memberId, 'transaction_type' => 'purchase', 'amount_cents' => -1500]);
+        $this->transactionsRepository->method('findStornoFor')->willReturn(null);
+
+        $this->transactionsRepository->expects($this->once())
+            ->method('insertStorno')
+            ->with($this->callback(fn(array $data) => $data['amount_cents'] === 1500))
+            ->willReturn([
+                'id' => 'storno-id',
+                'member_id' => $memberId,
+                'amount_cents' => 1500,
+                'transaction_type' => 'storno',
+                'created_at' => '2026-01-01 10:00:00',
+            ]);
+
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(1500);
+
+        $result = $this->service->storno($transactionId, 'reason');
+
+        $this->assertSame(1500, $result['transaction']['amount_cents']);
+    }
+
+    public function test_storno_of_a_positive_amount_original_produces_a_negative_storno(): void
+    {
+        $transactionId = 'tx-original';
+        $memberId = 'member-1';
+
+        $this->transactionsRepository->method('findById')
+            ->willReturn(['id' => $transactionId, 'member_id' => $memberId, 'transaction_type' => 'payout', 'amount_cents' => 2000]);
+        $this->transactionsRepository->method('findStornoFor')->willReturn(null);
+
+        $this->transactionsRepository->expects($this->once())
+            ->method('insertStorno')
+            ->with($this->callback(fn(array $data) => $data['amount_cents'] === -2000))
+            ->willReturn([
+                'id' => 'storno-id',
+                'member_id' => $memberId,
+                'amount_cents' => -2000,
+                'transaction_type' => 'storno',
+                'created_at' => '2026-01-01 10:00:00',
+            ]);
+
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(-2000);
+
+        $result = $this->service->storno($transactionId, 'reason');
+
+        $this->assertSame(-2000, $result['transaction']['amount_cents']);
+    }
+
+    public function test_storno_takes_member_id_from_the_original_not_from_the_caller(): void
+    {
+        $transactionId = 'tx-original';
+        $memberId = 'member-owner';
+
+        $this->transactionsRepository->method('findById')
+            ->willReturn(['id' => $transactionId, 'member_id' => $memberId, 'transaction_type' => 'purchase', 'amount_cents' => -500]);
+        $this->transactionsRepository->method('findStornoFor')->willReturn(null);
+
+        $this->transactionsRepository->expects($this->once())
+            ->method('insertStorno')
+            ->with($this->callback(fn(array $data) => $data['member_id'] === $memberId))
+            ->willReturn([
+                'id' => 'storno-id',
+                'member_id' => $memberId,
+                'amount_cents' => 500,
+                'transaction_type' => 'storno',
+                'created_at' => '2026-01-01 10:00:00',
+            ]);
 
         $this->transactionsRepository->expects($this->once())
             ->method('getUnsettledMemberBalanceCents')
             ->with($memberId)
-            ->willReturn(-500);
+            ->willReturn(500);
 
-        $result = $this->service->recordCorrection($memberId, -500, 'Wrong drink', 'admin-1', $relatedTransactionId);
-
-        $this->assertSame(-500, $result['new_balance_cents']);
+        $this->service->storno($transactionId, 'reason');
     }
 
-    public function test_recordCorrection_accepts_zero_amount_and_records_it_as_is(): void
+    public function test_storno_throws_not_found_when_transaction_missing(): void
     {
-        // NOTE: actual behaviour — no guard against a zero-amount correction;
-        // the service happily records it verbatim (deriving the amount from the
-        // original transaction is deferred to issue #169), as long as the
-        // mandatory linkage to the reversed transaction is present.
-        $memberId = 'member-1';
-        $relatedTransactionId = 'tx-original';
-
-        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
-        $this->transactionsRepository->method('findById')
-            ->with($relatedTransactionId)
-            ->willReturn(['id' => $relatedTransactionId, 'member_id' => $memberId, 'amount_cents' => 0]);
-
-        $this->transactionsRepository->expects($this->once())
-            ->method('insertTransaction')
-            ->with($this->callback(fn(array $data) => $data['amount_cents'] === 0))
-            ->willReturn([
-                'id' => 'generated-id',
-                'member_id' => $memberId,
-                'amount_cents' => 0,
-                'transaction_type' => 'storno',
-                'created_at' => '2026-01-01 10:00:00',
-            ]);
-
-        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
-
-        $result = $this->service->recordCorrection($memberId, 0, 'No-op correction', null, $relatedTransactionId);
-
-        $this->assertSame(0, $result['transaction']['amount_cents']);
-        $this->assertSame(0, $result['new_balance_cents']);
-    }
-
-    public function test_recordCorrection_accepts_positive_amount_and_records_it_as_is(): void
-    {
-        // NOTE: actual behaviour — a positive correction amount is recorded
-        // verbatim too; the service applies no sign normalization at all
-        // (deriving the amount from the original transaction is deferred to
-        // issue #169), but the mandatory linkage still applies.
-        $memberId = 'member-1';
-        $relatedTransactionId = 'tx-original';
-
-        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
-        $this->transactionsRepository->method('findById')
-            ->with($relatedTransactionId)
-            ->willReturn(['id' => $relatedTransactionId, 'member_id' => $memberId, 'amount_cents' => -2000]);
-
-        $this->transactionsRepository->expects($this->once())
-            ->method('insertTransaction')
-            ->with($this->callback(fn(array $data) => $data['amount_cents'] === 2000))
-            ->willReturn([
-                'id' => 'generated-id',
-                'member_id' => $memberId,
-                'amount_cents' => 2000,
-                'transaction_type' => 'storno',
-                'created_at' => '2026-01-01 10:00:00',
-            ]);
-
-        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(2000);
-
-        $result = $this->service->recordCorrection($memberId, 2000, 'Goodwill credit', null, $relatedTransactionId);
-
-        $this->assertSame(2000, $result['transaction']['amount_cents']);
-    }
-
-    public function test_recordCorrection_throws_not_found_when_member_missing(): void
-    {
-        $this->membersRepository->method('findById')->willReturn(null);
-        $this->transactionsRepository->expects($this->never())->method('insertTransaction');
+        $this->transactionsRepository->method('findById')->willReturn(null);
+        $this->transactionsRepository->expects($this->never())->method('insertStorno');
 
         $this->expectException(NotFoundException::class);
 
-        $this->service->recordCorrection('missing-member', -100, 'reason');
+        $this->service->storno('missing-tx', 'reason');
     }
 
-    public function test_recordCorrection_throws_sepa_validation_exception_when_mandate_missing(): void
+    public function test_storno_throws_cannot_storno_a_storno_when_target_is_a_storno(): void
     {
-        $this->membersRepository->method('findById')->willReturn([
-            'id' => 'member-1',
-            'iban' => null,
-            'mandate_reference' => null,
+        $this->transactionsRepository->method('findById')->willReturn([
+            'id' => 'tx-storno',
+            'member_id' => 'member-1',
+            'transaction_type' => 'storno',
+            'amount_cents' => 500,
         ]);
-        $this->transactionsRepository->expects($this->never())->method('insertTransaction');
+        $this->transactionsRepository->expects($this->never())->method('insertStorno');
 
-        $this->expectException(SepaValidationException::class);
+        $this->expectException(CannotStornoAStornoException::class);
 
-        $this->service->recordCorrection('member-1', -100, 'reason');
+        $this->service->storno('tx-storno', 'reason');
     }
 
-    public function test_recordCorrection_throws_validation_exception_when_related_transaction_id_missing(): void
+    public function test_storno_throws_already_stornoed_when_findStornoFor_returns_a_row(): void
     {
-        // GoBD Rz. 64 requires a storno to explicitly name the transaction it
-        // reverses; a free-amount adjustment with no linkage is no longer permitted.
-        $memberId = 'member-1';
+        $transactionId = 'tx-original';
 
-        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
-        $this->transactionsRepository->expects($this->never())->method('findById');
-        $this->transactionsRepository->expects($this->never())->method('insertTransaction');
-
-        $this->expectException(ValidationException::class);
-
-        $this->service->recordCorrection($memberId, -100, 'reason', null, null);
-    }
-
-    public function test_recordCorrection_throws_not_found_when_related_transaction_belongs_to_different_member(): void
-    {
-        // GoBD Rz. 64 ties a storno to the specific transaction it reverses; a
-        // storno must not silently reverse another member's booking.
-        $memberId = 'member-1';
-        $relatedTransactionId = 'tx-other-member';
-
-        $this->membersRepository->method('findById')->willReturn($this->sepaValidMember($memberId));
+        $this->transactionsRepository->method('findById')->willReturn([
+            'id' => $transactionId,
+            'member_id' => 'member-1',
+            'transaction_type' => 'purchase',
+            'amount_cents' => -500,
+        ]);
         $this->transactionsRepository->expects($this->once())
-            ->method('findById')
-            ->with($relatedTransactionId)
-            ->willReturn(['id' => $relatedTransactionId, 'member_id' => 'member-2', 'amount_cents' => -500]);
-        $this->transactionsRepository->expects($this->never())->method('insertTransaction');
+            ->method('findStornoFor')
+            ->with($transactionId)
+            ->willReturn(['id' => 'existing-storno-id']);
+        $this->transactionsRepository->expects($this->never())->method('insertStorno');
 
-        $this->expectException(NotFoundException::class);
+        $this->expectException(TransactionAlreadyStornoedException::class);
 
-        $this->service->recordCorrection($memberId, -100, 'reason', null, $relatedTransactionId);
+        $this->service->storno($transactionId, 'reason');
+    }
+
+    public function test_storno_succeeds_for_a_member_with_no_iban_or_mandate(): void
+    {
+        // No SEPA mandate check at all — a storno reduces debt, so it must not
+        // be gated on the member's ability to be billed (#169, ADR-0028 §1).
+        $transactionId = 'tx-original';
+        $memberId = 'member-no-mandate';
+
+        $this->transactionsRepository->method('findById')->willReturn([
+            'id' => $transactionId,
+            'member_id' => $memberId,
+            'transaction_type' => 'purchase',
+            'amount_cents' => -500,
+        ]);
+        $this->transactionsRepository->method('findStornoFor')->willReturn(null);
+
+        $this->membersRepository->expects($this->never())->method('findById');
+
+        $this->transactionsRepository->expects($this->once())
+            ->method('insertStorno')
+            ->willReturn([
+                'id' => 'storno-id',
+                'member_id' => $memberId,
+                'amount_cents' => 500,
+                'transaction_type' => 'storno',
+                'created_at' => '2026-01-01 10:00:00',
+            ]);
+
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(500);
+
+        $result = $this->service->storno($transactionId, 'reason');
+
+        $this->assertSame(500, $result['transaction']['amount_cents']);
+    }
+
+    public function test_storno_logs_an_audit_entry_with_action_entity_type_admin_and_new_values(): void
+    {
+        $transactionId = 'tx-original';
+        $memberId = 'member-1';
+        $adminId = 'admin-1';
+        $reason = 'Wrong drink charged';
+
+        $this->transactionsRepository->method('findById')->willReturn([
+            'id' => $transactionId,
+            'member_id' => $memberId,
+            'transaction_type' => 'purchase',
+            'amount_cents' => -700,
+        ]);
+        $this->transactionsRepository->method('findStornoFor')->willReturn(null);
+        $this->transactionsRepository->method('insertStorno')->willReturn([
+            'id' => 'storno-id',
+            'member_id' => $memberId,
+            'amount_cents' => 700,
+            'transaction_type' => 'storno',
+            'created_at' => '2026-01-01 10:00:00',
+        ]);
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(700);
+
+        $this->auditService->expects($this->once())
+            ->method('log')
+            ->with(
+                AuditAction::TRANSACTION_STORNO,
+                EntityType::TRANSACTION,
+                'storno-id',
+                null,
+                $this->callback(function (array $newValues) use ($transactionId, $reason) {
+                    return $newValues['related_transaction_id'] === $transactionId
+                        && $newValues['reason'] === $reason;
+                }),
+                $adminId,
+            );
+
+        $this->service->storno($transactionId, $reason, $adminId);
     }
 
     // ------------------------------------------------------------------

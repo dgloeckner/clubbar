@@ -524,18 +524,53 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+    # POST — REMOVED (#169, 2026-08-08)
+    # This was `createManualTransaction`: a freely-typed `amount_cents` against a
+    # member, aliased at /transactions, /transactions/correction and
+    # /transactions/correct. A correction *is* a storno (#158), so the operation
+    # is now scoped to the transaction it reverses and carries no amount:
+    # POST /admin/transactions/{transactionId}/storno.
+    # No manual-purchase endpoint replaces it — UC-A21 was rejected (2026-08-08).
+    # No endpoint in this API accepts a caller-supplied money amount.
+
+  /admin/transactions/{transactionId}/storno:
+    parameters:
+      - name: transactionId
+        in: path
+        required: true
+        description: The transaction being reversed
+        schema:
+          type: string
+          format: uuid
+
     post:
       tags: [Transactions]
-      summary: Create manual transaction (storno)
+      summary: Storno a transaction
       description: |
-        Create a storno for a member — the reversal of one specific transaction.
+        Reverse one specific transaction, in full.
 
-        **Use Case**: UC-A21
+        **Use Case**: UC-A23
 
-        A storno must name the transaction it reverses via `related_transaction_id`
-        (GoBD Rz. 64, *"Korrektur- bzw. Stornobuchungen"*); omitting it is a 422.
-        A reason is required for audit purposes.
-      operationId: createManualTransaction
+        The transaction is the subject of the operation, not a parameter of it.
+        **There is no amount parameter**: the amount is derived as the exact
+        negation of the referenced transaction and can never be supplied by the
+        caller. This is what removes the sign-convention and zero-amount error
+        classes entirely.
+
+        The resulting row names what it reverses via `related_transaction_id`
+        (GoBD Rz. 64, *"Korrektur- bzw. Stornobuchungen"*), which is never null
+        for a storno.
+
+        Rules:
+          * A transaction may be stornoed **at most once** — a second attempt is
+            a `409`, refused by a unique index rather than only by the service.
+          * A storno may **not** itself be stornoed — `422`. Book a new purchase.
+          * A **settled** transaction may be stornoed. This puts the member in
+            credit, which is legal and expected (ADR-0028 §1).
+          * A member with **no valid SEPA mandate** may be stornoed. A storno
+            *reduces* what the member owes; gating a debt reduction on the
+            ability to collect would be inverted.
+      operationId: stornoTransaction
       security:
         - sessionAuth: []
       requestBody:
@@ -543,20 +578,38 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ManualTransactionRequest'
+              $ref: '#/components/schemas/StornoRequest'
       responses:
         '201':
-          description: Transaction created
+          description: Storno created, linked to the original transaction
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Transaction'
-        '400':
-          $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: No such transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: This transaction has already been stornoed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: already_stornoed
+                message: This transaction has already been stornoed
+        '422':
+          description: |
+            The reason is missing or too long, or the target is itself a storno.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /admin/members/{memberId}/export:
     parameters:
@@ -3342,6 +3395,18 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: |
+            For a `storno`, the transaction it reverses — never null. Null for
+            every other type (GoBD Rz. 64, ADR-0028 §4).
+        stornoed_by_transaction_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            The storno that reverses this transaction, if it has one. The
+            reverse of `related_transaction_id`, so the journal can show the
+            linkage from either row and refuse a second storno before the
+            request is made. Unique — a transaction is stornoable at most once.
         settlement_id:
           type: string
           format: uuid
@@ -3413,25 +3478,25 @@ components:
                 type: string
                 enum: [sepa, manual]
 
-    ManualTransactionRequest:
+    # ManualTransactionRequest — REMOVED (#169, 2026-08-08).
+    # It carried a caller-supplied `amount_cents`. Replaced by StornoRequest,
+    # which carries a reason and nothing else.
+
+    StornoRequest:
       type: object
-      required: [amount_cents, notes, related_transaction_id]
+      required: [reason]
       properties:
-        amount_cents:
-          type: integer
-          description: Positive for charge, negative for credit/reversal (non-zero)
-        notes:
+        reason:
           type: string
+          minLength: 1
           maxLength: 500
-          description: Reason for the storno (required)
-        related_transaction_id:
-          type: string
-          format: uuid
           description: |
-            The transaction this storno reverses (required). A storno must name
-            the transaction it reverses (GoBD Rz. 64, "Korrektur- bzw.
-            Stornobuchungen"). Naming a transaction that does not exist, or
-            that belongs to another member, results in a 404.
+            Why the booking is being reversed. Required, and recorded both on
+            the storno row and in the audit log.
+
+            This is the **only** field. The amount is derived as the exact
+            negation of the transaction named in the path; the member is read
+            from it too. Neither is accepted from the caller.
 
     # --------------------------------------------------------------------------
     # Products & Categories
@@ -3949,6 +4014,22 @@ components:
           type: string
           format: date
           nullable: true
+        related_transaction_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            For a `storno`, the transaction it reverses — never null. Null for
+            every other type (GoBD Rz. 64, ADR-0028 §4).
+        stornoed_by_transaction_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            The storno that reverses this transaction, if it has one — the
+            reverse of `related_transaction_id`. Lets the journal show the
+            linkage from either row and refuse a second storno before the
+            request is made.
 
     # --------------------------------------------------------------------------
     # SEPA Configuration
