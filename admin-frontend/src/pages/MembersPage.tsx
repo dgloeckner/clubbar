@@ -3,7 +3,7 @@
  * Member management (list, create, edit, delete)
  */
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/common/StatCard'
 import { theme } from '../styles/design-system'
@@ -37,6 +37,14 @@ import {
   tableColors,
   getRowStyle,
 } from '../styles/tableTokens'
+
+const PER_PAGE = 20
+
+// Build sort_by param from sortKey + sortDirection
+function buildSortBy(key: string, dir: 'asc' | 'desc'): ListMembersSortBy {
+  if (key === 'first_name' || key === 'last_name') return dir === 'asc' ? 'name_asc' : 'name_desc'
+  return 'created_at_desc' // API only supports created_at_desc for date sorting
+}
 
 function normalizeCardUid(raw: string | null | undefined): string {
   if (!raw) return ''
@@ -149,11 +157,30 @@ export function MembersPage() {
     </div>
   )
 
-  // Build sort_by param from sortKey + sortDirection
-  const buildSortBy = (key: string, dir: 'asc' | 'desc'): ListMembersSortBy => {
-    if (key === 'first_name' || key === 'last_name') return dir === 'asc' ? 'name_asc' : 'name_desc'
-    return 'created_at_desc' // API only supports created_at_desc for date sorting
-  }
+  // Single source of truth for the list query — the initial load and every
+  // post-mutation reload must send the same page, sort and filter state.
+  const buildListParams = useCallback((): ListMembersParams => {
+    const params: ListMembersParams = {
+      page,
+      per_page: PER_PAGE,
+      sort_by: buildSortBy(sortKey, sortDirection),
+    }
+
+    if (search) params.search = search
+    if (filterIsActive !== 'all') params.status = filterIsActive as ListMembersStatus
+    if (filterSepaStatus !== 'all') params.sepa_status = filterSepaStatus as ListMembersSepaStatus
+    if (filterCardUid !== 'all') params.has_card_uid = filterCardUid as ListMembersHasCardUid
+
+    return params
+  }, [page, search, filterIsActive, filterCardUid, filterSepaStatus, sortKey, sortDirection])
+
+  // Fetch the list with the current query and publish it into state.
+  // Used by the loader effect and by every mutation handler.
+  const fetchMembers = useCallback(async () => {
+    const response = await getMembersFactory().listMembers(buildListParams())
+    setMembers(response.data ?? [])
+    setTotalMembers(response.pagination?.total ?? 0)
+  }, [buildListParams])
 
   // Load members
   useEffect(() => {
@@ -162,21 +189,7 @@ export function MembersPage() {
         setLoading(true)
         setIsLoading(true)
 
-        const params: ListMembersParams = {
-          page,
-          per_page: 20,
-          sort_by: buildSortBy(sortKey, sortDirection),
-        }
-
-        if (search) params.search = search
-        if (filterIsActive !== 'all') params.status = filterIsActive as ListMembersStatus
-        if (filterSepaStatus !== 'all') params.sepa_status = filterSepaStatus as ListMembersSepaStatus
-        if (filterCardUid !== 'all') params.has_card_uid = filterCardUid as ListMembersHasCardUid
-
-        const response = await getMembersFactory().listMembers(params)
-
-        setMembers(response.data ?? [])
-        setTotalMembers(response.pagination?.total ?? 0)
+        await fetchMembers()
 
         setError(null)
       } catch (err) {
@@ -189,7 +202,7 @@ export function MembersPage() {
 
     const timer = setTimeout(loadMembers, search ? 500 : 0) // Debounce search
     return () => clearTimeout(timer)
-  }, [page, search, filterIsActive, filterCardUid, filterSepaStatus, sortKey, sortDirection, setIsLoading])
+  }, [fetchMembers, search, setIsLoading])
 
   // Load dashboard metrics (active members count, outstanding balance, last settlement date)
   useEffect(() => {
@@ -291,18 +304,8 @@ export function MembersPage() {
       setScanFile(null)
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
 
-      // Reload members list
-      const reloadParams: ListMembersParams = {
-        page,
-        per_page: 20,
-        sort_by: buildSortBy(sortKey, sortDirection),
-      }
-      if (search) reloadParams.search = search
-      if (filterIsActive !== 'all') reloadParams.status = filterIsActive as ListMembersStatus
-
-      const reloadResponse = await getMembersFactory().listMembers(reloadParams)
-      setMembers(reloadResponse.data ?? [])
-      setTotalMembers(reloadResponse.pagination?.total ?? 0)
+      // Reload members list with the active filters still applied
+      await fetchMembers()
 
       setError(null)
     } catch (err: unknown) {
@@ -353,18 +356,8 @@ export function MembersPage() {
       // Only send the field that needs to be updated
       await getMembersFactory().updateMember(member.id, { is_active: !member.is_active })
 
-      // Reload members list
-      const reloadParams: ListMembersParams = {
-        page,
-        per_page: 20,
-        sort_by: buildSortBy(sortKey, sortDirection),
-      }
-      if (search) reloadParams.search = search
-      if (filterIsActive !== 'all') reloadParams.status = filterIsActive as ListMembersStatus
-
-      const reloadResponse = await getMembersFactory().listMembers(reloadParams)
-      setMembers(reloadResponse.data ?? [])
-      setTotalMembers(reloadResponse.pagination?.total ?? 0)
+      // Reload members list with the active filters still applied
+      await fetchMembers()
 
       setError(null)
     } catch (err: unknown) {
@@ -381,18 +374,8 @@ export function MembersPage() {
       if (!member.id) return
       await getMembersFactory().anonymizeMember(member.id, {})
 
-      // Reload members list
-      const reloadParams: ListMembersParams = {
-        page,
-        per_page: 20,
-        sort_by: buildSortBy(sortKey, sortDirection),
-      }
-      if (search) reloadParams.search = search
-      if (filterIsActive !== 'all') reloadParams.status = filterIsActive as ListMembersStatus
-
-      const reloadResponse = await getMembersFactory().listMembers(reloadParams)
-      setMembers(reloadResponse.data ?? [])
-      setTotalMembers(reloadResponse.pagination?.total ?? 0)
+      // Reload members list with the active filters still applied
+      await fetchMembers()
 
       setAnonymizeConfirm(null)
       setError(null)
@@ -820,9 +803,9 @@ export function MembersPage() {
           {!loading && members.length > 0 && (
             <PaginationToolbar
               currentPage={page}
-              totalPages={Math.ceil(totalMembers / 20)}
+              totalPages={Math.ceil(totalMembers / PER_PAGE)}
               totalItems={totalMembers}
-              pageSize={20}
+              pageSize={PER_PAGE}
               onPageChange={setPage}
               onPageSizeChange={() => {}}
               variant="default"
@@ -1324,9 +1307,9 @@ export function MembersPage() {
         {!loading && members.length > 0 && (
           <PaginationToolbar
             currentPage={page}
-            totalPages={Math.ceil(totalMembers / 20)}
+            totalPages={Math.ceil(totalMembers / PER_PAGE)}
             totalItems={totalMembers}
-            pageSize={20}
+            pageSize={PER_PAGE}
             onPageChange={setPage}
             onPageSizeChange={() => {}} // Not implemented - always use 20
             variant="default"
