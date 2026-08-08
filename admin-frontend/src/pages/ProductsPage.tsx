@@ -54,6 +54,7 @@ import {
 import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { parsePriceToCents } from '../utils/price'
 import { useFormatters } from '../hooks/useFormatters'
+import { useLatestRequest } from '../hooks/useLatestRequest'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 
 // Extend the generated Product type with fields not yet in OAS spec
@@ -72,6 +73,8 @@ export function ProductsPage() {
   const { t, i18n } = useTranslation()
   const { formatPrice } = useFormatters()
   const breakpoint = useBreakpoint()
+  const listRequest = useLatestRequest()
+  const categoriesRequest = useLatestRequest()
   const [products, setProducts] = useState<ProductWithExtras[]>([])
   const [categories, setCategories] = useState<CategoryRuntime[]>([])
   const [loading, setLoading] = useState(true)
@@ -172,26 +175,35 @@ export function ProductsPage() {
 
   // Load products and categories on mount
   useEffect(() => {
-    loadCategories()
-  }, [])
+    loadCategories(categoriesRequest.next())
+    return () => categoriesRequest.abort()
+  }, [categoriesRequest]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load products when pagination/sorting/filtering/search state changes
+  // Load products when pagination/sorting/filtering/search state changes.
+  // The signal is claimed before the debounce, so a query typed and then
+  // cleared cannot come back late and repopulate the table.
   useEffect(() => {
-    const timer = setTimeout(loadProducts, search ? 500 : 0)
-    return () => clearTimeout(timer)
-  }, [currentPage, pageSize, sortKey, sortDirection, filterCategory, filterStatus, search])
+    const signal = listRequest.next()
+    const timer = setTimeout(() => loadProducts(signal), search ? 500 : 0)
+    return () => {
+      clearTimeout(timer)
+      listRequest.abort()
+    }
+  }, [currentPage, pageSize, sortKey, sortDirection, filterCategory, filterStatus, search]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadCategories() {
+  async function loadCategories(signal: AbortSignal = categoriesRequest.next()) {
     try {
-      const response = await getProducts().listCategories()
+      const response = await getProducts().listCategories({ signal })
+      if (signal.aborted) return
       setCategories((response.data ?? []) as CategoryRuntime[])
     } catch {
+      if (signal.aborted) return
       // Silently fail - categories are optional for display purposes
       setCategories([])
     }
   }
 
-  async function loadProducts() {
+  async function loadProducts(signal: AbortSignal = listRequest.next()) {
     try {
       setLoading(true)
       setError(null)
@@ -207,13 +219,15 @@ export function ProductsPage() {
       if (filterStatus !== 'all') params.status = filterStatus as ListProductsStatus
       if (search) params.search = search
 
-      const response = await getProducts().listProducts(params)
+      const response = await getProducts().listProducts(params, { signal })
+      if (signal.aborted) return
 
       const items = (response.data ?? []) as ProductWithExtras[]
 
       setTotalItems(response.pagination?.total ?? items.length)
       setProducts(items)
     } catch (err: unknown) {
+      if (signal.aborted) return
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || err.message || 'Failed to load products')
       } else {
@@ -221,7 +235,8 @@ export function ProductsPage() {
       }
       setProducts([])
     } finally {
-      setLoading(false)
+      // A superseded request must not clear the spinner the newer one raised.
+      if (!signal.aborted) setLoading(false)
     }
   }
 

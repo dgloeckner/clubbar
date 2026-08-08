@@ -151,8 +151,13 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
   - Implementation examples for common components (pages, forms, tables, modals)
   - Best practices for adding test IDs during development
   - Playwright tips and custom locators
+- **Data Fetching Pattern**: Cancel superseded requests and guard against stale responses
+  - `useLatestRequest` + the orval `signal` option on every generated call
+  - `signal.aborted` checks before setters, in `catch`, and around `finally`
+  - Claim the signal before a search debounce, one slot per independent stream
+  - Spinner ownership when a mutation reload supersedes a loader effect
 
-**Important**: When building pages and components in the admin frontend, follow the test IDs pattern to ensure E2E tests are reliable and maintainable. See `admin-frontend/patterns/test-ids.md` for comprehensive guide and examples.
+**Important**: When building pages and components in the admin frontend, follow the test IDs pattern to ensure E2E tests are reliable and maintainable. See `admin-frontend/patterns/test-ids.md` for comprehensive guide and examples. Any page that fetches on a filter, search, sort, page or interval must follow `admin-frontend/patterns/data-fetching.md` — without it the page can render the results of a request it has already superseded.
 
 ### Development Approach
 - **Prefer a planned approach with milestones** over tackling all issues at once

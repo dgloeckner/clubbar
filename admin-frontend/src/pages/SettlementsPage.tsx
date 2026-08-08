@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { useLatestRequest } from '../hooks/useLatestRequest'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { useFormatters } from '../hooks/useFormatters'
@@ -94,6 +95,7 @@ export function SettlementsPage() {
   const { t } = useTranslation()
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
+  const listRequest = useLatestRequest()
   const [settlements, setSettlements] = useState<SettlementListItemExtended[]>([])
   const [totalItems, setTotalItems] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -145,10 +147,11 @@ export function SettlementsPage() {
 
   // Load settlements when filters, sorting, or pagination changes
   useEffect(() => {
-    loadSettlements()
-  }, [currentPage, pageSize, dateFrom, dateTo, statusFilter, sortKey, sortOrder])
+    loadSettlements(listRequest.next())
+    return () => listRequest.abort()
+  }, [currentPage, pageSize, dateFrom, dateTo, statusFilter, sortKey, sortOrder]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadSettlements = async () => {
+  const loadSettlements = async (signal: AbortSignal = listRequest.next()) => {
     try {
       setLoading(true)
       setError(null)
@@ -166,11 +169,13 @@ export function SettlementsPage() {
       if (dateTo) params.date_to = dateTo
       if (statusFilter !== 'all') params.status = statusFilter
 
-      const response = await getSettlementsFactory().listSettlements(params)
+      const response = await getSettlementsFactory().listSettlements(params, { signal })
+      if (signal.aborted) return
 
       setSettlements((response.data ?? []) as SettlementListItemExtended[])
       setTotalItems(response.pagination?.total ?? 0)
     } catch (err: unknown) {
+      if (signal.aborted) return
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)
       } else if (err instanceof Error) {
@@ -181,7 +186,8 @@ export function SettlementsPage() {
       setSettlements([])
       setTotalItems(0)
     } finally {
-      setLoading(false)
+      // A superseded request must not clear the spinner the newer one raised.
+      if (!signal.aborted) setLoading(false)
     }
   }
 

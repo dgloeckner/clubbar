@@ -4,6 +4,7 @@ import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
+import { useLatestRequest } from '../hooks/useLatestRequest'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
 import type { DashboardResponse } from '../api/generated'
 import { StatCard } from '../components/common/StatCard'
@@ -22,23 +23,32 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const request = useLatestRequest()
 
   const fetchDashboard = useCallback(async (showGlobalLoading = true) => {
+    // A slow backend lets tick N land after tick N+1; without this the older
+    // answer would overwrite the newer one. The newest tick wins, and the
+    // in-flight request dies with the page.
+    const signal = request.next()
     try {
       if (showGlobalLoading) {
         setLoading(true)
         setIsLoading(true)
       }
-      const response = await getDashboard().getDashboardMetrics()
+      const response = await getDashboard().getDashboardMetrics({ signal })
+      if (signal.aborted) return
       setData(response)
       setError(null)
     } catch (err) {
+      if (signal.aborted) return
       setError(t('errors.generic'))
     } finally {
-      setLoading(false)
-      setIsLoading(false)
+      if (!signal.aborted) {
+        setLoading(false)
+        setIsLoading(false)
+      }
     }
-  }, [setIsLoading, t])
+  }, [request, setIsLoading, t])
 
   // Initial load + auto-refresh
   useEffect(() => {
@@ -46,8 +56,9 @@ export function DashboardPage() {
     intervalRef.current = setInterval(() => fetchDashboard(false), AUTO_REFRESH_INTERVAL)
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
+      request.abort()
     }
-  }, [fetchDashboard])
+  }, [fetchDashboard, request])
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
 

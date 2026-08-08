@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { useLatestRequest } from '../hooks/useLatestRequest'
 import { useLoading } from '../context/LoadingContext'
 import { getAuditLog } from '../api/generated/audit-log/audit-log'
 import type { AuditLogEntry, ListAuditLogParams } from '../api/generated'
@@ -80,6 +81,7 @@ export function AuditLogPage() {
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
   const { setIsLoading } = useLoading()
+  const listRequest = useLatestRequest()
 
   const isMobile = breakpoint === 'mobile' || breakpoint === 'smallMobile'
 
@@ -117,7 +119,7 @@ export function AuditLogPage() {
 
   // Load audit logs
   useEffect(() => {
-    const loadAuditLogs = async () => {
+    const loadAuditLogs = async (signal: AbortSignal) => {
       try {
         setLoading(true)
         setIsLoading(true)
@@ -132,22 +134,33 @@ export function AuditLogPage() {
           entity_type: (selectedEntityType as ListAuditLogParams['entity_type']) || undefined,
           search: searchText || undefined,
         }
-        const response = await getAuditLog().listAuditLog(params)
+        const response = await getAuditLog().listAuditLog(params, { signal })
+        if (signal.aborted) return
 
         setEntries(response.data ?? [])
         setTotalEntries(response.pagination?.total ?? 0)
         setError(null)
       } catch (err: unknown) {
+        if (signal.aborted) return
         setError(err instanceof Error ? err.message : 'Failed to load audit log')
       } finally {
-        setLoading(false)
-        setIsLoading(false)
+        // A superseded request must not clear the spinner the newer one raised.
+        if (!signal.aborted) {
+          setLoading(false)
+          setIsLoading(false)
+        }
       }
     }
 
-    const timer = setTimeout(loadAuditLogs, searchText ? 500 : 0) // Debounce search
-    return () => clearTimeout(timer)
-  }, [page, perPage, dateFrom, dateTo, selectedAdmin, selectedAction, selectedEntityType, searchText, setIsLoading])
+    // Claimed before the debounce, so a search that is typed and then cleared
+    // cannot come back late and refill the table under an empty search box.
+    const signal = listRequest.next()
+    const timer = setTimeout(() => loadAuditLogs(signal), searchText ? 500 : 0) // Debounce search
+    return () => {
+      clearTimeout(timer)
+      listRequest.abort()
+    }
+  }, [page, perPage, dateFrom, dateTo, selectedAdmin, selectedAction, selectedEntityType, searchText, setIsLoading, listRequest])
 
   // Load admin users for filter dropdown
   useEffect(() => {

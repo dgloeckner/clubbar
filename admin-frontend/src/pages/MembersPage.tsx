@@ -11,6 +11,7 @@ import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
+import { useLatestRequest } from '../hooks/useLatestRequest'
 import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ScanIcon } from '../components/icons'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
@@ -59,6 +60,8 @@ export function MembersPage() {
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
   const { setIsLoading } = useLoading()
+  const listRequest = useLatestRequest()
+  const metricsRequest = useLatestRequest()
   const [members, setMembers] = useState<MemberListItem[]>([])
   const [totalMembers, setTotalMembers] = useState(0)
   const [activeMembersCount, setActiveMembersCount] = useState(0)
@@ -175,40 +178,65 @@ export function MembersPage() {
   }, [page, search, filterIsActive, filterCardUid, filterSepaStatus, sortKey, sortDirection])
 
   // Fetch the list with the current query and publish it into state.
-  // Used by the loader effect and by every mutation handler.
-  const fetchMembers = useCallback(async () => {
-    const response = await getMembersFactory().listMembers(buildListParams())
-    setMembers(response.data ?? [])
-    setTotalMembers(response.pagination?.total ?? 0)
-  }, [buildListParams])
+  // Used by the loader effect and by every mutation handler. Callers that own a
+  // signal pass it in; the mutation handlers take the default and supersede
+  // whatever the loader effect has in flight.
+  const fetchMembers = useCallback(async (signal: AbortSignal = listRequest.next()) => {
+    // The table spinner is raised and cleared here rather than by the effect,
+    // because a mutation reload supersedes the effect's request: whoever aborts
+    // the previous fetch has to take over responsibility for the spinner, or it
+    // would spin forever on the request that never gets to finish.
+    try {
+      setLoading(true)
+      const response = await getMembersFactory().listMembers(buildListParams(), { signal })
+      if (signal.aborted) return
+      setMembers(response.data ?? [])
+      setTotalMembers(response.pagination?.total ?? 0)
+    } catch (err) {
+      // An abort is not a failure the caller should report — a newer request
+      // owns the outcome now. Real errors still reach the caller's handler.
+      if (signal.aborted) return
+      throw err
+    } finally {
+      if (!signal.aborted) setLoading(false)
+    }
+  }, [buildListParams, listRequest])
 
   // Load members
   useEffect(() => {
-    const loadMembers = async () => {
+    const loadMembers = async (signal: AbortSignal) => {
       try {
-        setLoading(true)
         setIsLoading(true)
 
-        await fetchMembers()
+        await fetchMembers(signal)
 
+        if (signal.aborted) return
         setError(null)
       } catch (err) {
+        if (signal.aborted) return
         setError(err instanceof Error ? err.message : 'Failed to load members')
       } finally {
-        setLoading(false)
-        setIsLoading(false)
+        if (!signal.aborted) setIsLoading(false)
       }
     }
 
-    const timer = setTimeout(loadMembers, search ? 500 : 0) // Debounce search
-    return () => clearTimeout(timer)
-  }, [fetchMembers, search, setIsLoading])
+    // Claim the signal now, not after the debounce: clearing the search box
+    // fires with 0ms delay while the previous query is still in flight, and the
+    // table would otherwise end up showing filtered rows under an empty box.
+    const signal = listRequest.next()
+    const timer = setTimeout(() => loadMembers(signal), search ? 500 : 0) // Debounce search
+    return () => {
+      clearTimeout(timer)
+      listRequest.abort()
+    }
+  }, [fetchMembers, search, setIsLoading, listRequest])
 
   // Load dashboard metrics (active members count, outstanding balance, last settlement date)
   useEffect(() => {
-    const loadDashboardMetrics = async () => {
+    const loadDashboardMetrics = async (signal: AbortSignal) => {
       try {
-        const dashboard = await getDashboard().getDashboardMetrics()
+        const dashboard = await getDashboard().getDashboardMetrics({ signal })
+        if (signal.aborted) return
         setActiveMembersCount(dashboard.metrics?.active_members ?? 0)
         setTotalBalance(dashboard.metrics?.outstanding_balance_cents ?? 0)
         setLastSettlementDate(dashboard.system_status?.last_settlement_date ?? null)
@@ -217,8 +245,9 @@ export function MembersPage() {
       }
     }
 
-    loadDashboardMetrics()
-  }, [])
+    loadDashboardMetrics(metricsRequest.next())
+    return () => metricsRequest.abort()
+  }, [metricsRequest])
 
   // Handle GDPR data export — downloads a JSON file with the member's personal data
   const handleExportData = async () => {

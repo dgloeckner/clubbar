@@ -119,8 +119,8 @@ interface TerminalActivityResponse {
 
 // ─── API Wrappers (map generated client responses to local types) ─────────────
 
-async function getReport(reportType: ReportType, params: ReportParams = {}): Promise<ReportResponse> {
-  const raw = await getReports().getReport(reportType, params)
+async function getReport(reportType: ReportType, params: ReportParams = {}, signal?: AbortSignal): Promise<ReportResponse> {
+  const raw = await getReports().getReport(reportType, params, { signal })
   return {
     metadata: {
       total_revenue_cents: raw.summary?.total_revenue_cents ?? 0,
@@ -141,8 +141,8 @@ async function getReport(reportType: ReportType, params: ReportParams = {}): Pro
   }
 }
 
-async function getMemberRanking(params: MemberRankingParams = {}): Promise<MemberRankingResponse> {
-  const raw = await getReports().getMemberRanking(params)
+async function getMemberRanking(params: MemberRankingParams = {}, signal?: AbortSignal): Promise<MemberRankingResponse> {
+  const raw = await getReports().getMemberRanking(params, { signal })
   const rows = raw.data ?? []
   return {
     rows: rows.map((row) => ({
@@ -162,8 +162,8 @@ async function getMemberRanking(params: MemberRankingParams = {}): Promise<Membe
   }
 }
 
-async function getTerminalActivity(params: TerminalActivityParams): Promise<TerminalActivityResponse> {
-  const raw = await getReports().getTerminalActivity(params)
+async function getTerminalActivity(params: TerminalActivityParams, signal?: AbortSignal): Promise<TerminalActivityResponse> {
+  const raw = await getReports().getTerminalActivity(params, { signal })
   const sessions = raw.sessions ?? []
   return {
     sessions: sessions.map((s) => ({
@@ -230,6 +230,7 @@ async function exportReport(
 import { theme } from '../styles/design-system'
 import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { useLatestRequest } from '../hooks/useLatestRequest'
 import {
   tableElementStyles,
   headerRowStyle,
@@ -459,6 +460,12 @@ export function ReportsPage() {
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
 
+  // One per tab: each tab owns its own in-flight request, so switching tabs or
+  // re-applying a filter can only ever discard the tab's own stale answer.
+  const reportRequest = useLatestRequest()
+  const rankingRequest = useLatestRequest()
+  const terminalRequest = useLatestRequest()
+
   const [activeTab, setActiveTab] = useState<TabId>('revenue')
 
   // ── Date range shared across most tabs ──
@@ -486,22 +493,28 @@ export function ReportsPage() {
 
   // ─── Load data ───────────────────────────────────────────────────────────
 
+  // Switching revenue -> consumption fires a second getReport; without the
+  // signal a slow revenue response would overwrite the consumption tab.
   const loadReport = useCallback(async () => {
     if (activeTab !== 'revenue' && activeTab !== 'consumption') return
+    const signal = reportRequest.next()
     setReportLoading(true)
     setReportError(null)
     try {
       const params: ReportParams = { date_from: dateFrom, date_to: dateTo, group_by: groupBy }
-      const data = await getReport(activeTab as ReportType, params)
+      const data = await getReport(activeTab as ReportType, params, signal)
+      if (signal.aborted) return
       setReportData(data)
     } catch (err) {
+      if (signal.aborted) return
       setReportError(err instanceof Error ? err.message : t('errors.generic'))
     } finally {
-      setReportLoading(false)
+      if (!signal.aborted) setReportLoading(false)
     }
-  }, [activeTab, dateFrom, dateTo, groupBy, t])
+  }, [activeTab, dateFrom, dateTo, groupBy, reportRequest, t])
 
   const loadRanking = useCallback(async () => {
+    const signal = rankingRequest.next()
     setRankingLoading(true)
     setRankingError(null)
     try {
@@ -511,37 +524,48 @@ export function ReportsPage() {
         limit: rankingLimit,
         anonymize: rankingAnonymize,
       }
-      const data = await getMemberRanking(params)
+      const data = await getMemberRanking(params, signal)
+      if (signal.aborted) return
       setRankingData(data)
     } catch (err) {
+      if (signal.aborted) return
       setRankingError(err instanceof Error ? err.message : t('errors.generic'))
     } finally {
-      setRankingLoading(false)
+      if (!signal.aborted) setRankingLoading(false)
     }
-  }, [dateFrom, dateTo, rankingLimit, rankingAnonymize, t])
+  }, [dateFrom, dateTo, rankingLimit, rankingAnonymize, rankingRequest, t])
 
   const loadTerminalActivity = useCallback(async () => {
+    const signal = terminalRequest.next()
     setTerminalLoading(true)
     setTerminalError(null)
     try {
       const params: TerminalActivityParams = { date_from: dateFrom, date_to: dateTo }
-      const data = await getTerminalActivity(params)
+      const data = await getTerminalActivity(params, signal)
+      if (signal.aborted) return
       setTerminalData(data)
     } catch (err) {
+      if (signal.aborted) return
       setTerminalError(err instanceof Error ? err.message : t('errors.generic'))
     } finally {
-      setTerminalLoading(false)
+      if (!signal.aborted) setTerminalLoading(false)
     }
-  }, [dateFrom, dateTo, t])
+  }, [dateFrom, dateTo, terminalRequest, t])
 
-  // Load data when tab changes
+  // Load data when tab changes. Leaving a tab abandons its request, so a slow
+  // answer cannot land on the tab the admin switched to.
   useEffect(() => {
     if (activeTab === 'revenue' || activeTab === 'consumption') {
       loadReport()
-    } else if (activeTab === 'member-ranking') {
+      return () => reportRequest.abort()
+    }
+    if (activeTab === 'member-ranking') {
       loadRanking()
-    } else if (activeTab === 'terminal-activity') {
+      return () => rankingRequest.abort()
+    }
+    if (activeTab === 'terminal-activity') {
       loadTerminalActivity()
+      return () => terminalRequest.abort()
     }
   }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 

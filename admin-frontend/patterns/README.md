@@ -26,6 +26,28 @@ const button = page.getByTestId('members-create-button')
 await button.click()
 ```
 
+### [Data Fetching Pattern](./data-fetching.md)
+**Purpose**: Render the answer to the question the page is currently asking, and only that one
+
+- ✅ Request cancellation with `useLatestRequest` and the orval `signal` option
+- ✅ Stale-response guards for search debounces, auto-refresh and tab switches
+- ✅ Why `signal.aborted` beats an `isMounted` ref and beats catching the abort error
+- ✅ Spinner ownership when a mutation reload supersedes a loader effect
+- ✅ Checklist and anti-patterns
+
+**When to use**: When building any page that fetches on a filter, search, sort, page or interval
+
+**Quick Start**:
+```typescript
+const listRequest = useLatestRequest()
+
+useEffect(() => {
+  const signal = listRequest.next()
+  const timer = setTimeout(() => loadItems(signal), search ? 500 : 0)
+  return () => { clearTimeout(timer); listRequest.abort() }
+}, [page, search])
+```
+
 ---
 
 ## Pattern Development Guidelines
@@ -68,3 +90,4 @@ To add a new pattern:
 | Pattern | Version | Status | Created |
 |---------|---------|--------|---------|
 | [Test IDs](./test-ids.md) | 1.0 | Active | 2026-01-26 |
+| [Data Fetching](./data-fetching.md) | 1.0 | Active | 2026-08-08 |

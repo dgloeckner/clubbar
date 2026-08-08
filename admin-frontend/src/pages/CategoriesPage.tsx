@@ -37,6 +37,7 @@ import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { Toggle } from '../components/forms/Toggle'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { useLatestRequest } from '../hooks/useLatestRequest'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -61,6 +62,7 @@ export function CategoriesPage() {
   const { t, i18n } = useTranslation()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
+  const listRequest = useLatestRequest()
   const [categories, setCategories] = useState<CategoryRuntime[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -143,15 +145,18 @@ export function CategoriesPage() {
 
   // Load categories on mount and when filter/sort changes
   useEffect(() => {
-    loadCategories()
-  }, [filterStatus, sortKey, sortDirection, page])
+    const signal = listRequest.next()
+    loadCategories(signal)
+    return () => listRequest.abort()
+  }, [filterStatus, sortKey, sortDirection, page]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadCategories() {
+  async function loadCategories(signal: AbortSignal = listRequest.next()) {
     try {
       setLoading(true)
       setError(null)
 
-      const response = await getProducts().listCategories()
+      const response = await getProducts().listCategories({ signal })
+      if (signal.aborted) return
 
       // Categories come back whole — filtering, sorting and paging below are
       // client-side.
@@ -192,6 +197,7 @@ export function CategoriesPage() {
         setTotalItems(0)
       }
     } catch (err: unknown) {
+      if (signal.aborted) return
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || err.message || 'Failed to load categories')
       } else {
@@ -200,7 +206,8 @@ export function CategoriesPage() {
       setCategories([])
       setTotalItems(0)
     } finally {
-      setLoading(false)
+      // A superseded request must not clear the spinner the newer one raised.
+      if (!signal.aborted) setLoading(false)
     }
   }
 
