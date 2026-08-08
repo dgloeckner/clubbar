@@ -277,4 +277,83 @@ test.describe('Terminal Devices Management', () => {
     const newCount = await authenticatedSettingsPage.getTerminalCount()
     expect(newCount).toBe(initialCount)
   })
+
+  /**
+   * Test: A rejected create is reported in the modal (#91)
+   *
+   * A duplicate device ID used to fail silently: the modal stayed open showing
+   * nothing, and the message surfaced later on the SEPA tab.
+   *
+   * E2E Verification Flow:
+   * 1. Create a terminal so its device ID is taken
+   * 2. Try to create a second terminal with the same device ID
+   * 3. Verify the modal reports the rejection and stays open
+   * 4. Verify nothing was persisted (count unchanged)
+   * 5. Verify the message does not leak onto the SEPA tab
+   */
+  test('should report a duplicate device ID inside the create modal', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickTerminalsTab()
+
+    // Arrange: a terminal whose device ID is now taken
+    const testData = generateTestTerminal()
+    await authenticatedSettingsPage.clickCreateTerminalButton()
+    await authenticatedSettingsPage.fillCreateTerminalForm(testData)
+    await authenticatedSettingsPage.clickCreateTerminalConfirm()
+    await authenticatedSettingsPage.waitForTokenModal()
+    await authenticatedSettingsPage.closeTokenModal()
+
+    // The list reloads after the create; wait for the new row before acting
+    await expect.poll(() => authenticatedSettingsPage.countTerminalsWithName(testData.name)).toBe(1)
+
+    // Act: same device ID, different name
+    await authenticatedSettingsPage.clickCreateTerminalButton()
+    await authenticatedSettingsPage.fillCreateTerminalForm({
+      name: `${testData.name} duplicate`,
+      device_id: testData.device_id,
+    })
+    await authenticatedSettingsPage.clickCreateTerminalConfirm()
+
+    // Assert: the reason is on screen, in the modal the admin is looking at
+    const message = await authenticatedSettingsPage.expectCreateTerminalModalError()
+    expect(message).toContain('already exists')
+
+    // Assert: nothing was created — the duplicate name never reached the table
+    await authenticatedSettingsPage.closeCreateTerminalModal()
+    expect(await authenticatedSettingsPage.countTerminalsWithName(`${testData.name} duplicate`)).toBe(0)
+
+    // Assert: the message did not follow the admin to another tab
+    await authenticatedSettingsPage.clickSepaTab()
+    await authenticatedSettingsPage.expectNoErrorMessage()
+  })
+
+  /**
+   * Test: Empty required fields are caught before the request (#91)
+   *
+   * Submit used to be enabled with empty values, which were sent straight to
+   * the API and rejected with a 422 nothing rendered.
+   */
+  test('should reject an empty create terminal form without calling the API', async ({
+    authenticatedSettingsPage,
+  }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickTerminalsTab()
+
+    // Watch for a POST that must never happen (parallel-safe, Pattern 004)
+    let createRequestFired = false
+    authenticatedSettingsPage.page.on('response', (resp) => {
+      if (resp.url().includes('/api/admin/terminals') && resp.request().method() === 'POST') {
+        createRequestFired = true
+      }
+    })
+
+    await authenticatedSettingsPage.clickCreateTerminalButton()
+    await authenticatedSettingsPage.clickCreateTerminalConfirm()
+
+    // Assert: both empty fields are named, and the modal stays open
+    await authenticatedSettingsPage.expectCreateTerminalFieldError('name')
+    await authenticatedSettingsPage.expectCreateTerminalFieldError('device-id')
+    expect(await authenticatedSettingsPage.isCreateTerminalModalVisible()).toBe(true)
+    expect(createRequestFired).toBe(false)
+  })
 })

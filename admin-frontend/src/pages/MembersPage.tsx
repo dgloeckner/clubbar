@@ -25,6 +25,7 @@ import { Toggle } from '../components/forms/Toggle'
 import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { validateIban } from '../utils/iban'
+import { toIsoDate } from '../utils/dates'
 import { useBankName } from '../hooks/useBankName'
 import { ValidationIndicator } from '../components/forms/ValidationIndicator'
 import { MandateDocumentSection } from '../components/MandateDocumentSection'
@@ -1740,7 +1741,7 @@ export function MembersPage() {
                     required
                     value={formData.mandate_signed_at}
                     onChange={(e) => setFormData({ ...formData, mandate_signed_at: e.target.value })}
-                    max={new Date().toISOString().split('T')[0]}
+                    max={toIsoDate(new Date())}
                     style={{
                       flex: 1,
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,

@@ -85,4 +85,53 @@ describe('useFormatters', () => {
       )
     })
   })
+
+  // These run in whatever zone the suite is pinned to (vite.config.ts), which
+  // is deliberately not UTC — on UTC a date-only value and its UTC-parsed
+  // twin name the same calendar day, so none of this could fail (#95).
+  describe('date-only values', () => {
+    it('renders the calendar day it was given, not the day before', () => {
+      expect(withLanguage('de').formatDate('2026-01-23')).toBe('23.01.2026')
+    })
+
+    it('renders the same calendar day in every locale', () => {
+      expect(withLanguage('en').formatDate('2026-01-23')).toBe('23/01/2026')
+    })
+
+    it('labels a settlement dated today as today', () => {
+      expect(withLanguage('de').formatRelativeDate(toIsoDate(new Date()))).toBe(
+        'dates.today'
+      )
+    })
+
+    it('labels a settlement dated yesterday as yesterday', () => {
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      expect(withLanguage('de').formatRelativeDate(toIsoDate(yesterday))).toBe(
+        'dates.yesterday'
+      )
+    })
+
+    it('does not label the day before yesterday as yesterday', () => {
+      const older = new Date()
+      older.setDate(older.getDate() - 2)
+      expect(withLanguage('de').formatRelativeDate(toIsoDate(older))).not.toBe(
+        'dates.yesterday'
+      )
+    })
+  })
+
+  describe('timestamps', () => {
+    it('still renders an instant in the viewer local time', () => {
+      // A real instant is not a calendar day: which day it falls on genuinely
+      // depends on the viewer's zone, and that must stay true.
+      const instant = '2026-01-24T02:15:00Z'
+      const expected = new Intl.DateTimeFormat('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date(instant))
+      expect(withLanguage('de').formatDate(instant)).toBe(expected)
+    })
+  })
 })

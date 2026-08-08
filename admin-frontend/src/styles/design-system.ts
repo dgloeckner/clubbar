@@ -3,6 +3,8 @@
  * Based on prototypes/frgs-admin.html specifications
  */
 
+import { parseApiDate } from '../utils/dates'
+
 export const theme = {
   colors: {
     // Background colors
@@ -191,10 +193,13 @@ export function formatIban(iban: string): string {
 
 /**
  * Utility function to format dates (German DD.MM.YYYY format)
+ *
+ * Date-only values are parsed as local calendar days (see `parseApiDate`), so a
+ * `settlement_date` of 2026-08-05 reads as the 5th in every timezone.
  */
 export function formatDate(dateString: string, locale: string = 'de-DE'): string {
   try {
-    const date = new Date(dateString)
+    const date = parseApiDate(dateString)
     return new Intl.DateTimeFormat(locale, {
       day: '2-digit',
       month: '2-digit',
@@ -210,7 +215,7 @@ export function formatDate(dateString: string, locale: string = 'de-DE'): string
  */
 export function formatDateTime(dateString: string, locale: string = 'de-DE'): string {
   try {
-    const date = new Date(dateString)
+    const date = parseApiDate(dateString)
     return new Intl.DateTimeFormat(locale, {
       day: '2-digit',
       month: '2-digit',
@@ -230,7 +235,7 @@ export function formatRelativeDate(dateString: string, locale: string = 'de-DE')
   if (!dateString) return 'Never'
 
   try {
-    const date = new Date(dateString)
+    const date = parseApiDate(dateString)
     const today = new Date()
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)

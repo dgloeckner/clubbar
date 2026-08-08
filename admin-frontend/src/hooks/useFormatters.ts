@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { formatPrice, formatDate, formatDateTime } from '../styles/design-system';
 import { getIntlLocale } from '../utils/i18n-helpers';
+import { parseApiDate } from '../utils/dates';
 
 /**
  * Hook that provides locale-aware formatting functions.
@@ -28,6 +29,11 @@ export function useFormatters() {
 
     /**
      * Format a date with relative labels (Today, Yesterday, or full date)
+     *
+     * Both sides of the comparison are local midnight. Parsing the value with
+     * `new Date()` instead would anchor a date-only string at UTC midnight, and
+     * truncating *that* with `setHours` moves it to the previous calendar day
+     * for users west of Greenwich — a settlement dated today read "Yesterday".
      */
     formatRelativeDate: (dateString: string) => {
       if (!dateString) return t('dates.never');
@@ -38,7 +44,7 @@ export function useFormatters() {
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
 
-      const date = new Date(dateString);
+      const date = parseApiDate(dateString);
       date.setHours(0, 0, 0, 0);
 
       if (date.getTime() === today.getTime()) {
