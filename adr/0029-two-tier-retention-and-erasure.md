@@ -95,7 +95,7 @@ Note also that **pseudonymising does not help by itself**: `member_id` instead o
 | **Line-item access is audit-scoped** | Reachable for a Betriebsprüfung; not a routine admin screen |
 | **Disclose it** | The Art. 13 notice must say plainly what is kept and for how long ([#175](https://github.com/dgloeckner/ruderbar/issues/175)) |
 
-⚠️ **[UC-A51 Member Ranking](../use-cases/admin/UC-A51-member-ranking.md) violates the first control today** — `GET /api/admin/reports/member-ranking` ships a *named* "top N members by consumption". It is exactly the feature this control prohibits. Its **anonymised mode is fine**; the named mode is not.
+✅ **[UC-A51 Member Ranking](../use-cases/admin/UC-A51-member-ranking.md) complied with the first control on 2026-08-08** ([#177](https://github.com/dgloeckner/ruderbar/issues/177)). It used to ship a *named* "top N members by consumption" from `GET /api/admin/reports/member-ranking` — exactly the feature this control prohibits. The named mode was **removed rather than restricted**: "for internal use only" is no mitigation when the concern is that the profile exists at all. The ranking is now always anonymous, the query no longer reads member names, and rows are labelled by their **ordinal position in the report being rendered** — not by a persistent alias, which anyone able to identify a single row could otherwise carry across every other report.
 
 ### The blocking guard tests for an unresolved position
 
