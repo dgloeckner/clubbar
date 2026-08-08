@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Transactions\Services;
 
+use App\Shared\Utils\Uuid;
 use App\Modules\Transactions\DTOs\TransactionBatchResultDto;
 use App\Modules\Transactions\Exceptions\CannotStornoAStornoException;
 use App\Modules\Transactions\Exceptions\TransactionAlreadyStornoedException;
@@ -151,7 +152,7 @@ class TransactionsService
 
         $memberId = $original['member_id'];
         $stored = $this->transactionsRepository->insertStorno([
-            'id' => $this->generateUuid(),
+            'id' => Uuid::v4(),
             'member_id' => $memberId,
             'product_id' => null,
             'amount_cents' => -((int) $original['amount_cents']),
@@ -348,13 +349,5 @@ class TransactionsService
     private function hasActiveMandate(array $member): bool
     {
         return !empty($member['mandate_reference']) && !empty($member['iban']);
-    }
-
-    private function generateUuid(): string
-    {
-        $data = random_bytes(16);
-        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
-        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }

@@ -433,9 +433,10 @@ test.describe('Settlements API', () => {
       const body = await response.json();
       expect(Array.isArray(body.data)).toBe(true);
       expect(body.pagination).toBeDefined();
-      expect(body.pagination).toHaveProperty('total');
+      expect(body.pagination).toHaveProperty('page');
       expect(body.pagination).toHaveProperty('per_page');
-      expect(body.pagination).toHaveProperty('current_page');
+      expect(body.pagination).toHaveProperty('total');
+      expect(body.pagination).toHaveProperty('total_pages');
     });
 
     test('D2: GET /settlements returns list with correct structure', async ({ authenticatedRequest }) => {
@@ -519,7 +520,7 @@ test.describe('Settlements API', () => {
         `/api/admin/transactions?member_id=${settlement.memberId}&settlement_status=unsettled`,
       );
       expect(journal.status()).toBe(200);
-      const unsettled = (await journal.json()).items as Array<{ id: string }>;
+      const unsettled = (await journal.json()).data as Array<{ id: string }>;
       expect(unsettled.map((t) => t.id)).toContain(settlement.transactionIds[0]);
     });
 
@@ -576,7 +577,7 @@ test.describe('Settlements API', () => {
       const journal = await authenticatedRequest.get(
         `/api/admin/transactions?member_id=${settlement.memberId}&settlement_status=unsettled`,
       );
-      const unsettled = (await journal.json()).items as Array<{ id: string }>;
+      const unsettled = (await journal.json()).data as Array<{ id: string }>;
       expect(unsettled.map((t) => t.id)).not.toContain(settlement.transactionIds[0]);
     });
 

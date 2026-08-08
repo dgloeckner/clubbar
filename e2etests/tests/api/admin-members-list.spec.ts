@@ -95,7 +95,7 @@ test.describe('Admin Members List Endpoint', () => {
 
     expect(body.error).toBe('invalid_request');
     expect(body.messages).toBeDefined();
-    expect(body.messages.limit).toBeDefined();
+    expect(body.messages.per_page).toBeDefined();
   });
 
   test('GET /api/admin/members pagination totals are consistent', async ({ authenticatedRequest }) => {

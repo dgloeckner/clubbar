@@ -6,11 +6,17 @@ namespace App\Modules\Transactions\Controllers;
 
 use App\Modules\Transactions\Services\TransactionsService;
 use App\Shared\Validation\Validator;
+use App\Shared\Http\JsonResponder;
+use App\Shared\Http\ListQuery;
+use App\Shared\Http\PaginatedResponse;
+use App\Shared\Utils\Csv;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AdminController
 {
+    use JsonResponder;
+
     public function __construct(
         private TransactionsService $transactionsService,
         private Validator $validator,
@@ -19,16 +25,7 @@ class AdminController
     public function getTransactions(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-
-        // Accept both frontend format (page/per_page) and backend format (limit/offset)
-        $page = (int) ($params['page'] ?? 1);
-        $perPage = (int) ($params['per_page'] ?? $params['limit'] ?? 20);
-        $limit = $perPage;
-        $offset = ($page - 1) * $perPage;
-
-        // Accept both 'sort'/'order' (frontend) and 'sort_key'/'sort_order' (backend)
-        $sortKey = $params['sort'] ?? $params['sort_key'] ?? 'created_at';
-        $sortOrder = $params['order'] ?? $params['sort_order'] ?? 'desc';
+        $query = ListQuery::fromParams($params, defaultPerPage: 20);
 
         $filters = [];
         if (isset($params['member_id'])) {
@@ -46,17 +43,23 @@ class AdminController
         if (isset($params['date_to'])) {
             $filters['date_to'] = $params['date_to'];
         }
-        if (isset($params['search'])) {
-            $filters['search'] = $params['search'];
+        if ($query->search !== null) {
+            $filters['search'] = $query->search;
         }
         if (isset($params['settlement_status']) && $params['settlement_status'] !== 'all') {
             $settlementMap = ['open' => 'unsettled', 'settled' => 'settled'];
             $filters['settlement_status'] = $settlementMap[$params['settlement_status']] ?? $params['settlement_status'];
         }
 
-        $result = $this->transactionsService->getTransactions($limit, $offset, $filters, $sortKey, $sortOrder);
+        $result = $this->transactionsService->getTransactions(
+            $query->perPage,
+            $query->offset,
+            $filters,
+            $query->sortKey,
+            $query->sortOrder,
+        );
 
-        return $this->json($response, $result->toArray());
+        return $this->json($response, PaginatedResponse::fromQuery($result->items, $result->total, $query));
     }
 
     public function getTransactionHistory(Request $request, Response $response, array $args): Response
@@ -167,51 +170,54 @@ class AdminController
             ->withStatus(200);
     }
 
+    /**
+     * The journal export.
+     *
+     * The money column used to be raw cents under a header that just said
+     * "amount", while the settlement export next to it wrote euros — the same
+     * figure, two units, no way to tell from the file which you had (#119).
+     * Both now write euros, and this header says so.
+     */
     private function buildCsv(array $items): string
     {
-        $output = fopen('php://temp', 'r+');
-
-        // Write fixed semantic headers (semicolon-separated)
-        fwrite($output, "date;member_name;product;type;amount\n");
+        $rows = [];
 
         foreach ($items as $item) {
             $item = (array) $item;
-            // Resolve product name from JSON names column (prefer 'de', fallback to first available)
-            $productName = '';
-            $productNames = $item['product_names'] ?? null;
-            if ($productNames !== null) {
-                $names = is_array($productNames) ? $productNames : (json_decode((string)$productNames, true) ?? []);
-                $productName = $names['de'] ?? $names['en'] ?? reset($names) ?: '';
-            }
-            // For corrections with no product, use notes
-            if ($productName === '' && isset($item['notes'])) {
-                $productName = (string) $item['notes'];
-            }
 
-            $row = [
-                'date'        => substr((string)($item['created_at'] ?? ''), 0, 10),
-                'member_name' => $item['member_name'] ?? '',
-                'product'     => $productName,
-                'type'        => $item['transaction_type'] ?? $item['type'] ?? '',
-                'amount'      => $item['amount_cents'] ?? '',
+            $rows[] = [
+                substr((string) ($item['created_at'] ?? ''), 0, 10),
+                $item['member_name'] ?? '',
+                $this->productLabel($item),
+                $item['transaction_type'] ?? $item['type'] ?? '',
+                Csv::money((int) ($item['amount_cents'] ?? 0)),
             ];
-
-            fwrite($output, implode(';', array_map(
-                static fn($v) => str_replace([';', "\n", "\r"], [',', ' ', ' '], (string)$v),
-                $row
-            )) . "\n");
         }
 
-        rewind($output);
-        $csv = stream_get_contents($output);
-        fclose($output);
-
-        return $csv;
+        return Csv::build(['date', 'member_name', 'product', 'type', 'amount_eur'], $rows);
     }
 
-    private function json(Response $response, mixed $data, int $status = 200): Response
+    /**
+     * Product name in German where available, then English, then whatever the
+     * product has; a correction carries no product and falls back to its note.
+     *
+     * @param array<string, mixed> $item
+     */
+    private function productLabel(array $item): string
     {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+        $productNames = $item['product_names'] ?? null;
+
+        if ($productNames !== null) {
+            $names = is_array($productNames)
+                ? $productNames
+                : (json_decode((string) $productNames, true) ?? []);
+
+            $label = $names['de'] ?? $names['en'] ?? (reset($names) ?: '');
+            if ($label !== '') {
+                return (string) $label;
+            }
+        }
+
+        return (string) ($item['notes'] ?? '');
     }
 }

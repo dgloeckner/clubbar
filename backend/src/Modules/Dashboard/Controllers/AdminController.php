@@ -10,11 +10,14 @@ use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use PDO;
+use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AdminController
 {
+    use JsonResponder;
+
     public function __construct(
         private MembersRepository $membersRepository,
         private TransactionsRepository $transactionsRepository,
@@ -287,11 +290,5 @@ class AdminController
         );
         $stmt->execute([$date]);
         return (int) $stmt->fetchColumn();
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

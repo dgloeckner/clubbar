@@ -53,15 +53,15 @@ test.describe('Products API', () => {
     const listResp = await authenticatedRequest.get('/api/admin/products')
     expect(listResp.status()).toBe(200)
     const listBody = await listResp.json()
-    expect(Array.isArray(listBody.items)).toBe(true)
-    expect(typeof listBody.total).toBe('number')
-    expect(typeof listBody.limit).toBe('number')
-    expect(typeof listBody.offset).toBe('number')
-    expect(typeof listBody.has_more).toBe('boolean')
+    expect(Array.isArray(listBody.data)).toBe(true)
+    expect(typeof listBody.pagination.page).toBe('number')
+    expect(typeof listBody.pagination.per_page).toBe('number')
+    expect(typeof listBody.pagination.total).toBe('number')
+    expect(typeof listBody.pagination.total_pages).toBe('number')
 
     // Verify product fields structure (if items exist)
-    if (listBody.items.length > 0) {
-      const p = listBody.items[0]
+    if (listBody.data.length > 0) {
+      const p = listBody.data[0]
       expect(p.id).toBeDefined()
       expect(p.names).toBeDefined()
       expect(p.price_cents).toBeDefined()
@@ -195,7 +195,7 @@ test.describe('Products API', () => {
     // ── Delete: verify gone from list ───────────────────────────
     const afterDeleteList = await authenticatedRequest.get('/api/admin/products')
     const afterDeleteBody = await afterDeleteList.json()
-    expect(afterDeleteBody.items.some((p: any) => p.id === product.id)).toBe(false)
+    expect(afterDeleteBody.data.some((p: any) => p.id === product.id)).toBe(false)
 
     // ── Delete: non-existent (404) ──────────────────────────────
     const noDeleteResp = await authenticatedRequest.delete(`/api/admin/products/${randomUUID()}`)
@@ -228,21 +228,25 @@ test.describe('Products API', () => {
     // ── Pagination: page, per_page, max limit ───────────────────
     const page1Resp = await authenticatedRequest.get('/api/admin/products?page=1')
     const page1Body = await page1Resp.json()
-    expect(page1Body.offset).toBe(0)
+    expect(page1Body.pagination.page).toBe(1)
 
     const perPageResp = await authenticatedRequest.get('/api/admin/products?per_page=10')
     const perPageBody = await perPageResp.json()
-    expect(perPageBody.limit).toBe(10)
+    expect(perPageBody.pagination.per_page).toBe(10)
 
+    // Over the cap is refused, not silently clamped — the caller is told
+    // which parameter was wrong (#119).
     const maxPageResp = await authenticatedRequest.get('/api/admin/products?per_page=500')
+    expect(maxPageResp.status()).toBe(400)
     const maxPageBody = await maxPageResp.json()
-    expect(maxPageBody.limit).toBeLessThanOrEqual(100)
+    expect(maxPageBody.error).toBe('invalid_request')
+    expect(maxPageBody.messages.per_page).toBeDefined()
 
     // ── Sorting: price_asc ──────────────────────────────────────
     const ascResp = await authenticatedRequest.get(`/api/admin/products?sort_by=price_asc&category_id=${category.id}`)
     const ascBody = await ascResp.json()
     expect(ascResp.ok()).toBeTruthy()
-    const ascProducts = ascBody.items.filter((p: any) => productIds.includes(p.id))
+    const ascProducts = ascBody.data.filter((p: any) => productIds.includes(p.id))
     expect(ascProducts.length).toBe(4)
     const ascPrices = ascProducts.map((p: any) => p.price_cents)
     expect(ascPrices).toEqual([100, 200, 300, 500])
@@ -250,7 +254,7 @@ test.describe('Products API', () => {
     // ── Sorting: price_desc ─────────────────────────────────────
     const descResp = await authenticatedRequest.get(`/api/admin/products?sort_by=price_desc&category_id=${category.id}`)
     const descBody = await descResp.json()
-    const descProducts = descBody.items.filter((p: any) => productIds.includes(p.id))
+    const descProducts = descBody.data.filter((p: any) => productIds.includes(p.id))
     const descPrices = descProducts.map((p: any) => p.price_cents)
     expect(descPrices).toEqual([500, 300, 200, 100])
 
@@ -272,7 +276,7 @@ test.describe('Products API', () => {
     const catFilterResp = await authenticatedRequest.get(`/api/admin/products?category_id=${category.id}`)
     expect(catFilterResp.ok()).toBeTruthy()
     const catFilterBody = await catFilterResp.json()
-    const catFilterIds = catFilterBody.items.map((p: any) => p.id)
+    const catFilterIds = catFilterBody.data.map((p: any) => p.id)
     for (const id of productIds) {
       expect(catFilterIds).toContain(id)
     }
@@ -281,8 +285,8 @@ test.describe('Products API', () => {
     const emptyCat = await createCategory(authenticatedRequest, 'Empty')
     const emptyCatResp = await authenticatedRequest.get(`/api/admin/products?category_id=${emptyCat.id}`)
     const emptyCatBody = await emptyCatResp.json()
-    expect(emptyCatBody.items.length).toBe(0)
-    expect(emptyCatBody.total).toBe(0)
+    expect(emptyCatBody.data.length).toBe(0)
+    expect(emptyCatBody.pagination.total).toBe(0)
 
     // ── Category filter: invalid UUID (422) ─────────────────────
     const invalidCatResp = await authenticatedRequest.get('/api/admin/products?category_id=not-a-uuid')
@@ -293,13 +297,13 @@ test.describe('Products API', () => {
     // ── Category filter: non-existent UUID → 0 items ────────────
     const noExistResp = await authenticatedRequest.get(`/api/admin/products?category_id=${randomUUID()}`)
     const noExistBody = await noExistResp.json()
-    expect(noExistBody.items.length).toBe(0)
+    expect(noExistBody.data.length).toBe(0)
 
     // ── Combined: category + status ─────────────────────────────
     const combinedResp = await authenticatedRequest.get(`/api/admin/products?category_id=${category.id}&status=active`)
     const combinedBody = await combinedResp.json()
     // productIds[0] was deactivated, should not appear with status=active
-    const combinedIds = combinedBody.items.map((p: any) => p.id)
+    const combinedIds = combinedBody.data.map((p: any) => p.id)
     expect(combinedIds).not.toContain(productIds[0])
     // Other products should appear
     expect(combinedIds).toContain(productIds[1])

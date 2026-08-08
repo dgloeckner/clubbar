@@ -9,6 +9,7 @@ use App\Modules\Transactions\Exceptions\TransactionAlreadyStornoedException;
 use App\Modules\Transactions\Exceptions\TransactionNotStorableException;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
+use App\Shared\Repository\UnsettledTransactions;
 use App\Shared\Utils\DateFormatter;
 
 class TransactionsRepository
@@ -194,10 +195,7 @@ class TransactionsRepository
             'SELECT COALESCE(SUM(t.amount_cents), 0)
              FROM transactions t
              WHERE t.member_id = ?
-               AND NOT EXISTS (
-                   SELECT 1 FROM settlement_items si
-                   WHERE si.active_transaction_id = t.id
-               )'
+               AND ' . UnsettledTransactions::UNSETTLED
         );
         $stmt->execute([$memberId]);
         return (int) $stmt->fetchColumn();
@@ -270,7 +268,7 @@ class TransactionsRepository
         }
         if (isset($filters['date_to'])) {
             $where[] = 't.occurred_at <= ?';
-            $params[] = $filters['date_to'] . ' 23:59:59';
+            $params[] = UnsettledTransactions::endOfDay((string) $filters['date_to']);
         }
         if (isset($filters['search'])) {
             $escaped = SafeQuery::escapeLike($filters['search']);
@@ -281,9 +279,9 @@ class TransactionsRepository
         }
         if (isset($filters['settlement_status'])) {
             if ($filters['settlement_status'] === 'unsettled') {
-                $where[] = 'NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)';
+                $where[] = UnsettledTransactions::UNSETTLED;
             } elseif ($filters['settlement_status'] === 'settled') {
-                $where[] = 'EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)';
+                $where[] = UnsettledTransactions::SETTLED;
             }
         }
 
@@ -336,7 +334,7 @@ class TransactionsRepository
 
         [$placeholders, $params] = SafeQuery::inClause(array_values($memberIds), 'string');
         $stmt = $this->db->prepare(
-            "SELECT t.* FROM transactions t WHERE t.member_id IN ({$placeholders}) AND NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id) ORDER BY t.occurred_at ASC"
+            "SELECT t.* FROM transactions t WHERE t.member_id IN ({$placeholders}) AND " . UnsettledTransactions::UNSETTLED . " ORDER BY t.occurred_at ASC"
         );
         $stmt->execute($params);
         return $stmt->fetchAll();
@@ -348,7 +346,7 @@ class TransactionsRepository
 
         [$placeholders, $params] = SafeQuery::inClause($transactionIds, 'string');
         $stmt = $this->db->prepare(
-            "SELECT t.* FROM transactions t WHERE t.id IN ({$placeholders}) AND NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)"
+            "SELECT t.* FROM transactions t WHERE t.id IN ({$placeholders}) AND " . UnsettledTransactions::UNSETTLED . ""
         );
         $stmt->execute($params);
         return $stmt->fetchAll();
@@ -381,10 +379,7 @@ class TransactionsRepository
         $stmt = $this->db->prepare(
             'SELECT COALESCE(SUM(t.amount_cents), 0)
              FROM transactions t
-             WHERE NOT EXISTS (
-                 SELECT 1 FROM settlement_items si
-                 WHERE si.active_transaction_id = t.id
-             )'
+             WHERE ' . UnsettledTransactions::UNSETTLED
         );
         $stmt->execute();
         return (int) $stmt->fetchColumn();
@@ -399,30 +394,7 @@ class TransactionsRepository
      */
     public function summarizeUnsettledByFilters(array $filters = []): array
     {
-        $where = [
-            'NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)',
-        ];
-        $params = [];
-
-        if (isset($filters['date_from'])) {
-            $where[] = 't.occurred_at >= ?';
-            $params[] = $filters['date_from'];
-        }
-        if (isset($filters['date_to'])) {
-            $where[] = 't.occurred_at <= ?';
-            $params[] = $filters['date_to'] . ' 23:59:59';
-        }
-        if (isset($filters['search'])) {
-            $escaped = SafeQuery::escapeLike($filters['search']);
-            $lowerEscaped = mb_strtolower($escaped);
-            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR LOWER(p.names) LIKE ?)";
-            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$lowerEscaped}%"]);
-        }
-        if (isset($filters['member_id'])) {
-            $where[] = 't.member_id = ?';
-            $params[] = $filters['member_id'];
-        }
-
+        [$where, $params] = UnsettledTransactions::buildUnsettledWhere($filters);
         $whereClause = 'WHERE ' . implode(' AND ', $where);
 
         $stmt = $this->db->prepare(
@@ -455,30 +427,7 @@ class TransactionsRepository
      */
     public function findAllUnsettledByFilters(array $filters = []): array
     {
-        $where = [
-            'NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id)',
-        ];
-        $params = [];
-
-        if (isset($filters['date_from'])) {
-            $where[] = 't.occurred_at >= ?';
-            $params[] = $filters['date_from'];
-        }
-        if (isset($filters['date_to'])) {
-            $where[] = 't.occurred_at <= ?';
-            $params[] = $filters['date_to'] . ' 23:59:59';
-        }
-        if (isset($filters['search'])) {
-            $escaped = SafeQuery::escapeLike($filters['search']);
-            $lowerEscaped = mb_strtolower($escaped);
-            $where[] = "(CONCAT(m.first_name, ' ', m.last_name) LIKE ? OR t.notes LIKE ? OR LOWER(p.names) LIKE ?)";
-            $params = array_merge($params, ["%{$escaped}%", "%{$escaped}%", "%{$lowerEscaped}%"]);
-        }
-        if (isset($filters['member_id'])) {
-            $where[] = 't.member_id = ?';
-            $params[] = $filters['member_id'];
-        }
-
+        [$where, $params] = UnsettledTransactions::buildUnsettledWhere($filters);
         $whereClause = 'WHERE ' . implode(' AND ', $where);
 
         $stmt = $this->db->prepare(

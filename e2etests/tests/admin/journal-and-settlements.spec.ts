@@ -745,7 +745,7 @@ test.describe('Journal & Settlements', () => {
       `http://localhost:8080/api/admin/transactions?per_page=100&search=${prefix}Last`
     )
     expect(verify.ok()).toBeTruthy()
-    const rows = (await verify.json()).items ?? (await verify.json()).data
+    const rows = (await verify.json()).data
     const stornoRow = rows.find((t: any) => t.id === body.id)
     expect(stornoRow).toBeDefined()
     expect(stornoRow.amount_cents).toBe(-750)
@@ -793,7 +793,7 @@ test.describe('Journal & Settlements', () => {
     const verify = await authenticatedRequest.get(
       `http://localhost:8080/api/admin/transactions?per_page=100&search=${prefix}Last`
     )
-    const rows = (await verify.json()).items ?? (await verify.json()).data
+    const rows = (await verify.json()).data
     const stornos = rows.filter((t: any) => t.related_transaction_id === purchaseId)
     expect(stornos).toHaveLength(1)
   })

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\Members\Repositories;
 
+use App\Shared\Utils\Uuid;
 use PDO;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
+use App\Shared\Repository\UnsettledTransactions;
 
 class MembersRepository
 {
@@ -76,7 +78,7 @@ class MembersRepository
 
     public function create(array $data): array
     {
-        $id = $data['id'] ?? $this->generateUuid();
+        $id = $data['id'] ?? Uuid::v4();
         $now = date('Y-m-d H:i:s');
 
         $stmt = $this->db->prepare(
@@ -211,7 +213,7 @@ class MembersRepository
 
     private function openMandate(string $memberId, array $data): void
     {
-        $mandateId = $this->generateUuid();
+        $mandateId = Uuid::v4();
 
         // Per ADR-0006 the reference is a UUID without hyphens; it is now minted
         // when the mandate is opened rather than when the member is created, so
@@ -277,7 +279,7 @@ class MembersRepository
     {
         $now = date('Y-m-d H:i:s');
         // card_uid is VARCHAR(20), so use ANON- + 15 chars of UUID = 20 chars max
-        $anonCardUid = 'ANON-' . substr(str_replace('-', '', $this->generateUuid()), 0, 15);
+        $anonCardUid = 'ANON-' . substr(str_replace('-', '', Uuid::v4()), 0, 15);
         $stmt = $this->db->prepare(
             'UPDATE members SET first_name = NULL, last_name = NULL, email = NULL, phone = NULL, account_holder_name = NULL, card_uid = ?, is_active = 0, deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
         );
@@ -341,7 +343,7 @@ class MembersRepository
         // reports for a single member (#83), evaluated per row here.
         $balanceSort = '(SELECT COALESCE(SUM(t.amount_cents), 0) FROM transactions t'
             . ' WHERE t.member_id = m.id'
-            . ' AND NOT EXISTS (SELECT 1 FROM settlement_items si WHERE si.active_transaction_id = t.id))';
+            . ' AND ' . UnsettledTransactions::UNSETTLED . ')';
         $columnMap = ['id' => 'm.id', 'first_name' => 'm.first_name', 'last_name' => 'm.last_name', 'balance' => $balanceSort, 'created_at' => 'm.created_at'];
         $col = SafeQuery::column($sortKey, array_keys($columnMap));
         $sortColumn = $columnMap[$col];
@@ -361,13 +363,5 @@ class MembersRepository
         $items = $stmt->fetchAll();
 
         return ['items' => $items, 'total' => $total];
-    }
-
-    private function generateUuid(): string
-    {
-        $data = random_bytes(16);
-        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
-        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }

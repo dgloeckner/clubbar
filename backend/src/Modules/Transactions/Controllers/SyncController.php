@@ -7,11 +7,14 @@ namespace App\Modules\Transactions\Controllers;
 use App\Modules\Transactions\Services\TransactionsService;
 use App\Modules\Transactions\Sync\TerminalTransactionAllowlist;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class SyncController
 {
+    use JsonResponder;
+
     private const MAX_BATCH_SIZE = 100;
 
     public function __construct(
@@ -103,11 +106,5 @@ class SyncController
             'count' => count($transactions),
             'transactions' => $transactions,
         ]);
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

@@ -146,10 +146,10 @@ test.describe("Terminals API", () => {
     expect(data).toHaveProperty("data");
     expect(data).toHaveProperty("pagination");
     expect(Array.isArray(data.data)).toBe(true);
-    expect(data.pagination).toHaveProperty("total");
+    expect(data.pagination).toHaveProperty("page");
     expect(data.pagination).toHaveProperty("per_page");
-    expect(data.pagination).toHaveProperty("current_page");
-    expect(data.pagination).toHaveProperty("last_page");
+    expect(data.pagination).toHaveProperty("total");
+    expect(data.pagination).toHaveProperty("total_pages");
   });
 
   test("should filter terminals by is_active status", async ({

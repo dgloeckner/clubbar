@@ -6,11 +6,14 @@ namespace App\Modules\Members\Controllers;
 
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Members\Services\MandateDocumentService;
+use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class MandateDocumentController
 {
+    use JsonResponder;
+
     public function __construct(
         private MandateDocumentService $mandateDocumentService,
         private MembersRepository $membersRepository,
@@ -100,11 +103,5 @@ class MandateDocumentController
         $this->mandateDocumentService->deleteForMember($memberId, $adminId);
 
         return $response->withStatus(204);
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

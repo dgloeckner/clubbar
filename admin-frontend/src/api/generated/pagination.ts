@@ -20,8 +20,20 @@ The admin panel uses secure cookies (`HttpOnly`, `Secure`, `SameSite=Lax`).
 - **Monetary values**: Always integer cents (e.g., 350 = €3.50)
 - **Timestamps**: ISO 8601 format with timezone (e.g., `2025-01-23T14:30:00Z`)
 - **UUIDs**: Hyphenated format (e.g., `550e8400-e29b-41d4-a716-446655440000`)
-- **Pagination**: `page` (1-indexed), `per_page`, response includes `pagination` object
+- **Pagination**: every list endpoint takes `page` (1-indexed) and
+  `per_page` (maximum 100) and answers with
+  `{ data: [...], pagination: { page, per_page, total, total_pages } }`.
+  `offset`/`limit` are accepted as equivalents of `page`/`per_page`.
+  A `per_page` above the maximum, or any non-integer pagination value,
+  is rejected with `400 invalid_request` and a `messages` map naming the
+  offending parameter.
+- **Sorting**: `sort` + `order` (`asc`/`desc`), with `sort_key` +
+  `sort_order` and the combined `sort_by=<field>_<direction>` accepted as
+  equivalents.
 - **IBAN masking**: Displayed as `DE89****3000` (first 4 + last 4 chars) except in exports
+- **CSV exports**: UTF-8, `;` delimiter, RFC 4180 quoting, `\n` line
+  endings, and money as plain decimal euros (`12.34`) in a column whose
+  name says so. JSON payloads still use integer cents.
 
 ## Audit Logging
 
@@ -46,9 +58,18 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * The pagination block every list endpoint returns beside its `data`
+array. All four fields are always present.
+
+ */
 export interface Pagination {
-  page?: number;
-  per_page?: number;
-  total?: number;
-  total_pages?: number;
+  /** 1-indexed page the `data` array belongs to. */
+  page: number;
+  /** Rows requested per page (maximum 100). */
+  per_page: number;
+  /** Rows matching the filters, across all pages. */
+  total: number;
+  /** ceil(total / per_page); 0 when nothing matched. */
+  total_pages: number;
 }

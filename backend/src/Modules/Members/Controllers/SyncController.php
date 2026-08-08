@@ -6,11 +6,14 @@ namespace App\Modules\Members\Controllers;
 
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Members\Enums\SupportedLanguage;
+use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class SyncController
 {
+    use JsonResponder;
+
     public function __construct(
         private MembersService $membersService,
     ) {}
@@ -44,11 +47,5 @@ class SyncController
         $member = $this->membersService->updateLanguage($memberId, $language);
 
         return $this->json($response, $member->toArray());
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

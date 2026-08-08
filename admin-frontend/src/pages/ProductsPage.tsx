@@ -184,14 +184,7 @@ export function ProductsPage() {
   async function loadCategories() {
     try {
       const response = await getProducts().listCategories()
-      // Support both OAS-compliant { data: [...] } and legacy { categories: [...] } shapes
-      const raw = response as unknown as Record<string, unknown>
-      const categoriesArray: CategoryRuntime[] = (
-        (raw.data as CategoryRuntime[] | undefined) ??
-        (raw.categories as CategoryRuntime[] | undefined) ??
-        []
-      )
-      setCategories(categoriesArray)
+      setCategories((response.data ?? []) as CategoryRuntime[])
     } catch {
       // Silently fail - categories are optional for display purposes
       setCategories([])
@@ -216,20 +209,9 @@ export function ProductsPage() {
 
       const response = await getProducts().listProducts(params)
 
-      // Support both OAS-compliant { data: [...], pagination: {...} } and legacy { items: [...], total: N }
-      const raw = response as unknown as Record<string, unknown>
-      const items: ProductWithExtras[] = (
-        (raw.data as ProductWithExtras[] | undefined) ??
-        (raw.items as ProductWithExtras[] | undefined) ??
-        []
-      )
-      const apiTotal: number = (
-        (response.pagination?.total) ??
-        (raw.total as number | undefined) ??
-        items.length
-      )
+      const items = (response.data ?? []) as ProductWithExtras[]
 
-      setTotalItems(apiTotal)
+      setTotalItems(response.pagination?.total ?? items.length)
       setProducts(items)
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {

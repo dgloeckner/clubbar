@@ -8,11 +8,17 @@ use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Shared\Validation\Validator;
+use App\Shared\Http\JsonResponder;
+use App\Shared\Http\ListQuery;
+use App\Shared\Http\PaginatedResponse;
+use App\Shared\Utils\Csv;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AdminController
 {
+    use JsonResponder;
+
     public function __construct(
         private SettlementsService $settlementsService,
         private SepaExportService $sepaExportService,
@@ -141,34 +147,19 @@ class AdminController
     public function index(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
+        $query = ListQuery::fromParams($params, defaultPerPage: 20);
 
-        // Accept both frontend format (page/per_page) and backend format (limit/offset)
-        $page = (int) ($params['page'] ?? 1);
-        $perPage = (int) ($params['per_page'] ?? $params['limit'] ?? 20);
-        $limit = $perPage;
-        $offset = ($page - 1) * $perPage;
+        $result = $this->settlementsService->listSettlements(
+            $query->perPage,
+            $query->offset,
+            $params['status'] ?? null,
+            $query->sortKey,
+            $query->sortOrder,
+            $params['date_from'] ?? null,
+            $params['date_to'] ?? null,
+        );
 
-        $status = $params['status'] ?? null;
-
-        // Accept both 'sort'/'order' (frontend) and 'sort_key'/'sort_order' (backend)
-        $sortKey = $params['sort'] ?? $params['sort_key'] ?? 'created_at';
-        $sortOrder = $params['order'] ?? $params['sort_order'] ?? 'desc';
-
-        // Date filters
-        $dateFrom = $params['date_from'] ?? null;
-        $dateTo = $params['date_to'] ?? null;
-
-        $result = $this->settlementsService->listSettlements($limit, $offset, $status, $sortKey, $sortOrder, $dateFrom, $dateTo);
-
-        $data = $result->toArray();
-        return $this->json($response, [
-            'data' => $data['items'],
-            'pagination' => [
-                'total' => $data['total'],
-                'per_page' => $perPage,
-                'current_page' => $page,
-            ],
-        ]);
+        return $this->json($response, PaginatedResponse::fromQuery($result->items, $result->total, $query));
     }
 
     public function show(Request $request, Response $response, array $args): Response
@@ -339,17 +330,15 @@ class AdminController
 
     private function buildSettlementCsv(array $memberRows): string
     {
-        $lines = ["Member Name;Email;IBAN;Amount EUR"];
-        foreach ($memberRows as $row) {
-            $amountEur = number_format($row['amount_cents'] / 100, 2, '.', '');
-            $lines[] = implode(';', [
+        return Csv::build(
+            ['Member Name', 'Email', 'IBAN', 'Amount EUR'],
+            array_map(static fn(array $row): array => [
                 $row['name'],
                 $row['email'],
                 $row['iban'],
-                $amountEur,
-            ]);
-        }
-        return implode("\n", $lines) . "\n";
+                Csv::money((int) $row['amount_cents']),
+            ], $memberRows),
+        );
     }
 
     private function buildCsv(array $items): string
@@ -358,20 +347,6 @@ class AdminController
             return '';
         }
 
-        $output = fopen('php://temp', 'r+');
-        fputcsv($output, array_keys((array) $items[0]));
-        foreach ($items as $item) {
-            fputcsv($output, (array) $item);
-        }
-        rewind($output);
-        $csv = stream_get_contents($output);
-        fclose($output);
-        return $csv;
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+        return Csv::build(array_keys((array) $items[0]), $items);
     }
 }

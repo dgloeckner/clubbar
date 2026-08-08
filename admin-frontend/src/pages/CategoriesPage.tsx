@@ -153,13 +153,9 @@ export function CategoriesPage() {
 
       const response = await getProducts().listCategories()
 
-      // Support both OAS-compliant { data: [...] } and legacy { categories: [...] } shapes
-      const raw = response as unknown as Record<string, unknown>
-      let categoriesArray: CategoryRuntime[] = (
-        (raw.data as CategoryRuntime[] | undefined) ??
-        (raw.categories as CategoryRuntime[] | undefined) ??
-        []
-      )
+      // Categories come back whole — filtering, sorting and paging below are
+      // client-side.
+      let categoriesArray = (response.data ?? []) as CategoryRuntime[]
 
       if (Array.isArray(categoriesArray)) {
         // Apply filtering

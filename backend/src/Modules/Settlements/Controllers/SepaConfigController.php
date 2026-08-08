@@ -6,11 +6,14 @@ namespace App\Modules\Settlements\Controllers;
 
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Shared\Validation\Validator;
+use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class SepaConfigController
 {
+    use JsonResponder;
+
     public function __construct(
         private SepaConfigService $sepaConfigService,
         private Validator $validator,
@@ -51,11 +54,5 @@ class SepaConfigController
         }
 
         return $this->json($response, $config->toArray());
-    }
-
-    private function json(Response $response, mixed $data, int $status = 200): Response
-    {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }
