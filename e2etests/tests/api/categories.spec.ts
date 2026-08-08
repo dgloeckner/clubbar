@@ -39,9 +39,9 @@ test.describe('Categories API - List', () => {
     expect(response.status()).toBe(200);
 
     const body = await response.json();
-    expect(Array.isArray(body.categories)).toBeTruthy();
+    expect(Array.isArray(body.data)).toBeTruthy();
 
-    const found = body.categories.find((c: any) => c.id === created.id);
+    const found = body.data.find((c: any) => c.id === created.id);
     expect(found).toBeDefined();
     expect(found.names).toEqual(created.names);
     expect(typeof found.product_count).toBe('number');
@@ -274,7 +274,7 @@ test.describe('Categories API - Terminal Sync', () => {
     expect(typeof body.count).toBe('number');
     expect(typeof body.has_more).toBe('boolean');
 
-    const found = body.categories.find((c: any) => c.id === created.id);
+    const found = body.data.find((c: any) => c.id === created.id);
     expect(found).toBeDefined();
   });
 

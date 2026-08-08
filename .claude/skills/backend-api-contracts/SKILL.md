@@ -16,7 +16,7 @@ All responses are JSON with `Content-Type: application/json`.
 
 | Operation | Status | Body |
 |-----------|--------|------|
-| List | `200` | `{ items: [...], total: N, limit: N, offset: N }` |
+| List | `200` | `{ data: [...], pagination: { page, per_page, total, total_pages } }` |
 | Show | `200` | Single DTO object |
 | Create | `201` | Created DTO object |
 | Update | `200` | Updated DTO object |
@@ -36,6 +36,7 @@ Every error follows the same shape:
 | `404` | `not_found` | Entity does not exist |
 | `409` | `business_rule_violation` | Business logic constraint (e.g., settle already-settled txn) |
 | `409` | `duplicate_resource` | Unique constraint (e.g., duplicate email) |
+| `400` | `invalid_request` | Malformed query parameter (see Pagination) |
 | `422` | `validation_failed` | Input validation failed (see below) |
 | `500` | `internal_error` | Unhandled server error |
 
@@ -124,35 +125,77 @@ Enums serialize as their **backing string value**, not the PHP name:
 
 ## Pagination Response
 
-All list endpoints return paginated results:
+Every list endpoint returns the same envelope — one shape, no exceptions
+(issue #119 removed the four that used to coexist):
 
 ```json
 {
-  "items": [ { ... }, { ... } ],
-  "total": 42,
-  "limit": 50,
-  "offset": 0
+  "data": [ { ... }, { ... } ],
+  "pagination": { "page": 1, "per_page": 50, "total": 42, "total_pages": 1 }
 }
 ```
 
-**Query parameters** (sent by frontend/tests):
+`total_pages` is `ceil(total / per_page)`, so it is `0` when nothing matched.
+Settlement *detail* (`GET /admin/settlements/{id}`) has its own `items` array
+of settled transactions — that is a field of the settlement, not a list
+envelope, and is unrelated.
+
+**Query parameters** — parsed by `App\Shared\Http\ListQuery`, identically on
+every endpoint:
 
 | Param | Default | Meaning |
 |-------|---------|---------|
-| `per_page` | `50` | Items per page |
-| `page` | `1` | Page number (backend converts to offset) |
+| `per_page` | `50` (20 on some endpoints) | Rows per page, maximum **100** |
+| `page` | `1` | 1-indexed page number |
+| `limit` / `offset` | — | Accepted as equivalents of `per_page` / `page` |
 | `sort` | `created_at` | Sort field |
 | `order` | `desc` | Sort direction (`asc`/`desc`) |
-| `search` | — | Full-text search across name/email fields |
+| `sort_key` / `sort_order` | — | Accepted as equivalents of `sort` / `order` |
+| `sort_by` | — | Combined form, e.g. `name_asc`, `created_at_desc` |
+| `search` | — | Full-text search across name/email/notes fields |
+
+A `per_page` over the cap, or any non-integer pagination value, is **rejected**,
+not clamped:
+
+```json
+{
+  "error": "invalid_request",
+  "message": "per_page must not exceed 100",
+  "messages": { "per_page": ["per_page must not exceed 100"] }
+}
+```
+
+with status `400`. The key in `messages` is the parameter the caller actually
+sent, so a request using `limit=500` is answered under `limit`.
 
 **Assertion pattern:**
 ```typescript
 const res = await request.get('/api/admin/members?per_page=10&sort=last_name&order=asc');
 expect(res.ok()).toBeTruthy();
 const body = await res.json();
-expect(body.items).toBeInstanceOf(Array);
-expect(body.total).toBeGreaterThanOrEqual(0);
-expect(body.limit).toBe(10);
+expect(body.data).toBeInstanceOf(Array);
+expect(body.pagination.per_page).toBe(10);
+expect(body.pagination.total).toBeGreaterThanOrEqual(0);
+expect(body.pagination.total_pages).toBe(Math.ceil(body.pagination.total / 10));
+```
+
+**Sync endpoints are different.** `/api/sync/*` uses cursor pagination
+(`{ products: [...], cursor, count, has_more }`) and is not affected by any of
+the above.
+
+---
+
+## CSV Exports
+
+All four exports go through `App\Shared\Utils\Csv`: UTF-8, `;` delimiter,
+RFC 4180 quoting, `\n` line endings, and money as plain decimal euros
+(`12.34`) in a column whose name says so — `Amount EUR`, `amount_eur`,
+`Revenue EUR`. JSON payloads still carry integer cents.
+
+```typescript
+const csv = await res.text();
+const [header, ...rows] = csv.trim().split('\n');
+expect(header).toBe('date;member_name;product;type;amount_eur');
 ```
 
 ---

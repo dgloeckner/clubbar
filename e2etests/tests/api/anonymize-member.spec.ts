@@ -194,10 +194,10 @@ test.describe('GDPR Member Anonymization', () => {
     const txnData = await txnResponse.json();
     // 2 purchases + 2 stornos, all retained: erasure removes the person, not
     // the accounting record (#165)
-    expect(txnData.items.length).toBeGreaterThanOrEqual(4);
+    expect(txnData.data.length).toBeGreaterThanOrEqual(4);
 
     // Verify transaction amounts are intact
-    const amounts = txnData.items.map((t: any) => t.amount_cents);
+    const amounts = txnData.data.map((t: any) => t.amount_cents);
     expect(amounts).toContain(300);
     expect(amounts).toContain(500);
   });

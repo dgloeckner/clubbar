@@ -117,7 +117,7 @@ test.describe('Admin Transactions - Text Search', () => {
     const body = await response.json();
 
     // Pattern 003: Find by transaction ID, not by position
-    const found = body.items.find((tx: any) => tx.id === transaction.id);
+    const found = body.data.find((tx: any) => tx.id === transaction.id);
 
     // E2E verification: transaction with matching product name must appear in results
     expect(found).toBeDefined();
@@ -146,7 +146,7 @@ test.describe('Admin Transactions - Text Search', () => {
     const body = await response.json();
 
     // Pattern 003: Find by transaction ID
-    const found = body.items.find((tx: any) => tx.id === transaction.id);
+    const found = body.data.find((tx: any) => tx.id === transaction.id);
     expect(found).toBeDefined();
   });
 
@@ -163,8 +163,8 @@ test.describe('Admin Transactions - Text Search', () => {
     expect(response.ok()).toBeTruthy();
 
     const body = await response.json();
-    expect(body.items).toBeDefined();
-    expect(body.total).toBe(0);
-    expect(body.items.length).toBe(0);
+    expect(body.data).toBeDefined();
+    expect(body.pagination.total).toBe(0);
+    expect(body.data.length).toBe(0);
   });
 });

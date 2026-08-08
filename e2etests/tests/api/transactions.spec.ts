@@ -958,9 +958,7 @@ test.describe('Storno Endpoint', () => {
     );
     expect(auditResponse.ok()).toBeTruthy();
     const audit = await auditResponse.json();
-    const items = audit.items ?? audit.data ?? audit;
-
-    const entry = items.find((e: any) => e.entity_id === storno.id);
+    const entry = audit.data.find((e: any) => e.entity_id === storno.id);
     expect(entry).toBeDefined();
     expect(entry.entity_type).toBe('transaction');
     expect(entry.action).toBe('transaction_storno');
@@ -1118,7 +1116,7 @@ test.describe('Transaction Export Endpoint', () => {
     const csv = await response.text();
 
     // Verify CSV headers
-    expect(csv).toContain('date;member_name;product;type;amount');
+    expect(csv).toContain('date;member_name;product;type;amount_eur');
   });
 
   test('GET /api/admin/transactions/export respects date range', async ({ authenticatedRequest }) => {
@@ -1134,7 +1132,7 @@ test.describe('Transaction Export Endpoint', () => {
     const csv = await response.text();
 
     // CSV should have headers even if no transactions in range
-    expect(csv).toContain('date;member_name;product;type;amount');
+    expect(csv).toContain('date;member_name;product;type;amount_eur');
   });
 
   test('GET /api/admin/transactions/export filters by member_id', async ({ authenticatedRequest }) => {
@@ -1152,7 +1150,7 @@ test.describe('Transaction Export Endpoint', () => {
     const csv = await response.text();
 
     // Verify CSV headers present
-    expect(csv).toContain('date;member_name;product;type;amount');
+    expect(csv).toContain('date;member_name;product;type;amount_eur');
   });
 
   test('GET /api/admin/transactions/export filters by transaction type', async ({ authenticatedRequest }) => {
@@ -1170,7 +1168,7 @@ test.describe('Transaction Export Endpoint', () => {
     const csv = await response.text();
 
     // Verify CSV format
-    expect(csv).toContain('date;member_name;product;type;amount');
+    expect(csv).toContain('date;member_name;product;type;amount_eur');
   });
 
   test('GET /api/admin/transactions/export rejects invalid date format', async ({ authenticatedRequest }) => {
@@ -1236,7 +1234,7 @@ test.describe('Transaction Export Endpoint', () => {
     expect(journalResponse.ok()).toBeTruthy();
 
     const journal = await journalResponse.json();
-    const storedTx = journal.items.find(tx => tx.id === transaction.id);
+    const storedTx = journal.data.find(tx => tx.id === transaction.id);
     expect(storedTx).toBeDefined();
     expect(storedTx.created_by_terminal_id).not.toBeNull();
   });

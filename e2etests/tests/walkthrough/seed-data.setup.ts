@@ -6,8 +6,7 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
   // --- 1. Get existing products to use real product IDs ---
   const productsResp = await authenticatedRequest.get(`${API_BASE}/admin/products`);
   const productsData = await productsResp.json();
-  const products = productsData.items || productsData.data || productsData;
-  const activeProducts = (Array.isArray(products) ? products : []).filter((p: any) => p.is_active);
+  const activeProducts = (productsData.data ?? []).filter((p: any) => p.is_active);
 
   if (activeProducts.length === 0) {
     throw new Error('No active products found — seed some products first');
@@ -86,8 +85,7 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
     // Try to fetch existing members instead
     const membersResp = await authenticatedRequest.get(`${API_BASE}/admin/members?per_page=10`);
     const membersData = await membersResp.json();
-    const members = membersData.items || membersData.data || membersData;
-    for (const m of (Array.isArray(members) ? members : []).slice(0, 5)) {
+    for (const m of (membersData.data ?? []).slice(0, 5)) {
       memberIds.push(m.id);
     }
   }

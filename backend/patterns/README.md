@@ -66,6 +66,12 @@ All backend code must follow these patterns. Reference them when implementing fe
 - Domain exceptions with HTTP status mapping
 - **When**: Error handling across all endpoints
 
+**[Pattern 017: Shared HTTP Layer](./pattern-017-shared-http-layer.md)**
+- `JsonResponder` trait, `ListQuery` parser, `PaginatedResponse` envelope
+- One list-response shape, one pagination cap, all sort dialects
+- Shared `Uuid`, `Csv` and `UnsettledTransactions` helpers
+- **When**: Any controller returning JSON or a list, any CSV export
+
 ---
 
 ### Infrastructure & Configuration
