@@ -186,6 +186,74 @@ class ReportsService
     }
 
     /**
+     * Export the member ranking as a CSV string (UC-A51).
+     */
+    public function exportMemberRankingCsv(
+        ?string $dateFrom,
+        ?string $dateTo,
+        bool $anonymize = false,
+        int $limit = 25,
+    ): string {
+        $ranking = $this->getMemberRanking($dateFrom, $dateTo, $anonymize, $limit);
+
+        return Csv::build(
+            ['Rank', 'Member', 'Total EUR', 'Transactions'],
+            array_map(static fn(array $row): array => [
+                $row['rank'],
+                $row['member_name'],
+                Csv::money((int) $row['total_amount_cents']),
+                $row['transaction_count'],
+            ], $ranking['data']),
+        );
+    }
+
+    /**
+     * Export the terminal activity report as a CSV string (UC-A52).
+     *
+     * The report is three tables on screen, so it is three blocks in the file —
+     * exporting only the sessions would hand back less than the button promises.
+     */
+    public function exportTerminalActivityCsv(
+        string $dateFrom,
+        string $dateTo,
+        ?string $terminalId = null,
+    ): string {
+        $activity = $this->getTerminalActivity($dateFrom, $dateTo, $terminalId);
+
+        $sessions = Csv::build(
+            ['Date', 'Start', 'End', 'Transactions', 'Revenue EUR'],
+            array_map(static fn(array $s): array => [
+                $s['date'],
+                $s['start_time'],
+                $s['end_time'],
+                $s['transaction_count'],
+                Csv::money((int) $s['revenue_cents']),
+            ], $activity['sessions']),
+        );
+
+        $hourly = Csv::build(
+            ['Hour', 'Transactions'],
+            array_map(static fn(array $b): array => [
+                sprintf('%02d:00', (int) $b['hour']),
+                $b['transaction_count'],
+            ], $activity['hourly_distribution']),
+        );
+
+        $terminals = Csv::build(
+            ['Terminal', 'Transactions', 'Last Sync'],
+            array_map(static fn(array $t): array => [
+                $t['name'],
+                $t['transaction_count'],
+                $t['last_sync_at'],
+            ], $activity['terminals']),
+        );
+
+        return "Sessions\n" . $sessions
+            . "\nHourly Distribution\n" . $hourly
+            . "\nTerminals\n" . $terminals;
+    }
+
+    /**
      * Get member consumption ranking (UC-A51).
      */
     public function getMemberRanking(

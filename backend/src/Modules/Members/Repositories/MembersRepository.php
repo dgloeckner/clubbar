@@ -9,6 +9,7 @@ use PDO;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
 use App\Shared\Repository\UnsettledTransactions;
+use App\Shared\Sync\SyncCursor;
 
 class MembersRepository
 {
@@ -60,16 +61,17 @@ class MembersRepository
 
     public function findModifiedSince(int $sinceTimestamp): array
     {
-        // Convert milliseconds to seconds for date() function
-        $sinceSeconds = (int) ($sinceTimestamp / 1000);
-        $sinceDate = date('Y-m-d H:i:s', $sinceSeconds);
+        $sinceDate = SyncCursor::lowerBound($sinceTimestamp);
 
         // Include both updated and deleted items (tombstones)
         // This enables the terminal to remove deleted items from local cache
-        // Use > (not >=) to avoid re-syncing items at exactly the cursor timestamp
+        // The bound is inclusive (>=): the column has second precision, so a
+        // strict > loses every member written later in the cursor's own second,
+        // and loses them for good (#84). SyncCursor::next only moves the cursor
+        // past a second once that second is over, so the repeat is bounded.
         $stmt = $this->db->prepare(
             'SELECT m.*, ' . self::MANDATE_COLUMNS . ' FROM members m ' . self::MANDATE_JOIN . '
-             WHERE m.updated_at > ? OR (m.deleted_at > ? AND m.deleted_at IS NOT NULL)
+             WHERE m.updated_at >= ? OR (m.deleted_at >= ? AND m.deleted_at IS NOT NULL)
              ORDER BY COALESCE(m.updated_at, m.deleted_at) ASC'
         );
         $stmt->execute([$sinceDate, $sinceDate]);

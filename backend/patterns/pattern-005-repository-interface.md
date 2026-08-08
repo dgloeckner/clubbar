@@ -16,7 +16,7 @@ class MembersService
 {
     public function syncMembers(int $since): SyncResultDto
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM members WHERE updated_at > ?');
+        $stmt = $this->pdo->prepare('SELECT * FROM members WHERE updated_at >= ?');
         $stmt->execute([date('Y-m-d H:i:s', $since)]);
         $rows = $stmt->fetchAll();
         // Manual mapping...
@@ -54,6 +54,7 @@ namespace App\Modules\Members\Repositories;
 
 use PDO;
 use App\Shared\Logging\Logger;
+use App\Shared\Sync\SyncCursor;
 
 class MembersRepository
 {
@@ -71,11 +72,13 @@ class MembersRepository
 
     public function findModifiedSince(int $sinceTimestamp): array
     {
-        $sinceDate = date('Y-m-d H:i:s', (int) ($sinceTimestamp / 1000));
+        $sinceDate = SyncCursor::lowerBound($sinceTimestamp);
 
+        // Inclusive bound: the columns have second precision, so a strict >
+        // loses every row written later in the cursor's own second (#84)
         $stmt = $this->db->prepare(
             'SELECT * FROM members
-             WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
+             WHERE updated_at >= ? OR (deleted_at >= ? AND deleted_at IS NOT NULL)
              ORDER BY COALESCE(updated_at, deleted_at) ASC'
         );
         $stmt->execute([$sinceDate, $sinceDate]);

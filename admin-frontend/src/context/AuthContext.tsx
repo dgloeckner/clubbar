@@ -4,6 +4,7 @@
  */
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   loginWithSession,
   submitMfaWithSession,
@@ -12,7 +13,9 @@ import {
   logoutWithSession,
   getCurrentSession,
   isAuthenticated,
+  type LoginSessionResult,
 } from '../auth/session'
+import { authErrorKey, endsMfaStep } from '../utils/authErrors'
 
 // UI-level types — not from generated schemas
 interface LoginCredentials {
@@ -55,10 +58,18 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const { t } = useTranslation()
   const [auth, setAuth] = useState<AuthState>({ isAuthenticated: false })
   const [initializing, setInitializing] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
+
+  // Lockout outcomes get localized wording; anything else falls back to the
+  // server's message, which is what the form used to show for every failure.
+  const describe = (response: LoginSessionResult): string => {
+    const key = authErrorKey(response.errorCode)
+    return key ? t(key) : response.message
+  }
 
   useEffect(() => {
     const session = getCurrentSession()
@@ -97,7 +108,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setAuth(prev => ({ ...prev, requiresTotpSetup: true, pendingAdmin: response.data }))
         return false
       }
-      setError(response.message)
+      setError(describe(response))
       return false
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed'
@@ -159,7 +170,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         })
         return true
       }
-      setError(response.message)
+      setError(describe(response))
+      // The pending session is gone server-side — leaving the code form up would
+      // invite guesses at a session that no longer exists. Back to the password.
+      if (endsMfaStep(response.errorCode)) {
+        setAuth({ isAuthenticated: false, requiresMfa: false })
+      }
       return false
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Invalid code'

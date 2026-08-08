@@ -9,6 +9,7 @@ use App\Modules\Members\DTOs\MemberDto;
 use App\Modules\Members\DTOs\MemberAdminDto;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\DTOs\SyncResultDto;
+use App\Shared\Sync\SyncCursor;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\BusinessRuleException;
@@ -34,16 +35,17 @@ class MembersService
 
     public function syncSince(int $since): SyncResultDto
     {
+        // Taken before the query, not after: it decides whether the newest
+        // second the query saw was already complete when the query ran (#84).
+        $queriedAt = time();
         $rows = $this->membersRepository->findModifiedSince($since);
         $members = array_map(fn($row) => MemberDto::fromRow($row), $rows);
 
-        // When no changes: return input cursor to avoid race condition
-        // (items created during query execution won't be lost)
-        $cursor = !empty($rows)
-            ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
-            : $since;
-
-        return new SyncResultDto(items: $members, cursor: $cursor, hasMore: false);
+        return new SyncResultDto(
+            items: $members,
+            cursor: SyncCursor::next($rows, $since, $queriedAt),
+            hasMore: false,
+        );
     }
 
     public function updateLanguage(string $memberId, SupportedLanguage $language): MemberDto

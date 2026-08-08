@@ -228,6 +228,56 @@ export function SettingsPage() {
 
 ---
 
+#### SecretDisplayModal Component
+
+Modal for a value the backend shows exactly once (terminal API token, generated
+admin password). Such a value cannot be recovered, so the modal is deliberately
+harder to dismiss than an ordinary one.
+
+**File**: `src/components/modals/SecretDisplayModal.tsx`
+
+**Rules** (issue #126):
+- The clipboard write is **awaited** (`useClipboardCopy`) — a rejected write
+  (non-secure origin, unfocused document, denied permission) is reported, never
+  mistaken for success.
+- A failed copy keeps the modal open and selects the value so it can be copied
+  by hand.
+- The backdrop is **inert**. Only the explicit "I have saved it" button closes
+  the modal, because the parent clears the secret on close.
+
+**Props**:
+- `isOpen` (boolean, required): Whether the modal is shown
+- `secret` (string | null, required): The one-time value; nothing renders without it
+- `title` (string, required): Translated heading
+- `warning` (string, required): Translated "shown only once" warning
+- `testIdPrefix` (string, required): Prefix for the modal's test IDs
+- `onClose` (() => void, required): Called only on explicit acknowledgement
+
+**Test IDs** derived from the prefix: `-modal`, `-display`, `-copy-button`,
+`-copy-status`, `-copy-error`, `-close-button`.
+
+**Example**:
+```typescript
+import { SecretDisplayModal } from '@/components/modals/SecretDisplayModal'
+
+export function TokenDisplayModal({ isOpen, token, onClose }: TokenDisplayModalProps) {
+  const { t } = useTranslation()
+
+  return (
+    <SecretDisplayModal
+      isOpen={isOpen}
+      secret={token}
+      title={t('settings.tokenGenerated')}
+      warning={t('settings.tokenWarning')}
+      testIdPrefix="settings-terminal-token"
+      onClose={onClose}
+    />
+  )
+}
+```
+
+---
+
 ### Form Components
 
 #### CharacterCounter Component

@@ -290,6 +290,27 @@ test.describe('Reports Page', () => {
       await expect(page.getByTestId('report-export-csv')).toBeVisible()
     })
 
+    // #94: this button used to hand back the list endpoint's JSON under a .csv
+    // name. What lands on disk has to be a CSV.
+    test('export downloads an actual CSV, not JSON', async ({ page }) => {
+      await waitForRankingLoaded(page)
+
+      const downloadPromise = page.waitForEvent('download', { timeout: 15000 })
+      await page.getByTestId('report-export-csv').click()
+      const download = await downloadPromise
+
+      expect(download.suggestedFilename()).toMatch(/^report-member-ranking-.*\.csv$/)
+
+      const path = await download.path()
+      expect(path).not.toBeNull()
+      const fs = await import('fs')
+      const content = fs.readFileSync(path as string, 'utf-8')
+
+      expect(content.split('\n')[0]).toBe('Rank;Member;Total EUR;Transactions')
+      expect(content.startsWith('{')).toBe(false)
+      await expect(page.getByTestId('report-export-error')).toBeHidden()
+    })
+
     test('anonymize toggle should send anonymize param to API', async ({ page }) => {
       // Click the toggle to enable anonymize
       await page.getByTestId('ranking-anonymize').click()
@@ -362,6 +383,29 @@ test.describe('Reports Page', () => {
     test('should display export button on terminal activity tab', async ({ page }) => {
       await waitForTerminalLoaded(page)
       await expect(page.getByTestId('report-export-csv')).toBeVisible()
+    })
+
+    // #94: same bug as the ranking tab — the download was the list endpoint's
+    // JSON wearing a .csv name.
+    test('export downloads an actual CSV, not JSON', async ({ page }) => {
+      await waitForTerminalLoaded(page)
+
+      const downloadPromise = page.waitForEvent('download', { timeout: 15000 })
+      await page.getByTestId('report-export-csv').click()
+      const download = await downloadPromise
+
+      expect(download.suggestedFilename()).toMatch(/^report-terminal-activity-.*\.csv$/)
+
+      const path = await download.path()
+      expect(path).not.toBeNull()
+      const fs = await import('fs')
+      const content = fs.readFileSync(path as string, 'utf-8')
+
+      expect(content).toContain('Sessions\nDate;Start;End;Transactions;Revenue EUR')
+      expect(content).toContain('Hourly Distribution\nHour;Transactions')
+      expect(content).toContain('Terminals\nTerminal;Transactions;Last Sync')
+      expect(content.startsWith('{')).toBe(false)
+      await expect(page.getByTestId('report-export-error')).toBeHidden()
     })
 
     test('should send date params to terminal activity API', async ({ page }) => {

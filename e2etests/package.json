@@ -7,6 +7,7 @@
     "test:api": "playwright test --project=api-tests",
     "test:admin": "playwright test --project=admin-chromium",
     "test:terminal": "playwright test --project=terminal-touch",
+    "test:rate-limit": "playwright test --project=rate-limit --workers=1",
     "test:ui": "playwright test --ui",
     "report": "playwright show-report",
     "walkthrough": "playwright test --project=walkthrough --workers=1",

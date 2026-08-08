@@ -355,6 +355,69 @@ test.describe('Delta Sync Behavior - Products', () => {
   });
 });
 
+/**
+ * Regression guard for #84.
+ *
+ * MySQL TIMESTAMP has second precision, so a member or price written at
+ * 12:00:00.8 is stored exactly like one written at 12:00:00.2. A terminal that
+ * synced in between holds the cursor 12:00:00 — and if the next query asked for
+ * `> 12:00:00`, the second write would never be delivered to that terminal
+ * again. The lower bound is therefore inclusive: an item whose `updated_at`
+ * falls exactly on the cursor is still returned.
+ */
+test.describe('Delta Sync - Cursor Second Boundary', () => {
+  test('returns a member whose updated_at falls exactly on the since cursor', async ({
+    authenticatedTerminalRequest,
+    testTransactions,
+  }) => {
+    const member = await testTransactions.createMember('BoundaryTest', 'Member');
+
+    // Full sync to learn the second the member was actually stored in
+    const fullSync = await authenticatedTerminalRequest.get('/api/sync/members', {
+      params: { since: 0 },
+    });
+    expect(fullSync.ok()).toBeTruthy();
+    const stored = (await fullSync.json()).members.find((m: any) => m.id === member.id);
+    expect(stored).toBeDefined();
+
+    // Sync from exactly that second — the cursor a terminal would be holding
+    const boundaryResponse = await authenticatedTerminalRequest.get('/api/sync/members', {
+      params: { since: Date.parse(stored.updated_at) },
+    });
+
+    expect(boundaryResponse.ok()).toBeTruthy();
+    const boundaryBody = await boundaryResponse.json();
+    expect(boundaryBody.members.find((m: any) => m.id === member.id)).toBeDefined();
+  });
+
+  test('returns a product whose updated_at falls exactly on the since cursor', async ({
+    authenticatedTerminalRequest,
+    testTransactions,
+  }) => {
+    const uniqueName = `DeltaBoundary_${Date.now()}`;
+    const product = await testTransactions.createProduct(uniqueName, 275);
+
+    // Full sync to learn the second the product was actually stored in
+    const fullSync = await authenticatedTerminalRequest.get('/api/sync/products', {
+      params: { since: 0 },
+    });
+    expect(fullSync.ok()).toBeTruthy();
+    const stored = (await fullSync.json()).products.find((p: any) => p.id === product.id);
+    expect(stored).toBeDefined();
+
+    // A price the terminal misses here is a price it keeps charging
+    const boundaryResponse = await authenticatedTerminalRequest.get('/api/sync/products', {
+      params: { since: Date.parse(stored.updated_at) },
+    });
+
+    expect(boundaryResponse.ok()).toBeTruthy();
+    const boundaryBody = await boundaryResponse.json();
+    const found = boundaryBody.products.find((p: any) => p.id === product.id);
+    expect(found).toBeDefined();
+    expect(found.price_cents).toBe(275);
+  });
+});
+
 test.describe('Delta Sync - Empty Results', () => {
   test('returns empty array when no items modified since timestamp', async ({
     authenticatedTerminalRequest,

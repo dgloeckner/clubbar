@@ -9,13 +9,19 @@ import { test, expect } from '../../fixtures/auth.fixture';
  * 1. Deleted items appear in sync results with `deleted_at` set (tombstones)
  * 2. Tombstones allow terminals to remove deleted items from local cache
  * 3. Cursor advances correctly when tombstones are returned
- * 4. Query uses deleted_at > since (not >= to avoid re-sync loops)
+ * 4. A tombstone stops being re-sent once its second is behind the cursor
  * 5. Sync returns both updated items and tombstones in same response
  *
  * Protocol:
  * - Backend: Sets deleted_at timestamp on DELETE (soft delete)
- * - Sync query: WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
+ * - Sync query: WHERE updated_at >= ? OR (deleted_at >= ? AND deleted_at IS NOT NULL)
  * - Frontend: Filters tombstones (deleted_at != null) and removes from cache
+ *
+ * The lower bound is inclusive because the columns have second precision: a row
+ * written later in the cursor's own second would otherwise be lost for good
+ * (#84). The cursor only steps past a second once that second is over, so a
+ * tombstone repeats at most until then — which is why the tests below let the
+ * deletion's second close before taking the cursor they re-sync from.
  */
 
 /** Convert to Unix timestamp (milliseconds) for API calls */
@@ -80,6 +86,10 @@ test.describe('Deletion Protocol - Members', () => {
       `http://localhost:8080/api/admin/members/${member.id}`
     );
     expect(deleteResponse.ok()).toBeTruthy();
+
+    // Let the deletion's second close, so the first sync's cursor moves past it
+    // instead of holding inside a second that may still take writes
+    await new Promise((resolve) => setTimeout(resolve, 1100));
 
     // First sync (since=0 to get all) - should return tombstone
     const firstSync = await authenticatedTerminalRequest.get('/api/sync/members', {
@@ -229,6 +239,9 @@ test.describe('Deletion Protocol - Categories', () => {
     );
     expect(deleteResponse.ok()).toBeTruthy();
 
+    // Let the deletion's second close, so the first sync's cursor moves past it
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
     // First sync (since=0 to get all) - should return tombstone
     const firstSync = await authenticatedTerminalRequest.get('/api/sync/categories', {
       params: { since: 0 },
@@ -238,7 +251,8 @@ test.describe('Deletion Protocol - Categories', () => {
     expect(firstTombstone).toBeDefined();
     expect(firstTombstone.deleted_at).toBeTruthy();
 
-    // Second sync - should NOT return tombstone again (using > not >=)
+    // Second sync - the tombstone's second is behind the cursor now, so it is
+    // not repeated
     const secondSync = await authenticatedTerminalRequest.get('/api/sync/categories', {
       params: { since: firstBody.cursor },
     });
@@ -308,6 +322,9 @@ test.describe('Deletion Protocol - Products', () => {
     );
     expect(deleteResponse.ok()).toBeTruthy();
 
+    // Let the deletion's second close, so the first sync's cursor moves past it
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
     // First sync (since=0 to get all) - should return tombstone
     const firstSync = await authenticatedTerminalRequest.get('/api/sync/products', {
       params: { since: 0 },
@@ -317,7 +334,8 @@ test.describe('Deletion Protocol - Products', () => {
     expect(firstTombstone).toBeDefined();
     expect(firstTombstone.deleted_at).toBeTruthy();
 
-    // Second sync - should NOT return tombstone again (using > not >=)
+    // Second sync - the tombstone's second is behind the cursor now, so it is
+    // not repeated
     const secondSync = await authenticatedTerminalRequest.get('/api/sync/products', {
       params: { since: firstBody.cursor },
     });

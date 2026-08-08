@@ -16,6 +16,7 @@ use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\ValidationException;
+use App\Shared\Sync\SyncCursor;
 
 class ProductsService
 {
@@ -27,15 +28,17 @@ class ProductsService
 
     public function syncSince(int $since): SyncResultDto
     {
+        // Taken before the query, not after: it decides whether the newest
+        // second the query saw was already complete when the query ran (#84).
+        $queriedAt = time();
         $rows = $this->productsRepository->findModifiedSince($since);
         $products = array_map(fn($row) => ProductDto::fromRow($row), $rows);
 
-        // When no changes: return input cursor to avoid race condition
-        // (items created during query execution won't be lost)
-        $cursor = !empty($rows)
-            ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
-            : $since;
-        return new SyncResultDto(items: $products, cursor: $cursor, hasMore: false);
+        return new SyncResultDto(
+            items: $products,
+            cursor: SyncCursor::next($rows, $since, $queriedAt),
+            hasMore: false,
+        );
     }
 
 

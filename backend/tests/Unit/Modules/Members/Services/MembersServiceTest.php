@@ -63,6 +63,41 @@ class MembersServiceTest extends TestCase
         $this->assertSame(9999999999999, $result->cursor);
     }
 
+    public function test_syncSince_cursor_covers_every_row_it_returned(): void
+    {
+        $newest = (new \DateTime('2026-01-01 10:00:03'))->getTimestamp();
+
+        $this->membersRepository
+            ->method('findModifiedSince')
+            ->willReturn([
+                $this->syncRow('2026-01-01 10:00:01'),
+                $this->syncRow('2026-01-01 10:00:03'),
+            ]);
+
+        $result = $this->membersService->syncSince(0);
+
+        // Those seconds are long over, so the cursor steps past the newest one
+        // rather than re-sending it forever (#84).
+        $this->assertSame(($newest + 1) * 1000, $result->cursor);
+    }
+
+    private function syncRow(string $updatedAt): array
+    {
+        return [
+            'id' => 'member-' . $updatedAt,
+            'card_uid' => null,
+            'first_name' => 'Sync',
+            'last_name' => 'Row',
+            'preferred_language' => 'de',
+            'is_active' => 1,
+            'iban' => null,
+            'mandate_reference' => null,
+            'deleted_at' => null,
+            'created_at' => $updatedAt,
+            'updated_at' => $updatedAt,
+        ];
+    }
+
     // ── anonymizeMember ────────────────────────────────────
 
     private function member(string $id, array $overrides = []): array

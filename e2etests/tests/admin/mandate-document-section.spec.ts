@@ -142,19 +142,15 @@ test.describe('MandateDocumentSection — upload and replace', () => {
     const secondResp = await secondUploadResponse
     const secondDoc = await secondResp.json()
     expect(secondDoc.original_filename).toBe('test-mandate.pdf')
-    // A genuinely new upload, not a stale re-render of the first response.
+    // A genuinely new document, not the first row read back: the PDF is a few hundred
+    // bytes where the JPEG is megabytes. This used to compare `uploaded_at`, but that
+    // is `mandate_documents.updated_at` — a TIMESTAMP, so it has second resolution, and
+    // the replace happens well inside one second of the first upload whenever the runner
+    // is quick. Same second, same string, failed assertion, nothing actually wrong.
     //
-    // Asserted on the stored byte count rather than on `uploaded_at`: that
-    // field is the row's `updated_at` DATETIME rendered at one-second
-    // resolution (MandateDocumentDto::fromRow -> DateFormatter::toUtcIso), and
-    // the two uploads here are only a few hundred milliseconds apart, so the
-    // two timestamps are equal unless a second boundary happens to fall
-    // between them. That made the old assertion a coin flip.
-    //
-    // The size is exact instead: the PDF path skips client-side compression
-    // (MandateDocumentSection compresses everything except application/pdf),
-    // so the persisted size is the fixture's own byte count — a deterministic
-    // fingerprint that the first response could not possibly carry.
+    // Pin the exact size rather than only asserting the two differ: the PDF path skips
+    // client-side compression (MandateDocumentSection compresses everything except
+    // application/pdf), so the stored size is the fixture's own byte count.
     expect(secondDoc.file_size_bytes).toBe(pdfBuffer.length)
     expect(secondDoc.file_size_bytes).not.toBe(firstDoc.file_size_bytes)
 

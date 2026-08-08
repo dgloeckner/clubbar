@@ -35,9 +35,11 @@ return function (App $app): void {
     // Public health check
     $app->get('/api/health', [HealthController::class, 'check']);
 
-    // Auth endpoints (login and mfa are public, rest require session)
+    // Auth endpoints (login and mfa are public, rest require session).
+    // Both password and second factor are rate-limited on IP and account (#78,
+    // ruling #145) — an unlimited MFA endpoint made the second factor guessable.
     $app->post('/api/auth/login', [AuthController::class, 'login'])->add(RateLimitMiddleware::class);
-    $app->post('/api/auth/mfa', [AuthController::class, 'mfa']);
+    $app->post('/api/auth/mfa', [AuthController::class, 'mfa'])->add($factory->getMfaRateLimitMiddleware());
 
     $app->group('/api/auth', function (RouteCollectorProxy $group) {
         $group->post('/logout', [AuthController::class, 'logout']);
@@ -152,7 +154,9 @@ return function (App $app): void {
 
         // Reports
         $group->get('/reports/member-ranking', [ReportsAdminController::class, 'memberRanking']);
+        $group->get('/reports/member-ranking/export', [ReportsAdminController::class, 'exportMemberRanking']);
         $group->get('/reports/terminal-activity', [ReportsAdminController::class, 'terminalActivity']);
+        $group->get('/reports/terminal-activity/export', [ReportsAdminController::class, 'exportTerminalActivity']);
         $group->get('/reports/{reportType}/export', [ReportsAdminController::class, 'exportReport']);
         $group->get('/reports/{reportType}', [ReportsAdminController::class, 'getReport']);
 

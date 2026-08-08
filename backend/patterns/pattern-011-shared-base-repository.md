@@ -309,6 +309,7 @@ use PDO;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
 use App\Shared\Repositories\BaseRepository;
+use App\Shared\Sync\SyncCursor;
 
 /**
  * Members repository: extends BaseRepository with Members-specific queries.
@@ -374,12 +375,13 @@ final class MembersRepository extends BaseRepository
      */
     public function findModifiedSince(int $sinceTimestamp): array
     {
-        $sinceSeconds = (int) ($sinceTimestamp / 1000);
-        $sinceDate = date('Y-m-d H:i:s', $sinceSeconds);
+        $sinceDate = SyncCursor::lowerBound($sinceTimestamp);
 
+        // Inclusive bound: the columns have second precision, so a strict >
+        // loses every row written later in the cursor's own second (#84)
         $stmt = $this->db->prepare(
             'SELECT * FROM members
-             WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
+             WHERE updated_at >= ? OR (deleted_at >= ? AND deleted_at IS NOT NULL)
              ORDER BY COALESCE(updated_at, deleted_at) ASC'
         );
         $stmt->execute([$sinceDate, $sinceDate]);
@@ -489,6 +491,7 @@ use PDO;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
 use App\Shared\Repositories\BaseRepository;
+use App\Shared\Sync\SyncCursor;
 
 /**
  * Products repository: extends BaseRepository.
@@ -537,12 +540,13 @@ final class ProductsRepository extends BaseRepository
      */
     public function findModifiedSince(int $sinceTimestamp): array
     {
-        $sinceSeconds = (int) ($sinceTimestamp / 1000);
-        $sinceDate = date('Y-m-d H:i:s', $sinceSeconds);
+        $sinceDate = SyncCursor::lowerBound($sinceTimestamp);
 
+        // Inclusive bound: the columns have second precision, so a strict >
+        // loses every row written later in the cursor's own second (#84)
         $stmt = $this->db->prepare(
             'SELECT * FROM products
-             WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
+             WHERE updated_at >= ? OR (deleted_at >= ? AND deleted_at IS NOT NULL)
              ORDER BY COALESCE(updated_at, deleted_at) ASC'
         );
         $stmt->execute([$sinceDate, $sinceDate]);
@@ -833,9 +837,9 @@ Add repository methods when:
 ```php
 // ✅ Repository method (used by multiple services, encapsulates SQL)
 public function findModifiedSince(int $sinceTimestamp): array {
-    $sinceDate = date('Y-m-d H:i:s', (int) ($sinceTimestamp / 1000));
+    $sinceDate = SyncCursor::lowerBound($sinceTimestamp);
     $stmt = $this->db->prepare(
-        'SELECT * FROM members WHERE updated_at > ? ORDER BY updated_at ASC'
+        'SELECT * FROM members WHERE updated_at >= ? ORDER BY updated_at ASC'
     );
     $stmt->execute([$sinceDate]);
     return $stmt->fetchAll();
