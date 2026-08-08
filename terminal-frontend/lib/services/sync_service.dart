@@ -246,14 +246,21 @@ class SyncService {
     try {
       _logger.i('Syncing ${unsyncedTxns.length} transactions');
 
-      // Filter out transactions missing required fields (e.g. legacy records without product_id)
+      // A row without a product_id can never satisfy the contract, so no
+      // number of retries will store it. Quarantine it rather than skipping it
+      // on every cycle for the rest of the terminal's life (issue #152).
+      final unsendable = unsyncedTxns.where((t) => t.productId == null).toList();
+      if (unsendable.isNotEmpty) {
+        _logger.w('Quarantining ${unsendable.length} transactions with null product_id');
+        await _transactionsRepo.quarantineTransactions({
+          for (final t in unsendable) t.id: 'missing_product_id',
+        });
+      }
+
       final validTxns = unsyncedTxns.where((t) => t.productId != null).toList();
       if (validTxns.isEmpty) {
-        _logger.i('No valid transactions to sync (${unsyncedTxns.length} skipped: missing product_id)');
+        _logger.i('No valid transactions to sync');
         return;
-      }
-      if (validTxns.length < unsyncedTxns.length) {
-        _logger.w('Skipping ${unsyncedTxns.length - validTxns.length} transactions with null product_id');
       }
 
       // Convert to API format per api/terminal.yaml
@@ -282,12 +289,20 @@ class SyncService {
 
       _logger.i('Transactions synced: ${response.acceptedIds.length} accepted');
 
-      final rejectedCount = response.rejected.count ?? 0;
-      if (rejectedCount > 0) {
-        _logger.w('Transactions rejected: $rejectedCount');
-        for (final error in response.rejected.errors ?? []) {
-          _logger.w('  Rejected ${error.transactionId}: ${error.reason}');
-        }
+      // A per-item rejection is permanent: the server tells us it could not
+      // store the row and would refuse it again. Quarantine it so it leaves
+      // the queue without being lost — a transient failure, by contrast,
+      // throws below and leaves the whole batch queued for an unchanged retry.
+      final rejections = <String, String>{};
+      for (final rejected in response.rejected.errors ?? []) {
+        final id = rejected.transactionId;
+        if (id == null) continue;
+        rejections[id] = rejected.error ?? 'unknown';
+        _logger.w('  Rejected $id: ${rejected.error} ${rejected.message ?? ''}');
+      }
+      if (rejections.isNotEmpty) {
+        _logger.w('Transactions rejected: ${rejections.length}');
+        await _transactionsRepo.quarantineTransactions(rejections);
       }
     } catch (e, stackTrace) {
       _logger.e('Transactions sync failed: $e', error: e, stackTrace: stackTrace);

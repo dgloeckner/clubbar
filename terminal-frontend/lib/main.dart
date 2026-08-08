@@ -11,6 +11,7 @@ import 'package:clubbar_terminal/providers/auth_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
+import 'package:clubbar_terminal/providers/quarantine_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/app/terminal_material_app.dart';
@@ -348,11 +349,21 @@ void main() async {
 
   // Load products into provider (after seeding database)
   await productsProvider.refreshProducts();
+
+  // Sales the backend refused permanently. Loaded before the first frame so a
+  // terminal that restarts with a quarantined sale still warns (issue #152).
+  final quarantineProvider = QuarantineProvider(
+    transactionsRepo: transactionsRepo,
+    membersRepo: membersRepo,
+  );
+  await quarantineProvider.refresh();
+
   final syncProvider = SyncProvider(
     syncService: syncService,
     membersProvider: membersProvider,
     productsProvider: productsProvider,
     networkService: networkService,
+    quarantineProvider: quarantineProvider,
   );
 
   runApp(ClubBarTerminalApp(
@@ -363,6 +374,7 @@ void main() async {
     cartProvider: cartProvider,
     sessionController: sessionController,
     syncProvider: syncProvider,
+    quarantineProvider: quarantineProvider,
     membersRepository: membersRepo,
     transactionsRepository: transactionsRepo,
     configService: configService,
@@ -397,6 +409,7 @@ class ClubBarTerminalApp extends StatelessWidget {
   final CartProvider cartProvider;
   final SessionController sessionController;
   final SyncProvider syncProvider;
+  final QuarantineProvider quarantineProvider;
   final MembersRepository membersRepository;
   final TransactionsRepository transactionsRepository;
   final ConfigService configService;
@@ -414,6 +427,7 @@ class ClubBarTerminalApp extends StatelessWidget {
     required this.cartProvider,
     required this.sessionController,
     required this.syncProvider,
+    required this.quarantineProvider,
     required this.membersRepository,
     required this.transactionsRepository,
     required this.configService,
@@ -441,6 +455,7 @@ class ClubBarTerminalApp extends StatelessWidget {
         ChangeNotifierProvider<CartProvider>.value(value: cartProvider),
         ChangeNotifierProvider<SessionController>.value(value: sessionController),
         ChangeNotifierProvider<SyncProvider>(create: (_) => syncProvider),
+        ChangeNotifierProvider<QuarantineProvider>.value(value: quarantineProvider),
         ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider, membersRepository, soundService, sessionController)),
       ],
       child: TerminalMaterialApp(

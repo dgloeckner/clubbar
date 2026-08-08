@@ -1015,6 +1015,30 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Der Terminal-Status konnte nicht geladen werden – bitte erneut versuchen.'**
   String get errorStatusLoadFailed;
+
+  /// Persistent staff warning while quarantined sales exist (issue #152)
+  ///
+  /// In de, this message translates to:
+  /// **'{count, plural, =1{1 Verkauf wurde nicht gespeichert – bitte einem Admin melden} other{{count} Verkäufe wurden nicht gespeichert – bitte einem Admin melden}}'**
+  String failedSalesWarning(int count);
+
+  /// Title of the failed-sales screen
+  ///
+  /// In de, this message translates to:
+  /// **'Nicht gespeicherte Verkäufe'**
+  String get failedSalesTitle;
+
+  /// What staff must do about quarantined sales
+  ///
+  /// In de, this message translates to:
+  /// **'Diese Verkäufe sind nicht beim Server angekommen und werden nicht abgerechnet. Bitte einem Admin melden.'**
+  String get failedSalesInstruction;
+
+  /// Shown instead of a name when the local cache no longer knows the member
+  ///
+  /// In de, this message translates to:
+  /// **'Unbekanntes Mitglied'**
+  String get failedSalesUnknownMember;
 }
 
 class _AppLocalizationsDelegate

@@ -14,6 +14,7 @@ import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/locale_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/quarantine_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
@@ -73,6 +74,10 @@ void main() {
         cartProvider: mockCartProvider,
         sessionController: mockSessionController,
         syncProvider: mockSyncProvider,
+        quarantineProvider: QuarantineProvider(
+          transactionsRepo: mockTransactionsRepository,
+          membersRepo: mockMembersRepository,
+        ),
         membersRepository: mockMembersRepository,
         transactionsRepository: mockTransactionsRepository,
         configService: mockConfigService,

@@ -564,4 +564,25 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get errorStatusLoadFailed =>
       'The terminal status could not be loaded — please try again.';
+
+  @override
+  String failedSalesWarning(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sales were not saved — please report them to an admin',
+      one: '1 sale was not saved — please report it to an admin',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get failedSalesTitle => 'Sales that were not saved';
+
+  @override
+  String get failedSalesInstruction =>
+      'These sales never reached the server and will not be settled. Please report them to an admin.';
+
+  @override
+  String get failedSalesUnknownMember => 'Unknown member';
 }

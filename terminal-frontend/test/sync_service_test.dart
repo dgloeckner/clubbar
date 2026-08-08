@@ -38,6 +38,7 @@ void main() {
       registerFallbackValue(<Map<String, dynamic>>[]);
       registerFallbackValue(<String>[]);
       registerFallbackValue(<String, int>{});
+      registerFallbackValue(<String, String>{});
       registerFallbackValue(MockMembersRepository());
     });
 
@@ -88,6 +89,13 @@ void main() {
           .thenAnswer((_) async => {});
       when(() => mockTransactionsRepo.getUnsyncedTransactions())
           .thenAnswer((_) async => []);
+      when(() => mockTransactionsRepo.quarantineTransactions(any()))
+          .thenAnswer((_) async => {});
+      when(() => mockTransactionsRepo.completeSyncAtomically(
+            acceptedIds: any(named: 'acceptedIds'),
+            memberBalances: any(named: 'memberBalances'),
+            membersRepo: any(named: 'membersRepo'),
+          )).thenAnswer((_) async => {});
       when(() => mockMembersRepo.upsertMembers(any()))
           .thenAnswer((_) async => {});
       when(() => mockProductsRepo.upsertCategories(any()))
@@ -95,6 +103,38 @@ void main() {
       when(() => mockProductsRepo.upsertProducts(any()))
           .thenAnswer((_) async => {});
     });
+
+    /// Reference-data sync is not what these tests are about; make it a no-op.
+    void stubReferenceDataSync() {
+      when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+          .thenAnswer((_) async => MemberDeltaResponse(
+              members: [], cursor: 0, count: 0, hasMore: false));
+      when(() => mockNetworkService.syncCategories(since: any(named: 'since')))
+          .thenAnswer((_) async => CategoryDeltaResponse(
+              categories: [], cursor: 0, count: 0, hasMore: false));
+      when(() => mockNetworkService.syncProducts(since: any(named: 'since')))
+          .thenAnswer((_) async => ProductDeltaResponse(
+              products: [], cursor: 0, count: 0, hasMore: false));
+    }
+
+    TransactionsLocalData unsyncedTransaction({
+      required String id,
+      String memberId = 'member-1',
+      String? productId = 'prod-1',
+    }) {
+      return TransactionsLocalData(
+        id: id,
+        memberId: memberId,
+        productId: productId,
+        amountCents: 350,
+        transactionType: 'purchase',
+        notes: null,
+        createdAt: '2025-02-01T12:00:00Z',
+        synced: 0,
+        sessionId: null,
+        unitPriceCents: null,
+      );
+    }
 
     test('isSyncing is false initially', () {
       expect(syncService.isSyncing, isFalse);
@@ -370,6 +410,103 @@ void main() {
             memberBalances: {},
             membersRepo: mockMembersRepo,
           )).called(1);
+    });
+
+    test('a sale keeps the time it happened, and claims no server-owned fields',
+        () async {
+      stubReferenceDataSync();
+
+      when(() => mockTransactionsRepo.getUnsyncedTransactions())
+          .thenAnswer((_) async => [unsyncedTransaction(id: 'txn-offline')]);
+      when(() => mockNetworkService.syncTransactions(any()))
+          .thenAnswer((_) async => TransactionBatchResponse(
+                acceptedIds: ['txn-offline'],
+                rejected:
+                    const TransactionBatchResponse$Rejected(count: 0, errors: []),
+                memberBalances: {'member-1': 350},
+              ));
+
+      await syncService.syncAll();
+
+      final payloads =
+          verify(() => mockNetworkService.syncTransactions(captureAny()))
+              .captured
+              .first as List<Map<String, dynamic>>;
+
+      // The sale happened offline hours before this sync; the upload carries
+      // that moment, not the moment of upload (ruling #144).
+      expect(payloads.single['created_at'], equals('2025-02-01T12:00:00.000Z'));
+      expect(payloads.single['id'], equals('txn-offline'));
+      // received_at, transaction_type and the terminal id are the server's to
+      // set — a terminal that sends them is asserting authority it lacks.
+      expect(payloads.single.keys,
+          equals(['id', 'member_id', 'product_id', 'amount_cents', 'created_at']));
+    });
+
+    test('a permanently rejected sale is quarantined instead of retried',
+        () async {
+      stubReferenceDataSync();
+
+      when(() => mockTransactionsRepo.getUnsyncedTransactions())
+          .thenAnswer((_) async => [
+                unsyncedTransaction(id: 'txn-ok'),
+                unsyncedTransaction(id: 'txn-bad'),
+              ]);
+
+      when(() => mockNetworkService.syncTransactions(any()))
+          .thenAnswer((_) async => TransactionBatchResponse(
+                acceptedIds: ['txn-ok'],
+                rejected: const TransactionBatchResponse$Rejected(
+                  count: 1,
+                  errors: [
+                    TransactionBatchResponse$Rejected$Errors$Item(
+                      transactionId: 'txn-bad',
+                      error: 'unstorable',
+                      message: 'Database refused the row',
+                    ),
+                  ],
+                ),
+                memberBalances: {'member-1': 350},
+              ));
+
+      final result = await syncService.syncAll();
+
+      expect(result, equals(SyncResult.success));
+      verify(() => mockTransactionsRepo
+          .quarantineTransactions({'txn-bad': 'unstorable'})).called(1);
+    });
+
+    test('a transient whole-request failure quarantines nothing', () async {
+      stubReferenceDataSync();
+
+      when(() => mockTransactionsRepo.getUnsyncedTransactions())
+          .thenAnswer((_) async => [unsyncedTransaction(id: 'txn-1')]);
+
+      when(() => mockNetworkService.syncTransactions(any()))
+          .thenThrow(NetworkException('Connection reset'));
+
+      final result = await syncService.syncAll();
+
+      expect(result, equals(SyncResult.success));
+      verifyNever(() => mockTransactionsRepo.quarantineTransactions(any()));
+    });
+
+    test('a sale that can never be sent is quarantined, not skipped forever',
+        () async {
+      stubReferenceDataSync();
+
+      when(() => mockTransactionsRepo.getUnsyncedTransactions())
+          .thenAnswer((_) async => [
+                unsyncedTransaction(id: 'txn-no-product', productId: null),
+              ]);
+
+      final result = await syncService.syncAll();
+
+      expect(result, equals(SyncResult.success));
+      verify(() => mockTransactionsRepo
+          .quarantineTransactions({'txn-no-product': 'missing_product_id'}))
+          .called(1);
+      verifyNever(() => mockNetworkService.syncTransactions(any()));
     });
 
     group('failed transaction logging', () {

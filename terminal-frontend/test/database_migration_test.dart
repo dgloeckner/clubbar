@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
+import 'package:clubbar_terminal/repository/transactions_repository.dart';
 
 void main() {
   late Directory tempDir;
@@ -126,6 +127,41 @@ void main() {
 
       expect(member, isNull);
       expect(error, equals(TerminalErrorKey.unknownCard));
+      await db.close();
+    });
+  });
+
+  // Issue #152: a terminal upgraded mid-service carries unsynced sales across
+  // the upgrade, and must be able to quarantine one immediately afterwards.
+  group('schema 9: quarantine', () {
+    test('an unsynced sale survives the upgrade and can be quarantined',
+        () async {
+      await seedAtSchemaVersion(8, {'member-1': 'ABCD1234'});
+      var db = openDatabase();
+      await db.into(db.transactionsLocal).insert(
+            TransactionsLocalCompanion(
+              id: const Value('txn-pending'),
+              memberId: const Value('member-1'),
+              amountCents: const Value(350),
+              transactionType: const Value('purchase'),
+              createdAt: const Value('2025-02-01T20:15:00Z'),
+              synced: const Value(0),
+            ),
+          );
+      await db.customStatement('PRAGMA user_version = 8');
+      await db.close();
+
+      db = openDatabase();
+      final repo = TransactionsRepository(db);
+
+      expect((await repo.getUnsyncedTransactions()).map((t) => t.id),
+          equals(['txn-pending']));
+
+      await repo.quarantineTransactions({'txn-pending': 'unstorable'});
+
+      expect(await repo.getUnsyncedTransactions(), isEmpty);
+      expect((await repo.getQuarantinedTransactions()).single.quarantineReason,
+          equals('unstorable'));
       await db.close();
     });
   });

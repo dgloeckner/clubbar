@@ -192,5 +192,9 @@
   "errorTransactionSyncFailed": "Some purchases have not reached the server yet — please tell the bar staff.",
   "errorNoMemberSelected": "Nobody is logged in — please hold your chip to the scanner.",
   "errorTransactionHistoryFailed": "Your purchases could not be loaded — please try again.",
-  "errorStatusLoadFailed": "The terminal status could not be loaded — please try again."
+  "errorStatusLoadFailed": "The terminal status could not be loaded — please try again.",
+  "failedSalesWarning": "{count, plural, =1{1 sale was not saved — please report it to an admin} other{{count} sales were not saved — please report them to an admin}}",
+  "failedSalesTitle": "Sales that were not saved",
+  "failedSalesInstruction": "These sales never reached the server and will not be settled. Please report them to an admin.",
+  "failedSalesUnknownMember": "Unknown member"
 }

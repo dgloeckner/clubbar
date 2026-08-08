@@ -7,11 +7,53 @@ class TransactionsRepository {
 
   TransactionsRepository(this._db);
 
-  /// Get all unsynced transactions (for sync service)
+  /// Get all unsynced transactions (for sync service).
+  ///
+  /// Quarantined rows are excluded: the backend has refused them permanently,
+  /// so re-sending them would loop forever (issue #152).
   Future<List<TransactionsLocalData>> getUnsyncedTransactions() async {
     return (_db.select(_db.transactionsLocal)
-          ..where((t) => t.synced.equals(0)))
+          ..where((t) => t.synced.equals(0) & t.quarantinedAt.isNull()))
         .get();
+  }
+
+  /// Move permanently rejected sales out of the sync queue, keyed by
+  /// transaction id with the rejection code as value.
+  ///
+  /// The rows are retained — the drink was served, and staff need to be able
+  /// to report the sale to an admin.
+  Future<void> quarantineTransactions(Map<String, String> reasonsById) async {
+    if (reasonsById.isEmpty) return;
+
+    final now = DateTime.now().toIso8601String();
+    await _db.transaction(() async {
+      for (final entry in reasonsById.entries) {
+        await (_db.update(_db.transactionsLocal)
+              ..where((t) =>
+                  t.id.equals(entry.key) & t.quarantinedAt.isNull()))
+            .write(TransactionsLocalCompanion(
+          quarantinedAt: Value(now),
+          quarantineReason: Value(entry.value),
+        ));
+      }
+    });
+  }
+
+  /// Quarantined sales, newest first — the failed-sales list staff read from.
+  Future<List<TransactionsLocalData>> getQuarantinedTransactions() async {
+    return (_db.select(_db.transactionsLocal)
+          ..where((t) => t.quarantinedAt.isNotNull())
+          ..orderBy([
+            (t) => OrderingTerm(
+                expression: t.createdAt, mode: OrderingMode.desc)
+          ]))
+        .get();
+  }
+
+  /// How many sales are quarantined — drives the persistent staff warning.
+  Future<int> getQuarantinedCount() async {
+    final rows = await getQuarantinedTransactions();
+    return rows.length;
   }
 
   /// Get transaction by ID

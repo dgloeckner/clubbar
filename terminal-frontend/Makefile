@@ -1,4 +1,4 @@
-.PHONY: help reset-db run test analyze clean
+.PHONY: help reset-db run test test-integration analyze clean
 
 help:
 	@echo "Club Bar Terminal - Development Commands"
@@ -8,7 +8,8 @@ help:
 	@echo "Commands:"
 	@echo "  reset-db      Reset the local SQLite database (removes all data)"
 	@echo "  run           Run the app on a connected device/emulator"
-	@echo "  test          Run all 204 unit tests"
+	@echo "  test          Run unit + widget tests (log: test-results/latest.log)"
+	@echo "  test-integration  Run integration tests against the real app"
 	@echo "  analyze       Run Flutter analysis"
 	@echo "  clean         Clean build artifacts"
 	@echo "  dev-setup     Install dependencies"
@@ -22,9 +23,15 @@ reset-db:
 run:
 	@flutter run
 
-# Run all tests
+# Run all tests. Goes through the runner so every run leaves
+# test-results/latest.{log,json} behind and a hang is killed rather than
+# waited on — see scripts/run-tests.sh.
 test:
-	@flutter test
+	@bash scripts/run-tests.sh
+
+# Run the integration tests (drives the real app; slower than `test`)
+test-integration:
+	@RUN_TIMEOUT=1200 bash scripts/run-tests.sh integration_test/ --exclude-tags=walkthrough
 
 # Run Flutter analyzer
 analyze:

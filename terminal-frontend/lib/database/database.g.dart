@@ -1663,6 +1663,28 @@ class $TransactionsLocalTable extends TransactionsLocal
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _quarantinedAtMeta = const VerificationMeta(
+    'quarantinedAt',
+  );
+  @override
+  late final GeneratedColumn<String> quarantinedAt = GeneratedColumn<String>(
+    'quarantined_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _quarantineReasonMeta = const VerificationMeta(
+    'quarantineReason',
+  );
+  @override
+  late final GeneratedColumn<String> quarantineReason = GeneratedColumn<String>(
+    'quarantine_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1678,6 +1700,8 @@ class $TransactionsLocalTable extends TransactionsLocal
     dispenserActual,
     sessionId,
     unitPriceCents,
+    quarantinedAt,
+    quarantineReason,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1794,6 +1818,24 @@ class $TransactionsLocalTable extends TransactionsLocal
         ),
       );
     }
+    if (data.containsKey('quarantined_at')) {
+      context.handle(
+        _quarantinedAtMeta,
+        quarantinedAt.isAcceptableOrUnknown(
+          data['quarantined_at']!,
+          _quarantinedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('quarantine_reason')) {
+      context.handle(
+        _quarantineReasonMeta,
+        quarantineReason.isAcceptableOrUnknown(
+          data['quarantine_reason']!,
+          _quarantineReasonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1855,6 +1897,14 @@ class $TransactionsLocalTable extends TransactionsLocal
         DriftSqlType.int,
         data['${effectivePrefix}unit_price_cents'],
       ),
+      quarantinedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}quarantined_at'],
+      ),
+      quarantineReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}quarantine_reason'],
+      ),
     );
   }
 
@@ -1879,6 +1929,15 @@ class TransactionsLocalData extends DataClass
   final int? dispenserActual;
   final String? sessionId;
   final int? unitPriceCents;
+
+  /// When the backend permanently refused this row (ISO 8601). Set means the
+  /// row has left the sync queue for good: resubmitting it cannot help, so it
+  /// is kept for staff to report rather than looping forever (issue #152).
+  final String? quarantinedAt;
+
+  /// Machine-readable rejection code the backend gave (`not_found`,
+  /// `unstorable`), or a local reason the row can never be sent.
+  final String? quarantineReason;
   const TransactionsLocalData({
     required this.id,
     required this.memberId,
@@ -1893,6 +1952,8 @@ class TransactionsLocalData extends DataClass
     this.dispenserActual,
     this.sessionId,
     this.unitPriceCents,
+    this.quarantinedAt,
+    this.quarantineReason,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1923,6 +1984,12 @@ class TransactionsLocalData extends DataClass
     }
     if (!nullToAbsent || unitPriceCents != null) {
       map['unit_price_cents'] = Variable<int>(unitPriceCents);
+    }
+    if (!nullToAbsent || quarantinedAt != null) {
+      map['quarantined_at'] = Variable<String>(quarantinedAt);
+    }
+    if (!nullToAbsent || quarantineReason != null) {
+      map['quarantine_reason'] = Variable<String>(quarantineReason);
     }
     return map;
   }
@@ -1956,6 +2023,12 @@ class TransactionsLocalData extends DataClass
       unitPriceCents: unitPriceCents == null && nullToAbsent
           ? const Value.absent()
           : Value(unitPriceCents),
+      quarantinedAt: quarantinedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(quarantinedAt),
+      quarantineReason: quarantineReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(quarantineReason),
     );
   }
 
@@ -1978,6 +2051,8 @@ class TransactionsLocalData extends DataClass
       dispenserActual: serializer.fromJson<int?>(json['dispenserActual']),
       sessionId: serializer.fromJson<String?>(json['sessionId']),
       unitPriceCents: serializer.fromJson<int?>(json['unitPriceCents']),
+      quarantinedAt: serializer.fromJson<String?>(json['quarantinedAt']),
+      quarantineReason: serializer.fromJson<String?>(json['quarantineReason']),
     );
   }
   @override
@@ -1997,6 +2072,8 @@ class TransactionsLocalData extends DataClass
       'dispenserActual': serializer.toJson<int?>(dispenserActual),
       'sessionId': serializer.toJson<String?>(sessionId),
       'unitPriceCents': serializer.toJson<int?>(unitPriceCents),
+      'quarantinedAt': serializer.toJson<String?>(quarantinedAt),
+      'quarantineReason': serializer.toJson<String?>(quarantineReason),
     };
   }
 
@@ -2014,6 +2091,8 @@ class TransactionsLocalData extends DataClass
     Value<int?> dispenserActual = const Value.absent(),
     Value<String?> sessionId = const Value.absent(),
     Value<int?> unitPriceCents = const Value.absent(),
+    Value<String?> quarantinedAt = const Value.absent(),
+    Value<String?> quarantineReason = const Value.absent(),
   }) => TransactionsLocalData(
     id: id ?? this.id,
     memberId: memberId ?? this.memberId,
@@ -2036,6 +2115,12 @@ class TransactionsLocalData extends DataClass
     unitPriceCents: unitPriceCents.present
         ? unitPriceCents.value
         : this.unitPriceCents,
+    quarantinedAt: quarantinedAt.present
+        ? quarantinedAt.value
+        : this.quarantinedAt,
+    quarantineReason: quarantineReason.present
+        ? quarantineReason.value
+        : this.quarantineReason,
   );
   TransactionsLocalData copyWithCompanion(TransactionsLocalCompanion data) {
     return TransactionsLocalData(
@@ -2064,6 +2149,12 @@ class TransactionsLocalData extends DataClass
       unitPriceCents: data.unitPriceCents.present
           ? data.unitPriceCents.value
           : this.unitPriceCents,
+      quarantinedAt: data.quarantinedAt.present
+          ? data.quarantinedAt.value
+          : this.quarantinedAt,
+      quarantineReason: data.quarantineReason.present
+          ? data.quarantineReason.value
+          : this.quarantineReason,
     );
   }
 
@@ -2082,7 +2173,9 @@ class TransactionsLocalData extends DataClass
           ..write('dispenserRequested: $dispenserRequested, ')
           ..write('dispenserActual: $dispenserActual, ')
           ..write('sessionId: $sessionId, ')
-          ..write('unitPriceCents: $unitPriceCents')
+          ..write('unitPriceCents: $unitPriceCents, ')
+          ..write('quarantinedAt: $quarantinedAt, ')
+          ..write('quarantineReason: $quarantineReason')
           ..write(')'))
         .toString();
   }
@@ -2102,6 +2195,8 @@ class TransactionsLocalData extends DataClass
     dispenserActual,
     sessionId,
     unitPriceCents,
+    quarantinedAt,
+    quarantineReason,
   );
   @override
   bool operator ==(Object other) =>
@@ -2119,7 +2214,9 @@ class TransactionsLocalData extends DataClass
           other.dispenserRequested == this.dispenserRequested &&
           other.dispenserActual == this.dispenserActual &&
           other.sessionId == this.sessionId &&
-          other.unitPriceCents == this.unitPriceCents);
+          other.unitPriceCents == this.unitPriceCents &&
+          other.quarantinedAt == this.quarantinedAt &&
+          other.quarantineReason == this.quarantineReason);
 }
 
 class TransactionsLocalCompanion
@@ -2137,6 +2234,8 @@ class TransactionsLocalCompanion
   final Value<int?> dispenserActual;
   final Value<String?> sessionId;
   final Value<int?> unitPriceCents;
+  final Value<String?> quarantinedAt;
+  final Value<String?> quarantineReason;
   final Value<int> rowid;
   const TransactionsLocalCompanion({
     this.id = const Value.absent(),
@@ -2152,6 +2251,8 @@ class TransactionsLocalCompanion
     this.dispenserActual = const Value.absent(),
     this.sessionId = const Value.absent(),
     this.unitPriceCents = const Value.absent(),
+    this.quarantinedAt = const Value.absent(),
+    this.quarantineReason = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsLocalCompanion.insert({
@@ -2168,6 +2269,8 @@ class TransactionsLocalCompanion
     this.dispenserActual = const Value.absent(),
     this.sessionId = const Value.absent(),
     this.unitPriceCents = const Value.absent(),
+    this.quarantinedAt = const Value.absent(),
+    this.quarantineReason = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        memberId = Value(memberId),
@@ -2188,6 +2291,8 @@ class TransactionsLocalCompanion
     Expression<int>? dispenserActual,
     Expression<String>? sessionId,
     Expression<int>? unitPriceCents,
+    Expression<String>? quarantinedAt,
+    Expression<String>? quarantineReason,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2204,6 +2309,8 @@ class TransactionsLocalCompanion
       if (dispenserActual != null) 'dispenser_actual': dispenserActual,
       if (sessionId != null) 'session_id': sessionId,
       if (unitPriceCents != null) 'unit_price_cents': unitPriceCents,
+      if (quarantinedAt != null) 'quarantined_at': quarantinedAt,
+      if (quarantineReason != null) 'quarantine_reason': quarantineReason,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2222,6 +2329,8 @@ class TransactionsLocalCompanion
     Value<int?>? dispenserActual,
     Value<String?>? sessionId,
     Value<int?>? unitPriceCents,
+    Value<String?>? quarantinedAt,
+    Value<String?>? quarantineReason,
     Value<int>? rowid,
   }) {
     return TransactionsLocalCompanion(
@@ -2238,6 +2347,8 @@ class TransactionsLocalCompanion
       dispenserActual: dispenserActual ?? this.dispenserActual,
       sessionId: sessionId ?? this.sessionId,
       unitPriceCents: unitPriceCents ?? this.unitPriceCents,
+      quarantinedAt: quarantinedAt ?? this.quarantinedAt,
+      quarantineReason: quarantineReason ?? this.quarantineReason,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2284,6 +2395,12 @@ class TransactionsLocalCompanion
     if (unitPriceCents.present) {
       map['unit_price_cents'] = Variable<int>(unitPriceCents.value);
     }
+    if (quarantinedAt.present) {
+      map['quarantined_at'] = Variable<String>(quarantinedAt.value);
+    }
+    if (quarantineReason.present) {
+      map['quarantine_reason'] = Variable<String>(quarantineReason.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2306,6 +2423,8 @@ class TransactionsLocalCompanion
           ..write('dispenserActual: $dispenserActual, ')
           ..write('sessionId: $sessionId, ')
           ..write('unitPriceCents: $unitPriceCents, ')
+          ..write('quarantinedAt: $quarantinedAt, ')
+          ..write('quarantineReason: $quarantineReason, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4740,6 +4859,8 @@ typedef $$TransactionsLocalTableCreateCompanionBuilder =
       Value<int?> dispenserActual,
       Value<String?> sessionId,
       Value<int?> unitPriceCents,
+      Value<String?> quarantinedAt,
+      Value<String?> quarantineReason,
       Value<int> rowid,
     });
 typedef $$TransactionsLocalTableUpdateCompanionBuilder =
@@ -4757,6 +4878,8 @@ typedef $$TransactionsLocalTableUpdateCompanionBuilder =
       Value<int?> dispenserActual,
       Value<String?> sessionId,
       Value<int?> unitPriceCents,
+      Value<String?> quarantinedAt,
+      Value<String?> quarantineReason,
       Value<int> rowid,
     });
 
@@ -4879,6 +5002,16 @@ class $$TransactionsLocalTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get quarantinedAt => $composableBuilder(
+    column: $table.quarantinedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get quarantineReason => $composableBuilder(
+    column: $table.quarantineReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$MembersCacheTableFilterComposer get memberId {
     final $$MembersCacheTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -4990,6 +5123,16 @@ class $$TransactionsLocalTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get quarantinedAt => $composableBuilder(
+    column: $table.quarantinedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get quarantineReason => $composableBuilder(
+    column: $table.quarantineReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$MembersCacheTableOrderingComposer get memberId {
     final $$MembersCacheTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -5091,6 +5234,16 @@ class $$TransactionsLocalTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get quarantinedAt => $composableBuilder(
+    column: $table.quarantinedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get quarantineReason => $composableBuilder(
+    column: $table.quarantineReason,
+    builder: (column) => column,
+  );
+
   $$MembersCacheTableAnnotationComposer get memberId {
     final $$MembersCacheTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -5184,6 +5337,8 @@ class $$TransactionsLocalTableTableManager
                 Value<int?> dispenserActual = const Value.absent(),
                 Value<String?> sessionId = const Value.absent(),
                 Value<int?> unitPriceCents = const Value.absent(),
+                Value<String?> quarantinedAt = const Value.absent(),
+                Value<String?> quarantineReason = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsLocalCompanion(
                 id: id,
@@ -5199,6 +5354,8 @@ class $$TransactionsLocalTableTableManager
                 dispenserActual: dispenserActual,
                 sessionId: sessionId,
                 unitPriceCents: unitPriceCents,
+                quarantinedAt: quarantinedAt,
+                quarantineReason: quarantineReason,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5216,6 +5373,8 @@ class $$TransactionsLocalTableTableManager
                 Value<int?> dispenserActual = const Value.absent(),
                 Value<String?> sessionId = const Value.absent(),
                 Value<int?> unitPriceCents = const Value.absent(),
+                Value<String?> quarantinedAt = const Value.absent(),
+                Value<String?> quarantineReason = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => TransactionsLocalCompanion.insert(
                 id: id,
@@ -5231,6 +5390,8 @@ class $$TransactionsLocalTableTableManager
                 dispenserActual: dispenserActual,
                 sessionId: sessionId,
                 unitPriceCents: unitPriceCents,
+                quarantinedAt: quarantinedAt,
+                quarantineReason: quarantineReason,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

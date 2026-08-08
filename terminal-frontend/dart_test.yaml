@@ -1,3 +1,7 @@
-tags:
-  walkthrough:
-    description: "Screenshot walkthrough tests — skipped on CI"
+# Fail fast. A hanging test must report in seconds, not sit on a build agent
+# (or a developer's terminal) for twenty minutes before anyone learns what
+# broke — the log of a test that never finished tells you nothing.
+#
+# Raise it per test with @Timeout(...) where a test genuinely needs longer,
+# rather than raising the default and hiding the next hang.
+timeout: 90s

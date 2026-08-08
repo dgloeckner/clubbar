@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/providers/quarantine_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/services/sync_service.dart';
@@ -14,6 +15,8 @@ class MockMembersProvider extends Mock implements MembersProvider {}
 class MockProductsProvider extends Mock implements ProductsProvider {}
 
 class MockNetworkService extends Mock implements NetworkService {}
+
+class MockQuarantineProvider extends Mock implements QuarantineProvider {}
 
 void main() {
   group('SyncProvider', () {
@@ -38,6 +41,33 @@ void main() {
 
     tearDown(() {
       provider.stopSync();
+    });
+
+    test('a completed sync re-reads the quarantine', () async {
+      final quarantine = MockQuarantineProvider();
+      when(() => quarantine.refresh()).thenAnswer((_) async {});
+      final providerWithQuarantine = SyncProvider(
+        syncService: mockSyncService,
+        membersProvider: mockMembersProvider,
+        productsProvider: mockProductsProvider,
+        networkService: mockNetworkService,
+        quarantineProvider: quarantine,
+      );
+      addTearDown(providerWithQuarantine.stopSync);
+
+      when(() => mockSyncService.isSyncNeeded()).thenAnswer((_) async => true);
+      when(() => mockNetworkService.checkHealth()).thenAnswer((_) async => true);
+      when(() => mockSyncService.syncAll())
+          .thenAnswer((_) async => SyncResult.success);
+      when(() => mockSyncService.lastTransactionSyncTime).thenReturn(null);
+      when(() => mockSyncService.lastTransactionSyncError).thenReturn(null);
+      when(() => mockMembersProvider.refreshMembers()).thenAnswer((_) async {});
+      when(() => mockProductsProvider.refreshProducts())
+          .thenAnswer((_) async {});
+
+      await providerWithQuarantine.startSync();
+
+      verify(() => quarantine.refresh()).called(1);
     });
 
     test('initial state reflects no sync', () {
