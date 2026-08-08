@@ -344,6 +344,14 @@ do not proceed without one.
 Follow the project conventions in CLAUDE.md (ADRs, patterns, TDD,
 test-verification policy).
 
+Locally, run only the tests relevant to the change — the unit/feature tests for
+the code you touched, and the E2E spec (or --grep subset) that covers it. Those
+must be green before you commit. Leave the rest of the suite to CI rather than
+running it locally: it is slower, and the dev database carries residual data
+that makes unrelated specs fail for reasons that have nothing to do with your
+change. If a test you did not touch fails locally, check whether it also fails
+on clean main before spending time on it.
+
 Delegate to sub-agents where the work parallelises, and use cheaper models
 (Haiku for mechanical/search work, Sonnet for routine implementation) where
 that is sufficient — reserve the strongest model for design decisions and

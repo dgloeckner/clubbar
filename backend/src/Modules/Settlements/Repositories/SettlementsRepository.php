@@ -210,6 +210,42 @@ class SettlementsRepository
     }
 
     /**
+     * Record the EndToEndId each collection line was sent under (#150).
+     *
+     * One line covers all of a member's items in the run, so every one of that
+     * member's rows carries the same value — an `EREF+` quoted back on a return
+     * then resolves to exactly the set of items that collection was for.
+     *
+     * Members the export left out (no mandate, or in credit under ruling #141)
+     * are simply absent from the map: nothing was sent for them, so there is
+     * nothing for a bank to return and nothing to write down.
+     *
+     * The identifier is derived, not allocated, so re-exporting rewrites each
+     * row with the value it already held. That is the point — the identifier
+     * already at the bank must survive a second export.
+     *
+     * @param array<string, string> $endToEndIdsByMemberId member id => identifier
+     */
+    public function storeEndToEndIds(string $settlementId, array $endToEndIdsByMemberId): void
+    {
+        if ($endToEndIdsByMemberId === []) {
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE settlement_items SET end_to_end_id = ? WHERE settlement_id = ? AND member_id = ?'
+        );
+        foreach ($endToEndIdsByMemberId as $memberId => $endToEndId) {
+            $stmt->execute([$endToEndId, $settlementId, $memberId]);
+        }
+
+        $this->logger->info('Settlement collection identifiers recorded', [
+            'settlement_id' => $settlementId,
+            'collections' => count($endToEndIdsByMemberId),
+        ]);
+    }
+
+    /**
      * Release a settlement's claim on its transactions without erasing what it
      * contained (ruling #142 §3).
      *

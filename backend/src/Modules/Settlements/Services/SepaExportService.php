@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\Services;
 
+use App\Modules\Settlements\Domain\EndToEndId;
 use App\Modules\Settlements\DTOs\SepaExportResultDto;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
@@ -126,8 +127,9 @@ class SepaExportService
             ]
         );
 
-        $sequence = 0;
         $creditExcludedMembers = [];
+        /** @var array<string, string> member id => the EndToEndId their collection went out under */
+        $sentEndToEndIds = [];
         foreach ($memberTotals as $entry) {
             $member = $this->membersRepository->findById($entry['member_id']);
             if (!$member || empty($member['iban']) || empty($member['mandate_reference'])) continue;
@@ -151,12 +153,14 @@ class SepaExportService
             // instruction, and is not an exclusion — nothing is owed either way.
             if ($amountCents <= 0) continue;
 
-            $sequence++;
+            $endToEndId = EndToEndId::forCollection($settlement['id'], $entry['member_id']);
+            $sentEndToEndIds[$entry['member_id']] = $endToEndId;
+
             $directDebit->addTransfer(
                 $paymentId,
                 [
                     'amount' => $amountCents,
-                    'endToEndId' => $paymentId . '-' . $sequence,
+                    'endToEndId' => $endToEndId,
                     'debtorIban' => $this->sanitizeIban($member['iban']),
                     // No debtorBic: see the CdtrAgt note above — the omitted BIC
                     // yields <DbtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id>.
@@ -170,6 +174,11 @@ class SepaExportService
 
         $xml = $directDebit->asXML();
         $this->validateSepaXml($xml);
+
+        // Only once the file is known to be well-formed: an export that threw
+        // sent nothing, and must leave no record claiming otherwise. From here
+        // on a return quoting `EREF+` resolves to these rows (#150).
+        $this->settlementsRepository->storeEndToEndIds($settlementId, $sentEndToEndIds);
 
         return new SepaExportResultDto($xml, $creditExcludedMembers);
     }
