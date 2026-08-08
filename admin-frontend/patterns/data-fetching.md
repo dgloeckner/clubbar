@@ -26,6 +26,13 @@ is still the current one.
 
 ## The Pattern
 
+> **On a list page, this is already done for you.** `useListQuery` owns the list
+> stream's slot and passes its `signal` to the fetcher — see
+> [Table Implementation](./table-implementation.md). Reach for
+> `useLatestRequest` directly for the streams it does not cover: a page's
+> second, independent fetch (Products' categories, Members' dashboard metrics),
+> an auto-refresh interval, or a tab switch.
+
 Use [`useLatestRequest`](../src/hooks/useLatestRequest.ts). It owns one
 `AbortController` at a time:
 

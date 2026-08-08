@@ -35,9 +35,10 @@ import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { Toggle } from '../components/forms/Toggle'
+import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useBreakpoint } from '../hooks/useBreakpoint'
-import { useLatestRequest } from '../hooks/useLatestRequest'
+import { useListQuery } from '../hooks/useListQuery'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -58,14 +59,25 @@ type CategoryRuntime = Category & {
   created_at: string
 }
 
+type CategorySortKey = 'name' | 'created_at'
+
+interface CategoryFilters {
+  status: 'all' | 'active' | 'inactive'
+  /**
+   * The active UI language is part of the query because the name sort depends
+   * on it: sorting by "name" in the English UI must order by the English names.
+   * It used to read `names.de || names.en` unconditionally, so the English UI
+   * was ordered by German names (#121).
+   */
+  language: string
+}
+
+const PAGE_SIZE = 20
+
 export function CategoriesPage() {
   const { t, i18n } = useTranslation()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
-  const listRequest = useLatestRequest()
-  const [categories, setCategories] = useState<CategoryRuntime[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
   const [selectedCategory, setSelectedCategory] = useState<CategoryRuntime | null>(null)
@@ -78,15 +90,53 @@ export function CategoriesPage() {
     message: string
   } | null>(null)
 
-  // Filtering & sorting
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
-  const [sortKey, setSortKey] = useState<'name' | 'created_at'>('created_at')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  // The categories endpoint returns the whole collection with no query
+  // parameters, so filtering, sorting and paging happen here — but they still
+  // run through the shared list-query state, so page resets, abort handling and
+  // the post-delete page clamp behave exactly as on the server-paged pages.
+  const list = useListQuery<CategoryRuntime, CategoryFilters, CategorySortKey>({
+    initialFilters: { status: 'all', language: i18n.language },
+    initialSortKey: 'created_at',
+    initialSortDirection: 'desc',
+    initialPageSize: PAGE_SIZE,
+    fetcher: async ({ page, pageSize, sortKey, sortDirection, filters, signal }) => {
+      const response = await getProducts().listCategories({ signal })
+      const all = (response.data ?? []) as CategoryRuntime[]
+      if (!Array.isArray(all)) return { items: [], total: 0 }
 
-  // Pagination
-  const [page, setPage] = useState(1)
-  const pageSize = 20
-  const [totalItems, setTotalItems] = useState(0)
+      const filtered =
+        filters.status === 'all'
+          ? all
+          : all.filter((c) => (filters.status === 'active' ? c.is_active : !c.is_active))
+
+      const direction = sortDirection === 'asc' ? 1 : -1
+      const sorted = [...filtered].sort((a, b) => {
+        if (sortKey === 'name') {
+          const aName = getLocalizedName(a.names as Record<string, string>, filters.language)
+          const bName = getLocalizedName(b.names as Record<string, string>, filters.language)
+          return aName.localeCompare(bName, filters.language) * direction
+        }
+        return (a.created_at || '').localeCompare(b.created_at || '') * direction
+      })
+
+      const start = (page - 1) * pageSize
+      return { items: sorted.slice(start, start + pageSize), total: sorted.length }
+    },
+    parseError: (err) =>
+      axios.isAxiosError(err)
+        ? err.response?.data?.message || err.message || 'Failed to load categories'
+        : err instanceof Error
+          ? err.message
+          : 'Failed to load categories',
+  })
+
+  const { items: categories, total: totalItems, totalPages, loading, error, setError } = list
+  const filterStatus = list.filters.status
+
+  // Switching the UI language must re-sort a name-sorted list, not just relabel it.
+  useEffect(() => {
+    if (list.filters.language !== i18n.language) list.setFilters({ language: i18n.language })
+  }, [i18n.language, list])
 
   // Mobile state
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -99,117 +149,7 @@ export function CategoriesPage() {
     { value: 'created_at_desc', label: t('categories.sortNewest', 'Newest first'), direction: 'desc' as const },
   ]
 
-  const mobileSortValue = `${sortKey}_${sortDirection}`
-
-  const handleMobileSortChange = (value: string) => {
-    const lastUnderscore = value.lastIndexOf('_')
-    const key = value.substring(0, lastUnderscore) as typeof sortKey
-    const dir = value.substring(lastUnderscore + 1) as 'asc' | 'desc'
-    setSortKey(key)
-    setSortDirection(dir)
-    setPage(1)
-  }
-
-  const MobileFilterRow = ({ label, options, value, onChange, testId }: {
-    label: string
-    options: { value: string; label: string }[]
-    value: string
-    onChange: (v: string) => void
-    testId: string
-  }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', minWidth: '50px' }}>
-        {label}
-      </span>
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          data-testid={`${testId}-${opt.value}`}
-          onClick={() => { onChange(opt.value); setPage(1) }}
-          style={{
-            padding: '4px 10px',
-            borderRadius: '6px',
-            border: 'none',
-            background: value === opt.value ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
-            color: value === opt.value ? '#3b82f6' : 'rgba(255,255,255,0.5)',
-            fontSize: '12px',
-            fontWeight: value === opt.value ? 600 : 400,
-            cursor: 'pointer',
-          }}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-
-  // Load categories on mount and when filter/sort changes
-  useEffect(() => {
-    const signal = listRequest.next()
-    loadCategories(signal)
-    return () => listRequest.abort()
-  }, [filterStatus, sortKey, sortDirection, page]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function loadCategories(signal: AbortSignal = listRequest.next()) {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const response = await getProducts().listCategories({ signal })
-      if (signal.aborted) return
-
-      // Categories come back whole — filtering, sorting and paging below are
-      // client-side.
-      let categoriesArray = (response.data ?? []) as CategoryRuntime[]
-
-      if (Array.isArray(categoriesArray)) {
-        // Apply filtering
-        if (filterStatus === 'active') {
-          categoriesArray = categoriesArray.filter((c) => c.is_active)
-        } else if (filterStatus === 'inactive') {
-          categoriesArray = categoriesArray.filter((c) => !c.is_active)
-        }
-
-        // Apply sorting
-        categoriesArray.sort((a: CategoryRuntime, b: CategoryRuntime) => {
-          let aVal: string = sortKey === 'name' ? (a.names?.de || a.names?.en || '') : (a.created_at || '')
-          let bVal: string = sortKey === 'name' ? (b.names?.de || b.names?.en || '') : (b.created_at || '')
-
-          aVal = aVal.toLowerCase()
-          bVal = bVal.toLowerCase()
-
-          if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-          if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-          return 0
-        })
-
-        // Update total items count
-        setTotalItems(categoriesArray.length)
-
-        // Apply pagination (client-side)
-        const startIdx = (page - 1) * pageSize
-        const endIdx = startIdx + pageSize
-        const paginatedArray = categoriesArray.slice(startIdx, endIdx)
-
-        setCategories(paginatedArray)
-      } else {
-        setCategories([])
-        setTotalItems(0)
-      }
-    } catch (err: unknown) {
-      if (signal.aborted) return
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || err.message || 'Failed to load categories')
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to load categories')
-      }
-      setCategories([])
-      setTotalItems(0)
-    } finally {
-      // A superseded request must not clear the spinner the newer one raised.
-      if (!signal.aborted) setLoading(false)
-    }
-  }
+  const mobileSortValue = list.sortValue
 
 
   async function handleSubmit(e: React.FormEvent) {
@@ -248,7 +188,7 @@ export function CategoriesPage() {
       setSelectedIcon(null)
 
       // Then reload categories
-      await loadCategories()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setFormError(err.response?.data?.message || err.message || `Failed to ${modalMode} category`)
@@ -263,7 +203,7 @@ export function CategoriesPage() {
       // Deactivating is immediate (no confirmation)
       try {
         await getProducts().updateCategory(category.id, { is_active: false })
-        await loadCategories()
+        await list.reload()
       } catch (err: unknown) {
         if (axios.isAxiosError(err)) {
           setError(err.response?.data?.message || err.message || 'Failed to deactivate category')
@@ -312,7 +252,7 @@ export function CategoriesPage() {
       }
 
       setConfirmDialog(null)
-      await loadCategories()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || err.message || 'Failed to perform action')
@@ -379,7 +319,7 @@ export function CategoriesPage() {
             sort={{
               options: mobileSortOptions,
               value: mobileSortValue,
-              onChange: handleMobileSortChange,
+              onChange: list.setSortValue,
             }}
             filterCount={mobileFilterCount}
             onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
@@ -393,7 +333,7 @@ export function CategoriesPage() {
                   { value: 'inactive', label: t('common.inactive') },
                 ]}
                 value={filterStatus}
-                onChange={(v) => setFilterStatus(v as typeof filterStatus)}
+                onChange={(v) => list.setFilter('status', v as CategoryFilters['status'])}
                 testId="categories-mobile-filter-status"
               />
             }
@@ -497,11 +437,11 @@ export function CategoriesPage() {
 
           {/* Mobile pagination */}
           <PaginationToolbar
-            currentPage={page}
-            totalPages={Math.ceil(totalItems / pageSize)}
+            currentPage={list.page}
+            totalPages={totalPages}
             totalItems={totalItems}
-            pageSize={pageSize}
-            onPageChange={setPage}
+            pageSize={list.pageSize}
+            onPageChange={list.setPage}
             onPageSizeChange={() => {}}
             variant="default"
             showPageSize={false}
@@ -531,10 +471,7 @@ export function CategoriesPage() {
             <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
               <StatusFilterPills
                 value={filterStatus}
-                onChange={(status) => {
-                  setFilterStatus(status)
-                  setPage(1)
-                }}
+                onChange={(status) => list.setFilter('status', status)}
                 testId="categories-filter-status"
               />
 
@@ -592,12 +529,8 @@ export function CategoriesPage() {
                       <SortableTableHeader
                         label={t('common.name')}
                         sortKey="name"
-                        currentSort={{ key: sortKey, direction: sortDirection }}
-                        onSort={(key: string, direction: 'asc' | 'desc') => {
-                          setSortKey(key as 'name' | 'created_at')
-                          setSortDirection(direction)
-                          setPage(1)
-                        }}
+                        currentSort={{ key: list.sortKey, direction: list.sortDirection }}
+                        onSort={(key: string, direction: 'asc' | 'desc') => list.setSort(key as CategorySortKey, direction)}
                         testId="categories-sort-name"
                       />
                     </th>
@@ -693,11 +626,11 @@ export function CategoriesPage() {
 
               {/* Pagination */}
               <PaginationToolbar
-                currentPage={page}
-                totalPages={Math.ceil(totalItems / pageSize)}
+                currentPage={list.page}
+                totalPages={totalPages}
                 totalItems={totalItems}
-                pageSize={pageSize}
-                onPageChange={setPage}
+                pageSize={list.pageSize}
+                onPageChange={list.setPage}
                 onPageSizeChange={() => {}}
                 variant="default"
                 showPageSize={false}

@@ -25,10 +25,10 @@ import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useExecutionDateInfo } from '../hooks/useExecutionDateInfo'
-import { useLatestRequest } from '../hooks/useLatestRequest'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { SettlementStatusFilter } from '../components/forms/SettlementStatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
+import { useListQuery } from '../hooks/useListQuery'
 import { onLoadingStateChange } from '../api/client'
 import { getTransactions } from '../api/generated/transactions/transactions'
 import { getSettlements } from '../api/generated/settlements/settlements'
@@ -95,14 +95,16 @@ function localizeTransactionItems(items: GlobalTransaction[]): ResolvedTransacti
   })
 }
 
-interface JournalPageState {
-  transactions: ResolvedTransaction[]
-  totalItems: number
-  loading: boolean
-  error: string | null
-}
-
 const defaultPageSize = 20
+
+type JournalSortKey = 'created_at' | 'amount' | 'type' | 'member'
+
+interface JournalFilters {
+  period: PeriodKey
+  dateFrom: string | undefined
+  dateTo: string | undefined
+  settlementStatus: 'all' | 'open' | 'settled'
+}
 
 export function JournalPage() {
   const { t } = useTranslation()
@@ -111,30 +113,48 @@ export function JournalPage() {
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
 
-  // Data state
-  const [state, setState] = useState<JournalPageState>({
-    transactions: [],
-    totalItems: 0,
-    loading: true,
-    error: null,
+  // Pagination, filters, search and sorting share the list-query state, which
+  // owns the debounce, the abort guard and the page resets (#121). The initial
+  // range is derived from the default preset here rather than announced by the
+  // PeriodPicker from an effect — that effect re-fired on every render and reset
+  // the page, so paging was impossible (#89).
+  const list = useListQuery<ResolvedTransaction, JournalFilters, JournalSortKey>({
+    initialFilters: {
+      period: DEFAULT_PERIOD,
+      dateFrom: getPeriodRange(DEFAULT_PERIOD).dateFrom,
+      dateTo: getPeriodRange(DEFAULT_PERIOD).dateTo,
+      settlementStatus: 'all',
+    },
+    initialSortKey: 'created_at',
+    initialSortDirection: 'desc',
+    initialPageSize: defaultPageSize,
+    fetcher: async ({ page, pageSize, sortKey, sortDirection, search, filters, signal }) => {
+      const result = await getTransactions().listTransactions(
+        {
+          page,
+          per_page: pageSize,
+          date_from: filters.dateFrom || undefined,
+          date_to: filters.dateTo || undefined,
+          search: search || undefined,
+          sort: sortKey,
+          order: sortDirection,
+          settlement_status:
+            filters.settlementStatus !== 'all' ? filters.settlementStatus : undefined,
+        },
+        { signal }
+      )
+      return {
+        items: localizeTransactionItems(result.data ?? []),
+        total: result.pagination?.total ?? 0,
+      }
+    },
+    parseError: (err) => (err instanceof Error ? err.message : 'Failed to load transactions'),
   })
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(defaultPageSize)
-
-  // Filter state. The initial range is derived from the default preset here
-  // rather than announced by the PeriodPicker from an effect — that effect
-  // re-fired on every render and reset the page, so paging was impossible (#89).
-  const [period, setPeriod] = useState<PeriodKey>(DEFAULT_PERIOD)
-  const [dateFrom, setDateFrom] = useState<string | undefined>(() => getPeriodRange(DEFAULT_PERIOD).dateFrom)
-  const [dateTo, setDateTo] = useState<string | undefined>(() => getPeriodRange(DEFAULT_PERIOD).dateTo)
-  const [settlementStatus, setSettlementStatus] = useState<'all' | 'open' | 'settled'>('all')
-  const [search, setSearch] = useState('')
-
-  // Sorting state
-  const [sortKey, setSortKey] = useState<'created_at' | 'amount' | 'type' | 'member'>('created_at')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const { items: transactions, total: totalItems, totalPages, loading, error, setError, search } = list
+  const { period, settlementStatus, dateFrom, dateTo } = list.filters
+  const sortKey = list.sortKey
+  const sortDirection = list.sortDirection
 
   // Settlement mode state
   type SettlementMode = 'none' | 'edit'
@@ -161,10 +181,6 @@ export function JournalPage() {
   const [stornoError, setStornoError] = useState<string | null>(null)
   const [stornoLoading, setStornoLoading] = useState(false)
 
-  // Guards state updates against both unmount and superseded requests — an
-  // is-mounted flag only covers the first of those.
-  const listRequest = useLatestRequest()
-
   // Mobile state
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
@@ -177,16 +193,7 @@ export function JournalPage() {
     { value: 'amount_asc', label: t('journal.sortAmountLow', 'Amount low\u2013high'), direction: 'asc' as const },
   ]
 
-  const mobileSortValue = `${sortKey}_${sortDirection}`
-
-  const handleMobileSortChange = (value: string) => {
-    const lastUnderscore = value.lastIndexOf('_')
-    const key = value.substring(0, lastUnderscore) as typeof sortKey
-    const dir = value.substring(lastUnderscore + 1) as 'asc' | 'desc'
-    setSortKey(key)
-    setSortDirection(dir)
-    setCurrentPage(1)
-  }
+  const mobileSortValue = list.sortValue
 
   const mobileFilterCount = [
     period !== DEFAULT_PERIOD ? 1 : 0,
@@ -198,91 +205,31 @@ export function JournalPage() {
     const unsubscribe = onLoadingStateChange(() => {
       // Component will re-render when loading state changes due to state updates
     })
-    return () => unsubscribe()
+    return unsubscribe
   }, [])
-
-  // Load transactions when filters, sorting, or pagination changes. Claiming
-  // the signal before the debounce means a superseded query is already dead by
-  // the time its response could land.
-  useEffect(() => {
-    const signal = listRequest.next()
-    const timer = setTimeout(() => loadTransactions(signal), search ? 500 : 0)
-    return () => {
-      clearTimeout(timer)
-      listRequest.abort()
-    }
-  }, [currentPage, pageSize, dateFrom, dateTo, settlementStatus, search, sortKey, sortDirection]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function loadTransactions(signal: AbortSignal = listRequest.next()) {
-    try {
-      setState((prev) => ({ ...prev, loading: true, error: null }))
-
-      const result = await getTransactions().listTransactions({
-        page: currentPage,
-        per_page: pageSize,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
-        search: search || undefined,
-        sort: sortKey as 'created_at' | 'amount' | 'type' | 'member',
-        order: sortDirection,
-        settlement_status: settlementStatus !== 'all' ? settlementStatus as 'open' | 'settled' : undefined,
-      }, { signal })
-
-      // Only update state if this is still the current request
-      if (signal.aborted) return
-
-      const resolvedItems = localizeTransactionItems(result.data ?? [])
-
-      setState((prev) => ({
-        ...prev,
-        transactions: resolvedItems,
-        totalItems: result.pagination?.total ?? 0,
-        loading: false,
-      }))
-    } catch (err) {
-      // Only update state if this is still the current request
-      if (signal.aborted) return
-
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load transactions'
-      setState((prev) => ({
-        ...prev,
-        transactions: [],
-        loading: false,
-        error: errorMsg,
-      }))
-    }
-  }
 
   // Handle filter changes. Memoized so the PeriodPicker sees a stable handler
   // across renders (#89) — it is only called from a click now, but a filter
   // handler whose identity churns on every render is what let the old effect
   // fire on every render in the first place.
-  const handlePeriodChange = useCallback((from: string | undefined, to: string | undefined, periodKey: PeriodKey) => {
-    setPeriod(periodKey)
-    setDateFrom(from)
-    setDateTo(to)
-    setCurrentPage(1)
-  }, [])
+  const setFilters = list.setFilters
+  const handlePeriodChange = useCallback(
+    (from: string | undefined, to: string | undefined, periodKey: PeriodKey) => {
+      setFilters({ period: periodKey, dateFrom: from, dateTo: to })
+    },
+    [setFilters]
+  )
 
-  const handleSearch = (value: string) => {
-    setSearch(value)
-    setCurrentPage(1)
-  }
+  const handleSearch = list.setSearch
 
   const handleSettlementStatusChange = (status: 'all' | 'open' | 'settled') => {
-    setSettlementStatus(status)
-    setCurrentPage(1)
+    list.setFilter('settlementStatus', status)
   }
 
-  const handleSort = (field: 'created_at' | 'amount' | 'type' | 'member') => {
-    if (sortKey === field) {
-      // Toggle direction if clicking the same field
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      // Switch to new field, default to desc
-      setSortKey(field)
-      setSortDirection('desc')
-    }
+  // Sorting a desktop column resets to page 1 exactly as the mobile dropdown
+  // does — that divergence was the whole point of centralizing this (#121).
+  const handleSort = (field: JournalSortKey) => {
+    list.toggleSort(field, 'desc')
   }
 
   const handleOpenStorno = (tx: ResolvedTransaction) => {
@@ -313,7 +260,7 @@ export function JournalPage() {
 
       setStornoTarget(null)
       setStornoReason('')
-      await loadTransactions()
+      await list.reload()
     } catch (err) {
       // Read the backend's own error code rather than sniffing the message —
       // both refusals are states a second admin can legitimately race us into,
@@ -333,7 +280,7 @@ export function JournalPage() {
       // Either refusal means our view of this row is stale — the row is
       // already reversed. Refresh so the action disables itself.
       if (code === 'already_stornoed') {
-        await loadTransactions()
+        await list.reload()
       }
     } finally {
       setStornoLoading(false)
@@ -353,11 +300,11 @@ export function JournalPage() {
   }
 
   const handleSelectAll = () => {
-    if (selectedTransactionIds.size === state.transactions.length && state.transactions.length > 0) {
+    if (selectedTransactionIds.size === transactions.length && transactions.length > 0) {
       setSelectedTransactionIds(new Set())
     } else {
       // Only select unsettled transactions
-      const unsettled = state.transactions.filter(t => !t.is_settled)
+      const unsettled = transactions.filter(t => !t.is_settled)
       setSelectedTransactionIds(new Set(unsettled.map(t => t.id)))
     }
   }
@@ -370,7 +317,9 @@ export function JournalPage() {
   const handleEnterEditMode = () => {
     setSettlementMode('edit')
     setSelectedTransactionIds(new Set())
-    setSettlementStatus('open')
+    // Settling only makes sense for open transactions, so entering edit mode
+    // narrows the filter — which resets to page 1 like any other filter change.
+    list.setFilter('settlementStatus', 'open')
   }
 
   const handleSettleAll = async () => {
@@ -382,14 +331,14 @@ export function JournalPage() {
         search: search || undefined,
       })
       if (preview.transaction_count === 0) {
-        setState((prev) => ({ ...prev, error: t('journal.settlementNoOpen') }))
+        setError(t('journal.settlementNoOpen'))
         return
       }
       setSettleAllPreview(preview)
       setConfirmError(null)
       setConfirmModalOpen(true)
     } catch (err) {
-      setState((prev) => ({ ...prev, error: err instanceof Error ? err.message : 'Failed to load preview' }))
+      setError(err instanceof Error ? err.message : 'Failed to load preview')
     } finally {
       setSettleAllLoading(false)
     }
@@ -397,10 +346,10 @@ export function JournalPage() {
 
   const handleConcludeSettlement = () => {
     if (selectedTransactionIds.size === 0) {
-      setState((prev) => ({ ...prev, error: t('journal.selectAtLeastOne') }))
+      setError(t('journal.selectAtLeastOne'))
       return
     }
-    const selected = state.transactions.filter((tx) => selectedTransactionIds.has(tx.id))
+    const selected = transactions.filter((tx) => selectedTransactionIds.has(tx.id))
     setPendingTransactions(selected)
     setConfirmError(null)
     setConfirmModalOpen(true)
@@ -461,9 +410,6 @@ export function JournalPage() {
       setConfirmLoading(false)
     }
   }
-
-  // Calculate pagination info
-  const totalPages = Math.ceil(state.totalItems / pageSize)
 
   return (
     <div data-testid="journal-page">
@@ -602,7 +548,7 @@ export function JournalPage() {
               sort={{
                 options: mobileSortOptions,
                 value: mobileSortValue,
-                onChange: handleMobileSortChange,
+                onChange: list.setSortValue,
               }}
               filterCount={mobileFilterCount}
               onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
@@ -634,21 +580,21 @@ export function JournalPage() {
             />
 
             {/* Mobile card list */}
-            {state.loading ? (
+            {loading ? (
               <div data-testid="journal-loading" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
                 {t('common.loading')}
               </div>
-            ) : state.error ? (
+            ) : error ? (
               <div data-testid="journal-error-message" style={{ padding: theme.spacing.md, backgroundColor: '#7f1d1d', color: '#fca5a5', borderRadius: 6 }}>
-                Error: {state.error}
+                Error: {error}
               </div>
-            ) : state.transactions.length === 0 ? (
+            ) : transactions.length === 0 ? (
               <div data-testid="journal-empty-state" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
                 {t('journal.noTransactions')}
               </div>
             ) : (
               <div data-testid="journal-mobile-cards" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {state.transactions.map((tx) => (
+                {transactions.map((tx) => (
                   <div
                     key={tx.id}
                     data-testid={`journal-card-${tx.id}`}
@@ -755,18 +701,15 @@ export function JournalPage() {
             )}
 
             {/* Mobile pagination */}
-            {state.totalItems > 0 && !state.loading && (
+            {totalItems > 0 && !loading && (
               <PaginationToolbar
                 data-testid="journal-pagination"
-                currentPage={currentPage}
+                currentPage={list.page}
                 totalPages={totalPages}
-                totalItems={state.totalItems}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={(size) => {
-                  setPageSize(size)
-                  setCurrentPage(1)
-                }}
+                totalItems={totalItems}
+                pageSize={list.pageSize}
+                onPageChange={list.setPage}
+                onPageSizeChange={list.setPageSize}
                 testId="journal"
                 showInfo={true}
                 showPageSize={true}
@@ -796,7 +739,7 @@ export function JournalPage() {
               color: tableColors.cellSecondaryText,
             }}
           >
-            {state.totalItems} {t('statistics.transactions')} {t('common.found')}
+            {totalItems} {t('statistics.transactions')} {t('common.found')}
           </div>
 
           {/* Center-left: Search input */}
@@ -847,7 +790,7 @@ export function JournalPage() {
         </div>
 
         {/* Loading state */}
-        {state.loading ? (
+        {loading ? (
           <div
             data-testid="journal-loading"
             style={{
@@ -858,7 +801,7 @@ export function JournalPage() {
           >
             {t('common.loading')}
           </div>
-        ) : state.error ? (
+        ) : error ? (
           <div
             data-testid="journal-error-message"
             style={{
@@ -869,9 +812,9 @@ export function JournalPage() {
               margin: tableSpacing.cellPadding,
             }}
           >
-            Error: {state.error}
+            Error: {error}
           </div>
-        ) : state.transactions.length === 0 ? (
+        ) : transactions.length === 0 ? (
           <div
             data-testid="journal-empty-state"
             style={{
@@ -911,7 +854,7 @@ export function JournalPage() {
                         <input
                           type="checkbox"
                           data-testid="journal-select-all-checkbox"
-                          checked={selectedTransactionIds.size === state.transactions.length && state.transactions.length > 0}
+                          checked={selectedTransactionIds.size === transactions.length && transactions.length > 0}
                           onChange={handleSelectAll}
                         />
                       </th>
@@ -985,7 +928,7 @@ export function JournalPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.transactions.map((tx) => (
+                  {transactions.map((tx) => (
                     <tr
                       key={tx.id}
                       data-testid={`journal-table-row-${tx.id}`}
@@ -1231,18 +1174,15 @@ export function JournalPage() {
               </table>
 
               {/* Pagination */}
-              {state.totalItems > 0 && (
+              {totalItems > 0 && (
                 <PaginationToolbar
                   data-testid="journal-pagination"
-                  currentPage={currentPage}
+                  currentPage={list.page}
                   totalPages={totalPages}
-                  totalItems={state.totalItems}
-                  pageSize={pageSize}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={(size) => {
-                    setPageSize(size)
-                    setCurrentPage(1)
-                  }}
+                  totalItems={totalItems}
+                  pageSize={list.pageSize}
+                  onPageChange={list.setPage}
+                  onPageSizeChange={list.setPageSize}
                   testId="journal"
                   showInfo={true}
                   showPageSize={true}

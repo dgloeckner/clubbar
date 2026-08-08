@@ -17,18 +17,19 @@
  * Settlement details view was removed - no additional value beyond list view.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
-import { useLatestRequest } from '../hooks/useLatestRequest'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { useFormatters } from '../hooks/useFormatters'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { StatusFilter } from '../components/forms/StatusFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
+import { useListQuery } from '../hooks/useListQuery'
+import { downloadBlob } from '../api/client'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
 import {
   tableWrapperStyles,
@@ -91,31 +92,65 @@ function formatDateRange(minStr: string | null | undefined, maxStr: string | nul
 
 const defaultPageSize = 20
 
+type SettlementSortKey = 'created_at' | 'created_by'
+
+interface SettlementFilters {
+  period: PeriodKey
+  dateFrom: string | undefined
+  dateTo: string | undefined
+  status: 'all' | 'active' | 'cancelled'
+}
+
 export function SettlementsPage() {
   const { t } = useTranslation()
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
-  const listRequest = useLatestRequest()
-  const [settlements, setSettlements] = useState<SettlementListItemExtended[]>([])
-  const [totalItems, setTotalItems] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // Pagination, filters and sorting share the list-query state (#121). The
+  // initial range is derived from the default preset here rather than announced
+  // by the PeriodPicker from an effect — that effect re-fired on every render
+  // and reset the page, so paging was impossible (#89).
+  const list = useListQuery<SettlementListItemExtended, SettlementFilters, SettlementSortKey>({
+    initialFilters: {
+      period: DEFAULT_PERIOD,
+      dateFrom: getPeriodRange(DEFAULT_PERIOD).dateFrom,
+      dateTo: getPeriodRange(DEFAULT_PERIOD).dateTo,
+      status: 'all',
+    },
+    initialSortKey: 'created_at',
+    initialSortDirection: 'desc',
+    initialPageSize: defaultPageSize,
+    fetcher: async ({ page, pageSize, sortDirection, filters, signal }) => {
+      // SettlementsRepository::listPaginated always sorts by created_at server-side — there's
+      // no per-column sort, only a direction. Clicking "Date" or "Created By" both just flip
+      // that direction (`order`); sort_by's per-column enum is reserved for future use.
+      const params: ListSettlementsParams = {
+        page,
+        per_page: pageSize,
+        order: sortDirection,
+      }
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(defaultPageSize)
+      if (filters.dateFrom) params.date_from = filters.dateFrom
+      if (filters.dateTo) params.date_to = filters.dateTo
+      if (filters.status !== 'all') params.status = filters.status
 
-  // Filters. The initial range is derived from the default preset here rather
-  // than announced by the PeriodPicker from an effect — that effect re-fired on
-  // every render and reset the page, so paging was impossible (#89).
-  const [period, setPeriod] = useState<PeriodKey>(DEFAULT_PERIOD)
-  const [dateFrom, setDateFrom] = useState<string | undefined>(() => getPeriodRange(DEFAULT_PERIOD).dateFrom)
-  const [dateTo, setDateTo] = useState<string | undefined>(() => getPeriodRange(DEFAULT_PERIOD).dateTo)
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'cancelled'>('all')
+      const response = await getSettlementsFactory().listSettlements(params, { signal })
+      return {
+        items: (response.data ?? []) as SettlementListItemExtended[],
+        total: response.pagination?.total ?? 0,
+      }
+    },
+    parseError: (err) =>
+      axios.isAxiosError(err)
+        ? (err.response?.data?.message ?? err.message)
+        : err instanceof Error
+          ? err.message
+          : 'Failed to load settlements',
+  })
 
-  // Sorting
-  const [sortKey, setSortKey] = useState<'created_at' | 'created_by'>('created_at')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const { items: settlements, total: totalItems, totalPages, loading, error, setError } = list
+  const { period, status: statusFilter } = list.filters
+  const sortKey = list.sortKey
+  const sortOrder = list.sortDirection
 
   // Undo confirmation dialog
   const [undoConfirm, setUndoConfirm] = useState<string | null>(null)
@@ -134,86 +169,24 @@ export function SettlementsPage() {
     { value: 'created_at_asc', label: t('settlements.sortOldest', 'Oldest first'), direction: 'asc' as const },
   ]
 
-  const mobileSortValue = `${sortKey}_${sortOrder}`
-
-  const handleMobileSortChange = (value: string) => {
-    const lastUnderscore = value.lastIndexOf('_')
-    const key = value.substring(0, lastUnderscore) as typeof sortKey
-    const dir = value.substring(lastUnderscore + 1) as 'asc' | 'desc'
-    setSortKey(key)
-    setSortOrder(dir)
-    setCurrentPage(1)
-  }
-
-  // Load settlements when filters, sorting, or pagination changes
-  useEffect(() => {
-    loadSettlements(listRequest.next())
-    return () => listRequest.abort()
-  }, [currentPage, pageSize, dateFrom, dateTo, statusFilter, sortKey, sortOrder]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadSettlements = async (signal: AbortSignal = listRequest.next()) => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      // SettlementsRepository::listPaginated always sorts by created_at server-side — there's
-      // no per-column sort, only a direction. Clicking "Date" or "Created By" both just flip
-      // that direction (`order`); sort_by's per-column enum is reserved for future use.
-      const params: ListSettlementsParams = {
-        page: currentPage,
-        per_page: pageSize,
-        order: sortOrder,
-      }
-
-      if (dateFrom) params.date_from = dateFrom
-      if (dateTo) params.date_to = dateTo
-      if (statusFilter !== 'all') params.status = statusFilter
-
-      const response = await getSettlementsFactory().listSettlements(params, { signal })
-      if (signal.aborted) return
-
-      setSettlements((response.data ?? []) as SettlementListItemExtended[])
-      setTotalItems(response.pagination?.total ?? 0)
-    } catch (err: unknown) {
-      if (signal.aborted) return
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message ?? err.message)
-      } else if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('Failed to load settlements')
-      }
-      setSettlements([])
-      setTotalItems(0)
-    } finally {
-      // A superseded request must not clear the spinner the newer one raised.
-      if (!signal.aborted) setLoading(false)
-    }
-  }
-
+  const mobileSortValue = list.sortValue
 
   // Handle period change from PeriodPicker. Memoized so the picker sees a
   // stable handler identity across renders (#89).
-  const handlePeriodChange = useCallback((from: string | undefined, to: string | undefined, periodKey: PeriodKey) => {
-    setPeriod(periodKey)
-    setDateFrom(from)
-    setDateTo(to)
-    setCurrentPage(1)
-  }, [])
+  const setFilters = list.setFilters
+  const handlePeriodChange = useCallback(
+    (from: string | undefined, to: string | undefined, periodKey: PeriodKey) => {
+      setFilters({ period: periodKey, dateFrom: from, dateTo: to })
+    },
+    [setFilters]
+  )
 
   const handleExportSepa = async (settlementId: string) => {
     try {
       const blob = await getSettlementsFactory().downloadSepaXml(settlementId)
-      const objectUrl = URL.createObjectURL(blob as unknown as Blob)
-      const a = document.createElement('a')
-      a.href = objectUrl
-      a.download = `sepa-${settlementId}.xml`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(objectUrl)
+      downloadBlob(blob as unknown as Blob, `sepa-${settlementId}.xml`)
       // Reload list so status updates to "Exported"
-      setTimeout(() => loadSettlements(), 500)
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)
@@ -228,14 +201,7 @@ export function SettlementsPage() {
   const handleExportCsv = async (settlementId: string) => {
     try {
       const blob = await getSettlementsFactory().downloadSettlementCsv(settlementId)
-      const objectUrl = URL.createObjectURL(blob as unknown as Blob)
-      const a = document.createElement('a')
-      a.href = objectUrl
-      a.download = `settlement-${settlementId}.csv`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(objectUrl)
+      downloadBlob(blob as unknown as Blob, `settlement-${settlementId}.csv`)
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)
@@ -250,14 +216,7 @@ export function SettlementsPage() {
   const handleExportTransactionsCsv = async (settlementId: string) => {
     try {
       const blob = await getSettlementsFactory().exportSettlementTransactions(settlementId)
-      const objectUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = objectUrl
-      a.download = `transactions-${settlementId}.csv`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(objectUrl)
+      downloadBlob(blob, `transactions-${settlementId}.csv`)
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)
@@ -278,10 +237,9 @@ export function SettlementsPage() {
     const settlementId = undoConfirm
     setUndoConfirm(null)
     try {
-      setLoading(true)
       setError(null)
       await getSettlementsFactory().cancelSettlement(settlementId)
-      await loadSettlements()
+      await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)
@@ -290,13 +248,8 @@ export function SettlementsPage() {
       } else {
         setError('Failed to undo settlement')
       }
-    } finally {
-      setLoading(false)
     }
   }
-
-  // Calculate total pages
-  const totalPages = Math.ceil(totalItems / pageSize)
 
   const status = (settlement: SettlementListItemExtended) => getSettlementStatus(settlement)
 
@@ -327,7 +280,7 @@ export function SettlementsPage() {
               sort={{
                 options: mobileSortOptions,
                 value: mobileSortValue,
-                onChange: handleMobileSortChange,
+                onChange: list.setSortValue,
               }}
               filterCount={mobileFilterCount}
               onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
@@ -341,10 +294,7 @@ export function SettlementsPage() {
                   />
                   <StatusFilter
                     value={statusFilter}
-                    onChange={(newStatus) => {
-                      setStatusFilter(newStatus)
-                      setCurrentPage(1)
-                    }}
+                    onChange={(newStatus) => list.setFilter('status', newStatus)}
                     testId="settlements-status-filter"
                   />
                 </div>
@@ -497,11 +447,11 @@ export function SettlementsPage() {
             {/* Pagination (mobile) */}
             {!loading && settlements.length > 0 && (
               <PaginationToolbar
-                currentPage={currentPage}
+                currentPage={list.page}
                 totalPages={totalPages}
                 totalItems={totalItems}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
+                pageSize={list.pageSize}
+                onPageChange={list.setPage}
                 onPageSizeChange={() => {}}
                 showPageSize={false}
                 showInfo={true}
@@ -545,10 +495,7 @@ export function SettlementsPage() {
 
               <StatusFilter
                 value={statusFilter}
-                onChange={(newStatus) => {
-                  setStatusFilter(newStatus)
-                  setCurrentPage(1)
-                }}
+                onChange={(newStatus) => list.setFilter('status', newStatus)}
                 testId="settlements-status-filter"
               />
             </div>
@@ -594,14 +541,7 @@ export function SettlementsPage() {
                           cursor: 'pointer',
                           userSelect: 'none',
                         }}
-                        onClick={() => {
-                          if (sortKey === 'created_at') {
-                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                          } else {
-                            setSortKey('created_at')
-                            setSortOrder('desc')
-                          }
-                        }}
+                        onClick={() => list.toggleSort('created_at', 'desc')}
                         title="Click to sort by date"
                         data-testid="settlements-header-date"
                       >
@@ -613,14 +553,7 @@ export function SettlementsPage() {
                           cursor: 'pointer',
                           userSelect: 'none',
                         }}
-                        onClick={() => {
-                          if (sortKey === 'created_by') {
-                            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                          } else {
-                            setSortKey('created_by')
-                            setSortOrder('asc')
-                          }
-                        }}
+                        onClick={() => list.toggleSort('created_by', 'asc')}
                         title="Click to sort by created by"
                         data-testid="settlements-header-created-by"
                       >
@@ -887,15 +820,12 @@ export function SettlementsPage() {
               {totalItems > 0 && (
                 <PaginationToolbar
                   data-testid="settlements-pagination"
-                  currentPage={currentPage}
+                  currentPage={list.page}
                   totalPages={totalPages}
                   totalItems={totalItems}
-                  pageSize={pageSize}
-                  onPageChange={setCurrentPage}
-                  onPageSizeChange={(size) => {
-                    setPageSize(size)
-                    setCurrentPage(1)
-                  }}
+                  pageSize={list.pageSize}
+                  onPageChange={list.setPage}
+                  onPageSizeChange={list.setPageSize}
                   testId="settlements"
                   showInfo={true}
                   showPageSize={true}

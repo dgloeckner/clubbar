@@ -123,6 +123,27 @@ export const customInstance = <T>(
 // ─── File download ────────────────────────────────────────────────────────────
 
 /**
+ * Save an already-fetched blob to disk.
+ *
+ * The anchor dance below was copy-pasted into five call sites, two of which
+ * forgot to revoke the object URL and one of which never attached the anchor to
+ * the document (Firefox ignores a click on a detached anchor) — #121. Pages that
+ * obtain a blob from the generated client should route it through here; pages
+ * that only have a URL should use `downloadFile`, which respects the filename
+ * the backend sends and reports the API's own error message.
+ */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(objectUrl)
+}
+
+/**
  * A failed blob request carries its error body as a Blob, so the caller would
  * otherwise only ever see "Request failed with status code 400". Read the body
  * back and use the API's own message when there is one.
@@ -156,14 +177,7 @@ export async function downloadFile(url: string, fallbackFilename: string): Promi
     const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
     if (match?.[1]) filename = match[1].replace(/['"]/g, '')
   }
-  const objectUrl = URL.createObjectURL(response.data)
-  const a = document.createElement('a')
-  a.href = objectUrl
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(objectUrl)
+  downloadBlob(response.data, filename)
 }
 
 export default axiosInstance

@@ -7,7 +7,6 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
-import { useLatestRequest } from '../hooks/useLatestRequest'
 import { useLoading } from '../context/LoadingContext'
 import { getAuditLog } from '../api/generated/audit-log/audit-log'
 import type { AuditLogEntry, ListAuditLogParams } from '../api/generated'
@@ -21,6 +20,7 @@ import {
   getRowStyle,
 } from '../styles/tableTokens'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
+import { useListQuery } from '../hooks/useListQuery'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { formatDateTime } from '../styles/design-system'
 
@@ -77,30 +77,55 @@ const labelStyle: React.CSSProperties = {
   marginBottom: theme.spacing.xs,
 }
 
+interface AuditLogFilters {
+  dateFrom: string
+  dateTo: string
+  adminId: string
+  action: string
+  entityType: string
+}
+
 export function AuditLogPage() {
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
   const { setIsLoading } = useLoading()
-  const listRequest = useLatestRequest()
 
   const isMobile = breakpoint === 'mobile' || breakpoint === 'smallMobile'
 
-  // State management
-  const [entries, setEntries] = useState<AuditLogEntry[]>([])
-  const [totalEntries, setTotalEntries] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(50)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  // Paging, filters and the debounced search all live in the shared list-query
+  // state (#121).
+  //
+  // The sort direction is held but not sent: /admin/audit-log takes no sort or
+  // order parameter, so the control has always been decorative. Adding one is an
+  // API change, tracked separately — keeping the state here at least means the
+  // header and the mobile dropdown agree on what they display.
+  const list = useListQuery<AuditLogEntry, AuditLogFilters, 'created_at'>({
+    initialFilters: { dateFrom: '', dateTo: '', adminId: '', action: '', entityType: '' },
+    initialSortKey: 'created_at',
+    initialSortDirection: 'desc',
+    initialPageSize: 50,
+    fetcher: async ({ page, pageSize, search, filters, signal }) => {
+      const params: ListAuditLogParams = {
+        page,
+        per_page: pageSize,
+        date_from: filters.dateFrom || undefined,
+        date_to: filters.dateTo || undefined,
+        admin_user_id: filters.adminId || undefined,
+        action: (filters.action as ListAuditLogParams['action']) || undefined,
+        entity_type: (filters.entityType as ListAuditLogParams['entity_type']) || undefined,
+        search: search || undefined,
+      }
+      const response = await getAuditLog().listAuditLog(params, { signal })
+      return { items: response.data ?? [], total: response.pagination?.total ?? 0 }
+    },
+    parseError: (err) => (err instanceof Error ? err.message : 'Failed to load audit log'),
+  })
 
-  // Filters
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [selectedAdmin, setSelectedAdmin] = useState('')
-  const [selectedAction, setSelectedAction] = useState('')
-  const [selectedEntityType, setSelectedEntityType] = useState('')
-  const [searchText, setSearchText] = useState('')
+  const { items: entries, total: totalEntries, totalPages, loading, error } = list
+  const { dateFrom, dateTo, adminId: selectedAdmin, action: selectedAction, entityType: selectedEntityType } = list.filters
+  const searchText = list.search
+  const sortDirection = list.sortDirection
+
   const [admins, setAdmins] = useState<Array<{ id: string; email: string }>>([])
   const [expandedRowId, setExpandedRowId] = useState<number | null>(null)
 
@@ -117,50 +142,12 @@ export function AuditLogPage() {
     { label: t('auditLog.timestamp') + ' (' + t('common.oldest') + ')', value: 'asc' },
   ]
 
-  // Load audit logs
+  // Mirror the list's own loading into the global indicator, and clear it on
+  // unmount so navigating away mid-request cannot strand the spinner.
   useEffect(() => {
-    const loadAuditLogs = async (signal: AbortSignal) => {
-      try {
-        setLoading(true)
-        setIsLoading(true)
-
-        const params: ListAuditLogParams = {
-          page,
-          per_page: perPage,
-          date_from: dateFrom || undefined,
-          date_to: dateTo || undefined,
-          admin_user_id: selectedAdmin || undefined,
-          action: (selectedAction as ListAuditLogParams['action']) || undefined,
-          entity_type: (selectedEntityType as ListAuditLogParams['entity_type']) || undefined,
-          search: searchText || undefined,
-        }
-        const response = await getAuditLog().listAuditLog(params, { signal })
-        if (signal.aborted) return
-
-        setEntries(response.data ?? [])
-        setTotalEntries(response.pagination?.total ?? 0)
-        setError(null)
-      } catch (err: unknown) {
-        if (signal.aborted) return
-        setError(err instanceof Error ? err.message : 'Failed to load audit log')
-      } finally {
-        // A superseded request must not clear the spinner the newer one raised.
-        if (!signal.aborted) {
-          setLoading(false)
-          setIsLoading(false)
-        }
-      }
-    }
-
-    // Claimed before the debounce, so a search that is typed and then cleared
-    // cannot come back late and refill the table under an empty search box.
-    const signal = listRequest.next()
-    const timer = setTimeout(() => loadAuditLogs(signal), searchText ? 500 : 0) // Debounce search
-    return () => {
-      clearTimeout(timer)
-      listRequest.abort()
-    }
-  }, [page, perPage, dateFrom, dateTo, selectedAdmin, selectedAction, selectedEntityType, searchText, setIsLoading, listRequest])
+    setIsLoading(loading)
+    return () => setIsLoading(false)
+  }, [loading, setIsLoading])
 
   // Load admin users for filter dropdown
   useEffect(() => {
@@ -196,7 +183,7 @@ export function AuditLogPage() {
             <input
               type="date"
               value={dateFrom}
-              onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
+              onChange={(e) => list.setFilter('dateFrom', e.target.value)}
               data-testid="audit-log-filter-date-from"
               style={inputStyle}
             />
@@ -206,7 +193,7 @@ export function AuditLogPage() {
             <input
               type="date"
               value={dateTo}
-              onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
+              onChange={(e) => list.setFilter('dateTo', e.target.value)}
               data-testid="audit-log-filter-date-to"
               style={inputStyle}
             />
@@ -218,7 +205,7 @@ export function AuditLogPage() {
           <label style={labelStyle}>{t('auditLog.admin')}</label>
           <select
             value={selectedAdmin}
-            onChange={(e) => { setSelectedAdmin(e.target.value); setPage(1) }}
+            onChange={(e) => list.setFilter('adminId', e.target.value)}
             data-testid="audit-log-filter-admin"
             style={selectStyle}
           >
@@ -234,7 +221,7 @@ export function AuditLogPage() {
           <label style={labelStyle}>{t('auditLog.action')}</label>
           <select
             value={selectedAction}
-            onChange={(e) => { setSelectedAction(e.target.value); setPage(1) }}
+            onChange={(e) => list.setFilter('action', e.target.value)}
             data-testid="audit-log-filter-action"
             style={selectStyle}
           >
@@ -250,7 +237,7 @@ export function AuditLogPage() {
           <label style={labelStyle}>{t('auditLog.entityType')}</label>
           <select
             value={selectedEntityType}
-            onChange={(e) => { setSelectedEntityType(e.target.value); setPage(1) }}
+            onChange={(e) => list.setFilter('entityType', e.target.value)}
             data-testid="audit-log-filter-entity-type"
             style={selectStyle}
           >
@@ -267,7 +254,7 @@ export function AuditLogPage() {
           <input
             type="text"
             value={searchText}
-            onChange={(e) => { setSearchText(e.target.value); setPage(1) }}
+            onChange={(e) => list.setSearch(e.target.value)}
             placeholder={t('auditLog.searchPlaceholder')}
             data-testid="audit-log-search-input"
             style={inputStyle}
@@ -419,9 +406,7 @@ export function AuditLogPage() {
                 label={t('auditLog.timestamp')}
                 sortKey="created_at"
                 currentSort={{ key: 'created_at', direction: sortDirection }}
-                onSort={() => {
-                  setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-                }}
+                onSort={() => list.toggleSort('created_at')}
               />
             </th>
             <th style={{ ...headerCellBaseStyle, width: '150px' }}>{t('auditLog.admin')}</th>
@@ -561,7 +546,7 @@ export function AuditLogPage() {
             <select
               data-testid="audit-log-mobile-sort"
               value={sortDirection}
-              onChange={(e) => setSortDirection(e.target.value as 'asc' | 'desc')}
+              onChange={(e) => list.setSort('created_at', e.target.value as 'asc' | 'desc')}
               style={{
                 ...selectStyle,
                 flex: 1,
@@ -719,12 +704,12 @@ export function AuditLogPage() {
       {/* Pagination */}
       {!loading && entries.length > 0 && (
         <PaginationToolbar
-          currentPage={page}
-          totalPages={Math.ceil(totalEntries / perPage)}
+          currentPage={list.page}
+          totalPages={totalPages}
           totalItems={totalEntries}
-          pageSize={perPage}
-          onPageChange={setPage}
-          onPageSizeChange={setPerPage}
+          pageSize={list.pageSize}
+          onPageChange={list.setPage}
+          onPageSizeChange={list.setPageSize}
           variant="default"
           showPageSize={true}
           showInfo={true}
