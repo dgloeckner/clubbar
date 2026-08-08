@@ -95,7 +95,7 @@ Format: `SET-{YYYY}-{NNN}`
 Finalization is **permanent**:
 - Transactions cannot be un-settled
 - Execution date cannot be changed
-- To fix errors: create correction transactions + new settlement
+- To fix errors: storno the affected transactions ([UC-A23](../admin/UC-A23-storno.md)) and settle again — the storno derives its amount from the transaction it reverses, so nothing is typed in
 
 ## Audit Log Entry
 

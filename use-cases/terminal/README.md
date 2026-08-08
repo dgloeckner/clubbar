@@ -17,7 +17,7 @@ The terminal records member transactions for products consumed. Transactions are
 
 | Actor | Description |
 |-------|-------------|
-| **Member** | Organization member with RFID card and valid SEPA mandate |
+| **Member** | Organization member with RFID card and an **active mandate** |
 
 ## Terminal Access Requirements
 
@@ -29,7 +29,7 @@ Members must meet all requirements to use the terminal:
 | Active account | is_active = true | "Account inactive" |
 | SEPA valid | is_sepa_valid = true | "SEPA mandate missing" |
 
-SEPA validity is derived from `iban IS NOT NULL AND mandate_reference IS NOT NULL`. See [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md).
+A member without an **active mandate** cannot start a session at all — blocked at card scan, before any product view opens, with no grace period. `is_sepa_valid` is derived from *whether the member has an active mandate*, not from a `NOT NULL` check on two member-table fields: the mandate reference used to be auto-generated the instant an IBAN was typed, so the old predicate collapsed to "somebody typed an IBAN" rather than "somebody signed a mandate". See [ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md) (amended 2026-08-07) and [ADR-0006](../../adr/0006-sepa-mandate-reference-strategy.md) (amended: a mandate is its own record carrying reference, IBAN and signature date).
 
 ## Shopping Cart Model
 

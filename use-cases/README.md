@@ -36,8 +36,9 @@ Complete index of all use cases across domains, with implementation status.
 | ID | Name | Status | Link |
 |----|------|--------|------|
 | UC-A20 | View Tab | Implemented (diverges) | [UC-A20](./admin/UC-A20-view-tab.md) |
-| UC-A21 | Manual Booking | Implemented | [UC-A21](./admin/UC-A21-manual-booking.md) |
+| UC-A21 | Manual Purchase | Not implemented — replaces the former "Manual Booking" | [UC-A21](./admin/UC-A21-manual-purchase.md) |
 | UC-A22 | Export Transactions | Implemented (diverges) | [UC-A22](./admin/UC-A22-export-transactions.md) |
+| UC-A23 | Storno | Not implemented | [UC-A23](./admin/UC-A23-storno.md) |
 
 ### Settlements
 
@@ -144,10 +145,10 @@ Complete index of all use cases across domains, with implementation status.
 
 | Domain | Total | Implemented | Diverges | Partial | Not Impl. |
 |--------|-------|-------------|----------|---------|-----------|
-| Admin Panel | 42 | 33 | 5 | 4 | 5 |
+| Admin Panel | 43 | 32 | 5 | 4 | 7 |
 | Terminal | 7 | 4 | 3 | 0 | 0 |
 | GDPR | 6 | 3 | 1 | 2 | 0 |
 | SEPA | 9 | 7 | 2 | 0 | 0 |
-| **Total** | **64** | **47** | **11** | **6** | **5** |
+| **Total** | **65** | **46** | **11** | **6** | **7** |
 
 Action items for partially/not implemented use cases are tracked in [plans/action-items-use-cases.md](../plans/action-items-use-cases.md).

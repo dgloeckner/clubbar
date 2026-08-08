@@ -44,7 +44,7 @@ Erika Musterfrau;;;12.00;no
 ## Use Cases
 - Manual verification before bank upload
 - Backup/archive
-- Non-SEPA collection tracking (manual bank transfer, cash)
+- Non-SEPA collection tracking (manual bank transfer)
 
 ## Test Derivation
 - Download CSV: valid file downloaded

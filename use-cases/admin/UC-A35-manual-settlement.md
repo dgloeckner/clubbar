@@ -17,9 +17,9 @@ Admin
 ## Overview
 
 Marks selected transactions as settled **without SEPA export**. Used for:
-- Members without valid SEPA data (IBAN or mandate missing)
-- Payments received via alternative methods (cash, bank transfer, PayPal, etc.)
-- Balance write-offs (uncollectable debt, goodwill, etc.)
+- Members without an active mandate, whose balance therefore cannot be collected by direct debit
+- Payments received by bank transfer
+- Write-offs of a balance the club has given up collecting
 
 Works on a list of selected transactions. Admin can settle any combination of transactions from any members.
 

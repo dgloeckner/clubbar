@@ -252,14 +252,14 @@ No user interaction for configured timeout period (30 seconds)
 ## E6: SEPA Mandate Invalid
 
 ### Actor
-Member with missing or invalid SEPA data
+Member without an **active mandate**
 
 ### Trigger
-Card scanned for member without valid IBAN or mandate_reference
+Card scanned for a member without an active mandate. This is SEPA-only ([#171](https://github.com/dgloeckner/ruderbar/issues/171)): a member with no active mandate cannot start a terminal session at all — refused at card scan, before any product view opens, with no grace period.
 
 ### Flow
 1. Member scans RFID card
-2. System finds member but `is_sepa_valid = false`
+2. System finds member but `is_sepa_valid = false` — no active mandate
 3. System displays error screen
 
 ### Error Display
@@ -278,11 +278,16 @@ Card scanned for member without valid IBAN or mandate_reference
 - Return to idle screen after timeout
 
 ### SEPA Validity Check
+
+**Amended 2026-08-07.** The check used to require both the IBAN field and the mandate reference field to be present. That predicate could not carry the weight this use case puts on it: the mandate reference used to be auto-generated the instant an IBAN was typed, so both fields became non-empty together and "has a valid SEPA mandate" collapsed to "somebody typed an IBAN" — data entry, not a signed mandate.
+
+The check is now:
+
 ```
-is_sepa_valid = (iban IS NOT NULL) AND (mandate_reference IS NOT NULL)
+is_sepa_valid = member has an active mandate
 ```
 
-Terminal receives `is_sepa_valid` boolean in member sync data; does not have access to actual IBAN/mandate values.
+where a mandate is its own record carrying reference, IBAN and signature date ([ADR-0006](../../adr/0006-sepa-mandate-reference-strategy.md), amended). Terminal receives the `is_sepa_valid` boolean in member sync data; does not have access to actual mandate values.
 
 ### UI Requirements
 - Clear, actionable error message
@@ -291,13 +296,13 @@ Terminal receives `is_sepa_valid` boolean in member sync data; does not have acc
 - Large text for visibility
 
 ### Test Derivation
-- Missing IBAN: scan card of member without IBAN → error shown
-- Missing mandate: scan card of member with IBAN but no mandate_reference → error shown
-- Missing both: scan card of member without IBAN and mandate → error shown
+- No mandate: scan card of member with no active mandate → error shown
+- IBAN alone is not enough: scan card of a member with an IBAN but no signed mandate → error shown — this is the case the old NOT-NULL predicate wrongly admitted
+- Missing both: scan card of member without IBAN and without a mandate → error shown
 - Error timeout: verify return to idle after 5 seconds
 - Tap to dismiss: verify tap returns to idle immediately
 - No session: verify no member session created
-- SEPA restored: admin adds IBAN + mandate, next sync, verify member can login
+- SEPA restored: admin records a new active mandate, next sync, verify member can login
 
 ### Related
 - [ADR-0020: SEPA Mandate Requirement for Terminal Access](../../adr/0020-sepa-mandate-requirement-terminal-access.md)
