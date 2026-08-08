@@ -112,7 +112,7 @@ void main() {
             .thenAnswer((_) async => (testMember, null));
         when(() => mockTxnRepo.getUnsyncedTransactions())
             .thenAnswer((_) async => []);
-        when(() => mockNetwork.syncTransactions(any()))
+        when(() => mockNetwork.syncTransactions(any(), memberIds: any(named: 'memberIds')))
             .thenAnswer((_) async => TransactionBatchResponse(
                   acceptedIds: [],
                   rejected: const TransactionBatchResponse$Rejected(),
@@ -138,7 +138,7 @@ void main() {
             .thenAnswer((_) async => (testMember, null));
         when(() => mockTxnRepo.getUnsyncedTransactions())
             .thenAnswer((_) async => []);
-        when(() => mockNetwork.syncTransactions(any()))
+        when(() => mockNetwork.syncTransactions(any(), memberIds: any(named: 'memberIds')))
             .thenThrow(NetworkException('offline'));
         when(() => mockRepo.findById('member-1'))
             .thenAnswer((_) async => testMember);
@@ -150,6 +150,42 @@ void main() {
         expect(error, isNull);
       });
 
+      /// #191: after a settlement the member's tab is zero and there is nothing
+      /// to upload, so the batch is empty. If the request does not *name* the
+      /// member, the backend reports no balance for them and the terminal keeps
+      /// showing the pre-settlement Deckel until their next purchase.
+      test('names the scanned member so an empty batch still asks for a balance',
+          () async {
+        final testMember = makeMember(balanceCents: 2500);
+        final settledMember = makeMember(balanceCents: 0);
+
+        when(() => mockRepo.findByCardUid('card-123'))
+            .thenAnswer((_) async => (testMember, null));
+        when(() => mockTxnRepo.getUnsyncedTransactions())
+            .thenAnswer((_) async => []);
+        when(() => mockNetwork.syncTransactions(any(),
+                memberIds: any(named: 'memberIds')))
+            .thenAnswer((_) async => TransactionBatchResponse(
+                  acceptedIds: [],
+                  rejected: const TransactionBatchResponse$Rejected(),
+                  memberBalances: {'member-1': 0},
+                ));
+        when(() => mockRepo.updateMemberBalance('member-1', 0))
+            .thenAnswer((_) async {});
+        when(() => mockRepo.findById('member-1'))
+            .thenAnswer((_) async => settledMember);
+
+        final (member, error) =
+            await serviceWithNetwork.lookupByRfid('card-123');
+
+        expect(error, isNull);
+        expect(member?.balanceCents, equals(0));
+        verify(() => mockNetwork.syncTransactions(
+              [],
+              memberIds: ['member-1'],
+            )).called(1);
+      });
+
       test('skips balance update when member not in sync response', () async {
         final testMember = makeMember();
 
@@ -157,7 +193,7 @@ void main() {
             .thenAnswer((_) async => (testMember, null));
         when(() => mockTxnRepo.getUnsyncedTransactions())
             .thenAnswer((_) async => []);
-        when(() => mockNetwork.syncTransactions(any()))
+        when(() => mockNetwork.syncTransactions(any(), memberIds: any(named: 'memberIds')))
             .thenAnswer((_) async => TransactionBatchResponse(
                   acceptedIds: [],
                   rejected: const TransactionBatchResponse$Rejected(),

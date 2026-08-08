@@ -28,11 +28,28 @@ class TransactionsService
         private Logger $logger,
     ) {}
 
-    public function processBatch(array $transactions): TransactionBatchResultDto
+    /**
+     * @param list<string> $requestedMemberIds Members whose balance the caller
+     *        wants reported even though this batch does not touch them (#191).
+     *        A terminal after a settlement has nothing to upload, so without
+     *        this it could never learn that the tab is now zero — it would keep
+     *        showing the pre-settlement Deckel until the member's next purchase.
+     */
+    public function processBatch(array $transactions, array $requestedMemberIds = []): TransactionBatchResultDto
     {
         $acceptedIds = [];
         $errors = [];
         $affectedMemberIds = [];
+
+        foreach ($requestedMemberIds as $memberId) {
+            // Unknown ids are skipped, not reported as 0. A phantom zero would
+            // read to the terminal as "this member owes nothing" and overwrite a
+            // real cached balance; an absent key leaves the cache alone, which
+            // is the same graceful degradation an offline scan already gets.
+            if ($this->membersRepository->findById($memberId)) {
+                $affectedMemberIds[$memberId] = true;
+            }
+        }
 
         foreach ($transactions as $tx) {
             if (empty($tx['member_id'])) {

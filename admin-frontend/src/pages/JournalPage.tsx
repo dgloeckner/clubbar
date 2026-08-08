@@ -18,7 +18,7 @@
  */
 
 import axios from 'axios'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
@@ -34,6 +34,7 @@ import { getSettlements } from '../api/generated/settlements/settlements'
 import { getTransactionTypeColor, getAmountColor } from '../utils/transactions'
 import { getCurrentLanguage } from '../i18n/config'
 import { getLocalizedName } from '../utils/i18n-helpers'
+import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
 import { SettlementConfirmModal } from '../components/modals/SettlementConfirmModal'
 import { StornoConfirmDialog } from '../components/modals/StornoConfirmDialog'
 import type { GlobalTransaction, SettlementFilterPreview } from '../api/generated'
@@ -121,10 +122,12 @@ export function JournalPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(defaultPageSize)
 
-  // Filter state
-  const [period, setPeriod] = useState('3m') // Period preset: '1m' | '3m' | '6m' | '1y' | '2y' | 'all'
-  const [dateFrom, setDateFrom] = useState<string | undefined>(undefined) // Set by PeriodPicker
-  const [dateTo, setDateTo] = useState<string | undefined>(undefined) // Set by PeriodPicker
+  // Filter state. The initial range is derived from the default preset here
+  // rather than announced by the PeriodPicker from an effect — that effect
+  // re-fired on every render and reset the page, so paging was impossible (#89).
+  const [period, setPeriod] = useState<PeriodKey>(DEFAULT_PERIOD)
+  const [dateFrom, setDateFrom] = useState<string | undefined>(() => getPeriodRange(DEFAULT_PERIOD).dateFrom)
+  const [dateTo, setDateTo] = useState<string | undefined>(() => getPeriodRange(DEFAULT_PERIOD).dateTo)
   const [settlementStatus, setSettlementStatus] = useState<'all' | 'open' | 'settled'>('all')
   const [search, setSearch] = useState('')
 
@@ -184,7 +187,7 @@ export function JournalPage() {
   }
 
   const mobileFilterCount = [
-    period !== '3m' ? 1 : 0,
+    period !== DEFAULT_PERIOD ? 1 : 0,
     settlementStatus !== 'all' ? 1 : 0,
   ].reduce((a, b) => a + b, 0)
 
@@ -246,13 +249,16 @@ export function JournalPage() {
     }
   }
 
-  // Handle filter changes
-  const handlePeriodChange = (from: string | undefined, to: string | undefined, periodKey: string) => {
+  // Handle filter changes. Memoized so the PeriodPicker sees a stable handler
+  // across renders (#89) — it is only called from a click now, but a filter
+  // handler whose identity churns on every render is what let the old effect
+  // fire on every render in the first place.
+  const handlePeriodChange = useCallback((from: string | undefined, to: string | undefined, periodKey: PeriodKey) => {
     setPeriod(periodKey)
     setDateFrom(from)
     setDateTo(to)
     setCurrentPage(1)
-  }
+  }, [])
 
   const handleSearch = (value: string) => {
     setSearch(value)

@@ -16,6 +16,9 @@ import { minimumExecutionDate, serverToday } from '../../utils/dates'
  * 4. Settle-all + undo: batch settlement, cancel, verify restoration
  * 5. SEPA validation: stornos and sync reject SEPA-invalid members, accept valid members
  *
+ * Plus targeted regression coverage added since: the storno row action (#169)
+ * and pagination on both pages (#89).
+ *
  * Patterns: 001 (test data isolation), 003 (database-agnostic assertions),
  *           004 (parallel safety), 005 (test IDs), 006 (page object), 008 (expect)
  */
@@ -796,6 +799,104 @@ test.describe('Journal & Settlements', () => {
     const rows = (await verify.json()).data
     const stornos = rows.filter((t: any) => t.related_transaction_id === purchaseId)
     expect(stornos).toHaveLength(1)
+  })
+
+  test('journal: paging past page 1 sticks, and picking a period resets it (#89)', async ({
+    page,
+    testTransactions,
+  }) => {
+    // The PeriodPicker used to announce its range from a `useEffect` whose
+    // deps included the consumer's (non-memoized) handler. Every re-render
+    // handed it a new handler identity, so the effect re-fired and the handler
+    // called setCurrentPage(1) — clicking page 2 snapped straight back to
+    // page 1 and the journal could not be paged at all.
+    const ts = Date.now()
+    const prefix = `JPag${ts}`
+
+    const member = await testTransactions.createMember(`${prefix}First`, `${prefix}Last`)
+    // 12 rows across 2 pages of 10, so a reset to page 1 is visible in both the
+    // active page button and the row count.
+    for (let i = 0; i < 12; i++) {
+      await testTransactions.createSyncTransaction(member.id, 100 + i, `${prefix} purchase ${i}`)
+    }
+
+    const journalPage = new JournalPage(page)
+    await journalPage.navigate()
+    await journalPage.waitForPageLoad()
+    await journalPage.search(`${prefix}Last`)
+    await journalPage.waitForTableToLoad()
+
+    await journalPage.setPageSize(10)
+    await journalPage.waitForTableToLoad()
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(10)
+    await journalPage.expectActivePage(1)
+
+    // ── Page 2, and it has to STAY page 2 ─────────────────────────────
+    await journalPage.goToPage(2)
+    await journalPage.waitForListToSettle()
+
+    await journalPage.expectActivePage(2)
+    expect(await journalPage.getPaginationInfo()).toContain('11-12')
+    expect(await journalPage.getTransactionCount()).toBe(2)
+    // The filter the page started with is untouched by paging.
+    await journalPage.expectPeriodButtonActive('3m')
+
+    // ── Picking a period DOES reset to page 1 ─────────────────────────
+    // The reset itself is wanted — a new filter has a different page 1. What
+    // was broken is that it happened without anyone touching the filter.
+    await journalPage.selectPeriod('1m')
+    await journalPage.waitForTableToLoad()
+    await journalPage.expectActivePage(1)
+    await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 }).toBe(10)
+    await journalPage.expectPeriodButtonActive('1m')
+  })
+
+  test('settlements: paging past page 1 sticks (#89)', async ({
+    page,
+    testTransactions,
+  }) => {
+    // Same defect, second consumer of the PeriodPicker. The settlements list
+    // has no search filter, so this test has to create enough settlements that
+    // a second page exists regardless of what else is in the database
+    // (Pattern 003: database-agnostic assertions).
+    test.setTimeout(90000)
+
+    const ts = Date.now()
+    const prefix = `SPag${ts}`
+
+    const member = await testTransactions.createMember(`${prefix}First`, `${prefix}Last`)
+
+    // 11 settlements → at 10 per page there is always a page 2. A settlement
+    // sweeps the member's whole open position (#161 §1), so each purchase
+    // below starts from an empty position and ends up in its own settlement.
+    for (let i = 0; i < 11; i++) {
+      const purchaseId = await testTransactions.createSyncTransaction(
+        member.id,
+        100 + i,
+        `${prefix} purchase ${i}`
+      )
+      await testTransactions.createSettlement([purchaseId])
+    }
+
+    const settlementsPage = new SettlementsPage(page)
+    await settlementsPage.navigate()
+    await settlementsPage.waitForPageLoad()
+
+    await settlementsPage.setPageSize(10)
+    await settlementsPage.waitForListToSettle()
+    await settlementsPage.expectActivePage(1)
+    expect(await settlementsPage.getSettlementRowCount()).toBe(10)
+
+    // ── Page 2, and it has to STAY page 2 ─────────────────────────────
+    await settlementsPage.goToPage(2)
+    await settlementsPage.waitForListToSettle()
+
+    await settlementsPage.expectActivePage(2)
+    // The toolbar counts from row 11 — it is showing the second page, not the
+    // first one relabelled.
+    expect(await settlementsPage.getPaginationInfo()).toContain('11-')
+    expect(await settlementsPage.getSettlementRowCount()).toBeGreaterThan(0)
+    await settlementsPage.expectPeriodButtonActive('3m')
   })
 
   test('journal: a member with no SEPA mandate can still be stornoed from the UI', async ({

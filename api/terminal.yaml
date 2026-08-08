@@ -410,6 +410,22 @@ paths:
         - **All fields required**: id, member_id, product_id, amount_cents, created_at
         - **Amount**: Always positive (purchases only); stored as integer cents
 
+        ## Asking for a Balance Without Selling Anything
+        `member_ids` lets a request name members whose balance it wants back
+        even though no uploaded transaction touches them, and it is what makes
+        an empty `transactions` array a valid request
+        ([#191](https://github.com/dgloeckner/ruderbar/issues/191)).
+
+        This is the only way a balance can be refreshed when nothing was sold.
+        A settlement brings a member's tab to zero without the terminal doing
+        anything, and `member_balances` otherwise covers only members named by
+        the batch — so the terminal went on showing the pre-settlement Deckel
+        until the member happened to buy something. See
+        [ADR-0023](../../adr/0023-terminal-balance-state-management.md).
+
+        A request with an empty `transactions` array **and** no `member_ids` is
+        rejected with a 400: it asks for nothing.
+
         ## Response Format
         - Returns array of accepted transaction IDs
         - Terminal should only mark transactions as synced if ID appears in response
@@ -1147,11 +1163,35 @@ components:
       properties:
         transactions:
           type: array
-          minItems: 1
+          minItems: 0
           maxItems: 100
           items:
             $ref: '#/components/schemas/Transaction'
-          description: Array of transactions (1-100 items)
+          description: |
+            Array of transactions (0-100 items). May be empty **only** when
+            `member_ids` names at least one member — an empty request that asks
+            for nothing is rejected with a 400.
+        member_ids:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+          description: |
+            Members whose balance the terminal wants reported back, even though
+            this batch does not touch them
+            ([#191](https://github.com/dgloeckner/ruderbar/issues/191)).
+
+            Without this, `member_balances` only ever covers members named by an
+            uploaded transaction — so a terminal with nothing to upload had no
+            way to *ask*. After a settlement collects a member's whole tab there
+            is no next purchase to reveal it, and the terminal kept showing the
+            pre-settlement Deckel.
+
+            Unknown ids are silently omitted from `member_balances` rather than
+            reported as `0`: a phantom zero would overwrite a real cached
+            balance, whereas an absent key leaves the terminal's cache alone.
       required:
         - transactions
       example:
@@ -1161,6 +1201,8 @@ components:
             product_id: 987f6543-e21a-11d3-b456-426614174999
             amount_cents: 350
             created_at: '2025-01-23T14:23:15Z'
+        member_ids:
+          - 123e4567-e89b-12d3-a456-426614174000
 
     TransactionBatchResponse:
       type: object

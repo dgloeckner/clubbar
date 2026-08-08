@@ -603,6 +603,16 @@ export class MembersPage extends BasePage {
   }
 
   /**
+   * STATUS TOGGLE (activate / deactivate from the table row)
+   */
+
+  async toggleStatusForMember(memberId: string) {
+    const toggle = this.page.getByTestId(`members-status-toggle-${memberId}`)
+    await expect(toggle).toBeVisible()
+    await toggle.click()
+  }
+
+  /**
    * CLEAR ALL FILTERS
    */
 

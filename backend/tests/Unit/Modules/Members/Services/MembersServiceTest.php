@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Members\Services;
 
+use App\Modules\Members\Services\MandateDocumentService;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
@@ -20,6 +21,7 @@ class MembersServiceTest extends TestCase
     private AuditService $auditService;
     private AuditLogRepository $auditLogRepository;
     private \PDO $db;
+    private MandateDocumentService $mandateDocumentService;
     private MembersService $membersService;
 
     protected function setUp(): void
@@ -32,6 +34,7 @@ class MembersServiceTest extends TestCase
         $this->auditService = $this->createMock(AuditService::class);
         $this->auditLogRepository = $this->createMock(AuditLogRepository::class);
         $this->db = $this->createMock(\PDO::class);
+        $this->mandateDocumentService = $this->createMock(MandateDocumentService::class);
 
         // Create service instance
         $this->membersService = new MembersService(
@@ -40,6 +43,7 @@ class MembersServiceTest extends TestCase
             $this->auditService,
             $this->auditLogRepository,
             $this->db,
+            $this->mandateDocumentService,
         );
     }
 
@@ -270,6 +274,169 @@ class MembersServiceTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('database gone away');
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    // ── anonymizeMember: the signed SEPA mandate (#85) ─────
+
+    /**
+     * The mandate PDF is the club's legal proof that this member authorized
+     * direct debits. A refused anonymization leaves the member fully active,
+     * so the proof must survive it untouched.
+     */
+    public function test_anonymizeMember_keeps_the_mandate_document_when_an_outstanding_balance_blocks_it(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')->willReturn($this->member('member-1'));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(1200);
+
+        $this->mandateDocumentService->expects($this->never())->method('deleteRecordForMember');
+        $this->mandateDocumentService->expects($this->never())->method('removeStoredFile');
+
+        $this->expectException(BusinessRuleException::class);
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_keeps_the_mandate_document_when_an_active_settlement_blocks_it(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')->willReturn($this->member('member-1'));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(true);
+
+        $this->mandateDocumentService->expects($this->never())->method('deleteRecordForMember');
+        $this->mandateDocumentService->expects($this->never())->method('removeStoredFile');
+
+        $this->expectException(BusinessRuleException::class);
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_keeps_the_mandate_document_when_the_member_is_already_anonymized(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn($this->member('member-1', ['deleted_at' => '2026-01-01 00:00:00']));
+
+        $this->mandateDocumentService->expects($this->never())->method('deleteRecordForMember');
+        $this->mandateDocumentService->expects($this->never())->method('removeStoredFile');
+
+        $this->expectException(BusinessRuleException::class);
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_keeps_the_mandate_document_when_the_member_does_not_exist(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')->willReturn(null);
+
+        $this->mandateDocumentService->expects($this->never())->method('deleteRecordForMember');
+        $this->mandateDocumentService->expects($this->never())->method('removeStoredFile');
+
+        $this->expectException(NotFoundException::class);
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    public function test_anonymizeMember_deletes_the_mandate_document_once_the_checks_pass(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn($this->member('member-1'), $this->member('member-1', ['deleted_at' => '2026-08-08 12:00:00']));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+        $this->membersRepository->method('anonymize')->willReturn(true);
+
+        $this->mandateDocumentService->expects($this->once())
+            ->method('deleteRecordForMember')
+            ->with('member-1', 'admin-1')
+            ->willReturn('/storage/mandates/member-1.pdf');
+
+        $this->mandateDocumentService->expects($this->once())
+            ->method('removeStoredFile')
+            ->with('/storage/mandates/member-1.pdf');
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+    }
+
+    /**
+     * Deleting the mandate is itself audited, with the document's original
+     * filename — which routinely carries the member's name. That entry has to
+     * be written before the audit scrub, or the anonymization leaves a fresh
+     * PII trail behind it.
+     */
+    public function test_anonymizeMember_scrubs_the_audit_trail_after_the_mandate_deletion_is_logged(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn($this->member('member-1'), $this->member('member-1', ['deleted_at' => '2026-08-08 12:00:00']));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+        $this->membersRepository->method('anonymize')->willReturn(true);
+
+        $sequence = [];
+        $this->mandateDocumentService->method('deleteRecordForMember')
+            ->willReturnCallback(function () use (&$sequence): ?string {
+                $sequence[] = 'delete-mandate-record';
+                return null;
+            });
+        $this->auditLogRepository->method('scrubByEntityId')
+            ->willReturnCallback(function () use (&$sequence): int {
+                $sequence[] = 'scrub-audit-trail';
+                return 0;
+            });
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+
+        $this->assertSame(['delete-mandate-record', 'scrub-audit-trail'], $sequence);
+    }
+
+    /**
+     * The record deletion joins the anonymization transaction, but the PDF is
+     * unlinked only after the commit — an unlink has no rollback.
+     */
+    public function test_anonymizeMember_unlinks_the_mandate_pdf_only_after_the_commit(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn($this->member('member-1'), $this->member('member-1', ['deleted_at' => '2026-08-08 12:00:00']));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+        $this->membersRepository->method('anonymize')->willReturn(true);
+
+        $sequence = [];
+        $this->mandateDocumentService->method('deleteRecordForMember')
+            ->willReturnCallback(function () use (&$sequence): string {
+                $sequence[] = 'delete-record';
+                return '/storage/mandates/member-1.pdf';
+            });
+        $this->db->method('commit')->willReturnCallback(function () use (&$sequence): bool {
+            $sequence[] = 'commit';
+            return true;
+        });
+        $this->mandateDocumentService->method('removeStoredFile')
+            ->willReturnCallback(function () use (&$sequence): void {
+                $sequence[] = 'unlink-pdf';
+            });
+
+        $this->membersService->anonymizeMember('member-1', 'admin-1');
+
+        $this->assertSame(['delete-record', 'commit', 'unlink-pdf'], $sequence);
+    }
+
+    public function test_anonymizeMember_leaves_the_mandate_pdf_on_disk_when_the_transaction_rolls_back(): void
+    {
+        $this->membersRepository->method('findByIdIncludingDeleted')
+            ->willReturn($this->member('member-1'), $this->member('member-1', ['deleted_at' => '2026-08-08 12:00:00']));
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')->willReturn(0);
+        $this->transactionsRepository->method('hasMemberInActiveSettlement')->willReturn(false);
+        $this->membersRepository->method('anonymize')->willReturn(true);
+        $this->mandateDocumentService->method('deleteRecordForMember')->willReturn('/storage/mandates/member-1.pdf');
+
+        $this->auditService->method('log')->willThrowException(new \RuntimeException('audit write failed'));
+
+        $this->db->expects($this->once())->method('rollBack');
+        // The DELETE rolls back with the rest of the transaction; unlinking the
+        // PDF would not have, so it must not have happened.
+        $this->mandateDocumentService->expects($this->never())->method('removeStoredFile');
+
+        $this->expectException(\RuntimeException::class);
 
         $this->membersService->anonymizeMember('member-1', 'admin-1');
     }

@@ -58,6 +58,11 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
+/**
+ * `creditor_id` is deliberately absent: it is immutable after initial
+setup and is only accepted by `POST /admin/sepa-config`.
+
+ */
 export interface SepaConfigUpdateRequest {
   /** @maxLength 70 */
   creditor_name?: string;
@@ -75,4 +80,9 @@ export interface SepaConfigUpdateRequest {
    * @maxLength 2
    */
   creditor_address_country?: string;
+  /**
+   * Prefix of the payment reference shown on member bank statements
+   * @maxLength 100
+   */
+  payment_reference_prefix?: string;
 }

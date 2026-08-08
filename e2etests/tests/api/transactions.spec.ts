@@ -542,6 +542,63 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(body.member_balances[settlement.memberId]).toBe(700);
   });
 
+  /**
+   * Issue #191 — the member whose tab was just collected walks up and scans
+   * their card without buying anything. The terminal has nothing to upload, so
+   * the only way it can learn the settlement happened is to *ask*. `member_ids`
+   * is that ask: an empty batch that still names who it wants balances for.
+   */
+  test('POST /api/sync/transactions reports balances for member_ids with an empty batch', async ({ authenticatedTerminalRequest, settlementFactory }) => {
+    // The factory gives this member one purchase, already swept into a
+    // settlement — so their whole tab is paid and nothing is outstanding.
+    const settlement = await settlementFactory.create({ amountCents: 2500 });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [], member_ids: [settlement.memberId] },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+
+    expect(body.accepted_ids).toEqual([]);
+    // €0.00 — the settled tab, with no purchase in between.
+    expect(body.member_balances[settlement.memberId]).toBe(0);
+  });
+
+  test('POST /api/sync/transactions omits unknown member_ids rather than reporting them as zero', async ({ authenticatedTerminalRequest }) => {
+    const unknownMemberId = '00000000-0000-4000-8000-000000000191';
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [], member_ids: [unknownMemberId] },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+
+    // A phantom 0 would read as "owes nothing" and overwrite the terminal's
+    // cached balance. An absent key leaves the cache alone instead.
+    expect(body.member_balances).not.toHaveProperty(unknownMemberId);
+  });
+
+  test('POST /api/sync/transactions reports balances for member_ids alongside an uploaded batch', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const buyer = await createMember(authenticatedRequest);
+    const bystander = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: {
+        transactions: [createValidTransaction(buyer.id, product.id, { amount_cents: 275 })],
+        member_ids: [bystander.id],
+      },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+
+    expect(body.member_balances[buyer.id]).toBe(275);
+    expect(body.member_balances[bystander.id]).toBe(0);
+  });
+
   test('GET /api/admin/members/{id}/transactions excludes settled transactions from current_balance_cents', async ({ authenticatedRequest, settlementFactory }) => {
     const settlement = await settlementFactory.create({ amountCents: 2500 });
 
@@ -574,6 +631,238 @@ test.describe('Transactions Upload Endpoint', () => {
 
     // This request should actually fail validation (zero amount), so we check for 422
     expect(response.status()).toBe(422);
+  });
+});
+
+/**
+ * Sync idempotency (#99)
+ *
+ * The offline-first design rests on terminals safely retrying transaction
+ * batches, and ADR-0004 (immutable, append-only storage) exists specifically to
+ * make that retry safe: the client-generated UUID is the identity of the sale,
+ * so replaying it is a no-op rather than a second drink on the member's tab.
+ * CLAUDE.md lists idempotent APIs as a core design principle.
+ *
+ * A terminal replaying a batch after a network drop is the *normal* case this
+ * system is built around, not an edge case — but the only test of it posted a
+ * single transaction twice. These cover the shapes a real retry actually takes:
+ * a whole batch resent, a batch that overlaps the previous one only in part,
+ * and a retry that still contains the row the database refuses.
+ *
+ * Every one of them asserts stored state, not just the 201. The defect class
+ * this guards (`INSERT IGNORE`, #82) produced a perfectly happy response while
+ * the ledger disagreed with it.
+ */
+test.describe('Sync idempotency (#99)', () => {
+  // The terminal keys its offline queue by transaction id, so "the same batch"
+  // means the same ids — the ordering of the response is not part of the
+  // contract, only its contents.
+  const sortedIds = (ids: string[]) => [...ids].sort();
+
+  async function historyFor(authenticatedTerminalRequest, memberId: string) {
+    const response = await authenticatedTerminalRequest.get(`/api/terminal/transactions/${memberId}?limit=100`);
+    expect(response.ok()).toBeTruthy();
+    return await response.json();
+  }
+
+  /**
+   * Issue #99 item 1 — a whole batch, resent. The single-transaction version of
+   * this lives above; a batch is what a terminal actually uploads, and it is the
+   * batch that gets replayed when the response is lost.
+   */
+  test('a resent batch is accepted identically and books every sale exactly once', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transactions = [
+      createValidTransaction(member.id, product.id, { amount_cents: 350 }),
+      createValidTransaction(member.id, product.id, { amount_cents: 500 }),
+      createValidTransaction(member.id, product.id, { amount_cents: 725 }),
+    ];
+    const batchIds = sortedIds(transactions.map((tx) => tx.id));
+    const total = 350 + 500 + 725;
+
+    const first = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions },
+    });
+    expect(first.status()).toBe(201);
+    const firstBody = await first.json();
+    expect(sortedIds(firstBody.accepted_ids)).toEqual(batchIds);
+    expect(firstBody.rejected.count).toBe(0);
+    expect(firstBody.member_balances[member.id]).toBe(total);
+
+    // The terminal never saw that response and resends the identical batch.
+    const retry = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions },
+    });
+    expect(retry.status()).toBe(201);
+    const retryBody = await retry.json();
+
+    // Same answer, to the id: a replay is indistinguishable from the original
+    // so far as the terminal is concerned, which is what lets it clear its queue.
+    expect(sortedIds(retryBody.accepted_ids)).toEqual(batchIds);
+    expect(retryBody.rejected.count).toBe(0);
+
+    // ...and the tab was charged once, not twice.
+    expect(retryBody.member_balances[member.id]).toBe(total);
+
+    const history = await historyFor(authenticatedTerminalRequest, member.id);
+    expect(history.count).toBe(3);
+    expect(sortedIds(history.transactions.map((tx: any) => tx.id))).toEqual(batchIds);
+  });
+
+  /**
+   * Issue #99 item 3 — the partial overlap, which is what a retry looks like
+   * once the terminal has served more drinks in the meantime. Three sales go up,
+   * the response is lost, two more minutes pass, and the next batch carries the
+   * two the terminal still believes unsynced plus the new one.
+   *
+   * Four rows must exist afterwards. Absorbing the overlap as three fresh
+   * inserts would double-charge; refusing the batch because part of it is known
+   * would strand the new sale.
+   */
+  test('a partial-overlap retry stores only the sale the server has not seen', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const first = createValidTransaction(member.id, product.id, { amount_cents: 100 });
+    const second = createValidTransaction(member.id, product.id, { amount_cents: 200 });
+    const third = createValidTransaction(member.id, product.id, { amount_cents: 300 });
+    const fourth = createValidTransaction(member.id, product.id, { amount_cents: 400 });
+
+    const initial = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [first, second, third] },
+    });
+    expect(initial.status()).toBe(201);
+    expect((await initial.json()).member_balances[member.id]).toBe(600);
+
+    // The terminal lost the response for `second` and `third`, and has since
+    // booked `fourth`.
+    const overlapping = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [second, third, fourth] },
+    });
+    expect(overlapping.status()).toBe(201);
+    const body = await overlapping.json();
+
+    // All three are accepted — two because they are already stored, one because
+    // it just was. The terminal cannot tell the difference and does not need to.
+    expect(sortedIds(body.accepted_ids)).toEqual(sortedIds([second.id, third.id, fourth.id]));
+    expect(body.rejected.count).toBe(0);
+
+    // 1000, not 1500: the overlap was absorbed, and the new sale still landed.
+    expect(body.member_balances[member.id]).toBe(1000);
+
+    const history = await historyFor(authenticatedTerminalRequest, member.id);
+    expect(history.count).toBe(4);
+    expect(sortedIds(history.transactions.map((tx: any) => tx.id)))
+      .toEqual(sortedIds([first.id, second.id, third.id, fourth.id]));
+  });
+
+  /**
+   * Issue #99 item 2, in the form the retry path makes dangerous. A refused row
+   * being reported as accepted is #82; what is untested is that the refusal
+   * *survives the retry*.
+   *
+   * This is precisely where `INSERT IGNORE` was lethal: it discarded the row and
+   * reported success, so every subsequent attempt looked the same and the
+   * terminal eventually purged a served drink it had every reason to think was
+   * stored. A refused row must be refused identically each time, and must never
+   * decay into a "duplicate" — because there is no row for it to duplicate.
+   */
+  test('a sale the database refuses is refused again on retry, never absorbed as a replay', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const good = createValidTransaction(member.id, product.id, { amount_cents: 350 });
+    // dispenser_tx_id is VARCHAR(16); 64 characters is a row MariaDB will refuse
+    // identically forever. Same vehicle as the #82 tests above.
+    const refused = createValidTransaction(member.id, product.id, {
+      amount_cents: 700,
+      dispenser_tx_id: 'D'.repeat(64),
+    });
+
+    for (const attempt of ['first', 'retry']) {
+      const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+        data: { transactions: [good, refused] },
+      });
+      expect(response.status(), `${attempt} attempt`).toBe(201);
+      const body = await response.json();
+
+      // The storable sale is accepted every time — first as an insert, then as
+      // a replay.
+      expect(body.accepted_ids, `${attempt} attempt`).toEqual([good.id]);
+
+      // The refused one never joins it, however often it is retried.
+      expect(body.accepted_ids, `${attempt} attempt`).not.toContain(refused.id);
+      expect(body.rejected.count, `${attempt} attempt`).toBe(1);
+      expect(body.rejected.errors[0].transaction_id, `${attempt} attempt`).toBe(refused.id);
+      expect(body.member_balances[member.id], `${attempt} attempt`).toBe(350);
+    }
+
+    // One row, and it is the one that was storable.
+    const history = await historyFor(authenticatedTerminalRequest, member.id);
+    expect(history.count).toBe(1);
+    expect(history.transactions[0].id).toBe(good.id);
+  });
+
+  /**
+   * The same guarantee, from inside a single request: a terminal that enqueued
+   * the same sale twice must still be charged for it once. The id is the
+   * identity of the sale (ADR-0004), so it does not matter whether the repeat
+   * arrives in a later batch or the same one.
+   */
+  test('the same id twice inside one batch books the sale once', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, { amount_cents: 450 });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction, transaction] },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+    expect(body.accepted_ids).toContain(transaction.id);
+    expect(body.rejected.count).toBe(0);
+    expect(body.member_balances[member.id]).toBe(450);
+
+    const history = await historyFor(authenticatedTerminalRequest, member.id);
+    expect(history.count).toBe(1);
+    expect(history.transactions[0].id).toBe(transaction.id);
+  });
+
+  /**
+   * A replay must not resurrect what the treasurer has since reversed. The
+   * purchase is stornoed, then the terminal — which knows nothing of the storno
+   * — resends the batch that carried it. ADR-0004 makes the ledger append-only,
+   * so the replay writes nothing and the reversal stands.
+   */
+  test('a replay does not undo a storno booked against the original sale', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const member = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+    const transaction = createValidTransaction(member.id, product.id, { amount_cents: 350 });
+
+    const upload = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+    expect(upload.status()).toBe(201);
+
+    const storno = await authenticatedRequest.post(`/api/admin/transactions/${transaction.id}/storno`, {
+      data: { reason: 'Bernd scanned Annas card by mistake' },
+    });
+    expect(storno.status()).toBe(201);
+
+    // The terminal still has the sale queued and resends it.
+    const retry = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [transaction] },
+    });
+    expect(retry.status()).toBe(201);
+    const body = await retry.json();
+    expect(body.accepted_ids).toContain(transaction.id);
+
+    // Purchase and storno still net to zero: the replay re-added nothing.
+    expect(body.member_balances[member.id]).toBe(0);
+
+    const history = await historyFor(authenticatedTerminalRequest, member.id);
+    expect(history.count).toBe(2);
+    expect(history.transactions.filter((tx: any) => tx.id === transaction.id)).toHaveLength(1);
   });
 });
 

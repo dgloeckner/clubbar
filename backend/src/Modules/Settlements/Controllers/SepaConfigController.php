@@ -38,6 +38,7 @@ class SepaConfigController
         $rules = [
             'creditor_name' => ['required', 'string', 'max:70'],
             'creditor_iban' => ['required', 'string', 'iban'],
+            'payment_reference_prefix' => ['string', 'max:100'],
         ];
         if ($request->getMethod() === 'POST') {
             $rules['creditor_id'] = ['required', 'string'];

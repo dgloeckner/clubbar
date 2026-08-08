@@ -1,4 +1,6 @@
 import { test, expect } from '../../fixtures/auth.fixture';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 /**
  * E2E Tests: GDPR Member Anonymization (UC-DSGVO-02)
@@ -18,6 +20,15 @@ import { test, expect } from '../../fixtures/auth.fixture';
  */
 
 const API_BASE = 'http://localhost:8080/api';
+const FIXTURE_FILES = resolve(__dirname, '../../fixtures/files');
+
+const mandateUpload = () => ({
+  file: {
+    name: 'test-mandate.pdf',
+    mimeType: 'application/pdf',
+    buffer: readFileSync(resolve(FIXTURE_FILES, 'test-mandate.pdf')),
+  },
+});
 
 test.describe('GDPR Member Anonymization', () => {
 
@@ -137,6 +148,97 @@ test.describe('GDPR Member Anonymization', () => {
     const memberData = await getResponse.json();
     expect(memberData.first_name).toContain('GdprBalance44');
     expect(memberData.deleted_at).toBeNull();
+  });
+
+  /**
+   * #85: a refused anonymization used to destroy the member's signed SEPA
+   * mandate anyway — the club's only proof that this member authorized
+   * direct debits — because the document was deleted before the eligibility
+   * checks ran. The member stays fully active, so the mandate must too.
+   */
+  test('4.4a - keeps the signed mandate document when an outstanding balance blocks anonymization', async ({ authenticatedRequest, testTransactions }) => {
+    const member = await testTransactions.createMember('GdprMandate44a', 'KeepMandate');
+
+    const uploadResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/members/${member.id}/mandate-document`,
+      { multipart: mandateUpload() }
+    );
+    expect(uploadResponse.status()).toBe(200);
+
+    // €5.00 open tab — anonymization must be refused
+    await testTransactions.createSyncTransaction(member.id, 500);
+
+    const anonResponse = await authenticatedRequest.post(`${API_BASE}/admin/members/${member.id}/anonymize`);
+    expect(anonResponse.status()).toBe(409);
+
+    // The mandate is still downloadable: the failed attempt destroyed nothing
+    const documentResponse = await authenticatedRequest.get(
+      `${API_BASE}/admin/members/${member.id}/mandate-document`
+    );
+    expect(documentResponse.status()).toBe(200);
+    expect((await documentResponse.body()).length).toBeGreaterThan(0);
+
+    // ...and the member is still active, so the mandate is still needed
+    const memberResponse = await authenticatedRequest.get(`${API_BASE}/admin/members/${member.id}`);
+    const memberData = await memberResponse.json();
+    expect(memberData.deleted_at).toBeNull();
+  });
+
+  test('4.4b - keeps the signed mandate document when an active settlement blocks anonymization', async ({ authenticatedRequest, testTransactions }) => {
+    const member = await testTransactions.createMember('GdprMandate44b', 'KeepMandate');
+
+    const uploadResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/members/${member.id}/mandate-document`,
+      { multipart: mandateUpload() }
+    );
+    expect(uploadResponse.status()).toBe(200);
+
+    const txId = await testTransactions.createSyncTransaction(member.id, 1000);
+    await testTransactions.createSettlement([txId]);
+
+    const anonResponse = await authenticatedRequest.post(`${API_BASE}/admin/members/${member.id}/anonymize`);
+    expect(anonResponse.status()).toBe(409);
+
+    const documentResponse = await authenticatedRequest.get(
+      `${API_BASE}/admin/members/${member.id}/mandate-document`
+    );
+    expect(documentResponse.status()).toBe(200);
+  });
+
+  /**
+   * The counterpart of 4.4a: once the checks pass, the mandate goes with the
+   * member (GDPR Art. 17) — both the record and the stored PDF.
+   */
+  test('4.4c - deletes the mandate document when anonymization succeeds', async ({ authenticatedRequest, testTransactions }) => {
+    const member = await testTransactions.createMember('GdprMandate44c', 'DropMandate');
+
+    const uploadResponse = await authenticatedRequest.post(
+      `${API_BASE}/admin/members/${member.id}/mandate-document`,
+      { multipart: mandateUpload() }
+    );
+    expect(uploadResponse.status()).toBe(200);
+
+    const anonResponse = await authenticatedRequest.post(`${API_BASE}/admin/members/${member.id}/anonymize`);
+    expect(anonResponse.ok()).toBeTruthy();
+
+    const documentResponse = await authenticatedRequest.get(
+      `${API_BASE}/admin/members/${member.id}/mandate-document`
+    );
+    expect(documentResponse.status()).toBe(404);
+
+    // Deleting the mandate is audited with its original filename — that entry
+    // must be swept up by the anonymization scrub, not left behind it.
+    const auditResponse = await authenticatedRequest.get(
+      `${API_BASE}/admin/audit-log?filters[entity_type]=member&filters[entity_id]=${member.id}`
+    );
+    expect(auditResponse.ok()).toBeTruthy();
+    const auditData = await auditResponse.json();
+    for (const entry of auditData.data) {
+      if (entry.action !== 'anonymize') {
+        expect(entry.old_values).toBeNull();
+        expect(entry.new_values).toBeNull();
+      }
+    }
   });
 
   test('4.5 - blocks anonymization with pending settlement', async ({ authenticatedRequest, testTransactions }) => {
