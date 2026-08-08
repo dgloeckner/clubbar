@@ -28,13 +28,14 @@ import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { EditIcon, TrashIcon, PlusIcon } from '../components/icons'
 import { IconSelect } from '../components/forms/IconSelect'
 import { LanguageTabsInput } from '../components/forms/LanguageTabsInput'
-import { StatusFilterPills } from '../components/forms/StatusFilterPills'
+import { PillFilter } from '../components/forms/PillFilter'
+import { activeStatusOptions } from '../components/forms/filterOptions'
 import { getCategoryIcon } from '../components/icons/IconRegistry'
 import { IconCell } from '../components/tables/IconCell'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
-import { Toggle } from '../components/forms/Toggle'
+import { Toggle } from '../components/common/Toggle'
 import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -366,7 +367,7 @@ export function CategoriesPage() {
                     {/* Row 1: toggle + icon + category name */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                       <Toggle
-                        enabled={category.is_active}
+                        isEnabled={category.is_active}
                         onChange={() => handleStatusToggle(category)}
                         size="small"
                         testId={`categories-status-toggle-${category.id}`}
@@ -469,9 +470,11 @@ export function CategoriesPage() {
 
             {/* RIGHT: Filter + Create button */}
             <div style={{ display: 'flex', gap: theme.spacing.md, alignItems: 'center' }}>
-              <StatusFilterPills
+              <PillFilter
                 value={filterStatus}
                 onChange={(status) => list.setFilter('status', status)}
+                options={activeStatusOptions(t)}
+                variant="solid"
                 testId="categories-filter-status"
               />
 

@@ -232,7 +232,7 @@ import {
   tableColors,
   tableSpacing,
 } from '../styles/tableTokens'
-import { Toggle } from '../components/forms/Toggle'
+import { Toggle } from '../components/common/Toggle'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -985,7 +985,7 @@ export function ReportsPage() {
             </label>
             <div style={{ display: 'flex', alignItems: 'center', height: '34px' }}>
               <Toggle
-                enabled={rankingAnonymize}
+                isEnabled={rankingAnonymize}
                 onChange={setRankingAnonymize}
                 size="small"
                 testId="ranking-anonymize"

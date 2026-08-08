@@ -18,7 +18,7 @@
  */
 
 import axios from 'axios'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
@@ -26,10 +26,9 @@ import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { useExecutionDateInfo } from '../hooks/useExecutionDateInfo'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
-import { SettlementStatusFilter } from '../components/forms/SettlementStatusFilter'
+import { PillFilter, type PillFilterOption } from '../components/forms/PillFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { useListQuery } from '../hooks/useListQuery'
-import { onLoadingStateChange } from '../api/client'
 import { getTransactions } from '../api/generated/transactions/transactions'
 import { getSettlements } from '../api/generated/settlements/settlements'
 import { getTransactionTypeColor, getAmountColor } from '../utils/transactions'
@@ -184,6 +183,12 @@ export function JournalPage() {
   // Mobile state
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
+  const settlementStatusOptions: ReadonlyArray<PillFilterOption<JournalFilters['settlementStatus']>> = [
+    { value: 'all', label: t('common.all'), color: '#6b7280' },
+    { value: 'open', label: t('journal.open'), color: '#10b981' },
+    { value: 'settled', label: t('journal.settled'), color: '#8b5cf6' },
+  ]
+
   const mobileSortOptions = [
     { value: 'created_at_desc', label: t('journal.sortNewest', 'Newest first'), direction: 'desc' as const },
     { value: 'created_at_asc', label: t('journal.sortOldest', 'Oldest first'), direction: 'asc' as const },
@@ -199,14 +204,6 @@ export function JournalPage() {
     period !== DEFAULT_PERIOD ? 1 : 0,
     settlementStatus !== 'all' ? 1 : 0,
   ].reduce((a, b) => a + b, 0)
-
-  // Subscribe to global loading state on mount
-  useEffect(() => {
-    const unsubscribe = onLoadingStateChange(() => {
-      // Component will re-render when loading state changes due to state updates
-    })
-    return unsubscribe
-  }, [])
 
   // Handle filter changes. Memoized so the PeriodPicker sees a stable handler
   // across renders (#89) — it is only called from a click now, but a filter
@@ -569,9 +566,10 @@ export function JournalPage() {
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', marginBottom: '6px' }}>
                       {t('journal.settlementStatus', 'Settlement')}
                     </div>
-                    <SettlementStatusFilter
+                    <PillFilter
                       value={settlementStatus}
                       onChange={handleSettlementStatusChange}
+                      options={settlementStatusOptions}
                       testId="journal-settlement-status-filter"
                     />
                   </div>
@@ -782,9 +780,10 @@ export function JournalPage() {
           />
 
           {/* Settlement status filter (colored toggle pills) */}
-          <SettlementStatusFilter
+          <PillFilter
             value={settlementStatus}
             onChange={handleSettlementStatusChange}
+            options={settlementStatusOptions}
             testId="journal-settlement-status-filter"
           />
         </div>

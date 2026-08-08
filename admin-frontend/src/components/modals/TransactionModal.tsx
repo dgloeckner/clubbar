@@ -15,7 +15,6 @@
 
 import { useEffect, useState } from 'react'
 import { theme, formatPrice, formatDate } from '../../styles/design-system'
-import { useLoading } from '../../context/LoadingContext'
 import { getTransactions } from '../../api/generated/transactions/transactions'
 import type { MemberTransactionHistory } from '../../api/generated'
 
@@ -36,7 +35,6 @@ export function TransactionModal({
   currentBalance,
   onClose,
 }: TransactionModalProps) {
-  const { setIsLoading } = useLoading()
   const [transactionHistory, setTransactionHistory] = useState<MemberTransactionHistory | null>(null)
   const [filter, setFilter] = useState<TransactionFilter>('all')
   const [loading, setLoading] = useState(false)
@@ -49,7 +47,6 @@ export function TransactionModal({
     const loadTransactions = async () => {
       try {
         setLoading(true)
-        setIsLoading(true)
         const history = await getTransactions().getMemberTransactions(memberId, {
           type: filter === 'all' ? undefined : filter,
         })
@@ -60,12 +57,11 @@ export function TransactionModal({
         setError(err instanceof Error ? err.message : 'Failed to load transactions')
       } finally {
         setLoading(false)
-        setIsLoading(false)
       }
     }
 
     loadTransactions()
-  }, [isOpen, memberId, filter, setIsLoading])
+  }, [isOpen, memberId, filter])
 
   if (!isOpen) return null
 

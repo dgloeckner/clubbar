@@ -15,7 +15,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { getProducts } from '../api/generated/products/products'
-import { onLoadingStateChange } from '../api/client'
 import type {
   Product,
   Category,
@@ -33,9 +32,10 @@ import { getProductIcon } from '../components/icons/IconRegistry'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { CategoryFilter } from '../components/tables/CategoryFilter'
-import { StatusFilterPills } from '../components/forms/StatusFilterPills'
+import { PillFilter } from '../components/forms/PillFilter'
+import { activeStatusOptions } from '../components/forms/filterOptions'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
-import { Toggle } from '../components/forms/Toggle'
+import { Toggle } from '../components/common/Toggle'
 import { PriceCell } from '../components/tables/PriceCell'
 import { BadgeCell } from '../components/tables/BadgeCell'
 import { ActionButtons } from '../components/tables/ActionButtons'
@@ -86,7 +86,6 @@ export function ProductsPage() {
   // slot — the product list's lives inside useListQuery (#96).
   const categoriesRequest = useLatestRequest()
   const [categories, setCategories] = useState<CategoryRuntime[]>([])
-  const [globalLoading, setGlobalLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
   const [editingProduct, setEditingProduct] = useState<ProductWithExtras | null>(null)
@@ -154,14 +153,6 @@ export function ProductsPage() {
   ]
 
   const mobileSortValue = list.sortValue
-
-  // Subscribe to global loading state on mount
-  useEffect(() => {
-    const unsubscribe = onLoadingStateChange((isLoading) => {
-      setGlobalLoading(isLoading)
-    })
-    return () => unsubscribe()
-  }, [])
 
   // Load products and categories on mount
   useEffect(() => {
@@ -392,23 +383,6 @@ export function ProductsPage() {
 
   return (
     <div data-testid="products-page" style={{ padding: '20px' }}>
-      {/* Global Loading Indicator */}
-      {globalLoading && (
-        <div
-          data-testid="products-global-loading"
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '4px',
-            backgroundColor: '#3b82f6',
-            animation: 'none',
-            zIndex: 9999,
-          }}
-        />
-      )}
-
       <h1>{t('products.title')}</h1>
 
       {error && (
@@ -510,7 +484,7 @@ export function ProductsPage() {
                     {/* Row 1: toggle + name + price */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                       <Toggle
-                        enabled={product.is_active ?? false}
+                        isEnabled={product.is_active ?? false}
                         onChange={() => handleStatusToggle(product)}
                         size="small"
                         testId={`products-status-toggle-${product.id}`}
@@ -630,11 +604,13 @@ export function ProductsPage() {
 
         {/* Right: Status filter + Category filter + Create button */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <StatusFilterPills
+          <PillFilter
             value={filterStatus}
             onChange={(status) => {
               list.setFilter('status', status)
             }}
+            options={activeStatusOptions(t)}
+            variant="solid"
             testId="products-filter-status"
           />
           <CategoryFilter

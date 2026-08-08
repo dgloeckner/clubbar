@@ -26,7 +26,7 @@ import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { useFormatters } from '../hooks/useFormatters'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
-import { StatusFilter } from '../components/forms/StatusFilter'
+import { PillFilter, type PillFilterOption } from '../components/forms/PillFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { useListQuery } from '../hooks/useListQuery'
 import { downloadBlob } from '../api/client'
@@ -164,6 +164,12 @@ export function SettlementsPage() {
     statusFilter !== 'all' ? 1 : 0,
   ].reduce((a, b) => a + b, 0)
 
+  const statusOptions: ReadonlyArray<PillFilterOption<SettlementFilters['status']>> = [
+    { value: 'all', label: t('common.all'), color: '#6b7280' },
+    { value: 'active', label: t('settlements.active'), color: '#3b82f6' },
+    { value: 'cancelled', label: t('settlements.cancelled'), color: '#ef4444' },
+  ]
+
   const mobileSortOptions = [
     { value: 'created_at_desc', label: t('settlements.sortNewest', 'Newest first'), direction: 'desc' as const },
     { value: 'created_at_asc', label: t('settlements.sortOldest', 'Oldest first'), direction: 'asc' as const },
@@ -292,9 +298,10 @@ export function SettlementsPage() {
                     onPeriodChange={handlePeriodChange}
                     testId="settlements-period-picker"
                   />
-                  <StatusFilter
+                  <PillFilter
                     value={statusFilter}
                     onChange={(newStatus) => list.setFilter('status', newStatus)}
+                    options={statusOptions}
                     testId="settlements-status-filter"
                   />
                 </div>
@@ -493,9 +500,10 @@ export function SettlementsPage() {
                 testId="settlements-period-picker"
               />
 
-              <StatusFilter
+              <PillFilter
                 value={statusFilter}
                 onChange={(newStatus) => list.setFilter('status', newStatus)}
+                options={statusOptions}
                 testId="settlements-status-filter"
               />
             </div>

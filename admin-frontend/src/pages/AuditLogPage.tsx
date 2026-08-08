@@ -7,7 +7,6 @@ import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
-import { useLoading } from '../context/LoadingContext'
 import { getAuditLog } from '../api/generated/audit-log/audit-log'
 import type { AuditLogEntry, ListAuditLogParams } from '../api/generated'
 import { ListAuditLogAction, ListAuditLogEntityType } from '../api/generated'
@@ -88,7 +87,6 @@ interface AuditLogFilters {
 export function AuditLogPage() {
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
-  const { setIsLoading } = useLoading()
 
   const isMobile = breakpoint === 'mobile' || breakpoint === 'smallMobile'
 
@@ -141,13 +139,6 @@ export function AuditLogPage() {
     { label: t('auditLog.timestamp') + ' (' + t('common.newest') + ')', value: 'desc' },
     { label: t('auditLog.timestamp') + ' (' + t('common.oldest') + ')', value: 'asc' },
   ]
-
-  // Mirror the list's own loading into the global indicator, and clear it on
-  // unmount so navigating away mid-request cannot strand the spinner.
-  useEffect(() => {
-    setIsLoading(loading)
-    return () => setIsLoading(false)
-  }, [loading, setIsLoading])
 
   // Load admin users for filter dropdown
   useEffect(() => {

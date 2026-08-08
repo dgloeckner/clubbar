@@ -32,7 +32,10 @@ export class ProductsPage extends BasePage {
   private readonly tableRows = () => this.table().locator('tbody tr[data-testid]')
   private readonly createBtn = () => this.page.getByTestId('products-create-button')
   private readonly emptyState = () => this.page.getByTestId('products-empty-state')
-  private readonly globalLoadingIndicator = () => this.page.getByTestId('products-global-loading')
+  // The one global indicator, rendered by MainLayout and driven by the API
+  // client's in-flight request count (#122). Products used to render a second
+  // bar of its own with a page-specific test ID.
+  private readonly globalLoadingIndicator = () => this.page.getByTestId('loading-indicator')
   private readonly searchInput = () => this.page.getByTestId('products-search-input')
 
   // Modal locators (PRIVATE)
