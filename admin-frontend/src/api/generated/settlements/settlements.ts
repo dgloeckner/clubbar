@@ -261,6 +261,23 @@ const downloadSettlementCsv = (
       options);
     }
   /**
+ * Download the individual transactions included in a settlement as a CSV file
+(as opposed to the aggregated per-member SEPA/CSV export).
+
+**Use Case**: UC-A33
+
+ * @summary Download settlement transactions CSV
+ */
+const exportSettlementTransactions = (
+    settlementId: string,
+ options?: SecondParameter<typeof customInstance<Blob>>,) => {
+      return customInstance<Blob>(
+      {url: `/admin/settlements/${settlementId}/export-transactions`, method: 'GET',
+        responseType: 'blob'
+    },
+      options);
+    }
+  /**
  * Preview which transactions would be included in a settlement based on date filters
  * @summary Preview settlement by date filter
  */
@@ -292,7 +309,7 @@ const createSettlementByFilters = (
     },
       options);
     }
-  return {listSettlements,createSettlement,previewSettlement,getExecutionDateInfo,getSettlement,cancelSettlement,submitSettlement,downloadSepaXml,downloadSettlementCsv,previewSettlementByFilters,createSettlementByFilters}};
+  return {listSettlements,createSettlement,previewSettlement,getExecutionDateInfo,getSettlement,cancelSettlement,submitSettlement,downloadSepaXml,downloadSettlementCsv,exportSettlementTransactions,previewSettlementByFilters,createSettlementByFilters}};
 export type ListSettlementsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['listSettlements']>>>
 export type CreateSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['createSettlement']>>>
 export type PreviewSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['previewSettlement']>>>
@@ -302,5 +319,6 @@ export type CancelSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<t
 export type SubmitSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['submitSettlement']>>>
 export type DownloadSepaXmlResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['downloadSepaXml']>>>
 export type DownloadSettlementCsvResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['downloadSettlementCsv']>>>
+export type ExportSettlementTransactionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['exportSettlementTransactions']>>>
 export type PreviewSettlementByFiltersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['previewSettlementByFilters']>>>
 export type CreateSettlementByFiltersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['createSettlementByFilters']>>>

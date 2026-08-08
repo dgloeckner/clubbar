@@ -50,5 +50,6 @@ import type { ReportMetadataFilters } from './reportMetadataFilters';
 export type ReportMetadata = {
   report_type?: string;
   generated_at?: string;
+  /** Echoes the non-empty request filters back (date_from, date_to, group_by, category_ids, product_ids) */
   filters?: ReportMetadataFilters;
 };

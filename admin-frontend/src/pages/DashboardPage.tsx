@@ -141,13 +141,13 @@ export function DashboardPage() {
         <StatCard
           icon={<BookIcon />}
           label={t('dashboard.wtdRevenue')}
-          value={formatPrice((metrics as any).wtd_revenue_cents ?? 0)}
+          value={formatPrice(metrics.wtd_revenue_cents ?? 0)}
           color="green"
         />
         <StatCard
           icon={<BookIcon />}
           label={t('dashboard.mtdRevenue')}
-          value={formatPrice((metrics as any).mtd_revenue_cents ?? 0)}
+          value={formatPrice(metrics.mtd_revenue_cents ?? 0)}
           color="green"
         />
       </div>
@@ -180,7 +180,7 @@ export function DashboardPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.sm }}>
-              {recent_transactions.map((tx: any) => (
+              {recent_transactions.map((tx) => (
                 <div key={tx.id} data-testid={`dashboard-transaction-${tx.id}`} style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -238,7 +238,7 @@ export function DashboardPage() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.sm }}>
-                {terminal_status.map((term: any) => (
+                {terminal_status.map((term) => (
                   <div key={term.id} data-testid={`dashboard-terminal-${term.id}`} style={{
                     display: 'flex',
                     justifyContent: 'space-between',

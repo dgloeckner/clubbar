@@ -58,6 +58,10 @@ export type DashboardResponseMetrics = {
   outstanding_balance_cents?: number;
   /** Sum of transactions created today in cents */
   todays_revenue_cents?: number;
+  /** Sum of transactions since Monday this week (week-to-date) in cents */
+  wtd_revenue_cents?: number;
+  /** Sum of transactions since the 1st of the month (month-to-date) in cents */
+  mtd_revenue_cents?: number;
   /** Total number of terminals (active and inactive) */
   terminal_count?: number;
   /** Count of active terminals */

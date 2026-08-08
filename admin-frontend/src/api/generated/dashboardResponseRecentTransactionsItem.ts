@@ -48,14 +48,19 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 import type { DashboardResponseRecentTransactionsItemType } from './dashboardResponseRecentTransactionsItemType';
 
 export type DashboardResponseRecentTransactionsItem = {
-  id?: string;
-  member_id?: string;
+  id: string;
+  member_id: string;
   /** Display name (first + last name or card_uid) */
-  member_name?: string;
-  type?: DashboardResponseRecentTransactionsItemType;
-  amount_cents?: number;
+  member_name: string;
+  /**
+   * Name of the terminal the transaction was created on
+   * @nullable
+   */
+  terminal_name?: string | null;
+  type: DashboardResponseRecentTransactionsItemType;
+  amount_cents: number;
   /** Product name or manual entry description */
   product_name?: string;
   /** ISO 8601 transaction creation time */
-  timestamp?: string;
+  timestamp: string;
 };

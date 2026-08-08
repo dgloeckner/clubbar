@@ -26,10 +26,9 @@ import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { validateIban } from '../utils/iban'
 import { useBankName } from '../hooks/useBankName'
 import { ValidationIndicator } from '../components/forms/ValidationIndicator'
-import { downloadFile } from '../api/client'
 import { MandateDocumentSection } from '../components/MandateDocumentSection'
-import { extractMandateDocument, ExtractionResult } from '../api/extractMandateDocument'
-import { uploadMandateDocument } from '../api/mandateDocument'
+import { getMandateDocument } from '../api/generated/mandate-document/mandate-document'
+import type { ExtractionResult } from '../api/generated'
 import {
   tableWrapperStyles,
   tableElementStyles,
@@ -276,7 +275,7 @@ export function MembersPage() {
         const newMemberId = newMember?.id
         if (scanFile && newMemberId) {
           try {
-            await uploadMandateDocument(newMemberId, scanFile)
+            await getMembersFactory().uploadMandateDocument(newMemberId, { file: scanFile })
           } catch {
             // Document upload failed but member was created — non-fatal
           }
@@ -436,7 +435,15 @@ export function MembersPage() {
 
   const handleDownloadSepaTemplate = async () => {
     try {
-      await downloadFile('/admin/sepa-mandate-template', 'sepa-mandate-template.pdf')
+      const blob = await getMembersFactory().getAdminSepaMandateTemplate()
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = 'sepa-mandate-template.pdf'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
     } catch {
       setError(t('members.sepaTemplateError', 'SEPA configuration is incomplete. Please configure creditor details in Settings first.'))
     }
@@ -478,7 +485,7 @@ export function MembersPage() {
     setFormErrors({})
     setShowModal(true)
     try {
-      const result = await extractMandateDocument(file)
+      const result = await getMandateDocument().extractMandateDocument({ file })
       const rf = result.fields ?? {}
       const initialForm = { first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' }
       setFormData({

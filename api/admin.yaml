@@ -218,7 +218,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminProfile'
+                $ref: '#/components/schemas/GetProfileResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
     patch:
@@ -243,11 +243,146 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminProfile'
+                $ref: '#/components/schemas/UpdateProfileResponse'
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /auth/mfa:
+    post:
+      tags: [Authentication]
+      summary: Verify TOTP code and complete login
+      description: |
+        Exchange a valid MFA-pending session (issued by POST /auth/login when
+        `requiresMfa` is true) plus a TOTP code for a fully authenticated session.
+
+        **Use Case**: UC-A01
+      operationId: verifyMfa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaRequest'
+      responses:
+        '200':
+          description: MFA verified, login complete
+          headers:
+            Set-Cookie:
+              description: Session cookie (HttpOnly, Secure, SameSite=Lax)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: MFA session expired, not found, or code invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/2fa/setup:
+    post:
+      tags: [Authentication]
+      summary: Begin TOTP enrollment
+      description: |
+        Generate a new TOTP secret and QR code for the current admin.
+        Accessible even while `totp_setup_required` is set on the session.
+
+        **Use Case**: UC-A01
+      operationId: setupTotp
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: TOTP secret generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setup2faResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/2fa/confirm:
+    post:
+      tags: [Authentication]
+      summary: Confirm TOTP enrollment
+      description: |
+        Verify the first TOTP code to complete enrollment. On success, the
+        pending secret is persisted and the setup gate is removed.
+
+        **Use Case**: UC-A01
+      operationId: confirmTotp
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Confirm2faRequest'
+      responses:
+        '200':
+          description: TOTP enrollment confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: No pending TOTP setup, or invalid code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/2fa/reset:
+    post:
+      tags: [Authentication]
+      summary: Reset another admin's TOTP enrollment
+      description: |
+        Remove TOTP enrollment from any admin user account. Any authenticated
+        admin may call this (e.g. to help a locked-out colleague).
+
+        **Use Case**: UC-A01
+      operationId: resetTotp
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reset2faRequest'
+      responses:
+        '200':
+          description: TOTP enrollment reset
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
   # ============================================================================
   # MEMBERS
@@ -1194,6 +1329,24 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+    delete:
+      tags: [Products]
+      summary: Delete product
+      description: |
+        Permanently delete a product.
+
+        **Use Case**: UC-A43
+      operationId: deleteProduct
+      security:
+        - sessionAuth: []
+      responses:
+        '204':
+          description: Product deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   # ============================================================================
   # CATEGORIES
   # ============================================================================
@@ -1343,12 +1496,41 @@ paths:
             type: string
             enum: [all, sepa, manual]
             default: all
+        - name: status
+          in: query
+          description: Filter by cancellation status
+          schema:
+            type: string
+            enum: [all, active, cancelled]
+            default: all
+        - name: date_from
+          in: query
+          description: Filter to settlements created on or after this date
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          description: Filter to settlements created on or before this date
+          schema:
+            type: string
+            format: date
         - name: sort_by
           in: query
+          description: |
+            Reserved for future use — the backend currently sorts by created_at
+            regardless of this value. Use `order` to control sort direction.
           schema:
             type: string
             enum: [created_at_desc, created_at_asc, execution_date]
             default: created_at_desc
+        - name: order
+          in: query
+          description: Sort direction, applied to created_at (the only sortable column today)
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
       responses:
         '200':
           description: List of settlements
@@ -1741,6 +1923,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /admin/settlements/{settlementId}/export-transactions:
+    parameters:
+      - name: settlementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Settlements]
+      summary: Download settlement transactions CSV
+      description: |
+        Download the individual transactions included in a settlement as a CSV file
+        (as opposed to the aggregated per-member SEPA/CSV export).
+
+        **Use Case**: UC-A33
+      operationId: exportSettlementTransactions
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="settlement-transactions-SET-2025-001.csv"'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # ============================================================================
   # SEPA CONFIGURATION
@@ -2135,9 +2354,11 @@ paths:
             default: false
         - name: limit
           in: query
+          description: Backend clamps to the 1-100 range regardless of the value sent
           schema:
             type: integer
-            enum: [10, 25, 50, 100]
+            minimum: 1
+            maximum: 100
             default: 25
       responses:
         '200':
@@ -2972,21 +3193,73 @@ components:
 
     LoginResponse:
       type: object
-      required: [admin_id, email, display_name, locale, csrf_token]
+      description: |
+        The shape returned depends on the authentication branch:
+        - TOTP-enrolled admin: only `requiresMfa` is set — call POST /auth/mfa next.
+        - First-time admin (no TOTP yet): `requiresTotpSetup`, `admin`, and
+          `csrf_token` are set — call POST /auth/2fa/setup next.
       properties:
-        admin_id:
+        requiresMfa:
+          type: boolean
+          description: True when the admin has TOTP enabled. Call POST /auth/mfa with the code next.
+        requiresTotpSetup:
+          type: boolean
+          description: True on an admin's first login. Call POST /auth/2fa/setup to begin enrollment.
+        admin:
+          $ref: '#/components/schemas/AdminProfile'
+        csrf_token:
           type: string
-          format: uuid
-        email:
+          description: CSRF token for subsequent state-changing requests (present alongside requiresTotpSetup)
+
+    MfaRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
           type: string
-          format: email
-        display_name:
+          description: 6-digit TOTP code
+          pattern: '^\d{6}$'
+
+    MfaResponse:
+      type: object
+      required: [message, admin, csrf_token]
+      properties:
+        message:
           type: string
-        locale:
-          type: string
+        admin:
+          $ref: '#/components/schemas/AdminProfile'
         csrf_token:
           type: string
           description: CSRF token for subsequent state-changing requests
+
+    Setup2faResponse:
+      type: object
+      required: [qrCode, secret]
+      properties:
+        qrCode:
+          type: string
+          description: otpauth:// URI to render as a QR code
+        secret:
+          type: string
+          description: Plain-text TOTP secret, shown as a manual-entry fallback
+
+    Confirm2faRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          description: 6-digit TOTP code from the authenticator app
+          pattern: '^\d{6}$'
+
+    Reset2faRequest:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: ID of the admin user whose TOTP enrollment should be cleared
 
     ChangePasswordRequest:
       type: object
@@ -3006,6 +3279,7 @@ components:
 
     AdminProfile:
       type: object
+      required: [id, email, display_name, locale, totp_enabled]
       properties:
         id:
           type: string
@@ -3021,6 +3295,28 @@ components:
           type: string
           format: date-time
           nullable: true
+        totp_enabled:
+          type: boolean
+          description: Whether TOTP two-factor authentication is enrolled for this admin
+
+    GetProfileResponse:
+      type: object
+      required: [admin]
+      properties:
+        admin:
+          $ref: '#/components/schemas/AdminProfile'
+        csrf_token:
+          type: string
+          nullable: true
+
+    UpdateProfileResponse:
+      type: object
+      required: [message, admin]
+      properties:
+        message:
+          type: string
+        admin:
+          $ref: '#/components/schemas/AdminProfile'
 
     UpdateProfileRequest:
       type: object
@@ -4233,12 +4529,27 @@ components:
               format: date-time
             filters:
               type: object
+              description: Echoes the non-empty request filters back (date_from, date_to, group_by, category_ids, product_ids)
+              properties:
+                date_from:
+                  type: string
+                  format: date
+                date_to:
+                  type: string
+                  format: date
+                group_by:
+                  type: string
+                  enum: [category, product, member, day, week, month, year]
+                category_ids:
+                  type: string
+                product_ids:
+                  type: string
         summary:
           type: object
           properties:
             total_revenue_cents:
               type: integer
-            total_quantity:
+            unique_member_count:
               type: integer
             transaction_count:
               type: integer
@@ -4252,8 +4563,6 @@ components:
               dimension:
                 type: string
               revenue_cents:
-                type: integer
-              quantity:
                 type: integer
               count:
                 type: integer
@@ -4489,6 +4798,12 @@ components:
             todays_revenue_cents:
               type: integer
               description: Sum of transactions created today in cents
+            wtd_revenue_cents:
+              type: integer
+              description: Sum of transactions since Monday this week (week-to-date) in cents
+            mtd_revenue_cents:
+              type: integer
+              description: Sum of transactions since the 1st of the month (month-to-date) in cents
             terminal_count:
               type: integer
               description: Total number of terminals (active and inactive)
@@ -4506,6 +4821,7 @@ components:
           description: Last 10 transactions ordered by creation time
           items:
             type: object
+            required: [id, member_id, member_name, type, amount_cents, timestamp]
             properties:
               id:
                 type: string
@@ -4516,6 +4832,10 @@ components:
               member_name:
                 type: string
                 description: Display name (first + last name or card_uid)
+              terminal_name:
+                type: string
+                nullable: true
+                description: Name of the terminal the transaction was created on
               type:
                 type: string
                 enum: [purchase, storno, payout]
@@ -4533,6 +4853,7 @@ components:
           description: Status of all terminals with connectivity information
           items:
             type: object
+            required: [id, name, is_active, status]
             properties:
               id:
                 type: string

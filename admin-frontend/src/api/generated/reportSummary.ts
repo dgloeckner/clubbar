@@ -48,7 +48,7 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
 export type ReportSummary = {
   total_revenue_cents?: number;
-  total_quantity?: number;
+  unique_member_count?: number;
   transaction_count?: number;
   avg_transaction_cents?: number;
 };

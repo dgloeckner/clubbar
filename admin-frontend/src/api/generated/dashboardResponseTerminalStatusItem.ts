@@ -48,14 +48,14 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 import type { DashboardResponseTerminalStatusItemStatus } from './dashboardResponseTerminalStatusItemStatus';
 
 export type DashboardResponseTerminalStatusItem = {
-  id?: string;
-  name?: string;
-  is_active?: boolean;
+  id: string;
+  name: string;
+  is_active: boolean;
   /** @nullable */
   last_sync_at?: string | null;
   /** - online: synced within 24 hours
 - offline: no sync or synced > 24 hours ago
 - disabled: terminal is inactive
  */
-  status?: DashboardResponseTerminalStatusItemStatus;
+  status: DashboardResponseTerminalStatusItemStatus;
 };
