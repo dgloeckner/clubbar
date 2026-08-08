@@ -8,6 +8,7 @@ use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
 use App\Modules\Settlements\Enums\SettlementMethod;
+use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
@@ -26,6 +27,7 @@ class SettlementsServiceTest extends TestCase
     private MembersRepository $membersRepository;
     private TransactionsRepository $transactionsRepository;
     private AuditService $auditService;
+    private SettlementReversalsRepository $reversalsRepository;
     private \PDO $db;
     private SettlementsService $service;
 
@@ -37,6 +39,7 @@ class SettlementsServiceTest extends TestCase
         $this->membersRepository = $this->createMock(MembersRepository::class);
         $this->transactionsRepository = $this->createMock(TransactionsRepository::class);
         $this->auditService = $this->createMock(AuditService::class);
+        $this->reversalsRepository = $this->createMock(SettlementReversalsRepository::class);
         $this->db = $this->createMock(\PDO::class);
 
         $this->service = new SettlementsService(
@@ -45,6 +48,7 @@ class SettlementsServiceTest extends TestCase
             $this->transactionsRepository,
             $this->auditService,
             $this->db,
+            $this->reversalsRepository,
         );
     }
 
@@ -291,6 +295,102 @@ class SettlementsServiceTest extends TestCase
 
         $this->assertSame([], $result->ineligibleMembers);
         $this->assertCount(1, $result->creditMembers);
+    }
+
+    // ── The hold bucket (#196, ruling #148 §4) ────────────────────────
+
+    public function test_previewSettlement_held_member_is_excluded_into_its_own_bucket_with_a_reason(): void
+    {
+        $heldId = 'held-member';
+        $owingId = 'owing-member';
+
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$heldId, $owingId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
+            $heldId => 1500,
+            $owingId => 500,
+        ]);
+        $this->membersRepository->method('findById')->willReturnMap([
+            [$heldId, $this->member($heldId, [
+                'collection_hold' => 1,
+                'collection_hold_reason' => 'Direct debit returned by the bank',
+            ])],
+            [$owingId, $this->member($owingId)],
+        ]);
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertSame([$owingId], array_column($result->eligibleMembers, 'member_id'));
+        $this->assertSame([$heldId], array_column($result->heldMembers, 'member_id'));
+        $this->assertSame(1500, $result->heldTotal);
+        $this->assertSame(500, $result->eligibleTotal);
+        $this->assertSame(2, $result->memberCount, 'a held member is still a participant of the run');
+        $this->assertSame(
+            'Direct debit returned by the bank',
+            $result->heldMembers[0]['collection_hold_reason'],
+            'the treasurer has to see why, or the hold is never resolved',
+        );
+        $this->assertCount(1, $result->warnings);
+        $this->assertStringContainsString('collection hold', $result->warnings[0]);
+    }
+
+    /**
+     * A hold outranks a missing mandate: this member\'s last collection came
+     * back, and until somebody looks at that, their bank details are not the
+     * question.
+     */
+    public function test_previewSettlement_a_hold_beats_a_missing_mandate(): void
+    {
+        $memberId = 'held-without-mandate';
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$memberId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$memberId => 900]);
+        $this->membersRepository->method('findById')->willReturn($this->member($memberId, [
+            'iban' => null,
+            'mandate_reference' => null,
+            'collection_hold' => 1,
+            'collection_hold_reason' => 'Returned unpaid',
+        ]));
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertSame([], $result->ineligibleMembers);
+        $this->assertCount(1, $result->heldMembers);
+    }
+
+    /**
+     * Credit still comes first: the club owes this member money, so the hold —
+     * which exists to stop the club taking money — is beside the point.
+     */
+    public function test_previewSettlement_credit_beats_a_hold(): void
+    {
+        $memberId = 'held-and-in-credit';
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$memberId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$memberId => -700]);
+        $this->membersRepository->method('findById')->willReturn($this->member($memberId, [
+            'collection_hold' => 1,
+            'collection_hold_reason' => 'Returned unpaid',
+        ]));
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertSame([], $result->heldMembers);
+        $this->assertCount(1, $result->creditMembers);
+    }
+
+    public function test_previewSettlement_a_cleared_hold_makes_the_member_collectable_again(): void
+    {
+        $memberId = 'cleared-member';
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$memberId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$memberId => 1500]);
+        $this->membersRepository->method('findById')->willReturn($this->member($memberId, [
+            'collection_hold' => 0,
+            'collection_hold_reason' => 'Direct debit returned by the bank',
+            'cleared_at' => '2026-08-08 12:00:00',
+        ]));
+
+        $result = $this->service->previewSettlement();
+
+        $this->assertSame([], $result->heldMembers, 'the retained reason must not keep excluding a cleared member');
+        $this->assertCount(1, $result->eligibleMembers);
     }
 
     /**
@@ -703,6 +803,61 @@ class SettlementsServiceTest extends TestCase
         $this->expectExceptionMessage('in credit');
 
         $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+    }
+
+    /**
+     * Ruling #148 §3: the hold is what stops the next run re-debiting exactly
+     * what just bounced. It has to bind on creation too, or a client can post
+     * the ids the preview put in the hold bucket and collect them anyway.
+     */
+    public function test_createSettlement_rejects_members_on_collection_hold(): void
+    {
+        $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->transactionsRepository->method('findUnsettledByMemberIds')->willReturn($transactions);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn(['member-a' => 500]);
+        $this->membersRepository->method('findById')->willReturn(
+            $this->member('member-a', ['collection_hold' => 1, 'collection_hold_reason' => 'Returned unpaid'])
+        );
+
+        $this->settlementsRepository->expects($this->never())->method('create');
+        $this->db->expects($this->once())->method('rollBack');
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('collection hold');
+
+        $this->service->createSettlement(['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
+    }
+
+    /**
+     * A hold stops collection, and only collection. A write-off gives up on
+     * the money and a bank transfer is the member paying their own tab — both
+     * are ways *out* of a hold, so neither may be blocked by one, or a returned
+     * direct debit would strand the debt with no way to resolve it.
+     */
+    public function test_createSettlement_lets_a_held_member_be_written_off(): void
+    {
+        $transactions = [['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]];
+
+        $this->settlementsRepository->method('hasConflicts')->willReturn([]);
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn($transactions);
+        $this->transactionsRepository->method('findUnsettledByMemberIds')->willReturn($transactions);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn(['member-a' => 500]);
+        $this->membersRepository->method('findById')->willReturn(
+            $this->member('member-a', ['collection_hold' => 1, 'collection_hold_reason' => 'Returned unpaid'])
+        );
+
+        $this->settlementsRepository->expects($this->once())->method('create')->willReturn(
+            $this->settlementRow(['method' => SettlementMethod::WRITE_OFF->value, 'total_amount_cents' => 500])
+        );
+
+        $result = $this->service->createSettlement(
+            ['tx-1'], '2026-01-01', '2026-01-15', null, null, SettlementMethod::WRITE_OFF, null, 'admin-1',
+        );
+
+        $this->assertSame('settlement-1', $result->id);
     }
 
     /**

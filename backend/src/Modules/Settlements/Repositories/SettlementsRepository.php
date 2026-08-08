@@ -18,10 +18,23 @@ class SettlementsRepository
         private Logger $logger,
     ) {}
 
+    /**
+     * The two counts every settlement row carries so its status can be derived
+     * rather than stored (ruling #148 §6) — how many of its members have been
+     * reversed, and how many it covers at all.
+     *
+     * Selected as correlated subqueries rather than joined so the counts cannot
+     * multiply each other, and so a settlement with neither still returns 0.
+     */
+    private const STATUS_COUNTS =
+        '(SELECT COUNT(*) FROM settlement_reversals sr WHERE sr.settlement_id = s.id) AS reversal_member_count,
+         (SELECT COUNT(DISTINCT si.member_id) FROM settlement_items si WHERE si.settlement_id = s.id) AS settled_member_count';
+
     public function findById(string $id): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT s.*, a.display_name as admin_display_name FROM settlements s LEFT JOIN admin_users a ON s.created_by_admin_id = a.id WHERE s.id = ?'
+            'SELECT s.*, a.display_name as admin_display_name, ' . self::STATUS_COUNTS
+            . ' FROM settlements s LEFT JOIN admin_users a ON s.created_by_admin_id = a.id WHERE s.id = ?'
         );
         $stmt->execute([$id]);
         return $stmt->fetch() ?: null;
@@ -271,6 +284,88 @@ class SettlementsRepository
         return $result;
     }
 
+    /**
+     * Release one settlement's claim on *some* of its members' transactions
+     * (ruling #148 §1) — the per-member half of what cancelSettlement() does
+     * to the whole run.
+     *
+     * Same mechanism, deliberately: nulling `active_transaction_id` frees the
+     * transactions to be collected again while the rows survive, so the
+     * settlement still exports a CSV saying what it originally contained.
+     * Members not named here keep their claims and stay settled.
+     *
+     * The caller wraps this and the reversal rows in one DB transaction; on
+     * its own it is not atomic (ruling #148 §8).
+     *
+     * @param list<string> $memberIds
+     */
+    public function releaseMemberClaims(string $settlementId, array $memberIds): void
+    {
+        if ($memberIds === []) {
+            return;
+        }
+
+        [$placeholders, $params] = SafeQuery::inClause(array_values($memberIds), 'string');
+        $stmt = $this->db->prepare(
+            "UPDATE settlement_items SET active_transaction_id = NULL
+              WHERE settlement_id = ? AND member_id IN ({$placeholders})"
+        );
+        $stmt->execute(array_merge([$settlementId], $params));
+
+        $this->logger->info('Settlement claims released for members', [
+            'settlement_id' => $settlementId,
+            'members' => count($memberIds),
+        ]);
+    }
+
+    /**
+     * What each named member's items in this settlement add up to — the amount
+     * the reversal records as having come back.
+     *
+     * Derived from the items rather than taken from the caller: the reversal
+     * must say what was actually collected from that member, and a freely typed
+     * amount is exactly how that stops being true.
+     *
+     * @param list<string> $memberIds Restrict to these members; empty means all.
+     * @return array<string, int>
+     */
+    public function sumItemAmountsByMember(string $settlementId, array $memberIds = []): array
+    {
+        $sql = 'SELECT member_id, SUM(amount_cents) AS total FROM settlement_items WHERE settlement_id = ?';
+        $params = [$settlementId];
+
+        if ($memberIds !== []) {
+            [$placeholders, $inParams] = SafeQuery::inClause(array_values($memberIds), 'string');
+            $sql .= " AND member_id IN ({$placeholders})";
+            $params = array_merge($params, $inParams);
+        }
+
+        $stmt = $this->db->prepare($sql . ' GROUP BY member_id');
+        $stmt->execute($params);
+
+        $totals = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $totals[$row['member_id']] = (int) $row['total'];
+        }
+        return $totals;
+    }
+
+    /**
+     * Every member this settlement covers, whether or not their claim is still
+     * live. Reversed members stay in the list — their rows were retained.
+     *
+     * @return list<string>
+     */
+    public function findSettledMemberIds(string $settlementId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT DISTINCT member_id FROM settlement_items WHERE settlement_id = ?'
+        );
+        $stmt->execute([$settlementId]);
+
+        return array_map(static fn(array $row): string => $row['member_id'], $stmt->fetchAll());
+    }
+
     public function markExported(string $id): bool
     {
         $now = date('Y-m-d H:i:s');
@@ -318,7 +413,7 @@ class SettlementsRepository
 
         $dataParams = array_merge($params, [$limit, $offset]);
         $stmt = $this->db->prepare(
-            "SELECT s.*, a.display_name as admin_display_name,
+            "SELECT s.*, a.display_name as admin_display_name, " . self::STATUS_COUNTS . ",
                 (SELECT COUNT(*) FROM settlement_items si WHERE si.settlement_id = s.id) as transaction_count,
                 (SELECT MIN(t.occurred_at) FROM settlement_items si JOIN transactions t ON si.transaction_id = t.id WHERE si.settlement_id = s.id) as transaction_date_min,
                 (SELECT MAX(t.occurred_at) FROM settlement_items si JOIN transactions t ON si.transaction_id = t.id WHERE si.settlement_id = s.id) as transaction_date_max

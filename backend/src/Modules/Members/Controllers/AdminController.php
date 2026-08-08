@@ -7,6 +7,7 @@ namespace App\Modules\Members\Controllers;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Shared\Validation\Validator;
+use App\Modules\Settlements\Services\CollectionHoldService;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Members\Services\MandateDocumentService;
@@ -26,6 +27,7 @@ class AdminController
         private SepaConfigService $sepaConfigService,
         private MandateDocumentService $mandateDocumentService,
         private SettlementsService $settlementsService,
+        private CollectionHoldService $collectionHoldService,
     ) {}
 
     public function index(Request $request, Response $response): Response
@@ -213,6 +215,32 @@ class AdminController
             'items' => array_map(fn($item) => $item->toArray(), $result['items']),
             'total_credit_cents' => $result['total_credit_cents'],
         ]);
+    }
+
+    /**
+     * Standing "on collection hold" listing under Members (ruling #148 §4) —
+     * every member the next run will skip, and why.
+     *
+     * It sits beside credit balances for the same reason that one does: an
+     * exclusion nobody can see is an exclusion nobody ever resolves.
+     */
+    public function collectionHolds(Request $request, Response $response): Response
+    {
+        $result = $this->collectionHoldService->listHeld();
+
+        return $this->json($response, [
+            'items' => array_map(fn($item) => $item->toArray(), $result['items']),
+            'total_held_cents' => $result['total_held_cents'],
+        ]);
+    }
+
+    /** Let the next run collect from this member again (ruling #148 §5). */
+    public function clearCollectionHold(Request $request, Response $response, array $args): Response
+    {
+        $adminId = $request->getAttribute('admin_user_id');
+        $hold = $this->collectionHoldService->clearHold($args['memberId'], $adminId);
+
+        return $this->json($response, $hold->toArray());
     }
 
     public function downloadMandateTemplate(Request $request, Response $response): Response

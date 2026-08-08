@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\Settlements\DTOs;
 
 use App\Modules\Settlements\Domain\CancellationGate;
+use App\Modules\Settlements\Domain\ReversalGate;
 use App\Modules\Settlements\Enums\SettlementMethod;
+use App\Modules\Settlements\Enums\SettlementStatus;
 
 final readonly class SettlementDto
 {
@@ -40,10 +42,38 @@ final readonly class SettlementDto
         public bool $isCancellable = false,
         /** Why not, when it is not — shown instead of a bare disabled button. */
         public ?string $cancellationBlockedReason = null,
+        /**
+         * Where this settlement stands (ruling #148 §6). Derived from
+         * `is_cancelled`, the reversal rows, `submitted_at` and `exported_at`
+         * on every read — there is no status column, so nothing can drift.
+         */
+        public SettlementStatus $status = SettlementStatus::DRAFT,
+        /** The mirror of `is_cancellable`: money moved, so it can come back. */
+        public bool $isReversible = false,
+        public ?string $reversalBlockedReason = null,
+        /** How many of this settlement's members have been reversed. */
+        public int $reversedMemberCount = 0,
+        /**
+         * The reversal events themselves, when the caller asked for one
+         * settlement. Empty in list responses, which do not join them.
+         *
+         * @var list<SettlementReversalDto>
+         */
+        public array $reversals = [],
     ) {}
 
-    public static function fromRow(array $row, array $items = []): self
+    /**
+     * @param list<SettlementReversalDto> $reversals Only the single-settlement
+     *        read passes these; the list endpoint does not join them.
+     */
+    public static function fromRow(array $row, array $items = [], array $reversals = []): self
     {
+        // Rows read outside SettlementsRepository (minimal fixtures, older
+        // tests) carry no counts. Absent means none, which derives the same
+        // status the settlement had before reversals existed.
+        $reversedMemberCount = (int) ($row['reversal_member_count'] ?? count($reversals));
+        $settledMemberCount = (int) ($row['settled_member_count'] ?? $row['member_count'] ?? 0);
+
         return new self(
             id: $row['id'],
             // Default to DIRECT_DEBIT for rows that predate #163's `method`
@@ -71,6 +101,11 @@ final readonly class SettlementDto
             submittedByAdminId: $row['submitted_by_admin_id'] ?? null,
             isCancellable: CancellationGate::isCancellable($row),
             cancellationBlockedReason: CancellationGate::blocker($row),
+            status: SettlementStatus::derive($row, $reversedMemberCount, $settledMemberCount),
+            isReversible: ReversalGate::isReversible($row),
+            reversalBlockedReason: ReversalGate::blocker($row),
+            reversedMemberCount: $reversedMemberCount,
+            reversals: $reversals,
         );
     }
 
@@ -102,6 +137,15 @@ final readonly class SettlementDto
             'submitted_by_admin_id' => $this->submittedByAdminId,
             'is_cancellable' => $this->isCancellable,
             'cancellation_blocked_reason' => $this->cancellationBlockedReason,
+            'status' => $this->status->value,
+            'status_label' => $this->status->label(),
+            'is_reversible' => $this->isReversible,
+            'reversal_blocked_reason' => $this->reversalBlockedReason,
+            'reversed_member_count' => $this->reversedMemberCount,
+            'reversals' => array_map(
+                static fn($r) => $r instanceof SettlementReversalDto ? $r->toArray() : $r,
+                $this->reversals,
+            ),
         ];
     }
 }

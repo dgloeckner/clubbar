@@ -555,6 +555,70 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /admin/members/collection-holds:
+    get:
+      tags: [Members]
+      summary: List members on collection hold
+      description: |
+        Standing listing of every member the next collection run will skip
+        after a returned direct debit, and why (ruling #148 §4).
+
+        It sits beside credit balances for the same reason that one does: an
+        exclusion nobody can see is an exclusion nobody ever resolves.
+      operationId: listCollectionHolds
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Members currently on collection hold
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CollectionHold'
+                  total_held_cents:
+                    type: integer
+                    description: Sum of what the held members owe.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/members/{memberId}/collection-hold/clear:
+    parameters:
+      - $ref: '#/components/parameters/memberId'
+    post:
+      tags: [Members]
+      summary: Clear a member's collection hold
+      description: |
+        Let the next collection run reach this member again (ruling #148 §5).
+
+        `collection_hold_reason` is retained so the record of why the member
+        was held survives; `cleared_at` and `cleared_by_admin_id` say who
+        released them.
+      operationId: clearCollectionHold
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Hold cleared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionHold'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: This member is not on collection hold.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /admin/members/{memberId}:
     parameters:
       - $ref: '#/components/parameters/memberId'
@@ -1648,7 +1712,9 @@ paths:
         each participant's whole unsettled position is what is tested and, on
         inclusion, what is swept. Members split into three buckets by that
         total: `> 0` and `= 0` are eligible (zero settles but produces no line
-        in the pain.008), `< 0` is excluded into `credit_members`.
+        in the pain.008), `< 0` is excluded into `credit_members`. A member on
+        collection hold after a returned direct debit lands in `held_members`
+        instead, whatever their balance (ruling #148 §4).
 
         **Use Cases**: UC-A30, UC-SEPA-06
       operationId: previewSettlement
@@ -1834,6 +1900,101 @@ paths:
           description: |
             Settlement cannot be marked submitted — already submitted, never
             exported, cancelled, or not a `direct_debit` settlement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/settlements/{settlementId}/reverse:
+    parameters:
+      - name: settlementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Settlements]
+      summary: Reverse a settlement, per member
+      description: |
+        Record that the bank clawed a collection back, or that the club
+        collected in error (ruling #148, issue #196).
+
+        The other end of `submit`: once money has moved, a settlement is
+        reversed, never cancelled. Exactly one of `is_cancellable` and
+        `is_reversible` is true for any live settlement.
+
+        **One mechanism, per-member granularity.** `member_ids` names who came
+        back; omitting it means every member the settlement covers — the
+        whole-settlement undo, not a separate code path.
+
+        For each named member the endpoint releases that member's claim on
+        their transactions (their rows survive, so the settlement's CSV export
+        still shows what it originally contained) and appends a
+        `settlement_reversals` row. Both writes commit together or not at all.
+
+        A `bank_return` additionally places each member on **collection hold**,
+        so the next run does not re-debit exactly what just bounced. Held
+        members appear in the settlement preview's `held_members` bucket and
+        are cleared via
+        `POST /admin/members/{memberId}/collection-hold/clear`.
+      operationId: reverseSettlement
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  enum: [bank_return, club_error]
+                member_ids:
+                  type: array
+                  description: |
+                    The members to reverse. Omit (or send an empty array) to
+                    reverse every member of the settlement.
+                  items:
+                    type: string
+                    format: uuid
+                bank_reference:
+                  type: string
+                  maxLength: 35
+                  description: The reference quoted on the bank's return booking.
+                notes:
+                  type: string
+                  maxLength: 1000
+      responses:
+        '201':
+          description: |
+            Reversal recorded. The body is the settlement itself, with its
+            recomputed `status` and the reversal events.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settlement'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            Nothing to reverse — the settlement has not moved any money (cancel
+            it instead), was already cancelled, covers no members, or one of
+            the named members has already been reversed on it. The
+            `UNIQUE (settlement_id, member_id)` constraint is what guarantees
+            the last case.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: |
+            Invalid request — an unknown `reason`, an over-long reference, or a
+            member who is not part of this settlement.
           content:
             application/json:
               schema:
@@ -3502,6 +3663,109 @@ components:
           type: string
           format: date-time
 
+    SettlementReversal:
+      type: object
+      description: |
+        One member's collection undone after the money moved (ruling #148).
+        Append-only: there is no update and no delete, because the derived
+        settlement status is computed from these rows.
+      properties:
+        id:
+          type: string
+          format: uuid
+        settlement_id:
+          type: string
+          format: uuid
+        member_id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          enum: [bank_return, club_error]
+          description: |
+            `bank_return` places the member on collection hold; `club_error`
+            does not, because re-collection is the point of recording one.
+
+            There is deliberately no finer classification of *why* the bank
+            returned it: in Germany AM04, AC04, MD07 and RR01-04 are
+            suppressed for data-protection reasons and collapse into
+            "sonstige Gründe".
+        reason_label:
+          type: string
+        amount_cents:
+          type: integer
+          description: |
+            The sum of that member's items in the settlement. Derived, never
+            supplied by the caller.
+        amount_eur:
+          type: number
+          format: float
+        bank_reference:
+          type: string
+          maxLength: 35
+          nullable: true
+          description: |
+            The reference on the return booking, capped at the ISO 20022
+            length. The original Verwendungszweck never comes back — DK
+            replaces `SVWZ` with the constant RETURN/REFUND — so this is the
+            only thread back to the return.
+        notes:
+          type: string
+          maxLength: 1000
+          nullable: true
+        created_by_admin_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_by_admin_name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    CollectionHold:
+      type: object
+      description: |
+        A member the next collection run must leave alone after a returned
+        direct debit (ruling #148 §3). Without the hold, the next run sweeps
+        the member's whole unsettled position — including what just bounced —
+        and earns a second return fee.
+      properties:
+        member_id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        collection_hold_reason:
+          type: string
+          nullable: true
+          description: |
+            Why the member is held. Retained after the hold is cleared, so the
+            question "why was this member skipped in March?" stays answerable.
+        held_at:
+          type: string
+          format: date-time
+          nullable: true
+        held_by_admin_id:
+          type: string
+          format: uuid
+          nullable: true
+        held_by_admin_name:
+          type: string
+          nullable: true
+        balance_cents:
+          type: integer
+          description: What the member currently owes, held back from collection.
+
     CreditBalance:
       type: object
       properties:
@@ -4117,6 +4381,39 @@ components:
           description: |
             Human-readable reason cancellation is unavailable. Null when
             `is_cancellable` is true.
+        status:
+          type: string
+          enum: [cancelled, fully_reversed, partly_reversed, submitted, exported, draft]
+          description: |
+            Where the settlement stands, derived on every read from
+            `is_cancelled`, the reversal rows, `submitted_at` and
+            `exported_at` (ruling #148 §6). There is no status column, so
+            nothing can drift out of step with it.
+        status_label:
+          type: string
+          description: Human-readable form of `status`.
+        is_reversible:
+          type: boolean
+          description: |
+            Whether a reverse request would currently be accepted — the exact
+            mirror of `is_cancellable`. A settlement is one or the other,
+            never both; a cancelled one is neither.
+        reversal_blocked_reason:
+          type: string
+          nullable: true
+          description: |
+            Human-readable reason reversal is unavailable. Null when
+            `is_reversible` is true.
+        reversed_member_count:
+          type: integer
+          description: How many of this settlement's members carry a reversal.
+        reversals:
+          type: array
+          description: |
+            The reversal events, present on the single-settlement read. The
+            list endpoint does not join them and returns an empty array.
+          items:
+            $ref: '#/components/schemas/SettlementReversal'
         created_at:
           type: string
           format: date-time
@@ -4265,6 +4562,15 @@ components:
             the ineligible bucket's — pay them back (ruling #141, § 812 BGB).
           items:
             $ref: '#/components/schemas/SettlementPreviewMember'
+        held_members:
+          type: array
+          description: |
+            Members on collection hold after a returned direct debit (ruling
+            #148 §4). Excluded from the run until an admin clears the hold;
+            each entry carries `collection_hold_reason` so the exclusion is
+            never silent.
+          items:
+            $ref: '#/components/schemas/SettlementPreviewMember'
         eligible_total:
           type: integer
         ineligible_total:
@@ -4273,6 +4579,9 @@ components:
           type: integer
           description: Sum of the credit bucket; negative, or zero if nobody is in credit
           example: -1500
+        held_total:
+          type: integer
+          description: Sum of what the held members owe
         member_count:
           type: integer
           description: Members placed in any bucket
@@ -4300,6 +4609,12 @@ components:
         mandate_reference:
           type: string
           nullable: true
+        collection_hold_reason:
+          type: string
+          nullable: true
+          description: |
+            Why this member is held. Present only on entries in the
+            `held_members` bucket.
 
     SettlementCreateRequest:
       type: object

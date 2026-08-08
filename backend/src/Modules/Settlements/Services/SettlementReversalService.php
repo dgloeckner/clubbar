@@ -1,0 +1,226 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Settlements\Services;
+
+use App\Modules\Settlements\DTOs\SettlementReversalDto;
+use App\Modules\Settlements\Domain\ReversalGate;
+use App\Modules\Settlements\Enums\ReversalReason;
+use App\Modules\Settlements\Repositories\CollectionHoldRepository;
+use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
+use App\Modules\Settlements\Repositories\SettlementsRepository;
+use App\Shared\Enums\AuditAction;
+use App\Shared\Enums\EntityType;
+use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Exceptions\ValidationException;
+use App\Shared\Services\AuditService;
+use PDO;
+
+/**
+ * Undoing a collection the bank has already made (ruling #148, issue #196).
+ *
+ * #81 closed the double-debit path: a settlement that has moved money refuses
+ * cancellation and tells the treasurer to reverse it. This is the thing to
+ * reverse it *with* — without it, a bounced direct debit left the member's
+ * items claimed, their Deckel reading €0, and the club out the money with no
+ * record of it anywhere.
+ *
+ * **One mechanism, per-member granularity.** Whole-settlement undo is simply
+ * every member; the trigger is an audit reason, not a separate code path. That
+ * is why there is no `reverseSettlement()` beside `reverse()`: two entry points
+ * would eventually disagree about what a reversal does.
+ */
+class SettlementReversalService
+{
+    public function __construct(
+        private SettlementsRepository $settlementsRepository,
+        private SettlementReversalsRepository $reversalsRepository,
+        private CollectionHoldRepository $collectionHoldRepository,
+        private AuditService $auditService,
+        private PDO $db,
+    ) {}
+
+    /**
+     * Record that these members' collections came back.
+     *
+     * @param list<string>|null $memberIds The members to reverse; null or empty
+     *        means every member the settlement covers (the whole-settlement undo).
+     * @return list<SettlementReversalDto> One per member, in the order given.
+     *
+     * @throws NotFoundException 404 when the settlement does not exist.
+     * @throws BusinessRuleException 409 when no money moved, or a member is already reversed.
+     * @throws ValidationException 422 when a named member is not part of the settlement.
+     */
+    public function reverse(
+        string $settlementId,
+        ?array $memberIds,
+        ReversalReason $reason,
+        ?string $bankReference,
+        ?string $notes,
+        string $adminUserId,
+    ): array {
+        $settlement = $this->settlementsRepository->findById($settlementId);
+        if (!$settlement) {
+            throw NotFoundException::forResource('Settlement', $settlementId);
+        }
+
+        // §7: a run that never reached the bank is cancelled, not reversed.
+        $blocker = ReversalGate::blocker($settlement);
+        if ($blocker !== null) {
+            throw new BusinessRuleException($blocker);
+        }
+
+        $settledMemberIds = $this->settlementsRepository->findSettledMemberIds($settlementId);
+        if ($settledMemberIds === []) {
+            throw new BusinessRuleException('This settlement covers no members, so there is nothing to reverse.');
+        }
+
+        $targets = $this->resolveTargets($memberIds, $settledMemberIds);
+        $this->refuseAlreadyReversed($settlementId, $targets);
+
+        $amounts = $this->settlementsRepository->sumItemAmountsByMember($settlementId, $targets);
+        $holdReason = $reason->placesCollectionHold() ? $this->holdReason($settlement, $bankReference) : null;
+
+        $this->db->beginTransaction();
+        try {
+            // §1: free only these members' items. Everyone else stays settled.
+            $this->settlementsRepository->releaseMemberClaims($settlementId, $targets);
+
+            $reversals = [];
+            foreach ($targets as $memberId) {
+                $reversals[] = SettlementReversalDto::fromRow($this->reversalsRepository->create([
+                    'settlement_id' => $settlementId,
+                    'member_id' => $memberId,
+                    'reason' => $reason->value,
+                    'amount_cents' => $amounts[$memberId] ?? 0,
+                    'bank_reference' => $bankReference,
+                    'notes' => $notes,
+                    'created_by_admin_id' => $adminUserId,
+                ]));
+
+                // §3: without the hold, the next run sweeps this member's whole
+                // unsettled position — including what just bounced — and earns
+                // a second return fee. A club error takes no hold: re-collecting
+                // is the entire point of recording one.
+                if ($holdReason !== null) {
+                    $this->collectionHoldRepository->place($memberId, $holdReason, $adminUserId);
+                    $this->auditService->log(
+                        action: AuditAction::COLLECTION_HOLD_PLACED,
+                        entityType: EntityType::MEMBER,
+                        entityId: $memberId,
+                        newValues: ['collection_hold' => true, 'reason' => $holdReason],
+                        adminUserId: $adminUserId,
+                    );
+                }
+            }
+
+            $this->auditService->log(
+                action: AuditAction::SETTLEMENT_REVERSE,
+                entityType: EntityType::SETTLEMENT,
+                entityId: $settlementId,
+                newValues: [
+                    'reason' => $reason->value,
+                    'member_ids' => $targets,
+                    'member_count' => count($targets),
+                    'amount_cents' => array_sum(array_map(fn(SettlementReversalDto $r) => $r->amountCents, $reversals)),
+                    'bank_reference' => $bankReference,
+                    'collection_hold' => $holdReason !== null,
+                ],
+                adminUserId: $adminUserId,
+            );
+
+            // §8: the freed items and the event rows commit together or not at
+            // all — a crash between them would leave the club with money back
+            // in the pool and no record of why.
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $this->translateConstraintViolation($e, $settlementId);
+        }
+
+        return $reversals;
+    }
+
+    /**
+     * Which members this reversal is for: the ones named, or all of them.
+     *
+     * @param list<string>|null $memberIds
+     * @param list<string> $settledMemberIds
+     * @return list<string>
+     */
+    private function resolveTargets(?array $memberIds, array $settledMemberIds): array
+    {
+        if ($memberIds === null || $memberIds === []) {
+            return $settledMemberIds;
+        }
+
+        $targets = array_values(array_unique(array_map(strval(...), $memberIds)));
+
+        $strangers = array_values(array_diff($targets, $settledMemberIds));
+        if ($strangers !== []) {
+            throw new ValidationException(
+                'Some members are not part of this settlement: ' . implode(', ', $strangers),
+                ['member_ids' => ['These members are not part of this settlement: ' . implode(', ', $strangers)]],
+            );
+        }
+
+        return $targets;
+    }
+
+    /**
+     * §7 / test contract 7: a member is reversed once per settlement.
+     *
+     * The `UNIQUE (settlement_id, member_id)` constraint is what actually
+     * guarantees it — this check only buys a named 409 in the ordinary case.
+     *
+     * @param list<string> $targets
+     */
+    private function refuseAlreadyReversed(string $settlementId, array $targets): void
+    {
+        $already = $this->reversalsRepository->findReversedMemberIds($settlementId, $targets);
+        if ($already !== []) {
+            throw new BusinessRuleException(
+                'These members have already been reversed on this settlement: ' . implode(', ', $already)
+            );
+        }
+    }
+
+    /**
+     * What the treasurer sees next to the held member in the preview.
+     *
+     * The bank reference is included when there is one, because it is the only
+     * thread back to the return booking — the original Verwendungszweck does
+     * not come back (DK replaces `SVWZ` with the constant RETURN/REFUND).
+     *
+     * @param array<string, mixed> $settlement
+     */
+    private function holdReason(array $settlement, ?string $bankReference): string
+    {
+        $reason = 'Direct debit returned by the bank for settlement '
+            . ($settlement['sepa_message_id'] ?? $settlement['id']);
+
+        if ($bankReference !== null && $bankReference !== '') {
+            $reason .= ' (bank reference ' . $bankReference . ')';
+        }
+
+        return $reason;
+    }
+
+    /**
+     * A concurrent second reversal loses to the unique constraint rather than
+     * to the check above, and must still read as a conflict and not a 500.
+     */
+    private function translateConstraintViolation(\Throwable $e, string $settlementId): \Throwable
+    {
+        if ($e instanceof \PDOException && ($e->errorInfo[0] ?? null) === '23000') {
+            return new BusinessRuleException(
+                'A member of settlement ' . $settlementId . ' has already been reversed.',
+                previous: $e,
+            );
+        }
+
+        return $e;
+    }
+}

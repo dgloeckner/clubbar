@@ -79,11 +79,15 @@ return function (App $app): void {
         $group->get('/members', [MembersAdminController::class, 'index']);
         $group->post('/members', [MembersAdminController::class, 'store']);
         $group->get('/members/credit-balances', [MembersAdminController::class, 'creditBalances']);
+        $group->get('/members/collection-holds', [MembersAdminController::class, 'collectionHolds']);
         $group->get('/members/{memberId}', [MembersAdminController::class, 'show']);
         $group->patch('/members/{memberId}', [MembersAdminController::class, 'update']);
         $group->delete('/members/{memberId}', [MembersAdminController::class, 'destroy']);
         $group->post('/members/{memberId}/export', [MembersAdminController::class, 'export']);
         $group->post('/members/{memberId}/anonymize', [MembersAdminController::class, 'anonymize']);
+        // Clearing is an admin decision, not a member edit — it lets the next
+        // collection run reach this member again (ruling #148 §5).
+        $group->post('/members/{memberId}/collection-hold/clear', [MembersAdminController::class, 'clearCollectionHold']);
         $group->get('/sepa-mandate-template', [MembersAdminController::class, 'downloadMandateTemplate']);
 
         // Mandate documents
@@ -141,7 +145,10 @@ return function (App $app): void {
         $group->get('/settlements/{id}', [SettlementsAdminController::class, 'show']);
         $group->delete('/settlements/{id}', [SettlementsAdminController::class, 'destroy']);
         $group->delete('/settlements/{id}/cancel', [SettlementsAdminController::class, 'cancel']);
-    $group->post('/settlements/{id}/submit', [SettlementsAdminController::class, 'markSubmitted']);
+        $group->post('/settlements/{id}/submit', [SettlementsAdminController::class, 'markSubmitted']);
+        // The other end of #81: once submitted, a settlement is reversed, not
+        // cancelled. Per member, or every member for a whole-settlement undo.
+        $group->post('/settlements/{id}/reverse', [SettlementsAdminController::class, 'reverse']);
         $group->get('/settlements/{id}/export/sepa-xml', [SettlementsAdminController::class, 'exportSepa']);
         $group->get('/settlements/{id}/export/csv', [SettlementsAdminController::class, 'exportCsv']);
         $group->get('/settlements/{id}/export-transactions', [SettlementsAdminController::class, 'exportTransactionsCsv']);

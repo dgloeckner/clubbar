@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Settlements\Services;
 
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Settlements\Services\SettlementsService;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
@@ -25,6 +26,7 @@ class ExecutionDateInfoTest extends TestCase
             $this->createMock(TransactionsRepository::class),
             $this->createMock(AuditService::class),
             $this->createMock(\PDO::class),
+            $this->createMock(SettlementReversalsRepository::class),
         );
     }
 

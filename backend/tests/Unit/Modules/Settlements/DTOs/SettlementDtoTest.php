@@ -6,6 +6,8 @@ namespace Tests\Unit\Modules\Settlements\DTOs;
 
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementItemDto;
+use App\Modules\Settlements\DTOs\SettlementReversalDto;
+use App\Modules\Settlements\Enums\SettlementStatus;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use PHPUnit\Framework\TestCase;
 
@@ -691,5 +693,106 @@ class SettlementDtoTest extends TestCase
         // Assert
         $this->assertNotNull($array['submitted_at']);
         $this->assertSame('admin-999', $array['submitted_by_admin_id']);
+    }
+
+    // ── The derived status and the reversal gate (#196) ───────────────
+
+    public function test_the_status_is_derived_from_the_counts_the_repository_selects(): void
+    {
+        $row = $this->submittedRow(['reversal_member_count' => 1, 'settled_member_count' => 3]);
+
+        $array = SettlementDto::fromRow($row)->toArray();
+
+        $this->assertSame('partly_reversed', $array['status']);
+        $this->assertSame('Partly reversed', $array['status_label']);
+        $this->assertSame(1, $array['reversed_member_count']);
+    }
+
+    public function test_every_member_reversed_reads_as_fully_reversed(): void
+    {
+        $row = $this->submittedRow(['reversal_member_count' => 3, 'settled_member_count' => 3]);
+
+        $this->assertSame(SettlementStatus::FULLY_REVERSED, SettlementDto::fromRow($row)->status);
+    }
+
+    public function test_a_row_without_the_counts_falls_back_to_the_member_count(): void
+    {
+        // Minimal fixtures and older tests read rows that carry neither
+        // subquery; absent must mean "no reversals", not a crash.
+        $row = $this->submittedRow();
+        unset($row['reversal_member_count'], $row['settled_member_count']);
+
+        $this->assertSame(SettlementStatus::SUBMITTED, SettlementDto::fromRow($row)->status);
+    }
+
+    public function test_the_reversals_passed_in_are_counted_when_the_row_has_no_count(): void
+    {
+        $row = $this->submittedRow(['member_count' => 1]);
+        unset($row['reversal_member_count'], $row['settled_member_count']);
+
+        $dto = SettlementDto::fromRow($row, [], [$this->reversalDto()]);
+
+        $this->assertSame(SettlementStatus::FULLY_REVERSED, $dto->status);
+        $this->assertCount(1, $dto->toArray()['reversals']);
+    }
+
+    public function test_a_submitted_settlement_reports_itself_as_reversible_and_not_cancellable(): void
+    {
+        $array = SettlementDto::fromRow($this->submittedRow())->toArray();
+
+        $this->assertTrue($array['is_reversible']);
+        $this->assertNull($array['reversal_blocked_reason']);
+        $this->assertFalse($array['is_cancellable']);
+        $this->assertNotNull($array['cancellation_blocked_reason']);
+    }
+
+    public function test_a_draft_settlement_reports_the_opposite_pair(): void
+    {
+        $row = $this->submittedRow(['submitted_at' => null, 'execution_date' => date('Y-m-d', strtotime('+14 days'))]);
+
+        $array = SettlementDto::fromRow($row)->toArray();
+
+        $this->assertFalse($array['is_reversible']);
+        $this->assertStringContainsString('Cancel it instead', (string) $array['reversal_blocked_reason']);
+        $this->assertTrue($array['is_cancellable']);
+    }
+
+    public function test_the_reversals_list_serialises_with_the_settlement(): void
+    {
+        $array = SettlementDto::fromRow($this->submittedRow(), [], [$this->reversalDto()])->toArray();
+
+        $this->assertSame('member-1', $array['reversals'][0]['member_id']);
+        $this->assertSame('bank_return', $array['reversals'][0]['reason']);
+    }
+
+    /** @return array<string, mixed> A submitted direct debit, as the repository returns it. */
+    private function submittedRow(array $overrides = []): array
+    {
+        return array_merge([
+            'id' => 'settlement-123',
+            'method' => 'direct_debit',
+            'settlement_date' => '2026-08-07',
+            'execution_date' => date('Y-m-d', strtotime('+14 days')),
+            'total_amount_cents' => 5000,
+            'member_count' => 3,
+            'is_cancelled' => 0,
+            'created_at' => '2026-08-07 10:00:00',
+            'submitted_at' => '2026-08-09 09:00:00',
+            'reversal_member_count' => 0,
+            'settled_member_count' => 3,
+        ], $overrides);
+    }
+
+    private function reversalDto(): SettlementReversalDto
+    {
+        return SettlementReversalDto::fromRow([
+            'id' => 'rev-1',
+            'settlement_id' => 'settlement-123',
+            'member_id' => 'member-1',
+            'reason' => 'bank_return',
+            'amount_cents' => 1500,
+            'created_by_admin_id' => 'admin-1',
+            'created_at' => '2026-08-10 09:00:00',
+        ]);
     }
 }

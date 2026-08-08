@@ -24,6 +24,12 @@ enum AuditAction: string
     case SETTLEMENT_EXPORT = 'settlement_export';
     /** The exported file reached the bank — the point cancellation ends (#81). */
     case SETTLEMENT_SUBMIT = 'settlement_submit';
+    /** Money that already moved has come back — per member (#196, ruling #148). */
+    case SETTLEMENT_REVERSE = 'settlement_reverse';
+    /** A bank return stopped the next run re-debiting this member (#196 §3). */
+    case COLLECTION_HOLD_PLACED = 'collection_hold_placed';
+    /** An admin released that member back into the next run (#196 §5). */
+    case COLLECTION_HOLD_CLEARED = 'collection_hold_cleared';
     case TOTP_ENROLLED = 'totp_enrolled';
     case TOTP_RESET = 'totp_reset';
     case MANDATE_DOCUMENT_UPLOAD = 'mandate_document_upload';
