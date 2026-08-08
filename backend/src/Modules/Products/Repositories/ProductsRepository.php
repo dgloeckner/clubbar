@@ -8,6 +8,7 @@ use App\Shared\Utils\Uuid;
 use PDO;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
+use App\Shared\Sync\SyncCursor;
 
 class ProductsRepository
 {
@@ -30,16 +31,17 @@ class ProductsRepository
 
     public function findModifiedSince(int $sinceTimestamp): array
     {
-        // Convert milliseconds to seconds for date() function
-        $sinceSeconds = (int) ($sinceTimestamp / 1000);
-        $sinceDate = date('Y-m-d H:i:s', $sinceSeconds);
+        $sinceDate = SyncCursor::lowerBound($sinceTimestamp);
 
         // Include both updated and deleted items (tombstones)
         // This enables the terminal to remove deleted items from local cache
-        // Use > (not >=) to avoid re-syncing items at exactly the cursor timestamp
+        // The bound is inclusive (>=): the column has second precision, so a
+        // strict > loses every price written later in the cursor's own second,
+        // and loses it for good — the terminal keeps selling at the stale price
+        // until some unrelated edit touches the row again (#84).
         $stmt = $this->db->prepare(
             'SELECT * FROM products
-             WHERE updated_at > ? OR (deleted_at > ? AND deleted_at IS NOT NULL)
+             WHERE updated_at >= ? OR (deleted_at >= ? AND deleted_at IS NOT NULL)
              ORDER BY COALESCE(updated_at, deleted_at) ASC'
         );
         $stmt->execute([$sinceDate, $sinceDate]);

@@ -11,6 +11,7 @@ use App\Shared\Enums\EntityType;
 use App\Shared\Exceptions\NotFoundException;
 use App\Modules\Products\Repositories\CategoriesRepository;
 use App\Shared\Services\AuditService;
+use App\Shared\Sync\SyncCursor;
 
 class CategoriesService
 {
@@ -21,15 +22,17 @@ class CategoriesService
 
     public function syncSince(int $since): SyncResultDto
     {
+        // Taken before the query, not after: it decides whether the newest
+        // second the query saw was already complete when the query ran (#84).
+        $queriedAt = time();
         $rows = $this->categoriesRepository->findModifiedSince($since);
         $categories = array_map(fn($row) => CategoryDto::fromRow($row), $rows);
 
-        // When no changes: return input cursor to avoid race condition
-        // (items created during query execution won't be lost)
-        $cursor = !empty($rows)
-            ? SyncResultDto::dateToTimestamp(end($rows)['updated_at'])
-            : $since;
-        return new SyncResultDto(items: $categories, cursor: $cursor, hasMore: false);
+        return new SyncResultDto(
+            items: $categories,
+            cursor: SyncCursor::next($rows, $since, $queriedAt),
+            hasMore: false,
+        );
     }
 
 

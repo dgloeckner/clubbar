@@ -81,6 +81,45 @@ class ProductsRepositoryTest extends DatabaseTestCase
         $this->assertTrue($found, "Test product {$testProductId} should be found in results when querying with milliseconds");
     }
 
+    public function test_findModifiedSince_includes_rows_written_in_the_cursor_second(): void
+    {
+        // #84: `updated_at` has second precision, so a price written at
+        // 12:00:00.8 is stored the same as one written at 12:00:00.2. A cursor
+        // of 12:00:00 with a strict `>` would skip the later price forever —
+        // the terminal would keep selling at the stale one.
+        $testCategoryId = $this->generateUuid();
+        $this->testCategoryIds[] = $testCategoryId;
+        $this->categoriesRepository->create([
+            'id' => $testCategoryId,
+            'names' => ['de' => 'Sekundengrenze', 'en' => 'Second Boundary'],
+            'is_active' => true,
+        ]);
+
+        $testProductId = $this->generateUuid();
+        $this->testProductIds[] = $testProductId;
+        $this->productsRepository->create([
+            'id' => $testProductId,
+            'category_id' => $testCategoryId,
+            'names' => ['de' => 'Grenzfall', 'en' => 'Boundary Case'],
+            'price_cents' => 275,
+            'is_active' => true,
+        ]);
+
+        $product = $this->productsRepository->findById($testProductId);
+        $this->assertNotNull($product, 'Test product should be created');
+
+        // Cursor sits exactly on the product's own second.
+        $cursorMs = (new \DateTime($product['updated_at']))->getTimestamp() * 1000;
+
+        $results = $this->productsRepository->findModifiedSince($cursorMs);
+
+        $this->assertContains(
+            $testProductId,
+            array_column($results, 'id'),
+            "Product {$testProductId} must still be returned when the cursor sits on its own second",
+        );
+    }
+
     public function test_findModifiedSince_returns_empty_for_timestamp_in_future(): void
     {
         // Create test category first

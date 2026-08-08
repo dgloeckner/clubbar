@@ -16,9 +16,9 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts'
-import { downloadBlob, downloadFile } from '../api/client'
 import { getReports } from '../api/generated/reports/reports'
 import type { GetReportGroupBy } from '../api/generated'
+import { downloadFile } from '../api/client'
 import { toIsoDate } from '../utils/dates'
 
 // ─── Local Types (UI-facing, mapped from generated API types) ─────────────────
@@ -197,34 +197,29 @@ async function getTerminalActivity(params: TerminalActivityParams): Promise<Term
   }
 }
 
+type ExportableReport = ReportType | 'member-ranking' | 'terminal-activity'
+
+/**
+ * Every report has a `/export` sibling that answers with CSV; the list endpoints
+ * only ever answer with JSON. Going through downloadFile keeps session auth, the
+ * global loading indicator and the 401 redirect intact, honours the filename the
+ * backend puts in Content-Disposition, and — unlike a bare anchor click — rejects
+ * on failure so the caller can tell the user.
+ */
 async function exportReport(
-  reportType: ReportType | 'member-ranking' | 'terminal-activity',
+  reportType: ExportableReport,
   params: Record<string, string | number | boolean | undefined> = {}
 ): Promise<void> {
-  // Use the generated export endpoint (returns Blob) and trigger download
-  if (reportType === 'member-ranking' || reportType === 'terminal-activity') {
-    // No dedicated generated export for these two — fetch the CSV through the
-    // shared helper instead of pointing an anchor at the URL. A bare anchor is a
-    // fresh browser navigation: it carries none of the client's request handling
-    // and, on a 401, downloads the error page as a .csv (#121).
-    const query = Object.entries({ ...params, format: 'csv' })
-      .filter(([, v]) => v !== undefined && v !== '')
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-      .join('&')
-    await downloadFile(
-      `/admin/reports/${reportType}?${query}`,
-      `report-${reportType}-${toIsoDate(new Date())}.csv`
-    )
-    return
-  }
-  // For standard report types, use generated client. Only pass the fields the
-  // generated ExportReportParams accepts — the backend export always returns CSV.
-  const blob = await getReports().exportReport(reportType, {
-    date_from: typeof params.date_from === 'string' ? params.date_from : undefined,
-    date_to: typeof params.date_to === 'string' ? params.date_to : undefined,
-    group_by: typeof params.group_by === 'string' ? (params.group_by as GroupBy) : undefined,
-  })
-  downloadBlob(blob, `report-${reportType}-${toIsoDate(new Date())}.csv`)
+  const query = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join('&')
+  // The fallback name only applies if the backend omits Content-Disposition;
+  // it still stamps the admin's calendar day, not Greenwich's (#95).
+  await downloadFile(
+    `/admin/reports/${reportType}/export${query ? `?${query}` : ''}`,
+    `report-${reportType}-${toIsoDate(new Date())}.csv`
+  )
 }
 import { theme } from '../styles/design-system'
 import { useFormatters } from '../hooks/useFormatters'
@@ -490,6 +485,9 @@ export function ReportsPage() {
   const [terminalLoading, setTerminalLoading] = useState(false)
   const [terminalError, setTerminalError] = useState<string | null>(null)
 
+  // ── CSV export state (shared by every tab's export button) ──
+  const [exportError, setExportError] = useState<string | null>(null)
+
   // ─── Load data ───────────────────────────────────────────────────────────
 
   const loadReport = useCallback(async () => {
@@ -542,6 +540,7 @@ export function ReportsPage() {
 
   // Load data when tab changes
   useEffect(() => {
+    setExportError(null)
     if (activeTab === 'revenue' || activeTab === 'consumption') {
       loadReport()
     } else if (activeTab === 'member-ranking') {
@@ -564,23 +563,21 @@ export function ReportsPage() {
   }
 
   const handleExportCsv = async () => {
+    setExportError(null)
+    const params: Record<string, string | number | boolean | undefined> = {
+      date_from: dateFrom,
+      date_to: dateTo,
+    }
+    if (activeTab === 'revenue' || activeTab === 'consumption') {
+      params.group_by = groupBy
+    } else if (activeTab === 'member-ranking') {
+      params.limit = rankingLimit
+      params.anonymize = rankingAnonymize
+    }
     try {
-      const params: Record<string, string | number | boolean | undefined> = {
-        date_from: dateFrom,
-        date_to: dateTo,
-      }
-      if (activeTab === 'revenue' || activeTab === 'consumption') {
-        params.group_by = groupBy
-        await exportReport(activeTab as ReportType, params)
-      } else if (activeTab === 'member-ranking') {
-        params.limit = rankingLimit
-        params.anonymize = rankingAnonymize
-        await exportReport('member-ranking', params)
-      } else if (activeTab === 'terminal-activity') {
-        await exportReport('terminal-activity', params)
-      }
+      await exportReport(activeTab, params)
     } catch (err) {
-      // Silently ignore export errors (file download may be unavailable)
+      setExportError(err instanceof Error ? err.message : t('errors.generic'))
     }
   }
 
@@ -669,6 +666,21 @@ export function ReportsPage() {
     padding: isMobile ? theme.spacing.md : theme.spacing.xl,
     marginBottom: theme.spacing.xl,
   }
+
+  // Every tab renders the same export control, and a failed export has to say so
+  // rather than leaving the button looking like it worked.
+  const exportSection = (
+    <>
+      <button data-testid="report-export-csv" onClick={handleExportCsv} style={exportBtnStyle}>
+        {t('reports.exportCsv')}
+      </button>
+      {exportError && (
+        <div data-testid="report-export-error" style={errorStyle}>
+          {t('reports.exportFailed', { message: exportError })}
+        </div>
+      )}
+    </>
+  )
 
   // ─── Render: Standard Report Tabs (1-3) ──────────────────────────────────
 
@@ -833,13 +845,7 @@ export function ReportsPage() {
             </div>
 
             {/* Export Button */}
-            <button
-              data-testid="report-export-csv"
-              onClick={handleExportCsv}
-              style={exportBtnStyle}
-            >
-              {t('reports.exportCsv')}
-            </button>
+            {exportSection}
 
             {/* Data Table */}
             <div data-testid="report-table" style={cardStyle}>
@@ -984,13 +990,7 @@ export function ReportsPage() {
         {/* Export + Table */}
         {!rankingLoading && rankingData && (
           <>
-            <button
-              data-testid="report-export-csv"
-              onClick={handleExportCsv}
-              style={exportBtnStyle}
-            >
-              {t('reports.exportCsv')}
-            </button>
+            {exportSection}
 
             <div data-testid="ranking-table" style={cardStyle}>
               <h3 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('reports.memberRankingTitle')}</h3>
@@ -1109,13 +1109,7 @@ export function ReportsPage() {
         {!terminalLoading && terminalData && (
           <>
             {/* Export */}
-            <button
-              data-testid="report-export-csv"
-              onClick={handleExportCsv}
-              style={exportBtnStyle}
-            >
-              {t('reports.exportCsv')}
-            </button>
+            {exportSection}
 
             {/* Sessions Table */}
             <div data-testid="terminal-sessions" style={cardStyle}>

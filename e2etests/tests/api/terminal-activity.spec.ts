@@ -150,4 +150,76 @@ test.describe("Terminal Activity API", () => {
 
     expect([400, 422]).toContain(response.status());
   });
+
+  // ========== CSV EXPORT ==========
+  //
+  // The admin panel used to ask this endpoint for `format=csv`, which nothing
+  // read, and saved the JSON answer under a .csv name (#94). The export lives
+  // at its own path and answers with an actual CSV.
+
+  const RANGE = "date_from=2020-01-01&date_to=2030-12-31";
+
+  test("export returns a CSV download, not JSON", async ({
+    authenticatedRequest,
+  }) => {
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/terminal-activity/export?${RANGE}`
+    );
+
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("text/csv");
+    expect(response.headers()["content-disposition"]).toContain("attachment");
+    expect(response.headers()["content-disposition"]).toContain(
+      "report-terminal-activity-"
+    );
+
+    const body = await response.text();
+    expect(body.startsWith("{")).toBe(false);
+    expect(body.startsWith("[")).toBe(false);
+  });
+
+  test("export carries all three blocks of the report", async ({
+    authenticatedRequest,
+  }) => {
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/terminal-activity/export?${RANGE}`
+    );
+
+    expect(response.status()).toBe(200);
+    const body = await response.text();
+
+    expect(body).toContain("Sessions\nDate;Start;End;Transactions;Revenue EUR");
+    expect(body).toContain("Hourly Distribution\nHour;Transactions");
+    expect(body).toContain("Terminals\nTerminal;Transactions;Last Sync");
+  });
+
+  test("export lists all 24 hours", async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/terminal-activity/export?${RANGE}`
+    );
+
+    expect(response.status()).toBe(200);
+    const body = await response.text();
+
+    expect(body).toContain("\n00:00;");
+    expect(body).toContain("\n23:00;");
+  });
+
+  test("export rejects a missing date range", async ({
+    authenticatedRequest,
+  }) => {
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/terminal-activity/export?date_from=2024-01-01`
+    );
+
+    expect([400, 422]).toContain(response.status());
+  });
+
+  test("export requires authentication", async ({ request }) => {
+    const response = await request.get(
+      `${API_BASE}/admin/reports/terminal-activity/export?${RANGE}`
+    );
+
+    expect(response.status()).toBe(401);
+  });
 });

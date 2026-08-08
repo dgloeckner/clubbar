@@ -158,4 +158,83 @@ test.describe("Member Ranking API", () => {
     expect(body).toHaveProperty("data");
     expect(Array.isArray(body.data)).toBe(true);
   });
+
+  // ========== CSV EXPORT ==========
+  //
+  // The admin panel used to ask this endpoint for `format=csv`, which nothing
+  // read, and saved the JSON answer under a .csv name (#94). The export lives
+  // at its own path and answers with an actual CSV.
+
+  test("export returns a CSV download, not JSON", async ({
+    authenticatedRequest,
+  }) => {
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/member-ranking/export`
+    );
+
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toContain("text/csv");
+    expect(response.headers()["content-disposition"]).toContain("attachment");
+    expect(response.headers()["content-disposition"]).toContain(
+      "report-member-ranking-"
+    );
+
+    const body = await response.text();
+    expect(body.startsWith("{")).toBe(false);
+    expect(body.startsWith("[")).toBe(false);
+  });
+
+  test("export writes the ranking header row", async ({
+    authenticatedRequest,
+  }) => {
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/member-ranking/export`
+    );
+
+    expect(response.status()).toBe(200);
+    const lines = (await response.text()).split("\n");
+    expect(lines[0]).toBe("Rank;Member;Total EUR;Transactions");
+  });
+
+  test("export honours the limit filter", async ({ authenticatedRequest }) => {
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/member-ranking/export?limit=1`
+    );
+
+    expect(response.status()).toBe(200);
+    const dataLines = (await response.text())
+      .split("\n")
+      .slice(1)
+      .filter((line) => line.length > 0);
+    expect(dataLines.length).toBeLessThanOrEqual(1);
+  });
+
+  test("export writes money as decimal euros", async ({
+    authenticatedRequest,
+  }) => {
+    const response = await authenticatedRequest.get(
+      `${API_BASE}/admin/reports/member-ranking/export?limit=100`
+    );
+
+    expect(response.status()).toBe(200);
+    const dataLines = (await response.text())
+      .split("\n")
+      .slice(1)
+      .filter((line) => line.length > 0);
+
+    // Column 3 of every row is the amount; a header-only file passes vacuously
+    // rather than being skipped.
+    for (const line of dataLines) {
+      const fields = line.split(";");
+      expect(fields[fields.length - 2]).toMatch(/^-?\d+\.\d{2}$/);
+    }
+  });
+
+  test("export requires authentication", async ({ request }) => {
+    const response = await request.get(
+      `${API_BASE}/admin/reports/member-ranking/export`
+    );
+
+    expect(response.status()).toBe(401);
+  });
 });
