@@ -459,14 +459,52 @@ export class SettingsPage {
   }
 
   /**
-   * Copy password to clipboard from password display modal
+   * Copy password to clipboard from password display modal.
+   * The modal stays open — the copy has to be confirmed before the one-time
+   * secret may be discarded.
    */
   async copyPasswordToClipboard() {
     await this.page.getByTestId('settings-admin-password-copy-button').click()
   }
 
   /**
-   * Close password display modal by clicking the dedicated close button
+   * Expect the password modal to confirm a successful clipboard write
+   */
+  async expectPasswordCopyConfirmed() {
+    await expect(this.page.getByTestId('settings-admin-password-copy-status')).toBeVisible()
+  }
+
+  /**
+   * Expect the password modal to report a failed clipboard write
+   */
+  async expectPasswordCopyFailed() {
+    await expect(this.page.getByTestId('settings-admin-password-copy-error')).toBeVisible()
+  }
+
+  /**
+   * Click the password modal backdrop (outside the dialog).
+   * A one-time secret must survive this — see #126.
+   */
+  async clickPasswordModalBackdrop() {
+    await this.page.getByTestId('settings-admin-password-modal').click({ position: { x: 5, y: 5 } })
+  }
+
+  /**
+   * Expect the password modal to still be showing the secret
+   */
+  async expectPasswordModalVisible() {
+    await expect(this.page.getByTestId('settings-admin-password-modal')).toBeVisible()
+  }
+
+  /**
+   * Expect the password modal to be gone
+   */
+  async expectPasswordModalHidden() {
+    await expect(this.page.getByTestId('settings-admin-password-modal')).toBeHidden()
+  }
+
+  /**
+   * Close password display modal by acknowledging that the secret was saved
    */
   async closePasswordModal() {
     const closeButton = this.page.getByTestId('settings-admin-password-close-button')
@@ -1004,14 +1042,81 @@ export class SettingsPage {
   }
 
   /**
-   * Copy token to clipboard
+   * Copy token to clipboard.
+   * The modal stays open — the copy has to be confirmed before the one-time
+   * secret may be discarded.
    */
   async copyTokenToClipboard() {
     await this.page.getByTestId('settings-terminal-token-copy-button').click()
   }
 
   /**
-   * Close token display modal
+   * Expect the token modal to confirm a successful clipboard write
+   */
+  async expectTokenCopyConfirmed() {
+    await expect(this.page.getByTestId('settings-terminal-token-copy-status')).toBeVisible()
+  }
+
+  /**
+   * Expect the token modal to report a failed clipboard write
+   */
+  async expectTokenCopyFailed() {
+    await expect(this.page.getByTestId('settings-terminal-token-copy-error')).toBeVisible()
+  }
+
+  /**
+   * Click the token modal backdrop (outside the dialog).
+   * A one-time secret must survive this — see #126.
+   */
+  async clickTokenModalBackdrop() {
+    await this.page.getByTestId('settings-terminal-token-modal').click({ position: { x: 5, y: 5 } })
+  }
+
+  /**
+   * Expect the token modal to still be showing the secret
+   */
+  async expectTokenModalVisible() {
+    await expect(this.page.getByTestId('settings-terminal-token-modal')).toBeVisible()
+  }
+
+  /**
+   * Expect the token modal to be gone
+   */
+  async expectTokenModalHidden() {
+    await expect(this.page.getByTestId('settings-terminal-token-modal')).toBeHidden()
+  }
+
+  /**
+   * Break the clipboard API on the live page so a copy attempt rejects,
+   * reproducing a non-secure origin / denied-permission environment.
+   */
+  async breakClipboard() {
+    await this.page.evaluate(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: () => Promise.reject(new Error('NotAllowedError')),
+        },
+      })
+    })
+  }
+
+  /**
+   * Grant clipboard permissions so a copy attempt can succeed headlessly
+   */
+  async grantClipboardPermissions() {
+    await this.page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  }
+
+  /**
+   * Read the current clipboard contents (requires granted permissions)
+   */
+  async readClipboard(): Promise<string> {
+    return await this.page.evaluate(() => navigator.clipboard.readText())
+  }
+
+  /**
+   * Close token display modal by acknowledging that the secret was saved
    */
   async closeTokenModal() {
     const closeButton = this.page.getByTestId('settings-terminal-token-close-button')

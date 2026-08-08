@@ -3,6 +3,9 @@
 /logs/*.log
 /storage/install.lock
 /storage/install.php.disabled
+# Uploaded mandate documents are runtime state, and member data at that.
+# Every local E2E run leaves a few behind; none of them belong in the repo.
+/storage/mandates/*.pdf
 *.php.disabled
 .DS_Store
 Thumbs.db
