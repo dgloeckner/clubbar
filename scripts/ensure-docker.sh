@@ -54,6 +54,30 @@ daemon_ready() {
     docker info > /dev/null 2>&1
 }
 
+# Remove pid files whose process is gone.
+#
+# This is the failure this script exists to survive on *resume*. The cloud
+# filesystem snapshot preserves /var/run while none of the processes survive, so
+# a resumed session can find a containerd.pid naming a pid that no longer exists.
+# dockerd then reports "containerd is still running", waits for a containerd that
+# will never appear, gives up with "timeout waiting for containerd to start" and
+# exits — leaving the session with no daemon and a 60s stall to show for it.
+clean_stale_pidfiles() {
+    local pidfile pid
+    for pidfile in /var/run/docker.pid \
+                   /var/run/docker/containerd/containerd.pid \
+                   /run/containerd/containerd.pid; do
+        [ -f "$pidfile" ] || continue
+        pid="$(cat "$pidfile" 2>/dev/null)"
+        # A live owner means this is not stale — leave it alone.
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            continue
+        fi
+        log "Removing stale pid file $pidfile (pid ${pid:-empty} is not running)."
+        rm -f "$pidfile"
+    done
+}
+
 # ---------------------------------------------------------------------------
 # 1. Guard: cloud sessions only
 # ---------------------------------------------------------------------------
@@ -83,33 +107,48 @@ if ! command -v dockerd > /dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Start dockerd, unless one is already coming up
+# 4. Start dockerd and wait for readiness, bounded
 # ---------------------------------------------------------------------------
 # There is no systemd in the session image (PID 1 is the session supervisor), so
 # `systemctl start docker` is not an option — dockerd is exec'd directly. The
 # session user is root, so no sudo is needed.
-if pgrep -x dockerd > /dev/null 2>&1; then
-    status "dockerd process already present but not answering yet — waiting."
-else
-    status "Starting dockerd..."
-    log "--- dockerd output below ---"
-    # setsid + nohup: detach from the hook's process group so the daemon survives
-    # once the hook returns and Claude Code reaps the session-start subshell.
-    setsid nohup dockerd >> "$LOG_FILE" 2>&1 &
-    disown 2>/dev/null
-fi
+#
+# TIMEOUT is a budget for the whole step, not per attempt: a second attempt only
+# happens when dockerd exits early, and it still has to finish inside the budget.
+deadline=$((SECONDS + TIMEOUT))
+attempt=1
+attempts=2
 
-# ---------------------------------------------------------------------------
-# 5. Wait for readiness, bounded
-# ---------------------------------------------------------------------------
-waited=0
-while [ "$waited" -lt "$TIMEOUT" ]; do
-    if daemon_ready; then
-        status "Docker daemon ready after ${waited}s."
-        exit 0
+while [ "$attempt" -le "$attempts" ]; do
+    clean_stale_pidfiles
+
+    if pgrep -x dockerd > /dev/null 2>&1; then
+        status "dockerd process already present but not answering yet — waiting."
+    else
+        status "Starting dockerd (attempt ${attempt}/${attempts})..."
+        log "--- dockerd output below ---"
+        # setsid + nohup: detach from the hook's process group so the daemon survives
+        # once the hook returns and Claude Code reaps the session-start subshell.
+        setsid nohup dockerd >> "$LOG_FILE" 2>&1 &
+        disown 2>/dev/null
     fi
-    sleep 1
-    waited=$((waited + 1))
+
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        if daemon_ready; then
+            status "Docker daemon ready after ${SECONDS}s."
+            exit 0
+        fi
+        # dockerd giving up is a definite answer — retry now rather than sit out
+        # the remaining budget waiting for a process that is already gone.
+        if ! pgrep -x dockerd > /dev/null 2>&1; then
+            status "dockerd exited during startup — see $LOG_FILE"
+            break
+        fi
+        sleep 1
+    done
+
+    [ "$SECONDS" -lt "$deadline" ] || break
+    attempt=$((attempt + 1))
 done
 
 status "Docker daemon did NOT become ready within ${TIMEOUT}s — see $LOG_FILE"
