@@ -74,12 +74,12 @@ UPDATE transactions SET amount_cents = 380 WHERE id = 'uuid1';  -- PROBLEM!
 CREATE TABLE transactions (
   id BINARY(16) PRIMARY KEY,
   member_id BINARY(16) NOT NULL,
-  product_id BINARY(16),                    -- NULL for manual purchases and stornos
+  product_id BINARY(16),                    -- NULL for stornos and payouts; a purchase always names a product
   amount_cents INT NOT NULL,                -- Positive: purchase, Negative: storno (derived, never typed)
   created_at DATETIME NOT NULL,             -- Immutable: actual transaction time
   notes VARCHAR(500),                       -- Reason (required for storno)
   transaction_type ENUM(                    -- AMENDED 2026-08-07
-    'purchase',                             -- Terminal sale, or admin manual purchase (product_id NULL)
+    'purchase',                             -- Terminal sale; always names a product (no admin-booked purchases — UC-A21 rejected)
     'storno',                               -- Full reversal of exactly one transaction; amount derived
     'payout'                                -- Money returned to a member in credit (offboarding only)
   ) NOT NULL,

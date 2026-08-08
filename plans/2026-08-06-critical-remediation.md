@@ -37,7 +37,7 @@ Twenty-one, each with full reasoning on its ticket. Grouped by what they govern.
 |---|---|
 | [Refund obligation](https://github.com/dgloeckner/ruderbar/issues/140) *(research)* | § 812 BGB makes over-collection a debt; credit must be representable |
 | [Exclude-and-flag](https://github.com/dgloeckner/ruderbar/issues/141) | settle on total unsettled position; `>0` collect, `=0` close out, `<0` exclude |
-| [Which operations the club needs](https://github.com/dgloeckner/ruderbar/issues/170) | storno · manual purchase · write-off — **no** goodwill, **no** cash, payout absorbed into offboarding |
+| [Which operations the club needs](https://github.com/dgloeckner/ruderbar/issues/170) | storno · write-off — **no** goodwill, **no** cash, **no manual purchase** (amended 2026-08-08, see #169), payout absorbed into offboarding |
 | [What is a correction](https://github.com/dgloeckner/ruderbar/issues/158) | a correction **is** a storno; amount derived, link mandatory |
 | [Manual settlements](https://github.com/dgloeckner/ruderbar/issues/163) | one method field: `direct_debit` / `bank_transfer` / `write_off` |
 | [Settlement cancellation](https://github.com/dgloeckner/ruderbar/issues/142) | generalised: cancellable **while no money has moved** |
@@ -95,7 +95,7 @@ Two things gate everything:
 | 5 | [Auth lockout](https://github.com/dgloeckner/ruderbar/issues/78) *(now also owns the Slim harness, task 6.1)* · [auth tests](https://github.com/dgloeckner/ruderbar/issues/101) | — |
 | 6 | [Categories modal](https://github.com/dgloeckner/ruderbar/issues/88) · [PeriodPicker](https://github.com/dgloeckner/ruderbar/issues/89) | — |
 | 7 | [Terminal client](https://github.com/dgloeckner/ruderbar/issues/152) — sync contract **+ SEPA-only block at scan** | Phase 0, ships **with** Phase 4 |
-| 8 | **[Storno in code, specs and UI](https://github.com/dgloeckner/ruderbar/issues/169)** — replaces the free-amount correction; adds manual purchase | Phase 0 |
+| 8 | ~~[Storno in code, specs and UI](https://github.com/dgloeckner/ruderbar/issues/169)~~ **shipped** — `POST /admin/transactions/{id}/storno {reason}` replaces the three free-amount correction routes; amount derived as the exact negation, SEPA gate removed, audit entry written (`transaction_storno`, migration 009), 409 arbitrated by the unique index rather than the service, storno-of-storno refused. Admin UI is a Journal **row action** with a confirmation naming member/product/amount/date, and the linkage is shown in both directions. **Manual purchase cut** (UC-A21 rejected 2026-08-08), so the system now has **no free-amount input anywhere** | Phase 0 |
 | — | **[Specs, use-cases and ADRs](https://github.com/dgloeckner/ruderbar/issues/172)** — ADRs and use-cases **done**; specs, client and ERM ship with #169/#151 | — |
 
 Phases 4, 5, 6 and the docs work are independent and can run in parallel with the settlement track.

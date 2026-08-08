@@ -41,7 +41,7 @@ date;member_name;product;type;amount
 |--------|---------|
 | date | ISO timestamp |
 | member_name | Full name |
-| product | Product name; empty for a manual purchase, and repeated from the original row for a storno |
+| product | Product name; repeated from the original row for a storno |
 | type | purchase/storno/payout |
 | amount | Signed decimal |
 

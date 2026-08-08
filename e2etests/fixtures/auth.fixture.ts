@@ -42,18 +42,28 @@ interface TestTransactionsFixture {
   createProduct(nameDe: string, priceCents: number, nameEn?: string): Promise<any>;
   createSyncTransaction(memberId: string, amountCents?: number, notes?: string, productId?: string): Promise<string>;
   /**
-   * Create a storno (reversal) transaction for a member.
-   * A storno must name the transaction it reverses via `related_transaction_id`
-   * (GoBD Rz. 64). If `relatedTransactionId` is omitted, a fresh purchase
-   * transaction is created for the member first and used as the target —
-   * this also guarantees each storno reverses a DISTINCT purchase, since a
-   * transaction can only be stornoed once (UNIQUE constraint).
+   * Storno (reverse) one specific transaction for a member (#169).
+   *
+   * POST /admin/transactions/{transactionId}/storno takes a single field,
+   * `reason` — there is no `amount_cents` any more. The amount is DERIVED as
+   * the exact negation of the target transaction and can never be supplied
+   * by the caller; the member is read from the target too.
+   *
+   * - If `relatedTransactionId` IS supplied: that transaction is stornoed.
+   *   `amountCents` is IGNORED — the backend derives the amount from the
+   *   target, not from anything the caller passes.
+   * - If `relatedTransactionId` is omitted: a fresh purchase transaction of
+   *   `Math.abs(amountCents)` (default 1000) is created for `memberId` first
+   *   and stornoed — this also guarantees each call reverses a DISTINCT
+   *   purchase, since a transaction can only be stornoed once (unique
+   *   index on `related_transaction_id`).
+   *
+   * @returns The id of the created storno transaction.
    */
   createStorno(
     memberId: string,
     amountCents?: number,
-    notes?: string,
-    reason?: 'adjustment' | 'refund' | 'discount',
+    reason?: string,
     relatedTransactionId?: string
   ): Promise<string>;
   createSettlement(transactionIds: string[], executionDate?: string): Promise<string>;
@@ -419,21 +429,23 @@ export const test = base.extend<AuthFixtures>({
       async createStorno(
         memberId: string,
         amountCents = 1000,
-        notes = 'Test storno',
-        reason = 'adjustment',
+        reason = 'Test storno',
         relatedTransactionId?: string
       ) {
-        // A storno must name the transaction it reverses (required, not null).
-        // If the caller didn't supply one, create a fresh purchase for this
-        // member to reverse — a distinct one each call, since a transaction
-        // can only be stornoed once (UNIQUE constraint on related_transaction_id).
+        // A storno is scoped to the transaction it reverses (#169). If the
+        // caller didn't name one, create a fresh purchase for this member to
+        // reverse — a distinct one each call, since a transaction can only be
+        // stornoed once (unique index on related_transaction_id). When the
+        // caller DID name one, amountCents is irrelevant: the backend derives
+        // the storno's amount as the exact negation of the target, never from
+        // anything the caller sends.
         const targetTransactionId =
           relatedTransactionId ??
-          (await this.createSyncTransaction(memberId, Math.abs(amountCents) || 1000, `${notes} (auto purchase)`));
+          (await this.createSyncTransaction(memberId, Math.abs(amountCents) || 1000, `${reason} (auto purchase)`));
 
-        const stornoData = createStorno(amountCents, notes, targetTransactionId, reason);
+        const stornoData = createStorno(reason);
         const response = await authenticatedRequest.post(
-          `${API_BASE}/admin/members/${memberId}/transactions`,
+          `${API_BASE}/admin/transactions/${targetTransactionId}/storno`,
           {
             data: stornoData,
           }

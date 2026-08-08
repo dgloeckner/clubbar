@@ -70,52 +70,38 @@ class AdminController
         return $this->json($response, $result);
     }
 
-    public function recordCorrection(Request $request, Response $response, array $args): Response
+    /**
+     * Storno a transaction: POST /admin/transactions/{transactionId}/storno.
+     *
+     * `reason` is the whole request body. The amount and the member are read
+     * from the transaction named in the path and are deliberately not accepted
+     * from the caller — anything else in the body is ignored rather than
+     * validated, because there is no shape of it that could be honoured (#169).
+     */
+    public function storno(Request $request, Response $response, array $args): Response
     {
-        $memberId = $args['memberId'];
         $body = $request->getParsedBody() ?? [];
-        $adminId = $request->getAttribute('admin_user_id');
 
-        // Accept both 'notes' (OAS spec) and 'reason' (legacy alias)
-        if (isset($body['notes']) && !isset($body['reason'])) {
-            $body['reason'] = $body['notes'];
-        }
-
-        // related_transaction_id is required, not optional: a storno reverses one
-        // named transaction (GoBD Rz. 64), and the database refuses an unlinked one.
         if (!$this->validator->validate($body, [
-            'amount_cents' => ['required', 'integer'],
             'reason' => ['required', 'string', 'max:500'],
-            'related_transaction_id' => ['required', 'string'],
-        ])) {
+        ]) || trim((string) ($body['reason'] ?? '')) === '') {
+            $errors = $this->validator->errors();
+            $errors['reason'] ??= ['reason is required'];
+
             return $this->json($response, [
                 'error' => 'validation_failed',
                 'message' => 'The given data was invalid.',
-                'errors' => $this->validator->errors(),
+                'errors' => $errors,
             ], 422);
         }
 
-        // Reject zero amount explicitly
-        $amountCents = (int) $body['amount_cents'];
-        if ($amountCents === 0) {
-            return $this->json($response, [
-                'error' => 'validation_failed',
-                'message' => 'The given data was invalid.',
-                'errors' => ['amount_cents' => ['amount_cents must not be zero']],
-            ], 422);
-        }
-
-        $result = $this->transactionsService->recordCorrection(
-            $memberId,
-            $amountCents,
-            $body['reason'],
-            $adminId,
-            $body['related_transaction_id'],
+        $result = $this->transactionsService->storno(
+            $args['transactionId'],
+            trim((string) $body['reason']),
+            $request->getAttribute('admin_user_id'),
         );
 
-        // Return flat transaction fields directly (not wrapped)
-        $transaction = $result['transaction'] ?? $result;
-        return $this->json($response, $transaction, 201);
+        return $this->json($response, $result['transaction'], 201);
     }
 
     public function exportTransactions(Request $request, Response $response): Response

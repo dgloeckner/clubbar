@@ -174,6 +174,17 @@ const getSettlement = (
 Transactions linked to this settlement will have their settlement_id cleared
 and become available for new settlements.
 
+A settlement can only be cancelled while no money has actually moved:
+- `direct_debit` — cancellable until it is marked submitted
+  (`POST .../submit`), and, as a backstop once `submitted_at` was
+  never set, until its `execution_date` has passed. Generating the
+  SEPA XML export (`exported_at`) does **not** lock the settlement —
+  the file can be regenerated, and the settlement stays cancellable
+  until submission is actually reported.
+- `bank_transfer` — never cancellable; the transfer is manual and
+  immediate.
+- `write_off` — always cancellable; no money moves.
+
 **Note**: Uses DELETE method (updated 2026-03-07 audit to match implementation).
 
  * @summary Cancel settlement
@@ -183,6 +194,22 @@ const cancelSettlement = (
  options?: SecondParameter<typeof customInstance<Settlement>>,) => {
       return customInstance<Settlement>(
       {url: `/admin/settlements/${settlementId}/cancel`, method: 'DELETE'
+    },
+      options);
+    }
+  /**
+ * Record that the exported SEPA file has been handed off to the bank.
+
+This is the point of no return: once a `direct_debit` settlement is
+marked submitted, it can no longer be cancelled — only reversed.
+
+ * @summary Mark settlement submitted
+ */
+const submitSettlement = (
+    settlementId: string,
+ options?: SecondParameter<typeof customInstance<Settlement>>,) => {
+      return customInstance<Settlement>(
+      {url: `/admin/settlements/${settlementId}/submit`, method: 'POST'
     },
       options);
     }
@@ -265,13 +292,14 @@ const createSettlementByFilters = (
     },
       options);
     }
-  return {listSettlements,createSettlement,previewSettlement,getExecutionDateInfo,getSettlement,cancelSettlement,downloadSepaXml,downloadSettlementCsv,previewSettlementByFilters,createSettlementByFilters}};
+  return {listSettlements,createSettlement,previewSettlement,getExecutionDateInfo,getSettlement,cancelSettlement,submitSettlement,downloadSepaXml,downloadSettlementCsv,previewSettlementByFilters,createSettlementByFilters}};
 export type ListSettlementsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['listSettlements']>>>
 export type CreateSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['createSettlement']>>>
 export type PreviewSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['previewSettlement']>>>
 export type GetExecutionDateInfoResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['getExecutionDateInfo']>>>
 export type GetSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['getSettlement']>>>
 export type CancelSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['cancelSettlement']>>>
+export type SubmitSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['submitSettlement']>>>
 export type DownloadSepaXmlResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['downloadSepaXml']>>>
 export type DownloadSettlementCsvResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['downloadSettlementCsv']>>>
 export type PreviewSettlementByFiltersResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['previewSettlementByFilters']>>>

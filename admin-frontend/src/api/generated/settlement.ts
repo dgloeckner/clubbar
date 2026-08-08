@@ -75,6 +75,15 @@ export interface Settlement {
   submitted_at?: string | null;
   /** @nullable */
   submitted_by_admin_id?: string | null;
+  /** Whether a cancel request would currently be accepted. */
+  is_cancellable?: boolean;
+  /**
+   * Human-readable reason cancellation is unavailable. Null when
+`is_cancellable` is true.
+
+   * @nullable
+   */
+  cancellation_blocked_reason?: string | null;
   /** @nullable */
   notes?: string | null;
   created_by_admin_id?: string;

@@ -80,6 +80,6 @@ Stornoing a transaction (*we booked the wrong thing*) is distinct from reversing
 
 ## Related
 - [UC-A20: View Tab](./UC-A20-view-tab.md)
-- [UC-A21: Manual Purchase](./UC-A21-manual-purchase.md)
+- [UC-A21: Manual Purchase](./UC-A21-manual-purchase.md) — **rejected**; storno is the only admin-initiated transaction, and the only correction of any kind
 - [ADR-0004: Immutable Transaction Storage](../../adr/0004-immutable-transaction-storage.md) — amended for storno-only
 - [ADR-0028: Legal Constraints on Money Handling](../../adr/0028-legal-constraints-on-money-handling.md) §4

@@ -102,7 +102,7 @@ Immutable transaction log. Append-only; never updated or deleted.
 |-------|------|----------|-------------|-----------------|------------|
 | id | BINARY(16) | Yes | UUID primary key | Idempotency key for sync deduplication | UUID v4; client-generated |
 | member_id | BINARY(16) | Yes | FK to members | Links transaction to member account | Valid member reference |
-| product_id | BINARY(16) | No | FK to products | NULL for manual adjustments | Valid product reference if set |
+| product_id | BINARY(16) | No | FK to products | NULL for stornos and payouts | Valid product reference if set |
 | amount_cents | INT | Yes | Amount in cents | Positive = charge; negative = credit/reversal | Non-zero; -999999 to +999999 |
 | transaction_type | ENUM | Yes | Type of transaction | Categorization for reporting | 'purchase', 'correction' |
 | notes | VARCHAR(500) | No | Reason/description | Required for manual entries; optional for others | Max 500 chars |

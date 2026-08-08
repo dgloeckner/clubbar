@@ -17,6 +17,7 @@
  * Uses TDD with E2E tests in e2etests/tests/admin/journal.spec.ts
  */
 
+import axios from 'axios'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -30,12 +31,12 @@ import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { onLoadingStateChange } from '../api/client'
 import { getTransactions } from '../api/generated/transactions/transactions'
 import { getSettlements } from '../api/generated/settlements/settlements'
-import { getMembers } from '../api/generated/members/members'
 import { getTransactionTypeColor, getAmountColor } from '../utils/transactions'
 import { getCurrentLanguage } from '../i18n/config'
 import { getLocalizedName } from '../utils/i18n-helpers'
 import { SettlementConfirmModal } from '../components/modals/SettlementConfirmModal'
-import type { GlobalTransaction, SettlementFilterPreview, MemberListItem, MemberTransactionHistory } from '../api/generated'
+import { StornoConfirmDialog } from '../components/modals/StornoConfirmDialog'
+import type { GlobalTransaction, SettlementFilterPreview } from '../api/generated'
 import { theme } from '../styles/design-system'
 import {
   tableColors,
@@ -57,6 +58,10 @@ interface ResolvedTransaction {
   created_at: string
   is_settled: boolean
   settlement_date: string | null
+  // For a storno row: the transaction it reverses. Null otherwise.
+  related_transaction_id: string | null
+  // For an original that has been stornoed: the id of its storno. Null otherwise.
+  stornoed_by_transaction_id: string | null
 }
 
 function localizeTransactionItems(items: GlobalTransaction[]): ResolvedTransaction[] {
@@ -82,6 +87,8 @@ function localizeTransactionItems(items: GlobalTransaction[]): ResolvedTransacti
       created_at: item.created_at ?? '',
       is_settled: item.is_settled ?? !!item.settlement_date,
       settlement_date: item.settlement_date ?? null,
+      related_transaction_id: item.related_transaction_id ?? null,
+      stornoed_by_transaction_id: item.stornoed_by_transaction_id ?? null,
     }
   })
 }
@@ -142,20 +149,13 @@ export function JournalPage() {
   // value are the same one, and the TARGET2 rule is not duplicated here.
   const { info: executionDateInfo, error: executionDateError } = useExecutionDateInfo(confirmModalOpen)
 
-  // Storno modal state
-  const [showCorrectionModal, setShowCorrectionModal] = useState(false)
-  const [members, setMembers] = useState<MemberListItem[]>([])
-  const [correctionForm, setCorrectionForm] = useState({
-    memberId: '',
-    relatedTransactionId: '',
-    amountCents: 0,
-    reason: '',
-  })
-  const [correctionError, setCorrectionError] = useState<string | null>(null)
-  const [correctionLoading, setCorrectionLoading] = useState(false)
-  // Candidate transactions the storno may reverse, for the selected member
-  const [memberTransactions, setMemberTransactions] = useState<MemberTransactionHistory['transactions']>([])
-  const [memberTransactionsLoading, setMemberTransactionsLoading] = useState(false)
+  // Storno confirmation dialog state — a row action, not a form. The amount
+  // is never entered by the admin; it is the exact negation of the
+  // transaction being reversed, and the member is implied by it (#169).
+  const [stornoTarget, setStornoTarget] = useState<ResolvedTransaction | null>(null)
+  const [stornoReason, setStornoReason] = useState('')
+  const [stornoError, setStornoError] = useState<string | null>(null)
+  const [stornoLoading, setStornoLoading] = useState(false)
 
   // Track if component is mounted to prevent state updates on unmounted component
   const isMountedRef = useRef(true)
@@ -275,91 +275,58 @@ export function JournalPage() {
     }
   }
 
-  const handleCreateCorrection = async () => {
-    setShowCorrectionModal(true)
-    setCorrectionError(null)
-    setCorrectionForm({ memberId: '', relatedTransactionId: '', amountCents: 0, reason: '' })
-    setMemberTransactions([])
-
-    // Load members for dropdown
-    try {
-      const response = await getMembers().listMembers({ page: 1, per_page: 100, sort_by: 'name_asc' })
-      setMembers(response.data ?? [])
-    } catch (err) {
-      setCorrectionError('Failed to load members')
-    }
+  const handleOpenStorno = (tx: ResolvedTransaction) => {
+    setStornoTarget(tx)
+    setStornoReason('')
+    setStornoError(null)
   }
 
-  const handleCorrectionModalClose = () => {
-    setShowCorrectionModal(false)
-    setCorrectionError(null)
-    setCorrectionForm({ memberId: '', relatedTransactionId: '', amountCents: 0, reason: '' })
-    setMemberTransactions([])
+  const handleCloseStorno = () => {
+    if (stornoLoading) return
+    setStornoTarget(null)
+    setStornoReason('')
+    setStornoError(null)
   }
 
-  // A storno must name the transaction it reverses (GoBD Rz. 64), so once a
-  // member is picked, load that member's transactions as storno candidates.
-  const handleCorrectionMemberChange = async (memberId: string) => {
-    setCorrectionForm((prev) => ({ ...prev, memberId, relatedTransactionId: '' }))
-    setMemberTransactions([])
-    if (!memberId) {
-      return
-    }
-    try {
-      setMemberTransactionsLoading(true)
-      const history = await getTransactions().getMemberTransactions(memberId)
-      setMemberTransactions(history.transactions ?? [])
-    } catch (err) {
-      setCorrectionError('Failed to load transactions for this member')
-    } finally {
-      setMemberTransactionsLoading(false)
-    }
-  }
-
-  const handleSubmitCorrection = async () => {
-    // Validate
-    if (!correctionForm.memberId) {
-      setCorrectionError('Please select a member')
-      return
-    }
-    if (!correctionForm.relatedTransactionId) {
-      setCorrectionError('Please select the transaction this storno reverses')
-      return
-    }
-    if (!correctionForm.reason.trim()) {
-      setCorrectionError('Please enter a reason')
-      return
-    }
-    if (correctionForm.amountCents === 0) {
-      setCorrectionError('Amount must not be zero')
+  const handleConfirmStorno = async () => {
+    if (!stornoTarget) return
+    if (!stornoReason.trim()) {
+      setStornoError(t('journal.stornoDialog.reasonRequired'))
       return
     }
 
     try {
-      setCorrectionLoading(true)
-      setCorrectionError(null)
+      setStornoLoading(true)
+      setStornoError(null)
 
-      await getTransactions().createManualTransaction(correctionForm.memberId, {
-        amount_cents: correctionForm.amountCents,
-        notes: correctionForm.reason,
-        related_transaction_id: correctionForm.relatedTransactionId,
-      })
+      await getTransactions().stornoTransaction(stornoTarget.id, { reason: stornoReason })
 
-      // Close modal and reload transactions
-      handleCorrectionModalClose()
+      setStornoTarget(null)
+      setStornoReason('')
       await loadTransactions()
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to create storno'
-      // Check if it's a SEPA validation error (422)
-      if (err instanceof Error && errorMsg.includes('422')) {
-        setCorrectionError('Member does not have valid SEPA mandate. Please update member IBAN and mandate reference.')
-      } else if (err instanceof Error && errorMsg.includes('not_found')) {
-        setCorrectionError('Member not found')
+      // Read the backend's own error code rather than sniffing the message —
+      // both refusals are states a second admin can legitimately race us into,
+      // so they need to say which one happened, not "something went wrong".
+      const code = axios.isAxiosError(err)
+        ? (err.response?.data as { error?: string } | undefined)?.error
+        : undefined
+
+      if (code === 'already_stornoed') {
+        setStornoError(t('journal.stornoDialog.errorAlreadyStornoed'))
+      } else if (code === 'cannot_storno_a_storno') {
+        setStornoError(t('journal.stornoDialog.errorCannotStornoAStorno'))
       } else {
-        setCorrectionError(errorMsg)
+        setStornoError(t('journal.stornoDialog.errorGeneric'))
+      }
+
+      // Either refusal means our view of this row is stale — the row is
+      // already reversed. Refresh so the action disables itself.
+      if (code === 'already_stornoed') {
+        await loadTransactions()
       }
     } finally {
-      setCorrectionLoading(false)
+      setStornoLoading(false)
     }
   }
 
@@ -503,30 +470,6 @@ export function JournalPage() {
             borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
           }}
         >
-          <button
-            onClick={handleCreateCorrection}
-            data-testid="journal-create-storno-btn"
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#3b82f6',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 6,
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'background-color 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#2563eb'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#3b82f6'
-            }}
-          >
-            + {t('journal.correction')}
-          </button>
-
           {/* Settlement Controls */}
           {settlementMode === 'none' && (
             <div style={{ display: 'flex', gap: 8 }}>
@@ -744,9 +687,57 @@ export function JournalPage() {
                         {[tx.product_name, tx.description].filter(Boolean).join(' \u2022 ')}
                       </div>
                     )}
-                    {/* Row 4: amount (right-aligned) */}
-                    <div style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', color: getAmountColor(tx.amount_cents) }}>
-                      {formatPrice(tx.amount_cents)}
+                    {/* Storno linkage (either direction) */}
+                    {tx.type === 'storno' && tx.related_transaction_id && (
+                      <div
+                        data-testid={`journal-storno-link-${tx.id}`}
+                        style={{ fontSize: '11px', color: theme.colors.text.secondary, marginBottom: '6px' }}
+                      >
+                        {t('journal.stornoOf', { id: tx.related_transaction_id.slice(0, 8) })}
+                      </div>
+                    )}
+                    {tx.type !== 'storno' && tx.stornoed_by_transaction_id && (
+                      <div
+                        data-testid={`journal-stornoed-badge-${tx.id}`}
+                        style={{
+                          display: 'inline-block',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: theme.colors.semantic.warning,
+                          marginBottom: '6px',
+                        }}
+                      >
+                        {t('journal.stornoedBadge')}
+                      </div>
+                    )}
+                    {/* Row 4: amount (right-aligned) + storno action */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      {tx.type !== 'storno' ? (
+                        <button
+                          data-testid={`journal-storno-btn-${tx.id}`}
+                          onClick={() => handleOpenStorno(tx)}
+                          disabled={!!tx.stornoed_by_transaction_id}
+                          title={tx.stornoed_by_transaction_id ? t('journal.stornoedBadge') : undefined}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            background: 'transparent',
+                            border: `1px solid ${theme.colors.border.light}`,
+                            borderRadius: theme.borderRadius.sm,
+                            color: tx.stornoed_by_transaction_id ? theme.colors.text.secondary : theme.colors.semantic.danger,
+                            cursor: tx.stornoed_by_transaction_id ? 'not-allowed' : 'pointer',
+                            opacity: tx.stornoed_by_transaction_id ? 0.5 : 1,
+                          }}
+                        >
+                          {t('journal.stornoAction')}
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <div style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: '14px', color: getAmountColor(tx.amount_cents) }}>
+                        {formatPrice(tx.amount_cents)}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -975,6 +966,12 @@ export function JournalPage() {
                     >
                       {t('journal.settlementDate')}
                     </th>
+                    <th
+                      style={headerCellBaseStyle}
+                      data-testid="journal-header-actions"
+                    >
+                      {t('common.actions')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1119,6 +1116,27 @@ export function JournalPage() {
                             </div>
                           )}
                           {!tx.product_name && !tx.description && <span>—</span>}
+                          {tx.type === 'storno' && tx.related_transaction_id && (
+                            <div
+                              data-testid={`journal-storno-link-${tx.id}`}
+                              style={{ fontSize: '11px', color: tableColors.cellSecondaryText }}
+                            >
+                              {t('journal.stornoOf', { id: tx.related_transaction_id.slice(0, 8) })}
+                            </div>
+                          )}
+                          {tx.type !== 'storno' && tx.stornoed_by_transaction_id && (
+                            <div
+                              data-testid={`journal-stornoed-badge-${tx.id}`}
+                              style={{
+                                display: 'inline-block',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: theme.colors.semantic.warning,
+                              }}
+                            >
+                              {t('journal.stornoedBadge')}
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -1166,6 +1184,37 @@ export function JournalPage() {
                           '—'
                         )}
                       </td>
+
+                      {/* Actions */}
+                      <td
+                        data-testid={`journal-table-cell-actions-${tx.id}`}
+                        style={{
+                          padding: tableSpacing.cellPadding,
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {tx.type !== 'storno' && (
+                          <button
+                            data-testid={`journal-storno-btn-${tx.id}`}
+                            onClick={() => handleOpenStorno(tx)}
+                            disabled={!!tx.stornoed_by_transaction_id}
+                            title={tx.stornoed_by_transaction_id ? t('journal.stornoedBadge') : undefined}
+                            style={{
+                              padding: '4px 10px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              background: 'transparent',
+                              border: `1px solid ${theme.colors.border.light}`,
+                              borderRadius: theme.borderRadius.sm,
+                              color: tx.stornoed_by_transaction_id ? theme.colors.text.secondary : theme.colors.semantic.danger,
+                              cursor: tx.stornoed_by_transaction_id ? 'not-allowed' : 'pointer',
+                              opacity: tx.stornoed_by_transaction_id ? 0.5 : 1,
+                            }}
+                          >
+                            {t('journal.stornoAction')}
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1211,238 +1260,17 @@ export function JournalPage() {
           error={confirmError ?? executionDateError}
         />
 
-        {/* Storno Modal */}
-        {showCorrectionModal && (
-          <div
-            data-testid="journal-storno-modal"
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0, 0, 0, 0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1100,
-            }}
-            onClick={handleCorrectionModalClose}
-          >
-            <div
-              data-testid="journal-storno-modal-content"
-              style={{
-                background: theme.colors.bg.secondary,
-                borderRadius: isMobile ? 0 : theme.borderRadius.lg,
-                padding: isMobile ? theme.spacing.lg : theme.spacing.xl,
-                maxWidth: isMobile ? '100%' : '500px',
-                width: isMobile ? '100%' : '90%',
-                height: isMobile ? '100%' : 'auto',
-                maxHeight: isMobile ? '100%' : '90vh',
-                overflowY: 'auto' as const,
-                boxShadow: isMobile ? 'none' : '0 25px 50px rgba(0, 0, 0, 0.5)',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 data-testid="journal-storno-modal-title" style={{ margin: 0, marginBottom: theme.spacing.lg, fontSize: theme.typography.fontSize.xl }}>
-                {t('journal.addCorrection')}
-              </h2>
-
-              {correctionError && (
-                <div
-                  data-testid="journal-storno-error"
-                  style={{
-                    padding: theme.spacing.md,
-                    background: `${theme.colors.semantic.danger}20`,
-                    borderLeft: `3px solid ${theme.colors.semantic.danger}`,
-                    color: theme.colors.semantic.danger,
-                    marginBottom: theme.spacing.lg,
-                    borderRadius: theme.borderRadius.md,
-                    fontSize: theme.typography.fontSize.sm,
-                  }}
-                >
-                  {correctionError}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>
-                {/* Member Selection */}
-                <div>
-                  <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                    {t('journal.member')} *
-                  </label>
-                  <select
-                    data-testid="journal-storno-member-select"
-                    value={correctionForm.memberId}
-                    onChange={(e) => handleCorrectionMemberChange(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: `${theme.spacing.md} 28px ${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      fontSize: theme.typography.fontSize.sm,
-                      boxSizing: 'border-box',
-                      cursor: 'pointer',
-                      outline: 'none',
-                      appearance: 'none',
-                      WebkitAppearance: 'none',
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 10px center',
-                      backgroundSize: '12px',
-                    }}
-                  >
-                    <option value="">{t('journal.selectMember')}</option>
-                    {members.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.first_name} {member.last_name} {!member.is_sepa_valid && '⚠ No SEPA'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Transaction to reverse — a storno must name the transaction
-                    it reverses (GoBD Rz. 64); it cannot be a free-amount entry. */}
-                <div>
-                  <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                    {t('journal.relatedTransaction')} *
-                  </label>
-                  <select
-                    data-testid="journal-storno-related-transaction-select"
-                    value={correctionForm.relatedTransactionId}
-                    disabled={!correctionForm.memberId || memberTransactionsLoading}
-                    onChange={(e) => setCorrectionForm({ ...correctionForm, relatedTransactionId: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: `${theme.spacing.md} 28px ${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      fontSize: theme.typography.fontSize.sm,
-                      boxSizing: 'border-box',
-                      cursor: 'pointer',
-                      outline: 'none',
-                      appearance: 'none',
-                      WebkitAppearance: 'none',
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 10px center',
-                      backgroundSize: '12px',
-                    }}
-                  >
-                    <option value="">
-                      {memberTransactionsLoading
-                        ? t('journal.loadingTransactions')
-                        : t('journal.selectTransaction')}
-                    </option>
-                    {(memberTransactions ?? []).map((transaction) => (
-                      <option key={transaction.id} value={transaction.id}>
-                        {transaction.date} · {((transaction.amount_cents ?? 0) / 100).toFixed(2)}€ · {transaction.description}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Amount */}
-                <div>
-                  <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                    {t('journal.amountEur')} *
-                  </label>
-                  <input
-                    data-testid="journal-storno-amount-input"
-                    type="number"
-                    step="0.01"
-                    value={correctionForm.amountCents / 100}
-                    onChange={(e) => setCorrectionForm({ ...correctionForm, amountCents: Math.round(parseFloat(e.target.value) * 100) })}
-                    placeholder="0.00"
-                    style={{
-                      width: '100%',
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      fontSize: theme.typography.fontSize.sm,
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  <div style={{ fontSize: '11px', color: theme.colors.text.secondary, marginTop: '4px' }}>
-                    {t('journal.amountHint')}
-                  </div>
-                </div>
-
-                {/* Reason */}
-                <div>
-                  <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                    {t('journal.reason')} *
-                  </label>
-                  <textarea
-                    data-testid="journal-storno-reason-input"
-                    value={correctionForm.reason}
-                    onChange={(e) => setCorrectionForm({ ...correctionForm, reason: e.target.value })}
-                    placeholder={t('journal.reasonPlaceholder')}
-                    maxLength={255}
-                    style={{
-                      width: '100%',
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.input,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      fontSize: theme.typography.fontSize.sm,
-                      boxSizing: 'border-box',
-                      minHeight: '80px',
-                      fontFamily: 'inherit',
-                      resize: 'vertical',
-                    }}
-                  />
-                </div>
-
-                {/* Buttons */}
-                <div style={{ display: 'flex', gap: theme.spacing.md, justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={handleCorrectionModalClose}
-                    disabled={correctionLoading}
-                    style={{
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.bg.tertiary,
-                      border: `1px solid ${theme.colors.border.light}`,
-                      borderRadius: theme.borderRadius.md,
-                      color: theme.colors.text.primary,
-                      cursor: correctionLoading ? 'not-allowed' : 'pointer',
-                      fontSize: theme.typography.fontSize.sm,
-                      fontWeight: 500,
-                      opacity: correctionLoading ? 0.6 : 1,
-                    }}
-                  >
-                    {t('common.cancel')}
-                  </button>
-                  <button
-                    onClick={handleSubmitCorrection}
-                    disabled={correctionLoading}
-                    data-testid="journal-storno-submit-btn"
-                    style={{
-                      padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                      background: theme.colors.semantic.primary,
-                      border: 'none',
-                      borderRadius: theme.borderRadius.md,
-                      color: '#ffffff',
-                      cursor: correctionLoading ? 'not-allowed' : 'pointer',
-                      fontSize: theme.typography.fontSize.sm,
-                      fontWeight: 500,
-                      opacity: correctionLoading ? 0.6 : 1,
-                    }}
-                  >
-                    {correctionLoading ? t('journal.saving') : t('journal.addCorrection')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Storno Confirmation Dialog */}
+        <StornoConfirmDialog
+          isOpen={stornoTarget !== null}
+          transaction={stornoTarget}
+          reason={stornoReason}
+          onReasonChange={setStornoReason}
+          onConfirm={handleConfirmStorno}
+          onCancel={handleCloseStorno}
+          isLoading={stornoLoading}
+          error={stornoError}
+        />
     </div>
   )
 }

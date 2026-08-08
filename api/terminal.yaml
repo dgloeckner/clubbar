@@ -1248,14 +1248,14 @@ components:
                 type: string
                 format: uuid
                 nullable: true
-                description: Product purchased (null for stornos/payouts/manual adjustments)
+                description: Product purchased (null for stornos and payouts)
               product_name:
                 type: string
                 description: Display name of product or storno reason (translated to member's language)
               product_icon:
                 type: string
                 nullable: true
-                description: Icon name of the purchased product (null for stornos/payouts/manual adjustments)
+                description: Icon name of the purchased product (null for stornos and payouts)
               settlement_id:
                 type: string
                 format: uuid

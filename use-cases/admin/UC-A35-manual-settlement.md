@@ -185,4 +185,3 @@ Cancellation follows one rule — **a settlement can be cancelled while no money
 - [UC-A30: Create Settlement (SEPA)](./UC-A30-create-settlement.md) - SEPA settlements
 - [UC-A82: SEPA Issues Report](./UC-A82-sepa-invalid-report.md) - Members needing manual settlement
 - [UC-A23: Storno](./UC-A23-storno.md) - Reverse an individual transaction
-- [UC-A21: Manual Purchase](./UC-A21-manual-purchase.md) - Book a charge with no terminal involved

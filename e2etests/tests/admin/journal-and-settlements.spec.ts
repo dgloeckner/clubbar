@@ -20,6 +20,38 @@ import { minimumExecutionDate, serverToday } from '../../utils/dates'
  *           004 (parallel safety), 005 (test IDs), 006 (page object), 008 (expect)
  */
 
+/**
+ * Push one purchase through the terminal sync endpoint and return its id.
+ * A storno is scoped to a transaction, so every storno case needs a real
+ * purchase to reverse.
+ */
+async function createPurchaseFor(
+  authenticatedTerminalRequest: any,
+  memberId: string,
+  amountCents: number
+): Promise<string> {
+  const id = generateUUID()
+  const response = await authenticatedTerminalRequest.post('http://localhost:8080/api/sync/transactions', {
+    data: {
+      transactions: [{
+        id,
+        member_id: memberId,
+        type: 'product',
+        product_id: generateUUID(),
+        quantity: 1,
+        unit_price_cents: amountCents,
+        amount_cents: amountCents,
+        notes: 'Purchase to be stornoed',
+        created_at: new Date().toISOString(),
+      }],
+    },
+  })
+  if (response.status() !== 201) {
+    throw new Error(`Failed to create purchase: ${response.status()} ${await response.text()}`)
+  }
+  return id
+}
+
 test.describe('Journal & Settlements', () => {
 
   test('journal: display transactions, search, sort, period picker, settlement filter, create storno', async ({
@@ -39,10 +71,10 @@ test.describe('Journal & Settlements', () => {
     // precision). Each storno must name a distinct purchase it reverses (UNIQUE constraint
     // on related_transaction_id), so member A ends up with 6 transactions total.
     const purchaseA1 = await testTransactions.createSyncTransaction(memberA.id, 500, `${prefix} purchase-for-corr1`)
-    await testTransactions.createStorno(memberA.id, 500, `${prefix} corr1`, 'adjustment', purchaseA1)
+    await testTransactions.createStorno(memberA.id, 500, `${prefix} corr1`, purchaseA1)
     await page.waitForTimeout(1100)
     const purchaseA2 = await testTransactions.createSyncTransaction(memberA.id, 2500, `${prefix} purchase-for-corr2`)
-    await testTransactions.createStorno(memberA.id, 2500, `${prefix} corr2`, 'adjustment', purchaseA2)
+    await testTransactions.createStorno(memberA.id, 2500, `${prefix} corr2`, purchaseA2)
     await page.waitForTimeout(1100)
     const purchaseA3 = await testTransactions.createSyncTransaction(memberA.id, 1000, `${prefix} purchase-for-corr3`)
     // The assertion below reads row 0 as "the newest transaction", so the last
@@ -50,7 +82,7 @@ test.describe('Journal & Settlements', () => {
     // this wait the two share a second and the default date-desc sort may put
     // either first.
     await page.waitForTimeout(1100)
-    const txToSettle = await testTransactions.createStorno(memberA.id, 1000, `${prefix} corr3`, 'adjustment', purchaseA3)
+    const txToSettle = await testTransactions.createStorno(memberA.id, 1000, `${prefix} corr3`, purchaseA3)
 
     // Member B: 1 purchase with real product (verify product name in Details column)
     await testTransactions.createSyncTransaction(memberB.id, 350, `${prefix} purchase`, product.id)
@@ -165,8 +197,8 @@ test.describe('Journal & Settlements', () => {
     // it is written a full second after the purchase it reverses.
     await page.waitForTimeout(1100)
     const corrResp = await authenticatedRequest.post(
-      `http://localhost:8080/api/admin/members/${memberCorr.id}/transactions`,
-      { data: { reason: 'adjustment', amount_cents: 4250, notes: `corr ${corrPrefix}`, related_transaction_id: purchaseForCorr } },
+      `http://localhost:8080/api/admin/transactions/${purchaseForCorr}/storno`,
+      { data: { reason: `corr ${corrPrefix}` } },
     )
     expect(corrResp.status()).toBe(201)
 
@@ -207,15 +239,17 @@ test.describe('Journal & Settlements', () => {
     const member2 = await testTransactions.createMember(`${prefix}2`, 'Steuermann')
     const product = await testTransactions.createProduct(`${prefix}Bier`, 250, `${prefix}Beer`)
 
-    // Member 1: purchase €25.00 + storno €10.00 = €35.00. createStorno() with
-    // no related_transaction_id auto-creates the purchase it reverses, so
-    // member1 actually ends up with 3 open transactions (purch1 + the auto
-    // anchor purchase + the storno) = €45.00, all of which the settlement
-    // below sweeps in (#161 §1).
+    // Member 1: purchase €25.00, plus createStorno() with no
+    // related_transaction_id auto-creating a fresh €10.00 purchase and fully
+    // reversing it (#169 — the amount is always the exact negation of a real
+    // transaction, never a freely-typed adjustment). That anchor purchase and
+    // its storno net to zero, so member1 ends up with 3 open transactions
+    // (purch1 + the auto anchor purchase + the storno) totalling €25.00, all
+    // of which the settlement below sweeps in (#161 §1).
     const txn1Id = await testTransactions.createSyncTransaction(member1.id, 2500, `${prefix} purch1`, product.id)
     const txn2Id = await testTransactions.createStorno(member1.id, 1000, `${prefix} corr1`)
-    // Member 2: purchase €15.00 + storno €5.00 = €20.00, plus the auto anchor
-    // purchase (€5.00) = €25.00 swept.
+    // Member 2: purchase €15.00, plus a €5.00 auto anchor purchase and its
+    // storno (net zero) = €15.00 swept.
     const txn3Id = await testTransactions.createSyncTransaction(member2.id, 1500, `${prefix} purch2`, product.id)
     const txn4Id = await testTransactions.createStorno(member2.id, 500, `${prefix} corr2`)
 
@@ -256,10 +290,12 @@ test.describe('Journal & Settlements', () => {
     await settlementsPage.expectSettlementRowVisible(settlementId)
 
     expect((await settlementsPage.getSettlementMemberCount(settlementId))?.trim()).toMatch(/^2\s/)
-    // 45.00 (member1) + 25.00 (member2) = 70.00 — the settlement sweeps each
-    // member's whole unsettled position (#161 §1), including the auto anchor
-    // purchases createStorno() created for txn2Id/txn4Id above.
-    expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/70[,.]00/)
+    // 25.00 (member1) + 15.00 (member2) = 40.00 — the settlement sweeps each
+    // member's whole unsettled position (#161 §1). The auto anchor purchases
+    // createStorno() created for txn2Id/txn4Id are swept in too, but each
+    // nets to zero against its own storno, so only the real purchases show
+    // up in the total.
+    expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/40[,.]00/)
     expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Aktiv')
 
     // ── Export summary CSV (via UI button) ───────────────────────────
@@ -306,10 +342,10 @@ test.describe('Journal & Settlements', () => {
     expect(xml).toContain('Steuermann')
     expect(xml).toContain(member1.mandate_reference)
     expect(xml).toContain(member2.mandate_reference)
-    // Member totals: member1 = €45.00 (incl. auto anchor purchase), member2 =
-    // €25.00 (incl. auto anchor purchase) — see the sweep note above (#161 §1).
-    expect(xml).toContain('45.00')
+    // Member totals: member1 = €25.00, member2 = €15.00 — the auto anchor
+    // purchase/storno pairs net to zero, see the sweep note above (#161 §1).
     expect(xml).toContain('25.00')
+    expect(xml).toContain('15.00')
     // ReqdColltnDt must be the settlement's own execution date. It previously
     // came from the library's today + 5 fallback because the payment info used
     // an unrecognised key, so the admin's date never reached the file (#11).
@@ -350,13 +386,15 @@ test.describe('Journal & Settlements', () => {
     const memberB = await testTransactions.createMember(`${prefix}B`, 'Atomic')
     // createStorno() with no related_transaction_id auto-creates the purchase
     // it reverses, so each storno below actually adds 2 open transactions
-    // (anchor purchase + storno) of equal amount.
+    // (anchor purchase + storno) that net to zero — the storno's amount is
+    // always the exact negation of the purchase it names (#169).
     const txn1Id = await testTransactions.createStorno(memberA.id, 1000, `${prefix} txn1`)
     const txn2Id = await testTransactions.createStorno(memberA.id, 2000, `${prefix} txn2`)
     const txn3Id = await testTransactions.createStorno(memberB.id, 3000, `${prefix} txn3`)
 
     // First settlement: names memberA via txn1 + txn2, sweeping ALL of
-    // memberA's open transactions — 4 items (2 anchors + 2 stornos), 6000 total.
+    // memberA's open transactions — 4 items (2 anchors + 2 stornos). Each
+    // anchor purchase nets to zero against its own storno, so the total is 0.
     const settlement1Id = await testTransactions.createSettlement([txn1Id, txn2Id])
 
     // ── Attempt duplicate: txn2 (already settled) + txn3 → must reject ─
@@ -379,7 +417,8 @@ test.describe('Journal & Settlements', () => {
     expect(s1Resp.status()).toBe(200)
     const s1 = await s1Resp.json()
     expect(s1.id).toBe(settlement1Id)
-    expect(s1.total_amount_cents).toBe(6000) // memberA's anchor+storno pairs: 1000+1000+2000+2000
+    // memberA's anchor+storno pairs each net to zero: (1000-1000)+(2000-2000)=0
+    expect(s1.total_amount_cents).toBe(0)
     expect(s1.items.length).toBe(4)
     expect(s1.is_cancelled).toBe(false)
 
@@ -408,16 +447,17 @@ test.describe('Journal & Settlements', () => {
     // ── Setup: 2 members + 1 storno each ──────────────────────────────
     const member1 = await testTransactions.createMember(`${prefix}A`, 'Buyer')
     const member2 = await testTransactions.createMember(`${prefix}B`, 'Buyer')
-    // Each storno must name (and reverse) a purchase. Settle that purchase
-    // immediately so only the storno itself remains open — this keeps the
-    // "open" counts and totals below scoped to exactly the 2 stornos.
+    // Each storno must name (and reverse) a purchase (#169), and a member in
+    // credit (net negative unsettled position) is excluded from settle-all
+    // entirely (ruling #141) — settling only a lone storno would strand both
+    // members there. So the purchase stays open alongside its storno: the
+    // pair nets to zero, which is not credit, and both remain open for the
+    // "open" counts and totals below.
     const purchase1 = await testTransactions.createSyncTransaction(member1.id, 1200, `${prefix} purchase1`)
-    await testTransactions.createSettlement([purchase1])
-    const txn1Id = await testTransactions.createStorno(member1.id, 1200, `${prefix} charge1`, 'adjustment', purchase1)
+    const txn1Id = await testTransactions.createStorno(member1.id, 1200, `${prefix} charge1`, purchase1)
 
     const purchase2 = await testTransactions.createSyncTransaction(member2.id, 800, `${prefix} purchase2`)
-    await testTransactions.createSettlement([purchase2])
-    const txn2Id = await testTransactions.createStorno(member2.id, 800, `${prefix} charge2`, 'adjustment', purchase2)
+    const txn2Id = await testTransactions.createStorno(member2.id, 800, `${prefix} charge2`, purchase2)
 
     // ── Settle-all: search → preview → confirm ───────────────────────
     const journalPage = new JournalPage(page)
@@ -430,7 +470,8 @@ test.describe('Journal & Settlements', () => {
 
     await journalPage.openSettleAllModal()
     const stats = await journalPage.getSettlementConfirmStats()
-    expect(stats.transactions).toBe(2)
+    // 2 purchases + 2 stornos (each purchase stays open alongside its storno).
+    expect(stats.transactions).toBe(4)
     expect(stats.members).toBe(2)
 
     const settlementId = await journalPage.confirmOpenSettlement()
@@ -443,7 +484,8 @@ test.describe('Journal & Settlements', () => {
     await settlementsPage.expectSettlementRowVisible(settlementId)
     expect((await settlementsPage.getSettlementStatusText(settlementId))?.trim()).toBe('Aktiv')
     expect((await settlementsPage.getSettlementMemberCount(settlementId))?.trim()).toMatch(/^2\s/)
-    expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/20[,.]00/)
+    // Each member's purchase and its storno net to zero: 1200-1200 + 800-800 = 0.
+    expect(await settlementsPage.getSettlementTotalAmount(settlementId)).toMatch(/0[,.]00/)
 
     // ── Undo settlement ───────────────────────────────────────────────
     await settlementsPage.undoSettlement(settlementId)
@@ -462,7 +504,7 @@ test.describe('Journal & Settlements', () => {
   })
 
 
-  test('SEPA validation: stornos reject SEPA-invalid members; sync stores and flags them', async ({
+  test('SEPA validation: a storno needs no mandate; sync stores and flags unbanked sales', async ({
     authenticatedRequest,
     authenticatedTerminalRequest,
   }) => {
@@ -495,58 +537,43 @@ test.describe('Journal & Settlements', () => {
     const validMember = await validResp.json()
     expect(validMember.is_sepa_valid).toBeTruthy()
 
-    // ── Storno rejected: member without IBAN ─────────────────────────
-    // The SEPA check happens before the related-transaction lookup, so a
-    // syntactically-valid but non-existent UUID is enough to reach it.
-    const corrNoIban = await authenticatedRequest.post(
-      `http://localhost:8080/api/admin/members/${noIbanMember.id}/transactions/correct`,
-      { data: { amount_cents: 1000, reason: 'Test storno', related_transaction_id: generateUUID() } }
+    // ── Storno needs no mandate: member without IBAN ─────────────────
+    // This block used to assert a 422 `sepa_invalid`. That gate is GONE (#169,
+    // ruling #158 §1): a storno *reduces* what the member owes, so refusing it
+    // for a member who cannot be collected from is inverted — it withheld the
+    // § 812 BGB remedy from exactly the people who needed it. The storno is now
+    // scoped to a transaction, so each case needs a real purchase to reverse.
+    const purchaseNoIban = await createPurchaseFor(authenticatedTerminalRequest, noIbanMember.id, 1000)
+    const stornoNoIban = await authenticatedRequest.post(
+      `http://localhost:8080/api/admin/transactions/${purchaseNoIban}/storno`,
+      { data: { reason: 'No IBAN, still reversible' } }
     )
-    expect(corrNoIban.status()).toBe(422)
-    const errNoIban = await corrNoIban.json()
-    expect(errNoIban.error).toBe('sepa_invalid')
-    expect(errNoIban.message).toContain('SEPA mandate')
+    expect(stornoNoIban.status()).toBe(201)
+    const stornoNoIbanBody = await stornoNoIban.json()
+    expect(stornoNoIbanBody.member_id).toBe(noIbanMember.id)
+    expect(stornoNoIbanBody.amount_cents).toBe(-1000)
 
-    // ── Storno rejected: member without mandate reference ────────────
-    const corrNoMandate = await authenticatedRequest.post(
-      `http://localhost:8080/api/admin/members/${noMandateMember.id}/transactions/correct`,
-      { data: { amount_cents: 1500, reason: 'Test storno without mandate', related_transaction_id: generateUUID() } }
+    // ── Storno needs no mandate: member without mandate reference ─────
+    const purchaseNoMandate = await createPurchaseFor(authenticatedTerminalRequest, noMandateMember.id, 1500)
+    const stornoNoMandate = await authenticatedRequest.post(
+      `http://localhost:8080/api/admin/transactions/${purchaseNoMandate}/storno`,
+      { data: { reason: 'No mandate, still reversible' } }
     )
-    expect(corrNoMandate.status()).toBe(422)
-    const errNoMandate = await corrNoMandate.json()
-    expect(errNoMandate.error).toBe('sepa_invalid')
-    expect(errNoMandate.message).toContain('SEPA mandate')
+    expect(stornoNoMandate.status()).toBe(201)
+    expect((await stornoNoMandate.json()).amount_cents).toBe(-1500)
 
-    // ── Storno accepted: valid SEPA member ────────────────────────────
-    // Unlike the rejected cases above, this one reaches the related-transaction
-    // lookup, so it must name a real purchase belonging to this member.
-    const purchaseForValidResp = await authenticatedTerminalRequest.post('http://localhost:8080/api/sync/transactions', {
-      data: {
-        transactions: [{
-          id: generateUUID(),
-          member_id: validMember.id,
-          type: 'product',
-          product_id: generateUUID(),
-          quantity: 1,
-          unit_price_cents: 2000,
-          amount_cents: 2000,
-          notes: 'Purchase to be stornoed',
-          created_at: new Date().toISOString(),
-        }],
-      },
-    })
-    expect(purchaseForValidResp.status()).toBe(201)
-    const purchaseForValid = (await purchaseForValidResp.json()).accepted_ids[0]
-
-    const corrValid = await authenticatedRequest.post(
-      `http://localhost:8080/api/admin/members/${validMember.id}/transactions/correct`,
-      { data: { amount_cents: 2000, reason: 'Test storno for valid member', related_transaction_id: purchaseForValid } }
+    // ── And for a fully valid member, unchanged ───────────────────────
+    const purchaseForValid = await createPurchaseFor(authenticatedTerminalRequest, validMember.id, 2000)
+    const stornoValid = await authenticatedRequest.post(
+      `http://localhost:8080/api/admin/transactions/${purchaseForValid}/storno`,
+      { data: { reason: 'Storno for valid member' } }
     )
-    expect(corrValid.status()).toBe(201)
-    const corrResult = await corrValid.json()
-    expect(corrResult.id).toBeTruthy()
-    expect(corrResult.member_id).toBe(validMember.id)
-    expect(corrResult.amount_cents).toBe(2000)
+    expect(stornoValid.status()).toBe(201)
+    const stornoValidBody = await stornoValid.json()
+    expect(stornoValidBody.id).toBeTruthy()
+    expect(stornoValidBody.member_id).toBe(validMember.id)
+    // Derived, never typed: the exact negation of the purchase.
+    expect(stornoValidBody.amount_cents).toBe(-2000)
 
     // ── Sync stores and flags: member without any SEPA data (#162) ──
     // The drink was already served against the terminal's cached state. The
@@ -651,49 +678,160 @@ test.describe('Journal & Settlements', () => {
     expect(batchResult.member_balances[noSepaMember.id]).toBe(5000)
   })
 
-  test('journal: create storno via UI modal', async ({
+  test('journal: storno a transaction from its row, confirm what is reversed, see the linkage', async ({
     page,
     testTransactions,
+    authenticatedRequest,
   }) => {
     const ts = Date.now()
-    const prefix = `CorrUI${ts}`
+    const prefix = `StornoUI${ts}`
 
-    // Create a member with SEPA data so they appear in the storno member picker
     const member = await testTransactions.createMember(`${prefix}First`, `${prefix}Last`)
-    // The storno modal's "related transaction" dropdown lists the selected
-    // member's existing transactions — a storno must name the one it reverses.
-    const purchaseId = await testTransactions.createSyncTransaction(member.id, 750, `${prefix} purchase to storno`)
+    const purchaseId = await testTransactions.createSyncTransaction(member.id, 750, `${prefix} purchase`)
 
     const journalPage = new JournalPage(page)
     await journalPage.navigate()
     await journalPage.waitForPageLoad()
-
-    // Get baseline count for this member before creating the storno
     await journalPage.search(`${prefix}Last`)
     await journalPage.waitForTableToLoad()
+
     const countBefore = await journalPage.getTransactionCount()
 
-    // Open storno modal, fill form, submit
-    await journalPage.openStornoModal()
-    await journalPage.fillStornoForm({
-      memberId: member.id,
-      relatedTransactionId: purchaseId,
-      amountEur: 7.50,   // input displays EUR; backend stores 750 cents
-      reason: `${prefix} UI storno test`,
-    })
-    const response = await journalPage.submitStornoForm()
+    // ── The confirmation must say WHAT is being reversed ──────────────
+    await journalPage.openStornoDialog(purchaseId)
+    const subject = await journalPage.getStornoDialogSubject()
+    expect(subject.member).toContain(`${prefix}Last`)
+    expect(subject.amount).toContain('7')      // €7.50, however the locale formats it
+    expect(subject.amount).toContain('50')
+    expect(subject.date).not.toBe('')
+    expect(subject.product).not.toBe('')
 
-    // Verify API response
+    // Cancel leaves everything untouched — the dialog is a decision point.
+    await journalPage.cancelStorno()
+    await journalPage.expectStornoDialogHidden()
+    expect(await journalPage.getTransactionCount()).toBe(countBefore)
+
+    // ── Storno for real ───────────────────────────────────────────────
+    await journalPage.openStornoDialog(purchaseId)
+    await journalPage.fillStornoReason(`${prefix} wrong card scanned`)
+    const response = await journalPage.confirmStorno()
+
+    // The UI sent only a reason; the amount came back derived as the negation.
     const body = await response.json()
     expect(body.transaction_type).toBe('storno')
-    expect(body.amount_cents).toBe(750)
+    expect(body.amount_cents).toBe(-750)
+    expect(body.related_transaction_id).toBe(purchaseId)
+    expect(response.request().postDataJSON()).toEqual({ reason: `${prefix} wrong card scanned` })
 
-    // Modal should close after successful submission
-    await journalPage.expectStornoModalHidden()
+    await journalPage.expectStornoDialogHidden()
 
-    // New storno should appear in the journal for this member
+    // ── Persisted, and visibly linked in both directions ──────────────
     await journalPage.waitForTableToLoad()
     await expect.poll(() => journalPage.getTransactionCount(), { timeout: 10000 })
       .toBe(countBefore + 1)
+
+    await journalPage.expectTransactionRowVisible(body.id)
+    await journalPage.expectLinkedToOriginal(body.id)
+    await journalPage.expectMarkedAsStornoed(purchaseId)
+
+    // ── The rules hold in the UI, not just the API ────────────────────
+    // The original is spent: its action is disabled rather than silently failing.
+    await journalPage.expectStornoDisabled(purchaseId)
+    // And a storno offers no storno of its own.
+    await journalPage.expectNoStornoAction(body.id)
+
+    // ── Confirm against the database, not just the screen ─────────────
+    const verify = await authenticatedRequest.get(
+      `http://localhost:8080/api/admin/transactions?per_page=100&search=${prefix}Last`
+    )
+    expect(verify.ok()).toBeTruthy()
+    const rows = (await verify.json()).items ?? (await verify.json()).data
+    const stornoRow = rows.find((t: any) => t.id === body.id)
+    expect(stornoRow).toBeDefined()
+    expect(stornoRow.amount_cents).toBe(-750)
+    expect(stornoRow.related_transaction_id).toBe(purchaseId)
+    const originalRow = rows.find((t: any) => t.id === purchaseId)
+    expect(originalRow.stornoed_by_transaction_id).toBe(body.id)
+    // Purchase and storno net to zero.
+    expect(originalRow.amount_cents + stornoRow.amount_cents).toBe(0)
+  })
+
+  test('journal: a transaction stornoed by someone else is refused, not double-booked', async ({
+    page,
+    testTransactions,
+    authenticatedRequest,
+  }) => {
+    // Two admins open the same wrong booking. The second one to confirm must be
+    // told why it failed, not shown a generic error and not allowed to write a
+    // second storno — the unique index refuses it and the UI has to explain.
+    const ts = Date.now()
+    const prefix = `StornoRace${ts}`
+
+    const member = await testTransactions.createMember(`${prefix}First`, `${prefix}Last`)
+    const purchaseId = await testTransactions.createSyncTransaction(member.id, 900, `${prefix} purchase`)
+
+    const journalPage = new JournalPage(page)
+    await journalPage.navigate()
+    await journalPage.waitForPageLoad()
+    await journalPage.search(`${prefix}Last`)
+    await journalPage.waitForTableToLoad()
+
+    // Open the dialog, then let "the other admin" storno it behind our back.
+    await journalPage.openStornoDialog(purchaseId)
+    const behindOurBack = await authenticatedRequest.post(
+      `http://localhost:8080/api/admin/transactions/${purchaseId}/storno`,
+      { data: { reason: `${prefix} the other admin got there first` } }
+    )
+    expect(behindOurBack.status()).toBe(201)
+
+    await journalPage.fillStornoReason(`${prefix} our attempt`)
+    await journalPage.confirmStorno(409)
+
+    await journalPage.expectStornoDialogError(/stornier|storno/i)
+
+    // Exactly one storno exists for that purchase — the database refused ours.
+    const verify = await authenticatedRequest.get(
+      `http://localhost:8080/api/admin/transactions?per_page=100&search=${prefix}Last`
+    )
+    const rows = (await verify.json()).items ?? (await verify.json()).data
+    const stornos = rows.filter((t: any) => t.related_transaction_id === purchaseId)
+    expect(stornos).toHaveLength(1)
+  })
+
+  test('journal: a member with no SEPA mandate can still be stornoed from the UI', async ({
+    page,
+    testTransactions,
+    authenticatedRequest,
+  }) => {
+    // A storno *reduces* what the member owes. The old correction form refused
+    // this outright, which gated a debt reduction on the ability to collect —
+    // inverted, and it blocked the § 812 BGB remedy for exactly the members who
+    // could not be billed (#158 §1).
+    const ts = Date.now()
+    const prefix = `StornoNoSepa${ts}`
+
+    const memberData = createSepaInvalidMember(`${prefix}First`, `${prefix}Last`, 'both')
+    const memberResp = await authenticatedRequest.post('http://localhost:8080/api/admin/members', {
+      data: memberData,
+    })
+    expect(memberResp.status()).toBe(201)
+    const member = await memberResp.json()
+    expect(member.is_sepa_valid).toBeFalsy()
+
+    const purchaseId = await testTransactions.createSyncTransaction(member.id, 420, `${prefix} purchase`)
+
+    const journalPage = new JournalPage(page)
+    await journalPage.navigate()
+    await journalPage.waitForPageLoad()
+    await journalPage.search(`${prefix}Last`)
+    await journalPage.waitForTableToLoad()
+
+    await journalPage.openStornoDialog(purchaseId)
+    await journalPage.fillStornoReason(`${prefix} no mandate, still reversible`)
+    const response = await journalPage.confirmStorno()
+
+    const body = await response.json()
+    expect(body.amount_cents).toBe(-420)
+    await journalPage.expectStornoDialogHidden()
   })
 })

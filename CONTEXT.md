@@ -30,6 +30,8 @@ _Avoid_: purchase, payment
 
 **Transaction**:
 An immutable, append-only record of a purchase or a storno by a member. Never updated or deleted.
+
+A purchase is always made at a terminal and always names a product — there is no admin-booked purchase and no free-amount entry ([UC-A21 rejected](./use-cases/admin/UC-A21-manual-purchase.md)). **No amount is ever typed in, anywhere in the system**: a purchase takes the product's price, a storno negates its original exactly, a settlement sums the transactions it covers. If a money amount ever needs typing, something has been designed wrong.
 _Avoid_: booking, entry
 
 **Storno**:

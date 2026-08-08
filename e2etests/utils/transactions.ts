@@ -132,36 +132,28 @@ export const createSyncTransaction = (
 }
 
 /**
- * Test data builder for manual stornos
- * Used by admin to reverse a specific member transaction
+ * Test data builder for stornos
+ *
+ * (#169) POST /admin/transactions/{transactionId}/storno takes exactly one
+ * field. There is no `amount_cents` any more — the amount is derived as the
+ * exact negation of the transaction named in the URL, and no `notes` field
+ * exists separately from `reason`: the reason string IS what lands in the
+ * storno row's `notes` column. Passing an amount or notes here would just be
+ * silently ignored by the backend, so the type no longer offers them.
  */
 export interface StornoTransactionData {
-  reason: 'adjustment' | 'refund' | 'discount'
-  amount_cents: number
-  notes: string
-  related_transaction_id: string
+  reason: string
 }
 
 /**
- * Create a storno transaction (simulates admin reversal of one specific transaction)
- * @param amountCents - Amount in cents
- * @param notes - Transaction notes
- * @param relatedTransactionId - The transaction this storno reverses (required by the backend)
- * @param reason - Reason for the storno
- * @returns Storno data ready for the manual-transaction (storno) API
+ * Build the request body for the storno endpoint.
+ * @param reason - Why the booking is being reversed (required, 1-500 chars). Recorded verbatim as the storno row's notes.
+ * @returns Storno data ready for POST /admin/transactions/{transactionId}/storno
  */
 export const createStorno = (
-  amountCents: number = 1000,
-  notes: string = 'Test storno',
-  relatedTransactionId: string,
-  reason: 'adjustment' | 'refund' | 'discount' = 'adjustment'
+  reason: string = 'Test storno'
 ): StornoTransactionData => {
-  return {
-    reason,
-    amount_cents: amountCents,
-    notes,
-    related_transaction_id: relatedTransactionId,
-  }
+  return { reason }
 }
 
 /**

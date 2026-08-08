@@ -45,14 +45,24 @@ export class JournalPage extends BasePage {
   private readonly settlementConfirmTxCount = () => this.page.getByTestId('journal-settlement-confirm-transaction-count')
   private readonly settlementConfirmMemberCount = () => this.page.getByTestId('journal-settlement-confirm-member-count')
 
-  // Storno modal elements (test IDs from JournalPage.tsx)
-  private readonly createStornoBtn = () => this.page.getByTestId('journal-create-storno-btn')
-  private readonly stornoModal = () => this.page.getByTestId('journal-storno-modal')
-  private readonly stornoMemberSelect = () => this.page.getByTestId('journal-storno-member-select')
-  private readonly stornoRelatedTransactionSelect = () => this.page.getByTestId('journal-storno-related-transaction-select')
-  private readonly stornoAmountInput = () => this.page.getByTestId('journal-storno-amount-input')
-  private readonly stornoReasonInput = () => this.page.getByTestId('journal-storno-reason-input')
-  private readonly stornoSubmitBtn = () => this.page.getByTestId('journal-storno-submit-btn')
+  // Storno is a ROW ACTION, not a form: the transaction is the subject of the
+  // operation, not a parameter of it (#169). There is no member picker and no
+  // amount field — the amount is derived as the exact negation of the row.
+  private readonly stornoRowBtn = (transactionId: string) =>
+    this.page.getByTestId(`journal-storno-btn-${transactionId}`)
+  private readonly stornoDialog = () => this.page.getByTestId('journal-storno-dialog')
+  private readonly stornoDialogMember = () => this.page.getByTestId('journal-storno-dialog-member')
+  private readonly stornoDialogProduct = () => this.page.getByTestId('journal-storno-dialog-product')
+  private readonly stornoDialogAmount = () => this.page.getByTestId('journal-storno-dialog-amount')
+  private readonly stornoDialogDate = () => this.page.getByTestId('journal-storno-dialog-date')
+  private readonly stornoDialogReasonInput = () => this.page.getByTestId('journal-storno-dialog-reason-input')
+  private readonly stornoDialogConfirm = () => this.page.getByTestId('journal-storno-dialog-confirm')
+  private readonly stornoDialogCancel = () => this.page.getByTestId('journal-storno-dialog-cancel')
+  private readonly stornoDialogError = () => this.page.getByTestId('journal-storno-dialog-error')
+  private readonly stornoLink = (transactionId: string) =>
+    this.page.getByTestId(`journal-storno-link-${transactionId}`)
+  private readonly stornoedBadge = (transactionId: string) =>
+    this.page.getByTestId(`journal-stornoed-badge-${transactionId}`)
 
   constructor(page: Page) {
     super(page)
@@ -341,57 +351,84 @@ export class JournalPage extends BasePage {
   }
 
   /**
-   * STORNO MODAL
-   * Opens the "Create Storno" modal from the journal toolbar.
-   */
-  async openStornoModal() {
-    await this.createStornoBtn().click()
-    await expect(this.stornoModal()).toBeVisible()
-    // Wait for member options to load (modal fetches members asynchronously)
-    await expect(this.stornoMemberSelect().locator('option').nth(1)).toBeAttached({ timeout: 10000 })
-  }
-
-  /**
-   * Fill the storno form.
-   * NOTE: amountEur is in euros (e.g. 7.50) — the input field displays EUR
-   * because JournalPage.tsx renders: value={correctionForm.amountCents / 100}
-   * The backend will receive amount_cents = amountEur * 100.
+   * STORNO — a row action.
    *
-   * Selecting a member triggers an async fetch of that member's transactions
-   * (the storno candidates); `relatedTransactionId` must reference one of
-   * their existing transactions (GoBD Rz. 64: a storno must name the
-   * transaction it reverses).
+   * Click Storno on the transaction that is wrong. The confirmation states what
+   * is being reversed (member, product, amount, date) rather than asking a
+   * generic "are you sure"; the reason is the only thing the admin supplies.
    */
-  async fillStornoForm(params: {
-    memberId: string
-    relatedTransactionId: string
-    amountEur: number
-    reason: string
-  }) {
-    await this.stornoMemberSelect().selectOption(params.memberId)
-    // Wait for the related-transaction dropdown to populate for this member
-    await expect(this.stornoRelatedTransactionSelect().locator(`option[value="${params.relatedTransactionId}"]`)).toBeAttached({ timeout: 10000 })
-    await this.stornoRelatedTransactionSelect().selectOption(params.relatedTransactionId)
-    await this.stornoAmountInput().fill(String(params.amountEur))
-    await this.stornoReasonInput().fill(params.reason)
+  async openStornoDialog(transactionId: string) {
+    await this.stornoRowBtn(transactionId).click()
+    await expect(this.stornoDialog()).toBeVisible()
+  }
+
+  /** The row action for a transaction that cannot be stornoed is disabled, not hidden. */
+  async expectStornoDisabled(transactionId: string) {
+    await expect(this.stornoRowBtn(transactionId)).toBeDisabled()
+  }
+
+  /** A storno row carries no storno action of its own — a storno cannot be stornoed. */
+  async expectNoStornoAction(transactionId: string) {
+    await expect(this.stornoRowBtn(transactionId)).toHaveCount(0)
   }
 
   /**
-   * Submit the storno form and wait for the API response (201 Created).
-   * Returns the Response so tests can assert on body content.
+   * What the confirmation says it is about to reverse. Tests assert against
+   * this so a generic "are you sure" cannot pass (#127 is the same defect on
+   * settlement undo).
    */
-  async submitStornoForm(): Promise<import('@playwright/test').Response> {
+  async getStornoDialogSubject(): Promise<{
+    member: string
+    product: string
+    amount: string
+    date: string
+  }> {
+    return {
+      member: (await this.stornoDialogMember().textContent()) ?? '',
+      product: (await this.stornoDialogProduct().textContent()) ?? '',
+      amount: (await this.stornoDialogAmount().textContent()) ?? '',
+      date: (await this.stornoDialogDate().textContent()) ?? '',
+    }
+  }
+
+  async fillStornoReason(reason: string) {
+    await this.stornoDialogReasonInput().fill(reason)
+  }
+
+  /**
+   * Confirm the storno and wait for the API response.
+   * Returns the Response so tests can assert on the body — notably that the
+   * amount came back derived, since the UI never sent one.
+   */
+  async confirmStorno(expectedStatus = 201): Promise<import('@playwright/test').Response> {
     const responsePromise = this.page.waitForResponse(
-      (resp) =>
-        resp.url().includes('/admin/members/') &&
-        resp.url().includes('/transactions') &&
-        resp.status() === 201
+      (resp) => /\/admin\/transactions\/[^/]+\/storno$/.test(new URL(resp.url()).pathname) &&
+        resp.request().method() === 'POST' &&
+        resp.status() === expectedStatus
     )
-    await this.stornoSubmitBtn().click()
+    await this.stornoDialogConfirm().click()
     return responsePromise
   }
 
-  async expectStornoModalHidden() {
-    await expect(this.stornoModal()).toBeHidden()
+  async cancelStorno() {
+    await this.stornoDialogCancel().click()
+  }
+
+  async expectStornoDialogHidden() {
+    await expect(this.stornoDialog()).toBeHidden()
+  }
+
+  async expectStornoDialogError(pattern: RegExp | string) {
+    await expect(this.stornoDialogError()).toBeVisible()
+    await expect(this.stornoDialogError()).toContainText(pattern)
+  }
+
+  /** The storno row shows what it reverses; the reversed row shows it was stornoed. */
+  async expectLinkedToOriginal(stornoId: string) {
+    await expect(this.stornoLink(stornoId)).toBeVisible()
+  }
+
+  async expectMarkedAsStornoed(originalId: string) {
+    await expect(this.stornoedBadge(originalId)).toBeVisible()
   }
 }

@@ -71,4 +71,20 @@ export interface GlobalTransaction {
   is_settled?: boolean;
   /** @nullable */
   settlement_date?: string | null;
+  /**
+   * For a `storno`, the transaction it reverses — never null. Null for
+every other type (GoBD Rz. 64, ADR-0028 §4).
+
+   * @nullable
+   */
+  related_transaction_id?: string | null;
+  /**
+   * The storno that reverses this transaction, if it has one — the
+reverse of `related_transaction_id`. Lets the journal show the
+linkage from either row and refuse a second storno before the
+request is made.
+
+   * @nullable
+   */
+  stornoed_by_transaction_id?: string | null;
 }

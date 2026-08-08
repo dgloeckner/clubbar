@@ -53,7 +53,7 @@ A **module** is a self-contained functional area that includes:
 |--------|-------------|----------------|
 | `members` | Member management | CRUD, GDPR export, anonymization, balance view |
 | `products` | Product catalog | CRUD, activation toggle, category filter |
-| `transactions` | Transaction journal | List, filter, storno, manual purchase |
+| `transactions` | Transaction journal | List, filter, storno |
 | `settlements` | Periodic billing | Create, preview, export (CSV/SEPA), revoke |
 | `terminals` | Terminal devices | Register, token generation, status monitoring |
 | `admin-users` | Admin accounts | CRUD, password reset, activation toggle |

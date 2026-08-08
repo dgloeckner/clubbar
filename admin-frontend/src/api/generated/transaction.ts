@@ -56,8 +56,22 @@ export interface Transaction {
   transaction_type?: TransactionTransactionType;
   /** @nullable */
   notes?: string | null;
-  /** @nullable */
+  /**
+   * For a `storno`, the transaction it reverses — never null. Null for
+every other type (GoBD Rz. 64, ADR-0028 §4).
+
+   * @nullable
+   */
   related_transaction_id?: string | null;
+  /**
+   * The storno that reverses this transaction, if it has one. The
+reverse of `related_transaction_id`, so the journal can show the
+linkage from either row and refuse a second storno before the
+request is made. Unique — a transaction is stornoable at most once.
+
+   * @nullable
+   */
+  stornoed_by_transaction_id?: string | null;
   /** @nullable */
   settlement_id?: string | null;
   /** @nullable */

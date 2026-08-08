@@ -45,7 +45,7 @@ The admin panel provides management and accounting functions for the bar system:
 | ID | Name | Description |
 |----|------|-------------|
 | [UC-A20](./UC-A20-view-tab.md) | View Tab | See member balance and history |
-| [UC-A21](./UC-A21-manual-purchase.md) | Manual Purchase | Book a charge served away from the terminal |
+| [UC-A21](./UC-A21-manual-purchase.md) | ~~Manual Purchase~~ | **Rejected** — the answer to bar service away from the fridge is a terminal there, not a typed amount later |
 | [UC-A23](./UC-A23-storno.md) | Storno | Reverse one transaction in full |
 | [UC-A22](./UC-A22-export-transactions.md) | Export Transactions | Download transaction CSV |
 
