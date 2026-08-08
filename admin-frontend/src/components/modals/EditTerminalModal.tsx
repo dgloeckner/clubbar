@@ -5,18 +5,31 @@
 
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
+import { FieldError, ModalError, modalInputStyle } from './ModalError'
 
 export interface EditTerminalModalProps {
   isOpen: boolean
   formData: {
     name: string
   }
+  /** Message from the last failed submit. */
+  error?: string | null
+  /** Field name → message, as the API reported it. */
+  fieldErrors?: Record<string, string>
   onFormChange: (field: string, value: string) => void
   onSubmit: () => void
   onClose: () => void
 }
 
-export function EditTerminalModal({ isOpen, formData, onFormChange, onSubmit, onClose }: EditTerminalModalProps) {
+export function EditTerminalModal({
+  isOpen,
+  formData,
+  error,
+  fieldErrors = {},
+  onFormChange,
+  onSubmit,
+  onClose,
+}: EditTerminalModalProps) {
   const { t } = useTranslation()
 
   if (!isOpen) {
@@ -48,23 +61,21 @@ export function EditTerminalModal({ isOpen, formData, onFormChange, onSubmit, on
         onClick={(e) => e.stopPropagation()}
       >
         <h2 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.editTerminal')}</h2>
+
+        <ModalError message={error} testId="settings-terminal-edit-error" />
+
         <input
           data-testid="settings-terminal-edit-name"
           type="text"
-          placeholder="Terminal Name"
+          placeholder={t('settings.terminalName')}
           value={formData.name}
           onChange={(e) => onFormChange('name', e.target.value)}
           style={{
-            width: '100%',
-            padding: theme.spacing.md,
-            marginBottom: theme.spacing.lg,
-            border: `1px solid ${theme.colors.border.light}`,
-            borderRadius: theme.borderRadius.md,
-            boxSizing: 'border-box',
-            background: theme.colors.bg.secondary,
-            color: theme.colors.text.primary,
+            ...modalInputStyle(!!fieldErrors.name),
+            marginBottom: fieldErrors.name ? theme.spacing.xs : theme.spacing.lg,
           }}
         />
+        <FieldError message={fieldErrors.name} testId="settings-terminal-edit-name-error" />
         <div style={{ display: 'flex', gap: theme.spacing.md }}>
           <button
             data-testid="settings-terminal-edit-confirm-button"

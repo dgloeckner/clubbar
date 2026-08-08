@@ -150,7 +150,11 @@ export interface SepaConfigTabProps {
   creditorIdLocked: boolean
   loading: boolean
   saving: boolean
-  error: string | null
+  /**
+   * Failures are reported by the page-level banner, which is shared with the
+   * Admin Users and Terminals tabs — this tab renders only its own success
+   * message (#91).
+   */
   successMessage: string | null
   formData: SepaConfigFormData
   fieldErrors: Record<string, string>
@@ -164,7 +168,6 @@ export function SepaConfigTab({
   creditorIdLocked,
   loading,
   saving,
-  error,
   successMessage,
   formData,
   fieldErrors,
@@ -187,24 +190,6 @@ export function SepaConfigTab({
 
   return (
     <div>
-      {/* Error Message */}
-      {error && (
-        <div
-          data-testid="settings-sepa-error-message"
-          style={{
-            padding: theme.spacing.md,
-            marginBottom: theme.spacing.lg,
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: `1px solid ${theme.colors.semantic.danger}`,
-            borderRadius: theme.borderRadius.md,
-            color: theme.colors.semantic.danger,
-            fontSize: theme.typography.fontSize.sm,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
       {/* Success Message */}
       {successMessage && (
         <div
