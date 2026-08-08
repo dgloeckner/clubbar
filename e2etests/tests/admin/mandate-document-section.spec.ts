@@ -17,7 +17,7 @@
 
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
-import { Page } from '@playwright/test'
+import { Page, Response as PlaywrightResponse } from '@playwright/test'
 import { test, expect } from '../../fixtures/pageObjects'
 import { csrfHeaders } from '../../utils/csrf'
 
@@ -42,11 +42,34 @@ async function createTestMember(page: Page): Promise<{ id: string; lastName: str
   return { id: body.id, lastName }
 }
 
+/**
+ * Wait for the mandate-document upload response regardless of status, then assert 200
+ * with the response body in the failure message — a filtered-to-200 waitForResponse
+ * predicate would otherwise time out opaquely on any non-200 response (e.g. a rejected
+ * upload), masking the real reason.
+ */
+async function waitForUploadResponse(page: Page, memberId: string): Promise<PlaywrightResponse> {
+  const resp = await page.waitForResponse(
+    (r) =>
+      r.url().includes(`/api/admin/members/${memberId}/mandate-document`) &&
+      r.request().method() === 'POST',
+    { timeout: 20000 }
+  )
+  expect(resp.status(), await resp.text().catch(() => '<no body>')).toBe(200)
+  return resp
+}
+
 test.describe('MandateDocumentSection — upload and replace', () => {
   test('uploads a new mandate document, then replaces it with a different file', async ({
     page,
     authenticatedMembersPage,
   }) => {
+    const consoleErrors: string[] = []
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text())
+    })
+    page.on('pageerror', (err) => consoleErrors.push(`pageerror: ${err.message}`))
+
     const { id: memberId, lastName } = await createTestMember(page)
 
     await authenticatedMembersPage.search(lastName)
@@ -71,16 +94,19 @@ test.describe('MandateDocumentSection — upload and replace', () => {
 
     // Only start listening once the upload button is about to be clicked — creating this
     // earlier races the wait's own timeout against however long file selection takes.
-    const firstUploadResponse = page.waitForResponse(
-      (resp) =>
-        resp.url().includes(`/api/admin/members/${memberId}/mandate-document`) &&
-        resp.request().method() === 'POST' &&
-        resp.status() === 200,
-      { timeout: 15000 }
-    )
+    const firstUploadResponse = waitForUploadResponse(page, memberId)
     await page.getByTestId('mandate-document-upload-btn').click()
 
-    const firstDoc = await (await firstUploadResponse).json()
+    let firstResp: PlaywrightResponse
+    try {
+      firstResp = await firstUploadResponse
+    } catch (err) {
+      throw new Error(
+        `Upload response never arrived. Browser console errors captured: ${JSON.stringify(consoleErrors)}`,
+        { cause: err }
+      )
+    }
+    const firstDoc = await firstResp.json()
     expect(firstDoc.original_filename).toBe('test-mandate-large.jpg')
 
     await expect(page.getByTestId('mandate-document-stored')).toBeVisible()
@@ -99,16 +125,11 @@ test.describe('MandateDocumentSection — upload and replace', () => {
     // headroom for CI's parallel load, matching the convention used above.
     await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 })
 
-    const secondUploadResponse = page.waitForResponse(
-      (resp) =>
-        resp.url().includes(`/api/admin/members/${memberId}/mandate-document`) &&
-        resp.request().method() === 'POST' &&
-        resp.status() === 200,
-      { timeout: 15000 }
-    )
+    const secondUploadResponse = waitForUploadResponse(page, memberId)
     await page.getByTestId('mandate-document-upload-btn').click()
 
-    const secondDoc = await (await secondUploadResponse).json()
+    const secondResp = await secondUploadResponse
+    const secondDoc = await secondResp.json()
     expect(secondDoc.original_filename).toBe('test-mandate.pdf')
     // A genuinely new upload, not a stale re-render of the first response
     expect(secondDoc.uploaded_at).not.toBe(firstDoc.uploaded_at)
