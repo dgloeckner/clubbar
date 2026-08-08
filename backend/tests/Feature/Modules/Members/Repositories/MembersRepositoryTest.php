@@ -79,6 +79,44 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->assertTrue($found, "Test member {$testMemberId} should be found in results when querying with milliseconds");
     }
 
+    public function test_findModifiedSince_includes_rows_written_in_the_cursor_second(): void
+    {
+        // #84: `updated_at` has second precision, so a member written at
+        // 12:00:00.8 is stored the same as one written at 12:00:00.2. A cursor
+        // of 12:00:00 with a strict `>` would skip the second member forever.
+        $testMemberId = $this->generateUuid();
+        $testMember = [
+            'id' => $testMemberId,
+            'card_uid' => '04:AA:BB:CC:DD:EE:22',
+            'first_name' => 'BoundaryTest',
+            'last_name' => 'User',
+            'email' => 'boundary-test@example.com',
+            'preferred_language' => 'de',
+            'is_active' => 1,
+            'iban' => 'DE89370400440532013000',
+            'mandate_reference' => 'MANDATE' . substr($testMemberId, 0, 8),
+            'mandate_signed_at' => '2025-01-01',
+        ];
+
+        $this->testMemberIds[] = $testMemberId;
+        $this->membersRepository->create($testMember);
+
+        $member = $this->membersRepository->findById($testMemberId);
+        $this->assertNotNull($member, 'Test member should be created');
+
+        // Cursor sits exactly on the member's own second — the boundary a
+        // terminal lands on when an earlier sync already returned that second.
+        $cursorMs = (new \DateTime($member['updated_at']))->getTimestamp() * 1000;
+
+        $results = $this->membersRepository->findModifiedSince($cursorMs);
+
+        $this->assertContains(
+            $testMemberId,
+            array_column($results, 'id'),
+            "Member {$testMemberId} must still be returned when the cursor sits on its own second",
+        );
+    }
+
     public function test_findModifiedSince_returns_empty_when_timestamp_in_future(): void
     {
         // Create test member
