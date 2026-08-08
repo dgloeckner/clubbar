@@ -354,6 +354,63 @@ class TransactionsServiceTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // processBatch — asking for a balance without selling anything (#191)
+    // ------------------------------------------------------------------
+
+    public function test_processBatch_reports_balances_for_requested_members_with_an_empty_batch(): void
+    {
+        // The terminal after a settlement: nothing to upload, but the member is
+        // standing at the card reader and their tab is now zero.
+        $this->membersRepository->method('findById')
+            ->with('member-1')
+            ->willReturn($this->sepaValidMember('member-1'));
+        $this->transactionsRepository->expects($this->never())->method('insertTransaction');
+        $this->transactionsRepository->method('getUnsettledMemberBalanceCents')
+            ->with('member-1')
+            ->willReturn(0);
+
+        $result = $this->service->processBatch([], ['member-1']);
+
+        $this->assertSame([], $result->acceptedIds);
+        $this->assertSame(['member-1' => 0], $result->memberBalances);
+    }
+
+    public function test_processBatch_omits_a_requested_member_the_backend_does_not_know(): void
+    {
+        // A phantom 0 would read to the terminal as "owes nothing" and overwrite
+        // a real cached balance. An absent key leaves the cache alone.
+        $this->membersRepository->method('findById')->willReturn(null);
+        $this->transactionsRepository->expects($this->never())->method('getUnsettledMemberBalanceCents');
+
+        $result = $this->service->processBatch([], ['ghost-member']);
+
+        $this->assertSame([], $result->memberBalances);
+    }
+
+    public function test_processBatch_does_not_report_a_requested_member_twice(): void
+    {
+        $this->membersRepository->method('findById')
+            ->willReturn($this->sepaValidMember('member-1'));
+        $this->transactionsRepository->method('insertTransaction')->willReturn(['id' => 'tx-1']);
+        $this->transactionsRepository->expects($this->once())
+            ->method('getUnsettledMemberBalanceCents')
+            ->with('member-1')
+            ->willReturn(350);
+
+        $tx = [
+            'id' => 'tx-1',
+            'member_id' => 'member-1',
+            'product_id' => 'product-1',
+            'amount_cents' => 350,
+            'created_at' => date('Y-m-d H:i:s'),
+        ];
+
+        $result = $this->service->processBatch([$tx], ['member-1']);
+
+        $this->assertSame(['member-1' => 350], $result->memberBalances);
+    }
+
+    // ------------------------------------------------------------------
     // processBatch — implausible sale times (#79, ruling #144 §2)
     //
     // occurred_at is terminal-owned and stays exactly as sent: clamping it

@@ -211,9 +211,16 @@ class NetworkService {
   /// The generated [TransactionBatchResponse.fromJson] cannot handle `[]`, so
   /// this method decodes the raw response body manually and applies the same
   /// defensive logic as the old `TransactionSyncResponse.fromJson`.
+  ///
+  /// [memberIds] names members whose balance should be reported back even
+  /// though no uploaded transaction touches them (#191). It is what lets an
+  /// empty batch still be a question: after a settlement there is nothing to
+  /// upload, so without naming the member the response carries no balance and
+  /// the terminal keeps showing the pre-settlement Deckel.
   Future<TransactionBatchResponse> syncTransactions(
-    List<Map<String, dynamic>> transactions,
-  ) async {
+    List<Map<String, dynamic>> transactions, {
+    List<String> memberIds = const [],
+  }) async {
     try {
       // Build the typed request body from the raw maps.
       final txList = transactions.map((t) {
@@ -226,7 +233,10 @@ class NetworkService {
         );
       }).toList();
 
-      final requestBody = TransactionBatchRequest(transactions: txList);
+      final requestBody = TransactionBatchRequest(
+        transactions: txList,
+        memberIds: memberIds.isEmpty ? null : memberIds,
+      );
       final response = await _api.syncTransactionsPost(body: requestBody);
 
       _logger.i('POST /sync/transactions -> HTTP ${response.statusCode}');

@@ -39,6 +39,55 @@ Key constraints:
 4. **Calculation-free**: Terminal does NOT calculate balance from transaction history; uses stored value
 5. **Sync-driven updates**: Balance refreshed only after successful sync with backend
 6. **Graceful degradation**: If sync fails, terminal shows previously synced balance
+7. **A sync request may ask about members it is not selling to**: the request names, in `member_ids`, every member whose balance it wants back — so a balance can be refreshed when nothing was sold
+
+### Refreshing a Balance When Nothing Was Sold
+
+`member_balances` reports only the members the request **names**. Originally the
+only way to name a member was to upload a transaction for them, which left a
+hole ([#191](https://github.com/dgloeckner/ruderbar/issues/191)): a settlement
+brings a member's tab to zero without the terminal doing anything, and after it
+there is no purchase to upload and none coming. The member scanned their card
+and were shown money they had already paid, until they happened to buy
+something.
+
+`POST /sync/transactions` therefore accepts an optional `member_ids` array
+alongside `transactions`, and an empty `transactions` array is a valid request
+when `member_ids` is non-empty. The terminal names the scanned member on every
+card-scan refresh, so the question "what does this member owe" is asked whether
+or not there is anything to upload.
+
+This keeps principle 4 — the balance is still never calculated by the terminal —
+and principle 3: the backend remains the authoritative source, and its answer is
+still delivered by a sync response rather than by a second, separate read.
+
+Two rules preserve graceful degradation:
+
+| Situation | Response | Terminal |
+|-----------|----------|----------|
+| Named member exists | `member_balances[id] = <cents>` | Overwrite the cached balance |
+| Named member unknown to the backend | key **absent** (never `0`) | Leave the cached balance alone |
+| Request fails (offline, 4xx, 5xx) | — | Leave the cached balance alone, silently |
+
+An unknown id is omitted rather than reported as `0` because a phantom zero
+reads to the terminal as "this member owes nothing" and would overwrite a real
+balance — the one outcome this ADR's authoritative-source rule must not produce.
+
+```mermaid
+sequenceDiagram
+    participant M as Member
+    participant T as Terminal
+    participant B as Backend
+
+    Note over B: Treasurer has just settled this member's tab
+
+    M->>T: Scan card
+    T->>T: SELECT unsynced transactions → none
+    T->>B: POST /sync/transactions<br/>{transactions: [], member_ids: [member]}
+    B-->>T: {accepted_ids: [], member_balances: {member: 0}}
+    T->>T: UPDATE members_balance SET balance_cents = 0
+    T-->>M: Deckel €0.00
+```
 
 ### Data Structure
 
@@ -184,6 +233,41 @@ Query `/sync/balance/{member_id}` on every balance display.
 - Backend load for every balance check
 
 **Rejected**: Violates offline-first principle; unacceptable UX latency.
+
+Note that `member_ids` (above) is *not* this alternative: the balance is still
+read from a sync response at the existing card-scan sync point, still written to
+SQLite, and still what every display reads. Nothing queries the backend to
+render a figure.
+
+### Alternative 4: A Dedicated Balance Read (#191)
+
+Add `GET /terminal/members/{id}/balance` and have the terminal call it on card
+scan.
+
+**Pros**: Clean separation of read from upload
+**Cons**:
+- A second round trip on every scan, on the network path most likely to be flaky
+- `_refreshBalance` stops being an opportunistic sync and becomes a real fetch,
+  splitting "upload what we have" and "learn what they owe" into two operations
+  that can now disagree
+- New endpoint and OAS surface for something the sync response already carries
+
+**Rejected**: `member_ids` gets the same answer in the request already being made.
+
+### Alternative 5: Carry the Balance on Member Sync (#191)
+
+Populate `balance_cents` on the member-sync payload so the periodic member
+refresh corrects it.
+
+**Pros**: No change to the transaction endpoint
+**Cons**:
+- Puts a volatile figure on an otherwise slow-moving record (the `members` table
+  has no such column)
+- Corrects only at the next periodic member refresh, not at the scan — the
+  member standing at the terminal can still be shown a stale Deckel
+- Widest blast radius of the three options
+
+**Rejected**: Does not actually close the window the member experiences.
 
 ### Alternative 3: Caching with TTL
 

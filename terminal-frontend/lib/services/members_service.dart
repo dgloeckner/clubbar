@@ -34,6 +34,12 @@ class MembersService {
   /// Attempt to refresh member balance from backend via opportunistic sync.
   /// Sends any unsynced transactions and applies the returned memberBalances.
   /// Silently swallows all errors — offline is fine.
+  ///
+  /// The request always *names* the scanned member (#191). The backend reports
+  /// balances only for members it was asked about, and the common case here is
+  /// an empty batch: after a settlement collects the tab there is nothing left
+  /// to upload and no next purchase to reveal the change, so a request that did
+  /// not name the member left the pre-settlement Deckel on screen.
   Future<void> _refreshBalance(String memberId) async {
     final network = _networkService;
     if (network == null) return;
@@ -50,7 +56,8 @@ class MembersService {
                 'created_at': t.createdAt,
               })
           .toList();
-      final response = await network.syncTransactions(payload);
+      final response =
+          await network.syncTransactions(payload, memberIds: [memberId]);
       final freshBalance = response.memberBalances[memberId];
       if (freshBalance != null) {
         await _repository.updateMemberBalance(memberId, freshBalance);

@@ -26,8 +26,22 @@ class SyncController
         $body = $request->getParsedBody() ?? [];
         $transactions = $body['transactions'] ?? null;
 
-        if ($transactions === null || !is_array($transactions) || count($transactions) === 0) {
+        // #191: a terminal with nothing to upload still needs a way to ask what
+        // a member owes — after a settlement the tab is zero and no purchase is
+        // coming to reveal it. `member_ids` is that ask, and it is the only
+        // thing that makes an empty batch a meaningful request.
+        $requestedMemberIds = $this->readRequestedMemberIds($body);
+
+        if ($transactions === null || !is_array($transactions)) {
             return $this->json($response, ['error' => 'invalid_request', 'message' => 'transactions array is required and must not be empty'], 400);
+        }
+
+        if (count($transactions) === 0 && count($requestedMemberIds) === 0) {
+            return $this->json($response, ['error' => 'invalid_request', 'message' => 'transactions array is required and must not be empty'], 400);
+        }
+
+        if (count($requestedMemberIds) > self::MAX_BATCH_SIZE) {
+            return $this->json($response, ['error' => 'invalid_request', 'message' => 'member_ids exceeds maximum of 100'], 400);
         }
 
         if (count($transactions) > self::MAX_BATCH_SIZE) {
@@ -81,9 +95,36 @@ class SyncController
             $rows[] = TerminalTransactionAllowlist::build(is_array($tx) ? $tx : [], $terminalId);
         }
 
-        $result = $this->transactionsService->processBatch($rows);
+        $result = $this->transactionsService->processBatch($rows, $requestedMemberIds);
 
         return $this->json($response, $result->toArray(), 201);
+    }
+
+    /**
+     * Read the optional `member_ids` ask off the request body.
+     *
+     * Anything that is not a non-empty string is dropped rather than reported:
+     * this is a read, so a malformed id can only ever cost the caller a balance
+     * it did not get. Rejecting the batch over it would refuse an upload of
+     * real sales for a bad *query* parameter.
+     *
+     * @return list<string>
+     */
+    private function readRequestedMemberIds(array $body): array
+    {
+        $raw = $body['member_ids'] ?? null;
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($raw as $id) {
+            if (is_string($id) && $id !== '') {
+                $ids[$id] = true;
+            }
+        }
+
+        return array_keys($ids);
     }
 
     public function transactionHistory(Request $request, Response $response, array $args): Response
