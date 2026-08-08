@@ -352,21 +352,9 @@ class TransactionsRepository
         return $stmt->fetchAll();
     }
 
-    public function count(): int
-    {
-        return (int) $this->db->query('SELECT COUNT(*) FROM transactions')->fetchColumn();
-    }
-
     public function countRecentTransactions(int $days = 30): int
     {
         $stmt = $this->db->prepare('SELECT COUNT(*) FROM transactions WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL ? DAY)');
-        $stmt->execute([$days]);
-        return (int) $stmt->fetchColumn();
-    }
-
-    public function sumRecentAmountCents(int $days = 30): int
-    {
-        $stmt = $this->db->prepare('SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE occurred_at >= DATE_SUB(NOW(), INTERVAL ? DAY)');
         $stmt->execute([$days]);
         return (int) $stmt->fetchColumn();
     }

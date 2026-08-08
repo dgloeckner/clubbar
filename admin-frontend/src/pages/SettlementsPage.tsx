@@ -119,13 +119,14 @@ export function SettlementsPage() {
     initialSortKey: 'created_at',
     initialSortDirection: 'desc',
     initialPageSize: defaultPageSize,
-    fetcher: async ({ page, pageSize, sortDirection, filters, signal }) => {
-      // SettlementsRepository::listPaginated always sorts by created_at server-side — there's
-      // no per-column sort, only a direction. Clicking "Date" or "Created By" both just flip
-      // that direction (`order`); sort_by's per-column enum is reserved for future use.
+    fetcher: async ({ page, pageSize, sortKey, sortDirection, filters, signal }) => {
+      // Both headers are real sorts now (#120). The key used to be dropped here
+      // because the repository ignored it, so clicking "Created By" moved the
+      // arrow onto a column the order had nothing to do with.
       const params: ListSettlementsParams = {
         page,
         per_page: pageSize,
+        sort: sortKey,
         order: sortDirection,
       }
 

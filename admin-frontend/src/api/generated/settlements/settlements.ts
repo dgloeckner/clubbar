@@ -64,6 +64,7 @@ import type {
   ListSettlementsParams,
   PreviewSettlementBody,
   PreviewSettlementByFiltersParams,
+  ReverseSettlementBody,
   Settlement,
   SettlementCreateRequest,
   SettlementFilterPreview,
@@ -130,7 +131,9 @@ with unsettled activity in that window. They do not bound the amounts:
 each participant's whole unsettled position is what is tested and, on
 inclusion, what is swept. Members split into three buckets by that
 total: `> 0` and `= 0` are eligible (zero settles but produces no line
-in the pain.008), `< 0` is excluded into `credit_members`.
+in the pain.008), `< 0` is excluded into `credit_members`. A member on
+collection hold after a returned direct debit lands in `held_members`
+instead, whatever their balance (ruling #148 §4).
 
 **Use Cases**: UC-A30, UC-SEPA-06
 
@@ -222,6 +225,42 @@ const submitSettlement = (
  options?: SecondParameter<typeof customInstance<Settlement>>,) => {
       return customInstance<Settlement>(
       {url: `/admin/settlements/${settlementId}/submit`, method: 'POST'
+    },
+      options);
+    }
+  /**
+ * Record that the bank clawed a collection back, or that the club
+collected in error (ruling #148, issue #196).
+
+The other end of `submit`: once money has moved, a settlement is
+reversed, never cancelled. Exactly one of `is_cancellable` and
+`is_reversible` is true for any live settlement.
+
+**One mechanism, per-member granularity.** `member_ids` names who came
+back; omitting it means every member the settlement covers — the
+whole-settlement undo, not a separate code path.
+
+For each named member the endpoint releases that member's claim on
+their transactions (their rows survive, so the settlement's CSV export
+still shows what it originally contained) and appends a
+`settlement_reversals` row. Both writes commit together or not at all.
+
+A `bank_return` additionally places each member on **collection hold**,
+so the next run does not re-debit exactly what just bounced. Held
+members appear in the settlement preview's `held_members` bucket and
+are cleared via
+`POST /admin/members/{memberId}/collection-hold/clear`.
+
+ * @summary Reverse a settlement, per member
+ */
+const reverseSettlement = (
+    settlementId: string,
+    reverseSettlementBody: ReverseSettlementBody,
+ options?: SecondParameter<typeof customInstance<Settlement>>,) => {
+      return customInstance<Settlement>(
+      {url: `/admin/settlements/${settlementId}/reverse`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: reverseSettlementBody
     },
       options);
     }
@@ -320,7 +359,7 @@ const createSettlementByFilters = (
     },
       options);
     }
-  return {listSettlements,createSettlement,previewSettlement,getExecutionDateInfo,getSettlement,cancelSettlement,submitSettlement,downloadSepaXml,downloadSettlementCsv,exportSettlementTransactions,previewSettlementByFilters,createSettlementByFilters}};
+  return {listSettlements,createSettlement,previewSettlement,getExecutionDateInfo,getSettlement,cancelSettlement,submitSettlement,reverseSettlement,downloadSepaXml,downloadSettlementCsv,exportSettlementTransactions,previewSettlementByFilters,createSettlementByFilters}};
 export type ListSettlementsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['listSettlements']>>>
 export type CreateSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['createSettlement']>>>
 export type PreviewSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['previewSettlement']>>>
@@ -328,6 +367,7 @@ export type GetExecutionDateInfoResult = NonNullable<Awaited<ReturnType<ReturnTy
 export type GetSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['getSettlement']>>>
 export type CancelSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['cancelSettlement']>>>
 export type SubmitSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['submitSettlement']>>>
+export type ReverseSettlementResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['reverseSettlement']>>>
 export type DownloadSepaXmlResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['downloadSepaXml']>>>
 export type DownloadSettlementCsvResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['downloadSettlementCsv']>>>
 export type ExportSettlementTransactionsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getSettlements>['exportSettlementTransactions']>>>

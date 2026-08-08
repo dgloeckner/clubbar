@@ -58,9 +58,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type { ListSettlementsOrder } from './listSettlementsOrder';
-import type { ListSettlementsSortBy } from './listSettlementsSortBy';
+import type { ListSettlementsSort } from './listSettlementsSort';
 import type { ListSettlementsStatus } from './listSettlementsStatus';
-import type { ListSettlementsType } from './listSettlementsType';
 import type { PageParameter } from './pageParameter';
 import type { PerPageParameter } from './perPageParameter';
 
@@ -77,10 +76,6 @@ page?: PageParameter;
  */
 per_page?: PerPageParameter;
 /**
- * Filter by settlement type
- */
-type?: ListSettlementsType;
-/**
  * Filter by cancellation status
  */
 status?: ListSettlementsStatus;
@@ -93,13 +88,15 @@ date_from?: string;
  */
 date_to?: string;
 /**
- * Reserved for future use — the backend currently sorts by created_at
-regardless of this value. Use `order` to control sort direction.
+ * Column to sort by. `created_by` orders on the display name of the
+admin who created the settlement — the two columns the settlements
+table offers as sortable headers. Any other value falls back to
+`created_at`.
 
  */
-sort_by?: ListSettlementsSortBy;
+sort?: ListSettlementsSort;
 /**
- * Sort direction, applied to created_at (the only sortable column today)
+ * Sort direction
  */
 order?: ListSettlementsOrder;
 };

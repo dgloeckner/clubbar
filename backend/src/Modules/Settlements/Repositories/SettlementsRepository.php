@@ -405,7 +405,12 @@ class SettlementsRepository
 
         $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
         $dir = SafeQuery::direction($sortOrder);
-        $sortCol = $sortKey === 'created_at' ? 's.created_at' : 's.created_at';
+        // Both keys the settlements table offers as sortable headers. Until
+        // #120 this was a ternary whose two branches were the same column, so
+        // clicking "Created by" re-sorted by date and the arrow moved onto a
+        // heading the order had nothing to do with.
+        $sortMap = ['created_at' => 's.created_at', 'created_by' => 'a.display_name'];
+        $sortCol = $sortMap[$sortKey] ?? 's.created_at';
 
         $countStmt = $this->db->prepare("SELECT COUNT(*) FROM settlements s {$whereClause}");
         $countStmt->execute($params);
@@ -440,11 +445,6 @@ class SettlementsRepository
         );
         $stmt->execute($params);
         return $stmt->fetchAll();
-    }
-
-    public function count(): int
-    {
-        return (int) $this->db->query('SELECT COUNT(*) FROM settlements WHERE is_cancelled = 0')->fetchColumn();
     }
 
     public function countPending(): int

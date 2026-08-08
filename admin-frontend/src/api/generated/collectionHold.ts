@@ -58,11 +58,30 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export type ListSettlementsSortBy = typeof ListSettlementsSortBy[keyof typeof ListSettlementsSortBy];
+/**
+ * A member the next collection run must leave alone after a returned
+direct debit (ruling #148 §3). Without the hold, the next run sweeps
+the member's whole unsettled position — including what just bounced —
+and earns a second return fee.
 
+ */
+export interface CollectionHold {
+  member_id?: string;
+  first_name?: string;
+  last_name?: string;
+  /**
+   * Why the member is held. Retained after the hold is cleared, so the
+question "why was this member skipped in March?" stays answerable.
 
-export const ListSettlementsSortBy = {
-  created_at_desc: 'created_at_desc',
-  created_at_asc: 'created_at_asc',
-  execution_date: 'execution_date',
-} as const;
+   * @nullable
+   */
+  collection_hold_reason?: string | null;
+  /** @nullable */
+  held_at?: string | null;
+  /** @nullable */
+  held_by_admin_id?: string | null;
+  /** @nullable */
+  held_by_admin_name?: string | null;
+  /** What the member currently owes, held back from collection. */
+  balance_cents?: number;
+}

@@ -686,24 +686,42 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $this->assertEquals($idOlder, $result['items'][1]['id']);
     }
 
-    public function test_listPaginated_sortKey_parameter_has_no_effect_on_order(): void
+    public function test_listPaginated_sorts_by_created_by(): void
     {
-        // NOTE: Suspected bug in SettlementsRepository::listPaginated() —
-        // $sortCol is computed as `$sortKey === 'created_at' ? 's.created_at' : 's.created_at'`,
-        // which always evaluates to 's.created_at' regardless of $sortKey's actual value.
-        // This means any $sortKey other than 'created_at' silently has no effect; the
-        // method can never sort by anything else. Documenting actual behaviour here.
+        // The settlements table offers a "Created by" header, and until #120
+        // clicking it re-sorted by date: $sortCol was a ternary whose two
+        // branches were both 's.created_at'.
+        $zoe = $this->createTestAdminUser('sortby-zoe@example.com', 'Zoe Treasurer');
+        $ada = $this->createTestAdminUser('sortby-ada@example.com', 'Ada Treasurer');
+
+        // Created in the order Zoe-then-Ada, so a fallback to created_at would
+        // put Zoe first and be visibly distinguishable from the name order.
+        $zoeSettlement = $this->createSettlementRow($zoe, '2027-03-01', '2027-03-01', 100, 1);
+        $this->setSettlementCreatedAt($zoeSettlement, '2027-03-01 00:00:00');
+
+        $adaSettlement = $this->createSettlementRow($ada, '2027-03-02', '2027-03-02', 200, 1);
+        $this->setSettlementCreatedAt($adaSettlement, '2027-03-02 00:00:00');
+
+        $result = $this->settlementsRepository->listPaginated(10, 0, null, 'created_by', 'asc', '2027-03-01', '2027-03-02');
+
+        $this->assertEquals($adaSettlement, $result['items'][0]['id'], 'ASC by created_by must order by the admin display name');
+        $this->assertEquals($zoeSettlement, $result['items'][1]['id']);
+    }
+
+    public function test_listPaginated_falls_back_to_created_at_for_an_unknown_sort_key(): void
+    {
+        // An unsupported key must not throw or produce arbitrary SQL — it
+        // orders by the default column.
         $adminId = $this->createTestAdminUser('sortkey-admin@example.com');
 
-        $idOlder = $this->createSettlementRow($adminId, '2027-03-01', '2027-03-01', 100, 1);
-        $this->setSettlementCreatedAt($idOlder, '2027-03-01 00:00:00');
+        $idOlder = $this->createSettlementRow($adminId, '2027-03-11', '2027-03-11', 100, 1);
+        $this->setSettlementCreatedAt($idOlder, '2027-03-11 00:00:00');
 
-        $idNewer = $this->createSettlementRow($adminId, '2027-03-02', '2027-03-02', 200, 1);
-        $this->setSettlementCreatedAt($idNewer, '2027-03-02 00:00:00');
+        $idNewer = $this->createSettlementRow($adminId, '2027-03-12', '2027-03-12', 200, 1);
+        $this->setSettlementCreatedAt($idNewer, '2027-03-12 00:00:00');
 
-        $result = $this->settlementsRepository->listPaginated(10, 0, null, 'total_amount_cents', 'desc', '2027-03-01', '2027-03-02');
+        $result = $this->settlementsRepository->listPaginated(10, 0, null, 'total_amount_cents', 'desc', '2027-03-11', '2027-03-12');
 
-        // Even though 'total_amount_cents' desc was requested, ordering still falls back to created_at desc.
         $this->assertEquals($idNewer, $result['items'][0]['id']);
         $this->assertEquals($idOlder, $result['items'][1]['id']);
     }
@@ -832,32 +850,8 @@ class SettlementsRepositoryTest extends DatabaseTestCase
     }
 
     // ------------------------------------------------------------------
-    // count / countPending
+    // countPending
     // ------------------------------------------------------------------
-
-    public function test_count_increases_by_one_when_active_settlement_created(): void
-    {
-        $adminId = $this->createTestAdminUser('count-admin@example.com');
-        $before = $this->settlementsRepository->count();
-
-        $this->createSettlementRow($adminId, '2026-08-01', '2026-08-02', 100, 1);
-
-        $after = $this->settlementsRepository->count();
-
-        $this->assertEquals($before + 1, $after);
-    }
-
-    public function test_count_excludes_cancelled_settlements(): void
-    {
-        $adminId = $this->createTestAdminUser('countcancel-admin@example.com');
-        $before = $this->settlementsRepository->count();
-
-        $this->createSettlementRow($adminId, '2026-08-05', '2026-08-06', 100, 1, isCancelled: true);
-
-        $after = $this->settlementsRepository->count();
-
-        $this->assertEquals($before, $after, 'Cancelled settlements must not be counted');
-    }
 
     public function test_countPending_excludes_exported_settlements(): void
     {

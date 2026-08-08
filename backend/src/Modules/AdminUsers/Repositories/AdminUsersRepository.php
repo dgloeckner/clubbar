@@ -30,16 +30,6 @@ class AdminUsersRepository
         return $stmt->fetch() ?: null;
     }
 
-    public function findAll(): array
-    {
-        return $this->db->query('SELECT * FROM admin_users ORDER BY created_at ASC')->fetchAll();
-    }
-
-    public function findActive(): array
-    {
-        return $this->db->query('SELECT * FROM admin_users WHERE is_active = 1 ORDER BY created_at ASC')->fetchAll();
-    }
-
     public function countActive(): int
     {
         return (int) $this->db->query('SELECT COUNT(*) FROM admin_users WHERE is_active = 1')->fetchColumn();

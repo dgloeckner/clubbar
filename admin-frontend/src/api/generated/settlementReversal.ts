@@ -57,63 +57,55 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { SettlementListItemMethod } from './settlementListItemMethod';
-import type { SettlementListItemStatus } from './settlementListItemStatus';
-import type { SettlementReversal } from './settlementReversal';
+import type { SettlementReversalReason } from './settlementReversalReason';
 
-export interface SettlementListItem {
+/**
+ * One member's collection undone after the money moved (ruling #148).
+Append-only: there is no update and no delete, because the derived
+settlement status is computed from these rows.
+
+ */
+export interface SettlementReversal {
   id?: string;
-  /** How this settlement's balance is collected. Replaces the old
-`settlement_type`/`manual_reason` pair (ruling #163). Only
-`direct_debit` settlements can be exported to SEPA.
- */
-  method?: SettlementListItemMethod;
-  settlement_date?: string;
+  settlement_id?: string;
+  member_id?: string;
   /** @nullable */
-  execution_date?: string | null;
-  member_count?: number;
-  total_amount_cents?: number;
-  is_cancelled?: boolean;
+  first_name?: string | null;
   /** @nullable */
-  exported_at?: string | null;
-  /** @nullable */
-  submitted_at?: string | null;
-  /** @nullable */
-  submitted_by_admin_id?: string | null;
-  /** Whether a cancel request would currently be accepted. */
-  is_cancellable?: boolean;
-  /**
-   * Human-readable reason cancellation is unavailable. Null when
-`is_cancellable` is true.
+  last_name?: string | null;
+  /** `bank_return` places the member on collection hold; `club_error`
+does not, because re-collection is the point of recording one.
 
+There is deliberately no finer classification of *why* the bank
+returned it: in Germany AM04, AC04, MD07 and RR01-04 are
+suppressed for data-protection reasons and collapse into
+"sonstige Gründe".
+ */
+  reason?: SettlementReversalReason;
+  reason_label?: string;
+  /** The sum of that member's items in the settlement. Derived, never
+supplied by the caller.
+ */
+  amount_cents?: number;
+  amount_eur?: number;
+  /**
+   * The reference on the return booking, capped at the ISO 20022
+length. The original Verwendungszweck never comes back — DK
+replaces `SVWZ` with the constant RETURN/REFUND — so this is the
+only thread back to the return.
+
+   * @maxLength 35
    * @nullable
    */
-  cancellation_blocked_reason?: string | null;
-  /** Where the settlement stands, derived on every read from
-`is_cancelled`, the reversal rows, `submitted_at` and
-`exported_at` (ruling #148 §6). There is no status column, so
-nothing can drift out of step with it.
- */
-  status?: SettlementListItemStatus;
-  /** Human-readable form of `status`. */
-  status_label?: string;
-  /** Whether a reverse request would currently be accepted — the exact
-mirror of `is_cancellable`. A settlement is one or the other,
-never both; a cancelled one is neither.
- */
-  is_reversible?: boolean;
+  bank_reference?: string | null;
   /**
-   * Human-readable reason reversal is unavailable. Null when
-`is_reversible` is true.
-
+   * @maxLength 1000
    * @nullable
    */
-  reversal_blocked_reason?: string | null;
-  /** How many of this settlement's members carry a reversal. */
-  reversed_member_count?: number;
-  /** The reversal events, present on the single-settlement read. The
-list endpoint does not join them and returns an empty array.
- */
-  reversals?: SettlementReversal[];
+  notes?: string | null;
+  /** @nullable */
+  created_by_admin_id?: string | null;
+  /** @nullable */
+  created_by_admin_name?: string | null;
   created_at?: string;
 }

@@ -1232,26 +1232,9 @@ class TransactionsRepositoryTest extends DatabaseTestCase
     }
 
     // ---------------------------------------------------------------
-    // count / countRecentTransactions / sumRecentAmountCents / sumUnsettledAmountCents
+    // countRecentTransactions / sumUnsettledAmountCents
     // (no filter parameters exist, so we verify via before/after delta on our own inserts)
     // ---------------------------------------------------------------
-
-    public function test_count_increases_after_insert(): void
-    {
-        $before = $this->transactionsRepository->count();
-
-        $memberId = $this->createTestMember('CountDelta', 'User');
-        $transactionId = $this->generateUuid();
-        $this->testTransactionIds[] = $transactionId;
-        $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
-        );
-        $stmt->execute([$transactionId, $memberId, null, 100, 'purchase', date('Y-m-d H:i:s')]);
-
-        $after = $this->transactionsRepository->count();
-
-        $this->assertEquals($before + 1, $after);
-    }
 
     public function test_countRecentTransactions_counts_transaction_within_window(): void
     {
@@ -1286,23 +1269,6 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $after = $this->transactionsRepository->countRecentTransactions(30);
 
         $this->assertEquals($before, $after, 'Old transaction must not be counted as recent');
-    }
-
-    public function test_sumRecentAmountCents_sums_amount_within_window(): void
-    {
-        $before = $this->transactionsRepository->sumRecentAmountCents(30);
-
-        $memberId = $this->createTestMember('SumRecent', 'User');
-        $transactionId = $this->generateUuid();
-        $this->testTransactionIds[] = $transactionId;
-        $stmt = $this->db->prepare(
-            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
-        );
-        $stmt->execute([$transactionId, $memberId, null, 777, 'purchase', date('Y-m-d H:i:s')]);
-
-        $after = $this->transactionsRepository->sumRecentAmountCents(30);
-
-        $this->assertEquals($before + 777, $after);
     }
 
     public function test_sumUnsettledAmountCents_includes_only_unsettled(): void

@@ -1579,13 +1579,6 @@ paths:
       parameters:
         - $ref: '#/components/parameters/page'
         - $ref: '#/components/parameters/perPage'
-        - name: type
-          in: query
-          description: Filter by settlement type
-          schema:
-            type: string
-            enum: [all, sepa, manual]
-            default: all
         - name: status
           in: query
           description: Filter by cancellation status
@@ -1605,18 +1598,20 @@ paths:
           schema:
             type: string
             format: date
-        - name: sort_by
+        - name: sort
           in: query
           description: |
-            Reserved for future use — the backend currently sorts by created_at
-            regardless of this value. Use `order` to control sort direction.
+            Column to sort by. `created_by` orders on the display name of the
+            admin who created the settlement — the two columns the settlements
+            table offers as sortable headers. Any other value falls back to
+            `created_at`.
           schema:
             type: string
-            enum: [created_at_desc, created_at_asc, execution_date]
-            default: created_at_desc
+            enum: [created_at, created_by]
+            default: created_at
         - name: order
           in: query
-          description: Sort direction, applied to created_at (the only sortable column today)
+          description: Sort direction
           schema:
             type: string
             enum: [asc, desc]

@@ -57,12 +57,19 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { ReverseSettlementBodyReason } from './reverseSettlementBodyReason';
 
-export type ListSettlementsType = typeof ListSettlementsType[keyof typeof ListSettlementsType];
-
-
-export const ListSettlementsType = {
-  all: 'all',
-  sepa: 'sepa',
-  manual: 'manual',
-} as const;
+export type ReverseSettlementBody = {
+  reason: ReverseSettlementBodyReason;
+  /** The members to reverse. Omit (or send an empty array) to
+reverse every member of the settlement.
+ */
+  member_ids?: string[];
+  /**
+   * The reference quoted on the bank's return booking.
+   * @maxLength 35
+   */
+  bank_reference?: string;
+  /** @maxLength 1000 */
+  notes?: string;
+};

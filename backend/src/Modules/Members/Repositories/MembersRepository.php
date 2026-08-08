@@ -51,14 +51,6 @@ class MembersRepository
         return $stmt->fetch() ?: null;
     }
 
-    public function findAll(): array
-    {
-        return $this->db->query(
-            'SELECT m.*, ' . self::MANDATE_COLUMNS . ' FROM members m ' . self::MANDATE_JOIN
-            . ' ORDER BY m.created_at DESC'
-        )->fetchAll();
-    }
-
     public function findModifiedSince(int $sinceTimestamp): array
     {
         $sinceDate = SyncCursor::lowerBound($sinceTimestamp);
@@ -250,14 +242,6 @@ class MembersRepository
         $stmt = $this->db->prepare('SELECT * FROM mandates WHERE active_member_id = ?');
         $stmt->execute([$memberId]);
         return $stmt->fetch() ?: null;
-    }
-
-    public function deleteById(string $id): bool
-    {
-        $stmt = $this->db->prepare('DELETE FROM members WHERE id = ?');
-        $result = $stmt->execute([$id]);
-        $this->logger->info('Member deleted', ['id' => $id]);
-        return $result && $stmt->rowCount() > 0;
     }
 
     public function count(): int

@@ -172,21 +172,26 @@ class MembersService
             throw NotFoundException::forResource('Member', $memberId);
         }
 
-        $dbUpdateData = [];
-        $map = [
-            'firstName' => 'first_name', 'lastName' => 'last_name', 'email' => 'email',
-            'phone' => 'phone', 'cardUid' => 'card_uid', 'preferredLanguage' => 'preferred_language',
-            'isActive' => 'is_active', 'iban' => 'iban', 'accountHolderName' => 'account_holder_name',
-            'mandateReference' => 'mandate_reference', 'mandateSignedAt' => 'mandate_signed_at',
+        // The fields an update is allowed to carry. This used to be written as
+        // a camelCase => snake_case map, but the loop only ever read the
+        // snake_case side: the camelCase keys named nothing and translated
+        // nothing, so a caller sending `firstName` was silently dropped either
+        // way (#120).
+        $updatable = [
+            'first_name', 'last_name', 'email', 'phone', 'card_uid',
+            'preferred_language', 'is_active', 'iban', 'account_holder_name',
+            'mandate_reference', 'mandate_signed_at',
         ];
-        foreach ($map as $camel => $snake) {
-            if (array_key_exists($snake, $updateData)) {
-                $value = $updateData[$snake];
+
+        $dbUpdateData = [];
+        foreach ($updatable as $field) {
+            if (array_key_exists($field, $updateData)) {
+                $value = $updateData[$field];
                 // Convert boolean to int for database (PDO can convert false to empty string)
-                if ($snake === 'is_active' && is_bool($value)) {
+                if ($field === 'is_active' && is_bool($value)) {
                     $value = (int) $value;
                 }
-                $dbUpdateData[$snake] = $value;
+                $dbUpdateData[$field] = $value;
             }
         }
 
