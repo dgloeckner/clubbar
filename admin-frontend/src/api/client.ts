@@ -12,6 +12,7 @@
 
 import axios from 'axios'
 import type { AxiosRequestConfig } from 'axios'
+import { getApiErrorMessage } from '../utils/apiErrors'
 
 // ─── CSRF ────────────────────────────────────────────────────────────────────
 
@@ -121,8 +122,34 @@ export const customInstance = <T>(
 
 // ─── File download ────────────────────────────────────────────────────────────
 
+/**
+ * A failed blob request carries its error body as a Blob, so the caller would
+ * otherwise only ever see "Request failed with status code 400". Read the body
+ * back and use the API's own message when there is one.
+ */
+async function readDownloadError(error: unknown): Promise<Error> {
+  if (!axios.isAxiosError(error) || !(error.response?.data instanceof Blob)) {
+    return error instanceof Error ? error : new Error(String(error))
+  }
+  try {
+    // Swap the Blob for the parsed body so the shared extractor can read it —
+    // it knows all three shapes the API raises, including the `messages` map
+    // that carries no top-level `message` at all.
+    error.response.data = JSON.parse(await error.response.data.text())
+  } catch {
+    // Not a JSON error body — the transport message is all there is.
+    return error
+  }
+  return new Error(getApiErrorMessage(error, error.message))
+}
+
 export async function downloadFile(url: string, fallbackFilename: string): Promise<void> {
-  const response = await axiosInstance.get(url, { responseType: 'blob' })
+  let response
+  try {
+    response = await axiosInstance.get(url, { responseType: 'blob' })
+  } catch (error) {
+    throw await readDownloadError(error)
+  }
   const contentDisposition = response.headers['content-disposition']
   let filename = fallbackFilename
   if (contentDisposition) {

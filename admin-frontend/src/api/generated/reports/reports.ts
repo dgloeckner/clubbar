@@ -58,7 +58,9 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type {
+  ExportMemberRankingParams,
   ExportReportParams,
+  ExportTerminalActivityParams,
   GetMemberRanking200,
   GetMemberRankingParams,
   GetReportParams,
@@ -129,6 +131,23 @@ const getMemberRanking = (
       options);
     }
   /**
+ * Export the member ranking as CSV, with the same filters as the list endpoint.
+
+**Use Case**: UC-A51
+
+ * @summary Export member ranking as CSV
+ */
+const exportMemberRanking = (
+    params?: ExportMemberRankingParams,
+ options?: SecondParameter<typeof customInstance<Blob>>,) => {
+      return customInstance<Blob>(
+      {url: `/admin/reports/member-ranking/export`, method: 'GET',
+        params,
+        responseType: 'blob'
+    },
+      options);
+    }
+  /**
  * Retrieve terminal activity statistics.
 
 **Use Case**: UC-A52
@@ -145,8 +164,28 @@ const getTerminalActivity = (
     },
       options);
     }
-  return {getReport,exportReport,getMemberRanking,getTerminalActivity}};
+  /**
+ * Export the terminal activity report as CSV. The file carries the same three
+blocks the report shows: sessions, hourly distribution, and terminal summary.
+
+**Use Case**: UC-A52
+
+ * @summary Export terminal activity as CSV
+ */
+const exportTerminalActivity = (
+    params: ExportTerminalActivityParams,
+ options?: SecondParameter<typeof customInstance<Blob>>,) => {
+      return customInstance<Blob>(
+      {url: `/admin/reports/terminal-activity/export`, method: 'GET',
+        params,
+        responseType: 'blob'
+    },
+      options);
+    }
+  return {getReport,exportReport,getMemberRanking,exportMemberRanking,getTerminalActivity,exportTerminalActivity}};
 export type GetReportResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['getReport']>>>
 export type ExportReportResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['exportReport']>>>
 export type GetMemberRankingResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['getMemberRanking']>>>
+export type ExportMemberRankingResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['exportMemberRanking']>>>
 export type GetTerminalActivityResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['getTerminalActivity']>>>
+export type ExportTerminalActivityResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getReports>['exportTerminalActivity']>>>

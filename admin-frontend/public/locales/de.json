@@ -524,6 +524,7 @@
     "groupByYear": "Jahr",
     "applyFilter": "Anwenden",
     "exportCsv": "CSV-Export",
+    "exportFailed": "CSV-Export fehlgeschlagen: {{message}}",
     "summaryRevenue": "Gesamtumsatz",
     "summaryUniqueMembers": "Aktive Mitglieder",
     "summaryCount": "Buchungen",
