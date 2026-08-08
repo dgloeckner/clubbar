@@ -1,4 +1,5 @@
 import { test, expect } from "../../fixtures/auth.fixture";
+import { serverToday } from "../../utils/dates";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -396,5 +397,126 @@ test.describe("Dashboard API", () => {
 
     // Response should complete reasonably quickly (< 5 seconds)
     expect(duration).toBeLessThan(5000);
+  });
+
+  /**
+   * Monthly statistics (#100).
+   *
+   * `GET /admin/statistics/monthly` backs the monthly report screen and had
+   * no API coverage at all — neither its shape, its `month` parameter, nor
+   * the rejection of a malformed one.
+   *
+   * The revenue assertions are deltas, not absolutes: other workers post
+   * transactions into the same month while these run (E2E Pattern 003), so
+   * the test asserts that its own purchase is *included*, never that it is
+   * all that the month contains.
+   */
+  test.describe("Monthly statistics", () => {
+    test("should return the current month with all statistics fields", async ({
+      authenticatedRequest,
+    }) => {
+      const response = await authenticatedRequest.get(
+        `${API_BASE}/admin/statistics/monthly`
+      );
+
+      expect(response.status()).toBe(200);
+      const data = await response.json();
+
+      // Defaults to the month the server is in.
+      expect(data.month).toMatch(/^\d{4}-\d{2}$/);
+      expect(typeof data.total_revenue_cents).toBe("number");
+      expect(typeof data.total_sold_items).toBe("number");
+      expect(Array.isArray(data.daily_revenue)).toBe(true);
+      expect(Array.isArray(data.top_products)).toBe(true);
+      expect(Array.isArray(data.top_members)).toBe(true);
+      // Null when the month sold nothing, an object otherwise — but always present.
+      expect(data).toHaveProperty("top_product");
+    });
+
+    test("should count a new purchase towards the current month", async ({
+      authenticatedRequest,
+      testTransactions,
+    }) => {
+      const before = await (
+        await authenticatedRequest.get(`${API_BASE}/admin/statistics/monthly`)
+      ).json();
+
+      const member = await testTransactions.createMember();
+      const amountCents = 1730;
+      await testTransactions.createSyncTransaction(
+        member.id,
+        amountCents,
+        "Monthly stats purchase"
+      );
+
+      // Asked for by name rather than by default, so a month rollover between
+      // the two reads cannot make them describe different months.
+      const after = await (
+        await authenticatedRequest.get(
+          `${API_BASE}/admin/statistics/monthly?month=${before.month}`
+        )
+      ).json();
+
+      expect(after.month).toBe(before.month);
+      // Parallel workers may add more in between; this purchase must at least
+      // be in there.
+      expect(after.total_revenue_cents).toBeGreaterThanOrEqual(
+        before.total_revenue_cents + amountCents
+      );
+      expect(after.total_sold_items).toBeGreaterThanOrEqual(
+        before.total_sold_items + 1
+      );
+
+      // Today's row exists in the daily breakdown once something was sold.
+      // The date comes from the server, whose timezone need not be the
+      // runner's.
+      const today = await serverToday(authenticatedRequest);
+      const todaysRow = after.daily_revenue.find(
+        (row: { date: string }) => row.date === today
+      );
+      expect(todaysRow, `daily_revenue must carry a row for ${today}`).toBeDefined();
+      expect(todaysRow.transaction_count).toBeGreaterThan(0);
+    });
+
+    test("should honour an explicit month parameter", async ({
+      authenticatedRequest,
+    }) => {
+      // A month long before the club existed: empty, and empty is a valid
+      // answer rather than an error.
+      const response = await authenticatedRequest.get(
+        `${API_BASE}/admin/statistics/monthly?month=2000-01`
+      );
+
+      expect(response.status()).toBe(200);
+      const data = await response.json();
+      expect(data.month).toBe("2000-01");
+      expect(data.total_revenue_cents).toBe(0);
+      expect(data.total_sold_items).toBe(0);
+      expect(data.top_product).toBeNull();
+      expect(data.daily_revenue).toEqual([]);
+      expect(data.top_products).toEqual([]);
+      expect(data.top_members).toEqual([]);
+    });
+
+    test("should reject a malformed month", async ({
+      authenticatedRequest,
+    }) => {
+      for (const month of ["2026-1", "not-a-month", "202601"]) {
+        const response = await authenticatedRequest.get(
+          `${API_BASE}/admin/statistics/monthly?month=${month}`
+        );
+
+        expect(response.status(), `month=${month} must be rejected`).toBe(400);
+        expect((await response.json()).error).toMatch(/month/i);
+      }
+    });
+
+    test("should require authentication", async ({ request }) => {
+      const response = await request.get(
+        `${API_BASE}/admin/statistics/monthly`
+      );
+
+      expect([301, 302, 401, 403]).toContain(response.status());
+    });
   });
 });
