@@ -68,7 +68,9 @@ test.describe('MandateDocumentSection — upload and replace', () => {
       mimeType: 'image/jpeg',
       buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate.jpg')),
     })
-    await expect(page.getByTestId('mandate-document-preview')).toBeVisible()
+    // Client-side compression (browser-image-compression, web worker) can take a while
+    // under CI's parallel load — matches the timeout convention in mandate-document-extraction.spec.ts.
+    await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 })
     await page.getByTestId('mandate-document-upload-btn').click()
 
     const firstDoc = await (await firstUploadResponse).json()
@@ -92,7 +94,9 @@ test.describe('MandateDocumentSection — upload and replace', () => {
       mimeType: 'application/pdf',
       buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate.pdf')),
     })
-    await expect(page.getByTestId('mandate-document-preview')).toBeVisible()
+    // PDFs skip client-side compression, but keep the same generous timeout for headroom
+    // under CI's parallel load, matching mandate-document-extraction.spec.ts's convention.
+    await expect(page.getByTestId('mandate-document-preview')).toBeVisible({ timeout: 25000 })
     await page.getByTestId('mandate-document-upload-btn').click()
 
     const secondDoc = await (await secondUploadResponse).json()
