@@ -1,3 +1,4 @@
+import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from '../../fixtures/auth.fixture';
 
 /**
@@ -18,7 +19,46 @@ import { test, expect } from '../../fixtures/auth.fixture';
 test.describe('Sync Timestamp Protocol', () => {
   const API_BASE = 'http://localhost:8080/api';
 
-  test('members sync cursor uses consistent millisecond format', async ({ authenticatedTerminalRequest }) => {
+  /**
+   * A cursor is derived from the rows a sync returns; with none, the endpoint
+   * correctly echoes the cursor it was given — `since=0` comes back as 0.
+   *
+   * `seed.sql` creates no members and no products, so a full-sync test that
+   * asserts a millisecond cursor is really asserting that some *other* spec
+   * has already written a row. That held until sharding put this file first,
+   * and then `since=0` answered 0. Each test now writes its own row, so the
+   * full sync it performs has something to derive a cursor from.
+   */
+  async function createSyncableMember(request: APIRequestContext): Promise<void> {
+    const token = `Sync${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    const response = await request.post('/api/admin/members', {
+      data: {
+        first_name: 'Sync',
+        last_name: token,
+        email: `${token}@test.com`,
+        preferred_language: 'de',
+      },
+    });
+    expect(response.status()).toBe(201);
+  }
+
+  async function createSyncableProduct(request: APIRequestContext): Promise<void> {
+    const token = `Sync${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+    const category = await request.post('/api/admin/categories', {
+      data: { names: { de: `Kategorie ${token}`, en: `Category ${token}` } },
+    });
+    expect(category.status()).toBe(201);
+
+    const product = await request.post('/api/admin/products', {
+      data: { names: { de: `Produkt ${token}` }, price_cents: 350, category_id: (await category.json()).id },
+    });
+    expect(product.status()).toBe(201);
+  }
+
+  test('members sync cursor uses consistent millisecond format', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    await createSyncableMember(authenticatedRequest);
+
     // Sync 1: First sync with since=0
     const response1 = await authenticatedTerminalRequest.get(`${API_BASE}/sync/members?since=0`);
     expect(response1.ok()).toBeTruthy();
@@ -56,7 +96,9 @@ test.describe('Sync Timestamp Protocol', () => {
     expect(cursor).toBeLessThan(2000000000000);
   });
 
-  test('products sync does not trigger year 57123 bug', async ({ authenticatedTerminalRequest }) => {
+  test('products sync does not trigger year 57123 bug', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    await createSyncableProduct(authenticatedRequest);
+
     // Get initial cursor
     const response1 = await authenticatedTerminalRequest.get(`${API_BASE}/sync/products?since=0`);
     expect(response1.ok()).toBeTruthy();
