@@ -28,10 +28,23 @@ The Club Bar system includes offline-capable Terminal devices (Electron POS) tha
 - **Length**: 64-character hexadecimal string (256 bits entropy)
 - **Generation**: Server-side using cryptographically secure random
 - **Storage**:
-  - Server: bcrypt hash (never plaintext)
+  - Server: SHA-256 hash (never plaintext)
   - Terminal: Local config file (outside app bundle)
 - **Lifetime**: Long-lived; rotated manually via admin panel
 - **Scope**: One token per terminal device
+
+#### Why SHA-256 and not bcrypt
+
+Password hashes are deliberately slow because passwords are guessable: a human
+picks them, so an attacker with the hash can try a dictionary. A terminal token
+is not picked by anyone — it is 256 bits from `random_bytes()`, and no amount of
+hardware makes that search feasible. Slow hashing buys nothing here and costs
+something real: bcrypt cannot be looked up by value, so verifying a token meant
+loading every terminal and comparing one at a time.
+
+SHA-256 is used instead, which makes the lookup a single indexed read. Terminals
+enrolled before this changed still carry bcrypt hashes; `verifyToken()` detects
+the format and falls back, so both keep working.
 
 ### Token Generation Service
 
@@ -417,10 +430,10 @@ final class AdminController
 2. **Cryptographically secure tokens** ✓
    - 256 bits entropy (64 hex chars)
    - Generated server-side using `random_bytes()`
-   - Hashed with bcrypt (irreversible)
+   - Hashed with SHA-256 (irreversible)
 
 3. **No plaintext storage** ✓
-   - Server stores only bcrypt hash
+   - Server stores only the SHA-256 hash
    - Lost tokens cannot be recovered
    - Hashing prevents admin from reading token
 
@@ -462,7 +475,7 @@ CREATE TABLE terminals (
     device_id VARCHAR(255) NOT NULL UNIQUE COMMENT 'Device identifier (MAC address, UUID, etc.)',
 
     -- Authentication
-    api_token_hash VARCHAR(255) NULLABLE COMMENT 'Bcrypt hash of API token (never plaintext)',
+    api_token_hash VARCHAR(255) NULLABLE COMMENT 'SHA-256 hash of API token (never plaintext)',
     last_sync_at TIMESTAMP NULLABLE COMMENT 'Last successful sync request timestamp',
     is_active BOOLEAN DEFAULT TRUE COMMENT 'False = token revoked, terminal cannot sync',
 
@@ -524,7 +537,7 @@ Terminal application stores token in local config file (outside app bundle):
 - **Simple device authentication**: No complex flow; just Bearer token
 - **Revocable access**: Admin can instantly deauthorize terminal
 - **Unattended terminals**: No operator login needed
-- **Secure token generation**: 256-bit entropy, bcrypt hashed
+- **Secure token generation**: 256-bit entropy, SHA-256 hashed
 - **Clear trust model**: Device-level, not user-level auth
 
 ### Negative

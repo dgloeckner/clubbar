@@ -432,7 +432,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 }
 
 // php.ini or runtime configuration:
-// session.gc_maxlifetime = 7200   (2 hours idle timeout)
+// session.gc_maxlifetime = 7200   (garbage collection floor; NOT the timeout, see below)
 // session.cookie_httponly = 1     (JavaScript cannot access - prevents XSS theft)
 // session.cookie_secure = 1       (HTTPS only in production)
 // session.cookie_samesite = Lax   (Prevents CSRF in most cases)
@@ -511,12 +511,28 @@ Even if database stolen, passwords cannot be reversed.
 
 ### 6. Session Timeout (Limit Exposure)
 
-```ini
-; php.ini
-session.gc_maxlifetime = 7200  ; 2 hours idle timeout (in seconds)
-```
+Both limits are enforced by the application, not by `php.ini`. `session.gc_maxlifetime`
+only tells PHP when a session *file* becomes eligible for collection; it is a
+sweep schedule, not a promise, and on a shared host it is whatever someone else
+configured. Relying on it meant a session lived as long as the host felt like
+keeping it (#118).
 
-Session expires if inactive for 2 hours. Admin must re-login.
+`SessionTimeout` stamps two clocks into the session when authentication
+completes, and `AdminSessionAuth` checks them on every request before it does
+anything else:
+
+| Limit | Value | Restarted by activity | What it stops |
+|-------|-------|-----------------------|---------------|
+| Idle | 2 hours | yes | An unattended browser left signed in |
+| Absolute | 24 hours | no | A stolen cookie kept alive by polling |
+
+Reaching either limit empties and destroys the session and answers
+`401 session_expired`; the admin must sign in again. The idle clock alone would
+not be enough — an attacker holding a session cookie can keep touching it
+forever, which is exactly what the absolute limit refuses.
+
+A session carrying no stamps predates this rule and is adopted at first sight
+rather than rejected, so deploying the timeouts does not sign everyone out.
 
 ---
 

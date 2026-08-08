@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\AuditLog\Controllers;
 
 use App\Modules\AuditLog\Controllers\AdminController;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
+use App\Modules\AuditLog\Services\AuditLogService;
 use App\Shared\Exceptions\InvalidQueryParameterException;
 use PHPUnit\Framework\TestCase;
 use Slim\Psr7\Response;
@@ -29,7 +30,10 @@ class AdminControllerTest extends TestCase
     protected function setUp(): void
     {
         $this->repository = $this->createMock(AuditLogRepository::class);
-        $this->controller = new AdminController($this->repository);
+        // The real service, not a mock of it: what these tests pin down is the
+        // whole read path from query string to envelope, and the only thing
+        // worth faking in it is the database.
+        $this->controller = new AdminController(new AuditLogService($this->repository));
     }
 
     /**

@@ -12,6 +12,8 @@ use App\Shared\Validation\Validator;
 // Repositories
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
+use App\Modules\Dashboard\Repositories\DashboardRepository;
+use App\Modules\Reports\Repositories\ReportsRepository;
 use App\Modules\Products\Repositories\CategoriesRepository;
 use App\Modules\Members\Repositories\MandateDocumentRepository;
 use App\Modules\Members\Repositories\MembersRepository;
@@ -32,6 +34,8 @@ use App\Modules\BankCodes\Controllers\AdminController as BankCodesAdminControlle
 
 // Services
 use App\Modules\AdminUsers\Services\AdminUsersService;
+use App\Modules\AuditLog\Services\AuditLogService;
+use App\Modules\Dashboard\Services\DashboardService;
 use App\Shared\Services\AuditService;
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Auth\Services\TokenService;
@@ -126,16 +130,19 @@ class ServiceFactory implements ContainerInterface
 
         // AuditLog
         AuditLogAdminController::class => 'getAuditLogAdminController',
+        AuditLogService::class => 'getAuditLogService',
 
         // Terminals
         TerminalsAdminController::class => 'getTerminalsAdminController',
 
         // Dashboard
         DashboardAdminController::class => 'getDashboardAdminController',
+        DashboardService::class => 'getDashboardService',
 
         // Reports
         ReportsAdminController::class => 'getReportsAdminController',
         ReportsService::class => 'getReportsService',
+        ReportsRepository::class => 'getReportsRepository',
 
         // BankCodes
         BankCodesAdminController::class => 'getBankCodesAdminController',
@@ -219,6 +226,18 @@ class ServiceFactory implements ContainerInterface
     public function getLoginAttemptsRepository(): LoginAttemptsRepository
     {
         return $this->resolve(LoginAttemptsRepository::class, fn() => new LoginAttemptsRepository($this->pdo));
+    }
+
+    /**
+     * The same repository pointed at `terminal_auth_attempts`, which has no
+     * `email` column: terminal auth presents a token, not an account.
+     */
+    public function getTerminalAuthAttemptsRepository(): LoginAttemptsRepository
+    {
+        return $this->resolve(
+            LoginAttemptsRepository::class . ':terminal',
+            fn() => new LoginAttemptsRepository($this->pdo, 'terminal_auth_attempts'),
+        );
     }
 
     public function getSessionRepository(): SessionRepository
@@ -403,7 +422,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getTerminalTokenAuth(): TerminalTokenAuth
     {
-        return $this->resolve(TerminalTokenAuth::class, fn() => new TerminalTokenAuth($this->getTerminalsRepository(), $this->pdo));
+        return $this->resolve(TerminalTokenAuth::class, fn() => new TerminalTokenAuth($this->getTerminalsRepository(), $this->getTerminalAuthAttemptsRepository()));
     }
 
     public function getCsrfMiddleware(): CsrfMiddleware
@@ -486,7 +505,7 @@ class ServiceFactory implements ContainerInterface
         // Disabled via DISABLE_TERMINAL_RATE_LIMITING=true (e.g. in test environments).
         $disabled = Env::get('DISABLE_TERMINAL_RATE_LIMITING', 'false') === 'true';
         return new RateLimitMiddleware(
-            new LoginAttemptsRepository($this->pdo, 'terminal_auth_attempts'),
+            $this->getTerminalAuthAttemptsRepository(),
             10,
             15,
             $disabled,
@@ -578,9 +597,14 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(AdminUsersAdminController::class, fn() => new AdminUsersAdminController($this->getAdminUsersService(), $this->getAdminUsersRepository(), $this->getValidator()));
     }
 
+    public function getAuditLogService(): AuditLogService
+    {
+        return $this->resolve(AuditLogService::class, fn() => new AuditLogService($this->getAuditLogRepository()));
+    }
+
     public function getAuditLogAdminController(): AuditLogAdminController
     {
-        return $this->resolve(AuditLogAdminController::class, fn() => new AuditLogAdminController($this->getAuditLogRepository()));
+        return $this->resolve(AuditLogAdminController::class, fn() => new AuditLogAdminController($this->getAuditLogService()));
     }
 
     public function getSettlementsAdminController(): SettlementsAdminController
@@ -598,9 +622,14 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(TerminalsAdminController::class, fn() => new TerminalsAdminController($this->getTerminalsService(), $this->getValidator()));
     }
 
+    public function getReportsRepository(): ReportsRepository
+    {
+        return $this->resolve(ReportsRepository::class, fn() => new ReportsRepository($this->pdo));
+    }
+
     public function getReportsService(): ReportsService
     {
-        return $this->resolve(ReportsService::class, fn() => new ReportsService($this->pdo));
+        return $this->resolve(ReportsService::class, fn() => new ReportsService($this->getReportsRepository()));
     }
 
     public function getReportsAdminController(): ReportsAdminController
@@ -612,17 +641,29 @@ class ServiceFactory implements ContainerInterface
 
     public function getBankCodesAdminController(): BankCodesAdminController
     {
-        return $this->resolve(BankCodesAdminController::class, fn() => new BankCodesAdminController($this->getBankCodesRepository()));
+        return $this->resolve(BankCodesAdminController::class, fn() => new BankCodesAdminController($this->getBankCodeService()));
+    }
+
+    public function getDashboardRepository(): DashboardRepository
+    {
+        return $this->resolve(DashboardRepository::class, fn() => new DashboardRepository($this->pdo));
+    }
+
+    public function getDashboardService(): DashboardService
+    {
+        return $this->resolve(DashboardService::class, fn() => new DashboardService(
+            $this->getDashboardRepository(),
+            $this->getMembersRepository(),
+            $this->getTransactionsRepository(),
+            $this->getSettlementsRepository(),
+            $this->getTerminalsRepository(),
+        ));
     }
 
     public function getDashboardAdminController(): DashboardAdminController
     {
         return $this->resolve(DashboardAdminController::class, fn() => new DashboardAdminController(
-            $this->getMembersRepository(),
-            $this->getTransactionsRepository(),
-            $this->getSettlementsRepository(),
-            $this->getTerminalsRepository(),
-            $this->pdo,
+            $this->getDashboardService(),
         ));
     }
 

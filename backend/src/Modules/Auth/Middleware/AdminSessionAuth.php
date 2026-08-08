@@ -9,6 +9,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\Auth\Domain\SessionTimeout;
 use Slim\Psr7\Response;
 
 class AdminSessionAuth implements MiddlewareInterface
@@ -27,10 +28,24 @@ class AdminSessionAuth implements MiddlewareInterface
             return $this->unauthorized();
         }
 
+        // Pattern 013's two limits: 2h idle, 24h absolute. Checked before the
+        // session is touched, so a request cannot extend a session it arrived
+        // too late for.
+        if (SessionTimeout::hasExpired($_SESSION)) {
+            $_SESSION = [];
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_destroy();
+            }
+
+            return $this->sessionExpired();
+        }
+
         $admin = $this->adminUsersRepository->findById($adminId);
         if (!$admin || !(bool) $admin['is_active']) {
             return $this->unauthorized();
         }
+
+        SessionTimeout::touch($_SESSION);
 
         // Block access for authenticated-but-not-enrolled users, except on setup/confirm routes
         if (($_SESSION['totp_setup_required'] ?? false) === true) {
@@ -52,6 +67,16 @@ class AdminSessionAuth implements MiddlewareInterface
     {
         $response = new Response(401);
         $response->getBody()->write(json_encode(['error' => 'admin_not_authenticated']));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    private function sessionExpired(): ResponseInterface
+    {
+        $response = new Response(401);
+        $response->getBody()->write(json_encode([
+            'error' => 'session_expired',
+            'message' => 'Your session has expired. Please sign in again.',
+        ]));
         return $response->withHeader('Content-Type', 'application/json');
     }
 
