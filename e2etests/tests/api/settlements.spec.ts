@@ -504,14 +504,23 @@ test.describe('Settlements API', () => {
 
       expect(response.status()).toBe(204);
 
-      // Cancellation is visible on the settlement, and its items are released
-      // so the transactions can be settled again.
+      // Cancellation is visible on the settlement, and its items survive as the
+      // record of what it contained — only their claim is released (#142 §3).
       const after = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}`);
       expect(after.status()).toBe(200);
       const body = await after.json();
       expect(body.is_cancelled).toBe(true);
       expect(body.cancelled_at).toBeTruthy();
-      expect(body.items).toHaveLength(0);
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].transaction_id).toBe(settlement.transactionIds[0]);
+
+      // …and the released transaction counts as unsettled again.
+      const journal = await authenticatedRequest.get(
+        `/api/admin/transactions?member_id=${settlement.memberId}&settlement_status=unsettled`,
+      );
+      expect(journal.status()).toBe(200);
+      const unsettled = (await journal.json()).items as Array<{ id: string }>;
+      expect(unsettled.map((t) => t.id)).toContain(settlement.transactionIds[0]);
     });
 
     test('E3: DELETE /settlements/{id} requires authentication', async ({ request }) => {
@@ -520,6 +529,126 @@ test.describe('Settlements API', () => {
       });
 
       expect([301, 302, 401, 403]).toContain(response.status());
+    });
+
+    test('E4: cancelling twice is a conflict, not a silent repeat', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 1100 });
+
+      expect((await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}`)).status()).toBe(204);
+
+      const second = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}`);
+      expect(second.status()).toBe(409);
+      expect((await second.json()).message).toMatch(/already been cancelled/i);
+    });
+
+    test('E5: exporting the file does not lock the settlement', async ({ authenticatedRequest, settlementFactory }) => {
+      // Generating the XML is not sending it (#142 §1). A treasurer who spots
+      // a wrong amount in the downloaded file must still be able to undo the
+      // run rather than reverse money that never moved.
+      const settlement = await settlementFactory.create({ amountCents: 1900 });
+
+      const exported = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`);
+      expect(exported.status()).toBe(200);
+
+      const cancelled = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}`);
+      expect(cancelled.status()).toBe(204);
+    });
+
+    test('E6: a settlement submitted to the bank refuses cancellation and points at reversal', async ({ authenticatedRequest, settlementFactory }) => {
+      // The #81 double debit: the bank has the file and has collected the
+      // money, so releasing the transactions would collect them a second time.
+      const settlement = await settlementFactory.create({ amountCents: 2100 });
+
+      expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200);
+
+      const submitted = await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/submit`);
+      expect(submitted.status()).toBe(200);
+      const submittedBody = await submitted.json();
+      expect(submittedBody.submitted_at).toBeTruthy();
+      expect(submittedBody.is_cancellable).toBe(false);
+
+      const cancelled = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}`);
+      expect(cancelled.status()).toBe(409);
+      expect((await cancelled.json()).message).toMatch(/submitted to the bank/i);
+      expect((await cancelled.json()).message).toMatch(/revers/i);
+
+      // …and the money stays collected: the transactions are still claimed.
+      const journal = await authenticatedRequest.get(
+        `/api/admin/transactions?member_id=${settlement.memberId}&settlement_status=unsettled`,
+      );
+      const unsettled = (await journal.json()).items as Array<{ id: string }>;
+      expect(unsettled.map((t) => t.id)).not.toContain(settlement.transactionIds[0]);
+    });
+
+    test('E7: submission cannot be recorded before the file was exported', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 800 });
+
+      const response = await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/submit`);
+
+      expect(response.status()).toBe(409);
+      expect((await response.json()).message).toMatch(/export/i);
+    });
+
+    test('E8: a bank-transfer settlement cannot be cancelled — the money already arrived', async ({ authenticatedRequest, settlementFactory }) => {
+      // Ruling #163 generalises #142: cancellation is available while no money
+      // has moved, and a bank transfer records money that already has.
+      const settlement = await settlementFactory.create({ amountCents: 640, method: 'bank_transfer' });
+
+      const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}`);
+
+      expect(response.status()).toBe(409);
+      expect((await response.json()).message).toMatch(/revers/i);
+    });
+
+    test('E9: a write-off can always be cancelled — no money ever moved', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 350, method: 'write_off' });
+
+      const response = await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}`);
+
+      expect(response.status()).toBe(204);
+    });
+
+    test('E10: released transactions can be settled again, and the cancelled run keeps its record', async ({ authenticatedRequest, settlementFactory }) => {
+      const settlement = await settlementFactory.create({ amountCents: 2750 });
+
+      expect((await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}`)).status()).toBe(204);
+
+      const executionDate = await minimumExecutionDate(authenticatedRequest);
+      const settlementDate = await serverToday(authenticatedRequest);
+      const resettled = await authenticatedRequest.post('/api/admin/settlements', {
+        data: {
+          method: 'direct_debit',
+          transaction_ids: settlement.transactionIds,
+          settlement_date: settlementDate,
+          execution_date: executionDate,
+        },
+      });
+
+      expect(resettled.status(), await resettled.text()).toBe(201);
+      expect((await resettled.json()).total_amount_cents).toBe(2750);
+
+      // The cancelled run is still able to say what it contained — its CSV
+      // used to come back empty because cancellation deleted the rows.
+      const csv = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/csv`);
+      expect(csv.status()).toBe(200);
+      const rows = (await csv.text()).trim().split('\n').slice(1);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toContain(settlement.memberName);
+      expect(rows[0]).toContain('27.50');
+    });
+
+    test('E11: SEPA export refuses a cancelled settlement with an accurate error', async ({ authenticatedRequest, settlementFactory }) => {
+      // Cancellation used to make the export fail only by accident, with the
+      // misleading "Settlement has no items" — and now that the items survive
+      // it would stop failing at all (#114, #142 §5).
+      const settlement = await settlementFactory.create({ amountCents: 1450 });
+
+      expect((await authenticatedRequest.delete(`/api/admin/settlements/${settlement.id}`)).status()).toBe(204);
+
+      const response = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`);
+
+      expect(response.status()).toBe(409);
+      expect((await response.json()).message).toMatch(/cancelled/i);
     });
   });
 

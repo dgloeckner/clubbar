@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Settlements\DTOs;
 
+use App\Modules\Settlements\Domain\CancellationGate;
 use App\Modules\Settlements\Enums\SettlementMethod;
 
 final readonly class SettlementDto
@@ -31,6 +32,14 @@ final readonly class SettlementDto
         public ?string $transactionDateMax = null,
         public ?string $submittedAt = null,
         public ?string $submittedByAdminId = null,
+        /**
+         * Whether an Undo would still be accepted (#81). Derived from the same
+         * CancellationGate the service throws from, so the button the admin
+         * sees and the answer the API gives cannot drift apart.
+         */
+        public bool $isCancellable = false,
+        /** Why not, when it is not — shown instead of a bare disabled button. */
+        public ?string $cancellationBlockedReason = null,
     ) {}
 
     public static function fromRow(array $row, array $items = []): self
@@ -60,6 +69,8 @@ final readonly class SettlementDto
             transactionDateMax: $row['transaction_date_max'] ?? null,
             submittedAt: $row['submitted_at'] ?? null,
             submittedByAdminId: $row['submitted_by_admin_id'] ?? null,
+            isCancellable: CancellationGate::isCancellable($row),
+            cancellationBlockedReason: CancellationGate::blocker($row),
         );
     }
 
@@ -89,6 +100,8 @@ final readonly class SettlementDto
             'transaction_date_max' => \App\Shared\Utils\DateFormatter::toUtcIso($this->transactionDateMax),
             'submitted_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->submittedAt),
             'submitted_by_admin_id' => $this->submittedByAdminId,
+            'is_cancellable' => $this->isCancellable,
+            'cancellation_blocked_reason' => $this->cancellationBlockedReason,
         ];
     }
 }

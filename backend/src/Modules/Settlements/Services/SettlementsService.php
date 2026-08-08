@@ -9,6 +9,7 @@ use App\Modules\Settlements\DTOs\ExecutionDateInfoDto;
 use App\Modules\Settlements\DTOs\SettlementDto;
 use App\Modules\Settlements\DTOs\SettlementItemDto;
 use App\Modules\Settlements\DTOs\SettlementPreviewDto;
+use App\Modules\Settlements\Domain\CancellationGate;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Enums\AuditAction;
@@ -359,19 +360,91 @@ class SettlementsService
         return new PaginatedResultDto(items: $items, total: $result['total'], limit: $limit, offset: $offset);
     }
 
+    /**
+     * Undo a settlement that has not yet moved any money (#81, ruling #142).
+     *
+     * The gate is CancellationGate's to answer; this method's own job is to
+     * make the undo atomic. Releasing the items and flagging the settlement are
+     * two writes, and a crash between them used to leave a live settlement with
+     * no claims — whose transactions then silently counted as unsettled and
+     * were collected a second time (#86).
+     *
+     * @throws BusinessRuleException 409 when money has already moved.
+     */
     public function cancelSettlement(string $settlementId, string $adminUserId, ?string $reason = null): bool
     {
         $settlement = $this->settlementsRepository->findById($settlementId);
         if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
 
-        $result = $this->settlementsRepository->cancelSettlement($settlementId, $adminUserId);
+        $blocker = CancellationGate::blocker($settlement);
+        if ($blocker !== null) {
+            throw new BusinessRuleException($blocker);
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $result = $this->settlementsRepository->cancelSettlement($settlementId, $adminUserId);
+
+            $this->auditService->log(
+                action: AuditAction::SETTLEMENT_CANCEL,
+                entityType: EntityType::SETTLEMENT,
+                entityId: $settlementId,
+                oldValues: ['is_cancelled' => false],
+                newValues: ['is_cancelled' => true, 'reason' => $reason],
+                adminUserId: $adminUserId,
+            );
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Record that the exported file is now with the bank — the real point of no
+     * return, and the moment cancellation stops being available (ruling #142 §1).
+     *
+     * `exported_at` cannot carry this meaning: it is set when the treasurer
+     * *generates* the file, which says nothing about whether it was sent.
+     *
+     * @throws BusinessRuleException 409 when there is no submitted file to record.
+     */
+    public function markSubmitted(string $settlementId, string $adminUserId): bool
+    {
+        $settlement = $this->settlementsRepository->findById($settlementId);
+        if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
+
+        if (!empty($settlement['is_cancelled'])) {
+            throw new BusinessRuleException('This settlement was cancelled and cannot be submitted to the bank.');
+        }
+
+        if (!empty($settlement['submitted_at'])) {
+            throw new BusinessRuleException('This settlement has already been marked as submitted.');
+        }
+
+        $method = SettlementMethod::tryFrom((string) ($settlement['method'] ?? '')) ?? SettlementMethod::DIRECT_DEBIT;
+        if (!$method->isSepaExportable()) {
+            throw new BusinessRuleException(
+                'Only a direct-debit settlement is submitted to a bank; a ' . $method->label() . ' is not.'
+            );
+        }
+
+        if (empty($settlement['exported_at'])) {
+            throw new BusinessRuleException(
+                'Export the SEPA file before marking this settlement as submitted — there is nothing with the bank yet.'
+            );
+        }
+
+        $result = $this->settlementsRepository->markSubmitted($settlementId, $adminUserId);
 
         $this->auditService->log(
-            action: AuditAction::SETTLEMENT_CANCEL,
+            action: AuditAction::SETTLEMENT_SUBMIT,
             entityType: EntityType::SETTLEMENT,
             entityId: $settlementId,
-            oldValues: ['is_cancelled' => false],
-            newValues: ['is_cancelled' => true, 'reason' => $reason],
+            newValues: ['submitted_at' => date('Y-m-d H:i:s'), 'submitted_by_admin_id' => $adminUserId],
             adminUserId: $adminUserId,
         );
 
@@ -400,6 +473,15 @@ class SettlementsService
 
     public function markExported(string $settlementId, string $adminUserId): bool
     {
+        // Stamping a cancelled settlement as exported would make it look like a
+        // file went out for a run that collects nothing (#114, #142 §5).
+        $settlement = $this->settlementsRepository->findById($settlementId);
+        if ($settlement !== null && !empty($settlement['is_cancelled'])) {
+            throw new BusinessRuleException(
+                sprintf('Settlement %s was cancelled and cannot be exported to SEPA', $settlementId)
+            );
+        }
+
         $result = $this->settlementsRepository->markExported($settlementId);
 
         $this->auditService->log(

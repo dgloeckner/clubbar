@@ -761,6 +761,103 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $this->assertEquals($settledTxId, $settledResult['items'][0]['id']);
     }
 
+    public function test_listPaginated_reports_a_resettled_transaction_once_under_its_live_settlement(): void
+    {
+        // A cancelled settlement keeps its items (#142 §3), so a transaction
+        // that was settled, released and settled again now carries *two*
+        // settlement_items rows. "Settled" must mean the live claim: one
+        // journal row, showing the live settlement's date, and the transaction
+        // must not also appear under the unsettled filter.
+        $memberId = $this->createTestMember('Resettled', 'Omega');
+        $adminId = $this->createTestAdminUser('resettled-admin@example.com');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Gin', 'gin', 700);
+
+        $txId = $this->generateUuid();
+        $this->testTransactionIds[] = $txId;
+        $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute([$txId, $memberId, $productId, 700, 'purchase', '2026-03-07 10:00:00']);
+
+        $insertSettlement = $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id, is_cancelled) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        $insertItem = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
+        );
+
+        // The cancelled run: row retained, claim released.
+        $cancelledId = $this->generateUuid();
+        $this->testSettlementIds[] = $cancelledId;
+        $insertSettlement->execute([$cancelledId, '2026-03-07', '2026-03-10', 700, 1, $adminId, 1]);
+        $insertItem->execute([$cancelledId, $txId, null, $memberId, 700]);
+
+        // The live run that collected it in the end.
+        $liveId = $this->generateUuid();
+        $this->testSettlementIds[] = $liveId;
+        $insertSettlement->execute([$liveId, '2026-03-14', '2026-03-17', 700, 1, $adminId, 0]);
+        $insertItem->execute([$liveId, $txId, $txId, $memberId, 700]);
+
+        $all = $this->transactionsRepository->listPaginated(50, 0, ['member_id' => $memberId]);
+        $this->assertEquals(1, $all['total'], 'A transaction with a released and a live claim is still one journal row');
+        $this->assertCount(1, $all['items']);
+        $this->assertEquals('2026-03-14', $all['items'][0]['settlement_date'], 'The journal shows the live settlement');
+
+        $settled = $this->transactionsRepository->listPaginated(50, 0, [
+            'member_id' => $memberId,
+            'settlement_status' => 'settled',
+        ]);
+        $this->assertEquals(1, $settled['total']);
+
+        $unsettled = $this->transactionsRepository->listPaginated(50, 0, [
+            'member_id' => $memberId,
+            'settlement_status' => 'unsettled',
+        ]);
+        $this->assertEquals(0, $unsettled['total'], 'A live claim means settled');
+    }
+
+    public function test_findUnsettledByIds_ignores_a_released_claim(): void
+    {
+        // The #81 double-debit itself, at the level the settlement run sees it:
+        // the released transaction must come back as collectable again, and the
+        // one still claimed by a live settlement must not.
+        $memberId = $this->createTestMember('Released', 'Sigma');
+        $adminId = $this->createTestAdminUser('released-admin@example.com');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Ale', 'ale', 300);
+
+        $insertTx = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $releasedTxId = $this->generateUuid();
+        $this->testTransactionIds[] = $releasedTxId;
+        $insertTx->execute([$releasedTxId, $memberId, $productId, 300, 'purchase', '2026-03-07 10:00:00']);
+
+        $claimedTxId = $this->generateUuid();
+        $this->testTransactionIds[] = $claimedTxId;
+        $insertTx->execute([$claimedTxId, $memberId, $productId, 300, 'purchase', '2026-03-07 11:00:00']);
+
+        $settlementId = $this->generateUuid();
+        $this->testSettlementIds[] = $settlementId;
+        $this->db->prepare(
+            'INSERT INTO settlements (id, settlement_date, execution_date, total_amount_cents, member_count, created_by_admin_id) VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute([$settlementId, '2026-03-07', '2026-03-10', 600, 1, $adminId]);
+
+        $insertItem = $this->db->prepare(
+            'INSERT INTO settlement_items (settlement_id, transaction_id, active_transaction_id, member_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
+        );
+        $insertItem->execute([$settlementId, $releasedTxId, null, $memberId, 300]);
+        $insertItem->execute([$settlementId, $claimedTxId, $claimedTxId, $memberId, 300]);
+
+        $unsettled = array_column(
+            $this->transactionsRepository->findUnsettledByIds([$releasedTxId, $claimedTxId]),
+            'id'
+        );
+
+        $this->assertContains($releasedTxId, $unsettled);
+        $this->assertNotContains($claimedTxId, $unsettled);
+    }
+
     public function test_listPaginated_sort_by_member_name_maps_to_last_name(): void
     {
         $memberA = $this->createTestMember('SortA', 'Aaronson');

@@ -33,6 +33,22 @@ class SepaExportService
         $settlement = $this->settlementsRepository->findById($settlementId);
         if (!$settlement) throw NotFoundException::forResource('Settlement', $settlementId);
 
+        // A cancelled settlement collects nothing — its claims on the
+        // transactions were released, and they belong to whatever run takes
+        // them next. Exporting it would instruct the bank to collect money the
+        // club has already decided not to collect, twice over once the
+        // transactions are settled again (#114, ruling #142 §5).
+        //
+        // This never had a guard. It used to fail by accident with the
+        // misleading "Settlement has no items", because cancellation deleted
+        // the rows; now that they survive it would not fail at all.
+        if (!empty($settlement['is_cancelled'])) {
+            throw new BusinessRuleException(sprintf(
+                'Settlement %s was cancelled and cannot be exported to SEPA',
+                $settlementId
+            ));
+        }
+
         // #163: only direct_debit settlements were ever collected through the
         // SEPA mandate. Exporting a bank_transfer/write_off settlement would
         // double-collect the balance from the member's bank account (e.g. a
