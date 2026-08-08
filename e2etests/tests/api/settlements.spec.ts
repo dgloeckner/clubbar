@@ -716,6 +716,33 @@ test.describe('Settlements API', () => {
       expect(JSON.stringify(await response.json())).toContain('direct_debit');
     });
 
+    test('F6: the EndToEndId names the collection and survives a re-export', async ({ authenticatedRequest, settlementFactory }) => {
+      // #150: a returned collection comes back quoting `EREF+<EndToEndId>` and
+      // nothing else usable — DK Anlage 3 replaces the Verwendungszweck with
+      // the constant RETURN/REFUND on R-transactions (#149). The identifier
+      // used to be the loop index over the members that survived the export's
+      // skip rules, so re-exporting could hand the same member a different one
+      // and strand every return already in flight.
+      const settlement = await settlementFactory.create({ amountCents: 4250 });
+
+      // Derived from the two ids the caller already holds: hyphens stripped,
+      // first 12 hex digits of each. 29 characters, inside the ISO 20022 cap.
+      const half = (uuid: string) => uuid.replaceAll('-', '').slice(0, 12);
+      const expectedId = `E2E-${half(settlement.id)}-${half(settlement.memberId)}`;
+      expect(expectedId.length).toBeLessThanOrEqual(35);
+
+      const first = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`);
+      expect(first.status()).toBe(200);
+      expect(await first.text()).toContain(`<EndToEndId>${expectedId}</EndToEndId>`);
+
+      // The same settlement exported again must instruct the bank under the
+      // same reference — the treasurer resolves a return against whichever
+      // file actually went out.
+      const second = await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`);
+      expect(second.status()).toBe(200);
+      expect(await second.text()).toContain(`<EndToEndId>${expectedId}</EndToEndId>`);
+    });
+
     test('F4: GET /settlements/{id}/export/sepa-xml requires authentication', async ({ request }) => {
       const response = await request.get('/api/admin/settlements/test-id/export/sepa-xml');
 

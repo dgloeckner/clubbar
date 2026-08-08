@@ -435,7 +435,7 @@ Links transactions to settlements. Cancelling a settlement used to `DELETE` its 
 | active_transaction_id | BINARY(16) | FK → transactions.id, **UNIQUE**, NULL | **The live claim**. Equal to `transaction_id` while the settlement holding it is not cancelled; set to NULL when cancelled, freeing the transaction for re-settlement. MariaDB has no partial indexes but permits many NULLs in a unique column, so the DB still prevents two live settlements claiming the same transaction |
 | member_id | BINARY(16) | FK → members.id, NOT NULL | Denormalized for queries |
 | amount_cents | BIGINT | NOT NULL | Member's amount for this item; **signed**, to allow negative correction amounts |
-| end_to_end_id | VARCHAR(35) | NULL | SEPA End-to-End-ID generated for this item on export |
+| end_to_end_id | VARCHAR(35) | NULL | SEPA End-to-End-ID this item was collected under; `E2E-<settlement:12hex>-<member:12hex>`, written on export and shared by every item of the same collection line. NULL until exported, and for members the export left out (#150) |
 
 **Indexes:**
 - `settlement_id`
