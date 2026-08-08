@@ -28,6 +28,7 @@ import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { validateIban } from '../utils/iban'
 import { toIsoDate } from '../utils/dates'
 import { useBankName } from '../hooks/useBankName'
+import { useLatestRequest } from '../hooks/useLatestRequest'
 import { useListQuery } from '../hooks/useListQuery'
 import { ValidationIndicator } from '../components/forms/ValidationIndicator'
 import { MandateDocumentSection } from '../components/MandateDocumentSection'
@@ -71,6 +72,9 @@ export function MembersPage() {
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
   const { setIsLoading } = useLoading()
+  // The dashboard metrics are a second, independent stream, so they get their
+  // own abort slot — the member list's lives inside useListQuery (#96).
+  const metricsRequest = useLatestRequest()
   const [activeMembersCount, setActiveMembersCount] = useState(0)
   const [totalBalance, setTotalBalance] = useState(0)
   const [lastSettlementDate, setLastSettlementDate] = useState<string | null>(null)
@@ -152,9 +156,10 @@ export function MembersPage() {
 
   // Load dashboard metrics (active members count, outstanding balance, last settlement date)
   useEffect(() => {
-    const loadDashboardMetrics = async () => {
+    const loadDashboardMetrics = async (signal: AbortSignal) => {
       try {
-        const dashboard = await getDashboard().getDashboardMetrics()
+        const dashboard = await getDashboard().getDashboardMetrics({ signal })
+        if (signal.aborted) return
         setActiveMembersCount(dashboard.metrics?.active_members ?? 0)
         setTotalBalance(dashboard.metrics?.outstanding_balance_cents ?? 0)
         setLastSettlementDate(dashboard.system_status?.last_settlement_date ?? null)
@@ -163,8 +168,9 @@ export function MembersPage() {
       }
     }
 
-    loadDashboardMetrics()
-  }, [])
+    loadDashboardMetrics(metricsRequest.next())
+    return () => metricsRequest.abort()
+  }, [metricsRequest])
 
   // Handle GDPR data export — downloads a JSON file with the member's personal data
   const handleExportData = async () => {

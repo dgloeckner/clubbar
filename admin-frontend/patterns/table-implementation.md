@@ -113,7 +113,7 @@ useEffect(() => {
 | Guarantee | Why it matters |
 |---|---|
 | One fetch path | The loader and every post-mutation reload send the same query, so a reload cannot drop the active filters |
-| Abort per run | A superseded request is cancelled and its late answer never overwrites a newer page |
+| Abort per run | A superseded request is cancelled and its late answer never overwrites a newer page — the hook holds a `useLatestRequest` slot, so a list page needs no cancellation code of its own ([Data Fetching](./data-fetching.md)) |
 | Debounce on search only | `search ? 500 : 0` — filters and paging stay instant |
 | Page reset on every query change | Desktop sort headers and the mobile sort dropdown behave identically |
 | Page clamp after a reload | Deleting the last item on the last page lands on the last page that exists, instead of an empty out-of-range one |
@@ -151,6 +151,7 @@ list.reload()
 - Never re-fetch by hand in a mutation handler — `reload()` re-runs the *current* query
 - Never call `setPage(1)` alongside a filter/sort/search change; the hook does it
 - Always forward `signal` from the fetcher into the generated client call
+- A page's *other* streams — a second fetch, an interval, a tab switch — need their own `useLatestRequest` slot; see [Data Fetching](./data-fetching.md)
 
 ---
 
@@ -783,6 +784,7 @@ does not; one aborts stale requests, the rest do not.
 ## References
 
 - **List Query Hook**: `/admin-frontend/src/hooks/useListQuery.ts` (page/sort/filter/search state)
+- **Data Fetching Pattern**: `/admin-frontend/patterns/data-fetching.md` (cancellation for streams outside the list query)
 - **Members Page**: `/admin-frontend/src/pages/MembersPage.tsx` (reference implementation)
 - **Products Page**: `/admin-frontend/src/pages/ProductsPage.tsx` (reference implementation)
 - **Table Components**: `/admin-frontend/src/components/tables/`

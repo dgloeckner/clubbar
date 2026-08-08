@@ -56,6 +56,7 @@ import {
 import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { parsePriceToCents } from '../utils/price'
 import { useFormatters } from '../hooks/useFormatters'
+import { useLatestRequest } from '../hooks/useLatestRequest'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 
 // Extend the generated Product type with fields not yet in OAS spec
@@ -81,6 +82,9 @@ export function ProductsPage() {
   const { t, i18n } = useTranslation()
   const { formatPrice } = useFormatters()
   const breakpoint = useBreakpoint()
+  // The category list is a second, independent stream, so it gets its own abort
+  // slot — the product list's lives inside useListQuery (#96).
+  const categoriesRequest = useLatestRequest()
   const [categories, setCategories] = useState<CategoryRuntime[]>([])
   const [globalLoading, setGlobalLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -161,14 +165,17 @@ export function ProductsPage() {
 
   // Load products and categories on mount
   useEffect(() => {
-    loadCategories()
-  }, [])
+    loadCategories(categoriesRequest.next())
+    return () => categoriesRequest.abort()
+  }, [categoriesRequest]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadCategories() {
+  async function loadCategories(signal: AbortSignal = categoriesRequest.next()) {
     try {
-      const response = await getProducts().listCategories()
+      const response = await getProducts().listCategories({ signal })
+      if (signal.aborted) return
       setCategories((response.data ?? []) as CategoryRuntime[])
     } catch {
+      if (signal.aborted) return
       // Silently fail - categories are optional for display purposes
       setCategories([])
     }

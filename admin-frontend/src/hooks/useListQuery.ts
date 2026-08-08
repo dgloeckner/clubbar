@@ -20,6 +20,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLatestRequest } from './useLatestRequest'
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -173,15 +174,15 @@ export function useListQuery<TItem, TFilters extends object, TSortKey extends st
   const queryRef = useRef({ page, pageSize, sort, search, filters })
   queryRef.current = { page, pageSize, sort, search, filters }
 
-  const controllerRef = useRef<AbortController | null>(null)
+  // One abort slot for the list stream, shared with every other page that has
+  // to stop rendering the answer to a question it no longer asks (#96).
+  const request = useLatestRequest()
 
   // The single fetch path. The loader effect and every explicit reload call
   // this, so there is no second implementation that could drift from it.
   const runQuery = useCallback(async () => {
     // Whatever was in flight is now answering a question nobody is asking.
-    controllerRef.current?.abort()
-    const controller = new AbortController()
-    controllerRef.current = controller
+    const signal = request.next()
 
     const { page, pageSize, sort, search, filters } = queryRef.current
     setLoading(true)
@@ -193,32 +194,39 @@ export function useListQuery<TItem, TFilters extends object, TSortKey extends st
         sortDirection: sort.direction,
         search,
         filters,
-        signal: controller.signal,
+        signal,
       })
       // A superseded query must not publish its result over the newer one.
-      if (controller.signal.aborted) return
+      // The flag, not a thrown error, is the reliable signal: a response that
+      // had already arrived when the abort landed resolves normally (#96).
+      if (signal.aborted) return
       setItems(result.items)
       setTotal(result.total)
       setError(null)
     } catch (err) {
-      if (controller.signal.aborted || isAbortError(err)) return
+      if (signal.aborted || isAbortError(err)) return
       setItems([])
       setTotal(0)
       setError(parseErrorRef.current(err))
     } finally {
-      if (!controller.signal.aborted) setLoading(false)
+      // Whoever aborts owns the spinner: a superseded request must not clear
+      // the one the request that replaced it just raised.
+      if (!signal.aborted) setLoading(false)
     }
-  }, [])
+  }, [request])
 
   useEffect(() => {
-    // Typing in the search box fires a request per keystroke without this.
+    // Typing in the search box fires a request per keystroke without this. The
+    // abort lives in the cleanup rather than inside the timer, so a query typed
+    // and then cleared is cancelled the moment it stops being the current one —
+    // waiting for the new timer to fire is too late (#96).
     const timer = setTimeout(runQuery, search ? searchDebounceMs : 0)
 
     return () => {
       clearTimeout(timer)
-      controllerRef.current?.abort()
+      request.abort()
     }
-  }, [page, pageSize, sort, search, filters, searchDebounceMs, runQuery])
+  }, [page, pageSize, sort, search, filters, searchDebounceMs, runQuery, request])
 
   const totalPages = pageSize > 0 ? Math.ceil(total / pageSize) : 0
 

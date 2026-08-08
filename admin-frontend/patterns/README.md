@@ -54,6 +54,36 @@ const list = useListQuery<Item, ItemFilters, ItemSortKey>({
 
 ---
 
+### [Data Fetching Pattern](./data-fetching.md)
+**Purpose**: Render the answer to the question the page is currently asking, and only that one
+
+- ✅ Request cancellation with `useLatestRequest` and the orval `signal` option
+- ✅ Stale-response guards for search debounces, auto-refresh and tab switches
+- ✅ Why `signal.aborted` beats an `isMounted` ref and beats catching the abort error
+- ✅ Spinner ownership when a mutation reload supersedes a loader effect
+- ✅ Checklist and anti-patterns
+
+**When to use**: When building any page that fetches on a filter, search, sort, page or interval
+
+**Quick Start**:
+```typescript
+const listRequest = useLatestRequest()
+
+useEffect(() => {
+  const signal = listRequest.next()
+  const timer = setTimeout(() => loadItems(signal), search ? 500 : 0)
+  return () => { clearTimeout(timer); listRequest.abort() }
+}, [page, search])
+```
+
+> On a **list page**, `useListQuery` already owns this slot — use the hook and
+> pass its `signal` through to the client. Reach for `useLatestRequest`
+> directly for the streams it does not cover: a page's second, independent
+> fetch, an auto-refresh interval, or a tab switch.
+
+---
+---
+
 ## Pattern Development Guidelines
 
 When creating new patterns:
@@ -96,3 +126,4 @@ To add a new pattern:
 | [Test IDs](./test-ids.md) | 1.0 | Active | 2026-01-26 |
 | [Table Implementation](./table-implementation.md) | 2.0 | Active | 2026-01-26 |
 | [Components](./components.md) | 1.0 | Active | 2026-01-26 |
+| [Data Fetching](./data-fetching.md) | 1.0 | Active | 2026-08-08 |
