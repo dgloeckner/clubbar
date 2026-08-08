@@ -102,6 +102,7 @@ export function LoginForm({ onSubmit, loading = false, error }: LoginFormProps) 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>
           {error && (
             <div
+              data-testid="login-error"
               style={{
                 background: `${theme.colors.semantic.danger}20`,
                 border: `1px solid ${theme.colors.semantic.danger}`,

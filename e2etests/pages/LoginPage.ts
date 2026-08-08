@@ -13,8 +13,20 @@ export class LoginPage extends BasePage {
   private readonly emailInput = () => this.page.locator('[data-testid="login-email-input"]')
   private readonly passwordInput = () => this.page.locator('[data-testid="login-password-input"]')
   private readonly loginBtn = () => this.page.locator('[data-testid="login-submit-button"]')
-  private readonly errorMessage = () => this.page.locator('[class*="error"], [style*="error"]')
+  readonly errorMessage = () => this.page.getByTestId('login-error')
   private readonly heading = () => this.page.locator('h1:has-text("Club Bar")')
+
+  // MFA step (requiresMfa branch)
+  readonly mfaCodeInput = () => this.page.getByTestId('mfa-code-input')
+  readonly mfaSubmitButton = () => this.page.getByTestId('mfa-submit-button')
+  readonly mfaError = () => this.page.getByTestId('mfa-error')
+
+  // TOTP enrollment step (requiresTotpSetup branch)
+  readonly totpQrCode = () => this.page.getByTestId('totp-qr-code')
+  readonly totpSetupSecret = () => this.page.getByTestId('totp-setup-secret')
+  readonly totpSetupCodeInput = () => this.page.getByTestId('setup-code-input')
+  readonly totpSetupConfirmButton = () => this.page.getByTestId('setup-confirm-button')
+  readonly totpSetupError = () => this.page.getByTestId('totp-setup-error')
 
   constructor(page: Page) {
     super(page)
@@ -79,5 +91,31 @@ export class LoginPage extends BasePage {
    */
   async clickLogin() {
     await this.loginBtn().click()
+  }
+
+  /**
+   * Fill and submit the 6-digit MFA code (requiresMfa branch).
+   * Does not wait for navigation — callers assert the resulting state.
+   */
+  async submitMfaCode(code: string) {
+    await this.mfaCodeInput().fill(code)
+    await this.mfaSubmitButton().click()
+  }
+
+  /**
+   * Read the plain-text TOTP secret shown as a manual-entry fallback
+   * during first-time enrollment (requiresTotpSetup branch).
+   */
+  async getTotpSetupSecret(): Promise<string> {
+    return (await this.totpSetupSecret().textContent()) ?? ''
+  }
+
+  /**
+   * Fill and submit the 6-digit TOTP confirmation code (requiresTotpSetup branch).
+   * Does not wait for navigation — callers assert the resulting state.
+   */
+  async submitTotpSetupCode(code: string) {
+    await this.totpSetupCodeInput().fill(code)
+    await this.totpSetupConfirmButton().click()
   }
 }
