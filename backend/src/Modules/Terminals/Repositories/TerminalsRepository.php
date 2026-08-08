@@ -40,11 +40,6 @@ class TerminalsRepository
         return $stmt->fetch() ?: null;
     }
 
-    public function findActive(): array
-    {
-        return $this->db->query('SELECT * FROM terminals WHERE is_active = 1 ORDER BY created_at ASC')->fetchAll();
-    }
-
     public function findAll(): array
     {
         return $this->db->query('SELECT * FROM terminals ORDER BY created_at DESC')->fetchAll();

@@ -177,17 +177,14 @@ class AdminController
         return $this->json($response, $settlement->toArray());
     }
 
-    public function destroy(Request $request, Response $response, array $args): Response
-    {
-        $id = $args['id'];
-        $adminId = $request->getAttribute('admin_user_id');
-        $body = $request->getParsedBody() ?? [];
-
-        $this->settlementsService->cancelSettlement($id, $adminId, $body['reason'] ?? null);
-
-        return $response->withStatus(204);
-    }
-
+    /**
+     * `DELETE /settlements/{id}/cancel` — the one cancellation route.
+     *
+     * The bodyless `DELETE /settlements/{id}` alias that used to sit beside
+     * this one is gone (#120): it was never in the OpenAPI spec, no client
+     * called it, and having two routes into the same gate meant one of them
+     * could be routed past it without any test noticing.
+     */
     public function cancel(Request $request, Response $response, array $args): Response
     {
         $id = $args['id'];
@@ -196,10 +193,10 @@ class AdminController
 
         $this->settlementsService->cancelSettlement($id, $adminId, $body['reason'] ?? null);
 
+        // Re-read rather than echo the pre-cancellation row: the undo button
+        // renders this body. cancelSettlement() throws for an unknown id, and
+        // cancelling does not delete the row, so the settlement is always here.
         $settlement = $this->settlementsService->getSettlement($id);
-        if (!$settlement) {
-            return $this->json($response, ['error' => 'not_found', 'message' => 'Settlement not found'], 404);
-        }
 
         return $this->json($response, $settlement->toArray());
     }

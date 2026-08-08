@@ -121,6 +121,58 @@ class MembersServiceTest extends TestCase
         ], $overrides);
     }
 
+    public function test_updateMember_passes_through_only_the_updatable_fields(): void
+    {
+        // The allowlist used to be written as a camelCase => snake_case map
+        // whose camelCase half the loop never read (#120). It is a plain list
+        // of the snake_case fields now, and it still has to drop everything
+        // else — `id` and `created_at` are not the caller's to rewrite.
+        $this->membersRepository->method('findById')->willReturn($this->member('member-1'));
+
+        $this->membersRepository
+            ->expects($this->once())
+            ->method('updateById')
+            ->with('member-1', [
+                'first_name' => 'Erika',
+                'iban' => 'DE02120300000000202051',
+                'mandate_signed_at' => '2026-02-02',
+            ])
+            ->willReturn($this->member('member-1', ['first_name' => 'Erika']));
+
+        $this->membersService->updateMember('member-1', [
+            'first_name' => 'Erika',
+            'iban' => 'DE02120300000000202051',
+            'mandate_signed_at' => '2026-02-02',
+            'id' => 'someone-else',
+            'created_at' => '2000-01-01 00:00:00',
+            'firstName' => 'Ignored',
+        ]);
+    }
+
+    public function test_updateMember_converts_is_active_to_an_int(): void
+    {
+        // PDO turns a bound `false` into an empty string, which MariaDB then
+        // stores as 0 only by coercion.
+        $this->membersRepository->method('findById')->willReturn($this->member('member-1'));
+
+        $this->membersRepository
+            ->expects($this->once())
+            ->method('updateById')
+            ->with('member-1', ['is_active' => 0])
+            ->willReturn($this->member('member-1', ['is_active' => 0]));
+
+        $this->membersService->updateMember('member-1', ['is_active' => false]);
+    }
+
+    public function test_updateMember_throws_notFoundException_when_missing(): void
+    {
+        $this->membersRepository->method('findById')->willReturn(null);
+
+        $this->expectException(NotFoundException::class);
+
+        $this->membersService->updateMember('missing', ['first_name' => 'Erika']);
+    }
+
     public function test_anonymizeMember_throws_notFoundException_when_missing(): void
     {
         $this->membersRepository->method('findByIdIncludingDeleted')->willReturn(null);

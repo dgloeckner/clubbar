@@ -143,7 +143,10 @@ return function (App $app): void {
         $group->post('/settlements', [SettlementsAdminController::class, 'store']);
         $group->get('/settlements', [SettlementsAdminController::class, 'index']);
         $group->get('/settlements/{id}', [SettlementsAdminController::class, 'show']);
-        $group->delete('/settlements/{id}', [SettlementsAdminController::class, 'destroy']);
+        // One cancellation route, not two. The bodyless `DELETE
+        // /settlements/{id}` alias was undocumented, uncalled, and split the
+        // test coverage of the cancellation gate across two entry points
+        // (#120).
         $group->delete('/settlements/{id}/cancel', [SettlementsAdminController::class, 'cancel']);
         $group->post('/settlements/{id}/submit', [SettlementsAdminController::class, 'markSubmitted']);
         // The other end of #81: once submitted, a settlement is reversed, not

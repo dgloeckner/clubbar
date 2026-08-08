@@ -49,7 +49,6 @@ namespace App\Modules\Auth\Services;
  */
 class TokenService
 {
-    private const BCRYPT_COST = 12;
     private const TOKEN_ENTROPY_BYTES = 32;
 
     /**

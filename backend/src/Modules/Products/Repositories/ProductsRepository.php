@@ -24,11 +24,6 @@ class ProductsRepository
         return $stmt->fetch() ?: null;
     }
 
-    public function findAll(): array
-    {
-        return $this->db->query('SELECT * FROM products ORDER BY created_at ASC')->fetchAll();
-    }
-
     public function findModifiedSince(int $sinceTimestamp): array
     {
         $sinceDate = SyncCursor::lowerBound($sinceTimestamp);
@@ -45,21 +40,6 @@ class ProductsRepository
              ORDER BY COALESCE(updated_at, deleted_at) ASC'
         );
         $stmt->execute([$sinceDate, $sinceDate]);
-        return $stmt->fetchAll();
-    }
-
-
-    public function findActive(): array
-    {
-        return $this->db->query(
-            'SELECT p.* FROM products p INNER JOIN categories c ON p.category_id = c.id WHERE p.is_active = 1 AND c.is_active = 1 ORDER BY p.created_at ASC'
-        )->fetchAll();
-    }
-
-    public function findByCategory(string $categoryId): array
-    {
-        $stmt = $this->db->prepare('SELECT * FROM products WHERE category_id = ? ORDER BY created_at ASC');
-        $stmt->execute([$categoryId]);
         return $stmt->fetchAll();
     }
 
@@ -121,14 +101,6 @@ class ProductsRepository
         return $this->findById($id);
     }
 
-    public function deleteById(string $id): bool
-    {
-        $stmt = $this->db->prepare('DELETE FROM products WHERE id = ?');
-        $result = $stmt->execute([$id]);
-        $this->logger->info('Product deleted', ['id' => $id]);
-        return $result && $stmt->rowCount() > 0;
-    }
-
     public function listPaginated(int $limit, int $offset, array $filters = [], string $sortBy = 'created_at', string $sortOrder = 'desc'): array
     {
         $where = [];
@@ -169,10 +141,5 @@ class ProductsRepository
         $stmt->execute($dataParams);
 
         return ['items' => $stmt->fetchAll(), 'total' => $total];
-    }
-
-    public function count(): int
-    {
-        return (int) $this->db->query('SELECT COUNT(*) FROM products')->fetchColumn();
     }
 }

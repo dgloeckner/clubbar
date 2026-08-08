@@ -58,11 +58,10 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 
-export type ListSettlementsType = typeof ListSettlementsType[keyof typeof ListSettlementsType];
+export type ListSettlementsSort = typeof ListSettlementsSort[keyof typeof ListSettlementsSort];
 
 
-export const ListSettlementsType = {
-  all: 'all',
-  sepa: 'sepa',
-  manual: 'manual',
+export const ListSettlementsSort = {
+  created_at: 'created_at',
+  created_by: 'created_by',
 } as const;

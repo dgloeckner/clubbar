@@ -24,11 +24,6 @@ class CategoriesRepository
         return $stmt->fetch() ?: null;
     }
 
-    public function findAll(): array
-    {
-        return $this->db->query('SELECT * FROM categories ORDER BY created_at ASC')->fetchAll();
-    }
-
     public function findModifiedSince(int $sinceTimestamp): array
     {
         $sinceDate = SyncCursor::lowerBound($sinceTimestamp);
@@ -45,12 +40,6 @@ class CategoriesRepository
         );
         $stmt->execute([$sinceDate, $sinceDate]);
         return $stmt->fetchAll();
-    }
-
-
-    public function findActive(): array
-    {
-        return $this->db->query('SELECT * FROM categories WHERE is_active = 1 ORDER BY created_at ASC')->fetchAll();
     }
 
     public function getWithProductCount(): array
@@ -117,16 +106,4 @@ class CategoriesRepository
         return $this->findById($id);
     }
 
-    public function deleteById(string $id): bool
-    {
-        $stmt = $this->db->prepare('DELETE FROM categories WHERE id = ?');
-        $result = $stmt->execute([$id]);
-        $this->logger->info('Category deleted', ['id' => $id]);
-        return $result && $stmt->rowCount() > 0;
-    }
-
-    public function count(): int
-    {
-        return (int) $this->db->query('SELECT COUNT(*) FROM categories')->fetchColumn();
-    }
 }
