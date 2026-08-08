@@ -389,7 +389,7 @@
     "loadingSepa": "Loading SEPA configuration...",
     "saving": "Saving...",
     "sepaWarningTitle": "Warning",
-    "sepaWarningMessage": "The creditor ID is a legal identifier that appears in SEPA exports and settlement records. Changing it may impact compliance and audit trails.",
+    "sepaWarningMessage": "The creditor ID is a legal identifier that appears in SEPA exports and settlement records. It is fixed at initial setup and can no longer be changed here.",
     "creditorStreet": "Street Address",
     "creditorCity": "City",
     "creditorCountry": "Country Code",
@@ -404,6 +404,7 @@
     },
     "sepaHelpers": {
       "creditorId": "SEPA creditor identification number (max 35 characters)",
+      "creditorIdLocked": "Fixed at initial setup — the creditor ID cannot be changed here.",
       "creditorName": "Organization name (max 70 characters)",
       "creditorIban": "Bank account IBAN (15–34 characters)",
       "street": "Street and house number (max 70 characters)",

@@ -80,4 +80,9 @@ export interface SepaConfigRequest {
    * @maxLength 2
    */
   creditor_address_country?: string;
+  /**
+   * Prefix of the payment reference shown on member bank statements
+   * @maxLength 100
+   */
+  payment_reference_prefix?: string;
 }

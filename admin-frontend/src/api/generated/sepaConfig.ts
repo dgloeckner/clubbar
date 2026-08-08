@@ -74,5 +74,12 @@ export interface SepaConfig {
    * @maxLength 2
    */
   creditor_address_country?: string;
+  /**
+   * Prefix of the payment reference shown on member bank statements
+   * @maxLength 100
+   */
+  payment_reference_prefix?: string;
+  /** True once creditor_id, creditor_name and creditor_iban are all set */
+  is_configured?: boolean;
   updated_at?: string;
 }

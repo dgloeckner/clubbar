@@ -4372,6 +4372,13 @@ components:
           type: string
           minLength: 2
           maxLength: 2
+        payment_reference_prefix:
+          type: string
+          maxLength: 100
+          description: Prefix of the payment reference shown on member bank statements
+        is_configured:
+          type: boolean
+          description: True once creditor_id, creditor_name and creditor_iban are all set
         updated_at:
           type: string
           format: date-time
@@ -4402,9 +4409,16 @@ components:
           minLength: 2
           maxLength: 2
           default: DE
+        payment_reference_prefix:
+          type: string
+          maxLength: 100
+          description: Prefix of the payment reference shown on member bank statements
 
     SepaConfigUpdateRequest:
       type: object
+      description: |
+        `creditor_id` is deliberately absent: it is immutable after initial
+        setup and is only accepted by `POST /admin/sepa-config`.
       properties:
         creditor_name:
           type: string
@@ -4423,6 +4437,10 @@ components:
           type: string
           minLength: 2
           maxLength: 2
+        payment_reference_prefix:
+          type: string
+          maxLength: 100
+          description: Prefix of the payment reference shown on member bank statements
 
     # --------------------------------------------------------------------------
     # Admin Users

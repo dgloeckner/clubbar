@@ -32,10 +32,17 @@ function generateTestSepaConfig() {
     creditor_address_street: `Test Street ${unique}`,
     creditor_address_city: `Test City ${unique}`,
     creditor_address_country: 'DE',
+    payment_reference_prefix: `Prefix ${unique}`,
   }
 }
 
 test.describe('SEPA Configuration Settings', () => {
+  // The SEPA config is a single global row, so tests that save it would
+  // clobber each other under `fullyParallel` — whichever reads second sees
+  // the other's value. The config cannot be made per-test (E2E Pattern 001),
+  // so the writers are serialised instead, as in tests/api/settlements.spec.ts.
+  test.describe.configure({ mode: 'serial' })
+
   /**
    * Test: Settings page displays SEPA configuration tab
    * Verifies: Page loads, tab is visible and labeled correctly
@@ -181,56 +188,93 @@ test.describe('SEPA Configuration Settings', () => {
 
 
   /**
-   * Test: Warning shown when creditor_id can be changed after initial setup
+   * Test: The payment reference prefix survives a save (#90)
+   *
+   * The prefix appears on member bank statements. It used to be shown, edited
+   * and reported as saved while being left out of both request bodies, so it
+   * silently reverted on the next page load.
    *
    * E2E Verification Flow:
-   * 1. Load existing config
-   * 2. Verify creditor_id field is ENABLED (not disabled)
-   * 3. Verify user CAN edit creditor_id (loosened from strict immutability)
-   * 4. Verify warning is displayed when config already exists
-   * 5. Verify other fields can still be edited
-   *
-   * Pattern 008: Use expect() for assertions
+   * 1. Fill the whole form, including a unique payment reference prefix
+   * 2. Save and wait for the actual POST/PATCH to return 200
+   * 3. Verify no error is shown
+   * 4. Reload the page — the value now comes back from the database
+   * 5. Verify the prefix (and the creditor name saved alongside it) persisted
    */
-  test('should show warning when creditor_id exists but can be edited', async ({ authenticatedSettingsPage }) => {
-    // Arrange: Navigate to settings
+  test('should persist the payment reference prefix', async ({ authenticatedSettingsPage }) => {
     await authenticatedSettingsPage.waitForLoad()
     await authenticatedSettingsPage.clickSepaTab()
 
-    // Check if config exists
-    const existingIban = await authenticatedSettingsPage.getIbanValue()
-    if (!existingIban) {
-      // eslint-disable-next-line clubbar/no-data-dependent-skip -- #146: ambient config state; fixture work tracked separately, not fixed here
-      test.skip() // Skip if no config exists
-    }
+    // Pattern 001: unique data per test
+    const testData = generateTestSepaConfig()
 
-    // Get original creditor_id
-    const originalId = await authenticatedSettingsPage.getCreditorIdValue()
+    // Act: fill everything (creditor_id is skipped when already locked) and save
+    await authenticatedSettingsPage.fillSepaConfig(testData)
+    const { status } = await authenticatedSettingsPage.saveAndWaitForResponse()
 
-    // Verify field is NOT disabled (can be edited - loosened from previous strict immutability)
-    // This is the key change: creditor_id is now editable with warning instead of locked
-    const isDisabled = await authenticatedSettingsPage.isCreditorIdDisabled()
-    expect(isDisabled).toBe(false)
+    // Assert: the backend accepted the write
+    expect(status).toBe(200)
+    await authenticatedSettingsPage.expectSuccessMessage()
+    await authenticatedSettingsPage.expectNoErrorMessage()
 
-    // Verify creditor_id field is editable by trying to fill it
-    const testId = `DE${generateUnique()}ZZZ09999999999`
-    await authenticatedSettingsPage.fillSepaConfig({
-      creditor_id: testId,
-    })
+    // Assert: the value round-trips through the database, not just the form state
+    await authenticatedSettingsPage.page.reload({ waitUntil: 'domcontentloaded' })
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
 
-    // Verify the field accepted the new value
-    const updatedId = await authenticatedSettingsPage.getCreditorIdValue()
-    expect(updatedId).toBe(testId)
+    expect(await authenticatedSettingsPage.getPaymentReferencePrefixValue()).toBe(
+      testData.payment_reference_prefix,
+    )
+    expect(await authenticatedSettingsPage.getCreditorNameValue()).toBe(testData.creditor_name)
+  })
 
-    // Cancel to reset (don't save the change)
-    await authenticatedSettingsPage.cancel()
+  /**
+   * Test: The creditor ID is immutable once set (ADR-0007)
+   *
+   * The field must not be presented as editable, because updates never carry
+   * it — an editable field here would silently discard the edit.
+   *
+   * E2E Verification Flow:
+   * 1. Make sure a creditor ID exists (save the form if this is first-time setup)
+   * 2. Reload so the state comes from the backend
+   * 3. Verify the creditor ID input is disabled and the warning explains why
+   * 4. Verify the remaining fields still save
+   */
+  test('should lock the creditor ID once it is set', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
 
-    // Wait for cancel to complete
-    await authenticatedSettingsPage.page.waitForTimeout(300)
+    const testData = generateTestSepaConfig()
 
-    // Verify form reset to original creditor_id
-    const resetId = await authenticatedSettingsPage.getCreditorIdValue()
-    expect(resetId).toBe(originalId)
+    // Arrange: ensure a creditor ID is stored (no-op beyond a save if it already is)
+    await authenticatedSettingsPage.fillSepaConfig(testData)
+    const initialSave = await authenticatedSettingsPage.saveAndWaitForResponse()
+    expect(initialSave.status).toBe(200)
+
+    await authenticatedSettingsPage.page.reload({ waitUntil: 'domcontentloaded' })
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
+
+    // Assert: creditor ID is set, locked, and explained
+    const storedId = await authenticatedSettingsPage.getCreditorIdValue()
+    expect(storedId).not.toBe('')
+    await authenticatedSettingsPage.expectCreditorIdLocked()
+
+    // Assert: the rest of the form still saves, via PATCH and without the creditor ID
+    const newName = `Test Organization ${generateUnique()}`
+    await authenticatedSettingsPage.fillSepaConfig({ creditor_name: newName })
+    const update = await authenticatedSettingsPage.saveAndWaitForResponse()
+    expect(update.method).toBe('PATCH')
+    expect(update.status).toBe(200)
+    await authenticatedSettingsPage.expectNoErrorMessage()
+
+    await authenticatedSettingsPage.page.reload({ waitUntil: 'domcontentloaded' })
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickSepaTab()
+
+    expect(await authenticatedSettingsPage.getCreditorNameValue()).toBe(newName)
+    // The immutable ID is untouched by the update
+    expect(await authenticatedSettingsPage.getCreditorIdValue()).toBe(storedId)
   })
 
   /**
