@@ -130,6 +130,21 @@ const updateProduct = (
       options);
     }
   /**
+ * Permanently delete a product.
+
+**Use Case**: UC-A43
+
+ * @summary Delete product
+ */
+const deleteProduct = (
+    productId: string,
+ options?: SecondParameter<typeof customInstance<void>>,) => {
+      return customInstance<void>(
+      {url: `/admin/products/${productId}`, method: 'DELETE'
+    },
+      options);
+    }
+  /**
  * Retrieve all product categories.
 
 **Use Case**: UC-A44
@@ -196,11 +211,12 @@ const deleteCategory = (
     },
       options);
     }
-  return {listProducts,createProduct,getProduct,updateProduct,listCategories,createCategory,updateCategory,deleteCategory}};
+  return {listProducts,createProduct,getProduct,updateProduct,deleteProduct,listCategories,createCategory,updateCategory,deleteCategory}};
 export type ListProductsResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProducts>['listProducts']>>>
 export type CreateProductResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProducts>['createProduct']>>>
 export type GetProductResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProducts>['getProduct']>>>
 export type UpdateProductResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProducts>['updateProduct']>>>
+export type DeleteProductResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProducts>['deleteProduct']>>>
 export type ListCategoriesResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProducts>['listCategories']>>>
 export type CreateCategoryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProducts>['createCategory']>>>
 export type UpdateCategoryResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getProducts>['updateCategory']>>>

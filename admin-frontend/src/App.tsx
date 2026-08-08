@@ -30,9 +30,9 @@ import { MainLayout } from './components/layout/MainLayout'
  * Redirects to login if not authenticated
  */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, initializing } = useAuth()
 
-  if (loading) {
+  if (initializing) {
     return (
       <div
         style={{
@@ -56,9 +56,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
  * Main App Routes
  */
 function AppRoutes() {
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, initializing } = useAuth()
 
-  if (loading) {
+  if (initializing) {
     return (
       <div
         style={{

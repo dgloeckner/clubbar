@@ -204,9 +204,10 @@ function TotpInfoModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-function ErrorBanner({ message }: { message: string }) {
+function ErrorBanner({ message, testId }: { message: string; testId: string }) {
   return (
     <div
+      data-testid={testId}
       style={{
         background: `${theme.colors.semantic.danger}20`,
         border: `1px solid ${theme.colors.semantic.danger}`,
@@ -245,7 +246,7 @@ function MfaStep() {
   return (
     <AuthCard title={t('auth.mfaTitle')} subtitle={t('auth.mfaInstruction')}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>
-        {localError && <ErrorBanner message={localError} />}
+        {localError && <ErrorBanner message={localError} testId="mfa-error" />}
         <Input
           data-testid="mfa-code-input"
           label={t('auth.mfaCode')}
@@ -308,7 +309,7 @@ function TotpSetupStep() {
     <>
       {showInfo && <TotpInfoModal onClose={() => setShowInfo(false)} />}
       <AuthCard title={t('auth.setupTitle')} subtitle={t('auth.setupInstruction')} onInfo={() => setShowInfo(true)}>
-      {fetchError && <ErrorBanner message={fetchError} />}
+      {fetchError && <ErrorBanner message={fetchError} testId="totp-setup-fetch-error" />}
 
       {qrCode && (
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: theme.spacing.lg }}>
@@ -331,12 +332,12 @@ function TotpSetupStep() {
             marginBottom: theme.spacing.lg,
           }}
         >
-          {t('auth.setupManualKey')}: <strong>{secret}</strong>
+          {t('auth.setupManualKey')}: <strong data-testid="totp-setup-secret">{secret}</strong>
         </p>
       )}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.lg }}>
-        {localError && <ErrorBanner message={localError} />}
+        {localError && <ErrorBanner message={localError} testId="totp-setup-error" />}
         <Input
           data-testid="setup-code-input"
           label={t('auth.setupCodeLabel')}

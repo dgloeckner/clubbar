@@ -49,7 +49,6 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 export type ReportDataItem = {
   dimension?: string;
   revenue_cents?: number;
-  quantity?: number;
   count?: number;
   percent_of_total?: number;
 };

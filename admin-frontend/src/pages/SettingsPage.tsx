@@ -11,7 +11,7 @@ import { useLoading } from '../context/LoadingContext'
 import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
 import { getAdminUsers } from '../api/generated/admin-users/admin-users'
 import { getTerminals } from '../api/generated/terminals/terminals'
-import { reset2fa } from '../api/auth-management'
+import { getAuthentication } from '../api/generated/authentication/authentication'
 import type { SepaConfig as GeneratedSepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
 
 // Extended SEPA config type: includes payment_reference_prefix returned by the backend
@@ -284,7 +284,7 @@ export function SettingsPage() {
     const id = reset2faConfirm
     setReset2faConfirm(null)
     try {
-      await reset2fa(id)
+      await getAuthentication().resetTotp({ userId: id })
     } catch (err: unknown) {
       setError('Failed to reset 2FA')
     }

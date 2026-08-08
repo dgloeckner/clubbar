@@ -39,7 +39,6 @@ import {
 } from '../styles/tableTokens'
 import { getSettlements as getSettlementsFactory } from '../api/generated/settlements/settlements'
 import type { SettlementListItem, ListSettlementsParams } from '../api/generated'
-import { downloadFile } from '../api/client'
 
 
 /**
@@ -151,25 +150,18 @@ export function SettlementsPage() {
       setLoading(true)
       setError(null)
 
-      // Build sort_by param: generated type only supports created_at_desc/asc, execution_date
-      const sortBy = sortKey === 'created_at'
-        ? (sortOrder === 'asc' ? 'created_at_asc' : 'created_at_desc')
-        : 'created_at_desc'
-
-      const params: ListSettlementsParams & Record<string, unknown> = {
+      // SettlementsRepository::listPaginated always sorts by created_at server-side — there's
+      // no per-column sort, only a direction. Clicking "Date" or "Created By" both just flip
+      // that direction (`order`); sort_by's per-column enum is reserved for future use.
+      const params: ListSettlementsParams = {
         page: currentPage,
         per_page: pageSize,
-        sort_by: sortBy,
+        order: sortOrder,
       }
 
       if (dateFrom) params.date_from = dateFrom
       if (dateTo) params.date_to = dateTo
       if (statusFilter !== 'all') params.status = statusFilter
-      // Pass sort/order for backends that support the legacy format
-      if (sortKey === 'created_by') {
-        params.sort = sortKey
-        params.order = sortOrder
-      }
 
       const response = await getSettlementsFactory().listSettlements(params)
 
@@ -247,7 +239,15 @@ export function SettlementsPage() {
 
   const handleExportTransactionsCsv = async (settlementId: string) => {
     try {
-      await downloadFile(`/admin/settlements/${settlementId}/export-transactions`, `transactions-${settlementId}.csv`)
+      const blob = await getSettlementsFactory().exportSettlementTransactions(settlementId)
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = `transactions-${settlementId}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.message)

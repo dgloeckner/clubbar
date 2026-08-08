@@ -45,49 +45,8 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
-import type { ListSettlementsOrder } from './listSettlementsOrder';
-import type { ListSettlementsSortBy } from './listSettlementsSortBy';
-import type { ListSettlementsStatus } from './listSettlementsStatus';
-import type { ListSettlementsType } from './listSettlementsType';
-import type { PageParameter } from './pageParameter';
-import type { PerPageParameter } from './perPageParameter';
 
-export type ListSettlementsParams = {
-/**
- * Page number (1-indexed)
- * @minimum 1
- */
-page?: PageParameter;
-/**
- * Items per page
- * @minimum 1
- * @maximum 100
- */
-per_page?: PerPageParameter;
-/**
- * Filter by settlement type
- */
-type?: ListSettlementsType;
-/**
- * Filter by cancellation status
- */
-status?: ListSettlementsStatus;
-/**
- * Filter to settlements created on or after this date
- */
-date_from?: string;
-/**
- * Filter to settlements created on or before this date
- */
-date_to?: string;
-/**
- * Reserved for future use — the backend currently sorts by created_at
-regardless of this value. Use `order` to control sort direction.
-
- */
-sort_by?: ListSettlementsSortBy;
-/**
- * Sort direction, applied to created_at (the only sortable column today)
- */
-order?: ListSettlementsOrder;
-};
+export interface Reset2faRequest {
+  /** ID of the admin user whose TOTP enrollment should be cleared */
+  userId: string;
+}

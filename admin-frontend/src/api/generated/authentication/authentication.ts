@@ -46,13 +46,21 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  * OpenAPI spec version: 1.0.0
  */
 import type {
-  AdminProfile,
   ChangePassword200,
   ChangePasswordRequest,
+  Confirm2faRequest,
+  ConfirmTotp200,
+  GetProfileResponse,
   LoginRequest,
   LoginResponse,
   Logout200,
-  UpdateProfileRequest
+  MfaRequest,
+  MfaResponse,
+  Reset2faRequest,
+  ResetTotp200,
+  Setup2faResponse,
+  UpdateProfileRequest,
+  UpdateProfileResponse
 } from './..';
 
 import { customInstance } from '../../client';
@@ -128,8 +136,8 @@ const changePassword = (
  */
 const getProfile = (
     
- options?: SecondParameter<typeof customInstance<AdminProfile>>,) => {
-      return customInstance<AdminProfile>(
+ options?: SecondParameter<typeof customInstance<GetProfileResponse>>,) => {
+      return customInstance<GetProfileResponse>(
       {url: `/auth/profile`, method: 'GET'
     },
       options);
@@ -143,17 +151,91 @@ const getProfile = (
  */
 const updateProfile = (
     updateProfileRequest: UpdateProfileRequest,
- options?: SecondParameter<typeof customInstance<AdminProfile>>,) => {
-      return customInstance<AdminProfile>(
+ options?: SecondParameter<typeof customInstance<UpdateProfileResponse>>,) => {
+      return customInstance<UpdateProfileResponse>(
       {url: `/auth/profile`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: updateProfileRequest
     },
       options);
     }
-  return {login,logout,changePassword,getProfile,updateProfile}};
+  /**
+ * Exchange a valid MFA-pending session (issued by POST /auth/login when
+`requiresMfa` is true) plus a TOTP code for a fully authenticated session.
+
+**Use Case**: UC-A01
+
+ * @summary Verify TOTP code and complete login
+ */
+const verifyMfa = (
+    mfaRequest: MfaRequest,
+ options?: SecondParameter<typeof customInstance<MfaResponse>>,) => {
+      return customInstance<MfaResponse>(
+      {url: `/auth/mfa`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: mfaRequest
+    },
+      options);
+    }
+  /**
+ * Generate a new TOTP secret and QR code for the current admin.
+Accessible even while `totp_setup_required` is set on the session.
+
+**Use Case**: UC-A01
+
+ * @summary Begin TOTP enrollment
+ */
+const setupTotp = (
+    
+ options?: SecondParameter<typeof customInstance<Setup2faResponse>>,) => {
+      return customInstance<Setup2faResponse>(
+      {url: `/auth/2fa/setup`, method: 'POST'
+    },
+      options);
+    }
+  /**
+ * Verify the first TOTP code to complete enrollment. On success, the
+pending secret is persisted and the setup gate is removed.
+
+**Use Case**: UC-A01
+
+ * @summary Confirm TOTP enrollment
+ */
+const confirmTotp = (
+    confirm2faRequest: Confirm2faRequest,
+ options?: SecondParameter<typeof customInstance<ConfirmTotp200>>,) => {
+      return customInstance<ConfirmTotp200>(
+      {url: `/auth/2fa/confirm`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: confirm2faRequest
+    },
+      options);
+    }
+  /**
+ * Remove TOTP enrollment from any admin user account. Any authenticated
+admin may call this (e.g. to help a locked-out colleague).
+
+**Use Case**: UC-A01
+
+ * @summary Reset another admin's TOTP enrollment
+ */
+const resetTotp = (
+    reset2faRequest: Reset2faRequest,
+ options?: SecondParameter<typeof customInstance<ResetTotp200>>,) => {
+      return customInstance<ResetTotp200>(
+      {url: `/auth/2fa/reset`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: reset2faRequest
+    },
+      options);
+    }
+  return {login,logout,changePassword,getProfile,updateProfile,verifyMfa,setupTotp,confirmTotp,resetTotp}};
 export type LoginResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuthentication>['login']>>>
 export type LogoutResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuthentication>['logout']>>>
 export type ChangePasswordResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuthentication>['changePassword']>>>
 export type GetProfileResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuthentication>['getProfile']>>>
 export type UpdateProfileResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuthentication>['updateProfile']>>>
+export type VerifyMfaResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuthentication>['verifyMfa']>>>
+export type SetupTotpResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuthentication>['setupTotp']>>>
+export type ConfirmTotpResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuthentication>['confirmTotp']>>>
+export type ResetTotpResult = NonNullable<Awaited<ReturnType<ReturnType<typeof getAuthentication>['resetTotp']>>>

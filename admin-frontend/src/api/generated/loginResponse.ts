@@ -45,12 +45,21 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { AdminProfile } from './adminProfile';
 
+/**
+ * The shape returned depends on the authentication branch:
+- TOTP-enrolled admin: only `requiresMfa` is set — call POST /auth/mfa next.
+- First-time admin (no TOTP yet): `requiresTotpSetup`, `admin`, and
+  `csrf_token` are set — call POST /auth/2fa/setup next.
+
+ */
 export interface LoginResponse {
-  admin_id: string;
-  email: string;
-  display_name: string;
-  locale: string;
-  /** CSRF token for subsequent state-changing requests */
-  csrf_token: string;
+  /** True when the admin has TOTP enabled. Call POST /auth/mfa with the code next. */
+  requiresMfa?: boolean;
+  /** True on an admin's first login. Call POST /auth/2fa/setup to begin enrollment. */
+  requiresTotpSetup?: boolean;
+  admin?: AdminProfile;
+  /** CSRF token for subsequent state-changing requests (present alongside requiresTotpSetup) */
+  csrf_token?: string;
 }

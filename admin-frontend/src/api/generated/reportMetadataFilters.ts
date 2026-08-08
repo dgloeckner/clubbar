@@ -45,5 +45,15 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 
  * OpenAPI spec version: 1.0.0
  */
+import type { ReportMetadataFiltersGroupBy } from './reportMetadataFiltersGroupBy';
 
-export type ReportMetadataFilters = { [key: string]: unknown };
+/**
+ * Echoes the non-empty request filters back (date_from, date_to, group_by, category_ids, product_ids)
+ */
+export type ReportMetadataFilters = {
+  date_from?: string;
+  date_to?: string;
+  group_by?: ReportMetadataFiltersGroupBy;
+  category_ids?: string;
+  product_ids?: string;
+};

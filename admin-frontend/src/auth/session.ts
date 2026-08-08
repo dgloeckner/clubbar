@@ -7,7 +7,7 @@
 
 import axios from 'axios'
 import { getAuthentication } from '../api/generated/authentication/authentication'
-import axiosInstance, { setCsrfToken } from '../api/client'
+import { setCsrfToken } from '../api/client'
 import { changeLanguage } from '../i18n/config'
 import type { UpdateProfileRequest, AdminProfile } from '../api/generated'
 
@@ -42,60 +42,56 @@ export interface LoginSessionResult {
   }
 }
 
+function storeAdmin(admin: AdminProfile, csrfToken?: string): void {
+  localStorage.setItem('admin_id', admin.id)
+  localStorage.setItem('email', admin.email)
+  localStorage.setItem('display_name', admin.display_name)
+  localStorage.setItem('locale', admin.locale)
+  if (csrfToken) setCsrfToken(csrfToken)
+  changeLanguage(admin.locale)
+}
+
+function toLoginData(admin: AdminProfile): NonNullable<LoginSessionResult['data']> {
+  return {
+    admin_id: admin.id,
+    email: admin.email,
+    display_name: admin.display_name,
+    locale: admin.locale,
+  }
+}
+
 export async function loginWithSession(credentials: {
   email: string
   password: string
 }): Promise<LoginSessionResult> {
   try {
-    const rawResponse = await getAuthentication().login(credentials)
-    // Backend returns {message, admin: {id, email, display_name, locale, last_login_at}, csrf_token}
-    // The orval-generated LoginResponse type uses flat field names (admin_id, email, ...) which
-    // don't match the actual response shape — access the real structure at runtime.
-    const r = rawResponse as unknown as {
-      requiresMfa?: boolean
-      requiresTotpSetup?: boolean
-      admin: { id: string; email: string; display_name: string; locale: string }
-      csrf_token: string
-    }
+    const r = await getAuthentication().login(credentials)
 
     if (r.requiresMfa) {
       return { success: false, requiresMfa: true, message: '' }
     }
 
-    if (r.requiresTotpSetup) {
+    if (r.requiresTotpSetup && r.admin) {
       // Store CSRF token so the setup/confirm endpoints can be called
-      setCsrfToken(r.csrf_token)
+      setCsrfToken(r.csrf_token ?? null)
       return {
         success: false,
         requiresTotpSetup: true,
         message: '',
-        data: {
-          admin_id: r.admin.id,
-          email: r.admin.email,
-          display_name: r.admin.display_name,
-          locale: r.admin.locale,
-        },
+        data: toLoginData(r.admin),
       }
     }
 
-    const admin = r.admin
+    if (!r.admin) {
+      return { success: false, message: 'Login failed' }
+    }
 
-    localStorage.setItem('admin_id', admin.id)
-    localStorage.setItem('email', admin.email)
-    localStorage.setItem('display_name', admin.display_name)
-    localStorage.setItem('locale', admin.locale)
-    setCsrfToken(r.csrf_token)
-    changeLanguage(admin.locale)
+    storeAdmin(r.admin, r.csrf_token)
 
     return {
       success: true,
       message: 'Login successful',
-      data: {
-        admin_id: admin.id,
-        email: admin.email,
-        display_name: admin.display_name,
-        locale: admin.locale,
-      },
+      data: toLoginData(r.admin),
     }
   } catch (error: unknown) {
     const message = axios.isAxiosError(error)
@@ -109,29 +105,13 @@ export async function loginWithSession(credentials: {
 
 export async function submitMfaWithSession(code: string): Promise<LoginSessionResult> {
   try {
-    const rawResponse = await axiosInstance.post('/auth/mfa', { code })
-    const r = rawResponse.data as {
-      admin: { id: string; email: string; display_name: string; locale: string }
-      csrf_token: string
-    }
-    const admin = r.admin
-
-    localStorage.setItem('admin_id', admin.id)
-    localStorage.setItem('email', admin.email)
-    localStorage.setItem('display_name', admin.display_name)
-    localStorage.setItem('locale', admin.locale)
-    setCsrfToken(r.csrf_token)
-    changeLanguage(admin.locale)
+    const r = await getAuthentication().verifyMfa({ code })
+    storeAdmin(r.admin, r.csrf_token)
 
     return {
       success: true,
       message: 'Login successful',
-      data: {
-        admin_id: admin.id,
-        email: admin.email,
-        display_name: admin.display_name,
-        locale: admin.locale,
-      },
+      data: toLoginData(r.admin),
     }
   } catch (error: unknown) {
     const message = axios.isAxiosError(error)
@@ -145,8 +125,7 @@ export async function submitMfaWithSession(code: string): Promise<LoginSessionRe
 
 /** Fetch QR code + secret to display to the user during first-time 2FA setup. */
 export async function setupTotpWithSession(): Promise<{ qrCode: string; secret: string }> {
-  const resp = await axiosInstance.post('/auth/2fa/setup')
-  return resp.data as { qrCode: string; secret: string }
+  return getAuthentication().setupTotp()
 }
 
 /**
@@ -158,7 +137,7 @@ export async function confirmTotpWithSession(
   adminData: { admin_id: string; email: string; display_name: string; locale: string }
 ): Promise<{ success: boolean; message: string }> {
   try {
-    await axiosInstance.post('/auth/2fa/confirm', { code })
+    await getAuthentication().confirmTotp({ code })
 
     localStorage.setItem('admin_id', adminData.admin_id)
     localStorage.setItem('email', adminData.email)
@@ -200,24 +179,15 @@ export async function logoutWithSession(): Promise<void> {
 export async function updateProfileWithSession(
   data: UpdateProfileRequest
 ): Promise<AdminProfile> {
-  const rawResponse = await getAuthentication().updateProfile(data)
-  // Backend returns {message, admin: {id, email, display_name, locale, last_login_at}}
-  // Unwrap the admin object from the response wrapper.
-  const r = rawResponse as unknown as { admin: AdminProfile }
-  const profile = r.admin ?? rawResponse
-  if (profile) {
-    if (profile.email) localStorage.setItem('email', profile.email)
-    if (profile.display_name) localStorage.setItem('display_name', profile.display_name)
-    if (profile.locale) localStorage.setItem('locale', profile.locale)
-  }
-  return profile
+  const { admin } = await getAuthentication().updateProfile(data)
+  localStorage.setItem('email', admin.email)
+  localStorage.setItem('display_name', admin.display_name)
+  localStorage.setItem('locale', admin.locale)
+  return admin
 }
 
 // Re-export getProfile, unwrapping the backend's response envelope.
 export async function getProfile(): Promise<AdminProfile> {
-  const rawResponse = await getAuthentication().getProfile()
-  // Backend returns {admin: {id, email, display_name, locale, last_login_at}, csrf_token}
-  // Unwrap the admin object.
-  const r = rawResponse as unknown as { admin: AdminProfile }
-  return r.admin ?? rawResponse
+  const { admin } = await getAuthentication().getProfile()
+  return admin
 }

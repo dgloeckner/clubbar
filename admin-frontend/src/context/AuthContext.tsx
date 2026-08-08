@@ -37,6 +37,13 @@ interface AuthContextType extends AuthState {
   setupTotp: () => Promise<{ qrCode: string; secret: string }>
   confirmTotp: (code: string) => Promise<boolean>
   logout: () => Promise<void>
+  // True only while the app is checking for an existing session on first load.
+  // Routing (App.tsx) gates its full-page loading screen on this, NOT on `loading`.
+  initializing: boolean
+  // True while a login/MFA/TOTP/logout request is in flight. Login-form-local UI
+  // (disabled buttons, spinner text) reads this — routing must not, or a login
+  // attempt would unmount/remount LoginPage mid-submission and drop its local state
+  // (e.g. the error message set right after the request resolves).
   loading: boolean
   error?: string
 }
@@ -49,7 +56,8 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [auth, setAuth] = useState<AuthState>({ isAuthenticated: false })
-  const [loading, setLoading] = useState(true)
+  const [initializing, setInitializing] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
 
   useEffect(() => {
@@ -63,7 +71,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         locale: session.locale,
       })
     }
-    setLoading(false)
+    setInitializing(false)
   }, [])
 
   const handleLogin = async (credentials: LoginCredentials): Promise<boolean> => {
@@ -183,6 +191,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setupTotp: handleSetupTotp,
     confirmTotp: handleConfirmTotp,
     logout: handleLogout,
+    initializing,
     loading,
     error,
   }

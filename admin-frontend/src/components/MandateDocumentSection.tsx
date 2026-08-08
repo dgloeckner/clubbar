@@ -1,11 +1,8 @@
 import React, { useRef, useState } from 'react'
 import imageCompression from 'browser-image-compression'
 import heic2any from 'heic2any'
-import {
-  MandateDocumentInfo,
-  openMandateDocument,
-  uploadMandateDocument,
-} from '../api/mandateDocument'
+import { MandateDocumentInfo, openMandateDocument } from '../api/mandateDocument'
+import { getMembers } from '../api/generated/members/members'
 import type { ExtractionResult } from '../api/generated/extractionResult'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../styles/design-system'
@@ -104,7 +101,7 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
     setError(null)
 
     try {
-      const doc = await uploadMandateDocument(memberId, selectedFile)
+      const doc = await getMembers().uploadMandateDocument(memberId, { file: selectedFile })
       setMandateDoc(doc)
       setSelectedFile(null)
       setState('stored')

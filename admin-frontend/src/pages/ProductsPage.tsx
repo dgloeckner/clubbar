@@ -15,7 +15,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { getProducts } from '../api/generated/products/products'
-import { onLoadingStateChange, customInstance } from '../api/client'
+import { onLoadingStateChange } from '../api/client'
 import type {
   Product,
   Category,
@@ -392,8 +392,7 @@ export function ProductsPage() {
     if (!confirmDialog) return
 
     try {
-      // deleteProduct is not in the OAS spec but exists in the backend
-      await customInstance<void>({ url: `/admin/products/${confirmDialog.productId}`, method: 'DELETE' })
+      await getProducts().deleteProduct(confirmDialog.productId)
       setConfirmDialog(null)
       await loadProducts()
     } catch (err: unknown) {

@@ -47,10 +47,12 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 
 export interface AdminProfile {
-  id?: string;
-  email?: string;
-  display_name?: string;
-  locale?: string;
+  id: string;
+  email: string;
+  display_name: string;
+  locale: string;
   /** @nullable */
   last_login_at?: string | null;
+  /** Whether TOTP two-factor authentication is enrolled for this admin */
+  totp_enabled: boolean;
 }
