@@ -810,37 +810,53 @@ scripts/ensure-docker.sh
 
 The hook starts **only the daemon**. It deliberately does not start the containers: it runs on every session and resume and blocks Claude from launching, while the stack costs 30–90s and a chunk of RAM that most sessions never need.
 
-**Integration and E2E tests need the stack up first:**
+**Use `scripts/dev-setup.sh` — it does the whole setup in one go** and every step is idempotent, so re-running it is cheap:
 
 ```bash
-cd backend && composer install && cd ..   # once per session — /app is a bind mount, so
-                                          # without vendor/ every request 500s
-scripts/dev-stack.sh up
-scripts/dev-stack.sh wait                 # blocks until services are actually READY
+scripts/dev-setup.sh                  # API tests + backend tests
+scripts/dev-setup.sh --with-frontend  # also builds and serves the admin UI on :5173
 
-# Migrate + seed. install.php refuses while backend/storage/.installed exists, and
-# that marker is committed — so a fresh clone (every cloud session is one) has to
-# clear it before the first migrate. Do not commit the deletion.
-rm -f backend/storage/.installed
-curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"
-curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=seed"
-
-cd e2etests && npm install && npm test
+cd e2etests && npx playwright test --project=api-tests
 ```
+
+It covers, in order: the Docker daemon → `composer install` → making `backend/logs` and `backend/storage` writable → `dev-stack.sh up` + `wait` → migrate + seed → `npm install` and the Playwright browser → optionally the admin frontend → a verification pass that reports what is missing.
+
+Four of those steps exist because a fresh clone fails without them, and none is obvious:
+
+| Step | Why it is not optional |
+|------|------------------------|
+| `chmod 777 backend/logs backend/storage` | The backend container runs as uid 1000; a fresh clone is owned by root. Without it mandate uploads return 500 (CI has the same step) |
+| `rm -f backend/storage/.installed` | `install.php` refuses to migrate while the marker exists — and the marker is **tracked in git**, so every fresh clone starts blocked. The script clears it, migrates, seeds, then `touch`es it back so the tree stays clean |
+| `npx playwright install chromium` | The image ships a pre-built Chromium, but `@playwright/test` resolves through its caret range to a newer Playwright that wants a newer browser build. Without this, browser tests cannot start |
+| Playwright browser + admin frontend | The `admin-chromium` project drives `http://localhost:5173`; nothing serves it by default |
+
+**Run backend PHP tests inside the container, not on the host:**
+
+```bash
+docker compose exec -w /app backend ./vendor/bin/phpunit
+```
+
+The host PHP has no **bcmath**, and `Validator.php` calls `bcmod()` for the IBAN checksum — on the host those tests die with `Call to undefined function bcmod()`. The host also cannot resolve the `database` hostname the feature tests connect to. The container has bcmath and is on the compose network, so both problems disappear. Installing bcmath on the host is not an option here: it lives in the `ondrej/php` PPA, and the egress policy returns 403 for `ppa.launchpadcontent.net` (see below).
 
 `scripts/dev-stack.sh`:
 
 | Command | Behaviour |
 |---------|-----------|
-| `up [SERVICE...]` | Calls `ensure-docker.sh`, then `docker compose up -d` |
+| `up [SERVICE...]` | Calls `ensure-docker.sh`, then `docker compose up -d`. `dev-setup.sh` calls this for you |
 | `wait [SERVICE...]` | Blocks until every service is healthy. Bounded by `DEV_STACK_TIMEOUT` (default 180s); exits **2** on timeout and prints which service failed plus its last 30 log lines |
 | `down [ARG...]` | `docker compose down` (a no-op if the daemon is not running) |
 
 `up` is not enough on its own: `docker compose up -d` returns once containers are *created*, well before the backend answers HTTP. Readiness comes from compose healthchecks — `database` (`healthcheck.sh --connect`), `backend` (`/api/health`), `admin-frontend` (HTTP 200 on `/`). Note that `wait` does **not** use `docker compose up --wait`: that flag reports success for a container still inside its healthcheck `start_period`, which is exactly the window that matters here.
 
-### Container registry allowlist
+### Container registry and egress allowlist
 
-Image pulls go through the environment's registry allowlist. **That allowlist is configured in the Claude Code cloud environment settings, not in this repo.** If a pull fails, it is fixed by an admin in the environment settings — do not work around it from code: no daemon mirror configuration, no registry rewriting, no insecure-registry entries.
+Image pulls and outbound HTTPS go through the environment's allowlist. **That allowlist is configured in the Claude Code cloud environment settings, not in this repo.** If a fetch fails with 403/407, it is fixed by an admin in the environment settings — do not work around it from code: no daemon mirror configuration, no registry rewriting, no insecure-registry entries, no vendored binaries.
+
+To confirm a failure is a policy denial rather than a network fault, check the proxy's own record — it names the blocked host:
+
+```bash
+curl -sS "$HTTPS_PROXY/__agentproxy/status"   # see recentRelayFailures
+```
 
 Non-default hosts this project needs:
 
@@ -852,6 +868,7 @@ Non-default hosts this project needs:
 | `quay.io`, `*.quay.io` | Keycloak |
 | `*.azurecr.io`, `*.blob.core.windows.net` | ACR manifests / layers |
 | `maven.pkg.github.com` | Defaults cover only `npm.pkg.github.com` |
+| `ppa.launchpadcontent.net` | The `ondrej/php` PPA — the only source of `php8.4-bcmath` for the host PHP. Currently **denied** (403), which is why backend PHP tests run in the container |
 
 ## Agent skills
 
