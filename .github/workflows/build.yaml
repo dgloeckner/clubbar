@@ -492,12 +492,33 @@ jobs:
           CI: true
           ADMIN_URL: http://localhost:5173
 
+      # Names the failing tests in the job log. The compose teardown dumps the
+      # whole container log after this job's steps, which buries the Playwright
+      # summary thousands of lines deep — reachable in the web UI, but not by
+      # anything that reads the log from the end.
+      - name: Name the failing tests
+        if: failure()
+        run: |
+          test -f results/latest.json || { echo "no results/latest.json"; exit 0; }
+          jq -r '
+            [.. | objects | select(has("ok") and has("tests") and .ok == false)]
+            | if length == 0 then "no failed specs recorded" else
+                .[] | "FAILED: \(.file):\(.line) \(.title)\n  " +
+                      (([.tests[]?.results[]?.errors[]?.message] | first // "") | split("\n")[0])
+              end
+          ' results/latest.json
+        working-directory: e2etests
+
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ matrix.shardIndex }}
-          path: e2etests/playwright-report/
+          # results/ carries the JSON reporter output the debugging workflow in
+          # CLAUDE.md reads; the HTML report alone cannot be grepped.
+          path: |
+            e2etests/playwright-report/
+            e2etests/results/
           retention-days: 14
 
       - name: Upload traces
