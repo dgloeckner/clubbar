@@ -542,6 +542,63 @@ test.describe('Transactions Upload Endpoint', () => {
     expect(body.member_balances[settlement.memberId]).toBe(700);
   });
 
+  /**
+   * Issue #191 — the member whose tab was just collected walks up and scans
+   * their card without buying anything. The terminal has nothing to upload, so
+   * the only way it can learn the settlement happened is to *ask*. `member_ids`
+   * is that ask: an empty batch that still names who it wants balances for.
+   */
+  test('POST /api/sync/transactions reports balances for member_ids with an empty batch', async ({ authenticatedTerminalRequest, settlementFactory }) => {
+    // The factory gives this member one purchase, already swept into a
+    // settlement — so their whole tab is paid and nothing is outstanding.
+    const settlement = await settlementFactory.create({ amountCents: 2500 });
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [], member_ids: [settlement.memberId] },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+
+    expect(body.accepted_ids).toEqual([]);
+    // €0.00 — the settled tab, with no purchase in between.
+    expect(body.member_balances[settlement.memberId]).toBe(0);
+  });
+
+  test('POST /api/sync/transactions omits unknown member_ids rather than reporting them as zero', async ({ authenticatedTerminalRequest }) => {
+    const unknownMemberId = '00000000-0000-4000-8000-000000000191';
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: { transactions: [], member_ids: [unknownMemberId] },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+
+    // A phantom 0 would read as "owes nothing" and overwrite the terminal's
+    // cached balance. An absent key leaves the cache alone instead.
+    expect(body.member_balances).not.toHaveProperty(unknownMemberId);
+  });
+
+  test('POST /api/sync/transactions reports balances for member_ids alongside an uploaded batch', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+    const buyer = await createMember(authenticatedRequest);
+    const bystander = await createMember(authenticatedRequest);
+    const product = await createProduct(authenticatedRequest);
+
+    const response = await authenticatedTerminalRequest.post('/api/sync/transactions', {
+      data: {
+        transactions: [createValidTransaction(buyer.id, product.id, { amount_cents: 275 })],
+        member_ids: [bystander.id],
+      },
+    });
+
+    expect(response.status()).toBe(201);
+    const body = await response.json();
+
+    expect(body.member_balances[buyer.id]).toBe(275);
+    expect(body.member_balances[bystander.id]).toBe(0);
+  });
+
   test('GET /api/admin/members/{id}/transactions excludes settled transactions from current_balance_cents', async ({ authenticatedRequest, settlementFactory }) => {
     const settlement = await settlementFactory.create({ amountCents: 2500 });
 

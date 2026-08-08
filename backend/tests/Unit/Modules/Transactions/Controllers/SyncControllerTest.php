@@ -37,11 +37,16 @@ class SyncControllerTest extends TestCase
         $this->controller = new SyncController($this->transactionsService);
     }
 
-    private function request(array $transactions, ?string $terminalId = self::TERMINAL_ID): \Psr\Http\Message\ServerRequestInterface
+    private function request(array $transactions, ?string $terminalId = self::TERMINAL_ID, ?array $memberIds = null): \Psr\Http\Message\ServerRequestInterface
     {
+        $body = ['transactions' => $transactions];
+        if ($memberIds !== null) {
+            $body['member_ids'] = $memberIds;
+        }
+
         return (new ServerRequestFactory())
             ->createServerRequest('POST', '/api/sync/transactions')
-            ->withParsedBody(['transactions' => $transactions])
+            ->withParsedBody($body)
             ->withAttribute('terminal_id', $terminalId);
     }
 
@@ -169,5 +174,79 @@ class SyncControllerTest extends TestCase
         );
 
         $this->assertSame(422, $response->getStatusCode());
+    }
+
+    // ------------------------------------------------------------------
+    // Asking for a balance without selling anything (#191)
+    // ------------------------------------------------------------------
+
+    public function test_an_empty_batch_that_names_members_is_a_request_not_a_rejection(): void
+    {
+        $captured = null;
+
+        $this->transactionsService->expects($this->once())
+            ->method('processBatch')
+            ->willReturnCallback(function (array $rows, array $memberIds) use (&$captured) {
+                $captured = $memberIds;
+                return new TransactionBatchResultDto([], 0, [], []);
+            });
+
+        $response = $this->controller->processBatch(
+            $this->request([], self::TERMINAL_ID, ['member-1']),
+            new Response(),
+        );
+
+        $this->assertSame(201, $response->getStatusCode());
+        $this->assertSame(['member-1'], $captured);
+    }
+
+    public function test_an_empty_batch_that_names_nobody_is_still_rejected(): void
+    {
+        // It asks for nothing. Accepting it would make a no-op round trip look
+        // like a successful refresh.
+        $this->transactionsService->expects($this->never())->method('processBatch');
+
+        $response = $this->controller->processBatch(
+            $this->request([], self::TERMINAL_ID, []),
+            new Response(),
+        );
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertSame('invalid_request', $this->decode($response)['error']);
+    }
+
+    public function test_a_malformed_member_id_costs_a_balance_not_the_upload(): void
+    {
+        // member_ids is a read. Rejecting the batch over a bad entry would
+        // refuse an upload of real sales over a query parameter.
+        $captured = null;
+
+        $this->transactionsService->expects($this->once())
+            ->method('processBatch')
+            ->willReturnCallback(function (array $rows, array $memberIds) use (&$captured) {
+                $captured = $memberIds;
+                return new TransactionBatchResultDto([], 0, [], []);
+            });
+
+        $response = $this->controller->processBatch(
+            $this->request([$this->sale()], self::TERMINAL_ID, ['member-1', '', 42, null, ['nested']]),
+            new Response(),
+        );
+
+        $this->assertSame(201, $response->getStatusCode());
+        $this->assertSame(['member-1'], $captured);
+    }
+
+    public function test_more_member_ids_than_the_batch_limit_are_refused(): void
+    {
+        $this->transactionsService->expects($this->never())->method('processBatch');
+
+        $response = $this->controller->processBatch(
+            $this->request([], self::TERMINAL_ID, array_map(fn(int $i) => "member-$i", range(1, 101))),
+            new Response(),
+        );
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertSame('invalid_request', $this->decode($response)['error']);
     }
 }

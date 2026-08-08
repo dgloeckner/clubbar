@@ -178,7 +178,10 @@ class FakeNetworkService extends NetworkService {
       ProductDeltaResponse(products: [], cursor: 0, count: 0, hasMore: false);
 
   @override
-  Future<TransactionBatchResponse> syncTransactions(List<Map<String, dynamic>> transactions) async =>
+  Future<TransactionBatchResponse> syncTransactions(
+    List<Map<String, dynamic>> transactions, {
+    List<String> memberIds = const [],
+  }) async =>
       TransactionBatchResponse(
         acceptedIds: transactions.map((t) => t['id']?.toString() ?? '').toList(),
         rejected: const TransactionBatchResponse$Rejected(),
