@@ -12,26 +12,11 @@ import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-c
 import { getAdminUsers } from '../api/generated/admin-users/admin-users'
 import { getTerminals } from '../api/generated/terminals/terminals'
 import { getAuthentication } from '../api/generated/authentication/authentication'
-import type { SepaConfig as GeneratedSepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
-
-// Extended SEPA config type: includes payment_reference_prefix returned by the backend
-// but not modelled in the generated OpenAPI type (field is read-only / not in update request)
-type SepaConfig = GeneratedSepaConfig & { payment_reference_prefix?: string }
+import type { SepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
 
 // Required fields that are always present in the API responses
 type AdminUser = GeneratedAdminUser & { id: string; email: string; display_name: string; locale: string; is_active: boolean; created_at: string }
 type Terminal = GeneratedTerminal & { id: string; name: string; is_active: boolean }
-
-// Local type for SEPA config form (includes payment_reference_prefix not in generated SepaConfigUpdateRequest)
-interface UpdateSepaConfigRequest {
-  creditor_id?: string
-  creditor_name?: string
-  creditor_iban?: string
-  creditor_address_street?: string
-  creditor_address_city?: string
-  creditor_address_country?: string
-  payment_reference_prefix?: string
-}
 import axios from 'axios'
 import { SepaConfigTab } from '../components/settings/SepaConfigTab'
 import { AdminUsersTab } from '../components/settings/AdminUsersTab'
@@ -45,6 +30,12 @@ import { EditTerminalModal } from '../components/modals/EditTerminalModal'
 import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
 import { validateIban } from '../utils/iban'
 import { MAX_PER_PAGE, loadAllPages } from '../utils/pagination'
+import {
+  buildCreateSepaConfigRequest,
+  buildUpdateSepaConfigRequest,
+  isCreditorIdSet,
+  type SepaConfigFormData,
+} from '../utils/sepaConfig'
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -59,7 +50,7 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [existingConfig, setExistingConfig] = useState<SepaConfig | null>(null)
-  const [originalFormData, setOriginalFormData] = useState<UpdateSepaConfigRequest>({
+  const [originalFormData, setOriginalFormData] = useState<SepaConfigFormData>({
     creditor_id: '',
     creditor_name: '',
     creditor_iban: '',
@@ -68,7 +59,7 @@ export function SettingsPage() {
     creditor_address_country: '',
     payment_reference_prefix: '',
   })
-  const [formData, setFormData] = useState<UpdateSepaConfigRequest>({
+  const [formData, setFormData] = useState<SepaConfigFormData>({
     creditor_id: '',
     creditor_name: '',
     creditor_iban: '',
@@ -144,7 +135,7 @@ export function SettingsPage() {
         if (config) {
           setExistingConfig(config)
           // Pre-fill form with full unmasked values (admin-only page, no need to mask)
-          const formValues: UpdateSepaConfigRequest = {
+          const formValues: SepaConfigFormData = {
             creditor_id: config.creditor_id,
             creditor_name: config.creditor_name,
             creditor_iban: config.creditor_iban,
@@ -364,6 +355,10 @@ export function SettingsPage() {
     }
   }
 
+  // The creditor ID is immutable once set (ADR-0007): it is required and
+  // editable during initial setup, then locked and left out of every update.
+  const creditorIdLocked = isCreditorIdSet(existingConfig)
+
   // Validate form
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -398,7 +393,11 @@ export function SettingsPage() {
       newErrors.creditor_address_country = 'Country must be a 2-letter ISO code (e.g., DE, AT, CH)'
     }
 
-    if (!existingConfig && !formData.creditor_id?.trim()) {
+    if (formData.payment_reference_prefix && formData.payment_reference_prefix.length > 100) {
+      newErrors.payment_reference_prefix = 'Payment reference prefix must be 100 characters or less'
+    }
+
+    if (!creditorIdLocked && !formData.creditor_id?.trim()) {
       newErrors.creditor_id = 'Creditor ID is required'
     } else if (formData.creditor_id && formData.creditor_id.length > 35) {
       newErrors.creditor_id = 'Creditor ID must be 35 characters or less'
@@ -409,7 +408,7 @@ export function SettingsPage() {
   }
 
   // Handle field changes
-  const handleFieldChange = (field: keyof UpdateSepaConfigRequest, value: string) => {
+  const handleFieldChange = (field: keyof SepaConfigFormData, value: string) => {
     let finalValue = value
 
     if (field === 'creditor_iban') {
@@ -447,27 +446,11 @@ export function SettingsPage() {
       setError(null)
       setSuccessMessage(null)
 
-      let result: SepaConfig
-      if (!existingConfig) {
-        // Create initial SEPA config (POST) — requires creditor_id
-        result = (await getSepaConfiguration().createSepaConfig({
-          creditor_id: formData.creditor_id ?? '',
-          creditor_name: formData.creditor_name ?? '',
-          creditor_iban: formData.creditor_iban ?? '',
-          creditor_address_street: formData.creditor_address_street ?? '',
-          creditor_address_city: formData.creditor_address_city ?? '',
-          creditor_address_country: formData.creditor_address_country ?? '',
-        })) as SepaConfig
-      } else {
-        // Update existing SEPA config (PATCH)
-        result = (await getSepaConfiguration().updateSepaConfig({
-          creditor_name: formData.creditor_name,
-          creditor_iban: formData.creditor_iban,
-          creditor_address_street: formData.creditor_address_street,
-          creditor_address_city: formData.creditor_address_city,
-          creditor_address_country: formData.creditor_address_country,
-        })) as SepaConfig
-      }
+      // Initial setup goes through POST (the only method that accepts the
+      // creditor_id); every later edit is a PATCH without it.
+      const result = creditorIdLocked
+        ? await getSepaConfiguration().updateSepaConfig(buildUpdateSepaConfigRequest(formData))
+        : await getSepaConfiguration().createSepaConfig(buildCreateSepaConfigRequest(formData))
       setExistingConfig(result)
       setOriginalFormData(formData)
       setFieldErrors({})
@@ -519,9 +502,6 @@ export function SettingsPage() {
     setFieldErrors({})
     setError(null)
   }
-
-  // isCreditorIdSet is available for warning display if needed
-  // const isCreditorIdSet = !!existingConfig
 
   // Tab styles (prototype styling: button group container)
   const tabContainerStyle: React.CSSProperties = {
@@ -618,7 +598,7 @@ export function SettingsPage() {
       {/* SEPA Configuration Tab */}
       {activeTab === 'sepa' && (
         <SepaConfigTab
-          config={existingConfig}
+          creditorIdLocked={creditorIdLocked}
           loading={false}
           saving={saving}
           error={error}

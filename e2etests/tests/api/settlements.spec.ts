@@ -144,7 +144,41 @@ test.describe('Settlements API', () => {
       expect(body.is_configured).toBe(true);
     });
 
-    test('A8: POST /sepa-config requires creditor_id (initial setup)', async ({ authenticatedRequest }) => {
+    test('A8: PATCH /sepa-config persists payment_reference_prefix (#90)', async ({ authenticatedRequest }) => {
+      const prefix = `Prefix ${Date.now()}`;
+      const response = await authenticatedRequest.patch('/api/admin/sepa-config', {
+        data: {
+          creditor_name: 'Prefix Test Org',
+          creditor_iban: 'DE89370400440532013000',
+          payment_reference_prefix: prefix,
+        },
+      });
+
+      expect(response.status()).toBe(200);
+      expect((await response.json()).payment_reference_prefix).toBe(prefix);
+
+      // Read it back: the prefix is stored, not just echoed
+      const reread = await authenticatedRequest.get('/api/admin/sepa-config');
+      expect(reread.status()).toBe(200);
+      expect((await reread.json()).payment_reference_prefix).toBe(prefix);
+    });
+
+    test('A9: PATCH /sepa-config rejects a payment_reference_prefix over 100 characters', async ({ authenticatedRequest }) => {
+      const response = await authenticatedRequest.patch('/api/admin/sepa-config', {
+        data: {
+          creditor_name: 'Prefix Length Org',
+          creditor_iban: 'DE89370400440532013000',
+          payment_reference_prefix: 'x'.repeat(101),
+        },
+      });
+
+      expect(response.status()).toBe(422);
+      const body = await response.json();
+      expect(body.error).toBe('validation_failed');
+      expect(body.messages).toHaveProperty('payment_reference_prefix');
+    });
+
+    test('A10: POST /sepa-config requires creditor_id (initial setup)', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.post('/api/admin/sepa-config', {
         data: {
           creditor_name: 'Missing ID Org',

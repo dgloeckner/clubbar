@@ -18,6 +18,8 @@ export class SettingsPage {
   private readonly streetInput: Locator
   private readonly cityInput: Locator
   private readonly countryInput: Locator
+  private readonly paymentPrefixInput: Locator
+  private readonly creditorIdWarning: Locator
   private readonly saveButton: Locator
   private readonly cancelButton: Locator
   private readonly errorMessage: Locator
@@ -38,6 +40,8 @@ export class SettingsPage {
     this.streetInput = page.getByTestId('settings-sepa-input-creditor_address_street')
     this.cityInput = page.getByTestId('settings-sepa-input-creditor_address_city')
     this.countryInput = page.getByTestId('settings-sepa-input-creditor_address_country')
+    this.paymentPrefixInput = page.getByTestId('settings-sepa-input-payment_reference_prefix')
+    this.creditorIdWarning = page.getByTestId('settings-sepa-alert-warning')
     this.saveButton = page.getByTestId('settings-sepa-save-button')
     this.cancelButton = page.getByTestId('settings-sepa-cancel-button')
     this.errorMessage = page.getByTestId('settings-sepa-error-message')
@@ -116,6 +120,13 @@ export class SettingsPage {
   }
 
   /**
+   * Get current payment reference prefix value
+   */
+  async getPaymentReferencePrefixValue(): Promise<string> {
+    return await this.paymentPrefixInput.inputValue()
+  }
+
+  /**
    * Fill SEPA configuration form with provided data
    */
   async fillSepaConfig(data: {
@@ -125,6 +136,7 @@ export class SettingsPage {
     creditor_address_street?: string
     creditor_address_city?: string
     creditor_address_country?: string
+    payment_reference_prefix?: string
   }) {
     if (data.creditor_id !== undefined) {
       // Only fill if not disabled (immutability check)
@@ -153,18 +165,26 @@ export class SettingsPage {
     if (data.creditor_address_country !== undefined) {
       await this.countryInput.fill(data.creditor_address_country)
     }
+
+    if (data.payment_reference_prefix !== undefined) {
+      await this.paymentPrefixInput.fill(data.payment_reference_prefix)
+    }
   }
 
   /**
    * Clear all form fields
    */
   async clearForm() {
-    await this.creditorIdInput.clear()
+    // The creditor ID is disabled once set (immutable, ADR-0007)
+    if (!(await this.creditorIdInput.isDisabled())) {
+      await this.creditorIdInput.clear()
+    }
     await this.creditorNameInput.clear()
     await this.creditorIbanInput.clear()
     await this.streetInput.clear()
     await this.cityInput.clear()
     await this.countryInput.clear()
+    await this.paymentPrefixInput.clear()
   }
 
   /**
@@ -172,6 +192,24 @@ export class SettingsPage {
    */
   async save() {
     await this.saveButton.click()
+  }
+
+  /**
+   * Click save and wait for the write to reach the backend.
+   * Returns the HTTP method and status of the save request, so a test can
+   * assert the request the frontend actually made.
+   */
+  async saveAndWaitForResponse(): Promise<{ method: string; status: number }> {
+    // Watcher set up before the click to avoid a race with a fast response
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/sepa-config') &&
+        ['POST', 'PATCH'].includes(resp.request().method()),
+      { timeout: 15000 },
+    )
+    await this.save()
+    const response = await responsePromise
+    return { method: response.request().method(), status: response.status() }
   }
 
   /**
@@ -186,6 +224,16 @@ export class SettingsPage {
    */
   async isCreditorIdDisabled(): Promise<boolean> {
     return await this.creditorIdInput.isDisabled()
+  }
+
+  /**
+   * Expect the creditor ID to be locked: disabled input plus the warning
+   * explaining that it cannot be changed after initial setup (ADR-0007)
+   */
+  async expectCreditorIdLocked() {
+    // Pattern 008: Use Playwright assertions
+    await expect(this.creditorIdInput).toBeDisabled()
+    await expect(this.creditorIdWarning).toBeVisible()
   }
 
   /**

@@ -9,18 +9,7 @@ import { CharacterCounter } from '../forms/CharacterCounter'
 import { ValidationIndicator } from '../forms/ValidationIndicator'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useTranslation } from 'react-i18next'
-import type { SepaConfig } from '../../api/generated'
-
-// Local form type includes payment_reference_prefix (not in generated SepaConfigUpdateRequest)
-interface UpdateSepaConfigRequest {
-  creditor_id?: string
-  creditor_name?: string
-  creditor_iban?: string
-  creditor_address_street?: string
-  creditor_address_city?: string
-  creditor_address_country?: string
-  payment_reference_prefix?: string
-}
+import type { SepaConfigFormData } from '../../utils/sepaConfig'
 
 function FormField({
   label,
@@ -39,7 +28,7 @@ function FormField({
   validateIban,
 }: {
   label: string
-  fieldKey: keyof UpdateSepaConfigRequest
+  fieldKey: keyof SepaConfigFormData
   value: string | null | undefined
   type?: string
   placeholder?: string
@@ -50,7 +39,7 @@ function FormField({
   showCharCounter?: boolean
   showValidation?: boolean
   fieldErrors: Record<string, string>
-  onFieldChange: (field: keyof UpdateSepaConfigRequest, value: string) => void
+  onFieldChange: (field: keyof SepaConfigFormData, value: string) => void
   validateIban: (iban: string) => boolean
 }) {
   const normalizedValue = value ?? ''
@@ -157,21 +146,22 @@ function FormField({
 }
 
 export interface SepaConfigTabProps {
-  config: SepaConfig | null
+  /** True once the creditor ID has been set — it is immutable from then on (ADR-0007). */
+  creditorIdLocked: boolean
   loading: boolean
   saving: boolean
   error: string | null
   successMessage: string | null
-  formData: UpdateSepaConfigRequest
+  formData: SepaConfigFormData
   fieldErrors: Record<string, string>
-  onFieldChange: (field: keyof UpdateSepaConfigRequest, value: string) => void
+  onFieldChange: (field: keyof SepaConfigFormData, value: string) => void
   onSave: () => void
   onCancel: () => void
   validateIban: (iban: string) => boolean
 }
 
 export function SepaConfigTab({
-  config,
+  creditorIdLocked,
   loading,
   saving,
   error,
@@ -186,7 +176,6 @@ export function SepaConfigTab({
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
-  const isCreditorIdSet = !!config
 
   if (loading) {
     return (
@@ -247,7 +236,7 @@ export function SepaConfigTab({
         }}
       >
         {/* Warning Alert */}
-        {isCreditorIdSet && (
+        {creditorIdLocked && (
           <Alert
             variant="warning"
             icon="⚠️"
@@ -271,9 +260,14 @@ export function SepaConfigTab({
             fieldKey="creditor_id"
             value={formData.creditor_id}
             placeholder={t('settings.sepaPlaceholders.creditorId')}
-            helperText={t('settings.sepaHelpers.creditorId')}
+            disabled={creditorIdLocked}
+            helperText={
+              creditorIdLocked
+                ? t('settings.sepaHelpers.creditorIdLocked')
+                : t('settings.sepaHelpers.creditorId')
+            }
             maxLength={35}
-            showCharCounter={true}
+            showCharCounter={!creditorIdLocked}
             fieldErrors={fieldErrors}
             onFieldChange={onFieldChange}
             validateIban={validateIban}

@@ -389,7 +389,7 @@
     "loadingSepa": "Lade SEPA-Konfiguration...",
     "saving": "Speichert...",
     "sepaWarningTitle": "Warnung",
-    "sepaWarningMessage": "Die Gläubiger-ID ist eine rechtliche Kennung, die in SEPA-Exporten und Abrechnungsunterlagen erscheint. Eine Änderung kann Auswirkungen auf Compliance und Prüfpfade haben.",
+    "sepaWarningMessage": "Die Gläubiger-ID ist eine rechtliche Kennung, die in SEPA-Exporten und Abrechnungsunterlagen erscheint. Sie wird bei der Ersteinrichtung festgelegt und kann hier nicht mehr geändert werden.",
     "creditorStreet": "Straße",
     "creditorCity": "Stadt",
     "creditorCountry": "Ländercode",
@@ -404,6 +404,7 @@
     },
     "sepaHelpers": {
       "creditorId": "SEPA Gläubiger-Identifikationsnummer (max 35 Zeichen)",
+      "creditorIdLocked": "Bei der Ersteinrichtung festgelegt — die Gläubiger-ID kann hier nicht geändert werden.",
       "creditorName": "Name der Organisation (max 70 Zeichen)",
       "creditorIban": "Bankkonto IBAN (15–34 Zeichen)",
       "street": "Straße und Hausnummer (max 70 Zeichen)",
