@@ -27,6 +27,12 @@ export class JournalPage extends BasePage {
   private readonly emptyState = () => this.page.getByTestId('journal-empty-state')
   private readonly loadingIndicator = () => this.page.getByTestId('journal-loading')
 
+  // Pagination (PaginationToolbar rendered with testId="journal")
+  private readonly paginationPageButton = (pageNumber: number) =>
+    this.page.getByTestId(`journal-page-${pageNumber}`)
+  private readonly paginationInfo = () => this.page.getByTestId('journal-info')
+  private readonly pageSizeSelect = () => this.page.getByTestId('journal-page-size-select')
+
   // Table headers
   private readonly headerDate = () => this.page.getByTestId('journal-header-date')
   private readonly headerType = () => this.page.getByTestId('journal-header-type')
@@ -210,6 +216,56 @@ export class JournalPage extends BasePage {
     await responsePromise
   }
 
+  /**
+   * PAGINATION
+   */
+
+  /** Change rows per page and wait for the list the new size produced. */
+  async setPageSize(size: number) {
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/transactions') &&
+        new URL(resp.url()).searchParams.get('per_page') === String(size) &&
+        resp.status() === 200
+    )
+    await this.pageSizeSelect().selectOption(String(size))
+    await responsePromise
+  }
+
+  /** Click a page number and wait for the list that page produced. */
+  async goToPage(pageNumber: number) {
+    const responsePromise = this.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/transactions') &&
+        new URL(resp.url()).searchParams.get('page') === String(pageNumber) &&
+        resp.status() === 200
+    )
+    await this.paginationPageButton(pageNumber).click()
+    await responsePromise
+  }
+
+  /**
+   * Wait until the journal stops issuing requests.
+   *
+   * The #89 regression is a *second* list request that resets the page to 1
+   * immediately after the one the click asked for, so an assertion made as
+   * soon as the first response lands passes even when paging is broken.
+   * Reading pagination state only after the page has gone quiet is what makes
+   * the assertion mean "it stayed there".
+   */
+  async waitForListToSettle() {
+    await this.page.waitForLoadState('networkidle')
+  }
+
+  async expectActivePage(pageNumber: number) {
+    await expect(this.paginationPageButton(pageNumber)).toHaveCSS('background-color', 'rgb(59, 130, 246)')
+  }
+
+  /** e.g. "Zeige 11-12 von 12" — the range the toolbar claims to be showing. */
+  async getPaginationInfo(): Promise<string> {
+    return (await this.paginationInfo().textContent())?.replace(/\s+/g, ' ').trim() ?? ''
+  }
+
   async sortBy(field: 'date' | 'type' | 'member' | 'amount') {
     const sortKeyMap = { date: 'created_at', type: 'type', member: 'member', amount: 'amount' }
     const headerMap = {
@@ -231,10 +287,8 @@ export class JournalPage extends BasePage {
    */
 
   async waitForTableToLoad() {
-    // Wait for loading indicator to disappear first (Pattern 008: expect for auto-waiting).
-    // The PeriodPicker's onPeriodChange fires twice (non-memoized callback triggers a second
-    // useEffect run), causing a second loadTransactions() → loading:true after the first
-    // response. Waiting for loading to be hidden ensures the DOM has fully settled.
+    // Wait for loading indicator to disappear first (Pattern 008: expect for auto-waiting),
+    // so the table below is the one the current filters produced.
     await expect(this.loadingIndicator()).toBeHidden({ timeout: 10000 })
     // Then verify table or empty state is present
     await this.page
