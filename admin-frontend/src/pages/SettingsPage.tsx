@@ -44,6 +44,7 @@ import { CreateTerminalModal } from '../components/modals/CreateTerminalModal'
 import { EditTerminalModal } from '../components/modals/EditTerminalModal'
 import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
 import { validateIban } from '../utils/iban'
+import { MAX_PER_PAGE, loadAllPages } from '../utils/pagination'
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -185,8 +186,11 @@ export function SettingsPage() {
   const loadAdminUsers = async () => {
     try {
       setAdminUsersLoading(true)
-      const response = await getAdminUsers().listAdminUsers({ per_page: 500 })
-      setAdminUsers((response.data || []) as AdminUser[])
+      setAdminUsers(
+        (await loadAllPages(async (page) =>
+          await getAdminUsers().listAdminUsers({ page, per_page: MAX_PER_PAGE }),
+        )) as AdminUser[],
+      )
     } catch (err: unknown) {
       // silently fail — list will remain empty
     } finally {
@@ -197,8 +201,11 @@ export function SettingsPage() {
   const loadTerminals = async () => {
     try {
       setTerminalsLoading(true)
-      const response = await getTerminals().listTerminals({ per_page: 500 })
-      setTerminals((response.data || []) as Terminal[])
+      setTerminals(
+        (await loadAllPages(async (page) =>
+          await getTerminals().listTerminals({ page, per_page: MAX_PER_PAGE }),
+        )) as Terminal[],
+      )
     } catch (err: unknown) {
       // silently fail — list will remain empty
     } finally {

@@ -221,14 +221,14 @@ export function JournalPage() {
         settlement_status: settlementStatus !== 'all' ? settlementStatus as 'open' | 'settled' : undefined,
       })
 
-      const resolvedItems = localizeTransactionItems(result.items ?? [])
+      const resolvedItems = localizeTransactionItems(result.data ?? [])
 
       // Only update state if component is still mounted
       if (isMountedRef.current) {
         setState((prev) => ({
           ...prev,
           transactions: resolvedItems,
-          totalItems: result.total ?? 0,
+          totalItems: result.pagination?.total ?? 0,
           loading: false,
         }))
       }
