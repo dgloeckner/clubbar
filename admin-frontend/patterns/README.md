@@ -26,6 +26,32 @@ const button = page.getByTestId('members-create-button')
 await button.click()
 ```
 
+### [Table Implementation Pattern](./table-implementation.md)
+**Purpose**: Build a list page — query state, controls, table, pagination
+
+- ✅ `useListQuery` for page/sort/filters/search, debounce, abort and page clamping
+- ✅ Shared control components (`MobileFilterRow`, `PaginationToolbar`, `SortableTableHeader`)
+- ✅ Loading, empty and error states
+- ✅ Common pitfalls, including the hand-rolled list state this replaced (#121)
+
+**When to use**: When building or changing any paginated list page
+
+**Quick Start**:
+```typescript
+const list = useListQuery<Item, ItemFilters, ItemSortKey>({
+  initialFilters: { status: 'all' },
+  initialSortKey: 'created_at',
+  fetcher: async ({ page, pageSize, filters, signal }) => { /* ... */ },
+})
+```
+
+---
+
+### [Component Patterns](./components.md)
+**Purpose**: Reference for the reusable UI components available to pages
+
+**When to use**: Before writing a new component — check whether one exists
+
 ---
 
 ## Pattern Development Guidelines
@@ -68,3 +94,5 @@ To add a new pattern:
 | Pattern | Version | Status | Created |
 |---------|---------|--------|---------|
 | [Test IDs](./test-ids.md) | 1.0 | Active | 2026-01-26 |
+| [Table Implementation](./table-implementation.md) | 2.0 | Active | 2026-01-26 |
+| [Components](./components.md) | 1.0 | Active | 2026-01-26 |

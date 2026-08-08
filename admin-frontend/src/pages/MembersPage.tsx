@@ -3,7 +3,7 @@
  * Member management (list, create, edit, delete)
  */
 
-import React, { useCallback, useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/common/StatCard'
 import { theme } from '../styles/design-system'
@@ -12,11 +12,13 @@ import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useLoading } from '../context/LoadingContext'
 import { useFormatters } from '../hooks/useFormatters'
 import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ScanIcon } from '../components/icons'
+import { downloadBlob } from '../api/client'
 import { getMembers as getMembersFactory } from '../api/generated/members/members'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
 import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, ListMembersSortBy, MemberCreateRequest, MemberUpdateRequest } from '../api/generated'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
+import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
 import { StatusToggleCell } from '../components/tables/StatusToggleCell'
@@ -26,6 +28,7 @@ import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { validateIban } from '../utils/iban'
 import { toIsoDate } from '../utils/dates'
 import { useBankName } from '../hooks/useBankName'
+import { useListQuery } from '../hooks/useListQuery'
 import { ValidationIndicator } from '../components/forms/ValidationIndicator'
 import { MandateDocumentSection } from '../components/MandateDocumentSection'
 import { getMandateDocument } from '../api/generated/mandate-document/mandate-document'
@@ -55,27 +58,51 @@ function normalizeCardUid(raw: string | null | undefined): string {
   return cleaned.length >= 4 ? cleaned : ''
 }
 
+type MemberSortKey = 'first_name' | 'last_name' | 'created_at' | 'card_uid'
+
+interface MemberFilters {
+  status: 'all' | 'active' | 'inactive'
+  cardUid: 'all' | 'with' | 'without'
+  sepaStatus: 'all' | 'valid' | 'invalid'
+}
+
 export function MembersPage() {
   const { t } = useTranslation()
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
   const { setIsLoading } = useLoading()
-  const [members, setMembers] = useState<MemberListItem[]>([])
-  const [totalMembers, setTotalMembers] = useState(0)
   const [activeMembersCount, setActiveMembersCount] = useState(0)
   const [totalBalance, setTotalBalance] = useState(0)
   const [lastSettlementDate, setLastSettlementDate] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
-  const [sortKey, setSortKey] = useState<'first_name' | 'last_name' | 'created_at' | 'card_uid'>('created_at')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [filterIsActive, setFilterIsActive] = useState<'all' | 'active' | 'inactive'>('all')
-  const [filterCardUid, setFilterCardUid] = useState<'all' | 'with' | 'without'>('all')
-  const [filterSepaStatus, setFilterSepaStatus] = useState<'all' | 'valid' | 'invalid'>('all')
+
+  // One query, one fetch path: the loader effect and every post-mutation reload
+  // go through the same state, so a reload can no longer drop the filters (#121).
+  const list = useListQuery<MemberListItem, MemberFilters, MemberSortKey>({
+    initialFilters: { status: 'all', cardUid: 'all', sepaStatus: 'all' },
+    initialSortKey: 'created_at',
+    initialSortDirection: 'desc',
+    initialPageSize: PER_PAGE,
+    fetcher: async ({ page, pageSize, sortKey, sortDirection, search, filters, signal }) => {
+      const params: ListMembersParams = {
+        page,
+        per_page: pageSize,
+        sort_by: buildSortBy(sortKey, sortDirection),
+      }
+      if (search) params.search = search
+      if (filters.status !== 'all') params.status = filters.status as ListMembersStatus
+      if (filters.sepaStatus !== 'all') params.sepa_status = filters.sepaStatus as ListMembersSepaStatus
+      if (filters.cardUid !== 'all') params.has_card_uid = filters.cardUid as ListMembersHasCardUid
+
+      const response = await getMembersFactory().listMembers(params, { signal })
+      return { items: response.data ?? [], total: response.pagination?.total ?? 0 }
+    },
+    parseError: (err) => (err instanceof Error ? err.message : 'Failed to load members'),
+  })
+
+  const { items: members, total: totalMembers, totalPages, loading, error, setError, search } = list
+  const { status: filterIsActive, cardUid: filterCardUid, sepaStatus: filterSepaStatus } = list.filters
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -114,96 +141,14 @@ export function MembersPage() {
     { value: 'created_at_asc', label: t('members.sortOldest', 'Oldest first'), direction: 'asc' as const },
   ]
 
-  const mobileSortValue = `${sortKey}_${sortDirection}`
+  const mobileSortValue = list.sortValue
 
-  const handleMobileSortChange = (value: string) => {
-    const lastUnderscore = value.lastIndexOf('_')
-    const key = value.substring(0, lastUnderscore) as typeof sortKey
-    const dir = value.substring(lastUnderscore + 1) as 'asc' | 'desc'
-    setSortKey(key)
-    setSortDirection(dir)
-    setPage(1)
-  }
-
-  const MobileFilterRow = ({ label, options, value, onChange, testId }: {
-    label: string
-    options: { value: string; label: string }[]
-    value: string
-    onChange: (v: string) => void
-    testId: string
-  }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', minWidth: '50px' }}>
-        {label}
-      </span>
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          data-testid={`${testId}-${opt.value}`}
-          onClick={() => { onChange(opt.value); setPage(1) }}
-          style={{
-            padding: '4px 10px',
-            borderRadius: '6px',
-            border: 'none',
-            background: value === opt.value ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
-            color: value === opt.value ? '#3b82f6' : 'rgba(255,255,255,0.5)',
-            fontSize: '12px',
-            fontWeight: value === opt.value ? 600 : 400,
-            cursor: 'pointer',
-          }}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-
-  // Single source of truth for the list query — the initial load and every
-  // post-mutation reload must send the same page, sort and filter state.
-  const buildListParams = useCallback((): ListMembersParams => {
-    const params: ListMembersParams = {
-      page,
-      per_page: PER_PAGE,
-      sort_by: buildSortBy(sortKey, sortDirection),
-    }
-
-    if (search) params.search = search
-    if (filterIsActive !== 'all') params.status = filterIsActive as ListMembersStatus
-    if (filterSepaStatus !== 'all') params.sepa_status = filterSepaStatus as ListMembersSepaStatus
-    if (filterCardUid !== 'all') params.has_card_uid = filterCardUid as ListMembersHasCardUid
-
-    return params
-  }, [page, search, filterIsActive, filterCardUid, filterSepaStatus, sortKey, sortDirection])
-
-  // Fetch the list with the current query and publish it into state.
-  // Used by the loader effect and by every mutation handler.
-  const fetchMembers = useCallback(async () => {
-    const response = await getMembersFactory().listMembers(buildListParams())
-    setMembers(response.data ?? [])
-    setTotalMembers(response.pagination?.total ?? 0)
-  }, [buildListParams])
-
-  // Load members
+  // Mirror the list's own loading into the global indicator, and clear it on
+  // unmount so navigating away mid-request cannot strand the spinner.
   useEffect(() => {
-    const loadMembers = async () => {
-      try {
-        setLoading(true)
-        setIsLoading(true)
-
-        await fetchMembers()
-
-        setError(null)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load members')
-      } finally {
-        setLoading(false)
-        setIsLoading(false)
-      }
-    }
-
-    const timer = setTimeout(loadMembers, search ? 500 : 0) // Debounce search
-    return () => clearTimeout(timer)
-  }, [fetchMembers, search, setIsLoading])
+    setIsLoading(loading)
+    return () => setIsLoading(false)
+  }, [loading, setIsLoading])
 
   // Load dashboard metrics (active members count, outstanding balance, last settlement date)
   useEffect(() => {
@@ -228,14 +173,7 @@ export function MembersPage() {
     try {
       const data = await getMembersFactory().exportMemberData(editingMember.id, { format: 'json', export_type: 'gdpr_access' })
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `gdpr-export-${editingMember.id}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      downloadBlob(blob, `gdpr-export-${editingMember.id}.json`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to export member data')
     } finally {
@@ -306,7 +244,7 @@ export function MembersPage() {
       setFormData({ first_name: '', last_name: '', email: '', iban: '', account_holder_name: '', mandate_reference: '', mandate_signed_at: '', preferred_language: 'de', card_uid: '' })
 
       // Reload members list with the active filters still applied
-      await fetchMembers()
+      list.reload()
 
       setError(null)
     } catch (err: unknown) {
@@ -358,7 +296,7 @@ export function MembersPage() {
       await getMembersFactory().updateMember(member.id, { is_active: !member.is_active })
 
       // Reload members list with the active filters still applied
-      await fetchMembers()
+      list.reload()
 
       setError(null)
     } catch (err: unknown) {
@@ -376,7 +314,7 @@ export function MembersPage() {
       await getMembersFactory().anonymizeMember(member.id, {})
 
       // Reload members list with the active filters still applied
-      await fetchMembers()
+      list.reload()
 
       setAnonymizeConfirm(null)
       setError(null)
@@ -420,14 +358,7 @@ export function MembersPage() {
   const handleDownloadSepaTemplate = async () => {
     try {
       const blob = await getMembersFactory().getAdminSepaMandateTemplate()
-      const objectUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = objectUrl
-      a.download = 'sepa-mandate-template.pdf'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(objectUrl)
+      downloadBlob(blob, 'sepa-mandate-template.pdf')
     } catch {
       setError(t('members.sepaTemplateError', 'SEPA configuration is incomplete. Please configure creditor details in Settings first.'))
     }
@@ -664,13 +595,13 @@ export function MembersPage() {
             testId="members-mobile-toolbar"
             search={{
               value: search,
-              onChange: (v) => { setSearch(v); setPage(1) },
+              onChange: list.setSearch,
               testId: 'members-search-input',
             }}
             sort={{
               options: mobileSortOptions,
               value: mobileSortValue,
-              onChange: handleMobileSortChange,
+              onChange: list.setSortValue,
             }}
             filterCount={mobileFilterCount}
             onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
@@ -685,7 +616,7 @@ export function MembersPage() {
                     { value: 'inactive', label: t('common.inactive') },
                   ]}
                   value={filterIsActive}
-                  onChange={(v) => setFilterIsActive(v as typeof filterIsActive)}
+                  onChange={(v) => list.setFilter('status', v as MemberFilters['status'])}
                   testId="members-mobile-filter-status"
                 />
                 <MobileFilterRow
@@ -696,7 +627,7 @@ export function MembersPage() {
                     { value: 'without', label: t('members.filterWithoutCard', 'Without') },
                   ]}
                   value={filterCardUid}
-                  onChange={(v) => setFilterCardUid(v as typeof filterCardUid)}
+                  onChange={(v) => list.setFilter('cardUid', v as MemberFilters['cardUid'])}
                   testId="members-mobile-filter-card"
                 />
                 <MobileFilterRow
@@ -707,7 +638,7 @@ export function MembersPage() {
                     { value: 'invalid', label: t('members.filterSepaMissing', 'Missing') },
                   ]}
                   value={filterSepaStatus}
-                  onChange={(v) => setFilterSepaStatus(v as typeof filterSepaStatus)}
+                  onChange={(v) => list.setFilter('sepaStatus', v as MemberFilters['sepaStatus'])}
                   testId="members-mobile-filter-sepa"
                 />
               </>
@@ -803,11 +734,11 @@ export function MembersPage() {
           {/* Pagination (mobile) */}
           {!loading && members.length > 0 && (
             <PaginationToolbar
-              currentPage={page}
-              totalPages={Math.ceil(totalMembers / PER_PAGE)}
+              currentPage={list.page}
+              totalPages={totalPages}
               totalItems={totalMembers}
               pageSize={PER_PAGE}
-              onPageChange={setPage}
+              onPageChange={list.setPage}
               onPageSizeChange={() => {}}
               variant="default"
               showPageSize={false}
@@ -848,8 +779,7 @@ export function MembersPage() {
             type="text"
             value={search}
             onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
+              list.setSearch(e.target.value)
             }}
             placeholder={t('common.searchPlaceholder')}
             data-testid="members-search-input"
@@ -887,8 +817,7 @@ export function MembersPage() {
             data-testid="members-filter-status-all"
             aria-pressed={filterIsActive === 'all'}
             onClick={() => {
-              setFilterIsActive('all')
-              setPage(1)
+              list.setFilter('status', 'all')
             }}
             style={{
               padding: '6px 14px',
@@ -908,8 +837,7 @@ export function MembersPage() {
             data-testid="members-filter-status-active"
             aria-pressed={filterIsActive === 'active'}
             onClick={() => {
-              setFilterIsActive('active')
-              setPage(1)
+              list.setFilter('status', 'active')
             }}
             style={{
               padding: '6px 14px',
@@ -929,8 +857,7 @@ export function MembersPage() {
             data-testid="members-filter-status-inactive"
             aria-pressed={filterIsActive === 'inactive'}
             onClick={() => {
-              setFilterIsActive('inactive')
-              setPage(1)
+              list.setFilter('status', 'inactive')
             }}
             style={{
               padding: '6px 14px',
@@ -968,8 +895,7 @@ export function MembersPage() {
           <button
             data-testid="filter-card-all"
             onClick={() => {
-              setFilterCardUid('all')
-              setPage(1)
+              list.setFilter('cardUid', 'all')
             }}
             style={{
               padding: '6px 14px',
@@ -988,8 +914,7 @@ export function MembersPage() {
           <button
             data-testid="filter-card-with"
             onClick={() => {
-              setFilterCardUid('with')
-              setPage(1)
+              list.setFilter('cardUid', 'with')
             }}
             style={{
               padding: '6px 14px',
@@ -1008,8 +933,7 @@ export function MembersPage() {
           <button
             data-testid="filter-card-without"
             onClick={() => {
-              setFilterCardUid('without')
-              setPage(1)
+              list.setFilter('cardUid', 'without')
             }}
             style={{
               padding: '6px 14px',
@@ -1047,8 +971,7 @@ export function MembersPage() {
           <button
             data-testid="filter-sepa-all"
             onClick={() => {
-              setFilterSepaStatus('all')
-              setPage(1)
+              list.setFilter('sepaStatus', 'all')
             }}
             style={{
               padding: '6px 14px',
@@ -1067,8 +990,7 @@ export function MembersPage() {
           <button
             data-testid="filter-sepa-valid"
             onClick={() => {
-              setFilterSepaStatus('valid')
-              setPage(1)
+              list.setFilter('sepaStatus', 'valid')
             }}
             style={{
               padding: '6px 14px',
@@ -1087,8 +1009,7 @@ export function MembersPage() {
           <button
             data-testid="filter-sepa-missing"
             onClick={() => {
-              setFilterSepaStatus('invalid')
-              setPage(1)
+              list.setFilter('sepaStatus', 'invalid')
             }}
             style={{
               padding: '6px 14px',
@@ -1112,11 +1033,8 @@ export function MembersPage() {
             <div style={{ flex: 1 }} />
             <button
               onClick={() => {
-                setSearch('')
-                setFilterIsActive('all')
-                setFilterCardUid('all')
-                setFilterSepaStatus('all')
-                setPage(1)
+                list.setSearch('')
+                list.setFilters({ status: 'all', cardUid: 'all', sepaStatus: 'all' })
               }}
               data-testid="members-clear-filters"
               style={{
@@ -1178,36 +1096,24 @@ export function MembersPage() {
                     <SortableTableHeader
                       label={t('common.name')}
                       sortKey="first_name"
-                      currentSort={{ key: sortKey, direction: sortDirection }}
-                      onSort={(key: string, direction: 'asc' | 'desc') => {
-                        setSortKey(key as 'first_name' | 'last_name' | 'created_at' | 'card_uid')
-                        setSortDirection(direction)
-                        setPage(1)
-                      }}
+                      currentSort={{ key: list.sortKey, direction: list.sortDirection }}
+                      onSort={(key: string, direction: 'asc' | 'desc') => list.setSort(key as MemberSortKey, direction)}
                     />
                   </th>
                   <th style={{ ...headerCellBaseStyle, width: '150px' }}>
                     <SortableTableHeader
                       label={t('members.table.cardUid')}
                       sortKey="card_uid"
-                      currentSort={{ key: sortKey, direction: sortDirection }}
-                      onSort={(key: string, direction: 'asc' | 'desc') => {
-                        setSortKey(key as 'first_name' | 'last_name' | 'created_at' | 'card_uid')
-                        setSortDirection(direction)
-                        setPage(1)
-                      }}
+                      currentSort={{ key: list.sortKey, direction: list.sortDirection }}
+                      onSort={(key: string, direction: 'asc' | 'desc') => list.setSort(key as MemberSortKey, direction)}
                     />
                   </th>
                   <th style={{ ...headerCellBaseStyle, width: '120px' }}>
                     <SortableTableHeader
                       label={t('members.memberSince')}
                       sortKey="created_at"
-                      currentSort={{ key: sortKey, direction: sortDirection }}
-                      onSort={(key: string, direction: 'asc' | 'desc') => {
-                        setSortKey(key as 'first_name' | 'last_name' | 'created_at' | 'card_uid')
-                        setSortDirection(direction)
-                        setPage(1)
-                      }}
+                      currentSort={{ key: list.sortKey, direction: list.sortDirection }}
+                      onSort={(key: string, direction: 'asc' | 'desc') => list.setSort(key as MemberSortKey, direction)}
                       testId="members-table-header-created"
                     />
                   </th>
@@ -1307,11 +1213,11 @@ export function MembersPage() {
         {/* Pagination */}
         {!loading && members.length > 0 && (
           <PaginationToolbar
-            currentPage={page}
-            totalPages={Math.ceil(totalMembers / PER_PAGE)}
+            currentPage={list.page}
+            totalPages={totalPages}
             totalItems={totalMembers}
             pageSize={PER_PAGE}
-            onPageChange={setPage}
+            onPageChange={list.setPage}
             onPageSizeChange={() => {}} // Not implemented - always use 20
             variant="default"
             showPageSize={false}

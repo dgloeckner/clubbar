@@ -41,8 +41,10 @@ import { BadgeCell } from '../components/tables/BadgeCell'
 import { ActionButtons } from '../components/tables/ActionButtons'
 import { Badge } from '../components/common/Badge'
 import { EditIcon, TrashIcon } from '../components/icons'
+import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useBreakpoint } from '../hooks/useBreakpoint'
+import { useListQuery } from '../hooks/useListQuery'
 import {
   tableColors,
   tableWrapperStyles,
@@ -68,15 +70,19 @@ type CategoryRuntime = Category & {
   is_active: boolean
 }
 
+type ProductSortKey = 'name' | 'price' | 'category' | 'created_at'
+
+interface ProductFilters {
+  categoryId: string | null
+  status: 'all' | 'active' | 'inactive'
+}
+
 export function ProductsPage() {
   const { t, i18n } = useTranslation()
   const { formatPrice } = useFormatters()
   const breakpoint = useBreakpoint()
-  const [products, setProducts] = useState<ProductWithExtras[]>([])
   const [categories, setCategories] = useState<CategoryRuntime[]>([])
-  const [loading, setLoading] = useState(true)
   const [globalLoading, setGlobalLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
   const [editingProduct, setEditingProduct] = useState<ProductWithExtras | null>(null)
@@ -90,16 +96,41 @@ export function ProductsPage() {
     message: string
   } | null>(null)
 
-  // Pagination, sorting, and filtering state
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
-  // Default to created_at descending so newest products appear first
-  const [sortKey, setSortKey] = useState<'name' | 'price' | 'category' | 'created_at'>('created_at')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const [filterCategory, setFilterCategory] = useState<string | null>(null) // Category filter: null = all
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
-  const [search, setSearch] = useState('')
-  const [totalItems, setTotalItems] = useState(0) // From API
+  // Pagination, sorting, filtering and search all live in the shared list-query
+  // state, which owns the debounce, the abort guard and the page resets (#121).
+  // Default to created_at descending so newest products appear first.
+  const list = useListQuery<ProductWithExtras, ProductFilters, ProductSortKey>({
+    initialFilters: { categoryId: null, status: 'all' },
+    initialSortKey: 'created_at',
+    initialSortDirection: 'desc',
+    initialPageSize: 25,
+    fetcher: async ({ page, pageSize, sortKey, sortDirection, search, filters, signal }) => {
+      const params: ListProductsParams = {
+        page,
+        per_page: pageSize,
+        sort_by: `${sortKey}_${sortDirection}` as ListProductsSortBy,
+      }
+      if (filters.categoryId) params.category_id = filters.categoryId
+      if (filters.status !== 'all') params.status = filters.status as ListProductsStatus
+      if (search) params.search = search
+
+      const response = await getProducts().listProducts(params, { signal })
+      const items = (response.data ?? []) as ProductWithExtras[]
+      return { items, total: response.pagination?.total ?? items.length }
+    },
+    parseError: (err) =>
+      axios.isAxiosError(err)
+        ? err.response?.data?.message || err.message || 'Failed to load products'
+        : err instanceof Error
+          ? err.message
+          : 'Failed to load products',
+  })
+
+  const { items: products, total: totalItems, totalPages, loading, error, setError } = list
+  const { categoryId: filterCategory, status: filterStatus } = list.filters
+  const search = list.search
+  const sortKey = list.sortKey
+  const sortDirection = list.sortDirection
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -118,49 +149,7 @@ export function ProductsPage() {
     { value: 'created_at_desc', label: t('products.sortNewest', 'Newest first'), direction: 'desc' as const },
   ]
 
-  const mobileSortValue = `${sortKey}_${sortDirection}`
-
-  const handleMobileSortChange = (value: string) => {
-    const lastUnderscore = value.lastIndexOf('_')
-    const key = value.substring(0, lastUnderscore) as typeof sortKey
-    const dir = value.substring(lastUnderscore + 1) as 'asc' | 'desc'
-    setSortKey(key)
-    setSortDirection(dir)
-    setCurrentPage(1)
-  }
-
-  const MobileFilterRow = ({ label, options, value, onChange, testId }: {
-    label: string
-    options: { value: string; label: string }[]
-    value: string
-    onChange: (v: string) => void
-    testId: string
-  }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', minWidth: '50px' }}>
-        {label}
-      </span>
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          data-testid={`${testId}-${opt.value}`}
-          onClick={() => { onChange(opt.value); setCurrentPage(1) }}
-          style={{
-            padding: '4px 10px',
-            borderRadius: '6px',
-            border: 'none',
-            background: value === opt.value ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
-            color: value === opt.value ? '#3b82f6' : 'rgba(255,255,255,0.5)',
-            fontSize: '12px',
-            fontWeight: value === opt.value ? 600 : 400,
-            cursor: 'pointer',
-          }}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
+  const mobileSortValue = list.sortValue
 
   // Subscribe to global loading state on mount
   useEffect(() => {
@@ -175,12 +164,6 @@ export function ProductsPage() {
     loadCategories()
   }, [])
 
-  // Load products when pagination/sorting/filtering/search state changes
-  useEffect(() => {
-    const timer = setTimeout(loadProducts, search ? 500 : 0)
-    return () => clearTimeout(timer)
-  }, [currentPage, pageSize, sortKey, sortDirection, filterCategory, filterStatus, search])
-
   async function loadCategories() {
     try {
       const response = await getProducts().listCategories()
@@ -188,40 +171,6 @@ export function ProductsPage() {
     } catch {
       // Silently fail - categories are optional for display purposes
       setCategories([])
-    }
-  }
-
-  async function loadProducts() {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const sortByValue = `${sortKey}_${sortDirection}` as ListProductsSortBy
-
-      const params: ListProductsParams = {
-        page: currentPage,
-        per_page: pageSize,
-        sort_by: sortByValue,
-      }
-      if (filterCategory) params.category_id = filterCategory
-      if (filterStatus !== 'all') params.status = filterStatus as ListProductsStatus
-      if (search) params.search = search
-
-      const response = await getProducts().listProducts(params)
-
-      const items = (response.data ?? []) as ProductWithExtras[]
-
-      setTotalItems(response.pagination?.total ?? items.length)
-      setProducts(items)
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || err.message || 'Failed to load products')
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to load products')
-      }
-      setProducts([])
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -283,7 +232,7 @@ export function ProductsPage() {
       setShowModal(false)
 
       // Reload product list to show newly created product
-      await loadProducts()
+      list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to create product'
@@ -337,7 +286,7 @@ export function ProductsPage() {
       setModalMode('create')
       setShowModal(false)
       // Reload product list to reflect updated product
-      await loadProducts()
+      list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update product'
@@ -360,7 +309,7 @@ export function ProductsPage() {
   async function handleStatusToggle(product: ProductWithExtras) {
     try {
       await getProducts().updateProduct(product.id!, { is_active: !product.is_active })
-      await loadProducts()
+      list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || err.message || 'Failed to update product status')
@@ -376,7 +325,7 @@ export function ProductsPage() {
     try {
       await getProducts().deleteProduct(confirmDialog.productId)
       setConfirmDialog(null)
-      await loadProducts()
+      list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || err.message || 'Failed to delete product')
@@ -409,47 +358,21 @@ export function ProductsPage() {
     setModalMode('create')
   }
 
-  // Server-side pagination - products are already sorted/paginated from API
-  function getTotalPages(): number {
-    return Math.ceil(totalItems / pageSize)
-  }
-
   function handleSort(key: string, direction: 'asc' | 'desc') {
-    const validKeys = ['name', 'price', 'category']
-    if (!validKeys.includes(key)) return
-
-    // If clicking the same column that's already sorted, toggle the direction
-    // Otherwise use the provided direction (which is 'asc' by default)
-    let newDirection = direction
-    if (sortKey === key) {
-      // Clicking the same column - toggle between asc and desc
-      newDirection = sortDirection === 'asc' ? 'desc' : 'asc'
-    }
-
-    setSortKey(key as 'name' | 'price' | 'category')
-    setSortDirection(newDirection)
-
-    // Reset to first page when sorting changes (useEffect will call loadProducts)
-    setCurrentPage(1)
+    const validKeys: ProductSortKey[] = ['name', 'price', 'category']
+    if (!validKeys.includes(key as ProductSortKey)) return
+    // Clicking the already-sorted column flips the direction; a new column takes
+    // the direction the header offers. Either way the page resets, because the
+    // hook resets it for desktop and mobile sorting alike.
+    list.toggleSort(key as ProductSortKey, direction)
   }
 
   function handlePageChange(page: number) {
-    const totalPages = Math.ceil(totalItems / pageSize)
-    setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
-    // useEffect will call loadProducts with new page
+    list.setPage(Math.min(page, totalPages || 1))
   }
-
-  function handlePageSizeChange(newSize: number) {
-    setPageSize(newSize)
-    // Reset to first page when page size changes (useEffect will call loadProducts)
-    setCurrentPage(1)
-  }
-
 
   function handleCategoryFilterChange(categoryId: string | null) {
-    setFilterCategory(categoryId)
-    // Reset to first page when category filter changes
-    setCurrentPage(1)
+    list.setFilter('categoryId', categoryId)
   }
 
   if (loading && products.length === 0) {
@@ -502,13 +425,13 @@ export function ProductsPage() {
             testId="products-mobile-toolbar"
             search={{
               value: search,
-              onChange: (v) => { setSearch(v); setCurrentPage(1) },
+              onChange: list.setSearch,
               testId: 'products-search-input',
             }}
             sort={{
               options: mobileSortOptions,
               value: mobileSortValue,
-              onChange: handleMobileSortChange,
+              onChange: list.setSortValue,
             }}
             filterCount={mobileFilterCount}
             onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
@@ -532,7 +455,7 @@ export function ProductsPage() {
                     { value: 'inactive', label: t('common.inactive') },
                   ]}
                   value={filterStatus}
-                  onChange={(v) => setFilterStatus(v as typeof filterStatus)}
+                  onChange={(v) => list.setFilter('status', v as ProductFilters['status'])}
                   testId="products-mobile-filter-status"
                 />
                 <MobileFilterRow
@@ -634,13 +557,13 @@ export function ProductsPage() {
           {/* Pagination (mobile) */}
           {!loading && products.length > 0 && (
             <PaginationToolbar
-              currentPage={currentPage}
-              totalPages={getTotalPages()}
+              currentPage={list.page}
+              totalPages={totalPages}
               totalItems={totalItems}
-              pageSize={pageSize}
+              pageSize={list.pageSize}
               pageSizeOptions={[10, 25, 50, 100]}
               onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
+              onPageSizeChange={list.setPageSize}
               variant="default"
               showPageSize={false}
               showInfo={true}
@@ -670,8 +593,7 @@ export function ProductsPage() {
             type="text"
             value={search}
             onChange={(e) => {
-              setSearch(e.target.value)
-              setCurrentPage(1)
+              list.setSearch(e.target.value)
             }}
             placeholder={t('common.searchPlaceholder')}
             data-testid="products-search-input"
@@ -704,8 +626,7 @@ export function ProductsPage() {
           <StatusFilterPills
             value={filterStatus}
             onChange={(status) => {
-              setFilterStatus(status)
-              setCurrentPage(1)
+              list.setFilter('status', status)
             }}
             testId="products-filter-status"
           />
@@ -865,13 +786,13 @@ export function ProductsPage() {
       {/* Pagination toolbar - bottom */}
       {totalItems > 0 && (
         <PaginationToolbar
-          currentPage={currentPage}
-          totalPages={getTotalPages()}
+          currentPage={list.page}
+          totalPages={totalPages}
           totalItems={totalItems}
-          pageSize={pageSize}
+          pageSize={list.pageSize}
           pageSizeOptions={[10, 25, 50, 100]}
           onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
+          onPageSizeChange={list.setPageSize}
           variant="default"
           showPageSize={true}
           showInfo={true}

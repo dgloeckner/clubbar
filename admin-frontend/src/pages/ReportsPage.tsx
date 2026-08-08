@@ -16,6 +16,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts'
+import { downloadBlob, downloadFile } from '../api/client'
 import { getReports } from '../api/generated/reports/reports'
 import type { GetReportGroupBy } from '../api/generated'
 import { toIsoDate } from '../utils/dates'
@@ -202,16 +203,18 @@ async function exportReport(
 ): Promise<void> {
   // Use the generated export endpoint (returns Blob) and trigger download
   if (reportType === 'member-ranking' || reportType === 'terminal-activity') {
-    // These don't have a dedicated generated export; fall through to manual URL trigger
+    // No dedicated generated export for these two — fetch the CSV through the
+    // shared helper instead of pointing an anchor at the URL. A bare anchor is a
+    // fresh browser navigation: it carries none of the client's request handling
+    // and, on a 401, downloads the error page as a .csv (#121).
     const query = Object.entries({ ...params, format: 'csv' })
       .filter(([, v]) => v !== undefined && v !== '')
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
       .join('&')
-    const url = `/api/admin/reports/${reportType}?${query}`
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `report-${reportType}-${toIsoDate(new Date())}.csv`
-    a.click()
+    await downloadFile(
+      `/admin/reports/${reportType}?${query}`,
+      `report-${reportType}-${toIsoDate(new Date())}.csv`
+    )
     return
   }
   // For standard report types, use generated client. Only pass the fields the
@@ -221,12 +224,7 @@ async function exportReport(
     date_to: typeof params.date_to === 'string' ? params.date_to : undefined,
     group_by: typeof params.group_by === 'string' ? (params.group_by as GroupBy) : undefined,
   })
-  const objectUrl = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = objectUrl
-  a.download = `report-${reportType}-${toIsoDate(new Date())}.csv`
-  a.click()
-  URL.revokeObjectURL(objectUrl)
+  downloadBlob(blob, `report-${reportType}-${toIsoDate(new Date())}.csv`)
 }
 import { theme } from '../styles/design-system'
 import { useFormatters } from '../hooks/useFormatters'

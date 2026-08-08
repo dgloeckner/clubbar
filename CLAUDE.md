@@ -151,8 +151,15 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
   - Implementation examples for common components (pages, forms, tables, modals)
   - Best practices for adding test IDs during development
   - Playwright tips and custom locators
+- **Table Implementation Pattern**: Build a paginated list page end to end
+  - `useListQuery` owns page/page size/sort/filters/search, the search debounce, request aborting and the post-mutation page clamp — **never hand-roll that state on a page**
+  - Shared controls: `MobileFilterRow`, `PaginationToolbar`, `SortableTableHeader`, `MobileToolbar`
+  - Loading, empty and error states; common pitfalls
+- **Component Patterns**: Index of reusable UI components — check it before writing a new one
 
-**Important**: When building pages and components in the admin frontend, follow the test IDs pattern to ensure E2E tests are reliable and maintainable. See `admin-frontend/patterns/test-ids.md` for comprehensive guide and examples.
+**Important**: When building pages and components in the admin frontend, follow the test IDs pattern to ensure E2E tests are reliable and maintainable. See `admin-frontend/patterns/test-ids.md` for comprehensive guide and examples, and `admin-frontend/patterns/table-implementation.md` before touching a list page.
+
+**Downloads**: route every file download through `src/api/client.ts` — `downloadFile(url, fallback)` when you have a URL (it goes through the API client and honours `Content-Disposition`), `downloadBlob(blob, filename)` when a generated endpoint already returned the blob. Do not build `<a download>` elements in pages.
 
 ### Development Approach
 - **Prefer a planned approach with milestones** over tackling all issues at once

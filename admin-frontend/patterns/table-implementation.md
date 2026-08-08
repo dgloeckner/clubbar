@@ -57,84 +57,100 @@ return (
 
 ## State Management
 
-### Required State Variables
+### Use `useListQuery` — never hand-roll list state
+
+Page, page size, sort key and direction, filters, search and its debounce all
+live in **[`src/hooks/useListQuery.ts`](../src/hooks/useListQuery.ts)**. Six
+pages used to declare those eight state variables each; the copies drifted, and
+the drift is where the dropped-filter, stale-response and page-reset bugs came
+from (#121).
 
 ```tsx
-const [items, setItems] = useState<Item[]>([])
-const [totalItems, setTotalItems] = useState(0)
-const [loading, setLoading] = useState(true)
-const [error, setError] = useState<string | null>(null)
+type ItemSortKey = 'name' | 'created_at'
 
-// Pagination
-const [page, setPage] = useState(1)
+interface ItemFilters {
+  status: 'all' | 'active' | 'inactive'
+}
 
-// Search
-const [search, setSearch] = useState('')
+const list = useListQuery<Item, ItemFilters, ItemSortKey>({
+  initialFilters: { status: 'all' },
+  initialSortKey: 'created_at',
+  initialSortDirection: 'desc',
+  initialPageSize: 20,
+  // `signal` must be forwarded so an abandoned request is actually cancelled.
+  fetcher: async ({ page, pageSize, sortKey, sortDirection, search, filters, signal }) => {
+    const params: ListItemsParams = { page, per_page: pageSize, sort_by: `${sortKey}_${sortDirection}` }
+    if (search) params.search = search
+    if (filters.status !== 'all') params.status = filters.status
 
-// Sorting
-const [sortKey, setSortKey] = useState<'field1' | 'field2'>('field1')
-const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-const [sortByValue, setSortByValue] = useState('field1-desc') // For dropdown display
+    const response = await getItems().listItems(params, { signal })
+    return { items: response.data ?? [], total: response.pagination?.total ?? 0 }
+  },
+  parseError: (err) => (err instanceof Error ? err.message : 'Failed to load items'),
+})
 
-// Filtering
-const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
+const { items, total: totalItems, totalPages, loading, error, setError } = list
+```
 
+Everything the page still owns is genuinely page-specific:
+
+```tsx
 // Modal state
 const [showModal, setShowModal] = useState(false)
 const [editingItem, setEditingItem] = useState<Item | null>(null)
 const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
-// Global loading context
+// Global loading context — mirror the list's own loading into it
 const { setIsLoading } = useLoading()
+useEffect(() => {
+  setIsLoading(loading)
+  return () => setIsLoading(false)
+}, [loading, setIsLoading])
 ```
+
+### What the hook guarantees
+
+| Guarantee | Why it matters |
+|---|---|
+| One fetch path | The loader and every post-mutation reload send the same query, so a reload cannot drop the active filters |
+| Abort per run | A superseded request is cancelled and its late answer never overwrites a newer page |
+| Debounce on search only | `search ? 500 : 0` — filters and paging stay instant |
+| Page reset on every query change | Desktop sort headers and the mobile sort dropdown behave identically |
+| Page clamp after a reload | Deleting the last item on the last page lands on the last page that exists, instead of an empty out-of-range one |
 
 ---
 
 ## Data Loading
 
-### useEffect Pattern
+There is no loader effect to write. Wire the controls to the hook's setters and
+call `list.reload()` after a mutation:
 
 ```tsx
-useEffect(() => {
-  const loadItems = async () => {
-    try {
-      setLoading(true)
-      setIsLoading(true)
+// Search box — the hook debounces and resets to page 1
+<input value={list.search} onChange={(e) => list.setSearch(e.target.value)} />
 
-      // Build filter object
-      const filter: { is_active?: boolean } = {}
-      if (filterStatus === 'active') {
-        filter.is_active = true
-      } else if (filterStatus === 'inactive') {
-        filter.is_active = false
-      }
+// Filter pill / dropdown
+<StatusFilterPills value={list.filters.status} onChange={(v) => list.setFilter('status', v)} />
 
-      // Call API with all parameters
-      const response = await getItems(page, 20, search || undefined, filter, sortKey, sortDirection)
+// Desktop sort header — same key flips direction, a new key takes the default
+<SortableTableHeader
+  sortKey="name"
+  currentSort={{ key: list.sortKey, direction: list.sortDirection }}
+  onSort={(key, direction) => list.setSort(key as ItemSortKey, direction)}
+/>
 
-      // Update state
-      setItems(response.items)
-      setTotalItems(response.total)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load items')
-    } finally {
-      setLoading(false)
-      setIsLoading(false)
-    }
-  }
+// Mobile sort dropdown — values are `"<key>_<direction>"`
+<MobileToolbar sort={{ options, value: list.sortValue, onChange: list.setSortValue }} />
 
-  // Debounce search
-  const timer = setTimeout(loadItems, search ? 500 : 0)
-  return () => clearTimeout(timer)
-}, [page, search, filterStatus, sortKey, sortDirection, setIsLoading])
+// After a create / update / delete
+await deleteItem(id)
+list.reload()
 ```
 
 **Key Points:**
-- Always debounce search (500ms)
-- Include all filter/sort dependencies in dependency array
-- Catch errors and set error state
-- Clean up debounce timer on unmount
+- Never re-fetch by hand in a mutation handler — `reload()` re-runs the *current* query
+- Never call `setPage(1)` alongside a filter/sort/search change; the hook does it
+- Always forward `signal` from the fetcher into the generated client call
 
 ---
 
@@ -646,28 +662,40 @@ test('should filter items correctly', async ({ authenticatedItemsPage }) => {
 
 ## Common Pitfalls
 
-### 1. ❌ Relying on `setPage(1)` to Trigger Reload
+### 1. ❌ Re-fetching by Hand in a Mutation Handler
 
-**Problem:** When page is already 1, `setPage(1)` doesn't trigger useEffect re-run
+**Problem:** A hand-written re-fetch has to restate the whole query. Every
+restatement is a chance to forget a filter — and it forgot `sepa_status`,
+`has_card_uid` and the current page in turn. `setPage(1)` is no better: it is a
+no-op when the page is already 1, so nothing reloads at all.
 
-**Solution:** Directly call API in mutation handlers:
 ```tsx
-// ❌ DON'T
+// ❌ DON'T — a second query that has to be kept in sync with the first
 const handleDelete = async (itemId: string) => {
   await deleteItem(itemId)
-  setPage(1)  // Might not trigger if already page 1
-}
-
-// ✅ DO
-const handleDelete = async (itemId: string) => {
-  await deleteItem(itemId)
-
-  // Directly reload with current filters
   const response = await getItems(page, 20, search, filter, sortKey, sortDirection)
   setItems(response.items)
   setTotalItems(response.total)
 }
+
+// ✅ DO — re-run the query that is already active
+const handleDelete = async (itemId: string) => {
+  await deleteItem(itemId)
+  list.reload()
+}
 ```
+
+`reload()` also clamps the page afterwards, so deleting the last row on the last
+page lands on the last page that still exists rather than an empty one whose
+pagination control is hidden.
+
+### 1b. ❌ Declaring List State on the Page
+
+**Problem:** `useState` for page/sort/filters/search on the page is exactly the
+duplication #121 removed. The copies drift: one resets the page on sort, another
+does not; one aborts stale requests, the rest do not.
+
+**Solution:** `useListQuery`. See [State Management](#state-management).
 
 ### 2. ❌ Using Native `<select>` for Filters
 
@@ -754,6 +782,7 @@ const handleDelete = async (itemId: string) => {
 
 ## References
 
+- **List Query Hook**: `/admin-frontend/src/hooks/useListQuery.ts` (page/sort/filter/search state)
 - **Members Page**: `/admin-frontend/src/pages/MembersPage.tsx` (reference implementation)
 - **Products Page**: `/admin-frontend/src/pages/ProductsPage.tsx` (reference implementation)
 - **Table Components**: `/admin-frontend/src/components/tables/`
