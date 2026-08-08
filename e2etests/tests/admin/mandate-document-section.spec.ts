@@ -126,10 +126,11 @@ test.describe('MandateDocumentSection — upload and replace', () => {
     await page.getByTestId('mandate-document-replace-btn').click()
     await expect(page.getByTestId('mandate-document-dropzone')).toBeVisible()
 
+    const pdfBuffer = readFileSync(resolve(FIXTURE_DIR, 'test-mandate.pdf'))
     await page.getByTestId('mandate-document-input').setInputFiles({
       name: 'test-mandate.pdf',
       mimeType: 'application/pdf',
-      buffer: readFileSync(resolve(FIXTURE_DIR, 'test-mandate.pdf')),
+      buffer: pdfBuffer,
     })
     // PDFs skip client-side compression — this should be near-instant, but keep some
     // headroom for CI's parallel load, matching the convention used above.
@@ -141,8 +142,21 @@ test.describe('MandateDocumentSection — upload and replace', () => {
     const secondResp = await secondUploadResponse
     const secondDoc = await secondResp.json()
     expect(secondDoc.original_filename).toBe('test-mandate.pdf')
-    // A genuinely new upload, not a stale re-render of the first response
-    expect(secondDoc.uploaded_at).not.toBe(firstDoc.uploaded_at)
+    // A genuinely new upload, not a stale re-render of the first response.
+    //
+    // Asserted on the stored byte count rather than on `uploaded_at`: that
+    // field is the row's `updated_at` DATETIME rendered at one-second
+    // resolution (MandateDocumentDto::fromRow -> DateFormatter::toUtcIso), and
+    // the two uploads here are only a few hundred milliseconds apart, so the
+    // two timestamps are equal unless a second boundary happens to fall
+    // between them. That made the old assertion a coin flip.
+    //
+    // The size is exact instead: the PDF path skips client-side compression
+    // (MandateDocumentSection compresses everything except application/pdf),
+    // so the persisted size is the fixture's own byte count — a deterministic
+    // fingerprint that the first response could not possibly carry.
+    expect(secondDoc.file_size_bytes).toBe(pdfBuffer.length)
+    expect(secondDoc.file_size_bytes).not.toBe(firstDoc.file_size_bytes)
 
     await expect(page.getByTestId('mandate-document-stored')).toBeVisible()
 
