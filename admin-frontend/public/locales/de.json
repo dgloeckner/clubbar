@@ -428,7 +428,30 @@
     "rotateTokenConfirm": "API-Token rotieren? Das alte Token wird sofort ungültig.",
     "tokenGenerated": "API-Token generiert",
     "tokenWarning": "Kopieren Sie dieses Token jetzt. Es wird nicht erneut angezeigt.",
-    "tokenRotated": "Neues API-Token generiert. Das alte Token ist nicht mehr gültig."
+    "tokenRotated": "Neues API-Token generiert. Das alte Token ist nicht mehr gültig.",
+    "sepaSaved": "SEPA-Konfiguration erfolgreich gespeichert",
+    "adminEmail": "E-Mail",
+    "adminDisplayName": "Anzeigename",
+    "editAdminUser": "Admin-Benutzer bearbeiten",
+    "errors": {
+      "loadSettings": "Einstellungen konnten nicht geladen werden",
+      "loadAdminUsers": "Admin-Benutzer konnten nicht geladen werden",
+      "loadTerminals": "Terminals konnten nicht geladen werden",
+      "createAdminUser": "Admin-Benutzer konnte nicht angelegt werden",
+      "updateAdminUser": "Admin-Benutzer konnte nicht gespeichert werden",
+      "deactivateAdminUser": "Admin-Benutzer konnte nicht deaktiviert werden",
+      "reactivateAdminUser": "Admin-Benutzer konnte nicht aktiviert werden",
+      "resetPassword": "Passwort konnte nicht zurückgesetzt werden",
+      "reset2fa": "2FA konnte nicht zurückgesetzt werden",
+      "createTerminal": "Terminal konnte nicht angelegt werden",
+      "updateTerminal": "Terminal konnte nicht gespeichert werden",
+      "deactivateTerminal": "Terminal konnte nicht deaktiviert werden",
+      "reactivateTerminal": "Terminal konnte nicht aktiviert werden",
+      "rotateTerminal": "API-Token konnte nicht erneuert werden",
+      "revokeTerminal": "Terminal-Zugang konnte nicht entzogen werden",
+      "saveSepa": "SEPA-Konfiguration konnte nicht gespeichert werden. Bitte erneut versuchen.",
+      "sepaValidation": "Bitte korrigieren Sie die markierten Felder"
+    }
   },
   "auditLog": {
     "title": "Audit-Log",

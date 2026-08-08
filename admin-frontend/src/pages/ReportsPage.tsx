@@ -19,6 +19,7 @@ import {
 import { getReports } from '../api/generated/reports/reports'
 import type { GetReportGroupBy } from '../api/generated'
 import { downloadFile } from '../api/client'
+import { toIsoDate } from '../utils/dates'
 
 // ─── Local Types (UI-facing, mapped from generated API types) ─────────────────
 
@@ -213,9 +214,11 @@ async function exportReport(
     .filter(([, v]) => v !== undefined && v !== '')
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
     .join('&')
+  // The fallback name only applies if the backend omits Content-Disposition;
+  // it still stamps the admin's calendar day, not Greenwich's (#95).
   await downloadFile(
     `/admin/reports/${reportType}/export${query ? `?${query}` : ''}`,
-    `report-${reportType}-${new Date().toISOString().slice(0, 10)}.csv`
+    `report-${reportType}-${toIsoDate(new Date())}.csv`
   )
 }
 import { theme } from '../styles/design-system'
@@ -232,13 +235,20 @@ import { Toggle } from '../components/forms/Toggle'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Seed range for the report filters: the last 30 local calendar days.
+ *
+ * Built with `toIsoDate`, not `toISOString()` — the latter converts to UTC
+ * first, so a German admin opening this page before 02:00 local would get
+ * `date_to = yesterday` and silently lose today's transactions (#95).
+ */
 function defaultDateRange(): { date_from: string; date_to: string } {
   const to = new Date()
   const from = new Date()
   from.setDate(from.getDate() - 30)
   return {
-    date_from: from.toISOString().slice(0, 10),
-    date_to: to.toISOString().slice(0, 10),
+    date_from: toIsoDate(from),
+    date_to: toIsoDate(to),
   }
 }
 

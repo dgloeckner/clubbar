@@ -18,6 +18,7 @@ import type { SepaConfig, AdminUser as GeneratedAdminUser, Terminal as Generated
 type AdminUser = GeneratedAdminUser & { id: string; email: string; display_name: string; locale: string; is_active: boolean; created_at: string }
 type Terminal = GeneratedTerminal & { id: string; name: string; is_active: boolean }
 import axios from 'axios'
+import { Alert } from '../components/common/Alert'
 import { SepaConfigTab } from '../components/settings/SepaConfigTab'
 import { AdminUsersTab } from '../components/settings/AdminUsersTab'
 import { CreateAdminModal } from '../components/modals/CreateAdminModal'
@@ -29,6 +30,7 @@ import { CreateTerminalModal } from '../components/modals/CreateTerminalModal'
 import { EditTerminalModal } from '../components/modals/EditTerminalModal'
 import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
 import { validateIban } from '../utils/iban'
+import { getApiErrorMessage, getApiFieldErrors } from '../utils/apiErrors'
 import { MAX_PER_PAGE, loadAllPages } from '../utils/pagination'
 import {
   buildCreateSepaConfigRequest,
@@ -47,7 +49,11 @@ export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals'>('admin-users')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // Page-level failure, rendered above the tab content. A modal covers that
+  // banner, so a failure raised while one is open goes to `modalError` instead.
   const [error, setError] = useState<string | null>(null)
+  const [modalError, setModalError] = useState<string | null>(null)
+  const [modalFieldErrors, setModalFieldErrors] = useState<Record<string, string>>({})
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [existingConfig, setExistingConfig] = useState<SepaConfig | null>(null)
   const [originalFormData, setOriginalFormData] = useState<SepaConfigFormData>({
@@ -150,7 +156,7 @@ export function SettingsPage() {
 
         setError(null)
       } catch (err: unknown) {
-        setError('Failed to load settings')
+        setError(getApiErrorMessage(err, t('settings.errors.loadSettings')))
       } finally {
         setLoading(false)
         setIsLoading(false)
@@ -158,7 +164,9 @@ export function SettingsPage() {
     }
 
     loadConfig()
-  }, [setIsLoading])
+    // `t` is deliberately not a dependency: re-running this on a language
+    // switch would refetch the config and discard unsaved edits.
+  }, [setIsLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load admin users when admin-users tab is active
   useEffect(() => {
@@ -174,6 +182,35 @@ export function SettingsPage() {
     }
   }, [activeTab])
 
+  /**
+   * Report a failure on the page banner, preferring what the API said over the
+   * generic fallback.
+   */
+  const reportError = (err: unknown, fallbackKey: string) => {
+    setError(getApiErrorMessage(err, t(fallbackKey)))
+  }
+
+  /**
+   * Report a failure raised from an open modal. It is shown inside that modal,
+   * next to the input the admin is about to retry — the page banner is behind
+   * the overlay and would only resurface later, on whichever tab is open then.
+   */
+  const reportModalError = (err: unknown, fallbackKey: string) => {
+    setModalError(getApiErrorMessage(err, t(fallbackKey)))
+    setModalFieldErrors(getApiFieldErrors(err))
+  }
+
+  const clearModalError = () => {
+    setModalError(null)
+    setModalFieldErrors({})
+  }
+
+  const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals') => {
+    // The banner reports what failed on the tab that is being left behind.
+    setError(null)
+    setActiveTab(tab)
+  }
+
   const loadAdminUsers = async () => {
     try {
       setAdminUsersLoading(true)
@@ -183,7 +220,7 @@ export function SettingsPage() {
         )) as AdminUser[],
       )
     } catch (err: unknown) {
-      // silently fail — list will remain empty
+      reportError(err, 'settings.errors.loadAdminUsers')
     } finally {
       setAdminUsersLoading(false)
     }
@@ -198,7 +235,7 @@ export function SettingsPage() {
         )) as Terminal[],
       )
     } catch (err: unknown) {
-      // silently fail — list will remain empty
+      reportError(err, 'settings.errors.loadTerminals')
     } finally {
       setTerminalsLoading(false)
     }
@@ -214,10 +251,11 @@ export function SettingsPage() {
       setGeneratedPassword(result.password ?? null)
       setShowPasswordModal(true)
       setShowCreateAdminModal(false)
+      clearModalError()
       setCreateAdminFormData({ email: '', display_name: '', locale: 'de' })
       await loadAdminUsers()
     } catch (err: unknown) {
-      setError('Failed to create admin user')
+      reportModalError(err, 'settings.errors.createAdminUser')
     }
   }
 
@@ -231,10 +269,11 @@ export function SettingsPage() {
       })
       setShowEditAdminModal(false)
       setEditingAdmin(null)
+      clearModalError()
       setEditAdminFormData({ email: '', display_name: '', locale: 'de' })
       await loadAdminUsers()
     } catch (err: unknown) {
-      setError('Failed to update admin user')
+      reportModalError(err, 'settings.errors.updateAdminUser')
     }
   }
 
@@ -250,7 +289,7 @@ export function SettingsPage() {
       await getAdminUsers().updateAdminUser(id, { is_active: false })
       await loadAdminUsers()
     } catch (err: unknown) {
-      setError('Failed to deactivate admin user')
+      reportError(err, 'settings.errors.deactivateAdminUser')
     }
   }
 
@@ -259,7 +298,7 @@ export function SettingsPage() {
       await getAdminUsers().updateAdminUser(id, { is_active: true })
       await loadAdminUsers()
     } catch (err: unknown) {
-      setError('Failed to reactivate admin user')
+      reportError(err, 'settings.errors.reactivateAdminUser')
     }
   }
 
@@ -269,7 +308,7 @@ export function SettingsPage() {
       setGeneratedPassword(result.password ?? null)
       setShowPasswordModal(true)
     } catch (err: unknown) {
-      setError('Failed to reset password')
+      reportError(err, 'settings.errors.resetPassword')
     }
   }
 
@@ -284,7 +323,7 @@ export function SettingsPage() {
     try {
       await getAuthentication().resetTotp({ userId: id })
     } catch (err: unknown) {
-      setError('Failed to reset 2FA')
+      reportError(err, 'settings.errors.reset2fa')
     }
   }
 
@@ -294,10 +333,11 @@ export function SettingsPage() {
       setGeneratedToken(result.api_token ?? null)
       setShowTokenModal(true)
       setShowCreateTerminalModal(false)
+      clearModalError()
       setCreateTerminalFormData({ name: '', device_id: '' })
       await loadTerminals()
     } catch (err: unknown) {
-      setError('Failed to create terminal')
+      reportModalError(err, 'settings.errors.createTerminal')
     }
   }
 
@@ -307,10 +347,11 @@ export function SettingsPage() {
       await getTerminals().updateTerminal(editingTerminal.id!, { name: editTerminalFormData.name })
       setShowEditTerminalModal(false)
       setEditingTerminal(null)
+      clearModalError()
       setEditTerminalFormData({ name: '' })
       await loadTerminals()
     } catch (err: unknown) {
-      setError('Failed to update terminal')
+      reportModalError(err, 'settings.errors.updateTerminal')
     }
   }
 
@@ -323,7 +364,7 @@ export function SettingsPage() {
       await getTerminals().updateTerminal(id, { is_active: true })
       await loadTerminals()
     } catch (err: unknown) {
-      setError('Failed to reactivate terminal')
+      reportError(err, 'settings.errors.reactivateTerminal')
     }
   }
 
@@ -351,7 +392,7 @@ export function SettingsPage() {
       }
       await loadTerminals()
     } catch (err: unknown) {
-      setError(`Failed to ${type} terminal`)
+      reportError(err, `settings.errors.${type}Terminal`)
     }
   }
 
@@ -454,42 +495,21 @@ export function SettingsPage() {
       setExistingConfig(result)
       setOriginalFormData(formData)
       setFieldErrors({})
-      setSuccessMessage('SEPA configuration saved successfully')
+      setSuccessMessage(t('settings.sepaSaved'))
 
       // Clear success message after 5 seconds
       setTimeout(() => {
         setSuccessMessage(null)
       }, 5000)
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        // Handle validation errors (422)
-        if (err.response?.status === 422) {
-          const data = err.response.data as Record<string, unknown>
-          if (data.errors && typeof data.errors === 'object') {
-            // Map field errors
-            const mappedErrors: Record<string, string> = {}
-            for (const [field, messages] of Object.entries(data.errors as Record<string, unknown>)) {
-              if (Array.isArray(messages)) {
-                mappedErrors[field] = messages[0] as string
-              } else if (typeof messages === 'string') {
-                mappedErrors[field] = messages
-              }
-            }
-            setFieldErrors(mappedErrors)
-            setError('Please fix validation errors')
-          } else if (typeof data.message === 'string') {
-            setError(data.message)
-          } else {
-            setError('Validation failed')
-          }
-        } else if (err.response?.status === 400) {
-          const data = err.response.data as Record<string, unknown>
-          setError(typeof data.message === 'string' ? data.message : 'Invalid request')
-        } else {
-          setError('Failed to save SEPA configuration. Please try again.')
-        }
+      // A rejected field is named on the field itself; the banner says why the
+      // save did not happen.
+      const apiFieldErrors = getApiFieldErrors(err)
+      if (Object.keys(apiFieldErrors).length > 0) {
+        setFieldErrors(apiFieldErrors)
+        setError(t('settings.errors.sepaValidation'))
       } else {
-        setError('Failed to save SEPA configuration. Please try again.')
+        setError(getApiErrorMessage(err, t('settings.errors.saveSepa')))
       }
     } finally {
       setSaving(false)
@@ -552,7 +572,7 @@ export function SettingsPage() {
         >
           <button
             data-testid="settings-tab-admin-users"
-            onClick={() => setActiveTab('admin-users')}
+            onClick={() => switchTab('admin-users')}
             style={tabStyle(activeTab === 'admin-users') as any}
           >
             {!isMobile && (
@@ -567,7 +587,7 @@ export function SettingsPage() {
           </button>
           <button
             data-testid="settings-tab-sepa"
-            onClick={() => setActiveTab('sepa')}
+            onClick={() => switchTab('sepa')}
             style={tabStyle(activeTab === 'sepa') as any}
           >
             {!isMobile && (
@@ -580,7 +600,7 @@ export function SettingsPage() {
           </button>
           <button
             data-testid="settings-tab-terminals"
-            onClick={() => setActiveTab('terminals')}
+            onClick={() => switchTab('terminals')}
             style={tabStyle(activeTab === 'terminals') as any}
           >
             {!isMobile && (
@@ -595,13 +615,16 @@ export function SettingsPage() {
         </div>
       </div>
 
+      {/* Failures from every tab land here, above the tab content, so the
+          message stays with the action that caused it (#91). */}
+      {error && <Alert variant="danger" message={error} testId="settings-error-message" />}
+
       {/* SEPA Configuration Tab */}
       {activeTab === 'sepa' && (
         <SepaConfigTab
           creditorIdLocked={creditorIdLocked}
           loading={false}
           saving={saving}
-          error={error}
           successMessage={successMessage}
           formData={formData}
           fieldErrors={fieldErrors}
@@ -617,8 +640,12 @@ export function SettingsPage() {
         <AdminUsersTab
           users={adminUsers}
           loading={adminUsersLoading}
-          onCreateUser={() => setShowCreateAdminModal(true)}
+          onCreateUser={() => {
+            clearModalError()
+            setShowCreateAdminModal(true)
+          }}
           onEditUser={(admin) => {
+            clearModalError()
             setEditingAdmin(admin)
             setEditAdminFormData({
               email: admin.email,
@@ -639,8 +666,12 @@ export function SettingsPage() {
         <TerminalsTab
           terminals={terminals}
           loading={terminalsLoading}
-          onCreateTerminal={() => setShowCreateTerminalModal(true)}
+          onCreateTerminal={() => {
+            clearModalError()
+            setShowCreateTerminalModal(true)
+          }}
           onEditTerminal={(terminal) => {
+            clearModalError()
             setEditingTerminal(terminal)
             setEditTerminalFormData({ name: terminal.name })
             setShowEditTerminalModal(true)
@@ -656,7 +687,10 @@ export function SettingsPage() {
       <CreateAdminModal
         isOpen={showCreateAdminModal}
         formData={createAdminFormData}
+        error={modalError}
+        fieldErrors={modalFieldErrors}
         onFormChange={(field, value) => {
+          clearModalError()
           if (field === 'locale') {
             setCreateAdminFormData((prev) => ({
               ...prev,
@@ -670,13 +704,19 @@ export function SettingsPage() {
           }
         }}
         onSubmit={handleCreateAdmin}
-        onClose={() => setShowCreateAdminModal(false)}
+        onClose={() => {
+          clearModalError()
+          setShowCreateAdminModal(false)
+        }}
       />
 
       <EditAdminModal
         isOpen={showEditAdminModal}
         formData={editAdminFormData}
+        error={modalError}
+        fieldErrors={modalFieldErrors}
         onFormChange={(field, value) => {
+          clearModalError()
           if (field === 'locale') {
             setEditAdminFormData((prev) => ({
               ...prev,
@@ -690,7 +730,10 @@ export function SettingsPage() {
           }
         }}
         onSubmit={handleUpdateAdmin}
-        onClose={() => setShowEditAdminModal(false)}
+        onClose={() => {
+          clearModalError()
+          setShowEditAdminModal(false)
+        }}
       />
 
       <PasswordDisplayModal
@@ -723,21 +766,33 @@ export function SettingsPage() {
       <CreateTerminalModal
         isOpen={showCreateTerminalModal}
         formData={createTerminalFormData}
+        error={modalError}
+        fieldErrors={modalFieldErrors}
         onFormChange={(field, value) => {
+          clearModalError()
           setCreateTerminalFormData((prev) => ({ ...prev, [field]: value }))
         }}
         onSubmit={handleCreateTerminal}
-        onClose={() => setShowCreateTerminalModal(false)}
+        onClose={() => {
+          clearModalError()
+          setShowCreateTerminalModal(false)
+        }}
       />
 
       <EditTerminalModal
         isOpen={showEditTerminalModal}
         formData={editTerminalFormData}
+        error={modalError}
+        fieldErrors={modalFieldErrors}
         onFormChange={(field, value) => {
+          clearModalError()
           setEditTerminalFormData((prev) => ({ ...prev, [field]: value }))
         }}
         onSubmit={handleUpdateTerminal}
-        onClose={() => setShowEditTerminalModal(false)}
+        onClose={() => {
+          clearModalError()
+          setShowEditTerminalModal(false)
+        }}
       />
 
       <TokenDisplayModal

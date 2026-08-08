@@ -3,8 +3,10 @@
  * Modal for editing admin users
  */
 
+import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { LanguageSelector } from '../forms/LanguageSelector'
+import { FieldError, ModalError, modalInputStyle } from './ModalError'
 
 export interface EditAdminModalProps {
   isOpen: boolean
@@ -13,12 +15,26 @@ export interface EditAdminModalProps {
     display_name: string
     locale: 'de' | 'en'
   }
+  /** Message from the last failed submit, e.g. an email the API already knows. */
+  error?: string | null
+  /** Field name → message, as the API reported it. */
+  fieldErrors?: Record<string, string>
   onFormChange: (field: string, value: string) => void
   onSubmit: () => void
   onClose: () => void
 }
 
-export function EditAdminModal({ isOpen, formData, onFormChange, onSubmit, onClose }: EditAdminModalProps) {
+export function EditAdminModal({
+  isOpen,
+  formData,
+  error,
+  fieldErrors = {},
+  onFormChange,
+  onSubmit,
+  onClose,
+}: EditAdminModalProps) {
+  const { t } = useTranslation()
+
   if (!isOpen) {
     return null
   }
@@ -47,41 +63,30 @@ export function EditAdminModal({ isOpen, formData, onFormChange, onSubmit, onClo
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ margin: 0, marginBottom: theme.spacing.lg }}>Edit Admin User</h2>
+        <h2 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.editAdminUser')}</h2>
+
+        <ModalError message={error} testId="settings-admin-edit-error" />
+
         <input
           data-testid="settings-admin-edit-email"
           type="email"
-          placeholder="Email"
+          placeholder={t('settings.adminEmail')}
           value={formData.email}
           onChange={(e) => onFormChange('email', e.target.value)}
-          style={{
-            width: '100%',
-            padding: theme.spacing.md,
-            marginBottom: theme.spacing.md,
-            border: `1px solid ${theme.colors.border.light}`,
-            borderRadius: theme.borderRadius.md,
-            boxSizing: 'border-box',
-            background: theme.colors.bg.secondary,
-            color: theme.colors.text.primary,
-          }}
+          style={modalInputStyle(!!fieldErrors.email)}
         />
+        <FieldError message={fieldErrors.email} testId="settings-admin-edit-email-error" />
+
         <input
           data-testid="settings-admin-edit-display-name"
           type="text"
-          placeholder="Display Name"
+          placeholder={t('settings.adminDisplayName')}
           value={formData.display_name}
           onChange={(e) => onFormChange('display_name', e.target.value)}
-          style={{
-            width: '100%',
-            padding: theme.spacing.md,
-            marginBottom: theme.spacing.md,
-            border: `1px solid ${theme.colors.border.light}`,
-            borderRadius: theme.borderRadius.md,
-            boxSizing: 'border-box',
-            background: theme.colors.bg.secondary,
-            color: theme.colors.text.primary,
-          }}
+          style={modalInputStyle(!!fieldErrors.display_name)}
         />
+        <FieldError message={fieldErrors.display_name} testId="settings-admin-edit-display-name-error" />
+
         <div style={{ marginBottom: theme.spacing.lg }}>
           <LanguageSelector
             value={formData.locale}
@@ -110,7 +115,7 @@ export function EditAdminModal({ isOpen, formData, onFormChange, onSubmit, onClo
               e.currentTarget.style.background = theme.colors.semantic.primary
             }}
           >
-            Update
+            {t('common.save')}
           </button>
           <button
             data-testid="settings-admin-edit-cancel-button"
@@ -132,7 +137,7 @@ export function EditAdminModal({ isOpen, formData, onFormChange, onSubmit, onClo
               e.currentTarget.style.backgroundColor = 'transparent'
             }}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       </div>

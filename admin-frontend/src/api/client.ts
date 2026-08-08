@@ -12,6 +12,7 @@
 
 import axios from 'axios'
 import type { AxiosRequestConfig } from 'axios'
+import { getApiErrorMessage } from '../utils/apiErrors'
 
 // ─── CSRF ────────────────────────────────────────────────────────────────────
 
@@ -127,17 +128,19 @@ export const customInstance = <T>(
  * back and use the API's own message when there is one.
  */
 async function readDownloadError(error: unknown): Promise<Error> {
-  const body = (error as { response?: { data?: unknown } })?.response?.data
-  if (body instanceof Blob) {
-    try {
-      const parsed = JSON.parse(await body.text())
-      const message = parsed?.message ?? parsed?.error
-      if (typeof message === 'string' && message) return new Error(message)
-    } catch {
-      // Not a JSON error body — fall through to the original error.
-    }
+  if (!axios.isAxiosError(error) || !(error.response?.data instanceof Blob)) {
+    return error instanceof Error ? error : new Error(String(error))
   }
-  return error instanceof Error ? error : new Error(String(error))
+  try {
+    // Swap the Blob for the parsed body so the shared extractor can read it —
+    // it knows all three shapes the API raises, including the `messages` map
+    // that carries no top-level `message` at all.
+    error.response.data = JSON.parse(await error.response.data.text())
+  } catch {
+    // Not a JSON error body — the transport message is all there is.
+    return error
+  }
+  return new Error(getApiErrorMessage(error, error.message))
 }
 
 export async function downloadFile(url: string, fallbackFilename: string): Promise<void> {
