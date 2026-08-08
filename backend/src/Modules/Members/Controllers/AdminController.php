@@ -193,9 +193,9 @@ class AdminController
         $memberId = $args['memberId'];
         $adminId  = $request->getAttribute('admin_user_id');
 
-        // GDPR: delete mandate document before anonymizing member record
-        $this->mandateDocumentService->deleteForMember($memberId, $adminId);
-
+        // GDPR: anonymizeMember() drops the mandate document as part of the
+        // same transaction — never before its eligibility checks have passed
+        // (#85), so a refused attempt leaves the signed mandate intact.
         $member = $this->membersService->anonymizeMember($memberId, $adminId);
 
         return $this->json($response, $member->toArray());

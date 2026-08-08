@@ -145,14 +145,25 @@ class MandateDocumentService
      */
     public function deleteForMember(string $memberId, ?string $adminId = null): void
     {
+        $orphanedFile = $this->deleteRecordForMember($memberId, $adminId);
+        $this->removeStoredFile($orphanedFile);
+    }
+
+    /**
+     * Delete the DB record (and audit the removal), leaving the stored PDF on
+     * disk. Returns the absolute path of the now-orphaned file, or null when
+     * the member had no document.
+     *
+     * Callers running inside a transaction must use this together with
+     * removeStoredFile() *after* the commit: unlinking a PDF cannot be rolled
+     * back, and the signed mandate is the club's legal proof of the
+     * direct-debit authorization.
+     */
+    public function deleteRecordForMember(string $memberId, ?string $adminId = null): ?string
+    {
         $row = $this->mandateDocumentRepository->findByMemberId($memberId);
         if ($row === null) {
-            return;
-        }
-
-        $absolutePath = $this->getStorageDir() . '/' . $memberId . '.pdf';
-        if (file_exists($absolutePath)) {
-            unlink($absolutePath);
+            return null;
         }
 
         $this->mandateDocumentRepository->deleteByMemberId($memberId);
@@ -165,6 +176,19 @@ class MandateDocumentService
             newValues:   null,
             adminUserId: $adminId,
         );
+
+        return $this->getStorageDir() . '/' . $memberId . '.pdf';
+    }
+
+    /**
+     * Remove a stored mandate PDF left behind by deleteRecordForMember().
+     * No-op for null (member had no document) or an already-missing file.
+     */
+    public function removeStoredFile(?string $absolutePath): void
+    {
+        if ($absolutePath !== null && file_exists($absolutePath)) {
+            unlink($absolutePath);
+        }
     }
 
     private function convertImageToPdf(string $imageContent, string $mimeType): string

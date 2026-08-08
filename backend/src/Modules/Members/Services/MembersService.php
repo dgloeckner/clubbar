@@ -28,6 +28,7 @@ class MembersService
         private AuditService $auditService,
         private AuditLogRepository $auditLogRepository,
         private PDO $db,
+        private MandateDocumentService $mandateDocumentService,
         private ?BankCodeService $bankCodeService = null,
     ) {}
 
@@ -254,15 +255,27 @@ class MembersService
             throw new BusinessRuleException('Cannot anonymize: member included in active settlement');
         }
 
-        // Anonymize the member record, scrub prior audit history, and log the
-        // anonymization as a single unit — a crash between these writes must
-        // not leave a half-anonymized member with intact PII in the audit log.
+        // Anonymize the member record, scrub prior audit history, drop the
+        // mandate document and log the anonymization as a single unit — a
+        // crash between these writes must not leave a half-anonymized member
+        // with intact PII in the audit log.
         $this->db->beginTransaction();
         try {
             $anonymized = $this->membersRepository->anonymize($memberId);
             if (!$anonymized) {
                 throw new BusinessRuleException('Anonymization failed');
             }
+
+            // The signed SEPA mandate is personal data and goes with the member
+            // — but only now that the eligibility checks have passed. The PDF
+            // itself is unlinked after the commit (below): a rejected or failed
+            // anonymization must leave the club's proof of the direct-debit
+            // authorization intact, since unlinking cannot be rolled back.
+            //
+            // This runs *before* the scrub below on purpose: the removal is
+            // audited with the document's original filename, which can itself
+            // carry the member's name, so the scrub has to sweep it up too.
+            $orphanedMandateFile = $this->mandateDocumentService->deleteRecordForMember($memberId, $adminUserId);
 
             // Scrub all historical audit log entries for this member (GDPR Art. 17)
             $this->auditLogRepository->scrubByEntityId('member', $memberId);
@@ -284,6 +297,9 @@ class MembersService
             $this->db->rollBack();
             throw $e;
         }
+
+        // Committed — the mandate row is gone for good, so the PDF may follow.
+        $this->mandateDocumentService->removeStoredFile($orphanedMandateFile);
 
         return MemberAdminDto::fromRow($updatedMember);
     }
