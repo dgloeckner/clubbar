@@ -5,7 +5,7 @@
  * - Page structure and tab navigation
  * - Revenue report (default tab) with filters
  * - Consumption and Transactions tabs
- * - Member Ranking tab with anonymize toggle
+ * - Member Ranking tab (always anonymous — no display-mode toggle, #177)
  * - Terminal Activity tab with sessions and hourly chart
  *
  * Implements E2E Testing Patterns:
