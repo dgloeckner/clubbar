@@ -39,7 +39,7 @@ Each ADR follows this structure:
 | [0012](./0012-eventual-consistency-frontend-caching.md) | Eventual Consistency and Frontend Caching | Accepted | 2025-01-23 |
 | [0013](./0013-audit-logging.md) | Audit Logging | Accepted | 2025-01-23 |
 | [0014](./0014-rfid-scanning-integration.md) | RFID Scanning Integration | Accepted | 2025-01-23 |
-| [0015](./0015-authentication-and-authorization-strategy.md) | Authentication and Authorization Strategy | Accepted | 2025-01-23 |
+| [0015](./0015-authentication-and-authorization-strategy.md) | Authentication and Authorization Strategy | Accepted (amended 2026-08-09) | 2025-01-23 |
 | [0016](./0016-transport-security.md) | Transport Security (HTTPS and TLS) | Accepted | 2025-01-23 |
 | [0017](./0017-input-validation-injection-prevention.md) | Input Validation and Injection Prevention | Accepted | 2025-01-23 |
 | [0018](./0018-modular-admin-interface-architecture.md) | Modular Admin Interface Architecture | Accepted | 2025-01-23 |

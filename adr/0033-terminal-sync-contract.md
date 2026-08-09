@@ -149,7 +149,7 @@ Recorded rather than quietly omitted, because an ADR that describes only the par
 
 | Item | State |
 |---|---|
-| Whole-batch 422 on a field-level problem (§2) | **Not done.** The controller still validates required fields and `amount_cents > 0` across the batch and refuses all of it with `422 validation_failed`. Ruling #143 §2 requires those to become per-item rejections in a 2xx response. The existing tests all post single-item batches, so none of them pins the batch-wide behaviour. |
+| Whole-batch 422 on a field-level problem (§2) | **Not done** — [#259](https://github.com/dgloeckner/clubbar/issues/259). The controller still validates required fields and `amount_cents > 0` across the batch and refuses all of it with `422 validation_failed`. Ruling #143 §2 requires those to become per-item rejections in a 2xx response. Because the terminal only reaches its quarantine path on a 2xx and retries the batch unchanged otherwise, one unstorable row wedges every good sale queued behind it indefinitely. The existing tests all post single-item batches, so none of them pins the batch-wide behaviour. |
 | Price-divergence flag (§6) | **Not done** — [#204](https://github.com/dgloeckner/clubbar/issues/204). The amount is stored as sent; nothing compares it to the product's current price. |
 | OAS request validation enforcing in test (§8) | **Not done** — [#205](https://github.com/dgloeckner/clubbar/issues/205). The production allowlist is in place; the CI drift-detector is not. |
 
@@ -195,6 +195,7 @@ Everything else in this ADR is implemented and covered by tests.
 
 - [ADR-0004](./0004-immutable-transaction-storage.md) — append-only transactions and the idempotency guarantee this contract implements
 - [ADR-0012](./0012-eventual-consistency-frontend-caching.md) — why the terminal is deciding against a stale cache in the first place
+- [ADR-0015](./0015-authentication-and-authorization-strategy.md) — the terminal token whose authority §6 reads `created_by_terminal_id` from
 - [ADR-0017](./0017-input-validation-injection-prevention.md) — validation posture the allowlist sits inside
 - [ADR-0020](./0020-sepa-mandate-requirement-terminal-access.md) — the preventive half at the terminal, of which this is the backstop
 - [ADR-0022](./0022-test-strategy-and-automation.md) — where the enforcing-OAS drift check belongs
