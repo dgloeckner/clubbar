@@ -580,6 +580,12 @@ export class MembersPage extends BasePage {
    *
    * The expected `sort_by` is part of the contract, not a detail: the Card-UID
    * header used to send `created_at_desc` whatever it displayed (#125).
+   *
+   * Waiting for the response is not enough to read the rows afterwards. While
+   * `loading` is true the page renders the loading div *instead of* the table,
+   * so a caller that reads cells between the response arriving and React
+   * re-rendering sees no rows at all — which reads as "no member has a card
+   * UID" rather than as a timing problem. Same guard as `search()`.
    */
   private async clickSortableHeader(testId: string, expectedSortBy: string) {
     const header = this.page.getByTestId(testId)
@@ -600,6 +606,7 @@ export class MembersPage extends BasePage {
 
     await header.click()
     await responsePromise
+    await expect(this.loadingIndicator()).toBeHidden({ timeout: 10000 })
   }
 
   async getMemberCreatedDateAtRowIndex(rowIndex: number): Promise<string> {
