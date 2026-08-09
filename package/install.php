@@ -29,7 +29,31 @@ declare(strict_types=1);
 // this script runs long before Composer's autoloader is available.
 require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
 
+// The prerequisite step measures the effective hardening rather than assuming
+// it applied (#247, ADR-0031 decision 3). Same requirement: these run before
+// Composer's autoloader exists, so they are required by path.
+require_once __DIR__ . '/backend/src/Shared/Security/SecurityFinding.php';
+require_once __DIR__ . '/backend/src/Shared/Security/SecurityCheckContext.php';
+require_once __DIR__ . '/backend/src/Shared/Security/HttpProbe.php';
+require_once __DIR__ . '/backend/src/Shared/Security/SecuritySelfCheck.php';
+
 use App\Shared\Config\DataDirectory;
+use App\Shared\Security\SecurityCheckContext;
+use App\Shared\Security\SecurityFinding;
+use App\Shared\Security\SecuritySelfCheck;
+
+// The wizard takes the database password, generates the TOTP encryption key and
+// prints both back into a form — and it is the one page of this deployment that
+// runs before the application's own startup hardening does. So it applies the
+// same PHP_INI_ALL directives here, from the table the self-check measures
+// against (ADR-0031 decision 1). A host default of `display_errors=On` would
+// otherwise put a failed `new PDO(...)` — arguments and all — on this page.
+//
+// Placed above `session_start()` deliberately: PHP refuses every `session.*`
+// directive once a session is open.
+foreach (SecuritySelfCheck::EXPECTED_DIRECTIVES as $directive => $enabled) {
+    ini_set($directive, $enabled ? '1' : '0');
+}
 
 $configFile = DataDirectory::configPath(__DIR__);
 $isInstalled = file_exists($configFile);
@@ -404,17 +428,7 @@ renderPage($step, $error, $isUpdate);
  */
 function installerRequestIsHttps(): bool
 {
-    $https = $_SERVER['HTTPS'] ?? '';
-    if ($https !== '' && strtolower((string) $https) !== 'off') {
-        return true;
-    }
-
-    $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
-    if ($forwarded !== '') {
-        return strtolower(trim(explode(',', (string) $forwarded)[0])) === 'https';
-    }
-
-    return ((int) ($_SERVER['SERVER_PORT'] ?? 0)) === 443;
+    return SecurityCheckContext::requestIsHttps($_SERVER);
 }
 
 function readInstallerData(string $dataFile): array
@@ -453,16 +467,10 @@ function checkPrerequisites(): array
         ];
     }
 
-    // Where config.php, the scanned mandates and the logs will be placed, and
-    // whether that is somewhere the webserver could ever serve them.
+    // Where config.php, the scanned mandates and the logs will be placed. The
+    // security report below says whether that placement protects them; these
+    // rows only decide whether the installation can be written at all.
     $placement = DataDirectory::probe(__DIR__);
-    $checks[] = [
-        'name'  => 'Data directory: ' . $placement['path'],
-        'ok'    => true,
-        'warn'  => !$placement['outside'],
-        'value' => $placement['outside'] ? 'outside the document root' : 'inside the document root',
-        'note'  => $placement['reason'],
-    ];
 
     // storage/ and logs/ are written on every request whichever layout wins.
     foreach (DataDirectory::SUBDIRECTORIES as $subdirectory) {
@@ -485,8 +493,6 @@ function checkPrerequisites(): array
         'value' => $rootWritable ? 'writable' : 'not writable',
     ];
 
-    $checks[] = checkDocumentRootExposure(__DIR__);
-
     // mod_rewrite (best-effort)
     if (function_exists('apache_get_modules')) {
         $hasRewrite = in_array('mod_rewrite', apache_get_modules());
@@ -503,136 +509,59 @@ function checkPrerequisites(): array
         ];
     }
 
-    return $checks;
+    return [...$checks, ...securityChecks($placement)];
 }
 
 /**
- * Ask the webserver, over HTTP, whether it will serve a file out of the
- * document root's storage directory.
+ * The security self-check, as prerequisite rows (#247, ADR-0031 decision 3).
  *
- * This is the one check that cannot be answered by reading configuration:
- * whether `.htaccess` is honoured is a property of the host, and the failure
- * mode is silent — the same files, the same install, suddenly public. So a
- * canary is written, fetched over the same scheme the browser used, and
- * deleted. 403 or 404 is the pass; 200 means every scanned mandate on this
- * host is one URL away, and stays a warning only because the wizard has no
- * business blocking on a check some hosts cannot answer at all.
+ * Same engine as the admin panel's report and the package smoke test — the
+ * only thing that differs is the context, because this runs before the
+ * installation exists. Two consequences of that are worth naming:
  *
- * @return array{name:string,ok:bool,warn?:bool,value:string,note?:string}
+ * - The data directory is the one `DataDirectory::probe()` *would* choose, not
+ *   one that has been created. Rows about files that are not there yet come
+ *   back as "could not be measured", which is the honest answer and not a pass.
+ * - `session.save_path` is left out: the wizard's own session is not the
+ *   application's, and reporting the host default here would be a finding about
+ *   nothing.
+ *
+ * None of these rows block the wizard. A host that will not honour `.htaccess`
+ * must stay installable — ADR-0031 keeps the in-document-root layout supported
+ * precisely so it does — so a red row here states the consequence and leaves
+ * the decision with the treasurer.
+ *
+ * @param array{path:string,outside:bool,reason:string} $placement
  */
-function checkDocumentRootExposure(string $documentRoot): array
+function securityChecks(array $placement): array
 {
-    $name = 'Not served: backend/storage/';
-    $storage = $documentRoot . '/backend/storage';
-    if (!is_dir($storage) || !is_writable($storage)) {
-        return ['name' => $name, 'ok' => true, 'warn' => true, 'value' => 'cannot verify',
-                'note' => 'The check needs a writable backend/storage/ to place a temporary file in.'];
-    }
+    $configFile = DataDirectory::configPathIn(__DIR__, $placement['path']);
+    $https      = installerRequestIsHttps();
 
-    $canary = '.exposure-check-' . bin2hex(random_bytes(6));
-    if (file_put_contents("{$storage}/{$canary}", "clubbar exposure check\n") === false) {
-        return ['name' => $name, 'ok' => true, 'warn' => true, 'value' => 'cannot verify',
-                'note' => 'Could not write a temporary file into backend/storage/.'];
-    }
+    $findings = SecuritySelfCheck::run(new SecurityCheckContext(
+        documentRoot: __DIR__,
+        dataDirectory: $placement['path'],
+        configFile: is_file($configFile) ? $configFile : null,
+        dataDirectoryReason: $placement['reason'],
+        expectedSessionSavePath: null,
+        https: $https,
+        debug: false,
+        baseUrlCandidates: SecurityCheckContext::baseUrlCandidatesFrom($_SERVER, $https),
+        // The package's own file, and one no other vhost would answer 200 for
+        // at this stage: the application cannot serve /api/health until step 3
+        // has created its tables.
+        controlPaths: ['/README.txt'],
+    ));
 
-    // A control fetch first, and only then the one that matters. Without it a
-    // base URL that simply is not reachable from here — or that belongs to
-    // somebody else's vhost — would answer 404 and be read as a pass.
-    $status = null;
-    foreach (installerBaseUrlCandidates() as $base) {
-        if (fetchStatusCode($base . '/README.txt') !== 200) {
-            continue;
-        }
-        $status = fetchStatusCode($base . '/backend/storage/' . $canary);
-        break;
-    }
-
-    @unlink("{$storage}/{$canary}");
-
-    if ($status === null) {
-        return ['name' => $name, 'ok' => true, 'warn' => true, 'value' => 'cannot verify',
-                'note' => 'This host would not let the installer fetch its own URL. Check it yourself: request '
-                    . '/backend/storage/ in a browser and make sure it is refused.'];
-    }
-
-    if ($status === 403 || $status === 404) {
-        return ['name' => $name, 'ok' => true, 'value' => 'refused (HTTP ' . $status . ')'];
-    }
-
-    return ['name' => $name, 'ok' => true, 'warn' => true, 'value' => 'SERVED (HTTP ' . $status . ')',
-            'note' => 'This host ignores the .htaccess denial. Scanned mandates and logs are reachable over the '
-                . 'web unless the data directory is placed above the document root.'];
-}
-
-/**
- * Base URLs this installation might answer on *from the server itself*.
- *
- * The host header is the honest first guess and the right one on real hosting.
- * It is not enough on its own: behind a port mapping or a reverse proxy it
- * names a port nothing local is listening on, so the loopback candidates
- * follow. Each is validated with a control fetch before anything is concluded
- * from it.
- *
- * @return list<string>
- */
-function installerBaseUrlCandidates(): array
-{
-    $https  = installerRequestIsHttps();
-    $scheme = $https ? 'https' : 'http';
-    $header = (string) ($_SERVER['HTTP_HOST'] ?? '');
-    $host   = explode(':', $header)[0];
-
-    $candidates = [];
-    if ($header !== '') {
-        $candidates[] = "{$scheme}://{$header}";
-    }
-    if ($host !== '' && $host !== $header) {
-        $candidates[] = "{$scheme}://{$host}";
-    }
-    $candidates[] = "{$scheme}://127.0.0.1";
-
-    return array_values(array_unique($candidates));
-}
-
-/** Status code of a HEAD-like fetch, or null when this host cannot make one. */
-function fetchStatusCode(string $url): ?int
-{
-    if (function_exists('curl_init')) {
-        $curl = curl_init($url);
-        curl_setopt_array($curl, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_NOBODY         => true,
-            CURLOPT_FOLLOWLOCATION => false,
-            CURLOPT_TIMEOUT        => 4,
-            // A shared host's certificate is the host's business; this request
-            // asks one question — the status code — and never reads the body.
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSL_VERIFYHOST => 0,
-        ]);
-        curl_exec($curl);
-        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-        curl_close($curl);
-
-        return $status > 0 ? $status : null;
-    }
-
-    if (!filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
-        return null;
-    }
-
-    $context = stream_context_create([
-        'http' => ['method' => 'HEAD', 'timeout' => 4, 'ignore_errors' => true, 'follow_location' => 0],
-        'ssl'  => ['verify_peer' => false, 'verify_peer_name' => false],
-    ]);
-    @file_get_contents($url, false, $context);
-
-    foreach ($http_response_header ?? [] as $header) {
-        if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $matches)) {
-            return (int) $matches[1];
-        }
-    }
-
-    return null;
+    return array_map(static fn(SecurityFinding $finding): array => [
+        'name' => $finding->label,
+        // `ok` gates the Continue button and is always true here; the colour of
+        // the row comes from `severity` instead.
+        'ok'       => true,
+        'severity' => $finding->status,
+        'value'    => $finding->observed,
+        'note'     => $finding->remedy,
+    ], $findings);
 }
 
 function renderKeyGate(?string $error): void
@@ -766,12 +695,21 @@ function renderStep1(bool $isUpdate): void
     $updateParam = $isUpdate ? '&update=1' : '';
     ?>
     <h2>Step 1: Prerequisites</h2>
-    <p>Checking that your server meets all requirements.</p>
+    <p>Checking that your server meets all requirements, and measuring the protections it actually applies —
+    <em>measuring</em>, because on shared hosting a rule we ship can be ignored without anything saying so.</p>
     <table>
         <?php foreach ($checks as $check): ?>
-            <?php $warn = !empty($check['warn']) && $check['ok']; ?>
-            <tr class="<?php echo !$check['ok'] ? 'check-fail' : ($warn ? 'check-warn' : 'check-ok'); ?>">
-                <td class="check-icon"><?php echo !$check['ok'] ? '&#10007;' : ($warn ? '&#33;' : '&#10003;'); ?></td>
+            <?php
+            // A prerequisite that is not met blocks; a security finding never
+            // does, but is still shown in the colour it earned — red where the
+            // consequence is that member data is exposed, amber where the host
+            // simply does not offer the protection (#247).
+            $severity = $check['severity'] ?? (!$check['ok'] ? 'fail' : (!empty($check['warn']) ? 'warn' : 'pass'));
+            $class = ['fail' => 'check-fail', 'warn' => 'check-warn', 'unknown' => 'check-warn'][$severity] ?? 'check-ok';
+            $icon  = ['fail' => '&#10007;', 'warn' => '&#33;', 'unknown' => '&#63;'][$severity] ?? '&#10003;';
+            ?>
+            <tr class="<?php echo $class; ?>">
+                <td class="check-icon"><?php echo $icon; ?></td>
                 <td>
                     <?php echo htmlspecialchars($check['name']); ?>
                     <?php if (!empty($check['note'])): ?>
@@ -782,8 +720,10 @@ function renderStep1(bool $isUpdate): void
             </tr>
         <?php endforeach; ?>
     </table>
-    <p><small>A <strong>!</strong> is not a blocker — the installation will work. It records a protection this host
-    does not offer, so you know it was a choice the server made and not a default we hid from you.</small></p>
+    <p><small>Only the requirements above block the installation. A <strong>!</strong>, a <strong>?</strong> or a
+    red security row does not: <strong>!</strong> records a protection this host does not offer, <strong>?</strong>
+    a check this host would not let us run — and a check we could not run is never reported as passed. Each one
+    says what it costs you, so you know it was a choice the server made and not a default we hid from you.</small></p>
     <?php if ($allOk): ?>
         <a href="?step=2<?php echo $updateParam; ?>" class="btn">Continue</a>
     <?php else: ?>

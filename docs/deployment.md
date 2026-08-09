@@ -40,6 +40,31 @@ The installer guides you through five steps:
 
 ## Security Hardening
 
+### Checking It Actually Applied
+
+Everything in this section is something a host can decline to do. `.htaccess` is honoured at the host's discretion, `.user.ini` may never be read, and either can change under a running installation after a tariff migration or a server swap — with no error, nothing in the log, and `/api/health` still answering `{"status":"ok"}`.
+
+So Club Bar measures instead of assuming ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) decision 3). The same set of checks runs in three places:
+
+| Where | When | Answers |
+|---|---|---|
+| The installer's **prerequisites** screen | Before you enter the database credentials | "Is this host safe to install on?" |
+| **Settings → Security** in the admin panel | Whenever you open it | "Did a host change break something since?" |
+| The package smoke test in CI | Every build | "Did we regress the package?" |
+
+Every row reports what was *observed* — `ini_get()` for the PHP settings, `stat()` for file permissions, and for the two that matter most a canary file written where a scanned mandate lives and fetched back over HTTP. Reading the rows:
+
+| | Meaning |
+|---|---|
+| **✓** | The effective state was observed to be the intended one |
+| **!** | Weaker than intended, and the installation still works — usually something this host does not offer |
+| **✕** | Credentials or member documents are reachable. The row says what is exposed and what to do |
+| **?** | Could not be measured from here. Never counted as a pass, and the row says what to check by hand |
+
+A **!** or a **?** is not a failure to fix at any cost: "your host does not allow this" is an accepted outcome, and the remedy text says so where that is the case. What the report exists to prevent is not knowing.
+
+The panel's report is admin-authenticated, because it is a map of the installation's weak points and names the directories the mandates are kept in.
+
 ### Where Your Data Is Kept
 
 Three things must never be downloadable: `config.php` (database password and TOTP encryption key), the scanned SEPA mandates (a name, an IBAN and a handwritten signature each) and the application logs. The mandate filenames are the member UUIDs the admin API already hands to the browser, so they are enumerable, not secret.

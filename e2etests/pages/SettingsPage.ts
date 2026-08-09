@@ -1200,4 +1200,65 @@ export class SettingsPage {
   async expectCreateTerminalButtonVisible() {
     await expect(this.page.getByTestId('settings-terminal-create-button')).toBeVisible()
   }
+
+  // ==================== Security Tab ====================
+
+  /**
+   * Open the security self-check tab and wait for the measurement to land.
+   *
+   * The report is taken when the tab is opened, never cached — the question it
+   * answers ("did a host change break something since?") is only meaningful
+   * about the moment it is asked (#247).
+   */
+  async clickSecurityTab() {
+    await this.page.getByTestId('settings-tab-security').click()
+    await expect(this.page.getByTestId('security-check-summary')).toBeVisible({ timeout: 15000 })
+  }
+
+  /**
+   * The overall verdict: `pass`, `warn` or `fail`.
+   */
+  async getSecurityVerdict(): Promise<string> {
+    for (const status of ['pass', 'warn', 'fail']) {
+      if (await this.page.getByTestId(`security-check-status-${status}`).isVisible()) {
+        return status
+      }
+    }
+    return 'none'
+  }
+
+  /**
+   * The status of one measured row, found by its stable id rather than by
+   * position (Pattern 003).
+   */
+  async getSecurityFindingStatus(id: string): Promise<string | null> {
+    return await this.page.getByTestId(`security-check-finding-${id}`).getAttribute('data-status')
+  }
+
+  async getSecurityFindingObserved(id: string): Promise<string> {
+    return (await this.page.getByTestId(`security-check-observed-${id}`).textContent()) ?? ''
+  }
+
+  /** Every row the report rendered, with its status. */
+  async getSecurityFindings(): Promise<Array<{ id: string; status: string }>> {
+    return await this.page.locator('[data-testid^="security-check-finding-"]').evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        id: (node.getAttribute('data-testid') ?? '').replace('security-check-finding-', ''),
+        status: node.getAttribute('data-status') ?? '',
+      }))
+    )
+  }
+
+  async expectSecurityFindingVisible(id: string) {
+    await expect(this.page.getByTestId(`security-check-finding-${id}`)).toBeVisible()
+  }
+
+  async expectSecurityRemedyVisible(id: string) {
+    await expect(this.page.getByTestId(`security-check-remedy-${id}`)).toBeVisible()
+  }
+
+  /** Re-run the measurement without leaving the page. */
+  async clickSecurityRecheck() {
+    await this.page.getByTestId('security-check-refresh').click()
+  }
 }

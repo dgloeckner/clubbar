@@ -87,6 +87,8 @@ tags:
     description: Unknown and blocked card management
   - name: Terminals
     description: Terminal device management and API token operations
+  - name: Security
+    description: Measured state of this installation's hardening
 
 paths:
   # ============================================================================
@@ -3376,6 +3378,41 @@ paths:
                   execution_date:
                     - execution_date must be a bank business day (Mon-Fri, excluding TARGET2 closing days)
 
+  /admin/security-check:
+    get:
+      summary: Security self-check
+      operationId: getSecurityCheck
+      description: |
+        Report the hardening this installation actually has, measured now.
+
+        Implements [ADR-0031](../../adr/0031-production-hardening-on-shared-hosting.md)
+        decision 3. On mass hosting no configuration layer is guaranteed:
+        `.htaccess` may not be honoured, `.user.ini` may not be read, and a host
+        can change either under a running installation without telling anyone.
+        Every row therefore comes from an observation — `ini_get()`, `stat()`,
+        or a live HTTP fetch of a file that must not be served — and a check
+        that could not be run is reported as `unknown`, never as a pass.
+
+        Admin-authenticated because the report is a map of this installation's
+        weak points, naming the directories that hold the scanned mandates.
+
+        Running it writes a short-lived canary file into the document root's
+        storage and log directories and fetches it back, but only when those
+        directories are inside the document root.
+      tags:
+        - Security
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: The measured report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /admin/dashboard:
     get:
       summary: Get Dashboard Metrics
@@ -5410,6 +5447,72 @@ components:
               type: integer
             pending_transaction_count:
               type: integer
+
+    SecurityFinding:
+      type: object
+      description: |
+        One measured row of the security self-check. `observed` is what the
+        system answered, in its own words; `remedy` says what to do about it
+        and is present on every row that is not `pass` — including the rows
+        whose remedy is "your host does not allow this", which ADR-0031
+        accepts as an outcome rather than a permanent failure.
+      required: [id, category, label, status, observed]
+      properties:
+        id:
+          type: string
+          description: Stable identifier for this check, e.g. `session_strict_mode`
+          example: session_strict_mode
+        category:
+          type: string
+          enum: [runtime, session, data, exposure, transport]
+        label:
+          type: string
+          description: What the check asserts, in English
+          example: PHP refuses session IDs it did not issue
+        status:
+          type: string
+          enum: [pass, warn, fail, unknown]
+          description: |
+            `pass` — the effective state was observed to be the intended one.
+            `warn` — weaker than intended; the installation still works.
+            `fail` — credentials or member data are exposed.
+            `unknown` — not measurable from here, which is never a pass.
+        observed:
+          type: string
+          description: The measured value
+          example: session.use_strict_mode=On
+        remedy:
+          type: string
+          nullable: true
+          description: What to do about it; null on a passing row
+
+    SecurityReport:
+      type: object
+      required: [generated_at, status, summary, findings]
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pass, warn, fail]
+          description: The worst row in the report; an `unknown` row counts as a warning
+        summary:
+          type: object
+          description: Row counts by status
+          properties:
+            pass:
+              type: integer
+            warn:
+              type: integer
+            fail:
+              type: integer
+            unknown:
+              type: integer
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecurityFinding'
 
     DashboardResponse:
       type: object

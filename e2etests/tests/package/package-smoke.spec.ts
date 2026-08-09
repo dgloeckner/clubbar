@@ -240,6 +240,133 @@ test.describe('Package: Runtime hardening', () => {
 });
 
 /**
+ * ADR-0031 decision 3, third surface: "did we regress the package?"
+ *
+ * The installer asks this of a host once and the admin panel asks it of a
+ * running installation; here CI asks it of the artifact it is about to publish.
+ * Same engine, so a check that stopped measuring — a directive dropped from
+ * `RuntimeHardening`, an `.htaccess` rule that no longer denies `backend/` —
+ * turns a green row red and fails the build instead of shipping.
+ *
+ * This runs the check *inside* the package container, where the document root
+ * really is the package and the webserver really is the one being asked. The
+ * exposure rows are the reason: they are answered by writing a canary where a
+ * scanned mandate lives and fetching it back over HTTP, which no unit test can
+ * do.
+ */
+test.describe('Package: Security self-check', () => {
+  test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
+
+  const REPO_ROOT = path.resolve(__dirname, '../../..');
+  const COMPOSE_FILES = ['-f', 'docker-compose.yml', '-f', 'docker-compose.package.yml'];
+
+  type Finding = {
+    id: string;
+    category: string;
+    status: 'pass' | 'warn' | 'fail' | 'unknown';
+    observed: string;
+    remedy: string | null;
+  };
+
+  /**
+   * Rows the package must always deliver, whatever the host underneath.
+   *
+   * Everything here is either set by application code (ADR-0031 decision 1) or
+   * enforced by a file the package ships and the container honours. The rows
+   * left out are the ones that legitimately depend on the deployment — HTTPS,
+   * HSTS, and the `0777` the build leaves on the writable directories.
+   */
+  const MUST_PASS = [
+    'display_errors',
+    'log_errors',
+    'exception_args',
+    'session_strict_mode',
+    'session_cookie_only',
+    'session_cookie_httponly',
+    'session_cookie_samesite',
+    'session_save_path',
+    // The two that matter most, and the only ones measured by asking the
+    // webserver: a scanned SEPA mandate and the application log must be refused.
+    'mandate_not_served',
+    'logs_not_served',
+    // Written by the installer with 0600 — the database password and the key
+    // that encrypts every admin's second factor are in it.
+    'config_file_mode',
+  ];
+
+  test('every protection the package promises is in effect', async () => {
+    const findings = measurePackagedSecurity();
+    const byId = new Map(findings.map((finding) => [finding.id, finding]));
+
+    for (const id of MUST_PASS) {
+      const finding = byId.get(id);
+      expect(finding, `${id} is missing from the report`).toBeDefined();
+      expect(
+        finding?.status,
+        `${id}: ${finding?.observed} — ${finding?.remedy ?? 'no remedy given'}`
+      ).toBe('pass');
+    }
+  });
+
+  test('no row of the packaged installation reports an exposure', async () => {
+    const failing = measurePackagedSecurity().filter((finding) => finding.status === 'fail');
+
+    expect(failing.map((finding) => `${finding.id}: ${finding.observed}`)).toEqual([]);
+  });
+
+  /**
+   * The rule the report rests on, asserted where it is easiest to break: a
+   * refusal that was never observed must not be rendered as one. If the canary
+   * fetch stopped happening, these rows would go `unknown` — and this test
+   * fails rather than the suite quietly proving nothing.
+   */
+  test('the exposure rows come from a real refusal, not from an assumption', async () => {
+    const findings = measurePackagedSecurity();
+
+    for (const id of ['mandate_not_served', 'logs_not_served']) {
+      const observed = findings.find((finding) => finding.id === id)?.observed ?? '';
+      expect(observed, `${id} was not measured over HTTP`).toMatch(/refused \(HTTP (403|404)\)/);
+    }
+  });
+
+  /**
+   * Runs the check as the package's own front controller would see the world:
+   * document root `/app`, data directory wherever the pointer says, and the
+   * webserver of this container as the thing to ask.
+   */
+  function measurePackagedSecurity(): Finding[] {
+    const script = [
+      'require "/app/backend/vendor/autoload.php";',
+      '$_ENV["DATA_DIR"] = App\\Shared\\Config\\DataDirectory::resolve("/app");',
+      '$config = require App\\Shared\\Config\\DataDirectory::configPath("/app");',
+      '$_ENV["APP_DEBUG"] = ($config["app"]["debug"] ?? false) ? "true" : "false";',
+      'App\\Shared\\Config\\Env::reset();',
+      '$appConfig = new App\\Shared\\Config\\AppConfig();',
+      'App\\Shared\\Security\\RuntimeHardening::apply($appConfig, false);',
+      '$findings = App\\Shared\\Security\\SecuritySelfCheck::run(new App\\Shared\\Security\\SecurityCheckContext(',
+      '  documentRoot: "/app",',
+      '  dataDirectory: $appConfig->dataDir,',
+      '  configFile: App\\Shared\\Config\\DataDirectory::configPath("/app"),',
+      '  expectedSessionSavePath: $appConfig->sessionSavePath,',
+      '  https: false,',
+      '  debug: $appConfig->debug,',
+      '  baseUrlCandidates: ["http://127.0.0.1"],',
+      '  controlPaths: ["/README.txt"],',
+      '));',
+      'echo json_encode(array_map(fn($f) => $f->toArray(), $findings));',
+    ].join('\n');
+
+    const output = execFileSync(
+      'docker',
+      ['compose', ...COMPOSE_FILES, 'exec', '-T', '-u', '1000', 'backend', 'php', '-r', script],
+      { cwd: REPO_ROOT, encoding: 'utf8' }
+    );
+
+    return JSON.parse(output.trim());
+  }
+});
+
+/**
  * ADR-0031 decision 2: a scanned SEPA mandate — a name, an IBAN and a
  * handwritten signature, named after the member UUID the admin API already
  * hands to the browser — must not be retrievable over HTTP.
@@ -282,7 +409,7 @@ test.describe.serial('Package: Data placement', () => {
     const page = await request.get(`${PACKAGE_URL}/install.php?step=1`);
     const html = await page.text();
 
-    expect(html).toContain('Not served: backend/storage/');
+    expect(html).toContain('A scanned mandate cannot be fetched over the web');
     expect(html, 'the installer could not confirm the denial holds').toContain('refused (HTTP 403)');
   });
 

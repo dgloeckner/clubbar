@@ -532,6 +532,28 @@
       "paymentReferencePrefixTooLong": "Payment reference prefix must be 100 characters or less",
       "creditorIdRequired": "Creditor ID is required",
       "creditorIdTooLong": "Creditor ID must be 35 characters or less"
+    },
+    "security": {
+      "tab": "Security",
+      "title": "Security self-check",
+      "intro": "What this installation's hardening actually is, measured just now — not what it was configured to be. On shared hosting a rule Club Bar ships can be ignored without anything saying so, which is why every row below comes from asking the running system.",
+      "recheck": "Measure again",
+      "measuring": "Measuring…",
+      "loadFailed": "The security self-check could not be run.",
+      "counts": "{{pass}} confirmed, {{warn}} weaker than intended, {{fail}} exposed, {{unknown}} not measurable.",
+      "verdict": {
+        "pass": "Every check confirmed",
+        "warn": "Some protections are not in force",
+        "fail": "Credentials or member data are exposed"
+      },
+      "categories": {
+        "exposure": "What the webserver hands out",
+        "data": "Where the data lives",
+        "transport": "Connection",
+        "session": "Sessions",
+        "runtime": "PHP runtime"
+      },
+      "footnote": "A row is green only when the effective state was observed. \"Not measurable\" is never reported as passing, and \"your host does not allow this\" is an accepted outcome — the remedy says so where that is the case."
     }
   },
   "auditLog": {
