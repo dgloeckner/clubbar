@@ -90,12 +90,56 @@ class TerminalTokenAuthTest extends TestCase
     public function test_process_returns_401_for_unknown_token(): void
     {
         $this->terminalsRepository->method('findByTokenHash')->willReturn(null);
+        $this->terminalsRepository->method('findExpiredByTokenHash')->willReturn(null);
         $this->expectAttemptRecorded();
 
         $response = $this->middleware->process($this->request('Bearer unknown-token'), $this->rejectingHandler());
 
         $this->assertSame(401, $response->getStatusCode());
         $this->assertSame('invalid_terminal_token', $this->decode($response)['error']);
+    }
+
+    /**
+     * A token the repository refuses only because its lifetime ran out gets its
+     * own error code (#106), so the terminal's operator is told to rotate it
+     * rather than to go looking for a typo.
+     */
+    public function test_process_returns_401_terminal_token_expired_for_an_aged_out_token(): void
+    {
+        $this->terminalsRepository->method('findByTokenHash')->willReturn(null);
+        $this->terminalsRepository->method('findExpiredByTokenHash')->willReturn($this->terminal());
+        $this->expectAttemptRecorded();
+
+        $response = $this->middleware->process($this->request('Bearer expired-token'), $this->rejectingHandler());
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('terminal_token_expired', $this->decode($response)['error']);
+    }
+
+    public function test_process_does_not_authenticate_an_expired_token(): void
+    {
+        $this->terminalsRepository->method('findByTokenHash')->willReturn(null);
+        $this->terminalsRepository->method('findExpiredByTokenHash')->willReturn($this->terminal());
+        $this->terminalsRepository->expects($this->never())->method('updateLastSync');
+
+        $this->middleware->process($this->request('Bearer expired-token'), $this->rejectingHandler());
+    }
+
+    /**
+     * The expiry lookup is a diagnostic for the 401 only — a token that
+     * authenticates must never reach it.
+     */
+    public function test_process_does_not_run_the_expiry_lookup_when_the_token_is_valid(): void
+    {
+        $this->terminalsRepository->method('findByTokenHash')->willReturn($this->terminal());
+        $this->terminalsRepository->expects($this->never())->method('findExpiredByTokenHash');
+
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->method('handle')->willReturn(new Response(200));
+
+        $response = $this->middleware->process($this->request('Bearer valid-token'), $handler);
+
+        $this->assertSame(200, $response->getStatusCode());
     }
 
     public function test_process_looks_up_the_terminal_by_sha256_of_the_bearer_token(): void
@@ -105,6 +149,7 @@ class TerminalTokenAuthTest extends TestCase
             ->method('findByTokenHash')
             ->with(TokenService::hashToken($token))
             ->willReturn(null);
+        $this->terminalsRepository->method('findExpiredByTokenHash')->willReturn(null);
         $this->expectAttemptRecorded();
 
         $this->middleware->process($this->request("Bearer {$token}"), $this->rejectingHandler());

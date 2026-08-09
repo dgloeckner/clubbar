@@ -51,6 +51,25 @@ function RevokeIcon() {
   )
 }
 
+/**
+ * Terminal tokens expire (#106). A terminal whose token has run out stops
+ * syncing until an admin rotates it, so the table has to say so before that
+ * happens — an expiry date alone is something nobody reads until the bar is
+ * already offline.
+ */
+const EXPIRY_WARNING_DAYS = 14
+
+type TokenExpiryState = 'none' | 'expired' | 'expiringSoon' | 'valid'
+
+function tokenExpiryState(tokenExpiresAt: string | null | undefined): TokenExpiryState {
+  if (!tokenExpiresAt) return 'none'
+
+  const daysLeft = (new Date(tokenExpiresAt).getTime() - Date.now()) / 86_400_000
+  if (daysLeft <= 0) return 'expired'
+  if (daysLeft <= EXPIRY_WARNING_DAYS) return 'expiringSoon'
+  return 'valid'
+}
+
 const actionButtonStyle: React.CSSProperties = {
   width: '32px',
   height: '32px',
@@ -63,6 +82,47 @@ const actionButtonStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   transition: `all ${theme.transitions.default}`,
+}
+
+function TokenExpiry({ terminal }: { terminal: Terminal }) {
+  const { t } = useTranslation()
+  const state = tokenExpiryState(terminal.token_expires_at)
+  const testId = `settings-terminal-token-expiry-${terminal.id}`
+
+  // The state is published as an attribute as well as a badge: the badge text
+  // is translated, so tests and tooling need something stable to read.
+  if (state === 'none') {
+    // No token outstanding — access was revoked, or none was ever issued.
+    return (
+      <span data-testid={testId} data-token-expiry-state={state} style={{ color: theme.colors.text.muted }}>
+        {t('settings.tokenNone')}
+      </span>
+    )
+  }
+
+  if (state === 'valid') {
+    return (
+      <span data-testid={testId} data-token-expiry-state={state}>
+        {formatDateTime(terminal.token_expires_at!)}
+      </span>
+    )
+  }
+
+  return (
+    <span
+      data-testid={testId}
+      data-token-expiry-state={state}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: theme.spacing.sm }}
+    >
+      <Badge
+        label={state === 'expired' ? t('settings.tokenExpired') : t('settings.tokenExpiringSoon')}
+        variant={state === 'expired' ? 'danger' : 'warning'}
+        showDot={false}
+        testId={`settings-terminal-token-expiry-badge-${terminal.id}`}
+      />
+      {formatDateTime(terminal.token_expires_at!)}
+    </span>
+  )
 }
 
 export function TerminalsTab({
@@ -200,6 +260,12 @@ export function TerminalsTab({
                 </div>
               </div>
 
+              {/* Token expiry (#106) */}
+              <div style={{ marginBottom: '10px', fontSize: '12px', color: theme.colors.text.secondary }}>
+                <span style={{ color: theme.colors.text.muted }}>{t('settings.tokenExpires')}: </span>
+                <TokenExpiry terminal={terminal} />
+              </div>
+
               {/* Actions row */}
               <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                 <button
@@ -301,6 +367,16 @@ export function TerminalsTab({
                 <th
                   style={{
                     padding: theme.spacing.md,
+                    textAlign: 'left',
+                    borderBottom: `1px solid ${theme.colors.border.light}`,
+                    fontWeight: theme.typography.fontWeight.semibold,
+                  }}
+                >
+                  {t('settings.tokenExpires')}
+                </th>
+                <th
+                  style={{
+                    padding: theme.spacing.md,
                     textAlign: 'center',
                     borderBottom: `1px solid ${theme.colors.border.light}`,
                     fontWeight: theme.typography.fontWeight.semibold,
@@ -380,6 +456,17 @@ export function TerminalsTab({
                     data-testid={`settings-terminal-last-transaction-${terminal.id}`}
                   >
                     {terminal.last_transaction_at ? formatDateTime(terminal.last_transaction_at) : t('dates.never')}
+                  </td>
+
+                  {/* Token expiry (#106) */}
+                  <td
+                    style={{
+                      padding: theme.spacing.md,
+                      color: theme.colors.text.secondary,
+                      fontSize: theme.typography.fontSize.xs,
+                    }}
+                  >
+                    <TokenExpiry terminal={terminal} />
                   </td>
 
                   {/* Actions */}

@@ -14,12 +14,14 @@ use App\Shared\Services\AuditService;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\DuplicateResourceException;
 use App\Modules\Auth\Services\TokenService;
+use App\Shared\Config\AppConfig;
 
 class TerminalsService
 {
     public function __construct(
         private TerminalsRepository $terminalsRepository,
         private AuditService $auditService,
+        private AppConfig $config,
     ) {}
 
     public function listTerminals(int $limit, int $offset, ?bool $isActive = null): PaginatedResultDto
@@ -49,6 +51,7 @@ class TerminalsService
             'name' => $name,
             'device_id' => $deviceId,
             'api_token_hash' => $hash,
+            'token_ttl_days' => $this->config->tokenTtlDays,
             'is_active' => true,
         ]);
 
@@ -56,7 +59,11 @@ class TerminalsService
             action: AuditAction::CREATE,
             entityType: EntityType::TERMINAL,
             entityId: $terminal['id'],
-            newValues: ['name' => $name, 'device_id' => $deviceId],
+            newValues: [
+                'name' => $name,
+                'device_id' => $deviceId,
+                'token_expires_at' => $terminal['token_expires_at'],
+            ],
             adminUserId: $adminUserId,
         );
 
@@ -104,10 +111,7 @@ class TerminalsService
         $plainToken = TokenService::generateTerminalToken();
         $hash = TokenService::hashToken($plainToken);
 
-        $terminal = $this->terminalsRepository->updateById($terminalId, [
-            'api_token_hash' => $hash,
-            'last_sync_at' => null,
-        ]);
+        $terminal = $this->terminalsRepository->rotateToken($terminalId, $hash, $this->config->tokenTtlDays);
 
         if (!$terminal) throw NotFoundException::forResource('Terminal', $terminalId);
 
@@ -115,7 +119,10 @@ class TerminalsService
             action: AuditAction::UPDATE,
             entityType: EntityType::TERMINAL,
             entityId: $terminalId,
-            newValues: ['api_token' => '[ROTATED]'],
+            newValues: [
+                'api_token' => '[ROTATED]',
+                'token_expires_at' => $terminal['token_expires_at'],
+            ],
             adminUserId: $adminUserId,
         );
 
@@ -129,6 +136,8 @@ class TerminalsService
     {
         $this->terminalsRepository->updateById($terminalId, [
             'api_token_hash' => null,
+            'token_issued_at' => null,
+            'token_expires_at' => null,
             'is_active' => 0,
         ]);
 

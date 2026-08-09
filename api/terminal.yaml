@@ -32,6 +32,15 @@ info:
     ```
     Tokens are generated and managed via the Admin API. Each terminal is assigned a unique token.
 
+    ### Token lifetime
+    A token expires `API_TOKEN_TTL_DAYS` after it was issued (90 days by default).
+    Once it has, every request is answered `401 terminal_token_expired` — distinct
+    from `invalid_terminal_token`, so a terminal that has simply aged out is not
+    confused with a misconfigured one. An admin reissues one through
+    `POST /admin/terminals/{terminalId}/rotate-token`, which restarts the full
+    lifetime; `token_expires_at` on the admin Terminal resource says when the
+    current one runs out.
+
     ## Sync Flow (Recommended Interval: 30-60s)
     1. Check connectivity (optional ping endpoint)
     2. Download members (delta): `GET /sync/members?since={timestamp}`
@@ -1405,6 +1414,7 @@ components:
             - authorization_header_missing
             - invalid_authorization_format
             - invalid_terminal_token
+            - terminal_token_expired
             - terminal_inactive
             - sepa_invalid
           description: Machine-readable error code

@@ -21,6 +21,7 @@
 --   - 13 products with nice icons (including Sauna-Token with dispenser)
 --   - 8 members with nice names and valid SEPA data (2 with real card UIDs)
 --   - 3 terminals with known test tokens (Bar + Sauna active, Terrace inactive)
+--   - 2 E2E terminals: the Playwright test terminal and one whose token expired
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -438,25 +439,46 @@ VALUES
 -- Token: test-terminal-token-do-not-use-in-production-0a1b2c3d4e5f6g7h
 -- Hash: echo -n "test-terminal-token..." | sha256sum
 -- Must match e2etests/config/test-credentials.ts
-INSERT INTO terminals (id, name, device_id, api_token_hash, is_active, created_at, updated_at)
+INSERT INTO terminals (id, name, device_id, api_token_hash, token_issued_at, token_expires_at, is_active, created_at, updated_at)
 VALUES (
     '44e4567-e89b-12d3-a456-426614174000',
     'Test Terminal',
     'test-device-001',
     'f88cf6afb8a2a7e19112a34a967c32d6e672dfbaec2809c82be6e970b550e1ae',
+    NOW(),
+    NOW() + INTERVAL 90 DAY,
     1,
     NOW(),
     NOW()
 );
 
+-- Expired Test Terminal (#106) — active, well-formed token, lifetime ran out
+-- yesterday. Authentication must refuse it with `terminal_token_expired`.
+-- Token: expired-terminal-token-do-not-use-in-production-9z8y7x6w5v4u
+-- Must match e2etests/config/test-credentials.ts
+INSERT INTO terminals (id, name, device_id, api_token_hash, token_issued_at, token_expires_at, is_active, created_at, updated_at)
+VALUES (
+    '44e4567-e89b-12d3-a456-426614174001',
+    'Expired Test Terminal',
+    'test-device-expired-001',
+    SHA2('expired-terminal-token-do-not-use-in-production-9z8y7x6w5v4u', 256),
+    NOW() - INTERVAL 91 DAY,
+    NOW() - INTERVAL 1 DAY,
+    1,
+    NOW() - INTERVAL 91 DAY,
+    NOW()
+);
+
 -- Terminal 1: Bar Terminal (main POS at the bar counter)
 -- Token: test-token-bar-terminal-0001 → SHA-256 hash below
-INSERT INTO terminals (id, name, device_id, api_token_hash, is_active, last_sync_at, created_at, updated_at)
+INSERT INTO terminals (id, name, device_id, api_token_hash, token_issued_at, token_expires_at, is_active, last_sync_at, created_at, updated_at)
 VALUES (
     '66666661-6666-6666-6666-666666666661',
     'Bar Terminal',
     'BAR-MAIN-001',
     SHA2('test-token-bar-terminal-0001', 256),
+    NOW(),
+    NOW() + INTERVAL 90 DAY,
     1,
     DATE_SUB(NOW(), INTERVAL 5 MINUTE),
     NOW(),
@@ -465,12 +487,14 @@ VALUES (
 
 -- Terminal 2: Sauna Terminal (POS at the sauna entrance)
 -- Token: test-token-sauna-terminal-002 → SHA-256 hash below
-INSERT INTO terminals (id, name, device_id, api_token_hash, is_active, last_sync_at, created_at, updated_at)
+INSERT INTO terminals (id, name, device_id, api_token_hash, token_issued_at, token_expires_at, is_active, last_sync_at, created_at, updated_at)
 VALUES (
     '66666662-6666-6666-6666-666666666662',
     'Sauna Terminal',
     'SAUNA-ENT-002',
     SHA2('test-token-sauna-terminal-002', 256),
+    NOW(),
+    NOW() + INTERVAL 90 DAY,
     1,
     DATE_SUB(NOW(), INTERVAL 2 HOUR),
     NOW(),
@@ -479,12 +503,14 @@ VALUES (
 
 -- Terminal 3: Terrace Terminal (seasonal outdoor POS, currently inactive)
 -- Token: test-token-terrace-term-0003 → SHA-256 hash below
-INSERT INTO terminals (id, name, device_id, api_token_hash, is_active, last_sync_at, created_at, updated_at)
+INSERT INTO terminals (id, name, device_id, api_token_hash, token_issued_at, token_expires_at, is_active, last_sync_at, created_at, updated_at)
 VALUES (
     '66666663-6666-6666-6666-666666666663',
     'Terrace Terminal',
     'TERRACE-OUT-003',
     SHA2('test-token-terrace-term-0003', 256),
+    NOW(),
+    NOW() + INTERVAL 90 DAY,
     0,
     NULL,
     NOW(),
