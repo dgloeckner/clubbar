@@ -40,6 +40,45 @@ The installer guides you through five steps:
 
 ## Security Hardening
 
+### PHP Runtime Settings
+
+**The application configures these itself, on every request, before anything else runs.** There is no `php.ini` to edit on mass hosting, and a `.user.ini` is honoured at the host's discretion — so the settings the deployment depends on live in code (`backend/src/Shared/Security/RuntimeHardening.php`, [ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) decision 1). Nothing you need to do, and nothing your host can silently drop:
+
+| Setting | Value | Why |
+|---|---|---|
+| `display_errors`, `display_startup_errors` | off (on with `app.debug`) | A database outage happens before the API's error handler exists. On a host that prints errors by default, the stack trace — with the connection arguments — goes to the browser |
+| `log_errors` | on | The same failure still has to be findable afterwards |
+| `zend.exception_ignore_args` | on (off with `app.debug`) | Keeps the database password out of the trace that *is* recorded |
+| `session.use_strict_mode` | on | PHP's default is off, which means it accepts a session ID a visitor made up — the half of session fixation that regenerating the ID at login cannot cover |
+| `session.use_only_cookies`, `session.use_trans_sid` | on / off | A session ID may never travel in a URL, where it leaks through `Referer` headers and access logs |
+| `session.save_path` | `backend/storage/sessions` | By default PHP writes session files into a directory shared with the host's other accounts, where a readable session file is an admin login |
+| `X-Powered-By` | removed | `expose_php` is `PHP_INI_SYSTEM` and out of reach on shared hosting; removing the header at runtime is the only lever available |
+
+Two consequences worth knowing about:
+
+- **Session files move on upgrade.** Everyone signed in at the moment of the upgrade is signed out once, because PHP looks for their session in the new directory. Nothing else is affected.
+- **`session.save_path` is applied only if the directory is writable.** An unwritable path would mean nobody can log in at all, so the app keeps the host default instead and records a `WARNING` in `backend/logs/<date>.log`. If you see one, fix the permissions on `backend/storage/` and restart.
+
+To place sessions outside the document root — better still, where your hosting allows it — set `save_path` in `config.php`:
+
+```php
+'session' => [
+    'max_age' => 7200,
+    'regeneration_interval' => 900,
+    'save_path' => '/home/youraccount/clubbar-data/sessions',  // must be writable by the web server
+],
+```
+
+**Verify:**
+
+```bash
+curl -I https://your-domain.com/api/health
+# X-Powered-By must be absent
+
+# Nothing but session files, readable by nobody else:
+ls -la backend/storage/sessions/     # drwx------, files -rw-------
+```
+
 ### HTTPS & TLS
 
 HTTPS is mandatory in production. See [ADR-0016](../adr/0016-transport-security.md) for full security requirements.

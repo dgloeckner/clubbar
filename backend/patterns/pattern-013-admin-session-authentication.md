@@ -422,11 +422,16 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) {
 
 ## Session Configuration
 
-The project uses native PHP sessions (`$_SESSION`) with file-based storage. There is no `php.ini` in the repo: cookie parameters are set once in `backend/bootstrap.php`, before any `session_start()` can fire.
+The project uses native PHP sessions (`$_SESSION`) with file-based storage. **The code is the authoritative layer, not a configuration file**: there is no `php.ini` in the repo, and the shared-hosting target may ignore any ini file the package ships ([ADR-0031](../../adr/0031-production-hardening-on-shared-hosting.md) decision 1). Every session directive is therefore set by `RuntimeHardening`, called from `backend/bootstrap.php` before any `session_start()` can fire — PHP refuses them all once a session is open.
 
 ```php
-// backend/bootstrap.php — runs before every request's session_start():
+// backend/src/Shared/Security/RuntimeHardening.php — applied on every request:
+ini_set('session.use_strict_mode', '1');     // reject a session ID the client invented
+ini_set('session.use_only_cookies', '1');    // never in a URL, never in a Referer header
+ini_set('session.use_trans_sid', '0');
 ini_set('session.gc_maxlifetime', (string) $config->sessionMaxAge);
+ini_set('session.save_path', $config->sessionSavePath);  // only once proven writable
+
 session_set_cookie_params([
     'lifetime' => $config->sessionMaxAge,   // client-side expiry
     'path'     => '/',
@@ -441,6 +446,12 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 ```
+
+`session.use_strict_mode` is the one to understand: PHP's compiled default is *off*, so PHP will adopt and initialise whatever session ID arrives in the cookie. An attacker can then plant an ID in a victim's browser and wait for them to log in with it. It is the half of session fixation that `session_regenerate_id()` (ADR-0025, below) cannot reach — regeneration happens at login, and by then the planted ID is already the session being renamed. ADR-0016 requires the directive; until #246 nothing set it.
+
+`session.save_path` moves session files off the host's shared session directory, where on mass hosting another account may be able to read them — and a readable session file is an admin login. It defaults to `backend/storage/sessions` and is overridable through `SESSION_SAVE_PATH` (`session.save_path` in the package's `config.php`), which is how the installer's data directory (#245) will point it outside the document root.
+
+The path is applied *only after* the directory is proven writable. An unwritable `save_path` is not a weaker deployment, it is an outage — no session can be written, so nobody can log in — so the host default stands instead and `bootstrap.php` logs a warning naming the path. Taking the path over also means taking over its cleanup, so garbage collection is switched back on if the host had disabled it in favour of its own cron sweep of the shared directory.
 
 `sessionCookieSecure` is derived, not hard-coded — a `Secure` cookie is dropped by the browser over HTTP, which would make local development and the E2E suite (both on `http://localhost`) unable to hold a session at all. `AppConfig::resolveSessionCookieSecure()` decides, in order:
 
@@ -747,6 +758,8 @@ test('GET /api/auth/profile with valid session returns 200', async () => {
 - **ADR-0015**: Authentication and Authorization Strategy
 - **ADR-0016**: Transport Security (HTTPS/TLS)
 - **ADR-0017**: Input Validation and Injection Prevention
+- **ADR-0025**: Session Fixation Protection (`session_regenerate_id()` at login)
+- **ADR-0031**: Production Hardening on Shared Hosting — why the session directives are set from code rather than an ini file
 - **Pattern 001**: Input Validation (Custom Validator)
 - **Pattern 012**: Terminal API Token Authentication
 - **Pattern 014**: RFID Member Identification

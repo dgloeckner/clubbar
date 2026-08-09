@@ -22,6 +22,12 @@ return [
     'session' => [
         'max_age' => 7200,
         'regeneration_interval' => 900,
+        // Where PHP writes session files. Left unset, the app uses
+        // backend/storage/sessions rather than the host's shared session
+        // directory, where another account on the machine may be able to read
+        // them. Point this at a directory outside the document root if your
+        // hosting offers one — it must be writable by the web server.
+        // 'save_path' => '/home/user/clubbar-data/sessions',
     ],
     'api_token' => [
         'ttl_days' => 90,

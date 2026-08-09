@@ -20,8 +20,14 @@ use Slim\Psr7\Response;
 
 class ErrorHandler implements MiddlewareInterface
 {
-    /** What a caller is told when an unhandled throwable produced the 500. */
-    private const GENERIC_500_MESSAGE = 'An internal server error occurred. Please try again or contact your administrator.';
+    /**
+     * What a caller is told when an unhandled throwable produced the 500.
+     *
+     * Public because a fatal raised before this middleware exists — anything in
+     * `bootstrap.php` — is answered by `RuntimeHardening`'s shutdown function,
+     * and the caller must not be able to tell the two apart.
+     */
+    public const GENERIC_500_MESSAGE = 'An internal server error occurred. Please try again or contact your administrator.';
 
     public function __construct(
         private Logger $logger,
