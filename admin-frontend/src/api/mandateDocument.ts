@@ -14,6 +14,8 @@ export type MandateDocumentInfo = MandateDocument
  * on the API client, so it carries auth and surfaces the API's error message
  * instead of rendering a JSON 404 as a page.
  */
-export function downloadMandateDocument(memberId: string): Promise<void> {
-  return downloadFile(`/admin/members/${memberId}/mandate-document`, 'mandate.pdf')
+export async function downloadMandateDocument(memberId: string): Promise<void> {
+  // Awaited, not returned: `downloadFile` hands back the response headers since
+  // #114, and the only caller here wants the file saved, not the metadata.
+  await downloadFile(`/admin/members/${memberId}/mandate-document`, 'mandate.pdf')
 }
