@@ -42,6 +42,7 @@ use App\Modules\Auth\Services\TokenService;
 use App\Modules\Auth\Services\TotpService;
 use App\Modules\Products\Services\CategoriesService;
 use App\Shared\Services\HealthCheckService;
+use App\Shared\Services\SecurityCheckService;
 use App\Modules\Members\Services\MandateDocumentService;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Products\Services\ProductsService;
@@ -59,6 +60,7 @@ use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminController;
 use App\Shared\Controllers\HealthController;
+use App\Shared\Controllers\SecurityCheckController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
 use App\Modules\Members\Controllers\MandateDocumentController;
 use App\Modules\Members\Controllers\ExtractionController;
@@ -107,6 +109,7 @@ class ServiceFactory implements ContainerInterface
     private const FQCN_MAP = [
         // Shared
         HealthController::class => 'getHealthController',
+        SecurityCheckController::class => 'getSecurityCheckController',
 
         // Members
         MembersAdminController::class => 'getMembersAdminController',
@@ -549,6 +552,13 @@ class ServiceFactory implements ContainerInterface
     {
         return $this->resolve(HealthController::class, fn() => new HealthController(
             new \App\Shared\Services\HealthCheckService(),
+        ));
+    }
+
+    public function getSecurityCheckController(): SecurityCheckController
+    {
+        return $this->resolve(SecurityCheckController::class, fn() => new SecurityCheckController(
+            new SecurityCheckService($this->config),
         ));
     }
 

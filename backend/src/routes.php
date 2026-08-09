@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Shared\Controllers\HealthController;
+use App\Shared\Controllers\SecurityCheckController;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
 use App\Modules\Members\Controllers\MandateDocumentController;
@@ -69,6 +70,11 @@ return function (App $app): void {
 
     // Admin endpoints (session auth)
     $app->group('/api/admin', function (RouteCollectorProxy $group) {
+        // Security self-check. Admin-only because the report names this
+        // installation's weak points and the paths its member documents live
+        // in (#247, ADR-0031 decision 3).
+        $group->get('/security-check', [SecurityCheckController::class, 'show']);
+
         // Dashboard
         $group->get('/dashboard', [DashboardAdminController::class, 'show']);
         $group->get('/statistics/monthly', [DashboardAdminController::class, 'monthlyStats']);

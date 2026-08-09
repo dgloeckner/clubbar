@@ -8,6 +8,7 @@ use App\Shared\Config\AppConfig;
 use App\Shared\Config\Env;
 use App\Shared\Middleware\ErrorHandler;
 use App\Shared\Security\RuntimeHardening;
+use App\Shared\Security\SecuritySelfCheck;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -246,6 +247,26 @@ class RuntimeHardeningTest extends TestCase
 
         $_SESSION = [];
         session_destroy();
+    }
+
+    /**
+     * The two halves of ADR-0031 have to describe the same deployment: this
+     * class sets the `PHP_INI_ALL` directives from code (decision 1), and the
+     * self-check reads them back and reports drift (decision 3). If they ever
+     * disagree, a directive is either hardened without being measured — so a
+     * host that dropped it stays invisible — or measured without being
+     * hardened, which is a permanent red row nobody can clear.
+     */
+    public function test_every_directive_the_self_check_measures_is_one_this_class_applies(): void
+    {
+        $this->applyWithDebug(false);
+
+        foreach (SecuritySelfCheck::EXPECTED_DIRECTIVES as $directive => $expected) {
+            $actual = strtolower(trim((string) ini_get($directive)));
+            $isOn = !in_array($actual, ['', '0', 'off', 'false', 'no'], true);
+
+            $this->assertSame($expected, $isOn, "RuntimeHardening leaves {$directive} at '{$actual}'");
+        }
     }
 
     public function test_a_warning_or_notice_is_not_answered_as_a_fatal(): void

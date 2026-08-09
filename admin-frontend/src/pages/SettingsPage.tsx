@@ -25,6 +25,7 @@ import { EditAdminModal } from '../components/modals/EditAdminModal'
 import { PasswordDisplayModal } from '../components/modals/PasswordDisplayModal'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
 import { TerminalsTab } from '../components/settings/TerminalsTab'
+import { SecurityCheckTab } from '../components/settings/SecurityCheckTab'
 import { CreateTerminalModal } from '../components/modals/CreateTerminalModal'
 import { EditTerminalModal } from '../components/modals/EditTerminalModal'
 import { TokenDisplayModal } from '../components/modals/TokenDisplayModal'
@@ -44,7 +45,7 @@ export function SettingsPage() {
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
 
   // State management
-  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals'>('admin-users')
+  const [activeTab, setActiveTab] = useState<'sepa' | 'admin-users' | 'terminals' | 'security'>('admin-users')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   // Page-level failure, rendered above the tab content. A modal covers that
@@ -201,7 +202,7 @@ export function SettingsPage() {
     setModalFieldErrors({})
   }
 
-  const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals') => {
+  const switchTab = (tab: 'sepa' | 'admin-users' | 'terminals' | 'security') => {
     // The banner reports what failed on the tab that is being left behind.
     setError(null)
     setActiveTab(tab)
@@ -608,6 +609,18 @@ export function SettingsPage() {
             )}
             {t('settings.terminals')}
           </button>
+          <button
+            data-testid="settings-tab-security"
+            onClick={() => switchTab('security')}
+            style={tabStyle(activeTab === 'security') as any}
+          >
+            {!isMobile && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            )}
+            {t('settings.security.tab')}
+          </button>
         </div>
       </div>
 
@@ -678,6 +691,10 @@ export function SettingsPage() {
           onReactivateTerminal={handleReactivateTerminal}
         />
       )}
+
+      {/* Security self-check (#247): measured, never assumed — so it is fetched
+          when the tab is opened rather than cached with the rest of the page. */}
+      {activeTab === 'security' && <SecurityCheckTab />}
 
       {/* Modals */}
       <CreateAdminModal

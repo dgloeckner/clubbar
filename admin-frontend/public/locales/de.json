@@ -532,6 +532,28 @@
       "paymentReferencePrefixTooLong": "Verwendungszweck-Präfix darf höchstens 100 Zeichen lang sein",
       "creditorIdRequired": "Gläubiger-ID ist erforderlich",
       "creditorIdTooLong": "Gläubiger-ID darf höchstens 35 Zeichen lang sein"
+    },
+    "security": {
+      "tab": "Sicherheit",
+      "title": "Sicherheits-Selbstprüfung",
+      "intro": "Was an Härtung in dieser Installation tatsächlich wirkt, soeben gemessen — nicht das, was konfiguriert wurde. Beim Massenhosting kann eine mitgelieferte Regel ignoriert werden, ohne dass es irgendwo auffällt; deshalb stammt jede Zeile unten aus einer Messung am laufenden System.",
+      "recheck": "Erneut messen",
+      "measuring": "Messung läuft…",
+      "loadFailed": "Die Sicherheits-Selbstprüfung konnte nicht ausgeführt werden.",
+      "counts": "{{pass}} bestätigt, {{warn}} schwächer als vorgesehen, {{fail}} offen zugänglich, {{unknown}} nicht messbar.",
+      "verdict": {
+        "pass": "Alle Prüfungen bestätigt",
+        "warn": "Einzelne Schutzmaßnahmen wirken nicht",
+        "fail": "Zugangsdaten oder Mitgliederdaten sind offen zugänglich"
+      },
+      "categories": {
+        "exposure": "Was der Webserver herausgibt",
+        "data": "Wo die Daten liegen",
+        "transport": "Verbindung",
+        "session": "Sitzungen",
+        "runtime": "PHP-Laufzeit"
+      },
+      "footnote": "Eine Zeile ist nur dann grün, wenn der wirksame Zustand beobachtet wurde. „Nicht messbar“ gilt nie als bestanden, und „Ihr Hoster erlaubt das nicht“ ist ein akzeptiertes Ergebnis — der Hinweis sagt es, wo es zutrifft."
     }
   },
   "auditLog": {
