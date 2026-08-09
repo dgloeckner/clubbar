@@ -116,6 +116,18 @@ On the reference target this is an outage, not a degradation. Any such directive
 
 - A shipped `.user.ini` remains worth having, but as the second layer of four. Reading the decision as "we ship a hardened ini file" would miss the point.
 
+## Implementation
+
+| Issue | Decision it implements |
+|---|---|
+| [#245](https://github.com/dgloeckner/clubbar/issues/245) | 2 — secrets and member documents out of the document root |
+| [#246](https://github.com/dgloeckner/clubbar/issues/246) | 1 — runtime hardening in `bootstrap.php` (L0) |
+| [#247](https://github.com/dgloeckner/clubbar/issues/247) | 3 — the security self-check (L4) |
+| [#248](https://github.com/dgloeckner/clubbar/issues/248) | 4 — least privilege on files |
+| [#249](https://github.com/dgloeckner/clubbar/issues/249) | 5 and layers L1/L2 — `.user.ini` and `.htaccess` |
+| [#250](https://github.com/dgloeckner/clubbar/issues/250) | L2 — Content-Security-Policy for the admin SPA |
+| [#251](https://github.com/dgloeckner/clubbar/issues/251) | 1 — `__Host-` cookie prefix, following #105 |
+
 ## References
 
 - [ADR-0016](./0016-transport-security.md) — Transport Security; requires the cookie attributes and `session.use_strict_mode` this ADR routes into L0
