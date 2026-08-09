@@ -902,7 +902,7 @@ Because of that instruction, the backend service also mounts `./scripts` at `/sc
 
 | Command | Behaviour |
 |---------|-----------|
-| `up [SERVICE...]` | Calls `ensure-docker.sh`, then `docker compose up -d`. `dev-setup.sh` calls this for you |
+| `up [SERVICE...]` | Calls `ensure-docker.sh`, prefetches the images (see below), then `docker compose up -d`. `dev-setup.sh` calls this for you |
 | `wait [SERVICE...]` | Blocks until every service is healthy. Bounded by `DEV_STACK_TIMEOUT` (default 180s); exits **2** on timeout and prints which service failed plus its last 30 log lines |
 | `down [ARG...]` | `docker compose down` (a no-op if the daemon is not running) |
 
@@ -929,6 +929,33 @@ Non-default hosts this project needs:
 | `*.azurecr.io`, `*.blob.core.windows.net` | ACR manifests / layers |
 | `maven.pkg.github.com` | Defaults cover only `npm.pkg.github.com` |
 | `ppa.launchpadcontent.net` | The `ondrej/php` PPA — the only source of `php8.4-bcmath` for the host PHP. Currently **denied** (403), which is why backend PHP tests run in the container |
+
+### Docker Hub rate limits and the GHCR mirror
+
+Docker Hub rate limits anonymous pulls **per source IP**, and every cloud session on a host shares one. Several agents starting the stack at the same time exhaust the budget together, and from then on `docker compose up` fails with **429 Too Many Requests** — for hours. Unlike a 403 from the egress policy this is not an allowlist problem, and there is nothing to fix from inside the session: you cannot wait it out, and there are no Hub credentials to authenticate with.
+
+The escape hatch is a second registry. The images are mirrored into a public GHCR namespace (`ghcr.io/dgloeckner/*`), which has no anonymous pull limit, and `scripts/dev-stack.sh up` prefetches through `scripts/pull-images.sh`:
+
+| | |
+|---|---|
+| Order | Docker Hub first, then the mirror. `CLUBBAR_IMAGE_MIRROR=1` reverses it — worth setting when several agents share an IP, so the Hub budget is left for images that have no mirror |
+| Retries | 4 attempts with 2/4/8/16s backoff. A **429 breaks out immediately** and goes to the mirror: Hub's window is hours long, so retrying it only delays the fallback that would have worked |
+| Handover | A mirror image is `docker tag`ged with the upstream name, so `docker-compose.yml` never mentions the mirror and CI is unaffected. Compose's default pull policy is `missing`, so it uses the local tag as is |
+| Failure | Best effort — it always exits 0 and lets compose produce the authoritative error |
+| Opt out | `CLUBBAR_SKIP_PREPULL=1` |
+
+**A mirror must be multi-arch, and this is the trap.** `docker pull` + `docker push` from an Apple Silicon laptop publishes an **arm64-only** image. It pulls without complaint on an amd64 cloud session and then dies at startup with `exec format error`, which reads as a broken container rather than a bad mirror — the same failure the `platform:` comment in `docker-compose.yml` already warns about. So:
+
+- `scripts/mirror-images.sh` copies with `docker buildx imagetools create`, which duplicates the manifest list untouched — every architecture survives whatever machine runs the copy.
+- `scripts/pull-images.sh` compares the mirror's architecture against the host's and **discards a mismatch** rather than tagging it, falling back to Docker Hub instead.
+- `.github/workflows/mirror-images.yaml` does the copying on a runner (manual, weekly, and whenever the image list changes), so the result never depends on a laptop's architecture.
+
+`scripts/mirrored-images.txt` is the list — one upstream reference per line; the mirror name is the last path segment plus the same tag. `mcr.microsoft.com/playwright` is deliberately absent: Microsoft's registry is not rate limited.
+
+```bash
+scripts/mirror-images.sh --check   # what each mirror holds vs. what upstream has
+scripts/mirror-images.sh           # copy (needs docker login ghcr.io)
+```
 
 ## Agent skills
 

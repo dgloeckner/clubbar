@@ -20,7 +20,10 @@
 #   scripts/dev-stack.sh down -v
 #
 # Environment:
-#   DEV_STACK_TIMEOUT   Seconds `wait` blocks before failing (default: 180)
+#   DEV_STACK_TIMEOUT       Seconds `wait` blocks before failing (default: 180)
+#   CLUBBAR_IMAGE_MIRROR=1  `up` pulls from the GHCR mirror first instead of
+#                           Docker Hub — see scripts/pull-images.sh
+#   CLUBBAR_SKIP_PREPULL=1  `up` skips the image prefetch entirely
 #
 # Exit codes:
 #   0  success
@@ -112,6 +115,14 @@ cmd_up() {
         echo "       See logs/ensure-docker.log for why dockerd did not come up." >&2
         exit 1
     fi
+
+    # Prefetch before compose so a registry problem is reported as one. Docker
+    # Hub rate limits anonymous pulls per source IP, and cloud sessions share
+    # that IP — parallel agents exhaust it together and then every `up` fails
+    # with 429. The prefetch retries, and falls back to our GHCR mirror. It is
+    # best effort and always exits 0: if it cannot get an image, compose runs
+    # anyway and produces the authoritative error.
+    "$SCRIPT_DIR/pull-images.sh" "$@" || true
 
     echo "--- docker compose up -d ${*:-}"
     docker compose up -d "$@"

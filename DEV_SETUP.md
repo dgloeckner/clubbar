@@ -88,6 +88,37 @@ If you need to change test credentials (e.g., for security), update both files:
 - Check seed data ran successfully
 - Verify test terminal exists: `docker compose exec -T database mysql -u clubbar -pclubbar clubbar -e "SELECT device_id, is_active FROM terminals;"`
 
+### `docker compose up` fails with "429 Too Many Requests"
+
+Docker Hub rate limits anonymous pulls per source IP. On a shared machine — a CI
+runner, or several Claude Code cloud sessions on the same host — the budget is
+shared too, so parallel agents exhaust it together and every pull afterwards
+fails for hours. No amount of retrying helps.
+
+The same images are mirrored to `ghcr.io/dgloeckner/*`, which has no anonymous
+pull limit. `scripts/dev-stack.sh up` already prefetches through
+`scripts/pull-images.sh`, which falls back to the mirror on its own; set
+`CLUBBAR_IMAGE_MIRROR=1` to go to the mirror *first* and leave the Hub budget
+for images that have no mirror:
+
+```bash
+CLUBBAR_IMAGE_MIRROR=1 scripts/dev-stack.sh up && scripts/dev-stack.sh wait
+```
+
+If the fallback reports `mirror is arm64 but this host is amd64 — ignoring it`,
+the mirror was published single-arch. Check and repair it:
+
+```bash
+scripts/mirror-images.sh --check   # per image: mirror arches vs upstream arches
+scripts/mirror-images.sh           # re-copy multi-arch (needs docker login ghcr.io)
+```
+
+Repairing it in CI is preferable — run the **Mirror images** workflow
+(`.github/workflows/mirror-images.yaml`), which copies with
+`docker buildx imagetools create` on an amd64 runner and cannot produce a
+laptop-shaped, single-arch mirror. Images to mirror are listed in
+`scripts/mirrored-images.txt`.
+
 ### Database issues
 - Full reset: `docker compose down -v && docker compose up -d` (deletes database volume), then re-run migrate and seed commands
 - Migrate only: `curl -sf -H "X-Install-Key: dev-install-key-x" "http://localhost:8080/install.php?action=migrate"`
