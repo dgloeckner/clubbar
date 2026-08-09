@@ -23,7 +23,15 @@ declare(strict_types=1);
  * The next installer run (e.g. to apply migrations after an update) generates a fresh file.
  */
 
-$configFile = __DIR__ . '/config.php';
+// config.php, storage/ and logs/ live in a data directory the installer
+// resolves — above the document root where the host has a writable parent,
+// inside it where it does not (#245, ADR-0031 decision 2). Required by path:
+// this script runs long before Composer's autoloader is available.
+require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
+
+use App\Shared\Config\DataDirectory;
+
+$configFile = DataDirectory::configPath(__DIR__);
 $isInstalled = file_exists($configFile);
 $isUpdate = isset($_GET['update']);
 $dataFile = __DIR__ . '/.installer-data';
@@ -146,6 +154,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
 
+            // Decide where this installation's data lives before writing the
+            // first byte of it. A host with no writable parent keeps the
+            // in-document-root layout — that must stay installable — but the
+            // choice is recorded rather than assumed.
+            $placement = DataDirectory::probe(__DIR__);
+            $prepared  = DataDirectory::prepare($placement['path']);
+            if (!$prepared['ok']) {
+                $error = 'Could not prepare the data directory: ' . $prepared['error'];
+                break;
+            }
+            // The data directory when there is one above the document root,
+            // next to index.php when there is not — the fallback layout is left
+            // exactly as it was. $configFile still points at the existing
+            // config, wherever this installation currently keeps it.
+            $configTarget = DataDirectory::configPathIn(__DIR__, $placement['path']);
+
             // Generate a fresh TOTP encryption key for this installation
             $totpKey = bin2hex(random_bytes(32));
 
@@ -203,11 +227,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ],
                 ], true) . ";\n";
 
-                if (file_put_contents($configFile, $configContent) === false) {
-                    $error = 'Failed to write config.php. Check directory permissions.';
+                if (file_put_contents($configTarget, $configContent) === false) {
+                    $error = "Failed to write {$configTarget}. Check the directory's permissions.";
                     break;
                 }
 
+                // The database password and the TOTP key are in there.
+                @chmod($configTarget, 0600);
+
+                if ($placement['outside']) {
+                    // Tell the front controller where the data went. Without
+                    // this the next request resolves the in-document-root
+                    // layout and finds no config at all.
+                    if (!DataDirectory::writePointer(__DIR__, $placement['path'])) {
+                        @unlink($configTarget);
+                        $error = 'Failed to write ' . DataDirectory::POINTER_FILE . ' to the document root. Check its permissions.';
+                        break;
+                    }
+
+                    // A config left behind in the document root is the exposure
+                    // this step exists to end — and the one the front controller
+                    // falls back to, so it would also shadow the new one.
+                    $legacyConfig = __DIR__ . '/config.php';
+                    if ($configTarget !== $legacyConfig && is_file($legacyConfig)) {
+                        @unlink($legacyConfig);
+                    }
+                }
+
+                $configFile = $configTarget;
                 $installerData['completed_step'] = 2;
                 writeInstallerData($dataFile, $installerData);
 
@@ -406,26 +453,39 @@ function checkPrerequisites(): array
         ];
     }
 
-    // Writable directories
-    $apiDir = __DIR__ . '/backend';
-    foreach (['storage', 'logs'] as $dir) {
-        $path = "{$apiDir}/{$dir}";
-        $writable = is_dir($path) && is_writable($path);
+    // Where config.php, the scanned mandates and the logs will be placed, and
+    // whether that is somewhere the webserver could ever serve them.
+    $placement = DataDirectory::probe(__DIR__);
+    $checks[] = [
+        'name'  => 'Data directory: ' . $placement['path'],
+        'ok'    => true,
+        'warn'  => !$placement['outside'],
+        'value' => $placement['outside'] ? 'outside the document root' : 'inside the document root',
+        'note'  => $placement['reason'],
+    ];
+
+    // storage/ and logs/ are written on every request whichever layout wins.
+    foreach (DataDirectory::SUBDIRECTORIES as $subdirectory) {
+        $path = $placement['path'] . '/' . $subdirectory;
+        $writable = is_dir($path) ? is_writable($path) : is_writable(dirname($path));
         $checks[] = [
-            'name' => "Writable: backend/{$dir}/",
-            'ok' => $writable,
-            'value' => $writable ? 'writable' : (is_dir($path) ? 'not writable' : 'directory missing'),
+            'name'  => "Writable: {$subdirectory}/",
+            'ok'    => $writable,
+            'value' => $writable ? 'writable' : (is_dir($path) ? 'not writable' : 'cannot be created'),
         ];
     }
 
-    // config.php writable (parent directory)
-    $configDir = __DIR__;
-    $configWritable = is_writable($configDir);
+    // The document root has to stay writable regardless: config.php lands there
+    // in the fallback layout, and the pointer file naming the data directory
+    // lands there in the other one.
+    $rootWritable = is_writable(__DIR__);
     $checks[] = [
-        'name' => 'Writable: document root (for config.php)',
-        'ok' => $configWritable,
-        'value' => $configWritable ? 'writable' : 'not writable',
+        'name' => 'Writable: document root',
+        'ok' => $rootWritable,
+        'value' => $rootWritable ? 'writable' : 'not writable',
     ];
+
+    $checks[] = checkDocumentRootExposure(__DIR__);
 
     // mod_rewrite (best-effort)
     if (function_exists('apache_get_modules')) {
@@ -444,6 +504,135 @@ function checkPrerequisites(): array
     }
 
     return $checks;
+}
+
+/**
+ * Ask the webserver, over HTTP, whether it will serve a file out of the
+ * document root's storage directory.
+ *
+ * This is the one check that cannot be answered by reading configuration:
+ * whether `.htaccess` is honoured is a property of the host, and the failure
+ * mode is silent — the same files, the same install, suddenly public. So a
+ * canary is written, fetched over the same scheme the browser used, and
+ * deleted. 403 or 404 is the pass; 200 means every scanned mandate on this
+ * host is one URL away, and stays a warning only because the wizard has no
+ * business blocking on a check some hosts cannot answer at all.
+ *
+ * @return array{name:string,ok:bool,warn?:bool,value:string,note?:string}
+ */
+function checkDocumentRootExposure(string $documentRoot): array
+{
+    $name = 'Not served: backend/storage/';
+    $storage = $documentRoot . '/backend/storage';
+    if (!is_dir($storage) || !is_writable($storage)) {
+        return ['name' => $name, 'ok' => true, 'warn' => true, 'value' => 'cannot verify',
+                'note' => 'The check needs a writable backend/storage/ to place a temporary file in.'];
+    }
+
+    $canary = '.exposure-check-' . bin2hex(random_bytes(6));
+    if (file_put_contents("{$storage}/{$canary}", "clubbar exposure check\n") === false) {
+        return ['name' => $name, 'ok' => true, 'warn' => true, 'value' => 'cannot verify',
+                'note' => 'Could not write a temporary file into backend/storage/.'];
+    }
+
+    // A control fetch first, and only then the one that matters. Without it a
+    // base URL that simply is not reachable from here — or that belongs to
+    // somebody else's vhost — would answer 404 and be read as a pass.
+    $status = null;
+    foreach (installerBaseUrlCandidates() as $base) {
+        if (fetchStatusCode($base . '/README.txt') !== 200) {
+            continue;
+        }
+        $status = fetchStatusCode($base . '/backend/storage/' . $canary);
+        break;
+    }
+
+    @unlink("{$storage}/{$canary}");
+
+    if ($status === null) {
+        return ['name' => $name, 'ok' => true, 'warn' => true, 'value' => 'cannot verify',
+                'note' => 'This host would not let the installer fetch its own URL. Check it yourself: request '
+                    . '/backend/storage/ in a browser and make sure it is refused.'];
+    }
+
+    if ($status === 403 || $status === 404) {
+        return ['name' => $name, 'ok' => true, 'value' => 'refused (HTTP ' . $status . ')'];
+    }
+
+    return ['name' => $name, 'ok' => true, 'warn' => true, 'value' => 'SERVED (HTTP ' . $status . ')',
+            'note' => 'This host ignores the .htaccess denial. Scanned mandates and logs are reachable over the '
+                . 'web unless the data directory is placed above the document root.'];
+}
+
+/**
+ * Base URLs this installation might answer on *from the server itself*.
+ *
+ * The host header is the honest first guess and the right one on real hosting.
+ * It is not enough on its own: behind a port mapping or a reverse proxy it
+ * names a port nothing local is listening on, so the loopback candidates
+ * follow. Each is validated with a control fetch before anything is concluded
+ * from it.
+ *
+ * @return list<string>
+ */
+function installerBaseUrlCandidates(): array
+{
+    $https  = installerRequestIsHttps();
+    $scheme = $https ? 'https' : 'http';
+    $header = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    $host   = explode(':', $header)[0];
+
+    $candidates = [];
+    if ($header !== '') {
+        $candidates[] = "{$scheme}://{$header}";
+    }
+    if ($host !== '' && $host !== $header) {
+        $candidates[] = "{$scheme}://{$host}";
+    }
+    $candidates[] = "{$scheme}://127.0.0.1";
+
+    return array_values(array_unique($candidates));
+}
+
+/** Status code of a HEAD-like fetch, or null when this host cannot make one. */
+function fetchStatusCode(string $url): ?int
+{
+    if (function_exists('curl_init')) {
+        $curl = curl_init($url);
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_NOBODY         => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_TIMEOUT        => 4,
+            // A shared host's certificate is the host's business; this request
+            // asks one question — the status code — and never reads the body.
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+        ]);
+        curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        curl_close($curl);
+
+        return $status > 0 ? $status : null;
+    }
+
+    if (!filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
+        return null;
+    }
+
+    $context = stream_context_create([
+        'http' => ['method' => 'HEAD', 'timeout' => 4, 'ignore_errors' => true, 'follow_location' => 0],
+        'ssl'  => ['verify_peer' => false, 'verify_peer_name' => false],
+    ]);
+    @file_get_contents($url, false, $context);
+
+    foreach ($http_response_header ?? [] as $header) {
+        if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $matches)) {
+            return (int) $matches[1];
+        }
+    }
+
+    return null;
 }
 
 function renderKeyGate(?string $error): void
@@ -580,13 +769,21 @@ function renderStep1(bool $isUpdate): void
     <p>Checking that your server meets all requirements.</p>
     <table>
         <?php foreach ($checks as $check): ?>
-            <tr class="<?php echo $check['ok'] ? 'check-ok' : 'check-fail'; ?>">
-                <td class="check-icon"><?php echo $check['ok'] ? '&#10003;' : '&#10007;'; ?></td>
-                <td><?php echo htmlspecialchars($check['name']); ?></td>
+            <?php $warn = !empty($check['warn']) && $check['ok']; ?>
+            <tr class="<?php echo !$check['ok'] ? 'check-fail' : ($warn ? 'check-warn' : 'check-ok'); ?>">
+                <td class="check-icon"><?php echo !$check['ok'] ? '&#10007;' : ($warn ? '&#33;' : '&#10003;'); ?></td>
+                <td>
+                    <?php echo htmlspecialchars($check['name']); ?>
+                    <?php if (!empty($check['note'])): ?>
+                        <br><small class="check-note"><?php echo htmlspecialchars($check['note']); ?></small>
+                    <?php endif; ?>
+                </td>
                 <td class="check-value"><?php echo htmlspecialchars($check['value']); ?></td>
             </tr>
         <?php endforeach; ?>
     </table>
+    <p><small>A <strong>!</strong> is not a blocker — the installation will work. It records a protection this host
+    does not offer, so you know it was a choice the server made and not a default we hid from you.</small></p>
     <?php if ($allOk): ?>
         <a href="?step=2<?php echo $updateParam; ?>" class="btn">Continue</a>
     <?php else: ?>
@@ -604,7 +801,7 @@ function renderStep2(bool $isUpdate): void
     $dbDefaults  = ['host' => 'localhost', 'port' => 3306, 'name' => '', 'user' => '', 'pass' => ''];
     $llmDefaults    = ['provider' => '', 'api_key' => '', 'model' => ''];
     $visionDefaults = ['api_key' => ''];
-    $configFile = __DIR__ . '/config.php';
+    $configFile = DataDirectory::configPath(__DIR__);
     if (file_exists($configFile)) {
         $config = require $configFile;
         if (isset($config['db'])) {
@@ -770,9 +967,30 @@ function renderStep4(bool $isUpdate): void
 
 function renderStep5(): void
 {
+    // Resolved live rather than remembered: .installer-data is deleted when the
+    // install completes, and what matters on this page is where the data
+    // actually ended up.
+    $dataDir = DataDirectory::resolve(__DIR__);
+    $outside = !str_starts_with($dataDir . '/', rtrim(__DIR__, '/') . '/');
+    $configFile = DataDirectory::configPath(__DIR__);
     ?>
     <h2>Installation Complete!</h2>
     <p>Club Bar has been installed successfully. You can now log in with the admin account you just created.</p>
+
+    <h3 style="margin: 20px 0 8px; font-size: 16px; color: #374151;">Where your data is kept</h3>
+    <p><code><?php echo htmlspecialchars($dataDir); ?></code><br>
+    <small>Configuration: <code><?php echo htmlspecialchars($configFile); ?></code></small></p>
+    <?php if ($outside): ?>
+        <p><small>This directory is <strong>outside your document root</strong>, so the database password, the
+        scanned SEPA mandates and the logs cannot be requested over the web even if your hosting stops honouring
+        <code>.htaccess</code>.</small></p>
+    <?php else: ?>
+        <p class="check-warn"><small><strong>Note:</strong> this hosting account has no writable directory above
+        the document root, so your data stays inside it. It is protected by the <code>.htaccess</code> rules
+        shipped with Club Bar — which your host may stop honouring after a tariff or server change. If you can
+        create a writable directory next to your document root, re-run this installer to move the data there.</small></p>
+    <?php endif; ?>
+
     <a href="/" class="btn">Go to Admin Panel</a>
     <?php
 }
@@ -938,8 +1156,11 @@ td {
 }
 .check-ok .check-icon { color: #16a34a; }
 .check-fail .check-icon { color: #dc2626; }
+.check-warn .check-icon { color: #b45309; }
 .check-ok { color: #1f2937; }
 .check-fail { color: #dc2626; }
+.check-warn { color: #b45309; }
+.check-note { color: #92400e; font-size: 12px; }
 .check-value {
     color: #6b7280;
     text-align: right;

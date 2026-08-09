@@ -7,6 +7,7 @@ namespace App\Modules\Members\Services;
 use App\Modules\Members\Contracts\ExtractionServiceInterface;
 use App\Modules\Members\DTOs\MandateDocumentDto;
 use App\Modules\Members\Repositories\MandateDocumentRepository;
+use App\Shared\Config\AppConfig;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Logging\Logger;
@@ -25,12 +26,23 @@ class MandateDocumentService
         private MandateDocumentRepository  $mandateDocumentRepository,
         private AuditService               $auditService,
         private Logger                     $logger,
+        private AppConfig                  $config,
         private ?ExtractionServiceInterface $extractionService = null,
     ) {}
 
+    /**
+     * Where scanned mandates live.
+     *
+     * Read from the configured data directory rather than counted out in
+     * `dirname()` levels from this file: on a host with a writable parent the
+     * installer places that directory *above* the document root, precisely so
+     * these documents — a name, an IBAN and a handwritten signature each — stop
+     * depending on an `.htaccess` rule to stay off the web (#245, ADR-0031
+     * decision 2).
+     */
     public function getStorageDir(): string
     {
-        return dirname(__DIR__, 4) . '/storage/mandates';
+        return $this->config->storageDir . '/mandates';
     }
 
     /**

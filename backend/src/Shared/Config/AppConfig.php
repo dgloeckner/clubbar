@@ -13,6 +13,8 @@ class AppConfig
     public readonly bool   $sessionCookieSecure;
     public readonly string $sessionSavePath;
     public readonly int    $tokenTtlDays;
+    public readonly string $dataDir;
+    public readonly string $storageDir;
     public readonly string $logDir;
     public readonly string $installKey;
     public readonly string $appUrl;
@@ -28,9 +30,12 @@ class AppConfig
         $this->debug                = filter_var(Env::get('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN);
         $this->sessionMaxAge        = (int) Env::get('SESSION_MAX_AGE', '7200');
         $this->sessionRegenInterval = (int) Env::get('SESSION_REGEN_INTERVAL', '900');
-        $this->sessionSavePath      = self::resolveSessionSavePath();
         $this->tokenTtlDays         = self::readTokenTtlDays();
-        $this->logDir               = __DIR__ . '/../../../logs';
+        // Resolved before the paths below — every one of them hangs off it.
+        $this->dataDir              = self::resolveDataDir();
+        $this->storageDir           = $this->dataDir . '/storage';
+        $this->logDir               = $this->dataDir . '/logs';
+        $this->sessionSavePath      = self::resolveSessionSavePath($this->storageDir);
         $this->installKey           = Env::get('INSTALL_KEY', '');
         $this->appUrl               = Env::get('APP_URL', 'http://localhost:8080');
         $this->llmProvider          = Env::get('LLM_PROVIDER', '') ?: null;
@@ -109,24 +114,48 @@ class AppConfig
     }
 
     /**
+     * The directory holding `config.php`, `storage/` and `logs/` (#245,
+     * ADR-0031 decision 2).
+     *
+     * `DATA_DIR` is written by the package front controller, which resolves it
+     * from the pointer the installer left — on a host with a writable parent
+     * that is a directory *above* the document root, where no `.htaccess`
+     * mistake can turn a scanned SEPA mandate into a URL.
+     *
+     * The default is the backend directory itself, which is both the
+     * in-document-root fallback and exactly where `storage/` and `logs/` have
+     * always been, so a development checkout and an installation that predates
+     * the pointer resolve to the layout they already have.
+     */
+    private static function resolveDataDir(): string
+    {
+        $configured = trim(Env::get('DATA_DIR', ''));
+        if ($configured !== '') {
+            return rtrim($configured, '/');
+        }
+
+        return dirname(__DIR__, 3);
+    }
+
+    /**
      * Where PHP writes session files (#246, ADR-0031 decision 1).
      *
      * Left to the host, sessions land in a directory shared with every other
      * account on the machine, where a readable session file is an admin login.
-     * The default here is app-private and next to the other writable state.
+     * The default follows the data directory, so an installation whose data
+     * lives above the document root keeps its sessions there too.
      *
-     * `SESSION_SAVE_PATH` overrides it, and is the seam the installer's data
-     * directory (#245) plugs into once it can resolve a location outside the
-     * document root — nothing else has to change for the sessions to follow.
+     * `SESSION_SAVE_PATH` still overrides it, for a host that wants sessions
+     * somewhere else entirely.
      */
-    private static function resolveSessionSavePath(): string
+    private static function resolveSessionSavePath(string $storageDir): string
     {
         $configured = trim(Env::get('SESSION_SAVE_PATH', ''));
         if ($configured !== '') {
             return rtrim($configured, '/');
         }
 
-        return dirname(__DIR__, 3) . '/storage/sessions';
+        return $storageDir . '/sessions';
     }
 
     /**

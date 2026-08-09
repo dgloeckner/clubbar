@@ -24,8 +24,16 @@ declare(strict_types=1);
  * - Self-destructs .upgrade-secret and upgrade.php after successful migration
  */
 
+// Required by path — this script runs before Composer's autoloader exists.
+require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
+
+use App\Shared\Config\DataDirectory;
+
 $secretFile = __DIR__ . '/.upgrade-secret';
-$configFile = __DIR__ . '/config.php';
+// Wherever the installation actually keeps it: the data directory on an
+// install that has been moved above the document root, next to index.php on
+// one that predates #245.
+$configFile = DataDirectory::configPath(__DIR__);
 $zipFile    = __DIR__ . '/.upgrade-package.zip';
 $scriptPath = __FILE__;
 
@@ -178,6 +186,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = $result['error'];
             }
             break;
+
+        case '4': // Data placement — always chosen, never applied implicitly
+            $placement = $_POST['placement'] ?? '';
+
+            if ($placement === 'relocate') {
+                $probe = DataDirectory::probe(__DIR__);
+                if (!$probe['outside']) {
+                    $error = $probe['reason'];
+                    break;
+                }
+                $moveResult = DataDirectory::relocate(__DIR__, $probe['path']);
+            } elseif ($placement === 'revert') {
+                $moveResult = DataDirectory::relocate(__DIR__, DataDirectory::inDocumentRoot(__DIR__));
+                if ($moveResult['ok']) {
+                    DataDirectory::removePointer(__DIR__);
+                }
+            } else {
+                header('Location: ?step=5');
+                exit;
+            }
+
+            if (!$moveResult['ok']) {
+                $error = 'Could not move the data: ' . $moveResult['error']
+                    . ' Nothing was deleted — the installation is still running from its previous location.';
+                break;
+            }
+
+            $_SESSION['placement_result'] = ['moved' => $moveResult['moved'], 'to' => DataDirectory::resolve(__DIR__)];
+            header('Location: ?step=5');
+            exit;
     }
 }
 
@@ -346,7 +384,15 @@ function extractPackage(string $zipFile, string $extractDir): array
         return ['ok' => false, 'error' => 'Failed to open ZIP archive.'];
     }
 
-    $excluded         = ['config.php', '.installer-data', '.upgrade-secret'];
+    // These belong to the installation, not to the package. Losing the pointer
+    // would leave the application looking for its config in the document root
+    // and finding none — an upgrade that ends at the install wizard (#245).
+    // `backend/config.php` is listed defensively: no layout writes it today,
+    // and the sweep below deletes anything the package does not ship.
+    $excluded         = [
+        'config.php', 'backend/config.php', DataDirectory::POINTER_FILE,
+        '.installer-data', '.upgrade-secret',
+    ];
     $preservedPrefixes = ['backend/storage', 'backend/logs'];
     $extracted  = 0;
     $skipped    = 0;
@@ -442,7 +488,10 @@ function runMigrations(string $configFile): array
         return ['ok' => false, 'error' => 'config.php returned unexpected value.'];
     }
 
-    $autoload = dirname($configFile) . '/backend/vendor/autoload.php';
+    // Anchored to this script, not to the config: once the data directory sits
+    // above the document root, `dirname($configFile)` is no longer the place
+    // the application code was unpacked into.
+    $autoload = __DIR__ . '/backend/vendor/autoload.php';
     if (!file_exists($autoload)) {
         return ['ok' => false, 'error' => 'backend/vendor/autoload.php not found.'];
     }
@@ -540,7 +589,7 @@ function renderPage(string $step, ?string $error): void
             <h1>Club Bar Upgrade</h1>
 
             <div class="steps">
-                <?php for ($i = 1; $i <= 4; $i++): ?>
+                <?php for ($i = 1; $i <= 5; $i++): ?>
                     <span class="step <?php echo $i == (int)$step ? 'active' : ($i < (int)$step ? 'done' : ''); ?>">
                         <?php echo $i; ?>
                     </span>
@@ -558,6 +607,7 @@ function renderPage(string $step, ?string $error): void
                 case '2': renderStep2(); break;
                 case '3': renderStep3(); break;
                 case '4': renderStep4(); break;
+                case '5': renderStep5(); break;
                 default:  renderStep1(); break;
             }
             ?>
@@ -690,18 +740,78 @@ function renderStep3(): void
     <?php
 }
 
+/**
+ * Where this installation keeps its data — offered, never applied on its own.
+ *
+ * An upgrade that quietly moved the database credentials and every scanned
+ * mandate to a new path would be indistinguishable from a broken one if it went
+ * wrong, on a host the person running it cannot inspect. So the move is a
+ * button with the destination written on it, and the reverse is another button.
+ */
 function renderStep4(): void
 {
     $result = $_SESSION['migration_result'] ?? null;
     $migrations = $result['results'] ?? [];
+
+    $current = DataDirectory::resolve(__DIR__);
+    $inside  = str_starts_with($current . '/', rtrim(__DIR__, '/') . '/');
+    $probe   = DataDirectory::probe(__DIR__);
     ?>
-    <h2>Deploy Complete!</h2>
+    <h2>Step 4: Data Placement</h2>
     <?php if ($migrations): ?>
-        <div class="success">
-            <?php echo count($migrations); ?> migration(s) applied successfully.
-        </div>
+        <div class="success"><?php echo count($migrations); ?> migration(s) applied successfully.</div>
     <?php else: ?>
         <div class="success">Database is up to date — no migrations needed.</div>
+    <?php endif; ?>
+
+    <p>Your <code>config.php</code>, the scanned SEPA mandates and the logs are currently in:</p>
+    <p><code><?php echo htmlspecialchars($current); ?></code></p>
+
+    <?php if ($inside && $probe['outside']): ?>
+        <p>This is <strong>inside your document root</strong>. Only the <code>.htaccess</code> rules keep those
+        files off the web, and a hosting change can stop them being honoured without warning.</p>
+        <p>This server has a writable directory above the document root, so they can be moved out of reach:</p>
+        <form method="post" action="?step=4">
+            <input type="hidden" name="step" value="4">
+            <input type="hidden" name="placement" value="relocate">
+            <button type="submit" class="btn"
+                    onclick="this.disabled=true;this.textContent='Moving...';this.form.submit();">
+                Move to <?php echo htmlspecialchars($probe['path']); ?>
+            </button>
+        </form>
+        <p><small>The files are copied first and only removed once the copies are in place. If anything fails,
+        nothing is deleted and the installation keeps running from where it is now.</small></p>
+    <?php elseif ($inside): ?>
+        <p class="check-warn">This is <strong>inside your document root</strong>, and this hosting account has no
+        writable directory above it — <?php echo htmlspecialchars($probe['reason']); ?> The
+        <code>.htaccess</code> rules shipped with Club Bar are what keep these files off the web here.</p>
+    <?php else: ?>
+        <p>This is <strong>outside your document root</strong>, where the webserver cannot reach it. Nothing to do.</p>
+        <form method="post" action="?step=4">
+            <input type="hidden" name="step" value="4">
+            <input type="hidden" name="placement" value="revert">
+            <button type="submit" class="btn btn-secondary">Move back into the document root</button>
+        </form>
+        <p><small>Only needed if something about the new location is not working — it undoes the move exactly.</small></p>
+    <?php endif; ?>
+
+    <hr>
+    <a href="?step=5" class="btn <?php echo $inside && $probe['outside'] ? 'btn-secondary' : ''; ?>">
+        <?php echo $inside && $probe['outside'] ? 'Skip &amp; Finish' : 'Finish'; ?>
+    </a>
+    <?php
+}
+
+function renderStep5(): void
+{
+    $placement = $_SESSION['placement_result'] ?? null;
+    ?>
+    <h2>Deploy Complete!</h2>
+    <?php if ($placement): ?>
+        <div class="success">
+            Data moved to <code><?php echo htmlspecialchars($placement['to']); ?></code>
+            (<?php echo htmlspecialchars(implode(', ', $placement['moved']) ?: 'nothing to move'); ?>).
+        </div>
     <?php endif; ?>
     <p>Club Bar has been updated successfully.</p>
     <a href="/" class="btn">Go to Admin Panel</a>
@@ -836,6 +946,15 @@ input:focus {
     background: #f0fdf4;
     border: 1px solid #bbf7d0;
     color: #16a34a;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+.check-warn {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #b45309;
     padding: 12px 16px;
     border-radius: 6px;
     margin-bottom: 16px;

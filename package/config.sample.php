@@ -3,8 +3,15 @@
 /**
  * Club Bar Configuration
  *
- * Copy this file to config.php and fill in your database credentials.
- * Or use the web installer: visit /install.php in your browser.
+ * Use the web installer — visit /install.php in your browser. It decides where
+ * this file belongs: a directory above the document root where your hosting has
+ * a writable one, `backend/config.php` where it does not (ADR-0031 decision 2).
+ *
+ * To write it by hand, copy it to the data directory named by `data-path.php`
+ * in the document root, or to `backend/config.php` if that file does not exist.
+ * Never leave a copy next to `index.php`: it holds the database password and
+ * the TOTP encryption key, and one webserver misconfiguration away it is a
+ * download.
  */
 return [
     'db' => [

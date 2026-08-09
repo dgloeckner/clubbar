@@ -315,6 +315,7 @@ class ServiceFactory implements ContainerInterface
             $this->getMandateDocumentRepository(),
             $this->getAuditService(),
             $this->logger,
+            $this->config,
             $this->getExtractionService(),
         ));
     }

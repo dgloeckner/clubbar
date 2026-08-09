@@ -654,7 +654,15 @@ jobs:
         run: docker compose -f ./docker-compose.yml -f ./docker-compose.ci.yml -f ./docker-compose.package.yml down -v --remove-orphans
 
       - name: Clean test artifacts from package
-        run: rm -f dist/package/config.php dist/package/.installer-data dist/package/.upgrade-secret dist/package/backend/storage/install.lock
+        # backend/config.php and data-path.php are written by the install wizard
+        # the smoke tests drive; shipping either in the release ZIP would hand
+        # every download this run's database credentials or its data path.
+        run: |
+          rm -f dist/package/config.php dist/package/backend/config.php \
+                dist/package/data-path.php \
+                dist/package/.installer-data dist/package/.upgrade-secret \
+                dist/package/backend/storage/install.lock
+          rm -rf dist/package/backend/storage/mandates dist/package/backend/storage/sessions
 
       - name: Create package ZIP
         id: package

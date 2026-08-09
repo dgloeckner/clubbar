@@ -6,6 +6,8 @@ namespace Tests\Unit\Modules\Members\Services;
 
 use App\Modules\Members\Repositories\MandateDocumentRepository;
 use App\Modules\Members\Services\MandateDocumentService;
+use App\Shared\Config\AppConfig;
+use App\Shared\Config\Env;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
@@ -29,7 +31,9 @@ class MandateDocumentServiceTest extends TestCase
 {
     private MandateDocumentRepository $repository;
     private AuditService $auditService;
+    private string $dataDir;
     private string $storageDir;
+    private array $envBackup = [];
     private MandateDocumentService $service;
 
     protected function setUp(): void
@@ -38,42 +42,59 @@ class MandateDocumentServiceTest extends TestCase
 
         $this->repository   = $this->createMock(MandateDocumentRepository::class);
         $this->auditService = $this->createMock(AuditService::class);
-        $this->storageDir   = sys_get_temp_dir() . '/mandate-service-test-' . bin2hex(random_bytes(6));
+
+        // The store follows the configured data directory (#245) — no override
+        // here, so these tests exercise the same path resolution production
+        // uses when the installer places that directory above the document root.
+        $this->dataDir    = sys_get_temp_dir() . '/mandate-service-test-' . bin2hex(random_bytes(6));
+        $this->storageDir = $this->dataDir . '/storage/mandates';
         mkdir($this->storageDir, 0777, true);
 
-        $storageDir = $this->storageDir;
-        $this->service = new class (
+        $this->envBackup = $_ENV;
+        $_ENV['DATA_DIR'] = $this->dataDir;
+        Env::reset();
+
+        $this->service = new MandateDocumentService(
             $this->repository,
             $this->auditService,
             $this->createMock(Logger::class),
-            $storageDir,
-        ) extends MandateDocumentService {
-            public function __construct(
-                MandateDocumentRepository $repository,
-                AuditService $auditService,
-                Logger $logger,
-                private string $testStorageDir,
-            ) {
-                parent::__construct($repository, $auditService, $logger);
-            }
-
-            public function getStorageDir(): string
-            {
-                return $this->testStorageDir;
-            }
-        };
+            new AppConfig(),
+        );
     }
 
     protected function tearDown(): void
     {
-        foreach (glob($this->storageDir . '/*') ?: [] as $file) {
-            unlink($file);
-        }
-        if (is_dir($this->storageDir)) {
-            rmdir($this->storageDir);
-        }
+        self::removeTree($this->dataDir);
+        $_ENV = $this->envBackup;
+        Env::reset();
 
         parent::tearDown();
+    }
+
+    public function test_the_store_lives_in_the_configured_data_directory(): void
+    {
+        $this->assertSame(
+            $this->dataDir . '/storage/mandates',
+            $this->service->getStorageDir(),
+            'A relocated data directory has to take the scanned mandates with it'
+        );
+    }
+
+    private static function removeTree(string $path): void
+    {
+        if (!is_dir($path)) {
+            return;
+        }
+
+        foreach (scandir($path) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            $child = "{$path}/{$entry}";
+            is_dir($child) ? self::removeTree($child) : unlink($child);
+        }
+
+        rmdir($path);
     }
 
     private function storedPdf(string $memberId): string

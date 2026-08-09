@@ -25,7 +25,7 @@ This guide covers deploying Club Bar on standard PHP shared hosting (e.g., Hetzn
 
 The installer guides you through five steps:
 
-1. **Prerequisites Check** — verifies PHP version, required extensions, and writable directories. All checks must pass before proceeding.
+1. **Prerequisites Check** — verifies PHP version, required extensions, and writable directories; reports where your data will be placed (see below); and fetches a file out of `backend/storage/` over HTTP to confirm your host actually refuses it. All checks marked ✗ must pass before proceeding. A **!** is a warning — the install will work, but a protection this host does not offer is being recorded rather than hidden.
 2. **Database Configuration** — enter your database host, port, name, username, and password. Use the **"Test Connection"** button to verify credentials before continuing. The installer writes `config.php` automatically.
 3. **Run Migrations** — click **"Run Migrations"** to create the database tables.
 4. **Create Admin User** — enter email and password for the first admin account.
@@ -40,6 +40,40 @@ The installer guides you through five steps:
 
 ## Security Hardening
 
+### Where Your Data Is Kept
+
+Three things must never be downloadable: `config.php` (database password and TOTP encryption key), the scanned SEPA mandates (a name, an IBAN and a handwritten signature each) and the application logs. The mandate filenames are the member UUIDs the admin API already hands to the browser, so they are enumerable, not secret.
+
+The installer therefore **looks for a writable directory above your document root** and, if it finds one, puts all three there ([ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) decision 2):
+
+| Layout | When | Where things go | What protects them |
+|---|---|---|---|
+| **Relocated** (preferred) | The directory above your document root is writable — the usual case on IONOS and most mass hosting | `<parent>/clubbar-data/{config.php,storage/,logs/}`, named by `data-path.php` in the document root | Not reachable by any URL. Nothing to misconfigure |
+| **In the document root** (fallback) | No writable parent directory | `config.php` next to `index.php`; `backend/storage/`, `backend/logs/` | The `.htaccess` rules shipped with Club Bar — which your host may stop honouring after a tariff or server change |
+
+The installer tells you which one you got, on the last screen. The fallback is fully supported — a hosting account with no writable parent must stay installable — it is just the *degraded* one, and it says so.
+
+**`data-path.php` matters.** It is one line naming your data directory. Delete it and the application looks for its config next to `index.php`, finds none, and sends you back to the installer. It is a `.php` file on purpose: a host that ignored `.htaccess` would print a `.txt` path file and execute this one.
+
+**Moving an existing installation.** `upgrade.php` offers the move as **step 4**, after migrations — a button naming the destination, never something it does on its own. Files are copied first and the originals removed only once the copies are in place, so a failed move leaves the installation running exactly where it was. The same screen offers the move back.
+
+To place the data somewhere specific instead, create the directory yourself, move `config.php`, `storage/` and `logs/` into it, and write the pointer:
+
+```php
+<?php  // data-path.php, in the document root
+return '/home/youraccount/clubbar-data';
+```
+
+**Verify:**
+
+```bash
+# The mandate store must never answer with a document
+curl -sI https://your-domain.com/backend/storage/mandates/ | head -1   # expect 403 or 404
+
+# In the relocated layout, there is nothing under the document root to serve
+ls -la /home/youraccount/clubbar-data     # config.php, storage/, logs/
+```
+
 ### PHP Runtime Settings
 
 **The application configures these itself, on every request, before anything else runs.** There is no `php.ini` to edit on mass hosting, and a `.user.ini` is honoured at the host's discretion — so the settings the deployment depends on live in code (`backend/src/Shared/Security/RuntimeHardening.php`, [ADR-0031](../adr/0031-production-hardening-on-shared-hosting.md) decision 1). Nothing you need to do, and nothing your host can silently drop:
@@ -51,15 +85,15 @@ The installer guides you through five steps:
 | `zend.exception_ignore_args` | on (off with `app.debug`) | Keeps the database password out of the trace that *is* recorded |
 | `session.use_strict_mode` | on | PHP's default is off, which means it accepts a session ID a visitor made up — the half of session fixation that regenerating the ID at login cannot cover |
 | `session.use_only_cookies`, `session.use_trans_sid` | on / off | A session ID may never travel in a URL, where it leaks through `Referer` headers and access logs |
-| `session.save_path` | `backend/storage/sessions` | By default PHP writes session files into a directory shared with the host's other accounts, where a readable session file is an admin login |
+| `session.save_path` | `storage/sessions` in the data directory | By default PHP writes session files into a directory shared with the host's other accounts, where a readable session file is an admin login |
 | `X-Powered-By` | removed | `expose_php` is `PHP_INI_SYSTEM` and out of reach on shared hosting; removing the header at runtime is the only lever available |
 
 Two consequences worth knowing about:
 
 - **Session files move on upgrade.** Everyone signed in at the moment of the upgrade is signed out once, because PHP looks for their session in the new directory. Nothing else is affected.
-- **`session.save_path` is applied only if the directory is writable.** An unwritable path would mean nobody can log in at all, so the app keeps the host default instead and records a `WARNING` in `backend/logs/<date>.log`. If you see one, fix the permissions on `backend/storage/` and restart.
+- **`session.save_path` is applied only if the directory is writable.** An unwritable path would mean nobody can log in at all, so the app keeps the host default instead and records a `WARNING` in the day's log file. If you see one, fix the permissions on the data directory's `storage/` and restart.
 
-To place sessions outside the document root — better still, where your hosting allows it — set `save_path` in `config.php`:
+Sessions follow the data directory, so an installation whose data was placed above the document root keeps its sessions there too. To put them somewhere else entirely, set `save_path` in `config.php`:
 
 ```php
 'session' => [
@@ -76,7 +110,7 @@ curl -I https://your-domain.com/api/health
 # X-Powered-By must be absent
 
 # Nothing but session files, readable by nobody else:
-ls -la backend/storage/sessions/     # drwx------, files -rw-------
+ls -la <data-directory>/storage/sessions/   # drwx------, files -rw-------
 ```
 
 ### HTTPS & TLS
@@ -101,7 +135,7 @@ curl -I https://your-domain.com/api/health
 
 ### Application Security
 
-- **Protect `config.php`** — ensure it is not publicly downloadable (the `.htaccess` file should already block this; verify by requesting `https://your-domain.com/config.php` in a browser)
+- **Protect `config.php`** — best done by having it outside the document root entirely (see *Where Your Data Is Kept* above). If your host forced the fallback layout, verify it is not downloadable by requesting `https://your-domain.com/config.php` in a browser: you must get an empty page or an error, never the file's text
 - **Delete `install.php`** after setup — restore it from the release ZIP only when upgrading
 
 ### Database Security
