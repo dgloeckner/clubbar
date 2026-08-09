@@ -1,0 +1,70 @@
+name: Mirror images
+
+# Copies the Docker Hub images the dev stack pulls into our own GHCR namespace.
+#
+# Why: anonymous Docker Hub pulls are rate limited per source IP. Claude Code
+# cloud sessions share an egress IP, so a few agents starting the stack at once
+# exhaust the budget and every pull afterwards fails with "429 Too Many
+# Requests" — for hours, and unfixable from inside the session. Public GHCR
+# packages have no such limit, so scripts/pull-images.sh falls back to the
+# mirror. This workflow is what keeps the mirror there and current.
+#
+# It runs in CI rather than from a laptop on purpose. `docker pull` + `docker
+# push` from an Apple Silicon machine publishes an arm64-only image; it pulls
+# fine and then dies with "exec format error" on every amd64 cloud session and
+# GitHub runner. scripts/mirror-images.sh uses `docker buildx imagetools
+# create`, which copies the manifest list untouched, so every architecture
+# survives regardless of what runs the copy.
+
+on:
+  # Manual: after adding an image to scripts/mirrored-images.txt, or to
+  # re-copy after an upstream tag moved.
+  workflow_dispatch:
+  # The image list changed — mirror whatever it now names.
+  push:
+    paths:
+      - 'scripts/mirrored-images.txt'
+      - 'scripts/mirror-images.sh'
+      - '.github/workflows/mirror-images.yaml'
+  # Floating tags (mariadb:10.11, node:20-alpine) get rebuilt upstream for
+  # security fixes. Weekly keeps the mirror from drifting far behind.
+  schedule:
+    - cron: '17 4 * * 1'
+
+concurrency:
+  group: mirror-images
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # GITHUB_TOKEN can only write packages this repository already owns. The
+      # mirrors created before this workflow existed were pushed with a personal
+      # token and are not linked to the repo yet, so the first run may 403 on
+      # them: open the package's settings once, "Manage Actions access", and add
+      # this repository with the Write role. Set a GHCR_TOKEN secret (a PAT with
+      # write:packages) to skip that entirely.
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Copy images to the mirror
+        run: scripts/mirror-images.sh
+
+      # Fails the job if a mirror is missing an architecture we run on, which is
+      # the failure mode that matters: an incomplete mirror is worse than none,
+      # because the fallback then hands a container that cannot exec.
+      - name: Verify every mirror carries amd64 and arm64
+        run: scripts/mirror-images.sh --check
