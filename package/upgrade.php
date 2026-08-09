@@ -39,6 +39,16 @@ if ($apiAction !== null || ($apiKey !== null && !isset($_GET['step']))) {
 }
 
 // --- Web wizard mode ---
+// The wizard session carries upgrade_key_verified; over plain HTTP it would
+// travel in clear text. Secure is set only when the request actually arrived
+// over TLS — otherwise the browser would drop the cookie and the wizard would
+// be unusable on a plain-HTTP host.
+session_set_cookie_params([
+    'path'     => '/',
+    'secure'   => upgradeRequestIsHttps(),
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 session_start();
 
 // Handle reset
@@ -177,6 +187,25 @@ renderPage($step, $error);
 // ============================================================================
 // API Mode (CI/CD — JSON responses)
 // ============================================================================
+
+/**
+ * True when the browser reached this script over TLS — directly, or through a
+ * reverse proxy that terminated it (common on shared hosting).
+ */
+function upgradeRequestIsHttps(): bool
+{
+    $https = $_SERVER['HTTPS'] ?? '';
+    if ($https !== '' && strtolower((string) $https) !== 'off') {
+        return true;
+    }
+
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+    if ($forwarded !== '') {
+        return strtolower(trim(explode(',', (string) $forwarded)[0])) === 'https';
+    }
+
+    return ((int) ($_SERVER['SERVER_PORT'] ?? 0)) === 443;
+}
 
 function handleApiMode(string $secretFile, string $configFile, string $zipFile, string $scriptPath): void
 {

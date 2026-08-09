@@ -10,6 +10,7 @@ class AppConfig
     public readonly bool   $debug;
     public readonly int    $sessionMaxAge;
     public readonly int    $sessionRegenInterval;
+    public readonly bool   $sessionCookieSecure;
     public readonly int    $tokenTtlDays;
     public readonly string $logDir;
     public readonly string $installKey;
@@ -35,10 +36,73 @@ class AppConfig
         $this->llmModel             = Env::get('LLM_MODEL', '') ?: null;
         $this->llmThinkingBudget    = (int) Env::get('LLM_THINKING_BUDGET', '0');
         $this->googleVisionKey      = Env::get('GCLOUD_VISION_API', '') ?: null;
+
+        // Resolved last — the default depends on $this->appUrl.
+        $this->sessionCookieSecure  = self::resolveSessionCookieSecure($this->appUrl);
     }
 
     public function isProduction(): bool
     {
         return $this->env === 'production';
+    }
+
+    /**
+     * Decide whether the session cookie carries the `Secure` attribute.
+     *
+     * Without it the `_session` cookie travels in clear text the moment a
+     * browser reaches the app over plain HTTP (a typed URL, a stale bookmark),
+     * handing anyone on the same network a fully authenticated admin session.
+     *
+     * The flag cannot simply be hard-coded to true: a Secure cookie is dropped
+     * by the browser over HTTP, which would break local development and the
+     * E2E suite, both of which run on http://localhost. So it is derived:
+     *
+     * 1. `SESSION_COOKIE_SECURE` wins when set to a recognizable boolean — the
+     *    escape hatch for setups the derivation gets wrong (and the way to
+     *    force it on). An unset or unparseable value falls through.
+     * 2. Otherwise true when `APP_URL` is an https:// URL, i.e. the deployment
+     *    describes itself as HTTPS-facing.
+     * 3. Otherwise true when *this* request arrived over TLS, so an install
+     *    that never set APP_URL still gets Secure cookies for the sessions it
+     *    establishes over HTTPS.
+     * 4. Otherwise false — plain-HTTP development.
+     */
+    private static function resolveSessionCookieSecure(string $appUrl): bool
+    {
+        $raw = Env::get('SESSION_COOKIE_SECURE', '');
+        if ($raw !== '') {
+            // FILTER_NULL_ON_FAILURE, not the plain cast: a typo in a security
+            // flag must fall through to the derivation below rather than
+            // silently switch it off. (The empty string is filtered out above —
+            // this filter would read it as an explicit false.)
+            $explicit = filter_var($raw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($explicit !== null) {
+                return $explicit;
+            }
+        }
+
+        if (str_starts_with(strtolower($appUrl), 'https://')) {
+            return true;
+        }
+
+        return self::requestIsHttps();
+    }
+
+    private static function requestIsHttps(): bool
+    {
+        $https = $_SERVER['HTTPS'] ?? '';
+        if ($https !== '' && strtolower((string) $https) !== 'off') {
+            return true;
+        }
+
+        // Behind a TLS-terminating reverse proxy the request itself is plain
+        // HTTP; the proxy reports the browser-facing scheme in this header.
+        $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+        if ($forwarded !== '') {
+            $first = trim(explode(',', (string) $forwarded)[0]);
+            return strtolower($first) === 'https';
+        }
+
+        return ((int) ($_SERVER['SERVER_PORT'] ?? 0)) === 443;
     }
 }

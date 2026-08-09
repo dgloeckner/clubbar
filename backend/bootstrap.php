@@ -25,6 +25,7 @@ ini_set('session.gc_maxlifetime', (string) $config->sessionMaxAge);
 session_set_cookie_params([
     'lifetime' => $config->sessionMaxAge,
     'path'     => '/',
+    'secure'   => $config->sessionCookieSecure,
     'httponly' => true,
     'samesite' => 'Lax',
 ]);

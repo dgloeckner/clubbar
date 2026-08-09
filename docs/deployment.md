@@ -48,13 +48,16 @@ The package `.htaccess` already includes HTTPS redirect (skipped on localhost fo
 
 **Setup:**
 1. Enable SSL in your hosting panel (most providers offer free Let's Encrypt certificates)
-2. Verify secure cookies work after enabling HTTPS
+2. Make sure the app knows it is HTTPS-facing, so the `_session` cookie is marked `Secure` and never travels in clear text: set `app.url` in `config.php` (or `APP_URL` in `.env`) to the `https://` address. The installer writes it from the scheme it was reached on, so installing over HTTPS already does the right thing. `SESSION_COOKIE_SECURE` / `session.cookie_secure` forces the flag on or off if the derivation is wrong for your setup.
 
 **Verify:**
 
 ```bash
 curl -I https://your-domain.com/api/health
 # Check for: Strict-Transport-Security, X-Content-Type-Options headers
+
+# Log in to the admin panel, then check the login response in the browser's
+# network tab: the _session Set-Cookie must carry Secure; HttpOnly; SameSite=Lax
 ```
 
 ### Application Security

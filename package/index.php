@@ -21,6 +21,11 @@ $_ENV['APP_DEBUG'] = ($config['app']['debug'] ?? false) ? 'true' : 'false';
 $_ENV['APP_URL'] = $config['app']['url'] ?? '';
 $_ENV['SESSION_MAX_AGE'] = (string) ($config['session']['max_age'] ?? 7200);
 $_ENV['SESSION_REGEN_INTERVAL'] = (string) ($config['session']['regeneration_interval'] ?? 900);
+// Optional override. Left unset, AppConfig derives the cookie's Secure flag
+// from the app URL and the request scheme — see AppConfig::resolveSessionCookieSecure().
+if (isset($config['session']['cookie_secure'])) {
+    $_ENV['SESSION_COOKIE_SECURE'] = $config['session']['cookie_secure'] ? 'true' : 'false';
+}
 $_ENV['API_TOKEN_TTL_DAYS'] = (string) ($config['api_token']['ttl_days'] ?? 90);
 $_ENV['TOTP_ENCRYPTION_KEY'] = $config['security']['totp_encryption_key'] ?? '';
 $_ENV['LLM_PROVIDER']        = $config['llm']['provider'] ?? '';

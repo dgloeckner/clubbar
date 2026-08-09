@@ -204,7 +204,7 @@ No implementation required — lifecycle managed externally on paper.
 |---|---|---|
 | HTTPS mandatory | [x] Documented | HTTPS redirect config in `docs/deployment.md` |
 | TLS 1.2+ required | [x] Documented | Web server config examples provided |
-| Secure cookie attributes | [x] Partial | HttpOnly + SameSite=Lax set; Secure requires HTTPS |
+| Secure cookie attributes | [x] Done | HttpOnly + SameSite=Lax + Secure set in `bootstrap.php`; Secure is derived from `APP_URL`/request scheme, overridable via `SESSION_COOKIE_SECURE` (issue #105) |
 | HSTS header | [x] Documented | Apache/nginx examples in deployment docs |
 | Security headers | [x] Documented | X-Content-Type-Options, X-Frame-Options, CSP examples |
 

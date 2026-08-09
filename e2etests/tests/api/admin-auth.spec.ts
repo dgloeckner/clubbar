@@ -569,5 +569,31 @@ test.describe("Admin Authentication", () => {
         await ctx.dispose()
       }
     })
+
+    test("login Set-Cookie carries the hardening attributes", async ({ playwright }) => {
+      const ctx = await playwright.request.newContext()
+      try {
+        const resp = await ctx.post(`${API_BASE}/auth/login`, {
+          data: {
+            email: TEST_CREDENTIALS.admin.email,
+            password: TEST_CREDENTIALS.admin.password,
+          },
+        })
+        const setCookie = resp.headers()["set-cookie"] ?? ""
+
+        expect(setCookie).toMatch(/_session=/)
+        expect(setCookie).toMatch(/HttpOnly/i)
+        expect(setCookie).toMatch(/SameSite=Lax/i)
+
+        // Secure is derived (issue #105): on over HTTPS, off here — the suite
+        // runs on http://localhost, where the browser drops a Secure cookie and
+        // no session could be established at all. The derivation itself is
+        // covered by backend/tests/Unit/Shared/Config/AppConfigTest.php.
+        const overHttps = API_BASE.startsWith("https://")
+        expect(/;\s*Secure/i.test(setCookie)).toBe(overHttps)
+      } finally {
+        await ctx.dispose()
+      }
+    })
   })
 });
