@@ -19,10 +19,46 @@ class TotpServiceTest extends TestCase
     // Same value published in backend/.env.example — anyone who reads the repo knows it.
     private const DOT_ENV_EXAMPLE_DEFAULT_KEY = '0000000000000000000000000000000000000000000000000000000000000001';
 
+    /** The process-level key, if the surrounding environment set one. */
+    private ?string $processKey = null;
+
+    protected function setUp(): void
+    {
+        $inherited = getenv('TOTP_ENCRYPTION_KEY');
+        $this->processKey = $inherited === false ? null : $inherited;
+    }
+
     protected function tearDown(): void
     {
         unset($_ENV['TOTP_ENCRYPTION_KEY'], $_ENV['APP_ENV']);
+        $this->restoreProcessKey();
         Env::reset();
+    }
+
+    /**
+     * Hide the key from every source `Env::get()` consults.
+     *
+     * Clearing `$_ENV` alone is not enough: `Env::get()` falls back to
+     * `getenv()`, and docker-compose sets TOTP_ENCRYPTION_KEY as a real process
+     * variable. So this test used to pass only where the variable happened to be
+     * absent — on CI, which runs PHPUnit on the host — and fail in the container,
+     * which is where CLAUDE.md tells everyone to run backend tests.
+     */
+    private function hideEncryptionKey(): void
+    {
+        unset($_ENV['TOTP_ENCRYPTION_KEY']);
+        putenv('TOTP_ENCRYPTION_KEY');
+        Env::reset();
+    }
+
+    /** Put the inherited process variable back, so later tests still see it. */
+    private function restoreProcessKey(): void
+    {
+        putenv(
+            $this->processKey === null
+                ? 'TOTP_ENCRYPTION_KEY'
+                : 'TOTP_ENCRYPTION_KEY=' . $this->processKey
+        );
     }
 
     private function service(string $key = self::VALID_KEY): TotpService
@@ -39,7 +75,7 @@ class TotpServiceTest extends TestCase
 
     public function test_constructor_throws_when_encryption_key_is_missing(): void
     {
-        unset($_ENV['TOTP_ENCRYPTION_KEY']);
+        $this->hideEncryptionKey();
 
         $this->expectException(\RuntimeException::class);
         new TotpService();
@@ -47,12 +83,40 @@ class TotpServiceTest extends TestCase
 
     public function test_constructor_throws_when_encryption_key_is_not_valid_hex(): void
     {
-        $_ENV['TOTP_ENCRYPTION_KEY'] = 'not-a-hex-string!!';
+        $_ENV['TOTP_ENCRYPTION_KEY'] = str_repeat('z', 64);
 
-        // hex2bin() returns false on invalid input; assigning that to the
-        // string-typed $encryptionKey property fails under strict_types.
-        $this->expectException(\TypeError::class);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('TOTP_ENCRYPTION_KEY');
         new TotpService();
+    }
+
+    /**
+     * openssl pads a short key with NUL to reach the 32 bytes AES-256 wants, so
+     * a truncated key silently weakens every stored secret instead of failing.
+     *
+     * @dataProvider unusableKeys
+     */
+    public function test_constructor_rejects_a_key_that_is_not_thirty_two_bytes(string $keyHex): void
+    {
+        $_ENV['TOTP_ENCRYPTION_KEY'] = $keyHex;
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('TOTP_ENCRYPTION_KEY');
+        new TotpService();
+    }
+
+    /** @return array<string, array{string}> */
+    public static function unusableKeys(): array
+    {
+        return [
+            // What package/index.php stores when config.php has no
+            // security.totp_encryption_key: every such install would otherwise
+            // share a key of 32 NUL bytes.
+            'empty' => [''],
+            'half length' => [str_repeat('a', 32)],
+            'one hex char short' => [str_repeat('a', 63)],
+            'one hex char long' => [str_repeat('a', 65)],
+        ];
     }
 
     public function test_constructor_accepts_the_dot_env_example_default_key_without_any_warning(): void
@@ -170,7 +234,7 @@ class TotpServiceTest extends TestCase
     {
         $encrypted = $this->service(self::VALID_KEY)->encrypt('JBSWY3DPEHPK3PXP');
 
-        $otherKey = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+        $otherKey = str_repeat('f', 64);
         $result = $this->service($otherKey)->decrypt($encrypted);
 
         $this->assertNotSame('JBSWY3DPEHPK3PXP', $result);
