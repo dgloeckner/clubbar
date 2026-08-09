@@ -232,4 +232,35 @@ export class SettlementsPage extends BasePage {
     await responsePromise
     await this.waitForPageLoad()
   }
+
+  /**
+   * ACCESSIBLE NAMES AND VISIBLE LABELS (#138)
+   *
+   * Undo is the destructive action on this page and renders as a bare glyph,
+   * so its accessible name is the only thing announcing it. The exports were
+   * labelled SEPA/CSV/TXN with hardcoded English tooltips; the labels now come
+   * from the locale and every button carries an explanatory accessible name.
+   */
+
+  async getUndoAccessibleName(settlementId: string): Promise<string | null> {
+    return this.page.getByTestId(`settlements-undo-btn-${settlementId}`).getAttribute('aria-label')
+  }
+
+  async getExportButtonLabels(settlementId: string): Promise<string[]> {
+    return Promise.all([
+      this.page.getByTestId(`settlements-export-sepa-btn-${settlementId}`).innerText(),
+      this.page.getByTestId(`settlements-export-csv-btn-${settlementId}`).innerText(),
+      this.page.getByTestId(`settlements-export-transactions-btn-${settlementId}`).innerText(),
+    ])
+  }
+
+  async getExportButtonAccessibleNames(settlementId: string): Promise<(string | null)[]> {
+    return Promise.all([
+      this.page.getByTestId(`settlements-export-sepa-btn-${settlementId}`).getAttribute('aria-label'),
+      this.page.getByTestId(`settlements-export-csv-btn-${settlementId}`).getAttribute('aria-label'),
+      this.page
+        .getByTestId(`settlements-export-transactions-btn-${settlementId}`)
+        .getAttribute('aria-label'),
+    ])
+  }
 }

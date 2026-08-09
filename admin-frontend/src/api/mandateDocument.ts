@@ -13,9 +13,11 @@ export type MandateDocumentInfo = MandateDocument
  * leave a blank tab behind. Going through `downloadFile` also puts the request
  * on the API client, so it carries auth and surfaces the API's error message
  * instead of rendering a JSON 404 as a page.
+ *
+ * `downloadFile` hands back the response headers for callers that read a
+ * warning out of them (#114); a PDF says everything it has to say in the file,
+ * so the headers are dropped here rather than widening this signature.
  */
 export async function downloadMandateDocument(memberId: string): Promise<void> {
-  // Awaited, not returned: `downloadFile` hands back the response headers since
-  // #114, and the only caller here wants the file saved, not the metadata.
   await downloadFile(`/admin/members/${memberId}/mandate-document`, 'mandate.pdf')
 }

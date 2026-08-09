@@ -359,4 +359,20 @@ export class CategoriesPage extends BasePage {
     if (await this.confirmMessage().count() === 0) return null
     return this.confirmMessage().textContent()
   }
+
+  /**
+   * ACCESSIBLE NAMES (#138)
+   *
+   * The desktop row actions are icon-only; their accessible name has to name
+   * the category or every row exposes the same two anonymous controls.
+   */
+
+  async expectRowActionsNameTheCategory(categoryId: string, categoryName: string) {
+    await expect(
+      this.page.getByTestId(`categories-table-action-edit-${categoryId}`)
+    ).toHaveAccessibleName(new RegExp(categoryName))
+    await expect(
+      this.page.getByTestId(`categories-table-action-delete-${categoryId}`)
+    ).toHaveAccessibleName(new RegExp(categoryName))
+  }
 }
