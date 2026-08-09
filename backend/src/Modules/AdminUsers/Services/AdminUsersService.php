@@ -58,14 +58,41 @@ class AdminUsersService
         return ['admin' => AdminUserDto::fromRow($admin), 'password' => $password];
     }
 
+    /**
+     * True when the address is already registered to some *other* admin user.
+     *
+     * `admin_users.email` is UNIQUE, so a duplicate that reaches the INSERT
+     * comes back as a PDOException and a 500. Both write paths — the
+     * admin-users endpoint and the own-profile endpoint — ask this first (#117).
+     */
+    public function emailTakenByAnother(string $email, ?string $excludeId = null): bool
+    {
+        $existing = $this->adminUsersRepository->findByEmail($email);
+
+        return $existing !== null && $existing['id'] !== $excludeId;
+    }
+
+    /**
+     * Apply a partial update.
+     *
+     * A body carrying `is_active` alongside `email`, `display_name` or `locale`
+     * used to (de)activate and return early, silently discarding the other
+     * three fields (#117). All of them are applied now.
+     *
+     * The activation change goes first on purpose: its guard rails — no
+     * deactivating your own account, no deactivating the last active admin —
+     * throw before anything is written, so a refused request leaves the record
+     * exactly as it was rather than half-updated.
+     */
     public function updateAdminUser(string $id, array $validated, ?string $currentAdminId = null): ?AdminUserDto
     {
+        $activated = null;
         if (array_key_exists('is_active', $validated)) {
-            if ($validated['is_active']) {
-                return $this->reactivateAdminUser($id, $currentAdminId);
-            } else {
-                return $this->deactivateAdminUser($id, $currentAdminId ?? '');
-            }
+            $active = filter_var($validated['is_active'], FILTER_VALIDATE_BOOLEAN);
+
+            $activated = $active
+                ? $this->reactivateAdminUser($id, $currentAdminId)
+                : $this->deactivateAdminUser($id, $currentAdminId ?? '');
         }
 
         $data = [];
@@ -73,7 +100,7 @@ class AdminUsersService
         if (isset($validated['display_name'])) $data['display_name'] = $validated['display_name'];
         if (isset($validated['locale'])) $data['locale'] = $validated['locale'];
 
-        if (empty($data)) return $this->findAdminUserById($id);
+        if (empty($data)) return $activated ?? $this->findAdminUserById($id);
 
         $admin = $this->adminUsersRepository->updateById($id, $data);
         if (!$admin) return null;

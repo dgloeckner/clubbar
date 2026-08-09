@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\AdminUsers\Controllers;
 
 use App\Modules\AdminUsers\Services\AdminUsersService;
-use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Shared\Validation\Validator;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Http\ListQuery;
@@ -19,7 +18,6 @@ class AdminController
 
     public function __construct(
         private AdminUsersService $adminUsersService,
-        private AdminUsersRepository $adminUsersRepository,
         private Validator $validator,
     ) {}
 
@@ -55,8 +53,7 @@ class AdminController
         }
 
         // Check for duplicate email
-        $existing = $this->adminUsersRepository->findByEmail($body['email']);
-        if ($existing) {
+        if ($this->adminUsersService->emailTakenByAnother($body['email'])) {
             return $this->json($response, [
                 'error' => 'validation_failed',
                 'messages' => ['email' => ['Email already exists']]
@@ -105,14 +102,11 @@ class AdminController
         }
 
         // Check email uniqueness if provided
-        if (isset($body['email'])) {
-            $existing = $this->adminUsersRepository->findByEmail($body['email']);
-            if ($existing && $existing['id'] !== $id) {
-                return $this->json($response, [
-                    'error' => 'validation_failed',
-                    'messages' => ['email' => ['Email already exists']]
-                ], 422);
-            }
+        if (isset($body['email']) && $this->adminUsersService->emailTakenByAnother($body['email'], $id)) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'messages' => ['email' => ['Email already exists']]
+            ], 422);
         }
 
         $admin = $this->adminUsersService->updateAdminUser($id, $body, $adminId);

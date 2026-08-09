@@ -21,6 +21,36 @@ class AdminController
 {
     use JsonResponder;
 
+    /**
+     * One rule set for the member fields a client may write.
+     *
+     * Create and update used to disagree about which fields were checked at
+     * all: `phone`, `email`, `mandate_reference` and `mandate_signed_at`
+     * carried no length or format rule on either path, so an over-long phone
+     * number or a malformed date reached MariaDB in strict mode and came back
+     * as a PDOException — a 500 that named nothing (#117). The lengths mirror
+     * the column widths in `001_initial_schema.sql` and `007_critical_remediation.sql`.
+     *
+     * Create adds `required` (and the `unique` card check) on top; update
+     * validates only the keys the request actually carries, so a PATCH of one
+     * field is not rejected for the absence of the others.
+     */
+    private const FIELD_RULES = [
+        'first_name' => ['nullable', 'string', 'max:100'],
+        'last_name' => ['nullable', 'string', 'max:100'],
+        'email' => ['nullable', 'email', 'max:255'],
+        'phone' => ['nullable', 'string', 'max:20'],
+        'preferred_language' => ['nullable', 'string', 'in:de,en,fr'],
+        'account_holder_name' => ['nullable', 'string', 'max:70'],
+        'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/'],
+        // `iban` bounds the compact form at 34 characters on its own; `max:34`
+        // additionally rejects a value padded past the column width with the
+        // spaces IBANs are conventionally printed with.
+        'iban' => ['nullable', 'string', 'iban', 'max:34'],
+        'mandate_reference' => ['nullable', 'string', 'max:35'],
+        'mandate_signed_at' => ['nullable', 'date'],
+    ];
+
     public function __construct(
         private MembersService $membersService,
         private Validator $validator,
@@ -91,15 +121,14 @@ class AdminController
         $body = $request->getParsedBody() ?? [];
         $adminId = $request->getAttribute('admin_user_id');
 
-        if (!$this->validator->validate($body, [
-            'first_name' => ['required', 'string', 'max:100'],
-            'last_name' => ['required', 'string', 'max:100'],
-            'email' => ['required', 'email'],
-            'preferred_language' => ['required', 'string', 'in:de,en,fr'],
-            'account_holder_name' => ['nullable', 'string', 'max:70'],
-            'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/', 'unique:members,card_uid'],
-            'iban' => ['nullable', 'string', 'iban'],
-        ])) {
+        $rules = self::FIELD_RULES;
+        $rules['first_name'][] = 'required';
+        $rules['last_name'][] = 'required';
+        $rules['email'][] = 'required';
+        $rules['preferred_language'][] = 'required';
+        $rules['card_uid'][] = 'unique:members,card_uid';
+
+        if (!$this->validator->validate($body, $rules)) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
@@ -140,31 +169,16 @@ class AdminController
         $body = $request->getParsedBody() ?? [];
         $adminId = $request->getAttribute('admin_user_id');
 
-        // Validate card_uid if provided
-        if (isset($body['card_uid'])) {
-            if (!$this->validator->validate($body, [
-                'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/', "unique:members,card_uid,{$memberId}"],
-            ])) {
-                return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
-            }
+        // Only the fields the request carries are checked — three of them used
+        // to be checked one at a time in separate passes, and the other seven
+        // not at all.
+        $rules = array_intersect_key(self::FIELD_RULES, $body);
+        if (isset($rules['card_uid'])) {
+            $rules['card_uid'][] = "unique:members,card_uid,{$memberId}";
         }
 
-        // Validate preferred_language if provided
-        if (isset($body['preferred_language'])) {
-            if (!$this->validator->validate($body, [
-                'preferred_language' => ['string', 'in:de,en,fr'],
-            ])) {
-                return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
-            }
-        }
-
-        // Validate IBAN if provided
-        if (isset($body['iban']) && $body['iban'] !== null && $body['iban'] !== '') {
-            if (!$this->validator->validate($body, [
-                'iban' => ['string', 'iban'],
-            ])) {
-                return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
-            }
+        if ($rules !== [] && !$this->validator->validate($body, $rules)) {
+            return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
         $member = $this->membersService->updateMember($memberId, $body, $adminId);

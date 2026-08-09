@@ -4003,6 +4003,10 @@ components:
         email:
           type: string
           format: email
+          maxLength: 255
+        phone:
+          type: string
+          maxLength: 20
         preferred_language:
           type: string
           description: ISO 639-1 language code
@@ -4041,6 +4045,11 @@ components:
         email:
           type: string
           format: email
+          maxLength: 255
+          nullable: true
+        phone:
+          type: string
+          maxLength: 20
           nullable: true
         preferred_language:
           type: string

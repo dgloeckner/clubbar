@@ -8,6 +8,7 @@ use App\Modules\Transactions\Services\TransactionsService;
 use App\Modules\Transactions\Sync\TerminalTransactionAllowlist;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Http\JsonResponder;
+use App\Shared\Http\ListQuery;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -131,8 +132,12 @@ class SyncController
     {
         $memberId = $args['memberId'];
         $params = $request->getQueryParams();
-        $limit = (int) ($params['limit'] ?? 50);
-        $offset = (int) ($params['offset'] ?? 0);
+        // Clamped, not rejected: this is a terminal talking, and a 400 in the
+        // middle of a sync is worse for it than a shorter page. Unclamped,
+        // `limit=-1` and `offset=-5` went straight into LIMIT/OFFSET and came
+        // back as a SQL error, i.e. a 500 (#117).
+        $limit = min(max((int) ($params['limit'] ?? 50), 1), ListQuery::MAX_PER_PAGE);
+        $offset = max((int) ($params['offset'] ?? 0), 0);
         $since = $params['since'] ?? null;
 
         // Check member exists first

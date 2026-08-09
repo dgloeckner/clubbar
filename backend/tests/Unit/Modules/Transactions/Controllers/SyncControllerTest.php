@@ -249,4 +249,42 @@ class SyncControllerTest extends TestCase
         $this->assertSame(400, $response->getStatusCode());
         $this->assertSame('invalid_request', $this->decode($response)['error']);
     }
+
+    /**
+     * `limit` and `offset` on the history endpoint used to go into LIMIT/OFFSET
+     * as the terminal sent them, so `limit=-1` was a SQL error and therefore a
+     * 500 (#117). They are clamped rather than refused: a 400 in the middle of
+     * a sync costs the terminal more than a shorter page does.
+     *
+     * @return array<string, array{0: array<string, string>, 1: int, 2: int}>
+     */
+    public static function historyPagination(): array
+    {
+        return [
+            'defaults' => [[], 50, 0],
+            'negative limit' => [['limit' => '-1'], 1, 0],
+            'zero limit' => [['limit' => '0'], 1, 0],
+            'negative offset' => [['offset' => '-5'], 50, 0],
+            'limit past the cap' => [['limit' => '100000000'], 100, 0],
+            'both out of range' => [['limit' => '-1', 'offset' => '-5'], 1, 0],
+            'a page the terminal may legitimately ask for' => [['limit' => '25', 'offset' => '50'], 25, 50],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('historyPagination')]
+    public function test_history_pagination_is_clamped_into_range(array $query, int $limit, int $offset): void
+    {
+        $this->transactionsService->expects($this->once())
+            ->method('getRecentTransactionsForMember')
+            ->with('member-1', $limit, $offset, null)
+            ->willReturn([]);
+
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('GET', '/api/terminal/transactions/member-1')
+            ->withQueryParams($query);
+
+        $response = $this->controller->transactionHistory($request, new Response(), ['memberId' => 'member-1']);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
 }

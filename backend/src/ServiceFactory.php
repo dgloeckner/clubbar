@@ -575,7 +575,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getAdminUsersAdminController(): AdminUsersAdminController
     {
-        return $this->resolve(AdminUsersAdminController::class, fn() => new AdminUsersAdminController($this->getAdminUsersService(), $this->getAdminUsersRepository(), $this->getValidator()));
+        return $this->resolve(AdminUsersAdminController::class, fn() => new AdminUsersAdminController($this->getAdminUsersService(), $this->getValidator()));
     }
 
     public function getAuditLogAdminController(): AuditLogAdminController

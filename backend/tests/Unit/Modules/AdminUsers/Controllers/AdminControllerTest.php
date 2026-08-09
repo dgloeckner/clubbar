@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\AdminUsers\Controllers;
 
 use App\Modules\AdminUsers\Controllers\AdminController;
-use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\AdminUsers\DTOs\AdminUserDto;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Shared\DTOs\PaginatedResultDto;
 use App\Shared\Exceptions\InvalidQueryParameterException;
@@ -36,7 +36,6 @@ class AdminControllerTest extends TestCase
 
         $this->controller = new AdminController(
             $this->service,
-            $this->createMock(AdminUsersRepository::class),
             new Validator($this->createMock(\PDO::class)),
         );
     }
@@ -101,5 +100,75 @@ class AdminControllerTest extends TestCase
         $this->expectException(InvalidQueryParameterException::class);
 
         $this->controller->index($this->get('/api/admin/admin-users', ['per_page' => '500']), new Response());
+    }
+
+    /**
+     * Both write paths ask the same question of the same service method (#117),
+     * so the answer cannot drift between them the way it had between this
+     * endpoint and `PATCH /api/auth/profile`.
+     */
+    public function test_store_refuses_an_address_that_is_already_registered(): void
+    {
+        $this->service->method('emailTakenByAnother')->with('taken@example.org')->willReturn(true);
+        $this->service->expects($this->never())->method('createAdminUser');
+
+        $response = $this->controller->store(
+            $this->post(['email' => 'taken@example.org', 'display_name' => 'Someone', 'locale' => 'de']),
+            new Response(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame(['Email already exists'], $this->decode($response)['messages']['email']);
+    }
+
+    public function test_update_refuses_an_address_another_admin_holds(): void
+    {
+        $this->service->method('emailTakenByAnother')->with('taken@example.org', 'a-1')->willReturn(true);
+        $this->service->expects($this->never())->method('updateAdminUser');
+
+        $response = $this->controller->update(
+            $this->post(['email' => 'taken@example.org']),
+            new Response(),
+            ['id' => 'a-1'],
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame(['Email already exists'], $this->decode($response)['messages']['email']);
+    }
+
+    public function test_update_lets_an_admin_keep_their_own_address(): void
+    {
+        $this->service->method('emailTakenByAnother')->willReturn(false);
+        $this->service->expects($this->once())->method('updateAdminUser')->willReturn($this->admin());
+
+        $response = $this->controller->update(
+            $this->post(['email' => 'mine@example.org']),
+            new Response(),
+            ['id' => 'a-1'],
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /** @param array<string, mixed> $body */
+    private function post(array $body): \Psr\Http\Message\ServerRequestInterface
+    {
+        return (new ServerRequestFactory())
+            ->createServerRequest('POST', '/api/admin/admin-users')
+            ->withParsedBody($body)
+            ->withAttribute('admin_user_id', 'admin-1');
+    }
+
+    private function admin(): AdminUserDto
+    {
+        return AdminUserDto::fromRow([
+            'id' => 'a-1',
+            'email' => 'mine@example.org',
+            'display_name' => 'Someone',
+            'locale' => 'de',
+            'is_active' => 1,
+            'created_at' => '2026-01-01 00:00:00',
+            'updated_at' => '2026-01-01 00:00:00',
+        ]);
     }
 }

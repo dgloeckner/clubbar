@@ -8,6 +8,23 @@ use App\Shared\Utils\BankingCalendar;
 
 class Validator
 {
+    /**
+     * The date shapes the `date` rule accepts, in the order they are tried.
+     *
+     * A plain `Y-m-d` is what every date field in this system stores and what
+     * every client sends; the ISO-8601 variants are here so a timestamp
+     * serialised by a JavaScript client is not rejected out of hand.
+     */
+    private const DATE_FORMATS = [
+        'Y-m-d',
+        'Y-m-d H:i:s',
+        'Y-m-d\TH:i:s',
+        'Y-m-d\TH:i:sP',
+        'Y-m-d\TH:i:s.vP',
+        'Y-m-d\TH:i:s\Z',
+        'Y-m-d\TH:i:s.v\Z',
+    ];
+
     private array $errors = [];
 
     public function __construct(
@@ -46,7 +63,7 @@ class Validator
         return match ($ruleName) {
             'required' => ($value === null || $value === '') ? "{$field} is required" : null,
             'string'   => (!is_string($value) && $value !== null) ? "{$field} must be a string" : null,
-            'integer'  => (!is_numeric($value) && $value !== null) ? "{$field} must be an integer" : null,
+            'integer'  => $this->validateInteger($field, $value),
             'numeric'  => (!is_numeric($value) && $value !== null) ? "{$field} must be numeric" : null,
             'email'    => ($value && !filter_var($value, FILTER_VALIDATE_EMAIL)) ? "{$field} must be a valid email" : null,
             'min'      => $this->validateMin($field, $value, $param),
@@ -57,7 +74,7 @@ class Validator
             'lte'      => (is_numeric($value) && $value > (int)$param) ? "{$field} must be at most {$param}" : null,
             'boolean'  => (!is_bool($value) && $value !== null && $value !== 0 && $value !== 1 && $value !== '0' && $value !== '1') ? "{$field} must be a boolean" : null,
             'uuid'     => ($value && !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $value)) ? "{$field} must be a valid UUID" : null,
-            'date'     => ($value && !strtotime($value)) ? "{$field} must be a valid date" : null,
+            'date'     => $this->validateDate($field, $value),
             'business_day' => $this->validateBusinessDay($field, $value),
             'array'    => ($value !== null && !is_array($value)) ? "{$field} must be an array" : null,
             'json'     => ($value !== null && !is_array($value) && json_decode((string)$value) === null) ? "{$field} must be valid JSON" : null,
@@ -69,6 +86,63 @@ class Validator
             'unique'   => $this->validateUnique($field, $value, $param),
             default    => null,
         };
+    }
+
+    /**
+     * Whole numbers only.
+     *
+     * The rule used to be `is_numeric()`, which passes `"1.5"` — and every
+     * caller of an `integer` field casts with `(int)`, so `amount_cents: "12.9"`
+     * was accepted and then silently booked as 12 cents (#117). Anything that
+     * would not survive the cast intact is rejected here instead.
+     */
+    private function validateInteger(string $field, mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $message = "{$field} must be an integer";
+
+        if (is_bool($value) || !is_numeric($value)) {
+            return $message;
+        }
+
+        // Compare as floats so the check survives numeric strings and floats
+        // alike: "12" and 12.0 pass, "1.5" and 1e30 do not.
+        return (float) (int) $value === (float) $value ? null : $message;
+    }
+
+    /**
+     * Calendar dates only, in a format the database and the SEPA XML accept.
+     *
+     * `strtotime()` parses relative expressions, so the rule used to accept
+     * `"next tuesday"`, `"now"` and `"+1 day"` (#117) — values that reach a
+     * DATE column as garbage, or worse, as a date that changes with the clock.
+     * A date must now match one of the formats below exactly; the round-trip
+     * comparison also rules out overflow like `2026-02-30`.
+     */
+    private function validateDate(string $field, mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $message = "{$field} must be a valid date";
+
+        if (!is_string($value)) {
+            return $message;
+        }
+
+        foreach (self::DATE_FORMATS as $format) {
+            $parsed = \DateTimeImmutable::createFromFormat($format, $value);
+
+            if ($parsed !== false && $parsed->format($format) === $value) {
+                return null;
+            }
+        }
+
+        return $message;
     }
 
     private function validateMin(string $field, mixed $value, ?string $param): ?string
