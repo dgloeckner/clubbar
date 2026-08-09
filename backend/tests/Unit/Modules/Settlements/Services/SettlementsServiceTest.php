@@ -1849,6 +1849,7 @@ class SettlementsServiceTest extends TestCase
 
     public function test_markExported_delegates_to_repository_and_writes_audit_entry(): void
     {
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow());
         $this->settlementsRepository
             ->expects($this->once())
             ->method('markExported')
@@ -1883,6 +1884,53 @@ class SettlementsServiceTest extends TestCase
         $this->expectExceptionMessageMatches('/cancelled/i');
 
         $this->service->markExported('settlement-1', 'admin-1');
+    }
+
+    public function test_markExported_refuses_an_id_that_names_no_settlement(): void
+    {
+        // #114: the audit log used to record an export for any id at all. The
+        // UPDATE matched nothing and said nothing — PDO::execute() reports that
+        // the statement ran, not that it changed a row — so the entry claimed a
+        // file had gone out for a settlement that was never there.
+        $this->settlementsRepository->method('findById')->willReturn(null);
+        $this->settlementsRepository->expects($this->never())->method('markExported');
+        $this->auditService->expects($this->never())->method('log');
+
+        $this->expectException(NotFoundException::class);
+
+        $this->service->markExported('missing-id', 'admin-1');
+    }
+
+    public function test_markExported_records_what_the_file_left_out_in_the_audit_entry(): void
+    {
+        // The export's own report of its omissions has to outlive the HTTP
+        // response, which is a file download the browser saves and forgets.
+        $this->settlementsRepository->method('findById')->willReturn($this->cancellableRow());
+        $this->settlementsRepository->method('markExported')->willReturn(true);
+
+        $summary = [
+            'collected_amount_cents' => 1500,
+            'settlement_amount_cents' => 3500,
+            'shortfall_amount_cents' => 2000,
+            'excluded_members' => [['member_id' => 'member-2', 'reason' => 'no_active_mandate']],
+        ];
+
+        $this->auditService
+            ->expects($this->once())
+            ->method('log')
+            ->with(
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->anything(),
+                $this->callback(static fn(array $newValues): bool => $newValues['shortfall_amount_cents'] === 2000
+                    && $newValues['collected_amount_cents'] === 1500
+                    && $newValues['excluded_members'][0]['member_id'] === 'member-2'
+                    && array_key_exists('exported_at', $newValues)),
+                $this->anything(),
+            );
+
+        $this->service->markExported('settlement-1', 'admin-1', $summary);
     }
 
     // ── getCsvData ───────────────────────────────────────────────────

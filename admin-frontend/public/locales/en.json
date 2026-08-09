@@ -326,7 +326,8 @@
     "summary": "Summary",
     "undoConfirm": "Undo this settlement? All transactions will return to Open state.",
     "sortNewest": "Newest first",
-    "sortOldest": "Oldest first"
+    "sortOldest": "Oldest first",
+    "exportShortfall": "The SEPA file leaves out {{count}} member(s): it collects {{collected}} of the {{total}} this settlement records, {{shortfall}} short. Check the bank details of the members named in the audit log entry for this export."
   },
   "statistics": {
     "title": "Statistics",

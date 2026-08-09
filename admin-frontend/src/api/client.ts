@@ -164,7 +164,19 @@ async function readDownloadError(error: unknown): Promise<Error> {
   return new Error(getApiErrorMessage(error, error.message))
 }
 
-export async function downloadFile(url: string, fallbackFilename: string): Promise<void> {
+/**
+ * Fetch a file and save it, honouring the filename the backend sends.
+ *
+ * Returns the response headers, lower-cased by axios. Some downloads say
+ * something the file itself cannot: the SEPA export reports the members it
+ * left out of the bank file on `X-Uncollectable-Members` and friends, because
+ * the body is the pain.008 document and has nowhere to put a warning (#114).
+ * Callers with nothing to read may ignore the return value.
+ */
+export async function downloadFile(
+  url: string,
+  fallbackFilename: string
+): Promise<Record<string, string>> {
   let response
   try {
     response = await axiosInstance.get(url, { responseType: 'blob' })
@@ -178,6 +190,8 @@ export async function downloadFile(url: string, fallbackFilename: string): Promi
     if (match?.[1]) filename = match[1].replace(/['"]/g, '')
   }
   downloadBlob(response.data, filename)
+
+  return response.headers as Record<string, string>
 }
 
 export default axiosInstance

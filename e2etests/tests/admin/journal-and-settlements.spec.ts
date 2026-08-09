@@ -374,6 +374,41 @@ test.describe('Journal & Settlements', () => {
   })
 
 
+  test('settlements: the SEPA export tells the treasurer whom the file leaves out', async ({
+    page,
+    authenticatedRequest,
+    settlementFactory,
+  }) => {
+    // #114. The download is a pain.008 document, so the file itself cannot say
+    // that it collects less than the settlement records — the admin used to
+    // save a short file and see nothing at all. A member whose IBAN is cleared
+    // between settlement creation and export is exactly that case.
+    const settlement = await settlementFactory.create({ amountCents: 1500, memberCount: 2 })
+    const [, dropped] = settlement.members
+
+    const settlementsPage = new SettlementsPage(page)
+    await settlementsPage.navigate()
+    await settlementsPage.waitForPageLoad()
+
+    // A clean export says nothing — the warning has to mean something when it
+    // does appear.
+    await settlementsPage.clickExportSepa(settlement.id)
+    await settlementsPage.expectNoExportShortfallWarning()
+
+    // Clearing the IBAN revokes the mandate; the settlement still claims the
+    // member's transactions and still records their €15.00.
+    expect(
+      (await authenticatedRequest.patch(`/api/admin/members/${dropped.id}`, { data: { iban: '' } })).status()
+    ).toBe(200)
+
+    await settlementsPage.navigate()
+    await settlementsPage.waitForPageLoad()
+    await settlementsPage.clickExportSepa(settlement.id)
+
+    // Named count and both amounts: 15.00 collected of the 30.00 recorded.
+    await settlementsPage.expectExportShortfallWarning(/1.*15,00.*30,00.*15,00/s)
+  })
+
   test('settlement integrity: duplicate transaction rejection preserves atomicity', async ({
     page,
     authenticatedRequest,

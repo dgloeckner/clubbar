@@ -299,22 +299,41 @@ class AdminController
 
         $result = $this->sepaExportService->export($id);
 
-        // Mark settlement as exported
-        $this->settlementsService->markExported($id, $adminId);
+        // Mark settlement as exported, and put what the file actually collects
+        // on the permanent record along with it (#114).
+        $this->settlementsService->markExported($id, $adminId, $result->toAuditSummary());
 
         $response->getBody()->write($result->xml);
         $response = $response
             ->withHeader('Content-Type', 'application/xml; charset=utf-8')
             ->withHeader('Content-Disposition', 'attachment; filename="sepa-' . $id . '.xml"');
 
-        // #80: members in credit carry no file line. The body is the bank file
-        // and cannot say so, so the omission rides on a header rather than
-        // vanishing. Ids only — names do not belong in HTTP headers.
-        if ($result->creditExcludedMembers !== []) {
+        // #80 / #114: a member the file leaves out carries no line to say so,
+        // and the body is the bank file — it cannot carry the report. The
+        // omissions ride on headers instead of vanishing. Ids only, in two
+        // buckets because the remedies are opposite (ruling #141 §3): chase
+        // the bank details, versus pay the member back or let it ride.
+        $creditExcluded = $result->creditExcludedMembers();
+        if ($creditExcluded !== []) {
             $response = $response->withHeader(
                 'X-Credit-Excluded-Members',
-                implode(',', array_column($result->creditExcludedMembers, 'member_id'))
+                implode(',', array_map(fn($member) => $member->memberId, $creditExcluded))
             );
+        }
+
+        $uncollectable = $result->uncollectableMembers();
+        if ($uncollectable !== []) {
+            $response = $response
+                ->withHeader(
+                    'X-Uncollectable-Members',
+                    implode(',', array_map(fn($member) => $member->memberId, $uncollectable))
+                )
+                // The numbers matter as much as the names: this is the gap
+                // between what the books say the club is owed and what the
+                // file asks the bank for.
+                ->withHeader('X-Shortfall-Amount-Cents', (string) $result->shortfallAmountCents())
+                ->withHeader('X-Collected-Amount-Cents', (string) $result->collectedAmountCents)
+                ->withHeader('X-Settlement-Amount-Cents', (string) $result->settlementAmountCents);
         }
 
         return $response->withStatus(200);

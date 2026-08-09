@@ -32,6 +32,7 @@ export class SettlementsPage extends BasePage {
   private readonly settlementStatusBadge = (settlementId: string) =>
     this.page.getByTestId(`settlements-badge-status-${settlementId}`)
   private readonly settlementRows = () => this.page.locator('[data-testid^="settlements-table-row-"]')
+  private readonly exportWarning = () => this.page.getByTestId('settlements-export-warning')
 
   // Pagination (PaginationToolbar rendered with testId="settlements")
   private readonly paginationPageButton = (pageNumber: number) =>
@@ -174,6 +175,19 @@ export class SettlementsPage extends BasePage {
     )
     await this.page.getByTestId(`settlements-export-sepa-btn-${settlementId}`).click()
     return responsePromise
+  }
+
+  /**
+   * The banner shown when the SEPA file collects less than the settlement
+   * records (#114) — a valid file was downloaded, but it leaves members out.
+   */
+  async expectExportShortfallWarning(expected: RegExp) {
+    await expect(this.exportWarning()).toBeVisible()
+    await expect(this.exportWarning()).toHaveText(expected)
+  }
+
+  async expectNoExportShortfallWarning() {
+    await expect(this.exportWarning()).toBeHidden()
   }
 
   /**

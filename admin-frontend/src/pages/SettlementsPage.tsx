@@ -33,7 +33,7 @@ import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { PillFilter, type PillFilterOption } from '../components/forms/PillFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { useListQuery } from '../hooks/useListQuery'
-import { downloadBlob } from '../api/client'
+import { downloadBlob, downloadFile } from '../api/client'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
 import {
   tableWrapperStyles,
@@ -161,6 +161,11 @@ export function SettlementsPage() {
   // Undo confirmation dialog
   const [undoConfirm, setUndoConfirm] = useState<string | null>(null)
 
+  // What the last SEPA export could not collect (#114). Not an error — the
+  // file downloaded and is valid — but the treasurer has to be told it asks
+  // the bank for less than the settlement records.
+  const [exportWarning, setExportWarning] = useState<string | null>(null)
+
   // Mobile responsive
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [showMobileFilters, setShowMobileFilters] = useState(false)
@@ -195,8 +200,27 @@ export function SettlementsPage() {
 
   const handleExportSepa = async (settlementId: string) => {
     try {
-      const blob = await getSettlementsFactory().downloadSepaXml(settlementId)
-      downloadBlob(blob as unknown as Blob, `sepa-${settlementId}.xml`)
+      setExportWarning(null)
+      // Routed through downloadFile rather than the generated client because
+      // the omissions ride on response headers, and the generated call returns
+      // the blob alone (#114). The bank file itself cannot carry a warning.
+      const headers = await downloadFile(
+        `/admin/settlements/${settlementId}/export/sepa-xml`,
+        `sepa-${settlementId}.xml`
+      )
+
+      const uncollectable = headers['x-uncollectable-members']
+      if (uncollectable) {
+        setExportWarning(
+          t('settlements.exportShortfall', {
+            count: uncollectable.split(',').length,
+            shortfall: formatters.formatPrice(Number(headers['x-shortfall-amount-cents'] ?? 0)),
+            collected: formatters.formatPrice(Number(headers['x-collected-amount-cents'] ?? 0)),
+            total: formatters.formatPrice(Number(headers['x-settlement-amount-cents'] ?? 0)),
+          })
+        )
+      }
+
       // Reload list so status updates to "Exported"
       await list.reload()
     } catch (err: unknown) {
@@ -310,6 +334,22 @@ export function SettlementsPage() {
               }}
             >
               Error: {error}
+            </div>
+          )}
+
+          {/* The SEPA file collects less than the settlement records (#114). */}
+          {exportWarning && (
+            <div
+              data-testid="settlements-export-warning"
+              style={{
+                padding: tableSpacing.cellPadding,
+                backgroundColor: '#78350f',
+                color: '#fcd34d',
+                borderRadius: 6,
+                margin: tableSpacing.cellPadding,
+              }}
+            >
+              {exportWarning}
             </div>
           )}
 
