@@ -269,24 +269,7 @@
     "settledAt": "Settled At",
     "notSettled": "Not settled",
     "noTransactions": "No transactions found",
-    "settlementSelected": "Settlement (selected)",
-    "settlementAll": "Settlement (all)",
-    "concludeSettlement": "Conclude Settlement",
-    "cancelSettlement": "Cancel Settlement",
     "settleAllConfirm": "Settle all open transactions?",
-    "selectAtLeastOne": "Please select at least one transaction",
-    "settlementNoOpen": "No open transactions",
-    "settlementConfirm": {
-      "title": "Create Settlement",
-      "transactions": "Transactions",
-      "members": "Members",
-      "totalAmount": "Total amount",
-      "settlementDate": "Settlement date",
-      "executionDate": "Execution date",
-      "executionDateUnavailable": "The execution date could not be loaded. Please try again.",
-      "confirm": "Create settlement",
-      "cancel": "Cancel"
-    },
     "date": "Date",
     "type": "Type",
     "details": "Details",
@@ -618,5 +601,53 @@
     "confidenceMedium": "Medium",
     "confidenceLow": "Low",
     "ibanCandidates": "Multiple IBAN candidates found — please select the correct one:"
+  },
+  "newSettlement": {
+    "title": "New Settlement",
+    "sweepNote": "A settlement covers each selected member's entire unsettled balance — every open transaction they have, however old. Select the members to collect from.",
+    "searchPlaceholder": "Search members…",
+    "selectAll": "Select all",
+    "selectNone": "Select none",
+    "create": "Create settlement",
+    "selectAtLeastOneMember": "Select at least one member",
+    "summary": {
+      "members": "Members",
+      "transactions": "Transactions",
+      "total": "Total amount",
+      "executionDate": "Execution date"
+    },
+    "columns": {
+      "member": "Member",
+      "transactions": "Transactions",
+      "balance": "Balance",
+      "issue": "Issue",
+      "holdReason": "Reason"
+    },
+    "eligible": {
+      "title": "Members to collect from",
+      "empty": "No members currently have an open balance to collect."
+    },
+    "ineligible": {
+      "title": "Excluded — no active SEPA mandate",
+      "note": "These members owe money but cannot be collected by direct debit. Chase their bank details, or settle them manually.",
+      "issue": {
+        "iban": "Missing mandate",
+        "mandate": "Missing IBAN",
+        "both": "Missing IBAN and mandate"
+      }
+    },
+    "credit": {
+      "title": "Excluded — in credit",
+      "note": "The club owes these members money. They are never collected from; record a refund as a manual settlement instead."
+    },
+    "detail": {
+      "empty": "No open transactions."
+    },
+    "executionDateUnavailable": "The execution date could not be loaded. Please try again.",
+    "held": {
+      "title": "Excluded — collection on hold",
+      "note": "These members' last collection came back. They are skipped until somebody investigates and clears the hold — check the settlement's reversal record first.",
+      "noReason": "No reason recorded"
+    }
   }
 }

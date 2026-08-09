@@ -39,17 +39,10 @@ export class JournalPage extends BasePage {
   private readonly headerMember = () => this.page.getByTestId('journal-header-member')
   private readonly headerAmount = () => this.page.getByTestId('journal-header-amount')
 
-  // Settlement mode elements
+  // The settlement *status filter* is a view control and stays. Creating a
+  // settlement left this screen entirely in ADR-0030.
   private readonly settlementStatusFilter = (status: 'all' | 'open' | 'settled') =>
     this.page.getByTestId(`journal-settlement-status-filter-${status}`)
-  private readonly concludeSettlementBtn = () => this.page.getByTestId('journal-settlement-conclude-btn')
-
-  // Settlement confirm modal elements
-  private readonly settlementConfirmModal = () => this.page.getByTestId('journal-settlement-confirm-modal')
-  private readonly settlementConfirmSubmitBtn = () => this.page.getByTestId('journal-settlement-confirm-submit-btn')
-  private readonly settlementAllBtn = () => this.page.getByTestId('journal-settlement-all-btn')
-  private readonly settlementConfirmTxCount = () => this.page.getByTestId('journal-settlement-confirm-transaction-count')
-  private readonly settlementConfirmMemberCount = () => this.page.getByTestId('journal-settlement-confirm-member-count')
 
   // Storno is a ROW ACTION, not a form: the transaction is the subject of the
   // operation, not a parameter of it (#169). There is no member picker and no
@@ -320,12 +313,12 @@ export class JournalPage extends BasePage {
    * SETTLEMENT MODE INTERACTIONS
    */
 
-  async enterSettlementMode() {
-    await this.page.getByTestId('journal-settlement-selected-btn').click()
-    // Wait for mode switch and checkboxes to appear
-    await this.page.waitForTimeout(300)
-  }
-
+  /**
+   * The settlement status filter — a *view* control, and all that is left of
+   * settlement on this screen. Creating a run moved to New Settlement in
+   * ADR-0030, because a run picks members and settles each in full, which a
+   * paginated transaction list under a date filter cannot honestly show.
+   */
   async filterBySettlementStatus(status: 'all' | 'open' | 'settled') {
     const responsePromise = this.page.waitForResponse(
       (resp) => resp.url().includes('/api/admin/transactions') && resp.status() === 200
@@ -334,70 +327,19 @@ export class JournalPage extends BasePage {
     await responsePromise
   }
 
-  async selectTransactionById(transactionId: string) {
-    const checkbox = this.page.getByTestId(`journal-select-checkbox-${transactionId}`)
-    await checkbox.check()
-    await this.page.waitForTimeout(100)
+  /** The Journal's way through to the run screen. */
+  async goToNewSettlement() {
+    await this.page.getByTestId('journal-new-settlement-link').click()
+    await this.page.waitForURL('**/settlements/new')
   }
 
-  async getSelectedTransactionCount(): Promise<number> {
-    // Count checked checkboxes in transaction rows
-    const checkboxes = this.page.locator('[data-testid^="journal-table-row-"] input[type="checkbox"]:checked')
-    return await checkboxes.count()
-  }
-
-  async concludeSettlement(): Promise<string> {
-    const responsePromise = this.page.waitForResponse(
-      (resp) => resp.url().includes('/api/admin/settlements') && resp.status() === 201
-    )
-    // Open the confirmation modal
-    await this.concludeSettlementBtn().click()
-    // Wait for modal to appear and confirm
-    await expect(this.settlementConfirmModal()).toBeVisible()
-    await this.settlementConfirmSubmitBtn().click()
-    // Capture API response (happens before navigation)
-    const response = await responsePromise
-    const body = await response.json()
-    return body.id
-  }
-
-  /**
-   * Click "Abrechnung (alle)" and wait for the confirmation modal to appear.
-   * Use getSettlementConfirmStats() to inspect modal content, then
-   * confirmOpenSettlement() to proceed.
-   */
-  async openSettleAllModal() {
-    await this.settlementAllBtn().click()
-    await expect(this.settlementConfirmModal()).toBeVisible()
-  }
-
-  /**
-   * Click the confirm button in an already-open settlement confirm modal,
-   * wait for the API call, and return the created settlement ID.
-   * After success the app navigates to /settlements.
-   */
-  async confirmOpenSettlement(): Promise<string> {
-    const responsePromise = this.page.waitForResponse(
-      (resp) => resp.url().includes('/api/admin/settlements') && resp.status() === 201
-    )
-    await this.settlementConfirmSubmitBtn().click()
-    const response = await responsePromise
-    const body = await response.json()
-    return body.id
-  }
-
-  /**
-   * Read the transaction count and member count shown in the settlement confirm modal.
-   * Call after opening the modal (via openSettleAllModal or concludeSettlementBtn),
-   * before confirming.
-   */
-  async getSettlementConfirmStats(): Promise<{ transactions: number; members: number }> {
-    const txText = await this.settlementConfirmTxCount().textContent()
-    const memberText = await this.settlementConfirmMemberCount().textContent()
-    return {
-      transactions: parseInt(txText?.trim() ?? '0', 10),
-      members: parseInt(memberText?.trim() ?? '0', 10),
-    }
+  /** Settlement selection is gone from this screen — nothing may resurrect it. */
+  async expectNoSettlementSelectionUi() {
+    await expect(this.page.getByTestId('journal-settlement-selected-btn')).toHaveCount(0)
+    await expect(this.page.getByTestId('journal-settlement-all-btn')).toHaveCount(0)
+    await expect(this.page.getByTestId('journal-settlement-conclude-btn')).toHaveCount(0)
+    await expect(this.page.getByTestId('journal-select-all-checkbox')).toHaveCount(0)
+    await expect(this.page.locator('[data-testid^="journal-select-checkbox-"]')).toHaveCount(0)
   }
 
   async expectTransactionRowVisible(transactionId: string) {

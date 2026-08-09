@@ -1742,6 +1742,28 @@ paths:
                 member_id:
                   type: string
                   format: uuid
+                member_ids:
+                  type: array
+                  description: |
+                    Name the run's participants directly. This is what the New
+                    Settlement screen sends, because the unit of selection is
+                    the member (ADR-0030). Takes precedence over
+                    `transaction_ids` and over the date window.
+                  items:
+                    type: string
+                    format: uuid
+                transaction_ids:
+                  type: array
+                  description: |
+                    Name the run's participants indirectly. The members are
+                    resolved from these transactions exactly as
+                    `POST /admin/settlements` resolves them, so previewing the
+                    ids you are about to post describes that post. The amounts
+                    are still each member's whole unsettled position, not these
+                    transactions' sum.
+                  items:
+                    type: string
+                    format: uuid
                 sepa_eligible_only:
                   type: boolean
                   default: false
@@ -4598,6 +4620,11 @@ components:
         member_count:
           type: integer
           description: Members placed in any bucket
+        transaction_count:
+          type: integer
+          description: |
+            How many transactions the run would contain — every unsettled
+            transaction of every eligible member, not the caller's selection.
         warnings:
           type: array
           items:
@@ -4616,6 +4643,12 @@ components:
         balance_cents:
           type: integer
           description: The member's whole unsettled position, not the window's slice
+        transaction_count:
+          type: integer
+          description: |
+            How many unsettled transactions this member would contribute to
+            the run — the count shown on their row in the New Settlement
+            screen. Counted over their whole position, like the balance.
         iban:
           type: string
           nullable: true
@@ -4631,7 +4664,36 @@ components:
 
     SettlementCreateRequest:
       type: object
+      description: |
+        A run names its **participants**, and then covers each of them in full
+        (ruling #141, issue #161). Name them with `member_ids` — the unit of
+        selection is the member ([ADR-0030](../../adr/0030-settlement-selection-is-a-member-picker.md)) —
+        or with `transaction_ids`, the compatibility path, whose transactions
+        are resolved to their members and then discarded.
+
+        Exactly one of the two is required. When both are sent, `member_ids`
+        wins. Neither bounds the amounts: every unsettled transaction of every
+        named member is settled, including transactions older than
+        `period_start`.
+      required: [settlement_date, execution_date]
       properties:
+        member_ids:
+          type: array
+          minItems: 1
+          description: The run's participants. Required unless `transaction_ids` is given.
+          items:
+            type: string
+            format: uuid
+        transaction_ids:
+          type: array
+          minItems: 1
+          description: |
+            Compatibility path — names participants indirectly. The
+            transactions are resolved to their members; the run then settles
+            those members in full, so these ids do not limit its contents.
+          items:
+            type: string
+            format: uuid
         method:
           type: string
           enum: [direct_debit, bank_transfer, write_off]
@@ -4641,25 +4703,24 @@ components:
             `settlement_type`/`manual_reason` pair (ruling #163).
             `bank_transfer` and `write_off` settlements must cover exactly one
             member and can never be exported to SEPA.
+        settlement_date:
+          type: string
+          format: date
         period_start:
           type: string
           format: date
+          description: Descriptive only — it does not bound what the run settles.
         period_end:
           type: string
           format: date
+          description: Descriptive only — it does not bound what the run settles.
         execution_date:
           type: string
           format: date
-          description: Required for direct_debit (>= TODAY + 7 days)
+          description: Required for direct_debit (>= TODAY + 7 days, and a bank business day)
         notes:
           type: string
           maxLength: 500
-        member_ids:
-          type: array
-          items:
-            type: string
-            format: uuid
-          description: Optional filter to specific members
 
     SettlementFilterPreview:
       type: object

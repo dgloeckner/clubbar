@@ -347,7 +347,61 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
      - `422 validation error` → Invalid test data in request
      - `database constraint` → Test data isolation issue; check Pattern 001
 
-9. **Debugging E2E API Integration Failures (Frontend → Backend)**
+9. **Diagnosing a Red E2E Job in CI**
+
+   **Start at the end of the job log and grep for `E2E-FAILURES`.** Every failing
+   spec is named there with its location, its error and a copy-pasteable re-run
+   command:
+
+   ```
+   ========================================================================
+   E2E-FAILURES: 1 of 93 specs
+   ========================================================================
+
+   FAILED tests/admin/new-settlement.spec.ts:116
+     expanding a member shows the transactions
+     re-run: npx playwright test tests/admin/new-settlement.spec.ts --grep "expanding a member shows the transactions"
+       Error: expect(received).toBe(expected)
+       Expected: 3
+       Received: 0
+   ```
+
+   The same report appears in three places, so pick whichever your tooling can
+   reach: the **job log tail**, the **job summary** on the run page, and one
+   **annotation per failure** at the top of the job and on the PR diff.
+
+   It is produced by `e2etests/scripts/report-failures.mjs`, which reads the JSON
+   reporter's `results/latest.json`. Run it locally the same way:
+
+   ```bash
+   cd e2etests
+   npx playwright test ...            # writes results/latest.json
+   node scripts/report-failures.mjs   # same report you would get from CI
+   ```
+
+   **Why the log is ordered the way it is.** Container logs are dumped
+   `--tail=150` *before* the report, and services are stopped explicitly, so the
+   failure report stays inside the tail. This is deliberate: the job used to end
+   with `hoverkraft-tech/compose-action`'s post step dumping the whole container
+   log — over a megabyte of per-request access lines — which pushed Playwright's
+   summary past what GitHub's job-log API will return. A red run was then
+   diagnosable only by a human scrolling the web UI. Keep any new log-dumping
+   step bounded, and keep it above the report.
+
+   For the full trace, `playwright-report-<shard>` and
+   `playwright-traces-<shard>` are uploaded as artifacts on every run.
+
+   **Reproducing CI locally without Docker** (e.g. in a sandbox that has no
+   daemon): install `mariadb-server`, apply `backend/db/migrations/*.sql` then
+   `backend/db/seed.sql`, serve the backend with
+   `PHP_CLI_SERVER_WORKERS=10 php -S 127.0.0.1:8080 -t backend/public backend/public/index.php`
+   (the workers matter — a single-threaded server deadlocks when the browser and
+   an API call overlap), `npx vite preview --port 5173` in `admin-frontend`, then
+   run Playwright with `ADMIN_URL`/`API_URL` pointing at them. PHP needs
+   `bcmath`; without it every member-create fails the IBAN checksum with
+   `Call to undefined function bcmod()`.
+
+10. **Debugging E2E API Integration Failures (Frontend → Backend)**
 
    **When E2E tests fail during form submission (create/save operations):**
 
@@ -382,7 +436,7 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    - ❌ `401 Unauthorized` → Auth token expired or invalid, check auth.setup.ts
    - ✅ Form closes + member in list = successful E2E flow
 
-10. **Re-Run Single Failing Tests Quickly (Playwright --grep)**
+11. **Re-Run Single Failing Tests Quickly (Playwright --grep)**
    ```bash
    # Run only one test by name (exact match)
    cd e2etests && npm test -- --grep "GET /api/admin/categories returns category list"

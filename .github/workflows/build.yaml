@@ -436,15 +436,14 @@ jobs:
         run: npm ci
         working-directory: admin-frontend
 
+      # Started explicitly rather than through hoverkraft-tech/compose-action,
+      # whose post step dumps the *entire* container log — over a megabyte of
+      # per-request access lines — as the last thing in the job. GitHub's
+      # job-log API only returns the tail, so that dump pushed Playwright's
+      # summary past the horizon and made a red run undiagnosable through the
+      # API. The teardown below is bounded and runs before the failure report.
       - name: Start services
-        uses: hoverkraft-tech/compose-action@v2.0.2
-        with:
-          compose-file: |
-            ./docker-compose.yml
-            ./docker-compose.ci.yml
-          services: |
-            database
-            backend
+        run: docker compose -f ./docker-compose.yml -f ./docker-compose.ci.yml up -d database backend
 
       - name: Wait for backend health
         run: |
@@ -500,22 +499,27 @@ jobs:
           CI: true
           ADMIN_URL: http://localhost:5173
 
-      # Names the failing tests in the job log. The compose teardown dumps the
-      # whole container log after this job's steps, which buries the Playwright
-      # summary thousands of lines deep — reachable in the web UI, but not by
-      # anything that reads the log from the end.
+      # Container logs, bounded. Enough to see a backend 500 or a crash loop
+      # behind a failing test, without burying what comes after it.
+      - name: Container logs (tail)
+        if: failure()
+        run: docker compose -f ./docker-compose.yml -f ./docker-compose.ci.yml logs --tail=150 --no-color
+
+      # Last thing in the job log, deliberately: names every failing spec with
+      # its error, its location and a copy-pasteable re-run command, anchored by
+      # the marker `E2E-FAILURES` so it can be grepped out of the tail. Also
+      # writes the job summary and one annotation per failure.
       - name: Name the failing tests
         if: failure()
-        run: |
-          test -f results/latest.json || { echo "no results/latest.json"; exit 0; }
-          jq -r '
-            [.. | objects | select(has("ok") and has("tests") and .ok == false)]
-            | if length == 0 then "no failed specs recorded" else
-                .[] | "FAILED: \(.file):\(.line) \(.title)\n  " +
-                      (([.tests[]?.results[]?.errors[]?.message] | first // "") | split("\n")[0])
-              end
-          ' results/latest.json
+        run: node scripts/report-failures.mjs
         working-directory: e2etests
+
+      # Was the compose-action's post step, which dumped every container log
+      # line. Explicit teardown prints a handful of lines instead, so the report
+      # above stays inside the tail the log API returns.
+      - name: Stop services
+        if: always()
+        run: docker compose -f ./docker-compose.yml -f ./docker-compose.ci.yml down -v --remove-orphans
 
       - name: Upload test report
         if: always()
@@ -595,16 +599,11 @@ jobs:
           echo "$VERSION" > backend/VERSION
           ./scripts/build-package.sh "$VERSION"
 
+      # Explicit, for the same reason as the E2E job: the action's post step
+      # dumped every container log line as the last thing in the job, which is
+      # what made a red run undiagnosable through the log API.
       - name: Start services
-        uses: hoverkraft-tech/compose-action@v2.0.2
-        with:
-          compose-file: |
-            ./docker-compose.yml
-            ./docker-compose.ci.yml
-            ./docker-compose.package.yml
-          services: |
-            database
-            backend
+        run: docker compose -f ./docker-compose.yml -f ./docker-compose.ci.yml -f ./docker-compose.package.yml up -d database backend
 
       - name: Write installer data for package tests
         run: echo -n '{"key":"ci-package-install-key-0000","completed_step":0}' > dist/package/.installer-data
@@ -640,6 +639,19 @@ jobs:
         env:
           CI: true
           PACKAGE_TEST: '1'
+
+      - name: Container logs (tail)
+        if: failure()
+        run: docker compose -f ./docker-compose.yml -f ./docker-compose.ci.yml -f ./docker-compose.package.yml logs --tail=150 --no-color
+
+      - name: Name the failing tests
+        if: failure()
+        run: node scripts/report-failures.mjs
+        working-directory: e2etests
+
+      - name: Stop services
+        if: always()
+        run: docker compose -f ./docker-compose.yml -f ./docker-compose.ci.yml -f ./docker-compose.package.yml down -v --remove-orphans
 
       - name: Clean test artifacts from package
         run: rm -f dist/package/config.php dist/package/.installer-data dist/package/.upgrade-secret dist/package/backend/storage/install.lock

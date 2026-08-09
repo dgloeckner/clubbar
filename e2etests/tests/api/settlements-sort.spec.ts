@@ -41,16 +41,40 @@ interface SettlementListRow {
   created_by_admin_name: string | null
 }
 
+/**
+ * The sorted list, paged through until every id the caller cares about has been
+ * seen (E2E Pattern 003).
+ *
+ * One page of 100 is only enough while the table is small. This assertion is
+ * about the *relative* order of two settlements this test just created, and the
+ * newest rows sit at the far end of a `created_at asc` sort — so on any
+ * long-lived database (a dev stack that has run the suite a few times) they fall
+ * off page 1 and the test fails on volume rather than on sorting.
+ */
 async function fetchSettlements(
   request: Pick<APIRequestContext, 'get'>,
   sort: 'created_at' | 'created_by',
-  order: 'asc' | 'desc'
+  order: 'asc' | 'desc',
+  needles: string[] = []
 ): Promise<SettlementListRow[]> {
-  const response = await request.get(
-    `${API_BASE}/admin/settlements?page=1&per_page=100&sort=${sort}&order=${order}`
-  )
-  expect(response.status(), await response.text()).toBe(200)
-  return ((await response.json()).data ?? []) as SettlementListRow[]
+  const perPage = 100
+  const rows: SettlementListRow[] = []
+  const outstanding = new Set(needles)
+
+  for (let page = 1; ; page++) {
+    const response = await request.get(
+      `${API_BASE}/admin/settlements?page=${page}&per_page=${perPage}&sort=${sort}&order=${order}`
+    )
+    expect(response.status(), await response.text()).toBe(200)
+
+    const body = await response.json()
+    const batch = (body.data ?? []) as SettlementListRow[]
+    rows.push(...batch)
+    batch.forEach((row) => outstanding.delete(row.id))
+
+    const totalPages = body.pagination?.total_pages ?? page
+    if (outstanding.size === 0 || page >= totalPages) return rows
+  }
 }
 
 function positionOf(rows: SettlementListRow[], id: string, context: string): number {
@@ -97,7 +121,8 @@ test.describe('Settlements list sort keys', () => {
       const newerByProbeAdmin = await buildSettlementFactory(probeAdmin, terminal).create()
 
       // Baseline: by date, the older settlement really is the older one.
-      const byDateAsc = await fetchSettlements(seededAdmin, 'created_at', 'asc')
+      const probes = [olderBySeededAdmin.id, newerByProbeAdmin.id]
+      const byDateAsc = await fetchSettlements(seededAdmin, 'created_at', 'asc', probes)
       expect(
         positionOf(byDateAsc, olderBySeededAdmin.id, 'created_at asc'),
         'created_at asc: the settlement created first should come first'
@@ -105,14 +130,14 @@ test.describe('Settlements list sort keys', () => {
 
       // By name ascending "Aaa …" precedes "Admin User", which is the opposite
       // of the date order asserted above — so this cannot pass on a date sort.
-      const byNameAsc = await fetchSettlements(seededAdmin, 'created_by', 'asc')
+      const byNameAsc = await fetchSettlements(seededAdmin, 'created_by', 'asc', probes)
       expect(
         positionOf(byNameAsc, newerByProbeAdmin.id, 'created_by asc'),
         `created_by asc: "${earlierName}" should precede "Admin User"`
       ).toBeLessThan(positionOf(byNameAsc, olderBySeededAdmin.id, 'created_by asc'))
 
       // And descending flips it back.
-      const byNameDesc = await fetchSettlements(seededAdmin, 'created_by', 'desc')
+      const byNameDesc = await fetchSettlements(seededAdmin, 'created_by', 'desc', probes)
       expect(
         positionOf(byNameDesc, olderBySeededAdmin.id, 'created_by desc'),
         `created_by desc: "Admin User" should precede "${earlierName}"`

@@ -64,6 +64,11 @@ export interface SettlementPreviewMember {
   last_name?: string;
   /** The member's whole unsettled position, not the window's slice */
   balance_cents?: number;
+  /** How many unsettled transactions this member would contribute to
+the run — the count shown on their row in the New Settlement
+screen. Counted over their whole position, like the balance.
+ */
+  transaction_count?: number;
   /** @nullable */
   iban?: string | null;
   /** @nullable */

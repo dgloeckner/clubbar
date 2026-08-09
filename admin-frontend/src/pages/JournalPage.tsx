@@ -24,20 +24,17 @@ import { useTranslation } from 'react-i18next'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'
-import { useExecutionDateInfo } from '../hooks/useExecutionDateInfo'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { PillFilter, type PillFilterOption } from '../components/forms/PillFilter'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { useListQuery } from '../hooks/useListQuery'
 import { getTransactions } from '../api/generated/transactions/transactions'
-import { getSettlements } from '../api/generated/settlements/settlements'
 import { getTransactionTypeColor, getAmountColor } from '../utils/transactions'
 import { getCurrentLanguage } from '../i18n/config'
 import { getLocalizedName } from '../utils/i18n-helpers'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
-import { SettlementConfirmModal } from '../components/modals/SettlementConfirmModal'
 import { StornoConfirmDialog } from '../components/modals/StornoConfirmDialog'
-import type { GlobalTransaction, SettlementFilterPreview } from '../api/generated'
+import type { GlobalTransaction } from '../api/generated'
 import { theme } from '../styles/design-system'
 import {
   tableColors,
@@ -150,27 +147,10 @@ export function JournalPage() {
     parseError: (err) => (err instanceof Error ? err.message : 'Failed to load transactions'),
   })
 
-  const { items: transactions, total: totalItems, totalPages, loading, error, setError, search } = list
-  const { period, settlementStatus, dateFrom, dateTo } = list.filters
+  const { items: transactions, total: totalItems, totalPages, loading, error, search } = list
+  const { period, settlementStatus } = list.filters
   const sortKey = list.sortKey
   const sortDirection = list.sortDirection
-
-  // Settlement mode state
-  type SettlementMode = 'none' | 'edit'
-  const [settlementMode, setSettlementMode] = useState<SettlementMode>('none')
-  const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set())
-
-  // Settlement confirm modal state
-  const [confirmModalOpen, setConfirmModalOpen] = useState(false)
-  const [pendingTransactions, setPendingTransactions] = useState<ResolvedTransaction[]>([])
-  const [confirmLoading, setConfirmLoading] = useState(false)
-  const [confirmError, setConfirmError] = useState<string | null>(null)
-  const [settleAllPreview, setSettleAllPreview] = useState<SettlementFilterPreview | null>(null)
-  const [settleAllLoading, setSettleAllLoading] = useState(false)
-
-  // The execution date comes from the backend so the displayed and submitted
-  // value are the same one, and the TARGET2 rule is not duplicated here.
-  const { info: executionDateInfo, error: executionDateError } = useExecutionDateInfo(confirmModalOpen)
 
   // Storno confirmation dialog state — a row action, not a form. The amount
   // is never entered by the admin; it is the exact negation of the
@@ -284,130 +264,6 @@ export function JournalPage() {
     }
   }
 
-  const handleToggleTransaction = (id: string) => {
-    setSelectedTransactionIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
-
-  const handleSelectAll = () => {
-    if (selectedTransactionIds.size === transactions.length && transactions.length > 0) {
-      setSelectedTransactionIds(new Set())
-    } else {
-      // Only select unsettled transactions
-      const unsettled = transactions.filter(t => !t.is_settled)
-      setSelectedTransactionIds(new Set(unsettled.map(t => t.id)))
-    }
-  }
-
-  const handleCancelSettlement = () => {
-    setSettlementMode('none')
-    setSelectedTransactionIds(new Set())
-  }
-
-  const handleEnterEditMode = () => {
-    setSettlementMode('edit')
-    setSelectedTransactionIds(new Set())
-    // Settling only makes sense for open transactions, so entering edit mode
-    // narrows the filter — which resets to page 1 like any other filter change.
-    list.setFilter('settlementStatus', 'open')
-  }
-
-  const handleSettleAll = async () => {
-    setSettleAllLoading(true)
-    try {
-      const preview = await getSettlements().previewSettlementByFilters({
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
-        search: search || undefined,
-      })
-      if (preview.transaction_count === 0) {
-        setError(t('journal.settlementNoOpen'))
-        return
-      }
-      setSettleAllPreview(preview)
-      setConfirmError(null)
-      setConfirmModalOpen(true)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load preview')
-    } finally {
-      setSettleAllLoading(false)
-    }
-  }
-
-  const handleConcludeSettlement = () => {
-    if (selectedTransactionIds.size === 0) {
-      setError(t('journal.selectAtLeastOne'))
-      return
-    }
-    const selected = transactions.filter((tx) => selectedTransactionIds.has(tx.id))
-    setPendingTransactions(selected)
-    setConfirmError(null)
-    setConfirmModalOpen(true)
-  }
-
-  const handleConfirmSettlement = async () => {
-    // The backend owns the execution-date rule (ADR-0009); without it there is
-    // nothing valid to submit, and guessing locally is what issue #11 was about.
-    if (!executionDateInfo) {
-      setConfirmError(executionDateError ?? t('journal.settlementConfirm.executionDateUnavailable'))
-      return
-    }
-
-    setConfirmLoading(true)
-    setConfirmError(null)
-    try {
-      // Both dates come from the server's clock, never this browser's. The
-      // backend requires execution_date >= settlement_date + 7 days; if we
-      // dated the settlement locally we would pair our calendar day with a
-      // minimum_date derived from the server's. East of UTC those differ every
-      // evening, and the settlement the admin just confirmed is refused with a
-      // lead-time error naming a date the server itself suggested.
-      const today = executionDateInfo.today
-      const executionDateStr = executionDateInfo.minimum_date
-
-      if (settleAllPreview) {
-        await getSettlements().createSettlementByFilters({
-          settlement_date: today,
-          execution_date: executionDateStr,
-          date_from: dateFrom || undefined,
-          date_to: dateTo || undefined,
-          search: search || undefined,
-        })
-      } else {
-        // The backend also accepts transaction_ids + settlement_date which are not
-        // modelled in the generated SettlementCreateRequest type, so we use a cast.
-        // TODO: remove cast once transaction_ids is added to OAS SettlementCreateRequest schema
-        // and orval is re-run to include it in the generated type
-        await getSettlements().createSettlement(
-          ({
-            method: 'direct_debit',
-            settlement_date: today,
-            execution_date: executionDateStr,
-            transaction_ids: pendingTransactions.map((tx) => tx.id),
-          } as unknown) as Parameters<ReturnType<typeof getSettlements>['createSettlement']>[0]
-        )
-      }
-
-      setConfirmModalOpen(false)
-      setSettleAllPreview(null)
-      setPendingTransactions([])
-      setSettlementMode('none')
-      setSelectedTransactionIds(new Set())
-      navigate('/settlements')
-    } catch (err) {
-      setConfirmError(err instanceof Error ? err.message : 'Failed to create settlement')
-    } finally {
-      setConfirmLoading(false)
-    }
-  }
-
   return (
     <div data-testid="journal-page">
       <h1 style={{ margin: '0 0 20px 0' }}>{t('journal.title')}</h1>
@@ -423,114 +279,34 @@ export function JournalPage() {
             borderBottom: `1px solid ${tableColors.rowActiveBorder}`,
           }}
         >
-          {/* Settlement Controls */}
-          {settlementMode === 'none' && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                data-testid="journal-settlement-selected-btn"
-                onClick={handleEnterEditMode}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#3b82f6',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  transition: 'background-color 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#2563eb'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#3b82f6'
-                }}
-              >
-                + {t('journal.settlementSelected')}
-              </button>
-              <button
-                data-testid="journal-settlement-all-btn"
-                onClick={handleSettleAll}
-                disabled={settleAllLoading}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: settleAllLoading ? '#6b7280' : '#10b981',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: settleAllLoading ? 'not-allowed' : 'pointer',
-                  transition: 'background-color 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  if (!settleAllLoading) e.currentTarget.style.backgroundColor = '#059669'
-                }}
-                onMouseLeave={(e) => {
-                  if (!settleAllLoading) e.currentTarget.style.backgroundColor = '#10b981'
-                }}
-              >
-                {settleAllLoading ? '...' : `+ ${t('journal.settlementAll')}`}
-              </button>
-            </div>
-          )}
-
-          {settlementMode === 'edit' && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                data-testid="journal-settlement-conclude-btn"
-                onClick={handleConcludeSettlement}
-                disabled={selectedTransactionIds.size === 0}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: selectedTransactionIds.size > 0 ? '#10b981' : '#6b7280',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: selectedTransactionIds.size > 0 ? 'pointer' : 'not-allowed',
-                  transition: 'background-color 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedTransactionIds.size > 0) {
-                    e.currentTarget.style.backgroundColor = '#059669'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedTransactionIds.size > 0) {
-                    e.currentTarget.style.backgroundColor = '#10b981'
-                  }
-                }}
-              >
-                {t('journal.concludeSettlement')} ({selectedTransactionIds.size})
-              </button>
-              <button
-                data-testid="journal-settlement-cancel-btn"
-                onClick={handleCancelSettlement}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#ef4444',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  transition: 'background-color 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#dc2626'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#ef4444'
-                }}
-              >
-                {t('journal.cancelSettlement')}
-              </button>
-            </div>
-          )}
+          {/*
+            Settlement selection left this screen in ADR-0030: a run picks
+            members and settles each in full, which a paginated transaction
+            list under a date filter cannot honestly represent.
+          */}
+          <button
+            data-testid="journal-new-settlement-link"
+            onClick={() => navigate('/settlements/new')}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#3b82f6',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 6,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'background-color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#2563eb'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#3b82f6'
+            }}
+          >
+            + {t('newSettlement.title')}
+          </button>
         </div>
 
         {isMobile ? (
@@ -842,22 +618,6 @@ export function JournalPage() {
             >
                 <thead>
                   <tr style={headerRowStyle}>
-                    {/* Checkbox header (only in edit mode) */}
-                    {settlementMode === 'edit' && (
-                      <th
-                        style={{
-                          ...headerCellBaseStyle,
-                          width: '50px',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          data-testid="journal-select-all-checkbox"
-                          checked={selectedTransactionIds.size === transactions.length && transactions.length > 0}
-                          onChange={handleSelectAll}
-                        />
-                      </th>
-                    )}
                     <th
                       style={{
                         ...headerCellBaseStyle,
@@ -931,38 +691,12 @@ export function JournalPage() {
                     <tr
                       key={tx.id}
                       data-testid={`journal-table-row-${tx.id}`}
-                      onClick={() => {
-                        if (settlementMode === 'edit' && !tx.is_settled) {
-                          handleToggleTransaction(tx.id)
-                        }
-                      }}
                       style={{
                         borderBottom: tableColors.rowActiveBorder,
-                        backgroundColor: selectedTransactionIds.has(tx.id)
-                          ? 'rgba(59, 130, 246, 0.1)'
-                          : tableColors.rowActiveBg,
+                        backgroundColor: tableColors.rowActiveBg,
                         transition: 'background-color 150ms',
-                        cursor: settlementMode === 'edit' && !tx.is_settled ? 'pointer' : 'default',
                       }}
                     >
-                      {/* Checkbox column (only in edit mode) */}
-                      {settlementMode === 'edit' && (
-                        <td
-                          style={{
-                            padding: tableSpacing.cellPadding,
-                            width: '50px',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            data-testid={`journal-select-checkbox-${tx.id}`}
-                            checked={selectedTransactionIds.has(tx.id)}
-                            onChange={() => handleToggleTransaction(tx.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            disabled={tx.is_settled}
-                          />
-                        </td>
-                      )}
                       {/* Date and Time */}
                       <td
                         data-testid={`journal-table-cell-date-${tx.id}`}
@@ -1191,23 +925,6 @@ export function JournalPage() {
         )}
           </>
         )}
-
-        {/* Settlement Confirm Modal */}
-        <SettlementConfirmModal
-          isOpen={confirmModalOpen}
-          transactions={settleAllPreview ? undefined : pendingTransactions}
-          preview={settleAllPreview ?? undefined}
-          executionDate={executionDateInfo?.minimum_date ?? null}
-          settlementDate={executionDateInfo?.today ?? null}
-          onConfirm={handleConfirmSettlement}
-          onCancel={() => {
-            setConfirmModalOpen(false)
-            setSettleAllPreview(null)
-            setConfirmError(null)
-          }}
-          isLoading={confirmLoading}
-          error={confirmError ?? executionDateError}
-        />
 
         {/* Storno Confirmation Dialog */}
         <StornoConfirmDialog

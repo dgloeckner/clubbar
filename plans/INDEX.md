@@ -8,6 +8,7 @@ This index tracks the status of all implementation plans for Club Bar.
 
 | Plan | Status | Summary |
 |------|--------|---------|
+| [Settlement Member Selection](./2026-08-08-settlement-member-selection.md) | Implemented (M1–M4 done; Playwright pending CI) | [ADR-0030](../adr/0030-settlement-selection-is-a-member-picker.md) — settlement selection becomes a member picker on its own New Settlement screen, and leaves the Journal. The design half of [#128](https://github.com/dgloeckner/ruderbar/issues/128), whose arithmetic half shipped in [#228](https://github.com/dgloeckner/clubbar/pull/228) |
 | [Critical Remediation](./2026-08-06-critical-remediation.md) | Decisions substantially complete (21 rulings; 1 open on map #139) — **verification not started** | Sequenced fix plan for the 11 critical issues, each carrying its governing money-semantics ruling. ⚠️ Coordinate with Backend Test Coverage before its M2 — see issue #166 |
 | [Backend Test Coverage](./2026-08-07-backend-test-coverage.md) | In Progress (M0 + M1 done — 15.11% → 26.64%; #103 merged in PR #154) | Issue #103 follow-up — raise PHPUnit line coverage from a measured 15.11% toward ADR-0022's 80%, starting with settlements/transactions (money), auth (security), members (GDPR) |
 | [SEPA NOTPROVIDED BIC Encoding](./2026-08-05-sepa-notprovided-bic-encoding.md) | In Progress (Tasks 1-4 done; bank file check pending) | Issue #12 — emit `Othr/Id = NOTPROVIDED` instead of `BICFI = NOTPROVIDED` for IBAN-only agents in the pain.008.001.08 export |

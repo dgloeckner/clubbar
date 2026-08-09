@@ -72,15 +72,45 @@ class SettlementsService
      * unsettled activity in it. It does not bound the amounts: each
      * participant's whole unsettled position is what gets tested and, on
      * inclusion, what gets swept.
+     *
+     * Participants can be named three ways, in this order of precedence:
+     *
+     * - `$memberIds` — what the New Settlement screen sends, because the unit
+     *   of selection is the member (ADR-0030).
+     * - `$transactionIds` — the compatibility path, resolved to members exactly
+     *   as `createSettlement()` resolves them, so a caller holding transactions
+     *   is told what its post will actually do rather than what its selection
+     *   adds up to (#128).
+     * - the date window, which selects who has unsettled activity in it.
+     *
+     * None of the three bound the amounts. Whichever names the participants,
+     * each one's whole unsettled position is what gets tested and swept.
+     *
+     * @param list<string>|null $transactionIds
+     * @param list<string>|null $memberIds
      */
-    public function previewSettlement(?string $fromDate = null, ?string $toDate = null, ?string $memberId = null, bool $sepaEligibleOnly = false): SettlementPreviewDto
+    public function previewSettlement(?string $fromDate = null, ?string $toDate = null, ?string $memberId = null, bool $sepaEligibleOnly = false, ?array $transactionIds = null, ?array $memberIds = null): SettlementPreviewDto
     {
-        $memberIds = $this->settlementsRepository->findParticipantMemberIds($fromDate, $toDate, $memberId);
-        if (empty($memberIds)) {
+        if ($memberIds !== null) {
+            $participantIds = array_values(array_unique($memberIds));
+        } elseif ($transactionIds !== null) {
+            $posted = $this->transactionsRepository->findUnsettledByIds($transactionIds);
+            $participantIds = array_values(array_unique(array_column($posted, 'member_id')));
+        } else {
+            $participantIds = $this->settlementsRepository->findParticipantMemberIds($fromDate, $toDate, $memberId);
+        }
+
+        if (empty($participantIds)) {
             return new SettlementPreviewDto([], [], 0, 0, 0, []);
         }
 
+        $memberIds = $participantIds;
         $positions = $this->settlementsRepository->calculateUnsettledPositions($memberIds);
+
+        // Counted in SQL. The New Settlement screen previews with no filter, so
+        // "every participant" is every member with an open position — hydrating
+        // their rows here made one page load read the whole journal.
+        $unsettledCounts = $this->transactionsRepository->countUnsettledByMemberIds($memberIds);
 
         $eligible = [];
         $ineligible = [];
@@ -89,6 +119,10 @@ class SettlementsService
         $warnings = [];
 
         foreach ($memberIds as $mid) {
+            // NOTE: one query per participant. Since ADR-0030 this path runs
+            // over every member with an open position, so it wants batching.
+            // Left for its own change rather than folded into this one — see
+            // the follow-up in the plan.
             $member = $this->membersRepository->findById($mid);
             if (!$member) continue;
 
@@ -98,6 +132,9 @@ class SettlementsService
                 'first_name' => $member['first_name'],
                 'last_name' => $member['last_name'],
                 'balance_cents' => $balance,
+                // How many rows this member would contribute to the run — the
+                // number their row on the New Settlement screen shows.
+                'transaction_count' => $unsettledCounts[$mid] ?? 0,
                 'iban' => $member['iban'] ?? null,
                 'mandate_reference' => $member['mandate_reference'] ?? null,
             ];
@@ -132,6 +169,10 @@ class SettlementsService
             }
         }
 
+        // Counted over the eligible members' *whole* positions, because that is
+        // what createSettlement() sweeps once the partition check passes.
+        $transactionCount = (int) array_sum(array_column($eligible, 'transaction_count'));
+
         return new SettlementPreviewDto(
             eligibleMembers: $eligible,
             ineligibleMembers: $ineligible,
@@ -143,6 +184,7 @@ class SettlementsService
             creditTotal: array_sum(array_column($credit, 'balance_cents')),
             heldMembers: $held,
             heldTotal: array_sum(array_column($held, 'balance_cents')),
+            transactionCount: $transactionCount,
         );
     }
 
@@ -170,25 +212,39 @@ class SettlementsService
         return $this->transactionsRepository->summarizeUnsettledByFilters($filters);
     }
 
-    public function createSettlement(array $transactionIds, string $settlementDate, string $executionDate, ?string $periodStart, ?string $periodEnd, SettlementMethod $method, ?string $notes, string $adminUserId): SettlementDto
+    /**
+     * `$postedMemberIds` is what the New Settlement screen sends: the run's
+     * participants named directly, since the unit of selection is the member
+     * (ADR-0030). `$transactionIds` is the compatibility path — it says *who*
+     * is being settled and is then discarded, because either way the run
+     * covers each named member in full (#161 §2).
+     *
+     * @param list<string>|null $postedMemberIds
+     */
+    public function createSettlement(array $transactionIds, string $settlementDate, string $executionDate, ?string $periodStart, ?string $periodEnd, SettlementMethod $method, ?string $notes, string $adminUserId, ?array $postedMemberIds = null): SettlementDto
     {
         $this->db->beginTransaction();
         try {
-            // Validate no conflicts
-            $conflicts = $this->settlementsRepository->hasConflicts($transactionIds);
-            if (!empty($conflicts)) {
-                throw new BusinessRuleException('Some transactions are already settled');
-            }
+            if ($postedMemberIds !== null) {
+                $memberIds = array_values(array_unique($postedMemberIds));
+                if (empty($memberIds)) {
+                    throw new BusinessRuleException('No members named');
+                }
+            } else {
+                // Validate no conflicts
+                $conflicts = $this->settlementsRepository->hasConflicts($transactionIds);
+                if (!empty($conflicts)) {
+                    throw new BusinessRuleException('Some transactions are already settled');
+                }
 
-            // Fetch transactions
-            $posted = $this->transactionsRepository->findUnsettledByIds($transactionIds);
-            if (empty($posted)) {
-                throw new BusinessRuleException('No valid unsettled transactions found');
-            }
+                // Fetch transactions
+                $posted = $this->transactionsRepository->findUnsettledByIds($transactionIds);
+                if (empty($posted)) {
+                    throw new BusinessRuleException('No valid unsettled transactions found');
+                }
 
-            // The posted ids say *who* is being settled; the run then covers
-            // each of those members in full (#161 §2).
-            $memberIds = array_values(array_unique(array_column($posted, 'member_id')));
+                $memberIds = array_values(array_unique(array_column($posted, 'member_id')));
+            }
 
             // #161 §6: the preview's verdict is binding. Posting ids the
             // preview flagged used to settle them regardless, because creation
@@ -216,6 +272,14 @@ class SettlementsService
             }
 
             $transactions = $this->transactionsRepository->findUnsettledByMemberIds($memberIds);
+            if (empty($transactions)) {
+                // Reachable from the member path, where nothing was resolved
+                // through an unsettled row on the way in: an unknown id, or a
+                // member whose position another run swept while this screen was
+                // open. An empty settlement is not a settlement.
+                throw new BusinessRuleException('No valid unsettled transactions found');
+            }
+
             $totalAmount = array_sum(array_column($transactions, 'amount_cents'));
 
             // Ruling #163: bank_transfer/write_off settlements cover exactly one

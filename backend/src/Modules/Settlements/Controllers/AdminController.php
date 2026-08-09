@@ -41,11 +41,30 @@ class AdminController
     {
         $body = $request->getParsedBody() ?? [];
 
+        // Participants can be named directly, so a caller is told what its own
+        // post would do rather than what its selection adds up to (#128).
+        // `member_ids` is the New Settlement screen's language (ADR-0030);
+        // `transaction_ids` is the compatibility path.
+        foreach (['member_ids', 'transaction_ids'] as $field) {
+            if (isset($body[$field]) && !is_array($body[$field])) {
+                return $this->json($response, [
+                    'error' => 'validation_failed',
+                    'messages' => [$field => ["{$field} must be an array of ids"]],
+                ], 422);
+            }
+        }
+
+        $idList = static fn(?array $ids): ?array => $ids === null
+            ? null
+            : array_values(array_map('strval', $ids));
+
         $result = $this->settlementsService->previewSettlement(
             fromDate: $body['from_date'] ?? null,
             toDate: $body['to_date'] ?? null,
             memberId: $body['member_id'] ?? null,
             sepaEligibleOnly: (bool) ($body['sepa_eligible_only'] ?? false),
+            transactionIds: $idList($body['transaction_ids'] ?? null),
+            memberIds: $idList($body['member_ids'] ?? null),
         );
 
         return $this->json($response, $result->toArray());
@@ -108,8 +127,14 @@ class AdminController
         $body = $request->getParsedBody() ?? [];
         $adminId = $request->getAttribute('admin_user_id');
 
+        // A run names its participants either way (ADR-0030): `member_ids` is
+        // what the New Settlement screen sends, `transaction_ids` the
+        // compatibility path. Exactly one is required.
+        $namesMembers = array_key_exists('member_ids', $body);
+
         if (!$this->validator->validate($body, [
-            'transaction_ids' => ['required', 'array'],
+            'member_ids'      => $namesMembers ? ['required', 'array'] : [],
+            'transaction_ids' => $namesMembers ? [] : ['required', 'array'],
             'settlement_date' => ['required', 'date'],
             'execution_date'  => ['required', 'date', 'business_day'],
             'method'          => ['in:direct_debit,bank_transfer,write_off'],
@@ -117,10 +142,11 @@ class AdminController
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
         }
 
-        if (empty($body['transaction_ids'])) {
+        $field = $namesMembers ? 'member_ids' : 'transaction_ids';
+        if (empty($body[$field])) {
             return $this->json($response, [
                 'error' => 'validation_failed',
-                'messages' => ['transaction_ids' => ['transaction_ids must not be empty']],
+                'messages' => [$field => ["{$field} must not be empty"]],
             ], 422);
         }
 
@@ -134,7 +160,7 @@ class AdminController
         $method = SettlementMethod::from($body['method'] ?? SettlementMethod::DIRECT_DEBIT->value);
 
         $settlement = $this->settlementsService->createSettlement(
-            transactionIds: $body['transaction_ids'],
+            transactionIds: $namesMembers ? [] : $body['transaction_ids'],
             settlementDate: $body['settlement_date'],
             executionDate: $body['execution_date'],
             periodStart: $body['period_start'] ?? null,
@@ -142,6 +168,9 @@ class AdminController
             method: $method,
             notes: $body['notes'] ?? null,
             adminUserId: $adminId,
+            postedMemberIds: $namesMembers
+                ? array_values(array_map('strval', $body['member_ids']))
+                : null,
         );
 
         return $this->json($response, $settlement->toArray(), 201);

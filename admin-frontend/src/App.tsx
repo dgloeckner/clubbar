@@ -16,6 +16,7 @@ import { ProductsPage } from './pages/ProductsPage'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { JournalPage } from './pages/JournalPage'
 import { SettlementsPage } from './pages/SettlementsPage'
+import { NewSettlementPage } from './pages/NewSettlementPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AuditLogPage } from './pages/AuditLogPage'
@@ -118,6 +119,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <JournalPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settlements/new"
+        element={
+          <ProtectedRoute>
+            <NewSettlementPage />
           </ProtectedRoute>
         }
       />

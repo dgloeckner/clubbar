@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/walkthrough';
+import { NewSettlementPage } from '../../pages/NewSettlementPage';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -200,39 +201,23 @@ test.describe('Admin Panel Walkthrough', () => {
     await searchInput.clear();
   });
 
-  test('09 — Journal: create settlement from selected transactions', async ({
-    page, authenticatedJournalPage, capture,
+  test('09 — New Settlement: create a run by selecting members', async ({
+    page, capture,
   }) => {
-    await authenticatedJournalPage.waitForPageLoad();
-    await authenticatedJournalPage.waitForTableToLoad();
+    // The run picks members, not transactions, and lives on its own screen
+    // (ADR-0030). Every eligible member is selected on arrival, so the default
+    // state of this screen is the whole-club run.
+    const newSettlement = new NewSettlementPage(page);
+    await newSettlement.gotoViaSettlements();
+    await capture('New Settlement — members to collect from');
 
-    // Filter to open transactions only
-    await authenticatedJournalPage.filterBySettlementStatus('open');
-    await page.waitForTimeout(500);
+    // Each row carries the member's whole unsettled position, and the summary
+    // states what the run will actually settle.
+    const summary = await newSettlement.getRunSummary();
+    expect(summary.members).toBeGreaterThan(0);
+    await capture('New Settlement — run summary');
 
-    // Enter settlement selection mode
-    await authenticatedJournalPage.enterSettlementMode();
-    await page.waitForTimeout(300);
-
-    // Select all visible open transactions
-    const selectAll = page.getByTestId('journal-select-all-checkbox');
-    await selectAll.check();
-    await page.waitForTimeout(300);
-    await capture('Select Transactions for Settlement');
-
-    // Click conclude to open confirmation modal
-    const concludeBtn = page.getByTestId('journal-settlement-conclude-btn');
-    await concludeBtn.click();
-    await expect(page.getByTestId('journal-settlement-confirm-modal')).toBeVisible();
-    await page.waitForTimeout(300);
-    await capture('Settlement Confirmation');
-
-    // Confirm the settlement
-    const confirmBtn = page.getByTestId('journal-settlement-confirm-submit-btn');
-    await confirmBtn.click();
-    await page.waitForResponse(
-      resp => resp.url().includes('/api/admin/settlements') && resp.status() === 201
-    );
+    await newSettlement.create();
     await page.waitForTimeout(500);
     await capture('Settlement Created');
   });

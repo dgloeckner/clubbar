@@ -409,8 +409,15 @@ class SettlementsRepository
         // #120 this was a ternary whose two branches were the same column, so
         // clicking "Created by" re-sorted by date and the arrow moved onto a
         // heading the order had nothing to do with.
-        $sortMap = ['created_at' => 's.created_at', 'created_by' => 'a.display_name'];
-        $sortCol = $sortMap[$sortKey] ?? 's.created_at';
+        // Both keys need a tiebreaker. `display_name` repeats for every
+        // settlement one admin created, and two settlements can share a
+        // `created_at` second — and row order *within* a tie is undefined, so
+        // LIMIT/OFFSET over it can hand the same row to two pages and never
+        // hand over another at all. The id is unique, so it makes paging
+        // deterministic; for the name sort, date orders the group underneath it.
+        $orderBy = $sortKey === 'created_by'
+            ? "a.display_name {$dir}, s.created_at DESC, s.id ASC"
+            : "s.created_at {$dir}, s.id ASC";
 
         $countStmt = $this->db->prepare("SELECT COUNT(*) FROM settlements s {$whereClause}");
         $countStmt->execute($params);
@@ -422,7 +429,7 @@ class SettlementsRepository
                 (SELECT COUNT(*) FROM settlement_items si WHERE si.settlement_id = s.id) as transaction_count,
                 (SELECT MIN(t.occurred_at) FROM settlement_items si JOIN transactions t ON si.transaction_id = t.id WHERE si.settlement_id = s.id) as transaction_date_min,
                 (SELECT MAX(t.occurred_at) FROM settlement_items si JOIN transactions t ON si.transaction_id = t.id WHERE si.settlement_id = s.id) as transaction_date_max
-             FROM settlements s LEFT JOIN admin_users a ON s.created_by_admin_id = a.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
+             FROM settlements s LEFT JOIN admin_users a ON s.created_by_admin_id = a.id {$whereClause} ORDER BY {$orderBy} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
 

@@ -340,6 +340,38 @@ class TransactionsRepository
         return $stmt->fetchAll();
     }
 
+    /**
+     * How many unsettled transactions each of the given members holds.
+     *
+     * Counted in SQL rather than by hydrating the rows: the settlement preview
+     * needs a per-member count for the New Settlement screen, and the screen
+     * asks for *every* member with an open position at once (ADR-0030). Loading
+     * every unsettled row in the database to call count() on the groups made a
+     * page load scale with the whole journal instead of with the run.
+     *
+     * @param list<string> $memberIds
+     * @return array<string, int> member id => count, absent when zero
+     */
+    public function countUnsettledByMemberIds(array $memberIds): array
+    {
+        if (empty($memberIds)) return [];
+
+        [$placeholders, $params] = SafeQuery::inClause(array_values($memberIds), 'string');
+        $stmt = $this->db->prepare(
+            "SELECT t.member_id, COUNT(*) AS unsettled_count FROM transactions t"
+            . " WHERE t.member_id IN ({$placeholders}) AND " . UnsettledTransactions::UNSETTLED
+            . " GROUP BY t.member_id"
+        );
+        $stmt->execute($params);
+
+        $counts = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $counts[$row['member_id']] = (int) $row['unsettled_count'];
+        }
+
+        return $counts;
+    }
+
     public function findUnsettledByIds(array $transactionIds): array
     {
         if (empty($transactionIds)) return [];

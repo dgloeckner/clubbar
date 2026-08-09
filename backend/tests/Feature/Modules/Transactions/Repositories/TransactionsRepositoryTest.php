@@ -107,6 +107,53 @@ class TransactionsRepositoryTest extends DatabaseTestCase
         $this->assertNull($transaction['settlement_date'], 'settlement_date should be null for unsettled transactions');
     }
 
+    /**
+     * Counting per member in SQL (ADR-0030).
+     *
+     * The New Settlement screen previews with no filter, so this runs over every
+     * member holding an open position. It used to be done by loading every one
+     * of their transactions and counting the groups in PHP, which made a page
+     * load scale with the whole journal rather than with the run.
+     */
+    public function test_countUnsettledByMemberIds_counts_each_members_open_rows(): void
+    {
+        $memberA = $this->createTestMember('CountA', 'User');
+        $memberB = $this->createTestMember('CountB', 'User');
+        $categoryId = $this->createTestCategory('Drinks');
+        $productId = $this->createTestProduct($categoryId, 'Cola', 'cola', 250);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, product_id, amount_cents, transaction_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        foreach ([[$memberA, 3], [$memberB, 1]] as [$memberId, $rows]) {
+            for ($i = 0; $i < $rows; $i++) {
+                $transactionId = $this->generateUuid();
+                $this->testTransactionIds[] = $transactionId;
+                $stmt->execute([$transactionId, $memberId, $productId, 250, 'purchase', '2026-02-07 14:30:00']);
+            }
+        }
+
+        $counts = $this->transactionsRepository->countUnsettledByMemberIds([$memberA, $memberB]);
+
+        $this->assertSame(3, $counts[$memberA]);
+        $this->assertSame(1, $counts[$memberB]);
+    }
+
+    public function test_countUnsettledByMemberIds_is_empty_for_no_members(): void
+    {
+        $this->assertSame([], $this->transactionsRepository->countUnsettledByMemberIds([]));
+    }
+
+    /** A member whose rows are all settled contributes nothing to a run. */
+    public function test_countUnsettledByMemberIds_omits_a_member_with_no_open_rows(): void
+    {
+        $memberId = $this->createTestMember('CountSettled', 'User');
+
+        $counts = $this->transactionsRepository->countUnsettledByMemberIds([$memberId]);
+
+        $this->assertArrayNotHasKey($memberId, $counts);
+    }
+
     public function test_findByMemberId_returns_product_icon_for_purchases(): void
     {
         // Arrange: Create test data

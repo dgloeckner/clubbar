@@ -13,11 +13,15 @@
  * Pattern: Table implementation with filtering, sorting, and pagination
  * Uses TDD with E2E tests in e2etests/tests/admin/settlements.spec.ts
  *
- * Note: Settlement creation is handled in the Journal page (UC-A30, UC-A35).
+ * Note: Settlement creation lives on the New Settlement screen this page links
+ * to (UC-A30, ADR-0030). It used to be a transaction picker in the Journal,
+ * which described something the system stopped doing when a run began sweeping
+ * whole member positions.
  * Settlement details view was removed - no additional value beyond list view.
  */
 
 import { useCallback, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { theme } from '../styles/design-system'
@@ -103,6 +107,7 @@ interface SettlementFilters {
 
 export function SettlementsPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
   // Pagination, filters and sorting share the list-query state (#121). The
@@ -262,7 +267,35 @@ export function SettlementsPage() {
 
     return (
       <div data-testid="settlements-page">
-        <h1 style={{ margin: '0 0 20px 0' }}>{t('settlements.title')}</h1>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: theme.spacing.md,
+            flexWrap: 'wrap',
+            margin: '0 0 20px 0',
+          }}
+        >
+          <h1 style={{ margin: 0 }}>{t('settlements.title')}</h1>
+          {/* UC-A30's trigger, and since ADR-0030 the only way in. */}
+          <button
+            data-testid="settlements-new-btn"
+            onClick={() => navigate('/settlements/new')}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#10b981',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 6,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            {t('newSettlement.title')}
+          </button>
+        </div>
 
           {/* Error state */}
           {error && (

@@ -83,7 +83,13 @@ class SettlementsServiceTest extends TestCase
             $memberMap[] = [$memberId, $this->member($memberId)];
         }
 
+        $counts = [];
+        foreach ($transactions as $tx) {
+            $counts[$tx['member_id']] = ($counts[$tx['member_id']] ?? 0) + 1;
+        }
+
         $this->transactionsRepository->method('findUnsettledByMemberIds')->willReturn($transactions);
+        $this->transactionsRepository->method('countUnsettledByMemberIds')->willReturn($counts);
         $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn($positions);
         $this->membersRepository->method('findById')->willReturnMap($memberMap);
     }
@@ -470,6 +476,313 @@ class SettlementsServiceTest extends TestCase
         $this->assertSame(0, $result->memberCount);
     }
 
+    // ── previewSettlement by transaction ids (#128) ───────────────────
+
+    /**
+     * The Journal previews the exact ids it is about to post. Resolving the
+     * participants the same way createSettlement() does is what makes the
+     * confirmation describe the run rather than the caller's selection.
+     */
+    public function test_previewSettlement_resolves_participants_from_transaction_ids(): void
+    {
+        $memberA = 'member-a';
+        $memberB = 'member-b';
+
+        $this->transactionsRepository
+            ->expects($this->once())
+            ->method('findUnsettledByIds')
+            ->with(['tx-1', 'tx-9'])
+            ->willReturn([
+                ['id' => 'tx-1', 'member_id' => $memberA, 'amount_cents' => 500],
+                ['id' => 'tx-9', 'member_id' => $memberB, 'amount_cents' => 300],
+            ]);
+
+        // The window is never consulted when ids name the participants.
+        $this->settlementsRepository->expects($this->never())->method('findParticipantMemberIds');
+
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('calculateUnsettledPositions')
+            ->with([$memberA, $memberB])
+            ->willReturn([$memberA => 500, $memberB => 300]);
+
+        $this->membersRepository->method('findById')->willReturnMap([
+            [$memberA, $this->member($memberA)],
+            [$memberB, $this->member($memberB)],
+        ]);
+        $this->transactionsRepository->method('countUnsettledByMemberIds')->willReturn([]);
+
+        $result = $this->service->previewSettlement(transactionIds: ['tx-1', 'tx-9']);
+
+        $this->assertCount(2, $result->eligibleMembers);
+        $this->assertSame(800, $result->eligibleTotal);
+    }
+
+    /**
+     * The heart of #128: one id posted for a member reports that member's
+     * *whole* position, not the row that named them. A modal that summed the
+     * selection would have said 500.
+     */
+    public function test_previewSettlement_by_ids_reports_the_whole_swept_position(): void
+    {
+        $memberId = 'member-a';
+
+        $this->transactionsRepository
+            ->method('findUnsettledByIds')
+            ->willReturn([['id' => 'tx-1', 'member_id' => $memberId, 'amount_cents' => 500]]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$memberId => 2400]);
+        $this->membersRepository->method('findById')->willReturn($this->member($memberId));
+
+        // The sweep the run would perform: four rows, not the one selected.
+        $this->transactionsRepository
+            ->expects($this->once())
+            ->method('countUnsettledByMemberIds')
+            ->with([$memberId])
+            ->willReturn([$memberId => 4]);
+
+        $result = $this->service->previewSettlement(transactionIds: ['tx-1']);
+
+        $this->assertSame(4, $result->transactionCount);
+        $this->assertSame(2400, $result->eligibleTotal);
+    }
+
+    /**
+     * A selection spanning several pages names several members, and every one
+     * of them must appear — dropping the ones that were not on the last page
+     * is the silent omission the issue describes.
+     */
+    public function test_previewSettlement_by_ids_keeps_every_member_named_across_pages(): void
+    {
+        $ids = ['page1-a', 'page1-b', 'page2-c'];
+
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn([
+            ['id' => 'page1-a', 'member_id' => 'member-a', 'amount_cents' => 100],
+            ['id' => 'page1-b', 'member_id' => 'member-b', 'amount_cents' => 200],
+            ['id' => 'page2-c', 'member_id' => 'member-c', 'amount_cents' => 300],
+        ]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
+            'member-a' => 100,
+            'member-b' => 200,
+            'member-c' => 300,
+        ]);
+        $this->membersRepository->method('findById')->willReturnMap([
+            ['member-a', $this->member('member-a')],
+            ['member-b', $this->member('member-b')],
+            ['member-c', $this->member('member-c')],
+        ]);
+        $this->transactionsRepository->method('countUnsettledByMemberIds')->willReturn([]);
+
+        $result = $this->service->previewSettlement(transactionIds: $ids);
+
+        $this->assertSame(3, $result->memberCount);
+        $this->assertSame(
+            ['member-a', 'member-b', 'member-c'],
+            array_column($result->eligibleMembers, 'member_id'),
+        );
+    }
+
+    /** Two rows of the same member name that member once, as the run does. */
+    public function test_previewSettlement_by_ids_deduplicates_members(): void
+    {
+        $memberId = 'member-a';
+
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn([
+            ['id' => 'tx-1', 'member_id' => $memberId, 'amount_cents' => 100],
+            ['id' => 'tx-2', 'member_id' => $memberId, 'amount_cents' => 200],
+        ]);
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('calculateUnsettledPositions')
+            ->with([$memberId])
+            ->willReturn([$memberId => 300]);
+        $this->membersRepository->method('findById')->willReturn($this->member($memberId));
+        $this->transactionsRepository->method('countUnsettledByMemberIds')->willReturn([]);
+
+        $result = $this->service->previewSettlement(transactionIds: ['tx-1', 'tx-2']);
+
+        $this->assertSame(1, $result->memberCount);
+    }
+
+    /**
+     * The exclusion buckets have to be visible *before* the post, or the
+     * treasurer meets them as a 422 from createSettlement().
+     */
+    public function test_previewSettlement_by_ids_reports_a_credit_member_the_creation_would_refuse(): void
+    {
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn([
+            ['id' => 'tx-1', 'member_id' => 'owing', 'amount_cents' => 500],
+            ['id' => 'tx-2', 'member_id' => 'in-credit', 'amount_cents' => 100],
+        ]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
+            'owing' => 500,
+            'in-credit' => -1500,
+        ]);
+        $this->membersRepository->method('findById')->willReturnMap([
+            ['owing', $this->member('owing')],
+            ['in-credit', $this->member('in-credit')],
+        ]);
+        $this->transactionsRepository->method('countUnsettledByMemberIds')->willReturn([]);
+
+        $result = $this->service->previewSettlement(transactionIds: ['tx-1', 'tx-2']);
+
+        $this->assertCount(1, $result->creditMembers);
+        $this->assertSame('in-credit', $result->creditMembers[0]['member_id']);
+        $this->assertCount(1, $result->eligibleMembers);
+    }
+
+    /** Ids that are all settled already name nobody, so there is nothing to preview. */
+    public function test_previewSettlement_by_ids_is_empty_when_no_id_is_still_unsettled(): void
+    {
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn([]);
+        $this->settlementsRepository->expects($this->never())->method('findParticipantMemberIds');
+
+        $result = $this->service->previewSettlement(transactionIds: ['already-settled']);
+
+        $this->assertSame(0, $result->memberCount);
+        $this->assertSame(0, $result->transactionCount);
+        $this->assertSame([], $result->eligibleMembers);
+    }
+
+    /**
+     * An excluded member's rows are not swept, so they must not reach the run
+     * total — even though the sweep query covers every participant, because
+     * each row on the New Settlement screen shows its own count (ADR-0030).
+     */
+    public function test_previewSettlement_transactionCount_covers_only_eligible_members(): void
+    {
+        $this->transactionsRepository->method('findUnsettledByIds')->willReturn([
+            ['id' => 'tx-1', 'member_id' => 'owing', 'amount_cents' => 500],
+            ['id' => 'tx-2', 'member_id' => 'in-credit', 'amount_cents' => 100],
+        ]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
+            'owing' => 500,
+            'in-credit' => -1500,
+        ]);
+        $this->membersRepository->method('findById')->willReturnMap([
+            ['owing', $this->member('owing')],
+            ['in-credit', $this->member('in-credit')],
+        ]);
+
+        // One aggregate, both participants — the credit member's own count is
+        // still reported on their (unselectable) row. Counted in SQL, because
+        // this path runs over every member with an open position.
+        $this->transactionsRepository->expects($this->never())->method('findUnsettledByMemberIds');
+        $this->transactionsRepository
+            ->expects($this->once())
+            ->method('countUnsettledByMemberIds')
+            ->with(['owing', 'in-credit'])
+            ->willReturn(['owing' => 1, 'in-credit' => 2]);
+
+        $result = $this->service->previewSettlement(transactionIds: ['tx-1', 'tx-2']);
+
+        // The run settles one row; the credit member's two are excluded.
+        $this->assertSame(1, $result->transactionCount);
+        $this->assertSame(1, $result->eligibleMembers[0]['transaction_count']);
+        $this->assertSame(2, $result->creditMembers[0]['transaction_count']);
+    }
+
+    // ── previewSettlement by member ids (ADR-0030) ────────────────────
+
+    /** The New Settlement screen holds members, so it names members. */
+    public function test_previewSettlement_accepts_member_ids_directly(): void
+    {
+        $this->settlementsRepository->expects($this->never())->method('findParticipantMemberIds');
+        $this->transactionsRepository->expects($this->never())->method('findUnsettledByIds');
+
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('calculateUnsettledPositions')
+            ->with(['member-a', 'member-b'])
+            ->willReturn(['member-a' => 400, 'member-b' => 600]);
+
+        $this->membersRepository->method('findById')->willReturnMap([
+            ['member-a', $this->member('member-a')],
+            ['member-b', $this->member('member-b')],
+        ]);
+        $this->transactionsRepository->method('countUnsettledByMemberIds')->willReturn([]);
+
+        $result = $this->service->previewSettlement(memberIds: ['member-a', 'member-b']);
+
+        $this->assertSame(2, $result->memberCount);
+        $this->assertSame(1000, $result->eligibleTotal);
+    }
+
+    public function test_previewSettlement_member_ids_win_over_transaction_ids(): void
+    {
+        $this->transactionsRepository->expects($this->never())->method('findUnsettledByIds');
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('calculateUnsettledPositions')
+            ->with(['member-a'])
+            ->willReturn(['member-a' => 100]);
+        $this->membersRepository->method('findById')->willReturn($this->member('member-a'));
+        $this->transactionsRepository->method('countUnsettledByMemberIds')->willReturn([]);
+
+        $this->service->previewSettlement(transactionIds: ['tx-1'], memberIds: ['member-a']);
+    }
+
+    public function test_previewSettlement_deduplicates_posted_member_ids(): void
+    {
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('calculateUnsettledPositions')
+            ->with(['member-a'])
+            ->willReturn(['member-a' => 100]);
+        $this->membersRepository->method('findById')->willReturn($this->member('member-a'));
+        $this->transactionsRepository->method('countUnsettledByMemberIds')->willReturn([]);
+
+        $result = $this->service->previewSettlement(memberIds: ['member-a', 'member-a']);
+
+        $this->assertSame(1, $result->memberCount);
+    }
+
+    public function test_previewSettlement_with_an_empty_member_id_list_is_empty(): void
+    {
+        $this->settlementsRepository->expects($this->never())->method('findParticipantMemberIds');
+
+        $result = $this->service->previewSettlement(memberIds: []);
+
+        $this->assertSame(0, $result->memberCount);
+        $this->assertSame(0, $result->transactionCount);
+    }
+
+    /** Each row carries the count the screen shows next to the member's name. */
+    public function test_previewSettlement_reports_a_transaction_count_per_member(): void
+    {
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn(['member-a', 'member-b']);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([
+            'member-a' => 300,
+            'member-b' => 100,
+        ]);
+        $this->membersRepository->method('findById')->willReturnMap([
+            ['member-a', $this->member('member-a')],
+            ['member-b', $this->member('member-b')],
+        ]);
+        $this->transactionsRepository->method('countUnsettledByMemberIds')
+            ->willReturn(['member-a' => 2, 'member-b' => 1]);
+
+        $result = $this->service->previewSettlement();
+
+        $byId = array_column($result->eligibleMembers, 'transaction_count', 'member_id');
+        $this->assertSame(2, $byId['member-a']);
+        $this->assertSame(1, $byId['member-b']);
+        $this->assertSame(3, $result->transactionCount);
+    }
+
+    /** The window path keeps working, and now reports its sweep size too. */
+    public function test_previewSettlement_by_window_also_reports_the_transaction_count(): void
+    {
+        $memberId = 'member-a';
+        $this->settlementsRepository->method('findParticipantMemberIds')->willReturn([$memberId]);
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn([$memberId => 900]);
+        $this->membersRepository->method('findById')->willReturn($this->member($memberId));
+        $this->transactionsRepository->method('countUnsettledByMemberIds')->willReturn([$memberId => 2]);
+
+        $result = $this->service->previewSettlement('2026-02-01', '2026-02-28');
+
+        $this->assertSame(2, $result->transactionCount);
+    }
+
     // ── previewByFilters ─────────────────────────────────────────────
 
     public function test_previewByFilters_delegates_to_transactions_repository(): void
@@ -754,6 +1067,118 @@ class SettlementsServiceTest extends TestCase
         $this->service->createSettlement(['tx-feb'], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1');
 
         $this->assertSame(['tx-jan-storno', 'tx-feb'], $settled, 'The January credit must be swept in with the February purchase');
+    }
+
+    // ── createSettlement by member ids (ADR-0030) ────────────────────
+
+    /**
+     * The New Settlement screen posts members. Naming a member and naming one
+     * of their transactions must describe the same run — that equivalence is
+     * what lets the compatibility path stay without being a second behaviour.
+     */
+    public function test_createSettlement_accepts_member_ids_and_settles_the_same_run(): void
+    {
+        $wholePosition = [
+            ['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500],
+            ['id' => 'tx-2', 'member_id' => 'member-a', 'amount_cents' => 700],
+        ];
+
+        // Nothing is resolved through a transaction on the way in.
+        $this->settlementsRepository->expects($this->never())->method('hasConflicts');
+        $this->transactionsRepository->expects($this->never())->method('findUnsettledByIds');
+
+        $this->stubEligibleSweep($wholePosition);
+        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
+
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('create')
+            ->with($this->callback(fn(array $d) => $d['total_amount_cents'] === 1200 && $d['member_count'] === 1))
+            ->willReturn($this->settlementRow(['total_amount_cents' => 1200]));
+
+        $settled = [];
+        $this->settlementsRepository
+            ->expects($this->exactly(2))
+            ->method('createItem')
+            ->willReturnCallback(function (array $d) use (&$settled): void { $settled[] = $d['transaction_id']; });
+
+        $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
+
+        $this->service->createSettlement(
+            [], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
+            postedMemberIds: ['member-a'],
+        );
+
+        $this->assertSame(['tx-1', 'tx-2'], $settled);
+    }
+
+    public function test_createSettlement_deduplicates_posted_member_ids(): void
+    {
+        $this->stubEligibleSweep([['id' => 'tx-1', 'member_id' => 'member-a', 'amount_cents' => 500]]);
+        $this->settlementsRepository->method('getNextSepaMessageId')->willReturn('SEPA-XYZ');
+        $this->settlementsRepository
+            ->expects($this->once())
+            ->method('create')
+            ->with($this->callback(fn(array $d) => $d['member_count'] === 1))
+            ->willReturn($this->settlementRow());
+        $this->settlementsRepository->method('findItemsBySettlementId')->willReturn([]);
+
+        $this->service->createSettlement(
+            [], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
+            postedMemberIds: ['member-a', 'member-a'],
+        );
+    }
+
+    public function test_createSettlement_rejects_an_empty_member_id_list(): void
+    {
+        $this->db->expects($this->once())->method('rollBack');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('No members named');
+
+        $this->service->createSettlement(
+            [], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
+            postedMemberIds: [],
+        );
+    }
+
+    /**
+     * The member path never touches an unsettled row on the way in, so nothing
+     * would otherwise stop an unknown id — or a member another run swept while
+     * this screen was open — from creating an empty settlement.
+     */
+    public function test_createSettlement_rejects_member_ids_with_nothing_left_to_settle(): void
+    {
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn(['member-a' => 0]);
+        $this->membersRepository->method('findById')->willReturn($this->member('member-a'));
+        $this->transactionsRepository->method('findUnsettledByMemberIds')->willReturn([]);
+
+        $this->db->expects($this->once())->method('rollBack');
+        $this->settlementsRepository->expects($this->never())->method('create');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessage('No valid unsettled transactions found');
+
+        $this->service->createSettlement(
+            [], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
+            postedMemberIds: ['member-a'],
+        );
+    }
+
+    /** The exclusion rule is the run's, not the entry path's (#161 §6). */
+    public function test_createSettlement_by_member_ids_still_refuses_a_credit_member(): void
+    {
+        $this->settlementsRepository->method('calculateUnsettledPositions')->willReturn(['member-a' => -1500]);
+        $this->membersRepository->method('findById')->willReturn($this->member('member-a'));
+
+        $this->db->expects($this->once())->method('rollBack');
+
+        $this->expectException(ValidationException::class);
+
+        $this->service->createSettlement(
+            [], '2026-03-01', '2026-03-15', null, null, SettlementMethod::DIRECT_DEBIT, null, 'admin-1',
+            postedMemberIds: ['member-a'],
+        );
     }
 
     /**

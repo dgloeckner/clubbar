@@ -119,4 +119,46 @@ class SettlementPreviewDtoTest extends TestCase
         $this->assertSame(-1000, $array['eligible_total']);
         $this->assertSame(-500, $array['ineligible_total']);
     }
+
+    /**
+     * The count of what the run would actually contain (#128). It defaults to
+     * zero so the existing callers keep working, but it has to survive
+     * serialization or the confirmation falls back to counting the caller's
+     * own selection — which is the understatement the issue is about.
+     */
+    public function test_to_array_carries_the_transaction_count(): void
+    {
+        // Arrange
+        $dto = new SettlementPreviewDto(
+            eligibleMembers: [],
+            ineligibleMembers: [],
+            eligibleTotal: 0,
+            ineligibleTotal: 0,
+            memberCount: 1,
+            warnings: [],
+            transactionCount: 12,
+        );
+
+        // Act
+        $array = $dto->toArray();
+
+        // Assert
+        $this->assertArrayHasKey('transaction_count', $array);
+        $this->assertSame(12, $array['transaction_count']);
+    }
+
+    public function test_transaction_count_defaults_to_zero(): void
+    {
+        $dto = new SettlementPreviewDto(
+            eligibleMembers: [],
+            ineligibleMembers: [],
+            eligibleTotal: 0,
+            ineligibleTotal: 0,
+            memberCount: 0,
+            warnings: [],
+        );
+
+        $this->assertSame(0, $dto->transactionCount);
+        $this->assertSame(0, $dto->toArray()['transaction_count']);
+    }
 }
