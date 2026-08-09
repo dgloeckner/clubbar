@@ -625,7 +625,7 @@ export function JournalPage() {
                         userSelect: 'none',
                       }}
                       onClick={() => handleSort('created_at')}
-                      title="Click to sort by date"
+                      title={t('common.sortByColumn', { column: t('journal.date') })}
                       data-testid="journal-header-date"
                     >
                       {t('journal.date')} {sortKey === 'created_at' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -637,7 +637,7 @@ export function JournalPage() {
                         userSelect: 'none',
                       }}
                       onClick={() => handleSort('type')}
-                      title="Click to sort by type"
+                      title={t('common.sortByColumn', { column: t('journal.type') })}
                       data-testid="journal-header-type"
                     >
                       {t('journal.type')} {sortKey === 'type' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -649,7 +649,7 @@ export function JournalPage() {
                         userSelect: 'none',
                       }}
                       onClick={() => handleSort('member')}
-                      title="Click to sort by member"
+                      title={t('common.sortByColumn', { column: t('journal.member') })}
                       data-testid="journal-header-member"
                     >
                       {t('journal.member')} {sortKey === 'member' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -667,7 +667,7 @@ export function JournalPage() {
                         userSelect: 'none',
                       }}
                       onClick={() => handleSort('amount')}
-                      title="Click to sort by amount"
+                      title={t('common.sortByColumn', { column: t('common.amount') })}
                       data-testid="journal-header-amount"
                     >
                       {t('common.amount')} {sortKey === 'amount' && (sortDirection === 'asc' ? '↑' : '↓')}

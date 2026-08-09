@@ -233,37 +233,42 @@ export function MainLayout({ children }: MainLayoutProps) {
               flexShrink: 0,
             }}
           >
-            {/* User Badge - clickable link to profile - hide on tablet smaller than 768px */}
-            {!isTablet && (
-              <Link
-                to="/profile"
-                data-testid="header-user-badge"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: theme.spacing.sm,
-                  padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                  background: isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)',
-                  border: `1px solid rgba(59, 130, 246, 0.3)`,
-                  borderRadius: theme.borderRadius.full,
-                  fontSize: theme.typography.fontSize.sm,
-                  color: theme.colors.semantic.primary,
-                  whiteSpace: 'nowrap',
-                  textDecoration: 'none',
-                  cursor: 'pointer',
-                  transition: `all ${theme.transitions.default}`,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.25)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)'
-                }}
-              >
-                <UserIcon size={20} data-testid="header-user-icon" />
-                {displayName || 'Admin'}
-              </Link>
-            )}
+            {/*
+              User Badge - the only route to /profile between 769px and 1500px:
+              the nav has no profile entry and BottomTabBar renders on mobile
+              only. Tablet keeps the badge but drops the name, matching the
+              icon-only nav tabs at that width.
+            */}
+            <Link
+              to="/profile"
+              data-testid="header-user-badge"
+              title={isTablet ? t('nav.profile') : undefined}
+              aria-label={isTablet ? t('nav.profile') : undefined}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: theme.spacing.sm,
+                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                background: isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)',
+                border: `1px solid rgba(59, 130, 246, 0.3)`,
+                borderRadius: theme.borderRadius.full,
+                fontSize: theme.typography.fontSize.sm,
+                color: theme.colors.semantic.primary,
+                whiteSpace: 'nowrap',
+                textDecoration: 'none',
+                cursor: 'pointer',
+                transition: `all ${theme.transitions.default}`,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.25)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = isActive('/profile') ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)'
+              }}
+            >
+              <UserIcon size={20} data-testid="header-user-icon" />
+              {!isTablet && (displayName || 'Admin')}
+            </Link>
 
             {/* Logout Button */}
             <button

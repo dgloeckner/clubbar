@@ -78,6 +78,23 @@ export class MainLayoutPage extends BasePage {
     await expect(this.headerUserBadge()).toContainText(text)
   }
 
+  /**
+   * The badge is the only route to /profile between 769px and 1500px — the nav
+   * carries no profile entry and BottomTabBar renders on mobile only (#138).
+   */
+  async expectUserBadgeVisible() {
+    await expect(this.headerUserBadge()).toBeVisible()
+  }
+
+  async getUserBadgeAccessibleName(): Promise<string | null> {
+    return this.headerUserBadge().getAttribute('aria-label')
+  }
+
+  async clickUserBadge() {
+    await this.headerUserBadge().click()
+    await this.page.waitForURL('**/profile', { timeout: 5000 })
+  }
+
   async clickLogout() {
     await this.headerLogoutButton().click()
   }
