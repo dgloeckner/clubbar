@@ -162,8 +162,7 @@ class CheckPatchCoverageScriptTest extends TestCase
      */
     private function runScript(array $args): array
     {
-        $script = dirname(__DIR__, 4) . '/scripts/check-patch-coverage.php';
-        $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script);
+        $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(self::scriptPath());
         foreach ($args as $arg) {
             $command .= ' ' . escapeshellarg($arg);
         }
@@ -173,5 +172,36 @@ class CheckPatchCoverageScriptTest extends TestCase
         exec($command . ' 2>&1', $output, $exit);
 
         return ['exit' => $exit, 'output' => implode("\n", $output)];
+    }
+
+    /**
+     * Locate scripts/check-patch-coverage.php by walking up from this file.
+     *
+     * It used to be `dirname(__DIR__, 4)`, which assumes the suite runs from a
+     * backend/ directory nested one level inside the checkout. That holds on a
+     * developer machine and in CI, and breaks in the backend container, where
+     * /app *is* backend/ — four levels up lands on `/` and every test in this
+     * file died with "Could not open input file". Searching for the script says
+     * what it actually needs, and finds it in all three places.
+     */
+    private static function scriptPath(): string
+    {
+        for ($dir = __DIR__; ; $dir = dirname($dir)) {
+            $candidate = $dir . '/scripts/check-patch-coverage.php';
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+            if (dirname($dir) === $dir) {
+                break; // reached the filesystem root
+            }
+        }
+
+        // Deliberately a failure rather than a skip: the script is the subject of
+        // every test here, so "cannot find it" is a broken setup to fix, not a
+        // condition to quietly tolerate.
+        self::fail(
+            'Cannot find scripts/check-patch-coverage.php above ' . __DIR__ . '. '
+            . 'In the backend container it comes from the ./scripts:/scripts mount in docker-compose.yml.'
+        );
     }
 }

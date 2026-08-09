@@ -896,6 +896,8 @@ docker compose exec -w /app backend ./vendor/bin/phpunit
 
 The host PHP has no **bcmath**, and `Validator.php` calls `bcmod()` for the IBAN checksum — on the host those tests die with `Call to undefined function bcmod()`. The host also cannot resolve the `database` hostname the feature tests connect to. The container has bcmath and is on the compose network, so both problems disappear. Installing bcmath on the host is not an option here: it lives in the `ondrej/php` PPA, and the egress policy returns 403 for `ppa.launchpadcontent.net` (see below).
 
+Because of that instruction, the backend service also mounts `./scripts` at `/scripts` read-only. `CheckPatchCoverageScriptTest` shells out to `scripts/check-patch-coverage.php`, which lives *above* `./backend` and is therefore invisible through the `/app` mount — without it those six tests fail with `Could not open input file` in the workflow this file recommends, while passing in CI, where phpunit runs inside a full checkout.
+
 `scripts/dev-stack.sh`:
 
 | Command | Behaviour |
