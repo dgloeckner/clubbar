@@ -244,6 +244,7 @@
     "title": "Categories",
     "createCategory": "Create Category",
     "editCategory": "Edit Category",
+    "formStateInvalid": "The form is in an unexpected state and nothing was saved. Please close the dialog and try again.",
     "deleteCategory": "Delete Category",
     "deleteConfirm": "Delete \"{{name}}\"? This will permanently remove the category from the database and cannot be undone.",
     "deactivateConfirm": "Deactivate \"{{name}}\"? All {{count}} products in this category will no longer be visible in the terminal.",
