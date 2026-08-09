@@ -69,11 +69,20 @@ test.describe('Dashboard Statistics', () => {
     await dashboardResp
 
     const membersPage = new MembersPage(page)
+    // The response arriving is not the card being rendered; until it is, the
+    // card reads "—" and getMemberCount() reports 0 (see #132).
+    await membersPage.waitForStatsToLoad()
+
     const count = parseInt(await membersPage.getMemberCount(), 10)
     expect(count).toBeGreaterThanOrEqual(1)
   })
 
   test('should display open balance with currency format', async ({ authenticatedMembersPage }) => {
+    // Read it only once the metrics response has landed. Before #132 the cards
+    // started at a formatted 0,00 €, so this assertion passed against a card
+    // that had never been given a number — the very confusion #132 is about.
+    await authenticatedMembersPage.waitForStatsToLoad()
+
     const balance = await authenticatedMembersPage.getOpenBalance()
     expect(balance).toMatch(/[\d.,€]/)
   })

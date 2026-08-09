@@ -3,7 +3,7 @@
  * Member management (list, create, edit, delete)
  */
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/common/StatCard'
 import { theme } from '../styles/design-system'
@@ -83,9 +83,13 @@ export function MembersPage() {
   // The dashboard metrics are a second, independent stream, so they get their
   // own abort slot — the member list's lives inside useListQuery (#96).
   const metricsRequest = useLatestRequest()
-  const [activeMembersCount, setActiveMembersCount] = useState(0)
-  const [totalBalance, setTotalBalance] = useState(0)
+  // Null means "not known", which is not the same as zero: a treasurer reading
+  // "0,00 €" concludes nothing is outstanding, so a failed metrics load has to
+  // render "—" rather than a number nobody computed (#132).
+  const [activeMembersCount, setActiveMembersCount] = useState<number | null>(null)
+  const [totalBalance, setTotalBalance] = useState<number | null>(null)
   const [lastSettlementDate, setLastSettlementDate] = useState<string | null>(null)
+  const [metricsFailed, setMetricsFailed] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
 
@@ -156,22 +160,29 @@ export function MembersPage() {
   const mobileSortValue = list.sortValue
 
   // Load dashboard metrics (active members count, outstanding balance, last settlement date)
-  useEffect(() => {
-    const loadDashboardMetrics = async (signal: AbortSignal) => {
-      try {
-        const dashboard = await getDashboard().getDashboardMetrics({ signal })
-        if (signal.aborted) return
-        setActiveMembersCount(dashboard.metrics?.active_members ?? 0)
-        setTotalBalance(dashboard.metrics?.outstanding_balance_cents ?? 0)
-        setLastSettlementDate(dashboard.system_status?.last_settlement_date ?? null)
-      } catch {
-        // Silently fail - stats are not critical
-      }
+  const loadDashboardMetrics = useCallback(async (signal: AbortSignal) => {
+    try {
+      const dashboard = await getDashboard().getDashboardMetrics({ signal })
+      if (signal.aborted) return
+      setActiveMembersCount(dashboard.metrics?.active_members ?? null)
+      setTotalBalance(dashboard.metrics?.outstanding_balance_cents ?? null)
+      setLastSettlementDate(dashboard.system_status?.last_settlement_date ?? null)
+      setMetricsFailed(false)
+    } catch {
+      if (signal.aborted) return
+      // The cards keep their "—" and say so above; the member list below is a
+      // separate stream and stays usable.
+      setActiveMembersCount(null)
+      setTotalBalance(null)
+      setLastSettlementDate(null)
+      setMetricsFailed(true)
     }
+  }, [])
 
+  useEffect(() => {
     loadDashboardMetrics(metricsRequest.next())
     return () => metricsRequest.abort()
-  }, [metricsRequest])
+  }, [loadDashboardMetrics, metricsRequest])
 
   // Handle GDPR data export — downloads a JSON file with the member's personal data
   const handleExportData = async () => {
@@ -191,6 +202,12 @@ export function MembersPage() {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // A mandate upload that fails after the member row is already committed is
+    // not fatal — but staying quiet about it leaves the admin believing the
+    // scan is attached when it is not (#132). Remembered here so the success
+    // path below reports it instead of clearing the banner.
+    let mandateUploadFailed = false
 
     try {
       // Clear previous form errors
@@ -248,7 +265,9 @@ export function MembersPage() {
           try {
             await getMembersFactory().uploadMandateDocument(newMemberId, { file: scanFile })
           } catch {
-            // Document upload failed but member was created — non-fatal
+            // The member exists, so this is not a failed save — but the scan is
+            // missing and only the admin can re-attach it.
+            mandateUploadFailed = true
           }
           setScanFile(null)
         }
@@ -265,7 +284,7 @@ export function MembersPage() {
       // Reload members list with the active filters still applied
       await list.reload()
 
-      setError(null)
+      setError(mandateUploadFailed ? t('members.errors.mandateUploadFailed') : null)
     } catch (err: unknown) {
       // Handle validation errors (422)
       const axiosErr = err as { response?: { status?: number; data?: unknown } }
@@ -492,13 +511,13 @@ export function MembersPage() {
         <StatCard
           icon={<UsersIcon />}
           label={t('members.stats.activeMembers')}
-          value={activeMembersCount}
+          value={activeMembersCount ?? '—'}
           color="green"
         />
         <StatCard
           icon={<BankIcon />}
           label={t('members.stats.openItems')}
-          value={formatters.formatPrice(totalBalance)}
+          value={totalBalance === null ? '—' : formatters.formatPrice(totalBalance)}
           color="blue"
         />
         <StatCard
@@ -508,6 +527,46 @@ export function MembersPage() {
           color="blue"
         />
       </div>
+
+      {/* Why the cards read "—". Without it the dashes are indistinguishable
+          from a club that has never settled anything. */}
+      {metricsFailed && (
+        <div
+          data-testid="members-metrics-error"
+          style={{
+            padding: theme.spacing.md,
+            marginBottom: theme.spacing.lg,
+            background: `${theme.colors.semantic.warning}20`,
+            border: `1px solid ${theme.colors.semantic.warning}`,
+            borderRadius: theme.borderRadius.md,
+            color: theme.colors.semantic.warning,
+            fontSize: theme.typography.fontSize.sm,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: theme.spacing.md,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>{t('members.errors.loadMetrics')}</span>
+          <button
+            data-testid="members-metrics-retry"
+            onClick={() => loadDashboardMetrics(metricsRequest.next())}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: `1px solid ${theme.colors.semantic.warning}`,
+              background: 'transparent',
+              color: theme.colors.semantic.warning,
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {t('common.retry')}
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', gap: '12px' }}>
@@ -603,6 +662,26 @@ export function MembersPage() {
           </button>
         </div>
       </div>
+
+      {/* Above the breakpoint split on purpose: rendered inside the desktop
+          branch, load failures, anonymize 409s and status-toggle errors were
+          invisible on mobile (#132). Same pattern as SettlementsPage. */}
+      {error && (
+        <div
+          data-testid="members-error-message"
+          style={{
+            padding: theme.spacing.lg,
+            marginBottom: theme.spacing.lg,
+            background: `${theme.colors.semantic.danger}20`,
+            border: `1px solid ${theme.colors.semantic.danger}`,
+            borderRadius: theme.borderRadius.md,
+            color: theme.colors.semantic.danger,
+            fontSize: theme.typography.fontSize.sm,
+          }}
+        >
+          {error}
+        </div>
+      )}
 
       {isMobile ? (
         <>
@@ -1074,21 +1153,6 @@ export function MembersPage() {
       </div>
 
         {/* Table */}
-        {error && (
-          <div
-            data-testid="members-error-message"
-            style={{
-              padding: theme.spacing.lg,
-              background: `${theme.colors.semantic.danger}20`,
-              borderBottom: `1px solid ${theme.colors.semantic.danger}`,
-              color: theme.colors.semantic.danger,
-              fontSize: theme.typography.fontSize.sm,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
         {loading ? (
           <div data-testid="members-loading" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
             {t('common.loading')}

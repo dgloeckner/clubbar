@@ -10,6 +10,7 @@ export class DashboardPage extends BasePage {
   private readonly systemStatusSection = () => this.page.getByTestId('dashboard-system-status')
   private readonly sepaAlertMessage = () => this.page.getByTestId('dashboard-sepa-alert-message')
   private readonly loadingIndicator = () => this.page.getByTestId('dashboard-loading')
+  private readonly staleWarning = () => this.page.getByTestId('dashboard-stale-warning')
 
   constructor(page: Page) {
     super(page)
@@ -38,6 +39,20 @@ export class DashboardPage extends BasePage {
 
   async expectSystemStatusVisible() {
     await expect(this.systemStatusSection()).toBeVisible()
+  }
+
+  /** Shown once an auto-refresh fails while the page still renders the numbers
+   *  from the last one that worked (#132). */
+  async expectStaleWarningVisible() {
+    await expect(this.staleWarning()).toBeVisible({ timeout: 20000 })
+  }
+
+  async expectStaleWarningHidden() {
+    await expect(this.staleWarning()).toBeHidden()
+  }
+
+  async getStaleWarningText(): Promise<string> {
+    return ((await this.staleWarning().textContent()) ?? '').trim()
   }
 
   async waitForRefresh() {

@@ -15,11 +15,14 @@ const AUTO_REFRESH_INTERVAL = 10_000 // 10 seconds
 export function DashboardPage() {
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
-  const { formatPrice, formatDateTime, formatRelativeDate } = useFormatters()
+  const { formatPrice, formatDateTime, formatRelativeDate, intlLocale } = useFormatters()
 
   const [data, setData] = useState<DashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // When a refresh fails the page keeps rendering the numbers it already has —
+  // which is the right call, but only if it says how old they are (#132).
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const request = useLatestRequest()
 
@@ -35,6 +38,7 @@ export function DashboardPage() {
       const response = await getDashboard().getDashboardMetrics({ signal })
       if (signal.aborted) return
       setData(response)
+      setLastUpdatedAt(new Date())
       setError(null)
     } catch (err) {
       if (signal.aborted) return
@@ -105,6 +109,50 @@ export function DashboardPage() {
 
   return (
     <div data-testid="dashboard-page" style={{ padding: isMobile ? `${theme.spacing.sm} 0` : theme.spacing['2xl'], maxWidth: '1200px' }}>
+      {/* A failing auto-refresh below an unchanged page is indistinguishable
+          from a quiet club, so say the numbers have stopped moving. */}
+      {error && data && (
+        <div
+          data-testid="dashboard-stale-warning"
+          style={{
+            padding: theme.spacing.md,
+            marginBottom: theme.spacing.lg,
+            background: 'rgba(249, 115, 22, 0.12)',
+            border: `1px solid ${theme.colors.semantic.warning}`,
+            borderRadius: theme.borderRadius.md,
+            color: theme.colors.semantic.warning,
+            fontSize: theme.typography.fontSize.sm,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: theme.spacing.md,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>
+            {lastUpdatedAt
+              ? t('dashboard.staleSince', { time: lastUpdatedAt.toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) })
+              : t('dashboard.stale')}
+          </span>
+          <button
+            data-testid="dashboard-stale-retry"
+            onClick={() => fetchDashboard(false)}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: `1px solid ${theme.colors.semantic.warning}`,
+              background: 'transparent',
+              color: theme.colors.semantic.warning,
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {t('common.retry')}
+          </button>
+        </div>
+      )}
+
       {/* Metrics Row */}
       <div data-testid="dashboard-metrics" style={{
         display: 'grid',

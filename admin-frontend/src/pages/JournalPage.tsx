@@ -18,6 +18,7 @@
  */
 
 import axios from 'axios'
+import type React from 'react'
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -94,6 +95,19 @@ function localizeTransactionItems(items: GlobalTransaction[]): ResolvedTransacti
 const defaultPageSize = 20
 
 type JournalSortKey = 'created_at' | 'amount' | 'type' | 'member'
+
+/** A load failure leaves nothing to page or filter back from, so the banner
+ *  carries its own way out rather than making the admin change a filter (#132). */
+const retryButtonStyle: React.CSSProperties = {
+  padding: '6px 14px',
+  borderRadius: 6,
+  border: '1px solid #fca5a5',
+  background: 'transparent',
+  color: '#fca5a5',
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
 
 interface JournalFilters {
   period: PeriodKey
@@ -359,8 +373,27 @@ export function JournalPage() {
                 {t('common.loading')}
               </div>
             ) : error ? (
-              <div data-testid="journal-error-message" style={{ padding: theme.spacing.md, backgroundColor: '#7f1d1d', color: '#fca5a5', borderRadius: 6 }}>
-                Error: {error}
+              <div
+                data-testid="journal-error-message"
+                style={{
+                  padding: theme.spacing.md,
+                  backgroundColor: '#7f1d1d',
+                  color: '#fca5a5',
+                  borderRadius: 6,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: theme.spacing.sm,
+                  alignItems: 'flex-start',
+                }}
+              >
+                <span>{error}</span>
+                <button
+                  data-testid="journal-retry-button"
+                  onClick={() => list.reload()}
+                  style={retryButtonStyle}
+                >
+                  {t('common.retry')}
+                </button>
               </div>
             ) : transactions.length === 0 ? (
               <div data-testid="journal-empty-state" style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
@@ -585,9 +618,21 @@ export function JournalPage() {
               color: '#fca5a5',
               borderRadius: 6,
               margin: tableSpacing.cellPadding,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: theme.spacing.md,
+              flexWrap: 'wrap',
             }}
           >
-            Error: {error}
+            <span>{error}</span>
+            <button
+              data-testid="journal-retry-button"
+              onClick={() => list.reload()}
+              style={retryButtonStyle}
+            >
+              {t('common.retry')}
+            </button>
           </div>
         ) : transactions.length === 0 ? (
           <div

@@ -71,7 +71,8 @@
     "sepa": "SEPA",
     "newest": "Newest first",
     "oldest": "Oldest first",
-    "filters": "Filters"
+    "filters": "Filters",
+    "retry": "Retry"
   },
   "auth": {
     "email": "Email",
@@ -207,7 +208,9 @@
       "loadDetails": "Failed to load member details",
       "exportData": "Failed to export member data",
       "validationFailed": "Validation failed",
-      "loadTransactions": "Failed to load transactions"
+      "loadTransactions": "Failed to load transactions",
+      "loadMetrics": "Member statistics could not be loaded. The figures above are unknown, not zero.",
+      "mandateUploadFailed": "The member was saved, but the mandate document could not be uploaded. Open the member and attach the scan again."
     },
     "sortName": "Name A–Z",
     "sortNameDesc": "Name Z–A",
@@ -267,7 +270,8 @@
       "create": "Failed to create product",
       "update": "Failed to update product",
       "updateStatus": "Failed to update product status",
-      "delete": "Failed to delete product"
+      "delete": "Failed to delete product",
+      "loadCategories": "Categories could not be loaded, so no category can be selected. A product cannot be saved without one."
     }
   },
   "categories": {
@@ -650,7 +654,9 @@
     "purchase": "Purchase",
     "storno": "Storno",
     "membersNeedSepaData_one": "{{count}} member missing SEPA data",
-    "membersNeedSepaData_other": "{{count}} members missing SEPA data"
+    "membersNeedSepaData_other": "{{count}} members missing SEPA data",
+    "stale": "The last refresh failed — these figures may be out of date.",
+    "staleSince": "The last refresh failed — these figures are from {{time}}."
   },
   "pagination": {
     "firstPage": "First page",
