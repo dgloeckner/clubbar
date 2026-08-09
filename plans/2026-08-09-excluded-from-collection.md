@@ -195,7 +195,7 @@ A `[!]` carries the error and the next step.
 | `tests/admin/excluded-from-collection.spec.ts` | **8 passed** at `--workers=4`, and again at `--workers=1` |
 | `tests/admin/new-settlement.spec.ts` (regression on the `seedMember` extraction) | **11 passed** |
 | `admin-mobile` specs on Chromium @390px | **4 passed** — WebKit itself unavailable, see M7 |
-| Full suite (`api-tests` + `admin-chromium`) | **814 specs, 0 failures** |
+| Full suite (`api-tests` + `admin-chromium`) | **815 specs, 0 failures** (re-run after the 6.6 fix) |
 | `npm run type-check` / `npm run lint` | clean (9 pre-existing warnings, none in new files) |
 | `npx vitest run` | **216 passed** across 22 files |
 

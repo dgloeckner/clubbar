@@ -78,6 +78,12 @@ export class ExcludedFromCollectionPage extends BasePage {
     await expect(this.loading()).toHaveCount(0)
   }
 
+  /** The roster tab — where the badge has to be readable *before* clicking. */
+  async gotoRoster() {
+    await this.navigate('/members')
+    await expect(this.tabAll()).toBeVisible()
+  }
+
   /** Reach the surface the way a treasurer does — via the Members tab. */
   async gotoViaTab() {
     await this.navigate('/members')

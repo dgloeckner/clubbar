@@ -10,6 +10,7 @@ import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { MembersTabs } from '../components/members/MembersTabs'
+import { useExcludedFromCollection } from '../hooks/useExcludedFromCollection'
 import { useFormatters } from '../hooks/useFormatters'
 import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ScanIcon } from '../components/icons'
 import { downloadBlob } from '../api/client'
@@ -84,6 +85,11 @@ export function MembersPage() {
   // The dashboard metrics are a second, independent stream, so they get their
   // own abort slot — the member list's lives inside useListQuery (#96).
   const metricsRequest = useLatestRequest()
+  // The excluded tab's badge is the figure that makes the tab worth clicking,
+  // so it has to be readable from the roster — a count only visible once you
+  // are already on the page it advertises is no invitation at all. The hook
+  // owns its own abort slots, independent of this page's list query.
+  const { excludedCount, loading: excludedLoading } = useExcludedFromCollection()
   // Null means "not known", which is not the same as zero: a treasurer reading
   // "0,00 €" concludes nothing is outstanding, so a failed metrics load has to
   // render "—" rather than a number nobody computed (#132).
@@ -499,7 +505,7 @@ export function MembersPage() {
 
   return (
     <div data-testid="members-page" style={{ padding: '20px' }}>
-      <MembersTabs />
+      <MembersTabs excludedCount={excludedLoading ? undefined : excludedCount} />
 
       {/* Stats Grid */}
       <div

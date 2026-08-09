@@ -197,6 +197,38 @@ test.describe('Excluded from Collection', () => {
     expect(await excluded.getTabBadgeCount()).toBe(credit.items.length + holds.items.length)
   })
 
+  test('the badge is readable from the roster, before the tab is clicked', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+    settlementFactory,
+    page,
+  }) => {
+    // The badge is the figure that makes the tab worth clicking, so it has to
+    // be on the roster. It was not: MembersPage rendered the tab strip without
+    // a count, and the badge appeared only once you were already on the page it
+    // advertises. The earlier badge test missed it by navigating through first.
+    await seedCreditMember(authenticatedRequest, authenticatedTerminalRequest, {
+      tag: 'Roster',
+      amountCents: 500,
+    })
+    await seedHeldMember(authenticatedRequest, settlementFactory, {
+      tag: 'Roster',
+      amountCents: 700,
+    })
+
+    const excluded = new ExcludedFromCollectionPage(page)
+    await excluded.gotoRoster()
+
+    const credit = await (
+      await authenticatedRequest.get('/api/admin/members/credit-balances')
+    ).json()
+    const holds = await (
+      await authenticatedRequest.get('/api/admin/members/collection-holds')
+    ).json()
+
+    expect(await excluded.getTabBadgeCount()).toBe(credit.items.length + holds.items.length)
+  })
+
   test('a member with an ordinary balance is in neither listing', async ({
     authenticatedRequest,
     authenticatedTerminalRequest,
