@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Reports\Services;
 
+use App\Modules\Reports\Repositories\ReportsRepository;
 use App\Modules\Reports\Services\ReportsService;
 use PDO;
 use PHPUnit\Framework\TestCase;
@@ -44,7 +45,10 @@ class ReportsServiceMemberRankingTest extends TestCase
             )'
         );
 
-        $this->reportsService = new ReportsService($this->db);
+        // The SQL moved behind ReportsRepository (#118), so the real repository
+        // goes in rather than a mock: what these tests are for is the statement
+        // itself, and a stubbed repository would assert nothing about it.
+        $this->reportsService = new ReportsService(new ReportsRepository($this->db));
     }
 
     private function addMember(string $id, string $firstName, string $lastName): void

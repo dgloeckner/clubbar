@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace App\Modules\BankCodes\Controllers;
 
-use App\Modules\BankCodes\Repositories\BankCodesRepository;
 use App\Modules\BankCodes\Services\BankCodeService;
+use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 class AdminController
 {
+    use JsonResponder;
+
     public function __construct(
-        private BankCodesRepository $repository,
+        private BankCodeService $bankCodeService,
     ) {}
 
     /**
@@ -23,31 +25,20 @@ class AdminController
     {
         $iban = $request->getQueryParams()['iban'] ?? null;
 
-        if ($iban === null || $iban === '') {
-            $response->getBody()->write(json_encode(['error' => 'Missing iban parameter']));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        if (!is_string($iban) || $iban === '') {
+            return $this->json($response, ['error' => 'Missing iban parameter'], 400);
         }
 
-        $blz = BankCodeService::extractBlz($iban);
-        if ($blz === null) {
-            $response->getBody()->write(json_encode([
+        $bank = $this->bankCodeService->lookupByIban($iban);
+
+        if ($bank === null) {
+            return $this->json($response, [
                 'bank_name' => null,
                 'bic' => null,
                 'message' => 'Only German IBANs (DE) are supported for bank lookup',
-            ]));
-            return $response->withHeader('Content-Type', 'application/json');
+            ]);
         }
 
-        $row = $this->repository->findByBankCode($blz);
-
-        $response->getBody()->write(json_encode([
-            'bank_code' => $blz,
-            'bank_name' => $row['bank_name'] ?? null,
-            'short_name' => $row['short_name'] ?? null,
-            'bic' => $row['bic'] ?? null,
-            'postal_code' => $row['postal_code'] ?? null,
-            'city' => $row['city'] ?? null,
-        ]));
-        return $response->withHeader('Content-Type', 'application/json');
+        return $this->json($response, $bank);
     }
 }

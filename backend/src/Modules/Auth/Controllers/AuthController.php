@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Auth\Controllers;
 
+use App\Modules\Auth\Domain\SessionTimeout;
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Auth\Services\TotpService;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
@@ -94,6 +95,7 @@ class AuthController
         $_SESSION['admin_user_id'] = $admin['id'];
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         $_SESSION['totp_setup_required'] = true;
+        SessionTimeout::begin($_SESSION);
 
         $this->auditService->log(
             action: AuditAction::LOGIN,
@@ -166,6 +168,7 @@ class AuthController
             $_SESSION['mfa_failed_attempts'],
             $_SESSION['totp_setup_required'],
         );
+        SessionTimeout::begin($_SESSION);
 
         // Full authentication reached — only now are this account's attempts forgiven,
         // and only this account's: rows for other admins on the same IP keep counting.

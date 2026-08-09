@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace App\Modules\Auth\Services;
 
+/**
+ * Terminal API tokens (Pattern 012).
+ *
+ * The hash is SHA-256, not bcrypt: a token is 256 bits of `random_bytes()`, so
+ * there is nothing for a slow hash to defend against, and a fast one can be
+ * looked up by an index instead of compared terminal by terminal. Tokens issued
+ * before that change still verify — see verifyToken().
+ */
 class TokenService
 {
     private const TOKEN_ENTROPY_BYTES = 32;

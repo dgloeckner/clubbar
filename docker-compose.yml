@@ -110,6 +110,18 @@ services:
     volumes:
       - ./backend:/app
       - ./docker/apache-slim.conf:/opt/docker/etc/httpd/vhost.common.d/01-slim.conf:ro
+      # Repo-root scripts, read-only. CLAUDE.md tells you to run the backend
+      # suite in this container (the host has no bcmath), and
+      # CheckPatchCoverageScriptTest shells out to
+      # scripts/check-patch-coverage.php — which lives above ./backend and so is
+      # not reachable through the /app mount. Without this the whole file fails
+      # with "Could not open input file" in the documented workflow while passing
+      # in CI, where phpunit runs inside a full checkout.
+      #
+      # Mounted at /scripts specifically so that walking up from the test file
+      # finds it the same way it finds the real checkout's scripts/ on a host —
+      # the test needs no knowledge that Docker is involved.
+      - ./scripts:/scripts:ro
     depends_on:
       database:
         condition: service_healthy

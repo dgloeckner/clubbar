@@ -6,6 +6,7 @@ namespace Tests\Unit\Modules\Auth\Middleware;
 
 use App\Modules\Auth\Middleware\AdminSessionAuth;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\Auth\Domain\SessionTimeout;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -149,5 +150,78 @@ class AdminSessionAuthTest extends TestCase
         $response = $this->middleware->process($this->request(), $handler);
 
         $this->assertSame(200, $response->getStatusCode());
+    }
+
+    // ── Session timeouts (#118) ─────────────────────────────────────────────
+
+    public function test_process_refuses_a_session_left_idle_past_the_limit(): void
+    {
+        $_SESSION = [
+            'admin_user_id' => 'admin-1',
+            SessionTimeout::AUTHENTICATED_AT => time() - SessionTimeout::IDLE_SECONDS - 60,
+            SessionTimeout::LAST_ACTIVITY_AT => time() - SessionTimeout::IDLE_SECONDS - 60,
+        ];
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->expects($this->never())->method('handle');
+
+        $response = $this->middleware->process($this->request(), $handler);
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('session_expired', $this->decode($response)['error']);
+        $this->assertSame([], $_SESSION, 'the expired session is emptied, not merely rejected');
+    }
+
+    public function test_process_refuses_a_session_past_the_absolute_limit_however_active(): void
+    {
+        $_SESSION = [
+            'admin_user_id' => 'admin-1',
+            SessionTimeout::AUTHENTICATED_AT => time() - SessionTimeout::ABSOLUTE_SECONDS - 1,
+            SessionTimeout::LAST_ACTIVITY_AT => time(), // busy right up to the deadline
+        ];
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->expects($this->never())->method('handle');
+
+        $response = $this->middleware->process($this->request(), $handler);
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('session_expired', $this->decode($response)['error']);
+    }
+
+    public function test_process_does_not_consult_the_database_for_an_expired_session(): void
+    {
+        $_SESSION = [
+            'admin_user_id' => 'admin-1',
+            SessionTimeout::LAST_ACTIVITY_AT => time() - SessionTimeout::IDLE_SECONDS,
+        ];
+        $this->adminUsersRepository->expects($this->never())->method('findById');
+
+        $this->middleware->process($this->request(), $this->createMock(RequestHandlerInterface::class));
+    }
+
+    public function test_process_records_activity_so_the_idle_clock_restarts(): void
+    {
+        $stale = time() - 60;
+        $_SESSION = [
+            'admin_user_id' => 'admin-1',
+            SessionTimeout::AUTHENTICATED_AT => $stale,
+            SessionTimeout::LAST_ACTIVITY_AT => $stale,
+        ];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+
+        $this->middleware->process($this->request(), $this->passthroughHandler());
+
+        $this->assertGreaterThan($stale, $_SESSION[SessionTimeout::LAST_ACTIVITY_AT]);
+        $this->assertSame($stale, $_SESSION[SessionTimeout::AUTHENTICATED_AT], 'the absolute clock is not restarted');
+    }
+
+    public function test_process_adopts_a_session_that_predates_the_timeout_rule(): void
+    {
+        $_SESSION = ['admin_user_id' => 'admin-1'];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+
+        $response = $this->middleware->process($this->request(), $this->passthroughHandler());
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertIsInt($_SESSION[SessionTimeout::AUTHENTICATED_AT]);
     }
 }

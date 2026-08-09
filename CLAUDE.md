@@ -870,19 +870,23 @@ The hook starts **only the daemon**. It deliberately does not start the containe
 scripts/dev-setup.sh                  # API tests + backend tests
 scripts/dev-setup.sh --with-frontend  # also builds and serves the admin UI on :5173
 
-cd e2etests && npx playwright test --project=api-tests
+cd e2etests && npx playwright test --project=api-tests     # chromium
+cd e2etests && npx playwright test --project=admin-mobile  # webkit, needs --with-frontend
 ```
 
-It covers, in order: the Docker daemon → `composer install` → making `backend/logs` and `backend/storage` writable → `dev-stack.sh up` + `wait` → migrate + seed → `npm install` and the Playwright browser → optionally the admin frontend → a verification pass that reports what is missing.
+It covers, in order: the Docker daemon → `composer install` → making `backend/logs` and `backend/storage` writable → `dev-stack.sh up` + `wait` → migrate + seed → `npm install` and the Playwright browsers → optionally the admin frontend → a verification pass that reports what is missing.
 
-Four of those steps exist because a fresh clone fails without them, and none is obvious:
+Five of those steps exist because a fresh clone fails without them, and none is obvious:
 
 | Step | Why it is not optional |
 |------|------------------------|
 | `chmod 777 backend/logs backend/storage` | The backend container runs as uid 1000; a fresh clone is owned by root. Without it mandate uploads return 500 (CI has the same step) |
 | `rm -f backend/storage/.installed` | `install.php` refuses to migrate while the marker exists — and the marker is **tracked in git**, so every fresh clone starts blocked. The script clears it, migrates, seeds, then `touch`es it back so the tree stays clean |
-| `npx playwright install chromium` | The image ships a pre-built Chromium, but `@playwright/test` resolves through its caret range to a newer Playwright that wants a newer browser build. Without this, browser tests cannot start |
-| Playwright browser + admin frontend | The `admin-chromium` project drives `http://localhost:5173`; nothing serves it by default |
+| `npx playwright install chromium` | The image ships a pre-built Chromium, but `@playwright/test` resolves through its caret range to a newer Playwright that wants a newer browser build. Without this, `api-tests` and `admin-chromium` cannot start |
+| `npx playwright install webkit` **+ `install-deps`** | `admin-mobile` uses `devices['iPhone 14']` and `terminal-touch` uses `devices['iPad Pro 11']` — both default to **WebKit, not Chromium**. Installing only Chromium leaves every test in those projects failing at launch with `Executable doesn't exist at .../webkit-XXXX/pw_run.sh`. The deps matter separately: WebKit links against libwoff, libopus, libharfbuzz-icu, libenchant, libsecret, libmanette and friends, and without them the binary is on disk and still refuses to start |
+| Playwright browsers + admin frontend | The `admin-chromium` and `admin-mobile` projects drive `http://localhost:5173`; nothing serves it by default |
+
+The browser steps are why a local run could once be green on a shard CI failed: CI installs the full browser set, `dev-setup.sh` used to install Chromium only. The verify pass now *launches* each browser rather than looking for its directory — an unpacked WebKit with a missing system library passes a file check and still cannot run a test.
 
 **Run backend PHP tests inside the container, not on the host:**
 
@@ -891,6 +895,8 @@ docker compose exec -w /app backend ./vendor/bin/phpunit
 ```
 
 The host PHP has no **bcmath**, and `Validator.php` calls `bcmod()` for the IBAN checksum — on the host those tests die with `Call to undefined function bcmod()`. The host also cannot resolve the `database` hostname the feature tests connect to. The container has bcmath and is on the compose network, so both problems disappear. Installing bcmath on the host is not an option here: it lives in the `ondrej/php` PPA, and the egress policy returns 403 for `ppa.launchpadcontent.net` (see below).
+
+Because of that instruction, the backend service also mounts `./scripts` at `/scripts` read-only. `CheckPatchCoverageScriptTest` shells out to `scripts/check-patch-coverage.php`, which lives *above* `./backend` and is therefore invisible through the `/app` mount — without it those six tests fail with `Could not open input file` in the workflow this file recommends, while passing in CI, where phpunit runs inside a full checkout.
 
 `scripts/dev-stack.sh`:
 

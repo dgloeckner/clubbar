@@ -3401,7 +3401,12 @@ components:
 
   responses:
     Unauthorized:
-      description: Not authenticated
+      description: |
+        Not authenticated. `error` distinguishes why:
+
+        - `admin_not_authenticated` — no session, or the account behind it is gone or disabled.
+        - `session_expired` — the session passed one of its limits (2h idle, 24h absolute)
+          and was destroyed. Signing in again is the only way forward.
       content:
         application/json:
           schema:

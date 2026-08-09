@@ -11,8 +11,9 @@
 #   scripts/dev-setup.sh [--with-frontend] [--skip-e2e]
 #
 #   --with-frontend  Also build the admin frontend and serve it on :5173, which
-#                    the admin-chromium E2E project needs. Costs a few minutes.
-#   --skip-e2e       Skip npm install and the Playwright browser download.
+#                    the admin-chromium and admin-mobile E2E projects need.
+#                    Costs a few minutes.
+#   --skip-e2e       Skip npm install and the Playwright browser downloads.
 #
 # Environment:
 #   INSTALL_KEY   Install key for install.php (default: dev-install-key-x,
@@ -112,7 +113,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-step "5/7 E2E dependencies and Playwright browsers"
+step "5/7 E2E dependencies and Playwright browsers (chromium + webkit)"
 # ---------------------------------------------------------------------------
 if [ "$SKIP_E2E" -eq 1 ]; then
     note "Skipped (--skip-e2e)."
@@ -130,13 +131,38 @@ else
     # as the fix: it is a no-op when the required build is already there.
     note "Ensuring the Chromium build this Playwright expects is present..."
     (cd "$PROJECT_ROOT/e2etests" && npx playwright install chromium) \
-        || warn "Playwright browser download failed — admin UI tests will not run"
+        || warn "Chromium download failed — the api-tests and admin-chromium projects will not run"
+
+    # WebKit is not optional either: `admin-mobile` uses devices['iPhone 14'] and
+    # `terminal-touch` uses devices['iPad Pro 11'], and both of those default to
+    # WebKit, not Chromium. Installing only Chromium leaves every test in those
+    # projects failing at launch with "Executable doesn't exist at
+    # .../webkit-XXXX/pw_run.sh" — 42 red tests that look like product bugs and
+    # are not. CI installs the full browser set, so this closes a gap where a
+    # local run could be green on a shard CI fails.
+    note "Ensuring the WebKit build this Playwright expects is present..."
+    if (cd "$PROJECT_ROOT/e2etests" && npx playwright install webkit); then
+        # WebKit links against a long tail of system libraries (libwoff, libopus,
+        # libharfbuzz-icu, libenchant, libsecret, libmanette, libgstreamer...) that
+        # the download does not carry. Without them the binary is on disk and still
+        # refuses to launch, which reads as the same failure as a missing download.
+        if (cd "$PROJECT_ROOT/e2etests" && npx playwright install-deps webkit > /dev/null 2>&1); then
+            note "WebKit system libraries: ok"
+        else
+            # Needs root and a reachable apt mirror; neither is guaranteed. Say so
+            # here rather than letting it surface later as a launch failure.
+            warn "WebKit system libraries are missing (needs root + apt) — admin-mobile and terminal-touch will not run"
+        fi
+    else
+        warn "WebKit download failed — the admin-mobile and terminal-touch projects will not run"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
 step "6/7 Admin frontend (:5173)"
 # ---------------------------------------------------------------------------
-# The admin-chromium E2E project drives http://localhost:5173. This builds and
+# The admin-chromium and admin-mobile E2E projects drive http://localhost:5173.
+# This builds and
 # serves it the same way CI does — on the host, with `vite preview` — rather than
 # through the compose `frontend` profile: `npm ci` crashes inside that image's
 # build ("Exit handler never called!") and Docker still records the layer as
@@ -198,6 +224,25 @@ else
     warn "the backend container has no bcmath — IBAN validation will fail"
 fi
 
+# Browsers are verified by actually launching them, not by looking for the
+# directory: a WebKit build unpacks fine and still refuses to start when a system
+# library is missing, and telling those two apart is the whole point of checking.
+# chromium serves api-tests/admin-chromium; webkit serves admin-mobile
+# (iPhone 14) and terminal-touch (iPad Pro 11).
+if [ "$SKIP_E2E" -eq 0 ] && [ -d "$PROJECT_ROOT/e2etests/node_modules" ]; then
+    for browser in chromium webkit; do
+        if (cd "$PROJECT_ROOT/e2etests" && node -e "
+            require('@playwright/test')['$browser'].launch()
+                .then(b => b.close())
+                .catch(e => { console.error(e.message); process.exit(1); });
+        ") > /dev/null 2>&1; then
+            note "$browser launches: ok"
+        else
+            warn "$browser cannot launch — run: (cd e2etests && npx playwright install --with-deps $browser)"
+        fi
+    done
+fi
+
 if command -v php > /dev/null 2>&1; then
     if php -r 'exit(extension_loaded("bcmath") ? 0 : 1);' > /dev/null 2>&1; then
         note "bcmath on the host: ok"
@@ -220,6 +265,7 @@ echo "Run the API suite:   cd e2etests && npx playwright test --project=api-test
 echo "Run backend tests:   docker compose exec -w /app backend ./vendor/bin/phpunit"
 if [ "$WITH_FRONTEND" -eq 1 ]; then
     echo "Admin UI tests:      cd e2etests && npx playwright test --project=admin-chromium"
+    echo "Mobile UI tests:     cd e2etests && npx playwright test --project=admin-mobile"
     echo "Stop the frontend:   pkill -f 'vite preview'"
 else
     echo "Admin UI tests also need: scripts/dev-setup.sh --with-frontend"
