@@ -14,9 +14,32 @@ use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
+/**
+ * The dashboard and the statistics screen.
+ *
+ * **What "revenue" means here (#116).** Revenue is the sum of `purchase` rows
+ * only — stornos and payouts are excluded, exactly as `ReportsService` has
+ * always defined it. Before, these queries summed every transaction type while
+ * the sold-item counters beside them counted purchases alone, so the Dashboard
+ * and the Reports page reported different revenue for the same period with
+ * nothing on either screen to say which was authoritative.
+ *
+ * The consequence to be aware of: a stornoed purchase still counts towards
+ * revenue, because a storno is a separate row of its own type rather than a
+ * retraction of the original. What a member actually still owes is a different
+ * question, answered by `outstanding_balance_cents`, which deliberately sums
+ * every type.
+ */
 class AdminController
 {
     use JsonResponder;
+
+    /**
+     * The revenue definition above, as a SQL fragment. Every revenue figure on
+     * this screen carries it, so the totals and the counts beside them always
+     * describe the same set of rows.
+     */
+    private const REVENUE_FILTER = "transaction_type = 'purchase'";
 
     public function __construct(
         private MembersRepository $membersRepository,
@@ -169,7 +192,9 @@ class AdminController
 
         // Total revenue for the month
         $stmt = $this->db->prepare(
-            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)'
+            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions
+              WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
+                AND ' . self::REVENUE_FILTER
         );
         $stmt->execute([$startDate, $endDate]);
         $totalRevenueCents = (int) $stmt->fetchColumn();
@@ -203,15 +228,17 @@ class AdminController
             ];
         }
 
-        // Daily revenue
+        // Daily revenue. Same filter as the monthly total, so the daily rows sum
+        // to it and their transaction counts sum to total_sold_items.
         $stmt = $this->db->prepare(
-            "SELECT DATE(occurred_at) as date,
+            'SELECT DATE(occurred_at) as date,
                     COALESCE(SUM(amount_cents), 0) as revenue_cents,
                     COUNT(*) as transaction_count
              FROM transactions
              WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
+               AND ' . self::REVENUE_FILTER . '
              GROUP BY DATE(occurred_at)
-             ORDER BY date"
+             ORDER BY date'
         );
         $stmt->execute([$startDate, $endDate]);
         $dailyRevenueRows = $stmt->fetchAll();
@@ -283,10 +310,14 @@ class AdminController
         ]);
     }
 
+    /**
+     * Revenue since a date, under the definition documented on the class.
+     */
     private function sumRevenueSince(string $date): int
     {
         $stmt = $this->db->prepare(
-            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE occurred_at >= ?'
+            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions
+              WHERE occurred_at >= ? AND ' . self::REVENUE_FILTER
         );
         $stmt->execute([$date]);
         return (int) $stmt->fetchColumn();

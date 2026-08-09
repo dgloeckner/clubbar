@@ -5340,13 +5340,16 @@ components:
               description: Total unsettled transaction balance in cents
             todays_revenue_cents:
               type: integer
-              description: Sum of transactions created today in cents
+              description: >-
+                Sum of purchases that occurred today, in cents. Stornos and payouts are
+                excluded, matching the revenue reports; the outstanding balance is the
+                figure that nets them off.
             wtd_revenue_cents:
               type: integer
-              description: Sum of transactions since Monday this week (week-to-date) in cents
+              description: Sum of purchases since Monday this week (week-to-date) in cents
             mtd_revenue_cents:
               type: integer
-              description: Sum of transactions since the 1st of the month (month-to-date) in cents
+              description: Sum of purchases since the 1st of the month (month-to-date) in cents
             terminal_count:
               type: integer
               description: Total number of terminals (active and inactive)
