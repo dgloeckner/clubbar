@@ -107,7 +107,7 @@ return function (App $app): void {
 | **Admin Auth** | Session-based (`AdminSessionAuth` middleware) |
 | **Terminal Auth** | Bearer token (`TerminalTokenAuth` middleware) |
 | **Session Storage** | Server-side PHP sessions |
-| **Token Storage** | `terminals` table, bcrypt-hashed |
+| **Token Storage** | `terminals` table, SHA-256-hashed with a bounded lifetime (Pattern 012). Not bcrypt — a 256-bit random token needs no slow hash, and a fast one is an indexed lookup |
 | **RFID** | Member identification (not authentication) |
 
 ### 4. Logging (JSON, Daily Files)

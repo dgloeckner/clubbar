@@ -55,6 +55,13 @@ UPDATE transactions SET amount_cents = 380 WHERE id = 'uuid1';  -- PROBLEM!
 **Purchase transactions are immutable and append-only. Once created, they are never modified or deleted. A booking is corrected by a *storno* — a reverse transaction that names the transaction it reverses and negates it exactly. Settlement marks transactions as "paid" without modifying them; SEPA exports enable external bank processing.**
 
 > **Amended 2026-08-07.** The original decision allowed a free-amount `correction` in two shapes: linked to an original, or standalone. The standalone shape is **removed** — see [#158](https://github.com/dgloeckner/ruderbar/issues/158) and [#170](https://github.com/dgloeckner/ruderbar/issues/170), and [ADR-0028](./0028-legal-constraints-on-money-handling.md) §4 for the GoBD Rz. 64 requirement that made an optional link insufficient. Amended text is marked inline.
+>
+> **Amended 2026-08-09 — corrections include a `payout`, and the principle reaches the settlement layer.** Two additions, both recorded in [ADR-0032](./0032-settlement-lifecycle.md):
+>
+> - **`payout` is a third transaction type.** A member can end up in credit — a storno of an already-collected purchase leaves the club owing money back under § 812 BGB. For a member who stays, that credit carries forward and is drunk off. For a **departing** member it has to be paid, and the payment is recorded as a `payout` transaction that returns the balance to zero. It is reachable only through offboarding; there is no standalone payout surface and no free-amount input anywhere in the system.
+> - **Settlement reversal follows the same append-only principle.** When the bank claws back a collection, or the club discovers an error in a run it already submitted, nothing is mutated and nothing is deleted. A `settlement_reversals` row is **appended** naming the settlement, the member, the reason and the bank's reference; the settlement's line items survive, with only their live claim released so the transactions become settleable again. A settlement's state is *derived* from those events, never stored — for the same reason a transaction is never edited: a stored summary is a second copy of a fact, and it drifts.
+>
+> The settlement schema quoted below predates this and is **superseded by [ADR-0032](./0032-settlement-lifecycle.md)**, which is authoritative for `settlements` and `settlement_items`. In particular: cancellation no longer deletes `settlement_items`, `submitted_at` now marks the point of no return, and `settlements.method` distinguishes a direct debit from a bank transfer or a write-off.
 
 ### Core Principles
 
@@ -277,7 +284,7 @@ The original example — *"Goodwill credit for service issue"* — is the case t
 ✅ **Conflict-free sync**: No UPDATE/DELETE conflicts between terminals
 ✅ **Immutable source**: Transactions never modified; basis for settlement is reliable
 ✅ **Settlement flexible**: Can create multiple settlements; mark different subsets of transactions
-✅ **Idempotent**: Retry same transaction safely (INSERT IGNORE)
+✅ **Idempotent**: Retry the same transaction safely — the client-generated `id` is the key, and only a duplicate-key violation is treated as "already stored" ([ADR-0033](./0033-terminal-sync-contract.md) §5)
 ✅ **GDPR-compliant**: Transaction records contain no PII after member anonymization — only UUID linkage remains. Retained per [Art. 17(3)(b) GDPR](https://gdpr-info.eu/art-17-gdpr/) exception for legal obligations (§ 147 AO). Anonymized transaction data falls outside GDPR scope per [Recital 26](https://gdpr-info.eu/recitals/no-26/)
 ✅ **Dispute resolution**: Full evidence of purchases and corrections
 ✅ **Compliance-ready**: Complete history for audits
@@ -400,11 +407,12 @@ UPDATE transactions SET deleted_at = NOW() WHERE id IN (...);
 **Database Schema**: Transactions table must have NO UPDATE/DELETE triggers or procedures. Settlement workflow uses settlement_items table to link transactions to settlements (read-only join).
 
 **API Endpoints:**
-- `POST /api/sync/transactions`: Terminal batch upload; use INSERT IGNORE for idempotency
-- `POST /api/settlements`: Create settlement (immediately marks transactions as settled)
-- `POST /api/settlements/{id}/finalize`: Finalize (mark transactions as settled)
-- `GET /api/settlements/{id}/export-csv`: Generate CSV
-- `POST /api/settlements/{id}/cancel`: Undo (delete settlement_items rows)
+- `POST /api/sync/transactions`: Terminal batch upload; idempotent on the client-generated `id` — plain `INSERT`, duplicate-key caught, never `INSERT IGNORE` ([ADR-0033](./0033-terminal-sync-contract.md))
+- `POST /api/admin/transactions/{id}/storno`: Reverse one booking in full; the amount is derived from the target, never supplied
+- `POST /api/admin/settlements`: Create settlement (marks the named members' unsettled transactions as settled)
+- `GET /api/admin/settlements/{id}/export-csv`: Generate CSV
+- `POST /api/admin/settlements/{id}/cancel`: Undo a run that has not moved money; the line items survive, only their live claim is released ([ADR-0032](./0032-settlement-lifecycle.md))
+- `POST /api/admin/settlements/{id}/reverse`: Record that money which did move has come back, per member
 
 **Admin UI Settlement Workflow:**
 - Date range selection
@@ -423,6 +431,9 @@ UPDATE transactions SET deleted_at = NOW() WHERE id IN (...);
 - [ADR-0012: Eventual Consistency and Frontend Caching](./0012-eventual-consistency-frontend-caching.md) - Terminal caches transactions locally; syncs periodically
 - [ADR-0023: Terminal Balance State Management](./0023-terminal-balance-state-management.md) - Balance calculated from immutable transaction log
 - [ADR-0024: Transaction History Retrieval in Terminal](./0024-transaction-history-retrieval-terminal.md) - Terminal retrieves transaction history on-demand from backend
+- [ADR-0028: Legal Constraints on Money Handling](./0028-legal-constraints-on-money-handling.md) - GoBD Rz. 64 makes the storno→original link a legal requirement, not a convenience
+- [ADR-0032: Settlement Lifecycle](./0032-settlement-lifecycle.md) - **Authoritative for the settlement schema and workflow**; extends append-only to the settlement layer
+- [ADR-0033: Terminal Sync Contract](./0033-terminal-sync-contract.md) - How the immutable rows get here, and the field authority that keeps a terminal from forging a storno
 
 ---
 

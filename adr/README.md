@@ -39,7 +39,7 @@ Each ADR follows this structure:
 | [0012](./0012-eventual-consistency-frontend-caching.md) | Eventual Consistency and Frontend Caching | Accepted | 2025-01-23 |
 | [0013](./0013-audit-logging.md) | Audit Logging | Accepted | 2025-01-23 |
 | [0014](./0014-rfid-scanning-integration.md) | RFID Scanning Integration | Accepted | 2025-01-23 |
-| [0015](./0015-authentication-and-authorization-strategy.md) | Authentication and Authorization Strategy | Accepted | 2025-01-23 |
+| [0015](./0015-authentication-and-authorization-strategy.md) | Authentication and Authorization Strategy | Accepted (amended 2026-08-09) | 2025-01-23 |
 | [0016](./0016-transport-security.md) | Transport Security (HTTPS and TLS) | Accepted | 2025-01-23 |
 | [0017](./0017-input-validation-injection-prevention.md) | Input Validation and Injection Prevention | Accepted | 2025-01-23 |
 | [0018](./0018-modular-admin-interface-architecture.md) | Modular Admin Interface Architecture | Accepted | 2025-01-23 |
@@ -56,6 +56,8 @@ Each ADR follows this structure:
 | [0029](./0029-two-tier-retention-and-erasure.md) | Two-Tier Retention and Erasure | Accepted | 2026-08-07 |
 | [0030](./0030-settlement-selection-is-a-member-picker.md) | Settlement Selection Is a Member Picker | Accepted | 2026-08-08 |
 | [0031](./0031-production-hardening-on-shared-hosting.md) | Production Hardening on Shared Hosting | Accepted | 2026-08-09 |
+| [0032](./0032-settlement-lifecycle.md) | Settlement Lifecycle | Accepted | 2026-08-09 |
+| [0033](./0033-terminal-sync-contract.md) | Terminal Sync Contract | Accepted | 2026-08-09 |
 
 ## Creating a New ADR
 

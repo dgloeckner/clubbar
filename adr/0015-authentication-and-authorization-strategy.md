@@ -1,7 +1,9 @@
 # ADR-0015: Authentication and Authorization Strategy
 
-**Status**: Accepted
+**Status**: Accepted (amended 2026-08-09 — see [Amendment](#amendment-2026-08-09--how-a-terminal-token-is-hashed-and-how-long-it-lives))
 **Date**: 2025-01-23
+
+> **Amended 2026-08-09.** Two facts about terminal tokens stated here were wrong or have since changed; the *decision* — device-level Bearer authentication, one token per terminal, revocable — is unaffected. Amended text is marked inline; the reasoning is in the [Amendment](#amendment-2026-08-09--how-a-terminal-token-is-hashed-and-how-long-it-lives) section.
 
 ## Context
 
@@ -42,13 +44,13 @@ Authorization: Bearer <terminal-api-token>
 | Token Format | 64-character hex string (256 bits entropy) |
 | Token Storage | Stored in terminal's local config (outside app bundle) |
 | Token Scope | One token per terminal device |
-| Token Lifetime | Long-lived; rotated manually via admin panel |
+| Token Lifetime | **AMENDED 2026-08-09**: bounded — `API_TOKEN_TTL_DAYS` (default 90) from issue, enforced server-side; no automatic refresh, an admin rotates it |
 | Revocation | Admin can revoke token; terminal receives 401 on next sync |
 
 **Token Generation:**
 - Generated server-side using cryptographically secure random generator
 - Displayed once to admin during terminal pairing; never stored in plaintext server-side
-- Stored as bcrypt hash in `terminals` table for validation
+- **AMENDED 2026-08-09**: stored as a **SHA-256** hash in the `terminals` table, not bcrypt
 
 ### RFID Identification (Not Authentication)
 
@@ -97,12 +99,15 @@ sequenceDiagram
     participant B as Backend
 
     T->>B: GET /api/sync/members<br/>Authorization: Bearer <token>
-    B->>B: Validate token (bcrypt compare)
-    alt Token Valid
+    B->>B: SHA-256 the token, look the hash up by index
+    alt Token valid, active and unexpired
         B-->>T: 200 OK + data
-    else Token Invalid/Revoked
-        B-->>T: 401 Unauthorized
+    else Token unknown or revoked
+        B-->>T: 401 invalid_terminal_token
         T->>T: Show "Terminal not authorized" error
+    else Token past its lifetime
+        B-->>T: 401 terminal_token_expired
+        T->>T: Show "Rotate this terminal's token" error
     end
 ```
 
@@ -168,6 +173,7 @@ sequenceDiagram
 ### Negative
 
 - **Token rotation is manual**: No automatic token refresh; requires admin intervention
+- **Token expiry is an unannounced outage**: nothing warns before `token_expires_at` arrives, so the first symptom of an aged-out token is a bar that cannot sell (amended 2026-08-09)
 - **Session state**: Server must store session data (minor complexity)
 - **Mandatory 2FA adds onboarding friction**: New admins must install an authenticator app before first access
 
@@ -177,6 +183,26 @@ sequenceDiagram
 - Rate limiting on login endpoint prevents brute force (see ADR-0017)
 - Session timeout limits exposure window
 - TOTP is widely supported (Google Authenticator, Bitwarden, 1Password, Aegis, etc.); onboarding friction is low
+
+## Amendment 2026-08-09 — how a terminal token is hashed, and how long it lives
+
+Two statements about terminal tokens were corrected above. Neither changes the decision this ADR records; both were facts about the mechanism that were either never true or have since been superseded.
+
+### 1. The hash is SHA-256, not bcrypt
+
+This ADR said bcrypt, and so did Pattern 012, `backend/technologies.md` and the patterns index. The code has never agreed since the change landed, and the discrepancy survived long enough to be quoted back as a security property in three places.
+
+A slow hash exists because passwords are guessable: a human picks them, so an attacker holding the hash can run a dictionary. A terminal token is picked by nobody — it is 256 bits from `random_bytes()`, and no hardware makes that search feasible. Slow hashing therefore buys nothing here, and costs something real: a bcrypt hash cannot be looked up by value, so verifying a token meant loading every terminal and comparing one at a time. SHA-256 makes it a single indexed read.
+
+Constant-time comparison is preserved — `hash_equals()` on the SHA-256 path, `password_verify()` on the legacy one. Terminals enrolled before the change still carry bcrypt hashes and still authenticate; `TokenService::verifyToken()` detects the format.
+
+### 2. The lifetime is bounded
+
+"Long-lived; rotated manually" described a token that never expired on its own, so a token lifted from a decommissioned or stolen device stayed valid until an admin noticed that one terminal. Since [#106](https://github.com/dgloeckner/clubbar/issues/106) a token carries `token_expires_at`, set at issue from `API_TOKEN_TTL_DAYS` (default 90).
+
+The check lives in `TerminalsRepository::findByTokenHash()`, not in the middleware, so no caller can authenticate a terminal around it, and it fails closed: a row holding a token hash with no expiry does not authenticate. An expired token answers `terminal_token_expired` rather than the generic `invalid_terminal_token`, because a terminal that simply aged out is a different operational problem from one that was never enrolled, and the operator needs to be told which.
+
+Rotation is still manual — there is no refresh mechanism, and this ADR's "token rotation is manual" consequence stands.
 
 ## Alternatives Considered
 

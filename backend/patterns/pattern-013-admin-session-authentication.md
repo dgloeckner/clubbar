@@ -19,6 +19,7 @@ The admin panel (React SPA) allows administrators to manage members, products, s
 4. **Idle timeout**: Session expires after inactivity
 5. **Absolute timeout**: Session expires regardless of activity
 6. **Password security**: Bcrypt hashing with cost 12+
+7. **A password is half an authentication**: TOTP is mandatory ([ADR-0026](../../adr/0026-mandatory-totp-two-factor-authentication.md)), so login is two steps and a session becomes authenticated only at the second
 
 ---
 
@@ -85,9 +86,13 @@ class AdminUsersRepository
 $body = $request->getParsedBody();
 $validator = new Validator($this->pdo);
 $valid = $validator->validate($body, [
-    'email'    => ['required', 'email', 'max:255'],
-    'password' => ['required', 'string', 'min:8', 'max:255'],
+    'email'    => ['required', 'email'],
+    'password' => ['required', 'string'],
 ]);
+// Deliberately no min/max on the password at *login*. A length rule here only
+// tells an attacker which guesses are worth making, and it would lock out any
+// account whose password predates the current policy. Complexity is enforced
+// where a password is set, not where it is presented.
 
 if (!$valid) {
     // Return 422 with validation errors
@@ -211,53 +216,37 @@ final class AuthController
     ) {}
 
     /**
-     * POST /api/auth/login - Login with email + password.
+     * POST /api/auth/login - Password step. This is only *half* an
+     * authentication: TOTP is mandatory (ADR-0026), so a correct password
+     * buys an MFA-pending session, not an authenticated one.
      *
      * Flow:
-     * 1. Parse and validate input from PSR-7 request body
-     * 2. Find user and verify password (Service)
-     * 3. Regenerate session ID (prevent fixation)
-     * 4. Store admin_user_id in $_SESSION
-     * 5. Return user data + set secure cookie
+     * 1. Validate input (Validator), 422 on failure
+     * 2. Verify the password (AuthService), 401 + a recorded attempt on failure
+     * 3. session_regenerate_id(true) — prevent fixation (ADR-0025)
+     * 4a. TOTP enrolled  -> mfa_pending_user_id + a 5-minute TTL; respond
+     *     {"requiresMfa": true}. No admin_user_id, no CSRF token, no timeout
+     *     stamps: nothing here is an authenticated session.
+     * 4b. Not enrolled    -> full session with totp_setup_required, which
+     *     AdminSessionAuth turns into a 403 on every route but the two
+     *     enrolment ones. Authentication is complete, so the account's
+     *     rate-limit rows are cleared and SessionTimeout::begin() stamps it.
+     *
+     * The attempt counter is deliberately NOT cleared in branch 4a. Clearing
+     * on a correct password let an attacker mint a fresh MFA window on demand
+     * and brute-force TOTP forever (#78).
      */
     public function login(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
-    {
-        $body = $request->getParsedBody();
-        $email = $body['email'] ?? '';
-        $password = $body['password'] ?? '';
 
-        // 1. Authenticate user (service validates password via password_verify)
-        $admin = $this->authService->authenticate($email, $password);
-
-        if (!$admin) {
-            $response->getBody()->write(json_encode([
-                'error' => 'authentication_failed',
-                'message' => 'Invalid email or password',
-            ]));
-            return $response->withStatus(401)->withHeader('Content-Type', 'application/json');
-        }
-
-        // 2. Start/regenerate session (prevent session fixation)
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_name('_session');
-            session_start();
-        }
-        session_regenerate_id(true);
-
-        // 3. Store user info in $_SESSION
-        $_SESSION['admin_user_id'] = $admin['id'];
-
-        // 4. Return user data
-        $response->getBody()->write(json_encode([
-            'user' => [
-                'id' => $admin['id'],
-                'email' => $admin['email'],
-                'name' => $admin['name'],
-            ],
-            'message' => 'Logged in successfully',
-        ]));
-        return $response->withHeader('Content-Type', 'application/json');
-    }
+    /**
+     * POST /api/auth/mfa - Second factor. On success this is where the session
+     * actually becomes authenticated: admin_user_id is set, a CSRF token is
+     * minted, SessionTimeout::begin() stamps both clocks, and the account's
+     * login attempts are cleared. Five wrong codes destroy the pending session,
+     * and every wrong code is persisted to `login_attempts` — a session-only
+     * cap is defeated by simply re-authenticating.
+     */
+    public function mfa(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
 
     /**
      * POST /api/auth/logout - Destroy session.
@@ -314,11 +303,12 @@ use Slim\Psr7\Response;
 /**
  * PSR-15 Middleware for validating admin session authentication.
  *
- * Ensures:
+ * Ensures, in this order:
  * - PHP session is active
  * - admin_user_id stored in $_SESSION
- * - User still exists in database
- * - User is still active
+ * - neither timeout has been reached
+ * - user still exists in database and is still active
+ * - the user has enrolled a second factor (ADR-0026)
  *
  * Implements Pattern 013: Admin Session Authentication
  */
@@ -326,12 +316,6 @@ class AdminSessionAuth implements MiddlewareInterface
 {
     public function __construct(private AdminUsersRepository $adminUsersRepository) {}
 
-    /**
-     * Validate session before allowing request to proceed (PSR-15).
-     *
-     * On success: Attaches admin user data to request attributes
-     * On failure: Returns 401 JSON response
-     */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         // 1. Start session if not active
@@ -346,13 +330,37 @@ class AdminSessionAuth implements MiddlewareInterface
             return $this->unauthorized();
         }
 
-        // 3. Verify user still exists and is active (PDO lookup)
+        // 3. Both timeouts, checked BEFORE the session is touched — otherwise a
+        //    request extends a session it arrived too late for. Either limit
+        //    empties and destroys the session and answers 401 session_expired.
+        if (SessionTimeout::hasExpired($_SESSION)) {
+            $_SESSION = [];
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_destroy();
+            }
+
+            return $this->sessionExpired();
+        }
+
+        // 4. Verify user still exists and is active (PDO lookup)
         $admin = $this->adminUsersRepository->findById($adminId);
         if (!$admin || !(bool) $admin['is_active']) {
             return $this->unauthorized();
         }
 
-        // 4. Attach admin data to request attributes
+        // 5. Restart the idle clock. Never the absolute one — that is the point
+        //    of having two (see SessionTimeout::touch()).
+        SessionTimeout::touch($_SESSION);
+
+        // 6. TOTP is mandatory. A session authenticated by password alone is
+        //    confined to the two enrolment routes and gets 403 everywhere else.
+        if (($_SESSION['totp_setup_required'] ?? false) === true
+            && !in_array($request->getUri()->getPath(), ['/api/auth/2fa/setup', '/api/auth/2fa/confirm'], true)
+        ) {
+            return $this->totpSetupRequired();   // 403 totp_setup_required
+        }
+
+        // 7. Attach admin data to request attributes
         $request = $request->withAttribute('admin_user_id', $adminId);
         $request = $request->withAttribute('admin_user', $admin);
 
@@ -365,6 +373,9 @@ class AdminSessionAuth implements MiddlewareInterface
         $response->getBody()->write(json_encode(['error' => 'admin_not_authenticated']));
         return $response->withHeader('Content-Type', 'application/json');
     }
+
+    // sessionExpired(): 401 {"error": "session_expired", ...}
+    // totpSetupRequired(): 403 {"error": "totp_setup_required", ...}
 }
 ```
 
@@ -466,19 +477,23 @@ No database-backed session table is needed -- the project uses PHP's native file
 
 ## Database Schema
 
+As in `db/migrations/001_initial_schema.sql` (TOTP columns added by
+`004_totp_2fa.sql`). Ids are UUIDs, not auto-increment integers, and the hash
+column is `password_hash` — an `INSERT` naming `password` fails.
+
 ```sql
--- Admin users table
 CREATE TABLE admin_users (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    email VARCHAR(255) NOT NULL UNIQUE COMMENT 'Login email',
-    password VARCHAR(255) NOT NULL COMMENT 'Bcrypt hash (cost 12+)',
-    name VARCHAR(255) NOT NULL COMMENT 'Full name for display',
-    is_active BOOLEAN DEFAULT TRUE COMMENT 'False = account disabled, cannot login',
-    last_login_at TIMESTAMP NULLABLE COMMENT 'Last successful login',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_email (email),
-    INDEX idx_is_active (is_active),
+    id CHAR(36) NOT NULL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,      -- password_hash(), bcrypt
+    display_name VARCHAR(255) NULL,
+    locale VARCHAR(10) NOT NULL DEFAULT 'de',
+    is_active TINYINT(1) NOT NULL DEFAULT 1,  -- 0 = disabled, cannot log in
+    last_login_at TIMESTAMP NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_admin_users_is_active (is_active),
+    INDEX idx_admin_users_email (email)
 );
 ```
 
@@ -495,32 +510,19 @@ session_regenerate_id(true);  // Delete old session file, regenerate new ID
 
 Prevents attacker from creating session before user logs in.
 
-### 2. HttpOnly Cookies (Prevent XSS Token Theft)
+### 2–4. Cookie attributes (XSS, MITM, CSRF)
 
-```ini
-; php.ini
-session.cookie_httponly = 1
-```
+`httponly`, `secure` and `samesite` are set by `RuntimeHardening` in the
+`session_set_cookie_params()` call shown under **Session Configuration** above —
+**not** by a `php.ini` file. There is no `php.ini` in this repository, and the
+shared-hosting target may ignore one the package ships ([ADR-0031](../../adr/0031-production-hardening-on-shared-hosting.md)
+decision 1), so an ini-based reading of these guarantees is wrong twice over.
 
-JavaScript cannot access session cookie (even if XSS vulnerability exists).
-
-### 3. Secure Cookies (HTTPS Only)
-
-```ini
-; php.ini (production)
-session.cookie_secure = 1
-```
-
-Cookie only sent over HTTPS (not HTTP). Prevents MITM attacks.
-
-### 4. SameSite Attribute (Prevent CSRF)
-
-```ini
-; php.ini
-session.cookie_samesite = Lax
-```
-
-Cookie not sent in cross-site requests. Prevents CSRF attacks.
+| Attribute | Value | Stops |
+|-----------|-------|-------|
+| `httponly` | always `true` | JavaScript reading the cookie, so an XSS hole cannot steal the session |
+| `secure` | derived by `AppConfig::resolveSessionCookieSecure()` | the cookie travelling over plain HTTP. Derived rather than hard-coded because a `Secure` cookie is dropped by the browser on `http://localhost`, which would leave development and the E2E suite unable to hold a session at all |
+| `samesite` | `Lax` | the common CSRF shapes. The CSRF token is the other half, not a substitute |
 
 ### 5. Password Hashing (Prevent Database Breach Exposure)
 
@@ -565,33 +567,49 @@ Admin Browser              Backend API
     | POST /api/auth/login     |
     |------- email, pwd ------>|
     |                          |
-    |                    1. Validate input
-    |                    2. Find user by email
-    |                    3. Hash password, compare
+    |                    1. Rate limit: per IP and per account
+    |                    2. Validate input
+    |                    3. Find user by email, password_verify()
     |                    4. Check is_active
-    |                    5. session_regenerate_id()
-    |                    6. $_SESSION['user_id'] = ...
-    |                    7. Create session in DB
+    |                    5. session_regenerate_id(true)     [ADR-0025]
+    |                    6. $_SESSION['mfa_pending_user_id'] = ...
+    |                       (5-minute TTL; NOT authenticated yet)
+    |                          |
+    | 200 OK                   |
+    |<-- {requiresMfa: true} --|
+    |                          |
+    | POST /api/auth/mfa       |
+    |--------- code ---------->|
+    |                          |
+    |                    1. Rate limit: per IP and per account
+    |                    2. Verify the TOTP code    [ADR-0026]
+    |                    3. $_SESSION['admin_user_id'] = ...
+    |                    4. Mint the CSRF token
+    |                    5. SessionTimeout::begin() — stamps both clocks
+    |                    6. Clear this account's login attempts
     |                          |
     | 200 OK                   |
     |<---- Set-Cookie ---------|
     | { user: {...} }          |
     |                          |
-    | [Browser stores session  |
-    |  ID in cookie]           |
-    |                          |
-    | GET /api/members         |
+    | GET /api/admin/members   |
     |------- Cookie:sid ------>|
     |                          |
-    |                    1. Extract session ID from cookie
-    |                    2. Load session from DB
-    |                    3. Check user_id exists
-    |                    4. Verify user still active
-    |                    5. Load members
+    |                    1. session_start() — file-backed, no DB
+    |                    2. admin_user_id present?           else 401
+    |                    3. Idle 2h / absolute 24h reached?  else 401 session_expired
+    |                    4. User still exists and is active? else 401
+    |                    5. SessionTimeout::touch() — idle clock only
+    |                    6. Second factor enrolled?          else 403
+    |                    7. Load members
     |                          |
     | 200 OK                   |
     |<---- members array ------|
 ```
+
+An admin who has never enrolled a second factor takes branch 4b of `login()`
+instead: a full session carrying `totp_setup_required`, which step 6 above turns
+into a 403 on every route but `/api/auth/2fa/setup` and `/api/auth/2fa/confirm`.
 
 ---
 
@@ -636,11 +654,17 @@ Cookie: _session=...
 
 ### Mitigations
 
-1. **Use database session storage** for scalability
-2. **Log all login/logout events** (Pattern 014: Audit Logging)
-3. **Implement rate limiting** on login endpoint (prevent brute force)
-4. **Provide password reset** flow for locked-out admins
-5. **Add last-login tracking** to detect compromised accounts
+1. **Session files live outside the shared session directory** — `session.save_path`
+   defaults to `backend/storage/sessions`, because a session file another
+   hosting account can read *is* an admin login (ADR-0031)
+2. **Log all login/logout events** — implemented, see Pattern 016: Audit Logging
+3. **Rate limiting on both auth steps** — implemented: per IP **and** per account,
+   5 attempts / 15 minutes, on `/api/auth/login` and `/api/auth/mfa`, with failures
+   persisted so re-authenticating does not reset the count (#78)
+4. **Provide password reset** flow for locked-out admins — *not implemented*; an
+   admin locked out of their account needs another admin to act
+5. **Add last-login tracking** to detect compromised accounts — implemented
+   (`last_login_at`)
 
 ---
 
@@ -759,6 +783,7 @@ test('GET /api/auth/profile with valid session returns 200', async () => {
 - **ADR-0016**: Transport Security (HTTPS/TLS)
 - **ADR-0017**: Input Validation and Injection Prevention
 - **ADR-0025**: Session Fixation Protection (`session_regenerate_id()` at login)
+- **ADR-0026**: Mandatory TOTP Two-Factor Authentication — why login is two steps
 - **ADR-0031**: Production Hardening on Shared Hosting — why the session directives are set from code rather than an ini file
 - **Pattern 001**: Input Validation (Custom Validator)
 - **Pattern 012**: Terminal API Token Authentication

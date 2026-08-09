@@ -458,7 +458,8 @@ final class AdminController
    - No delay or async operation needed
 
 5. **Constant-time comparison** ✓
-   - `password_verify()` compares at constant time
+   - `hash_equals()` compares the SHA-256 digests at constant time; the legacy
+     bcrypt path uses `password_verify()`, which is constant-time too
    - No timing leaks about token validity
    - Safe against timing attacks
 
@@ -473,9 +474,10 @@ final class AdminController
 ### What This Pattern Does NOT Provide
 
 1. **Token refresh** ✗
-   - Tokens are long-lived
-   - Rotation is manual via admin panel
-   - No automatic refresh mechanism
+   - A token has a bounded lifetime but no renewal mechanism
+   - Rotation is manual via admin panel; an expired terminal stays locked out
+     until an admin rotates it
+   - No automatic refresh
 
 2. **Token versioning** ✗
    - No concept of "revisions" or "generations"
@@ -528,11 +530,15 @@ Terminal application stores token in local config file (outside app bundle):
 
 ## Error Responses
 
+The `error` field carries the specific code, not a generic `unauthorized` — a
+terminal that aged out is a different operational problem from one that was
+never enrolled, and the operator needs to be told which.
+
 ```php
-// 401 Unauthorized - Missing/Invalid Token
+// 401 Unauthorized - Unknown or revoked token
 {
-    "error": "unauthorized",
-    "message": "Invalid or revoked terminal token"
+    "error": "invalid_terminal_token",
+    "message": "Invalid terminal token"
 }
 
 // 401 Unauthorized - Token past its lifetime (#106). Distinct from an unknown
@@ -545,14 +551,20 @@ Terminal application stores token in local config file (outside app bundle):
 
 // 401 Unauthorized - Inactive Terminal
 {
-    "error": "unauthorized",
+    "error": "terminal_inactive",
     "message": "Terminal is inactive"
 }
 
 // 401 Unauthorized - Missing Authorization Header
 {
-    "error": "unauthorized",
-    "message": "Missing Authorization header"
+    "error": "authorization_header_missing",
+    "message": "Authorization header required"
+}
+
+// 401 Unauthorized - Header present but not a Bearer token
+{
+    "error": "invalid_authorization_format",
+    "message": "Expected Bearer token"
 }
 ```
 
@@ -572,7 +584,9 @@ Terminal application stores token in local config file (outside app bundle):
 
 - **Manual token rotation**: No automatic refresh; admin must manage
 - **Token loss is permanent**: No way to recover lost tokens; must rotate
-- **No built-in expiration**: Admin responsible for rotation policy
+- **Expiry is a scheduled outage**: a token that ages out takes its terminal
+  offline until an admin rotates it. Nothing warns before `token_expires_at`
+  arrives, so the first symptom is a bar that cannot sell
 - **All terminals equal**: No differentiation of capabilities (all-or-nothing)
 
 ### Mitigations
