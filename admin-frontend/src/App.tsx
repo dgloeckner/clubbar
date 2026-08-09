@@ -4,6 +4,7 @@
  */
 
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { LoadingProvider } from './context/LoadingContext'
@@ -32,6 +33,7 @@ import { MainLayout } from './components/layout/MainLayout'
  */
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, initializing } = useAuth()
+  const { t } = useTranslation()
 
   if (initializing) {
     return (
@@ -45,7 +47,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
           color: theme.colors.text.secondary,
         }}
       >
-        Loading...
+        {t('common.loading')}
       </div>
     )
   }
@@ -58,6 +60,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
  */
 function AppRoutes() {
   const { isAuthenticated, initializing } = useAuth()
+  const { t } = useTranslation()
 
   if (initializing) {
     return (
@@ -71,7 +74,7 @@ function AppRoutes() {
           color: theme.colors.text.secondary,
         }}
       >
-        Loading...
+        {t('common.loading')}
       </div>
     )
   }

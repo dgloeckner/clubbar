@@ -150,7 +150,7 @@ export function SettlementsPage() {
         ? (err.response?.data?.message ?? err.message)
         : err instanceof Error
           ? err.message
-          : 'Failed to load settlements',
+          : t('settlements.errors.load'),
   })
 
   const { items: settlements, total: totalItems, totalPages, loading, error, setError } = list
@@ -182,8 +182,8 @@ export function SettlementsPage() {
   ]
 
   const mobileSortOptions = [
-    { value: 'created_at_desc', label: t('settlements.sortNewest', 'Newest first'), direction: 'desc' as const },
-    { value: 'created_at_asc', label: t('settlements.sortOldest', 'Oldest first'), direction: 'asc' as const },
+    { value: 'created_at_desc', label: t('settlements.sortNewest'), direction: 'desc' as const },
+    { value: 'created_at_asc', label: t('settlements.sortOldest'), direction: 'asc' as const },
   ]
 
   const mobileSortValue = list.sortValue
@@ -229,7 +229,7 @@ export function SettlementsPage() {
       } else if (err instanceof Error) {
         setError(err.message)
       } else {
-        setError('Failed to export SEPA XML')
+        setError(t('settlements.errors.exportSepa'))
       }
     }
   }
@@ -244,7 +244,7 @@ export function SettlementsPage() {
       } else if (err instanceof Error) {
         setError(err.message)
       } else {
-        setError('Failed to export CSV')
+        setError(t('settlements.errors.exportCsv'))
       }
     }
   }
@@ -259,7 +259,7 @@ export function SettlementsPage() {
       } else if (err instanceof Error) {
         setError(err.message)
       } else {
-        setError('Failed to export transactions CSV')
+        setError(t('settlements.errors.exportTransactions'))
       }
     }
   }
@@ -282,7 +282,7 @@ export function SettlementsPage() {
       } else if (err instanceof Error) {
         setError(err.message)
       } else {
-        setError('Failed to undo settlement')
+        setError(t('settlements.errors.undo'))
       }
     }
   }
@@ -570,7 +570,7 @@ export function SettlementsPage() {
                 color: tableColors.cellSecondaryText,
               }}
             >
-              {totalItems} {t('settlements.title')} {t('common.found')}
+              {t('settlements.countFound', { count: totalItems })}
             </div>
 
             {/* Right: Period picker + Status filter */}

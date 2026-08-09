@@ -228,34 +228,11 @@ export function formatDateTime(dateString: string, locale: string = 'de-DE'): st
   }
 }
 
-/**
- * Format date relative to today (Heute, Gestern, or absolute date)
+/*
+ * There is deliberately no `formatRelativeDate` here. Today/Yesterday/Never are
+ * words, not formats, so the relative variant needs the active locale's
+ * translations rather than an Intl locale tag: it lives in `useFormatters()`.
  */
-export function formatRelativeDate(dateString: string, locale: string = 'de-DE'): string {
-  if (!dateString) return 'Never'
-
-  try {
-    const date = parseApiDate(dateString)
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-
-    const isSameDay = (d1: Date, d2: Date) =>
-      d1.getFullYear() === d2.getFullYear() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getDate() === d2.getDate()
-
-    if (isSameDay(date, today)) {
-      return 'Heute'
-    }
-    if (isSameDay(date, yesterday)) {
-      return 'Gestern'
-    }
-    return formatDate(dateString, locale)
-  } catch {
-    return dateString
-  }
-}
 
 /**
  * Get balance color based on amount (in cents)

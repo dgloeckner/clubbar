@@ -2,6 +2,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useListQuery, splitSortValue, type ListQueryRequest } from './useListQuery'
+import i18n from '../i18n/config'
 
 interface Row {
   id: string
@@ -377,7 +378,10 @@ describe('useListQuery', () => {
     expect(result.current.error).toBe('network down')
 
     const { result: nonError } = await renderListQuery(vi.fn().mockRejectedValue('not an Error'))
-    expect(nonError.current.error).toBe('Failed to load data')
+    // A page that supplies no parseError still gets a locale string, not an
+    // English literal.
+    expect(nonError.current.error).toBe(i18n.t('errors.loadData'))
+    expect(nonError.current.error).not.toBe('errors.loadData')
   })
 
   it('does not fetch again when a filter is re-selected with its current value', async () => {

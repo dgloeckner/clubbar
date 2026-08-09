@@ -18,6 +18,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface Category {
   id: string
@@ -42,6 +43,7 @@ export function CategorySelect({
   label,
   required = false,
 }: CategorySelectProps) {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -64,7 +66,7 @@ export function CategorySelect({
 
   const selectedCategory = categories.find((cat) => cat.id === value)
   const selectedLabel =
-    selectedCategory?.names?.de || selectedCategory?.names?.en || 'Select category...'
+    selectedCategory?.names?.de || selectedCategory?.names?.en || t('products.selectCategory')
 
   return (
     <div ref={containerRef} style={{ position: 'relative', marginBottom: '16px' }}>

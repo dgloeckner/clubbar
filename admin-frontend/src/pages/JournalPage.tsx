@@ -144,7 +144,7 @@ export function JournalPage() {
         total: result.pagination?.total ?? 0,
       }
     },
-    parseError: (err) => (err instanceof Error ? err.message : 'Failed to load transactions'),
+    parseError: (err) => (err instanceof Error ? err.message : t('journal.errors.load')),
   })
 
   const { items: transactions, total: totalItems, totalPages, loading, error, search } = list
@@ -170,12 +170,12 @@ export function JournalPage() {
   ]
 
   const mobileSortOptions = [
-    { value: 'created_at_desc', label: t('journal.sortNewest', 'Newest first'), direction: 'desc' as const },
-    { value: 'created_at_asc', label: t('journal.sortOldest', 'Oldest first'), direction: 'asc' as const },
-    { value: 'member_asc', label: t('journal.sortMember', 'Member A\u2013Z'), direction: 'asc' as const },
-    { value: 'member_desc', label: t('journal.sortMemberDesc', 'Member Z\u2013A'), direction: 'desc' as const },
-    { value: 'amount_desc', label: t('journal.sortAmountHigh', 'Amount high\u2013low'), direction: 'desc' as const },
-    { value: 'amount_asc', label: t('journal.sortAmountLow', 'Amount low\u2013high'), direction: 'asc' as const },
+    { value: 'created_at_desc', label: t('journal.sortNewest'), direction: 'desc' as const },
+    { value: 'created_at_asc', label: t('journal.sortOldest'), direction: 'asc' as const },
+    { value: 'member_asc', label: t('journal.sortMember'), direction: 'asc' as const },
+    { value: 'member_desc', label: t('journal.sortMemberDesc'), direction: 'desc' as const },
+    { value: 'amount_desc', label: t('journal.sortAmountHigh'), direction: 'desc' as const },
+    { value: 'amount_asc', label: t('journal.sortAmountLow'), direction: 'asc' as const },
   ]
 
   const mobileSortValue = list.sortValue
@@ -330,7 +330,7 @@ export function JournalPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', marginBottom: '6px' }}>
-                      {t('journal.period', 'Period')}
+                      {t('journal.period')}
                     </div>
                     <PeriodPicker
                       value={period}
@@ -340,7 +340,7 @@ export function JournalPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', fontWeight: 500, textTransform: 'uppercase', marginBottom: '6px' }}>
-                      {t('journal.settlementStatus', 'Settlement')}
+                      {t('journal.settlementStatus')}
                     </div>
                     <PillFilter
                       value={settlementStatus}
@@ -513,7 +513,7 @@ export function JournalPage() {
               color: tableColors.cellSecondaryText,
             }}
           >
-            {totalItems} {t('statistics.transactions')} {t('common.found')}
+            {t('journal.countFound', { count: totalItems })}
           </div>
 
           {/* Center-left: Search input */}
@@ -774,7 +774,7 @@ export function JournalPage() {
                           [tx.product_name, tx.description]
                             .filter((v) => v)
                             .join('\n')
-                            .trim() || 'No details'
+                            .trim() || t('journal.noDetails')
                         }
                       >
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

@@ -236,12 +236,14 @@ export class CategoriesPage extends BasePage {
     return (await this.formError().textContent())?.trim() ?? null
   }
 
+  /**
+   * The selected icon name, or null when the trigger still shows its
+   * placeholder. Read from `data-value` rather than the visible label: the
+   * label is translated, so matching its wording only worked in one language.
+   */
   async getSelectedIconName(): Promise<string | null> {
-    const text = await this.iconSelectTrigger().textContent()
-    if (!text || text.includes('Select icon')) {
-      return null
-    }
-    return text.trim()
+    const value = await this.iconSelectTrigger().getAttribute('data-value')
+    return value ? value.trim() : null
   }
 
   async openIconDropdown() {

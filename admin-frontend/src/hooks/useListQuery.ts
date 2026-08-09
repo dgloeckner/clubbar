@@ -21,6 +21,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLatestRequest } from './useLatestRequest'
+import i18n from '../i18n/config'
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -132,8 +133,13 @@ function isAbortError(error: unknown): boolean {
   return name === 'AbortError' || name === 'CanceledError' || code === 'ERR_CANCELED'
 }
 
+/**
+ * Last-resort wording when a page passes no `parseError` of its own. Read off
+ * the shared i18n instance rather than `useTranslation`, because the message is
+ * produced inside the fetch rejection handler, not during render.
+ */
 function defaultParseError(error: unknown): string {
-  return error instanceof Error ? error.message : 'Failed to load data'
+  return error instanceof Error ? error.message : i18n.t('errors.loadData')
 }
 
 export function useListQuery<TItem, TFilters extends object, TSortKey extends string>(

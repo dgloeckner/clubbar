@@ -327,10 +327,6 @@ export class ProductsPage extends BasePage {
     await expect(this.iconSelectTrigger()).toBeVisible()
   }
 
-  async getIconSelectTriggerText(): Promise<string> {
-    return (await this.iconSelectTrigger().textContent()) || ''
-  }
-
   async selectIcon(iconName: string) {
     // Click trigger to open dropdown
     await this.iconSelectTrigger().click()
@@ -349,12 +345,14 @@ export class ProductsPage extends BasePage {
     await this.page.getByTestId('products-form-icon-select-option-clear').click()
   }
 
+  /**
+   * The selected icon name, or null when the trigger still shows its
+   * placeholder. Read from `data-value` rather than the visible label: the
+   * label is translated, so matching its wording only worked in one language.
+   */
   async getSelectedIconName(): Promise<string | null> {
-    const text = await this.iconSelectTrigger().textContent()
-    if (!text || text.includes('Select icon')) {
-      return null
-    }
-    return text.trim()
+    const value = await this.iconSelectTrigger().getAttribute('data-value')
+    return value ? value.trim() : null
   }
 
   async createProduct(name: string, price: string, categoryId?: string, iconName?: string) {

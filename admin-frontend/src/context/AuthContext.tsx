@@ -13,7 +13,6 @@ import {
   logoutWithSession,
   getCurrentSession,
   isAuthenticated,
-  type LoginSessionResult,
 } from '../auth/session'
 import { authErrorKey, endsMfaStep } from '../utils/authErrors'
 
@@ -64,10 +63,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
 
-  // Lockout outcomes get localized wording; anything else falls back to the
-  // server's message, which is what the form used to show for every failure.
-  const describe = (response: LoginSessionResult): string => {
-    const key = authErrorKey(response.errorCode)
+  // Lockout outcomes get localized wording of their own; otherwise the server's
+  // message is shown, and when it sent none, the key session.ts named for the
+  // failure. Nothing here is ever an untranslated English literal.
+  const describe = (response: { errorCode?: string; message: string; messageKey?: string }): string => {
+    const key = authErrorKey(response.errorCode) ?? response.messageKey
     return key ? t(key) : response.message
   }
 
@@ -111,8 +111,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(describe(response))
       return false
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Login failed'
-      setError(message)
+      setError(err instanceof Error ? err.message : t('auth.loginFailed'))
       return false
     } finally {
       setLoading(false)
@@ -143,11 +142,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         })
         return true
       }
-      setError(result.message)
+      setError(describe(result))
       return false
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Invalid code'
-      setError(message)
+      setError(err instanceof Error ? err.message : t('auth.mfaInvalidCode'))
       return false
     } finally {
       setLoading(false)
@@ -178,8 +176,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
       return false
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Invalid code'
-      setError(message)
+      setError(err instanceof Error ? err.message : t('auth.mfaInvalidCode'))
       return false
     } finally {
       setLoading(false)
@@ -193,8 +190,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setAuth({ isAuthenticated: false })
       setError(undefined)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Logout failed'
-      setError(message)
+      setError(err instanceof Error ? err.message : t('auth.logoutFailed'))
     } finally {
       setLoading(false)
     }

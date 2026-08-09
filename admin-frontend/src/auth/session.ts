@@ -33,7 +33,14 @@ export interface LoginSessionResult {
   success: boolean
   requiresMfa?: boolean
   requiresTotpSetup?: boolean
+  /**
+   * What the API said went wrong, verbatim. Empty when it said nothing usable —
+   * this module has no `t` of its own, so the wording for that case travels as
+   * `messageKey` and the caller (AuthContext) translates it.
+   */
   message: string
+  /** i18n key describing the failure, set only when `message` is empty. */
+  messageKey?: string
   /** API error code (e.g. `mfa_attempts_exceeded`), when the request failed with one. */
   errorCode?: string
   data?: {
@@ -45,15 +52,17 @@ export interface LoginSessionResult {
 }
 
 /** Pull the API's error code and message out of a failed request. */
-function toFailure(error: unknown, fallbackMessage: string): LoginSessionResult {
+function toFailure(error: unknown, fallbackKey: string): LoginSessionResult {
   if (!axios.isAxiosError(error)) {
-    return { success: false, message: fallbackMessage }
+    return { success: false, message: '', messageKey: fallbackKey }
   }
   const data = error.response?.data as { error?: string; message?: string } | undefined
+  const message = data?.message?.trim()
   return {
     success: false,
     errorCode: data?.error,
-    message: data?.message ?? fallbackMessage,
+    message: message ?? '',
+    messageKey: message ? undefined : fallbackKey,
   }
 }
 
@@ -98,18 +107,18 @@ export async function loginWithSession(credentials: {
     }
 
     if (!r.admin) {
-      return { success: false, message: 'Login failed' }
+      return { success: false, message: '', messageKey: 'auth.loginFailed' }
     }
 
     storeAdmin(r.admin, r.csrf_token)
 
     return {
       success: true,
-      message: 'Login successful',
+      message: '',
       data: toLoginData(r.admin),
     }
   } catch (error: unknown) {
-    return toFailure(error, 'Login failed')
+    return toFailure(error, 'auth.loginFailed')
   }
 }
 
@@ -122,13 +131,13 @@ export async function submitMfaWithSession(code: string): Promise<LoginSessionRe
 
     return {
       success: true,
-      message: 'Login successful',
+      message: '',
       data: toLoginData(r.admin),
     }
   } catch (error: unknown) {
     // The error code matters here: five wrong codes destroy the pending session
     // server-side (#78), and asking for a sixth would be asking into the void.
-    return toFailure(error, 'Invalid code')
+    return toFailure(error, 'auth.mfaInvalidCode')
   }
 }
 
@@ -146,7 +155,7 @@ export async function setupTotpWithSession(): Promise<{ qrCode: string; secret: 
 export async function confirmTotpWithSession(
   code: string,
   adminData: { admin_id: string; email: string; display_name: string; locale: string }
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; messageKey?: string }> {
   try {
     await getAuthentication().confirmTotp({ code })
 
@@ -159,9 +168,13 @@ export async function confirmTotpWithSession(
     return { success: true, message: '' }
   } catch (error: unknown) {
     const message = axios.isAxiosError(error)
-      ? (error.response?.data?.message as string | undefined) ?? 'Invalid code'
-      : 'Invalid code'
-    return { success: false, message }
+      ? (error.response?.data?.message as string | undefined)?.trim()
+      : undefined
+    return {
+      success: false,
+      message: message ?? '',
+      messageKey: message ? undefined : 'auth.mfaInvalidCode',
+    }
   }
 }
 

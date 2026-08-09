@@ -102,7 +102,7 @@ export function MembersPage() {
       const response = await getMembersFactory().listMembers(params, { signal })
       return { items: response.data ?? [], total: response.pagination?.total ?? 0 }
     },
-    parseError: (err) => (err instanceof Error ? err.message : 'Failed to load members'),
+    parseError: (err) => (err instanceof Error ? err.message : t('members.errors.load')),
   })
 
   const { items: members, total: totalMembers, totalPages, loading, error, setError, search } = list
@@ -138,11 +138,11 @@ export function MembersPage() {
   ].reduce((a, b) => a + b, 0)
 
   const mobileSortOptions = [
-    { value: 'last_name_asc', label: t('members.sortName', 'Name A–Z'), direction: 'asc' as const },
-    { value: 'last_name_desc', label: t('members.sortNameDesc', 'Name Z–A'), direction: 'desc' as const },
-    { value: 'card_uid_asc', label: t('members.sortCard', 'Card-UID ↑'), direction: 'asc' as const },
-    { value: 'created_at_desc', label: t('members.sortNewest', 'Newest first'), direction: 'desc' as const },
-    { value: 'created_at_asc', label: t('members.sortOldest', 'Oldest first'), direction: 'asc' as const },
+    { value: 'last_name_asc', label: t('members.sortName'), direction: 'asc' as const },
+    { value: 'last_name_desc', label: t('members.sortNameDesc'), direction: 'desc' as const },
+    { value: 'card_uid_asc', label: t('members.sortCard'), direction: 'asc' as const },
+    { value: 'created_at_desc', label: t('members.sortNewest'), direction: 'desc' as const },
+    { value: 'created_at_asc', label: t('members.sortOldest'), direction: 'asc' as const },
   ]
 
   const mobileSortValue = list.sortValue
@@ -174,7 +174,7 @@ export function MembersPage() {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       downloadBlob(blob, `gdpr-export-${editingMember.id}.json`)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to export member data')
+      setError(err instanceof Error ? err.message : t('members.errors.exportData'))
     } finally {
       setExporting(false)
     }
@@ -274,10 +274,10 @@ export function MembersPage() {
         } else if (data?.error) {
           setError(data.error)
         } else {
-          setError('Validation failed')
+          setError(t('members.errors.validationFailed'))
         }
       } else {
-        setError(err instanceof Error ? err.message : 'Failed to save member')
+        setError(err instanceof Error ? err.message : t('members.errors.save'))
       }
     }
   }
@@ -294,7 +294,7 @@ export function MembersPage() {
 
       setError(null)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to update member status')
+      setError(err instanceof Error ? err.message : t('members.errors.updateStatus'))
     }
   }
 
@@ -313,9 +313,9 @@ export function MembersPage() {
       const axiosErr = err as { response?: { status?: number; data?: unknown } }
       if (axiosErr.response?.status === 409) {
         const data = axiosErr.response.data as { message?: string } | null
-        setError(data?.message || 'Cannot anonymize member')
+        setError(data?.message || t('members.errors.cannotAnonymize'))
       } else {
-        setError(err instanceof Error ? err.message : 'Failed to anonymize member')
+        setError(err instanceof Error ? err.message : t('members.errors.anonymize'))
       }
       setAnonymizeConfirm(null)
     }
@@ -340,7 +340,7 @@ export function MembersPage() {
       })
       setShowModal(true)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load member details')
+      setError(err instanceof Error ? err.message : t('members.errors.loadDetails'))
     }
   }
 
@@ -349,7 +349,7 @@ export function MembersPage() {
       const blob = await getMembersFactory().getAdminSepaMandateTemplate()
       downloadBlob(blob, 'sepa-mandate-template.pdf')
     } catch {
-      setError(t('members.sepaTemplateError', 'SEPA configuration is incomplete. Please configure creditor details in Settings first.'))
+      setError(t('members.sepaTemplateError'))
     }
   }
 
@@ -488,7 +488,7 @@ export function MembersPage() {
         <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: '26px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>{t('members.title')}</h1>
           <p data-testid="members-count-summary" style={{ margin: '4px 0 0', fontSize: '14px', color: 'rgba(255,255,255,0.4)' }}>
-            {totalMembers} {t('members.title')} {t('common.found')}
+            {t('members.countFound', { count: totalMembers })}
           </p>
         </div>
         <div style={{ display: 'flex', gap: isMobile ? '6px' : '8px', flexShrink: 0 }}>
@@ -529,7 +529,7 @@ export function MembersPage() {
           <button
             data-testid="members-sepa-template-download-button"
             onClick={handleDownloadSepaTemplate}
-            title={t('members.downloadSepaTemplate', 'SEPA Template')}
+            title={t('members.downloadSepaTemplate')}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -546,7 +546,7 @@ export function MembersPage() {
             }}
           >
             <DownloadIcon size={18} />
-            {!isMobile && t('members.downloadSepaTemplate', 'SEPA Template')}
+            {!isMobile && t('members.downloadSepaTemplate')}
           </button>
           <button
             data-testid="members-create-button"
@@ -598,7 +598,7 @@ export function MembersPage() {
             filterContent={
               <>
                 <MobileFilterRow
-                  label={t('members.filterStatus', 'Status')}
+                  label={t('members.filterStatus')}
                   options={[
                     { value: 'all', label: t('common.all') },
                     { value: 'active', label: t('common.active') },
@@ -609,11 +609,11 @@ export function MembersPage() {
                   testId="members-mobile-filter-status"
                 />
                 <MobileFilterRow
-                  label={t('members.filterCard', 'Card')}
+                  label={t('members.filterCard')}
                   options={[
                     { value: 'all', label: t('common.all') },
-                    { value: 'with', label: t('members.filterWithCard', 'With') },
-                    { value: 'without', label: t('members.filterWithoutCard', 'Without') },
+                    { value: 'with', label: t('members.filterWithCard') },
+                    { value: 'without', label: t('members.filterWithoutCard') },
                   ]}
                   value={filterCardUid}
                   onChange={(v) => list.setFilter('cardUid', v as MemberFilters['cardUid'])}
@@ -623,8 +623,8 @@ export function MembersPage() {
                   label="SEPA"
                   options={[
                     { value: 'all', label: t('common.all') },
-                    { value: 'valid', label: t('members.filterSepaValid', 'Valid') },
-                    { value: 'invalid', label: t('members.filterSepaMissing', 'Missing') },
+                    { value: 'valid', label: t('members.filterSepaValid') },
+                    { value: 'invalid', label: t('members.filterSepaMissing') },
                   ]}
                   value={filterSepaStatus}
                   onChange={(v) => list.setFilter('sepaStatus', v as MemberFilters['sepaStatus'])}
@@ -672,16 +672,16 @@ export function MembersPage() {
                   <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: theme.colors.text.secondary, marginBottom: '6px' }}>
                     <span>
                       SEPA: {member.is_sepa_valid ? (
-                        <span style={{ color: theme.colors.semantic.success }}>{t('members.sepaValid', 'Valid')}</span>
+                        <span style={{ color: theme.colors.semantic.success }}>{t('members.sepaValid')}</span>
                       ) : (
-                        <span style={{ color: theme.colors.text.muted }}>{t('members.sepaMissing', 'Missing')}</span>
+                        <span style={{ color: theme.colors.text.muted }}>{t('members.sepaMissing')}</span>
                       )}
                     </span>
                     {member.card_uid && <span>Card: {member.card_uid}</span>}
                   </div>
                   {/* Row 3: member since */}
                   <div style={{ fontSize: '12px', color: theme.colors.text.muted, marginBottom: '10px' }}>
-                    {t('members.memberSince', 'Since')}: {member.created_at ? formatters.formatDate(member.created_at.split('T')[0]) : '—'}
+                    {t('members.memberSince')}: {member.created_at ? formatters.formatDate(member.created_at.split('T')[0]) : '—'}
                   </div>
                   {/* Row 4: actions */}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>

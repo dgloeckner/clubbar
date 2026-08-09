@@ -257,8 +257,9 @@ test.describe('Admin Products Page', () => {
     await authenticatedProductsPage.expectFormModalVisible()
     await authenticatedProductsPage.expectIconSelectTriggerVisible()
 
-    const triggerText = await authenticatedProductsPage.getIconSelectTriggerText()
-    expect(triggerText.toLowerCase()).toContain('select')
+    // Nothing selected yet — asserted on the trigger's value, not on the
+    // placeholder's wording, which differs per language.
+    expect(await authenticatedProductsPage.getSelectedIconName()).toBeNull()
 
     // Select an icon (opens dropdown internally, selects, closes)
     await authenticatedProductsPage.selectIcon('beer-pils')

@@ -3,7 +3,7 @@
  * Admin users list with toggle for active/inactive status and action buttons
  */
 
-import { theme, formatRelativeDate } from '../../styles/design-system'
+import { theme } from '../../styles/design-system'
 import { Toggle } from '../common/Toggle'
 import { Badge } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
@@ -13,6 +13,7 @@ import type { AdminUser as GeneratedAdminUser } from '../../api/generated'
 type AdminUser = GeneratedAdminUser & { id: string; email: string; display_name: string; locale: string; is_active: boolean; created_at: string }
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useTranslation } from 'react-i18next'
+import { useFormatters } from '../../hooks/useFormatters'
 
 export interface AdminUsersTabProps {
   users: AdminUser[]
@@ -37,6 +38,7 @@ export function AdminUsersTab({
   onReactivateUser,
 }: AdminUsersTabProps) {
   const { t } = useTranslation()
+  const { formatRelativeDate } = useFormatters()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'mobile' || breakpoint === 'smallMobile'
 
@@ -148,7 +150,7 @@ export function AdminUsersTab({
                 {/* Row 3: Last Login + Action Buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingLeft: '44px' }}>
                   <span style={{ fontSize: theme.typography.fontSize.xs, color: theme.colors.text.secondary }}>
-                    {admin.last_login_at ? formatRelativeDate(admin.last_login_at) : t('dates.never')}
+                    {formatRelativeDate(admin.last_login_at ?? '')}
                   </span>
                   <div style={{ display: 'flex', gap: theme.spacing.sm }}>
                     {/* Edit Button */}
@@ -335,7 +337,7 @@ export function AdminUsersTab({
                         fontSize: theme.typography.fontSize.xs,
                       }}
                     >
-                      {admin.last_login_at ? formatRelativeDate(admin.last_login_at) : t('dates.never')}
+                      {formatRelativeDate(admin.last_login_at ?? '')}
                     </td>
 
                     {/* Actions */}

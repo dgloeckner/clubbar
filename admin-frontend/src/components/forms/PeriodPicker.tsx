@@ -17,6 +17,7 @@
  * range is not announced at all: consumers seed it from `getPeriodRange()`.
  */
 
+import { useTranslation } from 'react-i18next'
 import { PERIOD_KEYS, getPeriodRange, DEFAULT_PERIOD, type PeriodKey } from '../../utils/periods'
 
 export interface PeriodPickerProps {
@@ -25,16 +26,9 @@ export interface PeriodPickerProps {
   testId?: string
 }
 
-const PERIOD_LABELS: Record<PeriodKey, string> = {
-  '1m': '1M',
-  '3m': '3M',
-  '6m': '6M',
-  '1y': '1J',
-  '2y': '2J',
-  all: 'Alle',
-}
-
 export function PeriodPicker({ value = DEFAULT_PERIOD, onPeriodChange, testId = 'period-picker' }: PeriodPickerProps) {
+  const { t } = useTranslation()
+
   const handlePeriodClick = (key: PeriodKey) => {
     if (!onPeriodChange) return
     const { dateFrom, dateTo } = getPeriodRange(key)
@@ -80,7 +74,7 @@ export function PeriodPicker({ value = DEFAULT_PERIOD, onPeriodChange, testId = 
             }
           }}
         >
-          {PERIOD_LABELS[key]}
+          {t(`periods.${key}`)}
         </button>
       ))}
     </div>

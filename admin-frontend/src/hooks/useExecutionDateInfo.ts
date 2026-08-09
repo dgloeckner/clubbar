@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getSettlements } from '../api/generated/settlements/settlements'
 import type { ExecutionDateInfo } from '../api/generated'
+import i18n from '../i18n/config'
 
 interface UseExecutionDateInfoResult {
   info: ExecutionDateInfo | null
@@ -43,7 +44,7 @@ export function useExecutionDateInfo(enabled: boolean = true): UseExecutionDateI
       .catch((err: unknown) => {
         if (!cancelled) {
           setInfo(null)
-          setError(err instanceof Error ? err.message : 'Failed to load execution date')
+          setError(err instanceof Error ? err.message : i18n.t('newSettlement.errors.loadExecutionDate'))
         }
       })
       .finally(() => {

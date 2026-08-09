@@ -123,10 +123,10 @@ export function ProductsPage() {
     },
     parseError: (err) =>
       axios.isAxiosError(err)
-        ? err.response?.data?.message || err.message || 'Failed to load products'
+        ? err.response?.data?.message || err.message || t('products.errors.load')
         : err instanceof Error
           ? err.message
-          : 'Failed to load products',
+          : t('products.errors.load'),
   })
 
   const { items: products, total: totalItems, totalPages, loading, error, setError } = list
@@ -144,12 +144,12 @@ export function ProductsPage() {
   ].reduce((a, b) => a + b, 0)
 
   const mobileSortOptions = [
-    { value: 'name_asc', label: t('products.sortName', 'Name A\u2013Z'), direction: 'asc' as const },
-    { value: 'name_desc', label: t('products.sortNameDesc', 'Name Z\u2013A'), direction: 'desc' as const },
-    { value: 'price_asc', label: t('products.sortPriceLow', 'Price \u2191'), direction: 'asc' as const },
-    { value: 'price_desc', label: t('products.sortPriceHigh', 'Price \u2193'), direction: 'desc' as const },
-    { value: 'category_asc', label: t('products.sortCategory', 'Category'), direction: 'asc' as const },
-    { value: 'created_at_desc', label: t('products.sortNewest', 'Newest first'), direction: 'desc' as const },
+    { value: 'name_asc', label: t('products.sortName'), direction: 'asc' as const },
+    { value: 'name_desc', label: t('products.sortNameDesc'), direction: 'desc' as const },
+    { value: 'price_asc', label: t('products.sortPriceLow'), direction: 'asc' as const },
+    { value: 'price_desc', label: t('products.sortPriceHigh'), direction: 'desc' as const },
+    { value: 'category_asc', label: t('products.sortCategory'), direction: 'asc' as const },
+    { value: 'created_at_desc', label: t('products.sortNewest'), direction: 'desc' as const },
   ]
 
   const mobileSortValue = list.sortValue
@@ -197,12 +197,12 @@ export function ProductsPage() {
 
     const priceCents = parsePriceToCents(formData.price)
     if (priceCents === null) {
-      setFormError('Valid price is required')
+      setFormError(t('products.validation.priceRequired'))
       return
     }
 
     if (!selectedCategory) {
-      setFormError('Category is required')
+      setFormError(t('products.validation.categoryRequired'))
       return
     }
 
@@ -233,10 +233,10 @@ export function ProductsPage() {
       await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
-        const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to create product'
+        const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || t('products.errors.create')
         setFormError(errorMsg)
       } else {
-        setFormError(err instanceof Error ? err.message : 'Failed to create product')
+        setFormError(err instanceof Error ? err.message : t('products.errors.create'))
       }
     }
   }
@@ -252,12 +252,12 @@ export function ProductsPage() {
 
     const priceCents = parsePriceToCents(formData.price)
     if (priceCents === null || priceCents <= 0) {
-      setFormError('Valid price is required')
+      setFormError(t('products.validation.priceRequired'))
       return
     }
 
     if (!selectedCategory) {
-      setFormError('Category is required')
+      setFormError(t('products.validation.categoryRequired'))
       return
     }
 
@@ -287,10 +287,10 @@ export function ProductsPage() {
       await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
-        const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to update product'
+        const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || t('products.errors.update')
         setFormError(errorMsg)
       } else {
-        setFormError(err instanceof Error ? err.message : 'Failed to update product')
+        setFormError(err instanceof Error ? err.message : t('products.errors.update'))
       }
     }
   }
@@ -310,9 +310,9 @@ export function ProductsPage() {
       await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || err.message || 'Failed to update product status')
+        setError(err.response?.data?.message || err.message || t('products.errors.updateStatus'))
       } else {
-        setError(err instanceof Error ? err.message : 'Failed to update product status')
+        setError(err instanceof Error ? err.message : t('products.errors.updateStatus'))
       }
     }
   }
@@ -326,9 +326,9 @@ export function ProductsPage() {
       await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || err.message || 'Failed to delete product')
+        setError(err.response?.data?.message || err.message || t('products.errors.delete'))
       } else {
-        setError(err instanceof Error ? err.message : 'Failed to delete product')
+        setError(err instanceof Error ? err.message : t('products.errors.delete'))
       }
       setConfirmDialog(null)
     }
@@ -429,7 +429,7 @@ export function ProductsPage() {
             filterContent={
               <>
                 <MobileFilterRow
-                  label={t('common.status', 'Status')}
+                  label={t('common.status')}
                   options={[
                     { value: 'all', label: t('common.all') },
                     { value: 'active', label: t('common.active') },
@@ -440,7 +440,7 @@ export function ProductsPage() {
                   testId="products-mobile-filter-status"
                 />
                 <MobileFilterRow
-                  label={t('common.category', 'Category')}
+                  label={t('common.category')}
                   options={[
                     { value: '', label: t('common.all') },
                     ...categories.map((c) => ({
@@ -568,7 +568,7 @@ export function ProductsPage() {
         {/* Left: Summary + Search */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
           <span data-testid="products-count-summary" style={{ color: '#cbd5e1', fontSize: 14, whiteSpace: 'nowrap' }}>
-            <strong style={{ color: '#e2e8f0' }}>{totalItems}</strong> {t('products.title')} {t('common.found')}
+            {t('products.countFound', { count: totalItems })}
           </span>
           <input
             type="text"
