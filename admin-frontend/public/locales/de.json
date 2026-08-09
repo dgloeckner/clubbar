@@ -53,7 +53,6 @@
     "sortByColumn": "Nach {{column}} sortieren",
     "ascending": "Aufsteigend",
     "descending": "Absteigend",
-    "found": "gefunden",
     "searchPlaceholder": "Suchen...",
     "saveChanges": "Änderungen speichern",
     "deactivate": "Deaktivieren",
@@ -108,7 +107,8 @@
     "setupInfoFutureTitle": "Wie funktionieren zukünftige Anmeldungen?",
     "setupInfoFutureText": "Bei jeder Anmeldung geben Sie zunächst E-Mail-Adresse und Passwort ein. Anschließend werden Sie nach dem 6-stelligen Code gefragt – den entnehmen Sie einfach Ihrer Authenticator-App.",
     "setupInfoKeepTitle": "Was müssen Sie sicher aufbewahren?",
-    "setupInfoKeepText": "Bewahren Sie den manuellen Schlüssel (unterhalb des QR-Codes angezeigt) an einem sicheren Ort auf, z. B. in einem Passwortmanager. Falls Sie den Zugang zu Ihrer Authenticator-App verlieren, benötigen Sie diesen Schlüssel zur Wiederherstellung."
+    "setupInfoKeepText": "Bewahren Sie den manuellen Schlüssel (unterhalb des QR-Codes angezeigt) an einem sicheren Ort auf, z. B. in einem Passwortmanager. Falls Sie den Zugang zu Ihrer Authenticator-App verlieren, benötigen Sie diesen Schlüssel zur Wiederherstellung.",
+    "logoutFailed": "Abmeldung fehlgeschlagen"
   },
   "validation": {
     "required": "Pflichtfeld",
@@ -125,7 +125,8 @@
     "networkError": "Netzwerkfehler - bitte versuchen Sie es erneut",
     "unauthorized": "Nicht autorisiert",
     "notFound": "Nicht gefunden",
-    "serverError": "Serverfehler"
+    "serverError": "Serverfehler",
+    "loadData": "Daten konnten nicht geladen werden"
   },
   "dates": {
     "today": "Heute",
@@ -197,7 +198,16 @@
       "invalidIban": "Ungültige IBAN (Ländercode und Ziffern prüfen)"
     },
     "errors": {
-      "cardUidInUse": "Diese Karten-UID ist bereits einem anderen Mitglied zugewiesen"
+      "cardUidInUse": "Diese Karten-UID ist bereits einem anderen Mitglied zugewiesen",
+      "load": "Mitglieder konnten nicht geladen werden",
+      "save": "Mitglied konnte nicht gespeichert werden",
+      "updateStatus": "Mitgliedsstatus konnte nicht geändert werden",
+      "anonymize": "Mitglied konnte nicht anonymisiert werden",
+      "cannotAnonymize": "Mitglied kann nicht anonymisiert werden",
+      "loadDetails": "Mitgliedsdetails konnten nicht geladen werden",
+      "exportData": "Mitgliedsdaten konnten nicht exportiert werden",
+      "validationFailed": "Validierung fehlgeschlagen",
+      "loadTransactions": "Buchungen konnten nicht geladen werden"
     },
     "sortName": "Name A–Z",
     "sortNameDesc": "Name Z–A",
@@ -216,7 +226,11 @@
     "anonymizeConfirm": "Alle persönlichen Daten von {{name}} werden unwiderruflich gelöscht (DSGVO Art. 17). Diese Aktion kann nicht rückgängig gemacht werden.",
     "anonymizeSuccess": "Mitglied wurde anonymisiert",
     "anonymizeButton": "Anonymisieren",
-    "newFromScan": "Neu aus Scan"
+    "newFromScan": "Neu aus Scan",
+    "countFound_one": "{{count}} Mitglied gefunden",
+    "countFound_other": "{{count}} Mitglieder gefunden",
+    "downloadSepaTemplate": "SEPA-Vorlage",
+    "sepaTemplateError": "Die SEPA-Konfiguration ist unvollständig. Bitte hinterlegen Sie zuerst die Gläubigerdaten in den Einstellungen."
   },
   "products": {
     "title": "Produkte",
@@ -241,7 +255,20 @@
     "sortPriceLow": "Preis ↑",
     "sortPriceHigh": "Preis ↓",
     "sortCategory": "Kategorie",
-    "sortNewest": "Neueste zuerst"
+    "sortNewest": "Neueste zuerst",
+    "countFound_one": "{{count}} Produkt gefunden",
+    "countFound_other": "{{count}} Produkte gefunden",
+    "validation": {
+      "priceRequired": "Ein gültiger Preis ist erforderlich",
+      "categoryRequired": "Kategorie ist erforderlich"
+    },
+    "errors": {
+      "load": "Produkte konnten nicht geladen werden",
+      "create": "Produkt konnte nicht angelegt werden",
+      "update": "Produkt konnte nicht gespeichert werden",
+      "updateStatus": "Produktstatus konnte nicht geändert werden",
+      "delete": "Produkt konnte nicht gelöscht werden"
+    }
   },
   "categories": {
     "title": "Kategorien",
@@ -260,7 +287,14 @@
     "noCategories": "Keine Kategorien gefunden",
     "sortName": "Name A–Z",
     "sortNameDesc": "Name Z–A",
-    "sortNewest": "Neueste zuerst"
+    "sortNewest": "Neueste zuerst",
+    "countFound_one": "{{count}} Kategorie gefunden",
+    "countFound_other": "{{count}} Kategorien gefunden",
+    "errors": {
+      "load": "Kategorien konnten nicht geladen werden",
+      "deactivate": "Kategorie konnte nicht deaktiviert werden",
+      "action": "Aktion konnte nicht ausgeführt werden"
+    }
   },
   "journal": {
     "title": "Buchungsjournal",
@@ -307,7 +341,13 @@
     "period": "Zeitraum",
     "settlementStatus": "Abrechnung",
     "open": "Offen",
-    "settled": "Abgerechnet"
+    "settled": "Abgerechnet",
+    "countFound_one": "{{count}} Buchung gefunden",
+    "countFound_other": "{{count}} Buchungen gefunden",
+    "noDetails": "Keine Details",
+    "errors": {
+      "load": "Buchungen konnten nicht geladen werden"
+    }
   },
   "settlements": {
     "title": "Abrechnungen",
@@ -335,7 +375,17 @@
     "undoConfirm": "Diese Abrechnung rückgängig machen? Alle Buchungen werden wieder auf offen gesetzt.",
     "sortNewest": "Neueste zuerst",
     "sortOldest": "Älteste zuerst",
-    "exportShortfall": "Die SEPA-Datei lässt {{count}} Mitglied(er) aus: Sie zieht {{collected}} von {{total}} dieser Abrechnung ein, {{shortfall}} zu wenig. Prüfen Sie die Bankdaten der Mitglieder, die im Audit-Log-Eintrag zu diesem Export genannt sind."
+    "countFound_one": "{{count}} Abrechnung gefunden",
+    "countFound_other": "{{count}} Abrechnungen gefunden",
+    "errors": {
+      "load": "Abrechnungen konnten nicht geladen werden",
+      "exportSepa": "SEPA-XML konnte nicht exportiert werden",
+      "exportCsv": "CSV konnte nicht exportiert werden",
+      "exportTransactions": "Buchungs-CSV konnte nicht exportiert werden",
+      "undo": "Abrechnung konnte nicht rückgängig gemacht werden"
+    },
+    "exportShortfall_one": "Die SEPA-Datei lässt {{count}} Mitglied aus: Sie zieht {{collected}} von {{total}} dieser Abrechnung ein, {{shortfall}} zu wenig. Prüfen Sie die Bankdaten des Mitglieds, das im Audit-Log-Eintrag zu diesem Export genannt ist.",
+    "exportShortfall_other": "Die SEPA-Datei lässt {{count}} Mitglieder aus: Sie zieht {{collected}} von {{total}} dieser Abrechnung ein, {{shortfall}} zu wenig. Prüfen Sie die Bankdaten der Mitglieder, die im Audit-Log-Eintrag zu diesem Export genannt sind."
   },
   "statistics": {
     "title": "Statistik",
@@ -458,6 +508,21 @@
       "revokeTerminal": "Terminal-Zugang konnte nicht entzogen werden",
       "saveSepa": "SEPA-Konfiguration konnte nicht gespeichert werden. Bitte erneut versuchen.",
       "sepaValidation": "Bitte korrigieren Sie die markierten Felder"
+    },
+    "validation": {
+      "creditorNameRequired": "Gläubigername ist erforderlich",
+      "creditorNameTooLong": "Gläubigername darf höchstens 70 Zeichen lang sein",
+      "creditorIbanRequired": "Gläubiger-IBAN ist erforderlich",
+      "creditorIbanInvalid": "Ungültiges IBAN-Format (15–34 alphanumerische Zeichen)",
+      "streetRequired": "Straße ist erforderlich",
+      "streetTooLong": "Straße darf höchstens 70 Zeichen lang sein",
+      "cityRequired": "Ort ist erforderlich",
+      "cityTooLong": "Ort darf höchstens 70 Zeichen lang sein",
+      "countryRequired": "Ländercode ist erforderlich",
+      "countryInvalid": "Land muss ein zweistelliger ISO-Code sein (z. B. DE, AT, CH)",
+      "paymentReferencePrefixTooLong": "Verwendungszweck-Präfix darf höchstens 100 Zeichen lang sein",
+      "creditorIdRequired": "Gläubiger-ID ist erforderlich",
+      "creditorIdTooLong": "Gläubiger-ID darf höchstens 35 Zeichen lang sein"
     }
   },
   "auditLog": {
@@ -478,11 +543,15 @@
     "allActions": "Alle Aktionen",
     "allEntityTypes": "Alle Entitätstypen",
     "searchPlaceholder": "Suche Entitäts-ID, E-Mail, IP...",
-    "entriesFound": "Einträge gefunden",
     "ipAddress": "IP-Adresse",
     "failedLogin": "(Fehlgeschlagene Anmeldung)",
     "hideDetails": "Details ausblenden",
-    "showDetails": "Details anzeigen"
+    "showDetails": "Details anzeigen",
+    "countFound_one": "{{count}} Eintrag gefunden",
+    "countFound_other": "{{count}} Einträge gefunden",
+    "errors": {
+      "load": "Audit-Log konnte nicht geladen werden"
+    }
   },
   "profile": {
     "title": "Profil",
@@ -575,12 +644,13 @@
     "offline": "Offline",
     "disabled": "Deaktiviert",
     "lastSync": "Letzte Sync",
-    "membersNeedSepaData": "{{count}} Mitglied(er) ohne SEPA-Daten",
     "allSepaValid": "Alle SEPA-Daten vollständig",
     "autoRefresh": "Automatische Aktualisierung",
     "refreshNow": "Jetzt aktualisieren",
     "purchase": "Kauf",
-    "storno": "Storno"
+    "storno": "Storno",
+    "membersNeedSepaData_one": "{{count}} Mitglied ohne SEPA-Daten",
+    "membersNeedSepaData_other": "{{count}} Mitglieder ohne SEPA-Daten"
   },
   "pagination": {
     "firstPage": "Erste Seite",
@@ -663,6 +733,19 @@
       "title": "Ausgeschlossen — Einzug gesperrt",
       "note": "Der letzte Einzug dieser Mitglieder kam zurück. Sie werden übersprungen, bis jemand die Sperre prüft und aufhebt — zuerst den Rücklauf der Abrechnung ansehen.",
       "noReason": "Kein Grund hinterlegt"
+    },
+    "errors": {
+      "loadPreview": "Abrechnungsvorschau konnte nicht geladen werden",
+      "create": "Abrechnung konnte nicht erstellt werden",
+      "loadExecutionDate": "Ausführungsdatum konnte nicht geladen werden"
     }
+  },
+  "periods": {
+    "1m": "1M",
+    "3m": "3M",
+    "6m": "6M",
+    "1y": "1J",
+    "2y": "2J",
+    "all": "Alle"
   }
 }

@@ -53,7 +53,6 @@
     "sortByColumn": "Sort by {{column}}",
     "ascending": "Ascending",
     "descending": "Descending",
-    "found": "found",
     "searchPlaceholder": "Search...",
     "saveChanges": "Save Changes",
     "deactivate": "Deactivate",
@@ -108,7 +107,8 @@
     "setupInfoFutureTitle": "How do future logins work?",
     "setupInfoFutureText": "Each time you log in, you first enter your email address and password. You will then be asked for a 6-digit code — simply open your authenticator app to get it.",
     "setupInfoKeepTitle": "What should you keep safe?",
-    "setupInfoKeepText": "Store the manual key (shown below the QR code) in a safe place, e.g. a password manager. If you ever lose access to your authenticator app, you will need this key to recover your account."
+    "setupInfoKeepText": "Store the manual key (shown below the QR code) in a safe place, e.g. a password manager. If you ever lose access to your authenticator app, you will need this key to recover your account.",
+    "logoutFailed": "Logout failed"
   },
   "validation": {
     "required": "Required",
@@ -125,7 +125,8 @@
     "networkError": "Network error - please try again",
     "unauthorized": "Unauthorized",
     "notFound": "Not found",
-    "serverError": "Server error"
+    "serverError": "Server error",
+    "loadData": "Failed to load data"
   },
   "dates": {
     "today": "Today",
@@ -197,7 +198,16 @@
       "invalidIban": "Invalid IBAN (check country code and digits)"
     },
     "errors": {
-      "cardUidInUse": "This card UID is already assigned to another member"
+      "cardUidInUse": "This card UID is already assigned to another member",
+      "load": "Failed to load members",
+      "save": "Failed to save member",
+      "updateStatus": "Failed to update member status",
+      "anonymize": "Failed to anonymize member",
+      "cannotAnonymize": "Cannot anonymize member",
+      "loadDetails": "Failed to load member details",
+      "exportData": "Failed to export member data",
+      "validationFailed": "Validation failed",
+      "loadTransactions": "Failed to load transactions"
     },
     "sortName": "Name A–Z",
     "sortNameDesc": "Name Z–A",
@@ -216,7 +226,11 @@
     "anonymizeConfirm": "All personal data of {{name}} will be permanently deleted (GDPR Art. 17). This action cannot be undone.",
     "anonymizeSuccess": "Member has been anonymized",
     "anonymizeButton": "Anonymize",
-    "newFromScan": "New from scan"
+    "newFromScan": "New from scan",
+    "countFound_one": "{{count}} member found",
+    "countFound_other": "{{count}} members found",
+    "downloadSepaTemplate": "SEPA Template",
+    "sepaTemplateError": "SEPA configuration is incomplete. Please configure creditor details in Settings first."
   },
   "products": {
     "title": "Products",
@@ -241,7 +255,20 @@
     "sortPriceLow": "Price ↑",
     "sortPriceHigh": "Price ↓",
     "sortCategory": "Category",
-    "sortNewest": "Newest first"
+    "sortNewest": "Newest first",
+    "countFound_one": "{{count}} product found",
+    "countFound_other": "{{count}} products found",
+    "validation": {
+      "priceRequired": "Valid price is required",
+      "categoryRequired": "Category is required"
+    },
+    "errors": {
+      "load": "Failed to load products",
+      "create": "Failed to create product",
+      "update": "Failed to update product",
+      "updateStatus": "Failed to update product status",
+      "delete": "Failed to delete product"
+    }
   },
   "categories": {
     "title": "Categories",
@@ -260,7 +287,14 @@
     "noCategories": "No categories found",
     "sortName": "Name A–Z",
     "sortNameDesc": "Name Z–A",
-    "sortNewest": "Newest first"
+    "sortNewest": "Newest first",
+    "countFound_one": "{{count}} category found",
+    "countFound_other": "{{count}} categories found",
+    "errors": {
+      "load": "Failed to load categories",
+      "deactivate": "Failed to deactivate category",
+      "action": "Failed to perform action"
+    }
   },
   "journal": {
     "title": "Journal",
@@ -307,7 +341,13 @@
     "period": "Period",
     "settlementStatus": "Settlement",
     "open": "Open",
-    "settled": "Settled"
+    "settled": "Settled",
+    "countFound_one": "{{count}} transaction found",
+    "countFound_other": "{{count}} transactions found",
+    "noDetails": "No details",
+    "errors": {
+      "load": "Failed to load transactions"
+    }
   },
   "settlements": {
     "title": "Settlements",
@@ -335,7 +375,17 @@
     "undoConfirm": "Undo this settlement? All transactions will return to Open state.",
     "sortNewest": "Newest first",
     "sortOldest": "Oldest first",
-    "exportShortfall": "The SEPA file leaves out {{count}} member(s): it collects {{collected}} of the {{total}} this settlement records, {{shortfall}} short. Check the bank details of the members named in the audit log entry for this export."
+    "countFound_one": "{{count}} settlement found",
+    "countFound_other": "{{count}} settlements found",
+    "errors": {
+      "load": "Failed to load settlements",
+      "exportSepa": "Failed to export SEPA XML",
+      "exportCsv": "Failed to export CSV",
+      "exportTransactions": "Failed to export transactions CSV",
+      "undo": "Failed to undo settlement"
+    },
+    "exportShortfall_one": "The SEPA file leaves out {{count}} member: it collects {{collected}} of the {{total}} this settlement records, {{shortfall}} short. Check the bank details of the member named in the audit log entry for this export.",
+    "exportShortfall_other": "The SEPA file leaves out {{count}} members: it collects {{collected}} of the {{total}} this settlement records, {{shortfall}} short. Check the bank details of the members named in the audit log entry for this export."
   },
   "statistics": {
     "title": "Statistics",
@@ -458,6 +508,21 @@
       "revokeTerminal": "Failed to revoke terminal access",
       "saveSepa": "Failed to save the SEPA configuration. Please try again.",
       "sepaValidation": "Please correct the highlighted fields"
+    },
+    "validation": {
+      "creditorNameRequired": "Creditor name is required",
+      "creditorNameTooLong": "Creditor name must be 70 characters or less",
+      "creditorIbanRequired": "Creditor IBAN is required",
+      "creditorIbanInvalid": "Invalid IBAN format (must be 15-34 alphanumeric characters)",
+      "streetRequired": "Street address is required",
+      "streetTooLong": "Street address must be 70 characters or less",
+      "cityRequired": "City is required",
+      "cityTooLong": "City must be 70 characters or less",
+      "countryRequired": "Country code is required",
+      "countryInvalid": "Country must be a 2-letter ISO code (e.g., DE, AT, CH)",
+      "paymentReferencePrefixTooLong": "Payment reference prefix must be 100 characters or less",
+      "creditorIdRequired": "Creditor ID is required",
+      "creditorIdTooLong": "Creditor ID must be 35 characters or less"
     }
   },
   "auditLog": {
@@ -478,11 +543,15 @@
     "allActions": "All Actions",
     "allEntityTypes": "All Entity Types",
     "searchPlaceholder": "Search entity ID, email, IP...",
-    "entriesFound": "entries found",
     "ipAddress": "IP Address",
     "failedLogin": "(Failed Login)",
     "hideDetails": "Hide details",
-    "showDetails": "Show details"
+    "showDetails": "Show details",
+    "countFound_one": "{{count}} entry found",
+    "countFound_other": "{{count}} entries found",
+    "errors": {
+      "load": "Failed to load audit log"
+    }
   },
   "profile": {
     "title": "Profile",
@@ -575,12 +644,13 @@
     "offline": "Offline",
     "disabled": "Disabled",
     "lastSync": "Last Sync",
-    "membersNeedSepaData": "{{count}} member(s) missing SEPA data",
     "allSepaValid": "All SEPA data complete",
     "autoRefresh": "Auto-refresh",
     "refreshNow": "Refresh now",
     "purchase": "Purchase",
-    "storno": "Storno"
+    "storno": "Storno",
+    "membersNeedSepaData_one": "{{count}} member missing SEPA data",
+    "membersNeedSepaData_other": "{{count}} members missing SEPA data"
   },
   "pagination": {
     "firstPage": "First page",
@@ -663,6 +733,19 @@
       "title": "Excluded — collection on hold",
       "note": "These members' last collection came back. They are skipped until somebody investigates and clears the hold — check the settlement's reversal record first.",
       "noReason": "No reason recorded"
+    },
+    "errors": {
+      "loadPreview": "Failed to load settlement preview",
+      "create": "Failed to create settlement",
+      "loadExecutionDate": "Failed to load execution date"
     }
+  },
+  "periods": {
+    "1m": "1M",
+    "3m": "3M",
+    "6m": "6M",
+    "1y": "1Y",
+    "2y": "2Y",
+    "all": "All"
   }
 }

@@ -401,43 +401,43 @@ export function SettingsPage() {
     const newErrors: Record<string, string> = {}
 
     if (!formData.creditor_name?.trim()) {
-      newErrors.creditor_name = 'Creditor name is required'
+      newErrors.creditor_name = t('settings.validation.creditorNameRequired')
     } else if (formData.creditor_name.length > 70) {
-      newErrors.creditor_name = 'Creditor name must be 70 characters or less'
+      newErrors.creditor_name = t('settings.validation.creditorNameTooLong')
     }
 
     if (!formData.creditor_iban?.trim()) {
-      newErrors.creditor_iban = 'Creditor IBAN is required'
+      newErrors.creditor_iban = t('settings.validation.creditorIbanRequired')
     } else if (!validateIban(formData.creditor_iban)) {
-      newErrors.creditor_iban = 'Invalid IBAN format (must be 15-34 alphanumeric characters)'
+      newErrors.creditor_iban = t('settings.validation.creditorIbanInvalid')
     }
 
     if (!formData.creditor_address_street?.trim()) {
-      newErrors.creditor_address_street = 'Street address is required'
+      newErrors.creditor_address_street = t('settings.validation.streetRequired')
     } else if (formData.creditor_address_street.length > 70) {
-      newErrors.creditor_address_street = 'Street address must be 70 characters or less'
+      newErrors.creditor_address_street = t('settings.validation.streetTooLong')
     }
 
     if (!formData.creditor_address_city?.trim()) {
-      newErrors.creditor_address_city = 'City is required'
+      newErrors.creditor_address_city = t('settings.validation.cityRequired')
     } else if (formData.creditor_address_city.length > 70) {
-      newErrors.creditor_address_city = 'City must be 70 characters or less'
+      newErrors.creditor_address_city = t('settings.validation.cityTooLong')
     }
 
     if (!formData.creditor_address_country?.trim()) {
-      newErrors.creditor_address_country = 'Country code is required'
+      newErrors.creditor_address_country = t('settings.validation.countryRequired')
     } else if (!/^[A-Z]{2}$/.test(formData.creditor_address_country)) {
-      newErrors.creditor_address_country = 'Country must be a 2-letter ISO code (e.g., DE, AT, CH)'
+      newErrors.creditor_address_country = t('settings.validation.countryInvalid')
     }
 
     if (formData.payment_reference_prefix && formData.payment_reference_prefix.length > 100) {
-      newErrors.payment_reference_prefix = 'Payment reference prefix must be 100 characters or less'
+      newErrors.payment_reference_prefix = t('settings.validation.paymentReferencePrefixTooLong')
     }
 
     if (!creditorIdLocked && !formData.creditor_id?.trim()) {
-      newErrors.creditor_id = 'Creditor ID is required'
+      newErrors.creditor_id = t('settings.validation.creditorIdRequired')
     } else if (formData.creditor_id && formData.creditor_id.length > 35) {
-      newErrors.creditor_id = 'Creditor ID must be 35 characters or less'
+      newErrors.creditor_id = t('settings.validation.creditorIdTooLong')
     }
 
     setFieldErrors(newErrors)

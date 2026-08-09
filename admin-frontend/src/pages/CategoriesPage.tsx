@@ -125,10 +125,10 @@ export function CategoriesPage() {
     },
     parseError: (err) =>
       axios.isAxiosError(err)
-        ? err.response?.data?.message || err.message || 'Failed to load categories'
+        ? err.response?.data?.message || err.message || t('categories.errors.load')
         : err instanceof Error
           ? err.message
-          : 'Failed to load categories',
+          : t('categories.errors.load'),
   })
 
   const { items: categories, total: totalItems, totalPages, loading, error, setError } = list
@@ -145,9 +145,9 @@ export function CategoriesPage() {
   const mobileFilterCount = filterStatus !== 'all' ? 1 : 0
 
   const mobileSortOptions = [
-    { value: 'name_asc', label: t('categories.sortName', 'Name A\u2013Z'), direction: 'asc' as const },
-    { value: 'name_desc', label: t('categories.sortNameDesc', 'Name Z\u2013A'), direction: 'desc' as const },
-    { value: 'created_at_desc', label: t('categories.sortNewest', 'Newest first'), direction: 'desc' as const },
+    { value: 'name_asc', label: t('categories.sortName'), direction: 'asc' as const },
+    { value: 'name_desc', label: t('categories.sortNameDesc'), direction: 'desc' as const },
+    { value: 'created_at_desc', label: t('categories.sortNewest'), direction: 'desc' as const },
   ]
 
   const mobileSortValue = list.sortValue
@@ -244,9 +244,9 @@ export function CategoriesPage() {
         await list.reload()
       } catch (err: unknown) {
         if (axios.isAxiosError(err)) {
-          setError(err.response?.data?.message || err.message || 'Failed to deactivate category')
+          setError(err.response?.data?.message || err.message || t('categories.errors.deactivate'))
         } else {
-          setError(err instanceof Error ? err.message : 'Failed to deactivate category')
+          setError(err instanceof Error ? err.message : t('categories.errors.deactivate'))
         }
       }
     } else {
@@ -293,9 +293,9 @@ export function CategoriesPage() {
       await list.reload()
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || err.message || 'Failed to perform action')
+        setError(err.response?.data?.message || err.message || t('categories.errors.action'))
       } else {
-        setError(err instanceof Error ? err.message : 'Failed to perform action')
+        setError(err instanceof Error ? err.message : t('categories.errors.action'))
       }
       setConfirmDialog(null)
     }
@@ -357,7 +357,7 @@ export function CategoriesPage() {
             showFilters={showMobileFilters}
             filterContent={
               <MobileFilterRow
-                label={t('common.status', 'Status')}
+                label={t('common.status')}
                 options={[
                   { value: 'all', label: t('common.all') },
                   { value: 'active', label: t('common.active') },
@@ -420,7 +420,7 @@ export function CategoriesPage() {
                         data-testid={`categories-table-cell-product-count-${category.id}`}
                         style={{ fontSize: '12px', color: '#94a3b8' }}
                       >
-                        {category.product_count} {t('categories.productCount', 'Products')}
+                        {category.product_count} {t('categories.productCount')}
                       </span>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
@@ -499,7 +499,7 @@ export function CategoriesPage() {
           >
             {/* LEFT: Count summary */}
             <span data-testid="categories-count-summary" style={{ color: theme.colors.text.secondary, fontSize: '14px', whiteSpace: 'nowrap' }}>
-              <strong style={{ color: theme.colors.text.primary }}>{totalItems}</strong> {t('categories.title')} {t('common.found')}
+              {t('categories.countFound', { count: totalItems })}
             </span>
 
             {/* RIGHT: Filter + Create button */}

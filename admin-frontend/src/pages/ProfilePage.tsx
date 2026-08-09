@@ -13,9 +13,11 @@ import { getProfile, updateProfileWithSession } from '../auth/session'
 import type { AdminProfile } from '../api/generated'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { changeLanguage } from '../i18n/config'
+import { useFormatters } from '../hooks/useFormatters'
 
 export function ProfilePage() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
+  const { intlLocale } = useFormatters()
   const [profile, setProfile] = useState<AdminProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -305,7 +307,7 @@ export function ProfilePage() {
         )}
 
         <div style={{ marginBottom: theme.spacing.lg }}>
-          <label style={labelStyle}>{t('profile.currentPassword', 'Current Password')}</label>
+          <label style={labelStyle}>{t('profile.currentPassword')}</label>
           <input
             data-testid="password-current"
             type="password"
@@ -359,7 +361,7 @@ export function ProfilePage() {
       {/* Last Login Info */}
       {profile?.last_login_at && (
         <div style={{ color: theme.colors.text.muted, fontSize: theme.typography.fontSize.sm }}>
-          {t('profile.lastLogin')}: {new Date(profile.last_login_at).toLocaleString(i18n.language === 'de' ? 'de-DE' : 'en-US')}
+          {t('profile.lastLogin')}: {new Date(profile.last_login_at).toLocaleString(intlLocale)}
         </div>
       )}
     </div>

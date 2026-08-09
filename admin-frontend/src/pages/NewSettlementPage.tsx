@@ -104,7 +104,7 @@ export function NewSettlementPage() {
       setSelected(new Set((result.eligible_members ?? []).map((m) => m.member_id!).filter(Boolean)))
     } catch (err) {
       if (signal.aborted) return
-      setError(err instanceof Error ? err.message : 'Failed to load settlement preview')
+      setError(err instanceof Error ? err.message : t('newSettlement.errors.loadPreview'))
     } finally {
       if (!signal.aborted) setLoading(false)
     }
@@ -227,7 +227,7 @@ export function NewSettlementPage() {
       )
       navigate('/settlements')
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Failed to create settlement')
+      setSubmitError(err instanceof Error ? err.message : t('newSettlement.errors.create'))
     } finally {
       setSubmitting(false)
     }

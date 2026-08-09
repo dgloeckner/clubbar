@@ -453,7 +453,7 @@ function FilterSelect({ value, onChange, options, testId, label, minWidth = 80 }
 type TabId = 'revenue' | 'consumption' | 'member-ranking' | 'terminal-activity'
 
 export function ReportsPage() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const formatters = useFormatters()
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
@@ -703,7 +703,7 @@ export function ReportsPage() {
   // ─── Render: Standard Report Tabs (1-3) ──────────────────────────────────
 
   const renderStandardReport = () => {
-    const locale = i18n.language === 'de' ? 'de-DE' : 'en-US'
+    const locale = formatters.intlLocale
     const isConsumption = activeTab === 'consumption'
     const chartData =
       reportData?.rows.map((row) => ({
@@ -925,7 +925,7 @@ export function ReportsPage() {
   // ─── Render: Member Ranking (tab 4) ──────────────────────────────────────
 
   const renderMemberRanking = () => {
-    const locale = i18n.language === 'de' ? 'de-DE' : 'en-US'
+    const locale = formatters.intlLocale
 
     return (
       <>
@@ -1063,7 +1063,7 @@ export function ReportsPage() {
   // ─── Render: Terminal Activity (tab 5) ───────────────────────────────────
 
   const renderTerminalActivity = () => {
-    const locale = i18n.language === 'de' ? 'de-DE' : 'en-US'
+    const locale = formatters.intlLocale
     const hourlyChartData =
       terminalData?.hourly_distribution.map((b) => ({
         hour: `${String(b.hour).padStart(2, '0')}:00`,

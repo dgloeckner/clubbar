@@ -18,6 +18,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getProductIcon, getCategoryIcon, PRODUCT_ICON_NAMES, CATEGORY_ICON_NAMES } from '../icons/IconRegistry'
 
 interface IconSelectProps {
@@ -37,6 +38,7 @@ export function IconSelect({
   label,
   required = false,
 }: IconSelectProps) {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -78,6 +80,9 @@ export function IconSelect({
       <button
         type="button"
         data-testid={`${testId}-trigger`}
+        // The selection, readable without parsing the label — that label is now
+        // translated, and a test that matched its wording matched one language.
+        data-value={value ?? ''}
         onClick={() => setIsOpen(!isOpen)}
         style={{
           width: '100%',
@@ -96,7 +101,7 @@ export function IconSelect({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <SelectedIcon size={18} />
-          <span>{value || 'Select icon...'}</span>
+          <span>{value || t('products.selectIcon')}</span>
         </div>
         <svg
           width="16"

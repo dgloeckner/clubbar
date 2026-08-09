@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useExecutionDateInfo } from './useExecutionDateInfo'
 import type { ExecutionDateInfo } from '../api/generated'
+import i18n from '../i18n/config'
 
 const getExecutionDateInfo = vi.hoisted(() => vi.fn())
 
@@ -50,14 +51,17 @@ describe('useExecutionDateInfo', () => {
     expect(result.current.error).toBe('Network down')
   })
 
-  it('falls back to a generic error message for non-Error failures', async () => {
+  it('falls back to a translated message for non-Error failures', async () => {
     getExecutionDateInfo.mockReset().mockRejectedValue('boom')
 
     const { result } = renderHook(() => useExecutionDateInfo(true))
 
     await waitFor(() => expect(result.current.loading).toBe(false))
 
-    expect(result.current.error).toBe('Failed to load execution date')
+    expect(result.current.error).toBe(i18n.t('newSettlement.errors.loadExecutionDate'))
+    // The fallback is a locale string, not an English literal — a rejection
+    // with no Error to quote must still read in the admin's own language.
+    expect(result.current.error).not.toBe('newSettlement.errors.loadExecutionDate')
   })
 
   it('reload() triggers a new request and clears a previous error', async () => {

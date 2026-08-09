@@ -117,7 +117,7 @@ export function AuditLogPage() {
       const response = await getAuditLog().listAuditLog(params, { signal })
       return { items: response.data ?? [], total: response.pagination?.total ?? 0 }
     },
-    parseError: (err) => (err instanceof Error ? err.message : 'Failed to load audit log'),
+    parseError: (err) => (err instanceof Error ? err.message : t('auditLog.errors.load')),
   })
 
   const { items: entries, total: totalEntries, totalPages, loading, error } = list
@@ -613,7 +613,7 @@ export function AuditLogPage() {
             color: theme.colors.text.secondary,
           }}>
             <span data-testid="audit-log-results-count">
-              <strong style={{ color: theme.colors.text.primary }}>{totalEntries}</strong> {t('auditLog.entriesFound')}
+              {t('auditLog.countFound', { count: totalEntries })}
             </span>
           </div>
 
@@ -658,7 +658,7 @@ export function AuditLogPage() {
             color: theme.colors.text.secondary,
           }}>
             <span data-testid="audit-log-results-count">
-              <strong style={{ color: theme.colors.text.primary }}>{totalEntries}</strong> {t('auditLog.entriesFound')}
+              {t('auditLog.countFound', { count: totalEntries })}
             </span>
           </div>
 
