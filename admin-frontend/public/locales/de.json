@@ -71,7 +71,8 @@
     "sepa": "SEPA",
     "newest": "Neueste zuerst",
     "oldest": "Alteste zuerst",
-    "filters": "Filter"
+    "filters": "Filter",
+    "retry": "Erneut versuchen"
   },
   "auth": {
     "email": "E-Mail",
@@ -207,7 +208,9 @@
       "loadDetails": "Mitgliedsdetails konnten nicht geladen werden",
       "exportData": "Mitgliedsdaten konnten nicht exportiert werden",
       "validationFailed": "Validierung fehlgeschlagen",
-      "loadTransactions": "Buchungen konnten nicht geladen werden"
+      "loadTransactions": "Buchungen konnten nicht geladen werden",
+      "loadMetrics": "Die Mitgliederstatistik konnte nicht geladen werden. Die Werte oben sind unbekannt, nicht null.",
+      "mandateUploadFailed": "Das Mitglied wurde gespeichert, das Mandatsdokument konnte jedoch nicht hochgeladen werden. Bitte den Scan im Mitglied erneut anhängen."
     },
     "sortName": "Name A–Z",
     "sortNameDesc": "Name Z–A",
@@ -267,7 +270,8 @@
       "create": "Produkt konnte nicht angelegt werden",
       "update": "Produkt konnte nicht gespeichert werden",
       "updateStatus": "Produktstatus konnte nicht geändert werden",
-      "delete": "Produkt konnte nicht gelöscht werden"
+      "delete": "Produkt konnte nicht gelöscht werden",
+      "loadCategories": "Die Kategorien konnten nicht geladen werden, daher lässt sich keine Kategorie auswählen. Ohne Kategorie kann kein Produkt gespeichert werden."
     }
   },
   "categories": {
@@ -650,7 +654,9 @@
     "purchase": "Kauf",
     "storno": "Storno",
     "membersNeedSepaData_one": "{{count}} Mitglied ohne SEPA-Daten",
-    "membersNeedSepaData_other": "{{count}} Mitglieder ohne SEPA-Daten"
+    "membersNeedSepaData_other": "{{count}} Mitglieder ohne SEPA-Daten",
+    "stale": "Die letzte Aktualisierung ist fehlgeschlagen – die Werte sind möglicherweise veraltet.",
+    "staleSince": "Die letzte Aktualisierung ist fehlgeschlagen – die Werte stammen von {{time}} Uhr."
   },
   "pagination": {
     "firstPage": "Erste Seite",

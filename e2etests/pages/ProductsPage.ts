@@ -37,6 +37,9 @@ export class ProductsPage extends BasePage {
   // bar of its own with a page-specific test ID.
   private readonly globalLoadingIndicator = () => this.page.getByTestId('loading-indicator')
   private readonly searchInput = () => this.page.getByTestId('products-search-input')
+  private readonly categoriesError = () => this.page.getByTestId('products-categories-error')
+  private readonly categoriesRetryBtn = () => this.page.getByTestId('products-categories-retry')
+  private readonly formCategoriesError = () => this.page.getByTestId('products-form-categories-error')
 
   // Modal locators (PRIVATE)
   private readonly formModal = () => this.page.getByTestId('products-form-modal')
@@ -105,6 +108,24 @@ export class ProductsPage extends BasePage {
 
   async expectEmptyStateVisible() {
     await expect(this.emptyState()).toBeVisible()
+  }
+
+  /** The category list failing to load is reported twice: on the page, and next
+   *  to the select in the form that requires a category (#132). */
+  async expectCategoriesErrorVisible() {
+    await expect(this.categoriesError()).toBeVisible()
+  }
+
+  async expectCategoriesErrorHidden() {
+    await expect(this.categoriesError()).toBeHidden()
+  }
+
+  async expectFormCategoriesErrorVisible() {
+    await expect(this.formCategoriesError()).toBeVisible()
+  }
+
+  async clickCategoriesRetry() {
+    await this.categoriesRetryBtn().click()
   }
 
   /**

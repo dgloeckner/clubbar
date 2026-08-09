@@ -26,6 +26,8 @@ export class JournalPage extends BasePage {
   private readonly tableRows = () => this.page.locator('[data-testid^="journal-table-row-"]')
   private readonly emptyState = () => this.page.getByTestId('journal-empty-state')
   private readonly loadingIndicator = () => this.page.getByTestId('journal-loading')
+  private readonly errorMessage = () => this.page.getByTestId('journal-error-message')
+  private readonly retryButton = () => this.page.getByTestId('journal-retry-button')
 
   // Pagination (PaginationToolbar rendered with testId="journal")
   private readonly paginationPageButton = (pageNumber: number) =>
@@ -77,6 +79,20 @@ export class JournalPage extends BasePage {
   /**
    * VISIBILITY EXPECTATIONS (Pattern 008: Use expect() for assertions)
    */
+
+  /** A load failure replaces the table, so the banner carries the only way
+   *  back — without it the admin has to change a filter to re-fetch (#132). */
+  async expectErrorMessageVisible() {
+    await expect(this.errorMessage()).toBeVisible()
+  }
+
+  async expectRetryButtonVisible() {
+    await expect(this.retryButton()).toBeVisible()
+  }
+
+  async clickRetry() {
+    await this.retryButton().click()
+  }
 
   /**
    * Period button state assertions (Pattern 006: POM abstraction)

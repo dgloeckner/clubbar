@@ -29,6 +29,10 @@ export class MembersPage extends BasePage {
   private readonly statCardMitglieder = () => this.page.getByTestId('stat-card-aktive-mitglieder')
   private readonly statCardOffenePosten = () => this.page.getByTestId('stat-card-offene-posten')
   private readonly statCardLetzteAbrechnung = () => this.page.getByTestId('stat-card-letztes-abrechnungsdatum')
+  private readonly statCardMitgliederValue = () => this.page.getByTestId('stat-card-aktive-mitglieder-value')
+  private readonly statCardOffenePostenValue = () => this.page.getByTestId('stat-card-offene-posten-value')
+  private readonly metricsError = () => this.page.getByTestId('members-metrics-error')
+  private readonly metricsRetryBtn = () => this.page.getByTestId('members-metrics-retry')
 
   // Search and filter
   private readonly searchInput = () => this.page.getByTestId('members-search-input')
@@ -345,6 +349,25 @@ export class MembersPage extends BasePage {
     return await this.errorMessage().textContent({ timeout: 1000 })
   }
 
+  /** The page-level banner. Lives above the mobile/desktop split, so this is
+   *  the same element in both layouts (#132). */
+  async expectErrorMessageVisible() {
+    await expect(this.errorMessage()).toBeVisible()
+  }
+
+  /**
+   * The member list reached a real outcome — rows or a genuine "no members"
+   * — and reported no error. Pattern 003: says nothing about how many members
+   * the database happens to hold.
+   */
+  async expectListSettledWithoutError() {
+    await expect(this.loadingIndicator()).toBeHidden()
+    await expect(
+      this.page.locator('[data-testid="members-table"], [data-testid="members-empty-state"]').first()
+    ).toBeVisible()
+    await expect(this.errorMessage()).toBeHidden()
+  }
+
   /**
    * FORM FIELD HELPERS
    */
@@ -484,6 +507,32 @@ export class MembersPage extends BasePage {
   async getLastSettlementDate(): Promise<string> {
     const text = await this.statCardLetzteAbrechnung().textContent()
     return text || ''
+  }
+
+  /**
+   * The rendered value of a stat card, whatever it says — including the "—" the
+   * cards fall back to when the metrics request failed (#132). Deliberately not
+   * the digit-extracting getMemberCount(), which would turn "—" into "0" and
+   * hide the very thing under test.
+   */
+  async getMemberCountCardValue(): Promise<string> {
+    return ((await this.statCardMitgliederValue().textContent()) ?? '').trim()
+  }
+
+  async getOpenBalanceCardValue(): Promise<string> {
+    return ((await this.statCardOffenePostenValue().textContent()) ?? '').trim()
+  }
+
+  async expectMetricsErrorVisible() {
+    await expect(this.metricsError()).toBeVisible()
+  }
+
+  async expectMetricsErrorHidden() {
+    await expect(this.metricsError()).toBeHidden()
+  }
+
+  async clickMetricsRetry() {
+    await this.metricsRetryBtn().click()
   }
 
   /** Pattern 008: auto-retry until the member count stat card contains a digit.

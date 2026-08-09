@@ -86,6 +86,10 @@ export function ProductsPage() {
   // slot — the product list's lives inside useListQuery (#96).
   const categoriesRequest = useLatestRequest()
   const [categories, setCategories] = useState<CategoryRuntime[]>([])
+  // Categories are optional for *display*, but the product form requires one.
+  // Failing quietly rendered an empty select and a "Category is required" the
+  // admin had no way to act on (#132).
+  const [categoriesFailed, setCategoriesFailed] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
   const [editingProduct, setEditingProduct] = useState<ProductWithExtras | null>(null)
@@ -165,10 +169,11 @@ export function ProductsPage() {
       const response = await getProducts().listCategories({ signal })
       if (signal.aborted) return
       setCategories((response.data ?? []) as CategoryRuntime[])
+      setCategoriesFailed(false)
     } catch {
       if (signal.aborted) return
-      // Silently fail - categories are optional for display purposes
       setCategories([])
+      setCategoriesFailed(true)
     }
   }
 
@@ -414,6 +419,43 @@ export function ProductsPage() {
           }}
         >
           {error}
+        </div>
+      )}
+
+      {categoriesFailed && (
+        <div
+          data-testid="products-categories-error"
+          style={{
+            marginBottom: '10px',
+            padding: '10px',
+            backgroundColor: 'rgba(249,115,22,0.12)',
+            border: '1px solid rgba(249,115,22,0.5)',
+            color: '#fdba74',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span>{t('products.errors.loadCategories')}</span>
+          <button
+            data-testid="products-categories-retry"
+            onClick={() => loadCategories()}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '6px',
+              border: '1px solid rgba(249,115,22,0.6)',
+              background: 'transparent',
+              color: '#fdba74',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {t('common.retry')}
+          </button>
         </div>
       )}
 
@@ -879,6 +921,22 @@ export function ProductsPage() {
                 label={`${t('common.category')} *`}
                 required
               />
+
+              {/* The page banner is behind this overlay, and the select the
+                  admin is staring at is the one that came up empty. */}
+              {categoriesFailed && (
+                <div
+                  data-testid="products-form-categories-error"
+                  style={{
+                    marginTop: '-8px',
+                    marginBottom: '16px',
+                    color: '#fdba74',
+                    fontSize: '13px',
+                  }}
+                >
+                  {t('products.errors.loadCategories')}
+                </div>
+              )}
 
               <div style={{ marginBottom: '20px' }}>
                 <label
