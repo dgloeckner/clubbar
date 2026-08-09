@@ -7,6 +7,7 @@ namespace Tests\Feature\Modules\Settlements\Services;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
+use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Settlements\Services\SepaExportService;
 use Tests\Feature\DatabaseTestCase;
@@ -55,6 +56,8 @@ class SepaExportPersistenceTest extends DatabaseTestCase
             $sepaConfig,
             new MembersRepository($this->db, $this->logger),
             $this->settlementsRepository,
+            new SettlementReversalsRepository($this->db, $this->logger),
+            $this->logger,
         );
     }
 

@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Tests\Unit\Modules\Settlements\Services;
 
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Settlements\DTOs\ExcludedMemberDto;
+use App\Modules\Settlements\Enums\SepaExclusionReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
+use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Modules\Settlements\Services\SepaExportService;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\NotFoundException;
+use App\Shared\Logging\Logger;
 use PHPUnit\Framework\TestCase;
 
 class SepaExportServiceTest extends TestCase
@@ -18,20 +22,32 @@ class SepaExportServiceTest extends TestCase
     private SepaConfigRepository $sepaConfigRepository;
     private MembersRepository $membersRepository;
     private SettlementsRepository $settlementsRepository;
+    private SettlementReversalsRepository $reversalsRepository;
+    private Logger $logger;
     private SepaExportService $service;
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->buildService();
+    }
+
+    /** Fresh mocks and a fresh service, so one test can run two exports. */
+    private function buildService(): void
+    {
         $this->sepaConfigRepository = $this->createMock(SepaConfigRepository::class);
         $this->membersRepository = $this->createMock(MembersRepository::class);
         $this->settlementsRepository = $this->createMock(SettlementsRepository::class);
+        $this->reversalsRepository = $this->createMock(SettlementReversalsRepository::class);
+        $this->logger = $this->createMock(Logger::class);
 
         $this->service = new SepaExportService(
             $this->sepaConfigRepository,
             $this->membersRepository,
             $this->settlementsRepository,
+            $this->reversalsRepository,
+            $this->logger,
         );
     }
 
@@ -65,6 +81,202 @@ class SepaExportServiceTest extends TestCase
         $this->expectExceptionMessageMatches('/was cancelled and cannot be exported/i');
 
         $this->service->export('settlement-1');
+    }
+
+    public function test_export_refuses_a_settlement_whose_collections_were_reversed(): void
+    {
+        // #114 / rulings #142 §5 and #148. A reversal is only reachable once
+        // money has moved, so the file already went to the bank once. Handing
+        // the same file over again debits every member on it a second time —
+        // the nine whose collection stood as much as the one that bounced.
+        $this->settlementsRepository->method('findById')->willReturn([
+            'id' => self::SETTLEMENT_ID,
+            'method' => SettlementMethod::DIRECT_DEBIT->value,
+            'is_cancelled' => 0,
+            'execution_date' => '2026-08-20',
+        ]);
+        $this->reversalsRepository->method('findReversedMemberIds')->willReturn([self::MEMBER_ID]);
+
+        // Refused before anything is built, like the cancellation guard beside it.
+        $this->sepaConfigRepository->expects($this->never())->method('getConfig');
+        $this->settlementsRepository->expects($this->never())->method('findItemsBySettlementId');
+
+        $this->expectException(BusinessRuleException::class);
+        $this->expectExceptionMessageMatches('/reversed collection/i');
+
+        $this->service->export(self::SETTLEMENT_ID);
+    }
+
+    public function test_export_reports_a_member_whose_mandate_is_gone_instead_of_dropping_them(): void
+    {
+        // The failure #114 opens with: an IBAN cleared between settlement
+        // creation and export. The member used to be skipped by a bare
+        // `continue` — no file line, full `total_amount_cents` still on the
+        // books, and nothing anywhere saying the two disagreed.
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 3500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
+        $this->givenMembers([
+            self::MEMBER_ID => self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => ['iban' => null, 'mandate_reference' => null]
+                + self::member('Grace', 'Hopper'),
+        ]);
+
+        $result = $this->service->export(self::SETTLEMENT_ID);
+
+        $this->assertSame(
+            [self::OTHER_MEMBER_ID],
+            array_map(fn(ExcludedMemberDto $m): string => $m->memberId, $result->uncollectableMembers()),
+        );
+        $this->assertSame(
+            SepaExclusionReason::NO_ACTIVE_MANDATE,
+            $result->uncollectableMembers()[0]->reason,
+        );
+        $this->assertSame('Grace Hopper', $result->uncollectableMembers()[0]->displayName());
+
+        // And the divergence is a number, not something to be inferred.
+        $this->assertSame(1500, $result->collectedAmountCents);
+        $this->assertSame(3500, $result->settlementAmountCents);
+        $this->assertSame(2000, $result->shortfallAmountCents());
+
+        // Ada is still collected — one member's missing mandate does not stop
+        // the run, it is reported alongside it (ruling #141 §3).
+        $this->assertSame(['E2E-111111112222-aaaaaaaabbbb'], $this->endToEndIds($result->xml));
+    }
+
+    public function test_export_reports_a_member_deleted_after_the_settlement_was_created(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->givenMembers([
+            self::MEMBER_ID => ['deleted_at' => '2026-08-07 09:00:00'] + self::member('Ada', 'Lovelace'),
+        ]);
+
+        $result = $this->service->export(self::SETTLEMENT_ID);
+
+        $this->assertSame(SepaExclusionReason::MEMBER_DELETED, $result->excludedMembers[0]->reason);
+        // Named, not a bare UUID: the treasurer has to act on this.
+        $this->assertSame('Ada Lovelace', $result->excludedMembers[0]->displayName());
+        $this->assertSame(0, $result->collectedAmountCents);
+        $this->assertSame(1500, $result->shortfallAmountCents());
+        $this->assertSame([], $this->endToEndIds($result->xml));
+    }
+
+    public function test_a_credit_member_is_reported_in_their_own_bucket_and_is_not_a_shortfall(): void
+    {
+        // Ruling #141 §3: the two exclusions need opposite remedies — chase the
+        // bank details, versus pay the member back — so they are never folded
+        // into one list. And a credit is not money the settlement expected to
+        // collect, so it must not be counted as a gap in the file.
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, -2000]]);
+        $this->givenMembers([
+            self::MEMBER_ID => self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => self::member('Grace', 'Hopper'),
+        ]);
+
+        $result = $this->service->export(self::SETTLEMENT_ID);
+
+        $this->assertSame(
+            [self::OTHER_MEMBER_ID],
+            array_map(fn(ExcludedMemberDto $m): string => $m->memberId, $result->creditExcludedMembers()),
+        );
+        $this->assertSame(-2000, $result->creditExcludedMembers()[0]->amountCents);
+        $this->assertSame([], $result->uncollectableMembers());
+        $this->assertSame(0, $result->shortfallAmountCents());
+    }
+
+    public function test_a_member_who_owes_nothing_is_closed_out_without_being_reported(): void
+    {
+        // Ruling #141 §5: zero settles but is not collected, and is not an
+        // exclusion either — nothing is owed in either direction, so there is
+        // nothing for a treasurer to chase.
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 0]]);
+        $this->givenMembers([
+            self::MEMBER_ID => self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => self::member('Grace', 'Hopper'),
+        ]);
+
+        $result = $this->service->export(self::SETTLEMENT_ID);
+
+        $this->assertSame([], $result->excludedMembers);
+        $this->assertSame(1500, $result->collectedAmountCents);
+        $this->assertSame(0, $result->shortfallAmountCents());
+    }
+
+    public function test_a_clean_export_collects_exactly_what_the_settlement_records(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 3500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
+        $this->givenMembers([
+            self::MEMBER_ID => self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => self::member('Grace', 'Hopper'),
+        ]);
+
+        // Nothing to warn about, so nothing is written to the log.
+        $this->logger->expects($this->never())->method('warning');
+
+        $result = $this->service->export(self::SETTLEMENT_ID);
+
+        $this->assertSame([], $result->excludedMembers);
+        $this->assertSame($result->settlementAmountCents, $result->collectedAmountCents);
+        $this->assertSame(0, $result->shortfallAmountCents());
+    }
+
+    public function test_a_shortfall_is_written_to_the_application_log(): void
+    {
+        // The response is a file download the browser saves and forgets. If
+        // the divergence lived only there, #114's "nobody is notified" would
+        // survive the fix.
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 1500);
+        $this->givenItems([[self::MEMBER_ID, 1500]]);
+        $this->givenMembers([
+            self::MEMBER_ID => ['iban' => null] + self::member('Ada', 'Lovelace'),
+        ]);
+
+        $this->logger
+            ->expects($this->once())
+            ->method('warning')
+            ->with(
+                $this->stringContains('collects less than the settlement records'),
+                $this->callback(static fn(array $ctx): bool => $ctx['shortfall_amount_cents'] === 1500
+                    && $ctx['collected_amount_cents'] === 0
+                    && $ctx['settlement_amount_cents'] === 1500),
+            );
+
+        $this->service->export(self::SETTLEMENT_ID);
+    }
+
+    public function test_the_audit_summary_carries_every_exclusion_and_both_totals(): void
+    {
+        // What survives the request: the audit entry is where the omission can
+        // still be read a month later, when the bank statement is short.
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 3500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
+        $this->givenMembers([
+            self::MEMBER_ID => self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => ['mandate_reference' => null] + self::member('Grace', 'Hopper'),
+        ]);
+
+        $summary = $this->service->export(self::SETTLEMENT_ID)->toAuditSummary();
+
+        $this->assertSame(1500, $summary['collected_amount_cents']);
+        $this->assertSame(3500, $summary['settlement_amount_cents']);
+        $this->assertSame(2000, $summary['shortfall_amount_cents']);
+        $this->assertSame([[
+            'member_id' => self::OTHER_MEMBER_ID,
+            'first_name' => 'Grace',
+            'last_name' => 'Hopper',
+            'amount_cents' => 2000,
+            'reason' => 'no_active_mandate',
+        ]], $summary['excluded_members']);
     }
 
     public function test_the_end_to_end_id_identifies_the_settlement_and_the_member(): void
@@ -148,7 +360,7 @@ class SepaExportServiceTest extends TestCase
         ]);
     }
 
-    private function givenSettlement(string $id): void
+    private function givenSettlement(string $id, ?int $totalAmountCents = null): void
     {
         $this->settlementsRepository->method('findById')->willReturn([
             'id' => $id,
@@ -157,6 +369,7 @@ class SepaExportServiceTest extends TestCase
             'execution_date' => '2026-08-20',
             'settlement_date' => '2026-08-06',
             'sepa_message_id' => null,
+            'total_amount_cents' => $totalAmountCents ?? 0,
         ]);
     }
 
@@ -173,7 +386,7 @@ class SepaExportServiceTest extends TestCase
     /** @param array<string, array<string, mixed>|null> $members */
     private function givenMembers(array $members): void
     {
-        $this->membersRepository->method('findById')
+        $this->membersRepository->method('findByIdIncludingDeleted')
             ->willReturnCallback(static fn(string $id): ?array => $members[$id] ?? null);
     }
 
@@ -200,14 +413,7 @@ class SepaExportServiceTest extends TestCase
      */
     private function exportedEndToEndIds(array $memberAmounts, array $members): array
     {
-        $this->sepaConfigRepository = $this->createMock(SepaConfigRepository::class);
-        $this->membersRepository = $this->createMock(MembersRepository::class);
-        $this->settlementsRepository = $this->createMock(SettlementsRepository::class);
-        $this->service = new SepaExportService(
-            $this->sepaConfigRepository,
-            $this->membersRepository,
-            $this->settlementsRepository,
-        );
+        $this->buildService();
 
         $this->givenSepaConfig();
         $this->givenSettlement(self::SETTLEMENT_ID);

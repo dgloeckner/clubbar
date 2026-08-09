@@ -2045,12 +2045,30 @@ paths:
         **Use Cases**: UC-A31, UC-SEPA-08
 
         **Requirements**:
-        - Settlement type must be "sepa"
-        - At least one member must have valid SEPA data
+        - Settlement method must be `direct_debit` (ruling #163)
+        - Settlement must be neither cancelled nor reversed
 
         **XML format**: pain.008.001.08 (SEPA Core Direct Debit)
         - Sequence type: Always RCUR
         - Minimal debtor data (name, IBAN only)
+
+        **Members the file leaves out.** Member data is read again at export
+        time and can have changed since the settlement was created — an IBAN
+        cleared, a mandate revoked, a member deleted. Such a member gets no
+        collection line, and the omission is reported on response headers
+        rather than being dropped silently (#114, ruling #141 §3):
+
+        | Header | Meaning |
+        |---|---|
+        | `X-Uncollectable-Members` | Comma-separated ids the settlement counts on and the file cannot collect from. Present only when non-empty |
+        | `X-Credit-Excluded-Members` | Comma-separated ids in credit. Not a shortfall — the club owes them |
+        | `X-Settlement-Amount-Cents` | What the settlement records as owed |
+        | `X-Collected-Amount-Cents` | What the file actually asks the bank for |
+        | `X-Shortfall-Amount-Cents` | The difference, i.e. the part to chase |
+
+        The three amount headers accompany `X-Uncollectable-Members` and are
+        absent on a clean export. Every exclusion is also written to the
+        settlement's audit entry, which outlives the download.
 
         See [ADR-0008](../../adr/0008-sepa-xml-export-format-selection.md) for details.
       operationId: downloadSepaXml
@@ -2069,6 +2087,36 @@ paths:
               schema:
                 type: string
                 example: 'attachment; filename="sepa-SET-2025-001-20250123.xml"'
+            X-Uncollectable-Members:
+              description: |
+                Members the settlement records as owing money that the file
+                cannot collect from — no active mandate, or deleted since the
+                settlement was created. Omitted when there are none.
+              schema:
+                type: string
+                example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+            X-Credit-Excluded-Members:
+              description: |
+                Members in credit, excluded from collection under ruling #141.
+                Not part of the shortfall. Omitted when there are none.
+              schema:
+                type: string
+                example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'
+            X-Settlement-Amount-Cents:
+              description: The settlement's recorded total. Sent with `X-Uncollectable-Members`.
+              schema:
+                type: integer
+                example: 3000
+            X-Collected-Amount-Cents:
+              description: The sum of the file's collection lines. Sent with `X-Uncollectable-Members`.
+              schema:
+                type: integer
+                example: 1500
+            X-Shortfall-Amount-Cents:
+              description: Recorded total minus collected. Sent with `X-Uncollectable-Members`.
+              schema:
+                type: integer
+                example: 1500
         '400':
           description: No eligible members for SEPA export
           content:
@@ -2080,7 +2128,10 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Settlement is cancelled
+          description: |
+            Settlement is cancelled, has reversed collections, or does not use
+            the `direct_debit` method. Re-exporting a reversed settlement would
+            hand the bank a file that debits every member on it a second time.
           content:
             application/json:
               schema:

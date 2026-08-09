@@ -325,7 +325,8 @@
     "summary": "Übersicht",
     "undoConfirm": "Diese Abrechnung rückgängig machen? Alle Buchungen werden wieder auf offen gesetzt.",
     "sortNewest": "Neueste zuerst",
-    "sortOldest": "Älteste zuerst"
+    "sortOldest": "Älteste zuerst",
+    "exportShortfall": "Die SEPA-Datei lässt {{count}} Mitglied(er) aus: Sie zieht {{collected}} von {{total}} dieser Abrechnung ein, {{shortfall}} zu wenig. Prüfen Sie die Bankdaten der Mitglieder, die im Audit-Log-Eintrag zu diesem Export genannt sind."
   },
   "statistics": {
     "title": "Statistik",

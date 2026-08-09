@@ -363,7 +363,13 @@ class ServiceFactory implements ContainerInterface
 
     public function getSepaExportService(): SepaExportService
     {
-        return $this->resolve(SepaExportService::class, fn() => new SepaExportService($this->getSepaConfigRepository(), $this->getMembersRepository(), $this->getSettlementsRepository()));
+        return $this->resolve(SepaExportService::class, fn() => new SepaExportService(
+            $this->getSepaConfigRepository(),
+            $this->getMembersRepository(),
+            $this->getSettlementsRepository(),
+            $this->getSettlementReversalsRepository(),
+            $this->getLogger(),
+        ));
     }
 
     public function getSettlementsService(): SettlementsService

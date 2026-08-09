@@ -882,6 +882,92 @@ test.describe('Settlements API', () => {
 
       expect([301, 302, 401, 403]).toContain(response.status());
     });
+
+    test('F7: a member whose IBAN was cleared after settlement is reported, not dropped', async ({
+      authenticatedRequest,
+      settlementFactory,
+    }) => {
+      // The exact failure #114 opens with. The member is settled, their IBAN is
+      // cleared before the file is generated, and the export used to skip them
+      // with a bare `continue`: the bank collected 15.00 against a settlement
+      // that still recorded 30.00, and nothing said so anywhere.
+      const settlement = await settlementFactory.create({ amountCents: 1500, memberCount: 2 });
+      const [collected, dropped] = settlement.members;
+
+      // Clearing the IBAN revokes the mandate — the member can no longer be
+      // direct-debited even though the settlement already claimed their rows.
+      expect(
+        (await authenticatedRequest.patch(`/api/admin/members/${dropped.id}`, { data: { iban: '' } })).status()
+      ).toBe(200);
+
+      const response = await authenticatedRequest.get(
+        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
+      );
+
+      expect(response.status()).toBe(200);
+      const headers = response.headers();
+
+      // Named — and separately from the credit bucket, whose remedy is the
+      // opposite one (ruling #141 §3).
+      expect(headers['x-uncollectable-members']).toBe(dropped.id);
+      expect(headers['x-credit-excluded-members']).toBeUndefined();
+
+      // And the divergence stated as money: the books say 30.00, the file
+      // asks for 15.00, and the 15.00 gap is the part to chase.
+      expect(headers['x-settlement-amount-cents']).toBe('3000');
+      expect(headers['x-collected-amount-cents']).toBe('1500');
+      expect(headers['x-shortfall-amount-cents']).toBe('1500');
+
+      // The file itself carries the one collection it can make, and only that.
+      const xml = await response.text();
+      expect(xml).toContain('<NbOfTxs>1</NbOfTxs>');
+      expect(xml).toContain(collected.name);
+      expect(xml).not.toContain(dropped.name);
+    });
+
+    test('F8: a clean export reports no exclusions at all', async ({ authenticatedRequest, settlementFactory }) => {
+      // The other side of F7: the alarm headers must be absent when nothing is
+      // wrong, or they stop meaning anything.
+      const settlement = await settlementFactory.create({ amountCents: 1500, memberCount: 2 });
+
+      const response = await authenticatedRequest.get(
+        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
+      );
+
+      expect(response.status()).toBe(200);
+      const headers = response.headers();
+      expect(headers['x-uncollectable-members']).toBeUndefined();
+      expect(headers['x-shortfall-amount-cents']).toBeUndefined();
+      expect(headers['x-credit-excluded-members']).toBeUndefined();
+      expect(await response.text()).toContain('<NbOfTxs>2</NbOfTxs>');
+    });
+
+    test('F9: a settlement whose collection was reversed cannot be exported again', async ({
+      authenticatedRequest,
+      settlementFactory,
+    }) => {
+      // #114 / #142 §5 as extended by #148: a reversal is only reachable once
+      // the money moved, so handing the same file to the bank a second time
+      // debits every member on it again — including the ones whose collection
+      // stood. The reversed member is collected by the *next* run.
+      const settlement = await settlementFactory.create({ amountCents: 1500, memberCount: 2 });
+      const [alice] = settlement.members;
+
+      expect((await authenticatedRequest.get(`/api/admin/settlements/${settlement.id}/export/sepa-xml`)).status()).toBe(200);
+      expect((await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/submit`)).status()).toBe(200);
+
+      const reversal = await authenticatedRequest.post(`/api/admin/settlements/${settlement.id}/reverse`, {
+        data: { reason: 'bank_return', member_ids: [alice.id], bank_reference: 'RET-F9' },
+      });
+      expect(reversal.status(), await reversal.text()).toBe(201);
+
+      const response = await authenticatedRequest.get(
+        `/api/admin/settlements/${settlement.id}/export/sepa-xml`,
+      );
+
+      expect(response.status()).toBe(409);
+      expect((await response.json()).message).toMatch(/reversed collection/i);
+    });
   });
 
   /**

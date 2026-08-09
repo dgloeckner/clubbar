@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace App\Modules\Settlements\Services;
 
 use App\Modules\Settlements\Domain\EndToEndId;
+use App\Modules\Settlements\DTOs\ExcludedMemberDto;
 use App\Modules\Settlements\DTOs\SepaExportResultDto;
+use App\Modules\Settlements\Enums\SepaExclusionReason;
 use App\Modules\Settlements\Enums\SettlementMethod;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Modules\Members\Repositories\MembersRepository;
+use App\Modules\Settlements\Repositories\SettlementReversalsRepository;
 use App\Modules\Settlements\Repositories\SettlementsRepository;
 use App\Shared\Exceptions\NotFoundException;
 use App\Shared\Exceptions\BusinessRuleException;
+use App\Shared\Logging\Logger;
 use App\Shared\Utils\BankingCalendar;
 use App\Shared\Utils\SepaSanitizer;
 
@@ -21,6 +25,8 @@ class SepaExportService
         private SepaConfigRepository $sepaConfigRepository,
         private MembersRepository $membersRepository,
         private SettlementsRepository $settlementsRepository,
+        private SettlementReversalsRepository $reversalsRepository,
+        private Logger $logger,
     ) {}
 
     /**
@@ -47,6 +53,23 @@ class SepaExportService
             throw new BusinessRuleException(sprintf(
                 'Settlement %s was cancelled and cannot be exported to SEPA',
                 $settlementId
+            ));
+        }
+
+        // The other half of the same rule (#114, ruling #142 as extended by
+        // #148). A reversal is only reachable once money has moved, so a
+        // settlement carrying one has already been collected; re-exporting it
+        // would hand the bank a file that debits *every* member again — the
+        // ones whose collection stood as much as the one that bounced. The
+        // reversed member's position went back to unsettled and belongs to the
+        // next run, which is where it gets collected from.
+        $reversedMemberIds = $this->reversalsRepository->findReversedMemberIds($settlementId);
+        if ($reversedMemberIds !== []) {
+            throw new BusinessRuleException(sprintf(
+                'Settlement %s has %d reversed collection(s) and cannot be exported to SEPA again; '
+                . 'the reversed members are collected by the next settlement run',
+                $settlementId,
+                count($reversedMemberIds)
             ));
         }
 
@@ -127,32 +150,67 @@ class SepaExportService
             ]
         );
 
-        $creditExcludedMembers = [];
+        /** @var list<ExcludedMemberDto> every member the file leaves out, with the reason */
+        $excludedMembers = [];
+        $collectedAmountCents = 0;
         /** @var array<string, string> member id => the EndToEndId their collection went out under */
         $sentEndToEndIds = [];
         foreach ($memberTotals as $entry) {
-            $member = $this->membersRepository->findById($entry['member_id']);
-            if (!$member || empty($member['iban']) || empty($member['mandate_reference'])) continue;
+            // Deleted members included: the row is read to *report* the
+            // exclusion, not to collect from it, and an omission reported as a
+            // bare UUID is not something a treasurer can act on.
+            $member = $this->membersRepository->findByIdIncludingDeleted($entry['member_id']);
+            $amountCents = (int) $entry['amount_cents'];
 
             // #80 / ruling #141 (exclude-and-flag): guard the *signed* total.
             // abs() ran before the guard, so a net credit of -1500 became a
             // +1500 debit — collecting money the club owes the member
             // (§ 812 BGB). A credit gets no file line; it carries forward and
-            // is refunded by hand.
-            $amountCents = (int) $entry['amount_cents'];
+            // is refunded by hand. Tested first, as everywhere else: what the
+            // club owes does not depend on the member's bank details.
             if ($amountCents < 0) {
-                $creditExcludedMembers[] = [
-                    'member_id' => $entry['member_id'],
-                    'first_name' => $member['first_name'],
-                    'last_name' => $member['last_name'],
-                    'balance_cents' => $amountCents,
-                ];
+                $excludedMembers[] = ExcludedMemberDto::fromMember(
+                    $entry['member_id'],
+                    $member,
+                    $amountCents,
+                    SepaExclusionReason::CREDIT_BALANCE,
+                );
                 continue;
             }
-            // Only zero remains: it closes the rows out without a collection
-            // instruction, and is not an exclusion — nothing is owed either way.
-            if ($amountCents <= 0) continue;
 
+            // Only zero remains: it closes the rows out without a collection
+            // instruction, and is not an exclusion — nothing is owed either
+            // way, so it can neither be collected nor fall short.
+            if ($amountCents === 0) continue;
+
+            // Everything below here is money the settlement records as owed.
+            // Each of these used to be a bare `continue` (#114): the file came
+            // out short, the settlement kept its full total, and nobody was
+            // told which member the difference belonged to.
+            if ($member === null || !empty($member['deleted_at'])) {
+                $excludedMembers[] = ExcludedMemberDto::fromMember(
+                    $entry['member_id'],
+                    $member,
+                    $amountCents,
+                    SepaExclusionReason::MEMBER_DELETED,
+                );
+                continue;
+            }
+
+            // The mandate is read again here, not trusted from settlement
+            // creation: it can be revoked or its IBAN cleared in between, and
+            // a direct debit without a live mandate is one the bank returns.
+            if (empty($member['iban']) || empty($member['mandate_reference'])) {
+                $excludedMembers[] = ExcludedMemberDto::fromMember(
+                    $entry['member_id'],
+                    $member,
+                    $amountCents,
+                    SepaExclusionReason::NO_ACTIVE_MANDATE,
+                );
+                continue;
+            }
+
+            $collectedAmountCents += $amountCents;
             $endToEndId = EndToEndId::forCollection($settlement['id'], $entry['member_id']);
             $sentEndToEndIds[$entry['member_id']] = $endToEndId;
 
@@ -180,7 +238,42 @@ class SepaExportService
         // on a return quoting `EREF+` resolves to these rows (#150).
         $this->settlementsRepository->storeEndToEndIds($settlementId, $sentEndToEndIds);
 
-        return new SepaExportResultDto($xml, $creditExcludedMembers);
+        $result = new SepaExportResultDto(
+            xml: $xml,
+            excludedMembers: $excludedMembers,
+            collectedAmountCents: $collectedAmountCents,
+            settlementAmountCents: (int) ($settlement['total_amount_cents'] ?? 0),
+        );
+
+        $this->warnAboutShortfall($settlementId, $result);
+
+        return $result;
+    }
+
+    /**
+     * A shortfall means the bank file and the books disagree, and the club is
+     * about to collect less than it recorded. The caller reports it to the
+     * treasurer and the export's audit entry keeps it permanently; this puts
+     * it in the application log too, because the one thing #114 describes is a
+     * divergence nobody could see afterwards.
+     */
+    private function warnAboutShortfall(string $settlementId, SepaExportResultDto $result): void
+    {
+        $uncollectable = $result->uncollectableMembers();
+        if ($uncollectable === []) {
+            return;
+        }
+
+        $this->logger->warning('SEPA export collects less than the settlement records', [
+            'settlement_id' => $settlementId,
+            'settlement_amount_cents' => $result->settlementAmountCents,
+            'collected_amount_cents' => $result->collectedAmountCents,
+            'shortfall_amount_cents' => $result->shortfallAmountCents(),
+            'excluded_members' => array_map(
+                static fn(ExcludedMemberDto $member): array => $member->toArray(),
+                $uncollectable,
+            ),
+        ]);
     }
 
     private function buildRemittanceInfo(array $config, string $settlementDate): string
