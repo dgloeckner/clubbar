@@ -411,6 +411,35 @@ export class SettingsPage {
   }
 
   /**
+   * What the create admin modal currently holds — a cancelled entry must not
+   * still be sitting there when it is opened again (#131)
+   */
+  async getCreateAdminFormValues(): Promise<{ email: string; display_name: string }> {
+    return {
+      email: await this.page.getByTestId('settings-admin-create-email').inputValue(),
+      display_name: await this.page.getByTestId('settings-admin-create-display-name').inputValue(),
+    }
+  }
+
+  /**
+   * Click the create admin modal backdrop (outside the dialog).
+   * A half-typed entry must survive this — see #131.
+   */
+  async clickCreateAdminModalBackdrop() {
+    await this.page.getByTestId('settings-admin-create-modal').click({ position: { x: 5, y: 5 } })
+  }
+
+  /**
+   * What the create terminal modal currently holds — see above (#131)
+   */
+  async getCreateTerminalFormValues(): Promise<{ name: string; device_id: string }> {
+    return {
+      name: await this.page.getByTestId('settings-terminal-create-name').inputValue(),
+      device_id: await this.page.getByTestId('settings-terminal-create-device-id').inputValue(),
+    }
+  }
+
+  /**
    * Expect the create admin modal to report a failure, and to stay open so the
    * typed values are still there to correct (#91)
    */

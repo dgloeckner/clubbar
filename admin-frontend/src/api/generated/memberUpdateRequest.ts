@@ -75,10 +75,12 @@ export interface MemberUpdateRequest {
   phone?: string | null;
   preferred_language?: string;
   /**
+   * null to remove the stored bank details
    * @minLength 15
    * @maxLength 34
+   * @nullable
    */
-  iban?: string;
+  iban?: string | null;
   /**
    * @maxLength 70
    * @nullable
@@ -86,7 +88,11 @@ export interface MemberUpdateRequest {
   account_holder_name?: string | null;
   /** @maxLength 35 */
   mandate_reference?: string;
-  mandate_signed_at?: string;
+  /**
+   * null to remove the recorded mandate date
+   * @nullable
+   */
+  mandate_signed_at?: string | null;
   is_active?: boolean;
   /**
    * RFID card UID (null to remove)

@@ -68,11 +68,11 @@ export type DashboardResponseMetrics = {
   inactive_members?: number;
   /** Total unsettled transaction balance in cents */
   outstanding_balance_cents?: number;
-  /** Sum of transactions created today in cents */
+  /** Sum of purchases that occurred today, in cents. Stornos and payouts are excluded, matching the revenue reports; the outstanding balance is the figure that nets them off. */
   todays_revenue_cents?: number;
-  /** Sum of transactions since Monday this week (week-to-date) in cents */
+  /** Sum of purchases since Monday this week (week-to-date) in cents */
   wtd_revenue_cents?: number;
-  /** Sum of transactions since the 1st of the month (month-to-date) in cents */
+  /** Sum of purchases since the 1st of the month (month-to-date) in cents */
   mtd_revenue_cents?: number;
   /** Total number of terminals (active and inactive) */
   terminal_count?: number;

@@ -78,7 +78,9 @@ export function StornoConfirmDialog({
         justifyContent: 'center',
         zIndex: 2000,
       }}
-      onClick={onCancel}
+      // No backdrop close handler: the reason is mandatory and typed by hand,
+      // and a stray click beside the dialog used to throw it away (#131).
+      // Escape stays — that one is deliberate.
       onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
     >
       <div
@@ -97,7 +99,6 @@ export function StornoConfirmDialog({
           overflowY: 'auto',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <h2
           id="journal-storno-dialog-title"

@@ -45,6 +45,14 @@ import {
 
 const PER_PAGE = 20
 
+/**
+ * A card UID is 8–20 hex digits, the same bounds the backend enforces
+ * (`min:8`, `max:20`, `regex:/^[0-9A-F]+$/`). The field rendered the complaint
+ * long before `handleSubmit` checked for it, so a four-character UID went to
+ * the API anyway (#131).
+ */
+const CARD_UID_PATTERN = /^[0-9A-F]{8,20}$/
+
 function normalizeCardUid(raw: string | null | undefined): string {
   if (!raw) return ''
   // Strip common separators (hyphens, spaces, colons), then remove non-hex chars
@@ -188,9 +196,17 @@ export function MembersPage() {
       // Clear previous form errors
       setFormErrors({})
 
-      // Client-side IBAN validation
+      // Every client-side rule reports at once, so fixing the IBAN does not
+      // then reveal a card UID complaint that was true all along.
+      const validationErrors: Record<string, string> = {}
       if (formData.iban && !validateIban(formData.iban)) {
-        setFormErrors({ iban: t('members.validation.invalidIban') })
+        validationErrors.iban = t('members.validation.invalidIban')
+      }
+      if (formData.card_uid && !CARD_UID_PATTERN.test(formData.card_uid)) {
+        validationErrors.card_uid = t('members.validation.invalidCardUid')
+      }
+      if (Object.keys(validationErrors).length > 0) {
+        setFormErrors(validationErrors)
         return
       }
 
@@ -200,10 +216,13 @@ export function MembersPage() {
           first_name: formData.first_name,
           last_name: formData.last_name,
           email: formData.email || null,
-          iban: formData.iban,
+          // Now that these fields can be left empty, clearing one has to reach
+          // the backend as an explicit null — `undefined` would drop the key
+          // and silently keep the old value (#131).
+          iban: formData.iban || null,
           account_holder_name: formData.account_holder_name || null,
           mandate_reference: formData.mandate_reference || undefined,
-          mandate_signed_at: formData.mandate_signed_at,
+          mandate_signed_at: formData.mandate_signed_at || null,
           preferred_language: formData.preferred_language,
           card_uid: formData.card_uid || null,
         }
@@ -213,10 +232,13 @@ export function MembersPage() {
           first_name: formData.first_name,
           last_name: formData.last_name,
           email: formData.email || undefined,
-          iban: formData.iban,
+          // A member who has not brought their bank details yet is a state the
+          // list already shows as "SEPA: Missing" — the form no longer refuses
+          // to create one (#131).
+          iban: formData.iban || undefined,
           account_holder_name: formData.account_holder_name || undefined,
           mandate_reference: formData.mandate_reference || undefined,
-          mandate_signed_at: formData.mandate_signed_at,
+          mandate_signed_at: formData.mandate_signed_at || undefined,
           preferred_language: formData.preferred_language,
           card_uid: formData.card_uid || undefined,
         }
@@ -327,6 +349,10 @@ export function MembersPage() {
     try {
       const fullMember = await getMembersFactory().getMember(member.id)
       setEditingMember(fullMember)
+      // A complaint from an earlier, abandoned submit belongs to the member that
+      // was open then — leaving it behind renders it under this member's fields
+      // (#131).
+      setFormErrors({})
       setFormData({
         first_name: fullMember.first_name ?? '',
         last_name: fullMember.last_name ?? '',
@@ -1223,7 +1249,11 @@ export function MembersPage() {
         </>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Modal
+          The backdrop deliberately carries no close handler: this form holds
+          nine fields that may have come out of a scanned mandate, and a stray
+          click beside the dialog used to throw all of it away (#131). It closes
+          through Cancel or a successful save. */}
       {showModal && (
         <div
           data-testid="members-form-modal"
@@ -1239,7 +1269,6 @@ export function MembersPage() {
             justifyContent: 'center',
             zIndex: 1100,
           }}
-          onClick={() => { setShowModal(false); setExtractedFields(null); setPreExtractionFormData(null); setScanFile(null) }}
         >
           <div
             data-testid="members-form-modal-content"
@@ -1254,7 +1283,6 @@ export function MembersPage() {
               maxHeight: isMobile ? '100%' : '90vh',
               overflowY: 'auto',
             }}
-            onClick={(e) => e.stopPropagation()}
           >
             <style>{`
               @keyframes members-spin { to { transform: rotate(360deg); } }
@@ -1389,7 +1417,7 @@ export function MembersPage() {
                       flex: 1,
                       padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                       background: theme.colors.bg.input,
-                      border: `1px solid ${theme.colors.border.light}`,
+                      border: `1px solid ${formErrors.email ? theme.colors.semantic.danger : theme.colors.border.light}`,
                       borderRadius: theme.borderRadius.md,
                       color: theme.colors.text.primary,
                       boxSizing: 'border-box',
@@ -1397,6 +1425,13 @@ export function MembersPage() {
                   />
                   {confidenceBadge('email')}
                 </div>
+                {/* The API requires an email on create; without this the 422 it
+                    answers with was mapped into formErrors and never rendered. */}
+                {formErrors.email && (
+                  <p data-testid="members-form-email-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
+                    {formErrors.email}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1434,7 +1469,7 @@ export function MembersPage() {
                   />
                   {confidenceBadge('card_uid')}
                 </div>
-                {formData.card_uid && !/^[0-9A-F]{8,20}$/.test(formData.card_uid) && (
+                {formData.card_uid && !CARD_UID_PATTERN.test(formData.card_uid) && (
                   <p data-testid="member-form-card-uid-format-error" style={{ color: theme.colors.semantic.danger, fontSize: theme.typography.fontSize.sm, marginTop: theme.spacing.xs }}>
                     {t('members.validation.invalidCardUid')}
                   </p>
@@ -1448,7 +1483,7 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.iban')} <span style={{ color: theme.colors.semantic.danger }}>*</span> <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')})</span>
+                  {t('members.iban')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
                   <ValidationIndicator
                     isValid={validateIban(formData.iban)}
                     show={formData.iban.length > 0}
@@ -1459,7 +1494,6 @@ export function MembersPage() {
                   <input
                     data-testid="members-form-iban-input"
                     type="text"
-                    required
                     value={formData.iban}
                     onChange={(e) => { setFormData({ ...formData, iban: e.target.value.replace(/\s/g, '').toUpperCase() }); if (formErrors.iban) setFormErrors((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'iban'))) }}
                     placeholder="DE89370400440532013000"
@@ -1604,13 +1638,12 @@ export function MembersPage() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: theme.spacing.sm, fontSize: theme.typography.fontSize.sm, fontWeight: 600 }}>
-                  {t('members.mandateSignedAt')} <span style={{ color: theme.colors.semantic.danger }}>*</span> <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')})</span>
+                  {t('members.mandateSignedAt')} <span style={{ color: theme.colors.text.secondary, marginLeft: theme.spacing.xs, fontWeight: 400 }}>({t('common.sepa')}, {t('common.optional')})</span>
                 </label>
                 <div className="field-with-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <input
                     data-testid="members-form-mandate-date-input"
                     type="date"
-                    required
                     value={formData.mandate_signed_at}
                     onChange={(e) => setFormData({ ...formData, mandate_signed_at: e.target.value })}
                     max={toIsoDate(new Date())}

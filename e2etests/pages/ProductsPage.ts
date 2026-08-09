@@ -201,6 +201,15 @@ export class ProductsPage extends BasePage {
   }
 
   /**
+   * Click the form modal backdrop (outside the dialog).
+   *
+   * A half-filled product must survive this — see #131.
+   */
+  async clickFormModalBackdrop() {
+    await this.formModal().click({ position: { x: 5, y: 5 } })
+  }
+
+  /**
    * Fill product form with a single-language name (German by default)
    */
   async fillProductForm(name: string, price: string) {

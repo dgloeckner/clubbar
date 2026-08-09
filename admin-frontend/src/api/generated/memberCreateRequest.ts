@@ -74,14 +74,14 @@ export interface MemberCreateRequest {
    * @minLength 15
    * @maxLength 34
    */
-  iban: string;
+  iban?: string;
   /**
    * Account holder name if different from member (for divergent payer)
    * @maxLength 70
    */
   account_holder_name?: string;
   /** Mandate signature date (not in future) */
-  mandate_signed_at: string;
+  mandate_signed_at?: string;
   /**
    * Optional; defaults to UUID without hyphens
    * @maxLength 35

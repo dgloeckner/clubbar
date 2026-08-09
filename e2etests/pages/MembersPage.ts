@@ -65,6 +65,7 @@ export class MembersPage extends BasePage {
   // IBAN validation
   private readonly ibanValidationIndicator = () => this.page.getByTestId('members-form-iban-validation')
   private readonly ibanError = () => this.page.getByTestId('members-form-iban-error')
+  private readonly emailError = () => this.page.getByTestId('members-form-email-error')
   private readonly bankNameDisplay = () => this.page.getByTestId('members-form-bank-name')
 
   // Filter controls
@@ -210,6 +211,13 @@ export class MembersPage extends BasePage {
     await this.createBtn().click()
   }
 
+  /**
+   * Fill the member form.
+   *
+   * `iban` and `mandateDate` accept an empty string, for the member who has not
+   * brought their bank details yet — the list calls that state "SEPA: Missing"
+   * and the form accepts it (#131).
+   */
   async fillMemberForm(
     firstName: string,
     lastName: string,
@@ -223,11 +231,24 @@ export class MembersPage extends BasePage {
     if (email) {
       await this.emailInput().fill(email)
     }
-    await this.ibanInput().fill(iban.toUpperCase())
-    await this.mandateDateInput().fill(mandateDate)
+    if (iban) {
+      await this.ibanInput().fill(iban.toUpperCase())
+    }
+    if (mandateDate) {
+      await this.mandateDateInput().fill(mandateDate)
+    }
     if (language) {
       await this.selectLanguage(language)
     }
+  }
+
+  /**
+   * Click the form modal backdrop (outside the dialog).
+   *
+   * Nine fields of typed work must survive this — see #131.
+   */
+  async clickFormModalBackdrop() {
+    await this.formModal().click({ position: { x: 5, y: 5 } })
   }
 
   async submitForm() {
@@ -388,6 +409,19 @@ export class MembersPage extends BasePage {
 
   async getIbanErrorText(): Promise<string> {
     return await this.ibanError().textContent() || ''
+  }
+
+  async expectEmailErrorVisible() {
+    await expect(this.emailError()).toBeVisible()
+  }
+
+  /**
+   * The SEPA column for one member, as the list renders it: "Valid" or
+   * "Missing" (localised). A member created without bank details reads
+   * "Missing" — that is the supported state, not a failure (#131).
+   */
+  async getSepaBadgeTextForMember(memberId: string): Promise<string> {
+    return (await this.page.getByTestId(`members-table-cell-sepa-${memberId}`).textContent()) || ''
   }
 
   // Bank name display (resolved from IBAN via BLZ lookup)
@@ -622,6 +656,15 @@ export class MembersPage extends BasePage {
 
   async getCardUidDuplicateErrorText(): Promise<string> {
     return await this.cardUidDuplicateError().textContent() || ''
+  }
+
+  /**
+   * The card UID field's submit-time complaint — the same element that carries
+   * the API's "already in use", now also used when the form rejects a malformed
+   * UID before sending anything (#131).
+   */
+  async expectCardUidSubmitErrorVisible() {
+    await expect(this.cardUidDuplicateError()).toBeVisible()
   }
 
   /**

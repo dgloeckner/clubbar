@@ -36,6 +36,9 @@ export function EditTerminalModal({
     return null
   }
 
+  // The backdrop deliberately carries no close handler: a stray click beside
+  // the dialog used to discard everything typed into it (#131). It closes
+  // through Cancel or a successful save.
   return (
     <div
       data-testid="settings-terminal-edit-modal"
@@ -48,7 +51,6 @@ export function EditTerminalModal({
         justifyContent: 'center',
         zIndex: 1100,
       }}
-      onClick={onClose}
     >
       <div
         style={{
@@ -58,7 +60,6 @@ export function EditTerminalModal({
           maxWidth: '400px',
           width: '90%',
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <h2 style={{ margin: 0, marginBottom: theme.spacing.lg }}>{t('settings.editTerminal')}</h2>
 

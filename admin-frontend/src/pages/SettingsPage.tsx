@@ -703,6 +703,9 @@ export function SettingsPage() {
         onClose={() => {
           clearModalError()
           setShowCreateAdminModal(false)
+          // The form was only cleared after a *successful* create, so a
+          // cancelled entry greeted whoever opened the modal next (#131).
+          setCreateAdminFormData({ email: '', display_name: '', locale: 'de' })
         }}
       />
 
@@ -772,6 +775,9 @@ export function SettingsPage() {
         onClose={() => {
           clearModalError()
           setShowCreateTerminalModal(false)
+          // Same as the admin create form: cancelling now discards the entry
+          // instead of holding it until the next open (#131).
+          setCreateTerminalFormData({ name: '', device_id: '' })
         }}
       />
 
