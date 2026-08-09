@@ -59,19 +59,46 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
  */
 import type { SettlementCreateRequestMethod } from './settlementCreateRequestMethod';
 
+/**
+ * A run names its **participants**, and then covers each of them in full
+(ruling #141, issue #161). Name them with `member_ids` — the unit of
+selection is the member ([ADR-0030](../../adr/0030-settlement-selection-is-a-member-picker.md)) —
+or with `transaction_ids`, the compatibility path, whose transactions
+are resolved to their members and then discarded.
+
+Exactly one of the two is required. When both are sent, `member_ids`
+wins. Neither bounds the amounts: every unsettled transaction of every
+named member is settled, including transactions older than
+`period_start`.
+
+ */
 export interface SettlementCreateRequest {
+  /**
+   * The run's participants. Required unless `transaction_ids` is given.
+   * @minItems 1
+   */
+  member_ids?: string[];
+  /**
+   * Compatibility path — names participants indirectly. The
+transactions are resolved to their members; the run then settles
+those members in full, so these ids do not limit its contents.
+
+   * @minItems 1
+   */
+  transaction_ids?: string[];
   /** How this settlement's balance will be collected. Replaces the old
 `settlement_type`/`manual_reason` pair (ruling #163).
 `bank_transfer` and `write_off` settlements must cover exactly one
 member and can never be exported to SEPA.
  */
   method?: SettlementCreateRequestMethod;
+  settlement_date: string;
+  /** Descriptive only — it does not bound what the run settles. */
   period_start?: string;
+  /** Descriptive only — it does not bound what the run settles. */
   period_end?: string;
-  /** Required for direct_debit (>= TODAY + 7 days) */
-  execution_date?: string;
+  /** Required for direct_debit (>= TODAY + 7 days, and a bank business day) */
+  execution_date: string;
   /** @maxLength 500 */
   notes?: string;
-  /** Optional filter to specific members */
-  member_ids?: string[];
 }

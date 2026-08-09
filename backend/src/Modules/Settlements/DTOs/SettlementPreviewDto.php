@@ -33,6 +33,13 @@ final readonly class SettlementPreviewDto
         public int $creditTotal = 0,
         public array $heldMembers = [],
         public int $heldTotal = 0,
+        /**
+         * How many transactions the run would actually contain — the whole
+         * unsettled position of every eligible member, not the slice the
+         * caller named. A caller that counted its own selection would
+         * understate the run, which is the mismatch issue #128 is about.
+         */
+        public int $transactionCount = 0,
     ) {}
 
     public function toArray(): array
@@ -47,6 +54,7 @@ final readonly class SettlementPreviewDto
             'credit_total' => $this->creditTotal,
             'held_total' => $this->heldTotal,
             'member_count' => $this->memberCount,
+            'transaction_count' => $this->transactionCount,
             'warnings' => $this->warnings,
         ];
     }

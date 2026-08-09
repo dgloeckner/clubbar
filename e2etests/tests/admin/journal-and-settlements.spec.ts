@@ -1,5 +1,6 @@
 import { test, expect } from '../../fixtures/auth.fixture'
 import { JournalPage } from '../../pages/JournalPage'
+import { NewSettlementPage } from '../../pages/NewSettlementPage'
 import { SettlementsPage } from '../../pages/SettlementsPage'
 import { generateUUID, createTestMember, createSepaInvalidMember } from '../../utils/transactions'
 import { minimumExecutionDate, serverToday } from '../../utils/dates'
@@ -256,21 +257,23 @@ test.describe('Journal & Settlements', () => {
     const txn3Id = await testTransactions.createSyncTransaction(member2.id, 1500, `${prefix} purch2`, product.id)
     const txn4Id = await testTransactions.createStorno(member2.id, 500, `${prefix} corr2`)
 
-    // ── Settle via Journal UI ─────────────────────────────────────────
+    // ── Settle via the New Settlement screen ──────────────────────────
+    // The run picks *members*; each is then settled in full (ADR-0030). The
+    // four transaction ids above are what that sweep must end up covering,
+    // not what the admin ticks.
     const journalPage = new JournalPage(page)
-    await journalPage.navigate()
-    await journalPage.waitForPageLoad()
-    await journalPage.filterBySettlementStatus('open')
-    await journalPage.waitForTableToLoad()
-    await journalPage.enterSettlementMode()
+    const newSettlement = new NewSettlementPage(page)
+    await newSettlement.goto()
 
-    await journalPage.selectTransactionById(txn1Id)
-    await journalPage.selectTransactionById(txn2Id)
-    await journalPage.selectTransactionById(txn3Id)
-    await journalPage.selectTransactionById(txn4Id)
-    expect(await journalPage.getSelectedTransactionCount()).toBe(4)
+    await newSettlement.toggleSelectAll() // clear the default whole-club run
+    await newSettlement.selectMember(member1.id)
+    await newSettlement.selectMember(member2.id)
 
-    const settlementId = await journalPage.concludeSettlement()
+    const summary = await newSettlement.getRunSummary()
+    expect(summary.members).toBe(2)
+    expect(summary.transactions).toBe(6) // 2 purchases + 2 anchor purchases + 2 stornos
+
+    const settlementId = await newSettlement.create()
     expect(settlementId).toMatch(/^[0-9a-f-]{36}$/) // UUID format
 
     // ── Execution date persisted from the UI must be a business day ───
@@ -462,22 +465,24 @@ test.describe('Journal & Settlements', () => {
     const purchase2 = await testTransactions.createSyncTransaction(member2.id, 800, `${prefix} purchase2`)
     const txn2Id = await testTransactions.createStorno(member2.id, 800, `${prefix} charge2`, purchase2)
 
-    // ── Settle-all: search → preview → confirm ───────────────────────
+    // ── Settle these two members, then undo ──────────────────────────
+    // "Settle all" is no longer a separate button: the New Settlement screen
+    // opens with every eligible member selected, so the whole-club run is the
+    // default and this test narrows it to its own two members (ADR-0030).
     const journalPage = new JournalPage(page)
-    await journalPage.navigate()
-    await journalPage.waitForPageLoad()
-    await journalPage.search(prefix)
-    await journalPage.waitForTableToLoad()
-    await journalPage.filterBySettlementStatus('open')
-    await journalPage.waitForTableToLoad()
+    const newSettlement = new NewSettlementPage(page)
+    await newSettlement.goto()
 
-    await journalPage.openSettleAllModal()
-    const stats = await journalPage.getSettlementConfirmStats()
+    await newSettlement.toggleSelectAll()
+    await newSettlement.selectMember(member1.id)
+    await newSettlement.selectMember(member2.id)
+
+    const summary = await newSettlement.getRunSummary()
     // 2 purchases + 2 stornos (each purchase stays open alongside its storno).
-    expect(stats.transactions).toBe(4)
-    expect(stats.members).toBe(2)
+    expect(summary.transactions).toBe(4)
+    expect(summary.members).toBe(2)
 
-    const settlementId = await journalPage.confirmOpenSettlement()
+    const settlementId = await newSettlement.create()
     expect(settlementId).toMatch(/^[0-9a-f-]{36}$/) // UUID format
     await expect(page).toHaveURL(/\/settlements/)
 

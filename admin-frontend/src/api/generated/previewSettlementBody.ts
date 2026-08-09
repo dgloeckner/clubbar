@@ -62,6 +62,20 @@ export type PreviewSettlementBody = {
   from_date?: string;
   to_date?: string;
   member_id?: string;
+  /** Name the run's participants directly. This is what the New
+Settlement screen sends, because the unit of selection is
+the member (ADR-0030). Takes precedence over
+`transaction_ids` and over the date window.
+ */
+  member_ids?: string[];
+  /** Name the run's participants indirectly. The members are
+resolved from these transactions exactly as
+`POST /admin/settlements` resolves them, so previewing the
+ids you are about to post describes that post. The amounts
+are still each member's whole unsettled position, not these
+transactions' sum.
+ */
+  transaction_ids?: string[];
   /** Drop the `ineligible_members` bucket and its warnings.
 `credit_members` is never suppressed — the club owes those
 members money, so the exclusion must stay visible.

@@ -269,24 +269,7 @@
     "settledAt": "Abgerechnet am",
     "notSettled": "Nicht abgerechnet",
     "noTransactions": "Keine Buchungen gefunden",
-    "settlementSelected": "Abrechnung (Auswahl)",
-    "settlementAll": "Abrechnung (alle)",
-    "concludeSettlement": "Abrechnung abschließen",
-    "cancelSettlement": "Abrechnung abbrechen",
     "settleAllConfirm": "Alle offenen Buchungen abrechnen?",
-    "selectAtLeastOne": "Bitte mindestens eine Buchung auswählen",
-    "settlementNoOpen": "Keine offenen Transaktionen",
-    "settlementConfirm": {
-      "title": "Abrechnung erstellen",
-      "transactions": "Transaktionen",
-      "members": "Mitglieder",
-      "totalAmount": "Betrag",
-      "settlementDate": "Buchungsdatum",
-      "executionDate": "Ausführungsdatum",
-      "executionDateUnavailable": "Das Ausführungsdatum konnte nicht geladen werden. Bitte erneut versuchen.",
-      "confirm": "Abrechnung erstellen",
-      "cancel": "Abbrechen"
-    },
     "date": "Datum",
     "type": "Typ",
     "details": "Details",
@@ -618,5 +601,53 @@
     "confidenceMedium": "Mittel",
     "confidenceLow": "Niedrig",
     "ibanCandidates": "Mehrere mögliche IBANs erkannt — bitte die richtige auswählen:"
+  },
+  "newSettlement": {
+    "title": "Neue Abrechnung",
+    "sweepNote": "Eine Abrechnung umfasst den gesamten offenen Saldo jedes ausgewählten Mitglieds — alle offenen Buchungen, unabhängig vom Datum. Wähle die Mitglieder aus, die eingezogen werden sollen.",
+    "searchPlaceholder": "Mitglieder suchen…",
+    "selectAll": "Alle auswählen",
+    "selectNone": "Auswahl aufheben",
+    "create": "Abrechnung erstellen",
+    "selectAtLeastOneMember": "Bitte mindestens ein Mitglied auswählen",
+    "summary": {
+      "members": "Mitglieder",
+      "transactions": "Transaktionen",
+      "total": "Betrag",
+      "executionDate": "Ausführungsdatum"
+    },
+    "columns": {
+      "member": "Mitglied",
+      "transactions": "Transaktionen",
+      "balance": "Saldo",
+      "issue": "Problem",
+      "holdReason": "Grund"
+    },
+    "eligible": {
+      "title": "Einzuziehende Mitglieder",
+      "empty": "Derzeit hat kein Mitglied einen offenen Saldo."
+    },
+    "ineligible": {
+      "title": "Ausgeschlossen — kein aktives SEPA-Mandat",
+      "note": "Diese Mitglieder schulden Geld, können aber nicht per Lastschrift eingezogen werden. Bankdaten nachfordern oder manuell abrechnen.",
+      "issue": {
+        "iban": "Mandat fehlt",
+        "mandate": "IBAN fehlt",
+        "both": "IBAN und Mandat fehlen"
+      }
+    },
+    "credit": {
+      "title": "Ausgeschlossen — Guthaben",
+      "note": "Der Verein schuldet diesen Mitgliedern Geld. Von ihnen wird nie eingezogen; eine Erstattung wird als manuelle Abrechnung erfasst."
+    },
+    "detail": {
+      "empty": "Keine offenen Buchungen."
+    },
+    "executionDateUnavailable": "Das Ausführungsdatum konnte nicht geladen werden. Bitte erneut versuchen.",
+    "held": {
+      "title": "Ausgeschlossen — Einzug gesperrt",
+      "note": "Der letzte Einzug dieser Mitglieder kam zurück. Sie werden übersprungen, bis jemand die Sperre prüft und aufhebt — zuerst den Rücklauf der Abrechnung ansehen.",
+      "noReason": "Kein Grund hinterlegt"
+    }
   }
 }

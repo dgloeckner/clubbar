@@ -686,6 +686,56 @@ class SettlementsRepositoryTest extends DatabaseTestCase
         $this->assertEquals($idOlder, $result['items'][1]['id']);
     }
 
+    /**
+     * Walking every page sees every settlement exactly once.
+     *
+     * `created_by` orders on the admin's display name, which is identical for
+     * every settlement one admin created. Row order *within* a tie is undefined
+     * in SQL, so LIMIT/OFFSET over it can hand the same row to two pages and
+     * never hand over another — the Settlements list dropping rows while the
+     * treasurer pages through them. `listPaginated` now appends the id as a
+     * unique tiebreaker.
+     *
+     * ⚠️ This pins the invariant, not the bug: it passes with and without the
+     * tiebreaker, because on a small table MariaDB happens to return rows in
+     * insertion order and "undefined" and "id order" coincide. The failure was
+     * observed against a real 238-row table through
+     * `e2etests/tests/api/settlements-sort.spec.ts`, which is why that spec now
+     * pages until it finds its own ids rather than assuming page 1 holds them.
+     * Treat a failure here as real; do not treat a pass as proof of ordering.
+     */
+    public function test_listPaginated_pages_a_tied_sort_without_dropping_or_repeating_rows(): void
+    {
+        // One admin, so every row ties on the sort key.
+        $adminId = $this->createTestAdminUser('tiedsort-admin@example.com', 'Tied Sort Admin');
+
+        $created = [];
+        for ($i = 0; $i < 7; $i++) {
+            $id = $this->createSettlementRow($adminId, '2027-04-01', '2027-04-01', 100 + $i, 1);
+            // The same second for all of them, so created_at ties too and the
+            // id is the only thing left to order by.
+            $this->setSettlementCreatedAt($id, '2027-04-01 12:00:00');
+            $created[] = $id;
+        }
+
+        $seen = [];
+        for ($offset = 0; $offset < 7; $offset += 2) {
+            $page = $this->settlementsRepository->listPaginated(
+                2, $offset, null, 'created_by', 'asc', '2027-04-01', '2027-04-01'
+            );
+            foreach ($page['items'] as $row) {
+                $seen[] = $row['id'];
+            }
+        }
+
+        sort($created);
+        $unique = array_values(array_unique($seen));
+        sort($unique);
+
+        $this->assertCount(count($seen), $unique, 'A settlement appeared on two pages');
+        $this->assertSame($created, $unique, 'Paging lost or invented rows');
+    }
+
     public function test_listPaginated_sorts_by_created_by(): void
     {
         // The settlements table offers a "Created by" header, and until #120

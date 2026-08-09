@@ -83,5 +83,9 @@ never silent.
   held_total?: number;
   /** Members placed in any bucket */
   member_count?: number;
+  /** How many transactions the run would contain — every unsettled
+transaction of every eligible member, not the caller's selection.
+ */
+  transaction_count?: number;
   warnings?: string[];
 }
