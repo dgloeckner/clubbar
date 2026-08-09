@@ -83,6 +83,56 @@ class DashboardRepositoryTest extends DatabaseTestCase
         $this->assertSame(0, $this->repository->sumRevenueBetween('2019-05-01', '2019-05-31'));
     }
 
+    public function test_sumRevenueSince_counts_purchases_only(): void
+    {
+        $member = $this->createMember();
+        $before = $this->repository->sumRevenueSince('2019-03-01');
+
+        $purchase = $this->createTransaction($member, 5000, '2019-03-05 10:00:00');
+        $this->createStorno($member, $purchase, 5000, '2019-03-05 10:05:00');
+        $this->createTransaction($member, -700, '2019-03-06 10:00:00', 'payout');
+
+        // Netting the storno and the payout off would leave -700.
+        $this->assertSame($before + 5000, $this->repository->sumRevenueSince('2019-03-01'));
+    }
+
+    public function test_sumRevenueBetween_counts_purchases_only(): void
+    {
+        $member = $this->createMember();
+        $purchase = $this->createTransaction($member, 5000, '2019-03-05 10:00:00');
+        $this->createStorno($member, $purchase, 5000, '2019-03-05 10:05:00');
+        $this->createTransaction($member, 2500, '2019-03-06 10:00:00');
+
+        $this->assertSame(7500, $this->repository->sumRevenueBetween(self::WINDOW_START, self::WINDOW_END));
+    }
+
+    public function test_findDailyRevenue_counts_purchases_only(): void
+    {
+        $member = $this->createMember();
+        $purchase = $this->createTransaction($member, 5000, '2019-03-05 10:00:00');
+        $this->createStorno($member, $purchase, 5000, '2019-03-05 10:05:00');
+        $this->createTransaction($member, 2500, '2019-03-06 10:00:00');
+
+        $days = $this->repository->findDailyRevenue(self::WINDOW_START, self::WINDOW_END);
+
+        // The 5th holds a purchase and its storno, and is one sold item worth
+        // 5000 — not two transactions worth nothing.
+        $this->assertCount(2, $days);
+        $this->assertSame(5000, (int) $days[0]['revenue_cents']);
+        $this->assertSame(1, (int) $days[0]['transaction_count']);
+
+        // The breakdown and the headline agree, which is the point of the
+        // shared filter (#116).
+        $this->assertSame(
+            $this->repository->sumRevenueBetween(self::WINDOW_START, self::WINDOW_END),
+            array_sum(array_map(static fn(array $d): int => (int) $d['revenue_cents'], $days)),
+        );
+        $this->assertSame(
+            $this->repository->countPurchasesBetween(self::WINDOW_START, self::WINDOW_END),
+            array_sum(array_map(static fn(array $d): int => (int) $d['transaction_count'], $days)),
+        );
+    }
+
     public function test_countPurchasesBetween_ignores_other_transaction_types(): void
     {
         $member = $this->createMember();
@@ -306,6 +356,28 @@ class DashboardRepositoryTest extends DatabaseTestCase
             'INSERT INTO transactions (id, member_id, product_id, created_by_terminal_id, amount_cents, transaction_type, occurred_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)'
         )->execute([$id, $memberId, $productId, $terminalId, $amountCents, $type, $occurredAt]);
+
+        return $id;
+    }
+
+    /**
+     * The exact negation of a booking. A storno must name what it reverses —
+     * `chk_transactions_storno_is_linked` refuses the row otherwise — so this
+     * cannot go through createTransaction().
+     */
+    private function createStorno(
+        string $memberId,
+        string $originalId,
+        int $amountCents,
+        string $occurredAt,
+    ): string {
+        $id = $this->generateUuid();
+        $this->testTransactionIds[] = $id;
+
+        $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, amount_cents, transaction_type, occurred_at, related_transaction_id)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute([$id, $memberId, -$amountCents, 'storno', $occurredAt, $originalId]);
 
         return $id;
     }

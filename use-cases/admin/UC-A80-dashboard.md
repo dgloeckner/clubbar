@@ -27,8 +27,12 @@ Admin logs in or clicks Dashboard
 |------|---------|
 | Active Members | Count of active members |
 | Outstanding Balance | Total unpaid tab balance |
-| Today's Revenue | Sum of today's transactions |
+| Today's Revenue | Sum of today's purchases — stornos and payouts excluded, the same definition the revenue reports use, so the two screens agree for a given period |
 | Terminal Status | Online/Offline indicator |
+
+Outstanding Balance is the figure that nets stornos and payouts off: revenue says what
+the bar sold, the balance says what is still owed. They answer different questions and
+are not expected to move together.
 
 ### Alert Badges
 
