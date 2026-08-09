@@ -117,6 +117,7 @@ useEffect(() => {
 | Debounce on search only | `search ? 500 : 0` — filters and paging stay instant |
 | Page reset on every query change | Desktop sort headers and the mobile sort dropdown behave identically |
 | Page clamp after a reload | Deleting the last item on the last page lands on the last page that exists, instead of an empty out-of-range one |
+| `hasLoaded` alongside `loading` | Tells "no result yet" apart from "re-running a query that already came back empty" — the distinction a page needs before it replaces itself with a spinner (see [pitfall 5](#5--a-loading-state-that-unmounts-the-toolbar)) |
 
 ---
 
@@ -737,24 +738,40 @@ does not; one aborts stale requests, the rest do not.
 )}
 ```
 
-### 5. ❌ Missing Loading State
+### 5. ❌ A Loading State That Unmounts the Toolbar
 
-**Problem:** No indication while data is loading
+**Problem:** Two different things are called "loading", and only one of them may
+take space away from the admin. `loading && items.length === 0` reads like "the
+first load", but it is also what a **search that matched nothing** looks like:
+the next debounced keystroke unmounted the toolbar with the focused search box
+inside it, and the rest of the word was typed into nothing (#137).
 
-**Solution:** Always show loading state:
 ```tsx
-{loading ? (
-  <div style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
-    Loading items...
-  </div>
-) : items.length === 0 ? (
-  <div style={{ padding: theme.spacing.xl, textAlign: 'center', color: theme.colors.text.secondary }}>
-    No items found
-  </div>
-) : (
-  /* Table */
-)}
+// ❌ DON'T — the whole page disappears on every keystroke after an empty search
+if (loading && items.length === 0) return <div>Loading…</div>
 ```
+
+**Solution:** Gate the page-replacing state on `hasLoaded` (the first query has
+settled, with items or with an error), and cover the *results region only* for
+every later fetch:
+
+```tsx
+const { items, loading, hasLoaded } = list
+
+// First load: nothing to show yet, so the page may take over.
+if (!hasLoaded) return <div data-testid="items-loading">{t('common.loading')}</div>
+
+// Every later fetch: the toolbar stays, the results are dimmed.
+<ListLoadingOverlay loading={loading} label={t('common.loading')} testId="items-list-loading">
+  <div data-testid="items-table-wrapper" style={tableWrapperStyles}>
+    <table>…</table>
+  </div>
+  {totalItems === 0 && !loading && <EmptyState />}
+</ListLoadingOverlay>
+```
+
+**Also:** keep the empty state gated on `!loading`, or a refresh over an empty
+list claims "No items found" about a question it has not answered yet.
 
 ### 6. ❌ Forgetting `data-testid` Attributes
 

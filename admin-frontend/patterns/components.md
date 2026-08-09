@@ -410,6 +410,42 @@ function IbanInput({ iban, validateIban }) {
 
 ---
 
+### Table Components
+
+#### ListLoadingOverlay Component
+
+Lays a spinner over a list's **results region** while a refresh is in flight,
+leaving that region — and everything above it — mounted.
+
+**File**: `src/components/tables/ListLoadingOverlay.tsx`
+
+**Props**:
+- `loading` (boolean, required): Whether a refresh is in flight
+- `label` (string, required): Text beside the spinner; also read out by screen readers
+- `children` (ReactNode, required): The table or card list to cover
+- `testId` (string, optional): Test ID for E2E testing
+
+**Example**:
+```typescript
+import { ListLoadingOverlay } from '@/components/tables/ListLoadingOverlay'
+
+<ListLoadingOverlay loading={loading} label={t('common.loading')} testId="products-list-loading">
+  <div data-testid="products-table-wrapper" style={tableWrapperStyles}>
+    <table>…</table>
+  </div>
+  {totalItems === 0 && !loading && <EmptyState />}
+</ListLoadingOverlay>
+```
+
+**Why it exists**: swapping the results region — or worse, the page — for a
+loading message unmounts the toolbar above it, and the toolbar holds the search
+box the admin is typing into. A search that returned nothing made every further
+keystroke fire a request over an empty list, and the page tore the focused input
+out mid-word (#137). Wrap the results, never the toolbar; gate a page-replacing
+loading state on `useListQuery`'s `hasLoaded` instead of on `loading`.
+
+---
+
 ## Design System Tokens
 
 All components use tokens from `src/styles/design-system.ts`:

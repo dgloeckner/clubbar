@@ -41,6 +41,7 @@ import { BadgeCell } from '../components/tables/BadgeCell'
 import { ActionButtons } from '../components/tables/ActionButtons'
 import { Badge } from '../components/common/Badge'
 import { EditIcon, TrashIcon } from '../components/icons'
+import { ListLoadingOverlay } from '../components/tables/ListLoadingOverlay'
 import { MobileFilterRow } from '../components/tables/MobileFilterRow'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -133,7 +134,7 @@ export function ProductsPage() {
           : t('products.errors.load'),
   })
 
-  const { items: products, total: totalItems, totalPages, loading, error, setError } = list
+  const { items: products, total: totalItems, totalPages, loading, hasLoaded, error, setError } = list
   const { categoryId: filterCategory, status: filterStatus } = list.filters
   const search = list.search
   const sortKey = list.sortKey
@@ -395,9 +396,14 @@ export function ProductsPage() {
     list.setFilter('categoryId', categoryId)
   }
 
-  if (loading && products.length === 0) {
+  // Only the very first load may take over the page. `loading && !products.length`
+  // looked equivalent and was not: a search that comes back empty leaves the list
+  // empty, so the next keystroke's request replaced the whole page — toolbar,
+  // focused search box and all — and the rest of the word was typed into nothing
+  // (#137). Every later fetch dims the results region instead, below.
+  if (!hasLoaded) {
     return (
-      <div style={{ padding: '20px' }}>
+      <div data-testid="products-loading" style={{ padding: '20px' }}>
         <div>{t('common.loading')}</div>
       </div>
     )
@@ -508,15 +514,16 @@ export function ProductsPage() {
             }
           />
 
-          {/* Mobile card list */}
-          {loading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
-              {t('common.loading')}
-            </div>
-          ) : products.length === 0 ? (
-            <div data-testid="products-empty-state" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
-              {t('products.noProducts')}
-            </div>
+          {/* Mobile card list — kept mounted while a refresh runs, same as the
+              desktop table, so the results do not vanish and reappear on every
+              debounced keystroke. */}
+          <ListLoadingOverlay loading={loading} label={t('common.loading')} testId="products-list-loading">
+          {products.length === 0 ? (
+            !loading && (
+              <div data-testid="products-empty-state" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+                {t('products.noProducts')}
+              </div>
+            )
           ) : (
             <div data-testid="products-mobile-cards" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {products.map((product) => {
@@ -586,6 +593,7 @@ export function ProductsPage() {
               })}
             </div>
           )}
+          </ListLoadingOverlay>
 
           {/* Pagination (mobile) */}
           {!loading && products.length > 0 && (
@@ -693,6 +701,9 @@ export function ProductsPage() {
         </div>
       </div>
 
+      {/* The table stays mounted while a refresh runs — only the results are
+          dimmed. The toolbar above must survive a re-fetch (#137). */}
+      <ListLoadingOverlay loading={loading} label={t('common.loading')} testId="products-list-loading">
       <div data-testid="products-table-wrapper" style={tableWrapperStyles}>
         <table
           data-testid="products-table"
@@ -811,6 +822,20 @@ export function ProductsPage() {
         </table>
       </div>
 
+      {totalItems === 0 && !loading && (
+        <div
+          data-testid="products-empty-state"
+          style={{
+            textAlign: 'center',
+            padding: '40px',
+            color: '#94a3b8',
+          }}
+        >
+          {t('products.noProducts')}
+        </div>
+      )}
+      </ListLoadingOverlay>
+
       {/* Pagination toolbar - bottom */}
       {totalItems > 0 && (
         <PaginationToolbar
@@ -828,18 +853,6 @@ export function ProductsPage() {
         />
       )}
 
-      {totalItems === 0 && !loading && (
-        <div
-          data-testid="products-empty-state"
-          style={{
-            textAlign: 'center',
-            padding: '40px',
-            color: '#94a3b8',
-          }}
-        >
-          {t('products.noProducts')}
-        </div>
-      )}
         </>
       )}
 
