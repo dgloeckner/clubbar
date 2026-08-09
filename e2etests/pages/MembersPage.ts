@@ -720,4 +720,21 @@ export class MembersPage extends BasePage {
   async clickSepaTemplateDownloadButton(): Promise<void> {
     await this.sepaTemplateDownloadButton().click()
   }
+
+  /**
+   * ACCESSIBLE NAMES (#138)
+   *
+   * The row actions are icon-only, so their accessible name is the only thing
+   * a screen reader can announce — and it has to name the member, or every row
+   * offers the same two anonymous controls.
+   */
+
+  async expectRowActionsNameTheMember(memberId: string, memberName: string) {
+    await expect(this.page.getByTestId(`members-table-action-edit-${memberId}`)).toHaveAccessibleName(
+      new RegExp(memberName)
+    )
+    await expect(
+      this.page.getByTestId(`members-table-action-anonymize-${memberId}`)
+    ).toHaveAccessibleName(new RegExp(memberName))
+  }
 }

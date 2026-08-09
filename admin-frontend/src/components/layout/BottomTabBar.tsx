@@ -123,7 +123,7 @@ export function BottomTabBar() {
           style={tabStyle(isMoreActive)}
         >
           <GridDotsIcon size={22} />
-          <span>{t('nav.more', 'Mehr')}</span>
+          <span>{t('nav.more', 'More')}</span>
         </button>
 
         {showMore && (

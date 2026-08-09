@@ -426,6 +426,9 @@ export function CategoriesPage() {
                         <button
                           data-testid={`categories-table-action-edit-${category.id}`}
                           onClick={() => openEditModal(category)}
+                          aria-label={t('categories.editCategoryNamed', {
+                            name: getLocalizedName(category.names as Record<string, string>, i18n.language),
+                          })}
                           style={{
                             display: 'flex', alignItems: 'center', gap: '4px',
                             padding: '6px 12px', borderRadius: '6px', border: 'none',
@@ -439,6 +442,14 @@ export function CategoriesPage() {
                           data-testid={`categories-table-action-delete-${category.id}`}
                           onClick={() => handleDelete(category)}
                           disabled={category.product_count > 0}
+                          title={
+                            category.product_count > 0
+                              ? t('categories.cannotDeleteWithProducts', { count: category.product_count })
+                              : undefined
+                          }
+                          aria-label={t('categories.deleteCategoryNamed', {
+                            name: getLocalizedName(category.names as Record<string, string>, i18n.language),
+                          })}
                           style={{
                             display: 'flex', alignItems: 'center', gap: '4px',
                             padding: '6px 12px', borderRadius: '6px', border: 'none',
@@ -612,7 +623,10 @@ export function CategoriesPage() {
                             cursor: 'pointer',
                             padding: theme.spacing.sm,
                           }}
-                          title="Edit"
+                          title={t('common.edit')}
+                          aria-label={t('categories.editCategoryNamed', {
+                            name: getLocalizedName(category.names as Record<string, string>, i18n.language),
+                          })}
                         >
                           <EditIcon size={18} />
                         </button>
@@ -629,7 +643,14 @@ export function CategoriesPage() {
                             marginLeft: theme.spacing.md,
                             opacity: category.product_count > 0 ? 0.5 : 1,
                           }}
-                          title={category.product_count > 0 ? `Cannot delete (${category.product_count} products)` : 'Delete'}
+                          title={
+                            category.product_count > 0
+                              ? t('categories.cannotDeleteWithProducts', { count: category.product_count })
+                              : t('common.delete')
+                          }
+                          aria-label={t('categories.deleteCategoryNamed', {
+                            name: getLocalizedName(category.names as Record<string, string>, i18n.language),
+                          })}
                         >
                           <TrashIcon size={18} />
                         </button>

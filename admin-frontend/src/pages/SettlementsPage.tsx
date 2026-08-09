@@ -454,6 +454,8 @@ export function SettlementsPage() {
                         data-testid={`settlements-export-sepa-btn-${settlement.id}`}
                         onClick={() => handleExportSepa(settlement.id ?? '')}
                         disabled={settlement.is_cancelled}
+                        title={t('settlements.exportSepaHint')}
+                        aria-label={t('settlements.exportSepaHint')}
                         style={{
                           padding: '5px 10px',
                           backgroundColor: settlement.is_cancelled ? '#6b7280' : '#3b82f6',
@@ -465,12 +467,14 @@ export function SettlementsPage() {
                           cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        SEPA
+                        {t('settlements.exportSepa')}
                       </button>
                       <button
                         data-testid={`settlements-export-csv-btn-${settlement.id}`}
                         onClick={() => handleExportCsv(settlement.id ?? '')}
                         disabled={settlement.is_cancelled}
+                        title={t('settlements.exportCsvHint')}
+                        aria-label={t('settlements.exportCsvHint')}
                         style={{
                           padding: '5px 10px',
                           backgroundColor: settlement.is_cancelled ? '#6b7280' : '#10b981',
@@ -482,12 +486,14 @@ export function SettlementsPage() {
                           cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        CSV
+                        {t('settlements.exportCsv')}
                       </button>
                       <button
                         data-testid={`settlements-export-transactions-btn-${settlement.id}`}
                         onClick={() => handleExportTransactionsCsv(settlement.id ?? '')}
                         disabled={settlement.is_cancelled}
+                        title={t('settlements.exportTransactionsHint')}
+                        aria-label={t('settlements.exportTransactionsHint')}
                         style={{
                           padding: '5px 10px',
                           backgroundColor: settlement.is_cancelled ? '#6b7280' : '#8b5cf6',
@@ -499,13 +505,14 @@ export function SettlementsPage() {
                           cursor: settlement.is_cancelled ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        TXN
+                        {t('settlements.exportTransactions')}
                       </button>
                       <button
                         data-testid={`settlements-undo-btn-${settlement.id}`}
                         onClick={() => handleUndoSettlement(settlement.id ?? '')}
                         disabled={settlement.is_cancelled || settlement.is_cancellable === false}
                         title={settlement.cancellation_blocked_reason ?? undefined}
+                        aria-label={t('settlements.undoSettlement')}
                         style={{
                           padding: '5px 10px',
                           backgroundColor: settlement.is_cancelled ? '#6b7280' : '#ef4444',
@@ -624,7 +631,7 @@ export function SettlementsPage() {
                           userSelect: 'none',
                         }}
                         onClick={() => list.toggleSort('created_at', 'desc')}
-                        title="Click to sort by date"
+                        title={t('common.sortByColumn', { column: t('common.date') })}
                         data-testid="settlements-header-date"
                       >
                         {t('common.date')} {sortKey === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
@@ -636,7 +643,7 @@ export function SettlementsPage() {
                           userSelect: 'none',
                         }}
                         onClick={() => list.toggleSort('created_by', 'asc')}
-                        title="Click to sort by created by"
+                        title={t('common.sortByColumn', { column: t('settlements.createdBy') })}
                         data-testid="settlements-header-created-by"
                       >
                         {t('settlements.createdBy')} {sortKey === 'created_by' && (sortOrder === 'asc' ? '↑' : '↓')}
@@ -787,9 +794,10 @@ export function SettlementsPage() {
                                   e.currentTarget.style.backgroundColor = '#3b82f6'
                                 }
                               }}
-                              title="Export SEPA XML"
+                              title={t('settlements.exportSepaHint')}
+                              aria-label={t('settlements.exportSepaHint')}
                             >
-                              SEPA
+                              {t('settlements.exportSepa')}
                             </button>
 
                             {/* Export CSV (aggregated) */}
@@ -818,9 +826,10 @@ export function SettlementsPage() {
                                   e.currentTarget.style.backgroundColor = '#10b981'
                                 }
                               }}
-                              title="Export CSV (aggregated by member)"
+                              title={t('settlements.exportCsvHint')}
+                              aria-label={t('settlements.exportCsvHint')}
                             >
-                              CSV
+                              {t('settlements.exportCsv')}
                             </button>
 
                             {/* Export Transactions CSV (detailed) */}
@@ -849,9 +858,10 @@ export function SettlementsPage() {
                                   e.currentTarget.style.backgroundColor = '#8b5cf6'
                                 }
                               }}
-                              title="Export detailed transactions CSV"
+                              title={t('settlements.exportTransactionsHint')}
+                              aria-label={t('settlements.exportTransactionsHint')}
                             >
-                              TXN
+                              {t('settlements.exportTransactions')}
                             </button>
 
                             {/* Undo Settlement */}
@@ -886,9 +896,10 @@ export function SettlementsPage() {
                                   e.currentTarget.style.backgroundColor = '#ef4444'
                                 }
                               }}
-                              title={settlement.cancellation_blocked_reason ?? t('common.undo')}
+                              title={settlement.cancellation_blocked_reason ?? t('settlements.undoSettlement')}
+                              aria-label={t('settlements.undoSettlement')}
                             >
-                              ↩
+                              <span aria-hidden="true">↩</span>
                             </button>
                           </div>
                         </td>
