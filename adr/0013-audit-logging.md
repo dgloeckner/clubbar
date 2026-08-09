@@ -1,6 +1,6 @@
 # ADR-0013: Audit Logging for Master Data Changes
 
-**Status**: Accepted
+**Status**: Accepted (amended 2026-08-09 — see [Audit Log Scrubbing](#audit-log-scrubbing-during-gdpr-anonymization))
 
 **Date**: 2025-01-23
 
@@ -44,7 +44,8 @@ The Club Bar system manages sensitive member data (personal information, banking
 4. **Actor identification**: Every entry links to the admin user who performed the action
 5. **Request context**: Capture IP address and user agent for security analysis
 6. **Retention alignment**: Audit log retained for same period as financial records (10 years per § 147 AO)
-7. **GDPR audit log scrubbing**: When a member is anonymized, all historical audit entries for that member must have `old_values` and `new_values` set to NULL to prevent PII reconstruction (see [Audit Log Scrubbing](#audit-log-scrubbing-during-gdpr-anonymization))
+7. **GDPR audit log scrubbing**: When a member is anonymized, every historical audit entry carrying that member's `entity_id` must have `old_values` and `new_values` set to NULL to prevent PII reconstruction (see [Audit Log Scrubbing](#audit-log-scrubbing-during-gdpr-anonymization))
+8. **No member PII in a foreign-keyed payload**: An audit entry filed under some *other* entity's id references members by id only, never by name or contact data — the scrub in principle 7 cannot reach inside it (see [What the scrub cannot reach](#what-the-scrub-cannot-reach))
 
 ### Data Structure
 
@@ -181,6 +182,8 @@ Clicking an audit entry opens a detail panel showing:
 
 ### Audit Log Scrubbing During GDPR Anonymization
 
+> **Amended 2026-08-09.** The original scrub matched `entity_type = 'member' AND entity_id = ?`, which made the completeness of an erasure depend on every writer having filed its entry under the right type, and said nothing about member data embedded in *another* entity's payload — where no member-keyed scrub can follow it. See [#115](https://github.com/dgloeckner/clubbar/issues/115). The sweep is now keyed on `entity_id` alone, and the gap it cannot close is stated as an obligation on writers (principle 8). Amended text is marked inline.
+
 When a member exercises their right to erasure ([Art. 17 GDPR](https://gdpr-info.eu/art-17-gdpr/)), personal data must be erased from **all storage**, including audit log entries. Leaving PII in historical audit entries (e.g., name changes, IBAN updates) would allow reconstruction of the member's identity, which violates the erasure obligation.
 
 **Legal basis:**
@@ -194,8 +197,13 @@ When a member exercises their right to erasure ([Art. 17 GDPR](https://gdpr-info
    ```sql
    UPDATE audit_log
    SET old_values = NULL, new_values = NULL
-   WHERE entity_type = 'member' AND entity_id = ?
+   WHERE entity_id = ?
    ```
+
+   *Amended:* keyed on the id alone. Entity ids are UUIDs, so an entry
+   carrying this member's id is about this member whatever type it claims to
+   be, and a mistyped entry is precisely the one an erasure must not skip.
+   `idx_audit_entity_id` serves the sweep, so dropping the type costs nothing.
 2. **Create new anonymization entry** with no PII:
    ```sql
    INSERT INTO audit_log (action, entity_type, entity_id, old_values, new_values, ...)
@@ -210,6 +218,38 @@ When a member exercises their right to erasure ([Art. 17 GDPR](https://gdpr-info
 - `old_values` and `new_values` JSON payloads containing PII (names, IBAN, email, phone, etc.)
 
 **Why this is the only exception to append-only**: The audit log's append-only design exists to ensure accountability. GDPR Art. 17 creates a legal obligation that supersedes the append-only principle for PII content — but not for the audit structure itself. The entry rows remain; only the PII payloads are nullified.
+
+#### What the scrub cannot reach
+
+An erasure sweeps the entries keyed to the member's id. It cannot sweep an
+entry keyed to a **different** entity that mentions the member inside its
+payload — a settlement's export entry naming the members the bank file left
+out, for example. Nulling that payload is not an option either: it would
+destroy the record for every other member named in the same entry, and that
+record exists because somebody has to be able to read it later.
+
+So the obligation runs the other way, as principle 8 above:
+
+| Entry keyed to | May carry |
+|----------------|-----------|
+| The member (`entity_id` = member id) | Their personal data — the scrub reaches it and nulls it |
+| Any other entity | Member **ids** only; no name, email, phone, address or banking data |
+
+A member id is not anonymous while the member exists (Art. 4(5): pseudonymous
+data is still personal data), but it is the one reference that *changes meaning*
+when the erasure runs: afterwards it resolves to an anonymized row and names
+nobody. A name written into a foreign-keyed payload resolves to the person
+forever.
+
+This is a rule about what writers may put in a payload, so it is held by tests
+at the writers rather than by a constraint on the table — see
+`SepaExportServiceTest::test_the_audit_summary_carries_no_member_pii` and the
+scrub tests in `AuditLogRepositoryTest`. It is worth re-checking whenever a new
+audit action is added that spans more than one entity.
+
+The same reasoning extends to the **application log**, which no erasure reaches
+at all: a member named in a log line outlives the erasure until the file is
+rotated away. Log lines about members carry ids for the same reason.
 
 ---
 
