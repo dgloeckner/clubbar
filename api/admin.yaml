@@ -4048,7 +4048,12 @@ components:
 
     MemberCreateRequest:
       type: object
-      required: [first_name, last_name, iban, mandate_signed_at, preferred_language]
+      # SEPA details are not required to register a member: the list has a
+      # "SEPA: Missing" filter and badge precisely because a member without
+      # bank details is a supported state, and the backend has always accepted
+      # `iban` and `mandate_signed_at` as nullable. The spec said otherwise,
+      # which made the admin form refuse to save such a member at all (#131).
+      required: [first_name, last_name, preferred_language]
       properties:
         first_name:
           type: string
@@ -4113,6 +4118,8 @@ components:
           type: string
           minLength: 15
           maxLength: 34
+          nullable: true
+          description: null to remove the stored bank details
         account_holder_name:
           type: string
           maxLength: 70
@@ -4123,6 +4130,8 @@ components:
         mandate_signed_at:
           type: string
           format: date
+          nullable: true
+          description: null to remove the recorded mandate date
         is_active:
           type: boolean
         card_uid:

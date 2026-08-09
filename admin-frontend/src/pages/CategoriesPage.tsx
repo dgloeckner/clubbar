@@ -679,7 +679,10 @@ export function CategoriesPage() {
         </>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Modal
+          The backdrop deliberately carries no close handler: a stray click
+          beside the dialog used to discard everything typed into it (#131).
+          It closes through Cancel or a successful save. */}
       {showModal && (
         <div
           data-testid="categories-form-modal"
@@ -695,7 +698,6 @@ export function CategoriesPage() {
             justifyContent: 'center',
             zIndex: 1100,
           }}
-          onClick={closeModal}
         >
           <div
             data-testid="categories-form-modal-content"
@@ -710,7 +712,6 @@ export function CategoriesPage() {
               overflowY: 'auto' as const,
               boxShadow: isMobile ? 'none' : '0 25px 50px rgba(0, 0, 0, 0.5)',
             }}
-            onClick={(e) => e.stopPropagation()}
           >
             <h2 data-testid="categories-form-title" style={{ margin: '0 0 20px 0' }}>
               {modalMode === 'create' ? t('categories.createCategory') : t('categories.editCategory')}
@@ -733,65 +734,68 @@ export function CategoriesPage() {
               </div>
             )}
 
-            {/* Category Name with Language Tabs */}
-            <div style={{ marginBottom: theme.spacing.lg }}>
-              <LanguageTabsInput
-                values={formData}
-                onChange={setFormData}
-                label={t('categories.categoryName')}
-                placeholder={t('categories.categoryName')}
-                required
-                testIdPrefix="categories-form-name"
+            {/* The submit button has always been type="submit", but there was no
+                form around it — so Enter in the name field did nothing (#131). */}
+            <form onSubmit={handleSubmit}>
+              {/* Category Name with Language Tabs */}
+              <div style={{ marginBottom: theme.spacing.lg }}>
+                <LanguageTabsInput
+                  values={formData}
+                  onChange={setFormData}
+                  label={t('categories.categoryName')}
+                  placeholder={t('categories.categoryName')}
+                  required
+                  testIdPrefix="categories-form-name"
+                />
+              </div>
+
+              <IconSelect
+                value={selectedIcon}
+                onChange={setSelectedIcon}
+                iconType="category"
+                testId="categories-form-icon-select"
+                label={`${t('products.icon')} (${t('common.optional')})`}
               />
-            </div>
 
-            <IconSelect
-              value={selectedIcon}
-              onChange={setSelectedIcon}
-              iconType="category"
-              testId="categories-form-icon-select"
-              label={`${t('products.icon')} (${t('common.optional')})`}
-            />
-
-            {/* Buttons */}
-            <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end', marginTop: theme.spacing.xl }}>
-              <button
-                data-testid="categories-form-cancel-button"
-                type="button"
-                onClick={closeModal}
-                style={{
-                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                  background: 'transparent',
-                  border: `1px solid ${theme.colors.border.light}`,
-                  borderRadius: theme.borderRadius.md,
-                  color: theme.colors.text.primary,
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: theme.typography.fontWeight.semibold,
-                  transition: 'all 150ms',
-                }}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                data-testid="categories-form-submit-button"
-                type="submit"
-                onClick={handleSubmit}
-                style={{
-                  padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-                  background: theme.colors.semantic.primary,
-                  border: 'none',
-                  borderRadius: theme.borderRadius.md,
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: theme.typography.fontWeight.semibold,
-                  transition: 'all 150ms',
-                }}
-              >
-                {modalMode === 'create' ? t('common.create') : t('common.save')}
-              </button>
-            </div>
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: theme.spacing.lg, justifyContent: 'flex-end', marginTop: theme.spacing.xl }}>
+                <button
+                  data-testid="categories-form-cancel-button"
+                  type="button"
+                  onClick={closeModal}
+                  style={{
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: 'transparent',
+                    border: `1px solid ${theme.colors.border.light}`,
+                    borderRadius: theme.borderRadius.md,
+                    color: theme.colors.text.primary,
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: theme.typography.fontWeight.semibold,
+                    transition: 'all 150ms',
+                  }}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  data-testid="categories-form-submit-button"
+                  type="submit"
+                  style={{
+                    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                    background: theme.colors.semantic.primary,
+                    border: 'none',
+                    borderRadius: theme.borderRadius.md,
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: theme.typography.fontWeight.semibold,
+                    transition: 'all 150ms',
+                  }}
+                >
+                  {modalMode === 'create' ? t('common.create') : t('common.save')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

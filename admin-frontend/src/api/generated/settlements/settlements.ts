@@ -270,12 +270,30 @@ const reverseSettlement = (
 **Use Cases**: UC-A31, UC-SEPA-08
 
 **Requirements**:
-- Settlement type must be "sepa"
-- At least one member must have valid SEPA data
+- Settlement method must be `direct_debit` (ruling #163)
+- Settlement must be neither cancelled nor reversed
 
 **XML format**: pain.008.001.08 (SEPA Core Direct Debit)
 - Sequence type: Always RCUR
 - Minimal debtor data (name, IBAN only)
+
+**Members the file leaves out.** Member data is read again at export
+time and can have changed since the settlement was created — an IBAN
+cleared, a mandate revoked, a member deleted. Such a member gets no
+collection line, and the omission is reported on response headers
+rather than being dropped silently (#114, ruling #141 §3):
+
+| Header | Meaning |
+|---|---|
+| `X-Uncollectable-Members` | Comma-separated ids the settlement counts on and the file cannot collect from. Present only when non-empty |
+| `X-Credit-Excluded-Members` | Comma-separated ids in credit. Not a shortfall — the club owes them |
+| `X-Settlement-Amount-Cents` | What the settlement records as owed |
+| `X-Collected-Amount-Cents` | What the file actually asks the bank for |
+| `X-Shortfall-Amount-Cents` | The difference, i.e. the part to chase |
+
+The three amount headers accompany `X-Uncollectable-Members` and are
+absent on a clean export. Every exclusion is also written to the
+settlement's audit entry, which outlives the download.
 
 See [ADR-0008](../../adr/0008-sepa-xml-export-format-selection.md) for details.
 

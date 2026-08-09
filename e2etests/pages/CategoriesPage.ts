@@ -119,6 +119,16 @@ export class CategoriesPage extends BasePage {
     return testId?.replace('categories-delete-button-', '') ?? null
   }
 
+  /**
+   * Assert a category with this name is in the list, whichever row it landed on
+   * (Pattern 003: no positional assumptions).
+   */
+  async expectCategoryVisibleByName(name: string) {
+    await expect(
+      this.page.locator('[data-testid^="categories-table-cell-name-"]').filter({ hasText: name }),
+    ).toHaveCount(1, { timeout: 15000 })
+  }
+
   async getCategoryName(categoryId: string): Promise<string> {
     const name = await this.page
       .getByTestId(`categories-table-cell-name-${categoryId}`)
@@ -169,6 +179,25 @@ export class CategoriesPage extends BasePage {
   async fillCategoryName(language: string, name: string) {
     const input = this.page.getByTestId(`categories-form-name-input-${language}`)
     await input.fill(name)
+  }
+
+  /**
+   * Press Enter in the name field.
+   *
+   * The submit button has always been type="submit", but nothing wrapped it in
+   * a form, so this used to do nothing at all (#131).
+   */
+  async pressEnterInCategoryName(language: string) {
+    await this.page.getByTestId(`categories-form-name-input-${language}`).press('Enter')
+  }
+
+  /**
+   * Click the form modal backdrop (outside the dialog).
+   *
+   * A half-filled category must survive this — see #131.
+   */
+  async clickFormModalBackdrop() {
+    await this.formModal().click({ position: { x: 5, y: 5 } })
   }
 
   async getCategoryNameValue(language: string): Promise<string> {

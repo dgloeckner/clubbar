@@ -172,6 +172,23 @@ export function ProductsPage() {
     }
   }
 
+  /**
+   * One place to open an empty form.
+   *
+   * The desktop and mobile create buttons each reset the modal themselves, and
+   * both forgot the icon — so "Create product" opened carrying the icon of the
+   * product edited before it (#131).
+   */
+  function openCreateModal() {
+    setModalMode('create')
+    setEditingProduct(null)
+    setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
+    setSelectedCategory('')
+    setSelectedIcon(null)
+    setFormError(null)
+    setShowModal(true)
+  }
+
   function openEditModal(product: ProductWithExtras) {
     setModalMode('edit')
     setEditingProduct(product)
@@ -417,14 +434,7 @@ export function ProductsPage() {
             filterCount={mobileFilterCount}
             onFilterToggle={() => setShowMobileFilters(!showMobileFilters)}
             showFilters={showMobileFilters}
-            onCreate={() => {
-              setModalMode('create')
-              setEditingProduct(null)
-              setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
-              setSelectedCategory('')
-              setFormError(null)
-              setShowModal(true)
-            }}
+            onCreate={openCreateModal}
             createTestId="products-create-button"
             filterContent={
               <>
@@ -623,14 +633,7 @@ export function ProductsPage() {
           {/* Create button */}
           <button
             data-testid="products-create-button"
-            onClick={() => {
-              setModalMode('create')
-              setEditingProduct(null)
-              setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false })
-              setSelectedCategory('')
-              setFormError(null)
-              setShowModal(true)
-            }}
+            onClick={openCreateModal}
             style={{
               padding: '8px 16px',
               backgroundColor: '#3b82f6',
@@ -798,6 +801,9 @@ export function ProductsPage() {
         </>
       )}
 
+      {/* The backdrop deliberately carries no close handler: a stray click
+          beside the dialog used to discard everything typed into it (#131).
+          It closes through Cancel or a successful save. */}
       {showModal && (
         <div
           data-testid="products-form-modal"
@@ -813,7 +819,6 @@ export function ProductsPage() {
             justifyContent: 'center',
             zIndex: 1100,
           }}
-          onClick={handleCancel}
         >
           <div
             data-testid="products-form-modal-content"
@@ -831,7 +836,6 @@ export function ProductsPage() {
               flexDirection: isMobile ? 'column' as const : 'row' as const,
               gap: isMobile ? '16px' : '24px',
             }}
-            onClick={(e) => e.stopPropagation()}
           >
             {/* Left Column: Form */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
