@@ -28,6 +28,16 @@ $isInstalled = file_exists($configFile);
 $isUpdate = isset($_GET['update']);
 $dataFile = __DIR__ . '/.installer-data';
 
+// The installer session carries install_key_verified — leaking it over plain
+// HTTP hands an attacker the wizard. Secure is set only when the request
+// actually arrived over TLS: a Secure cookie would otherwise be dropped and
+// make the wizard unusable on a plain-HTTP host.
+session_set_cookie_params([
+    'path'     => '/',
+    'secure'   => installerRequestIsHttps(),
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 session_start();
 
 // --- Handle reset ---
@@ -167,7 +177,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'app' => [
                         'env' => 'production',
                         'debug' => false,
-                        'url' => (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http')
+                        // The scheme decides more than link building: AppConfig
+                        // derives the session cookie's Secure flag from it.
+                        'url' => (installerRequestIsHttps() ? 'https' : 'http')
                             . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'),
                     ],
                     'session' => [
@@ -338,6 +350,25 @@ renderPage($step, $error, $isUpdate);
 // ============================================================================
 // Functions
 // ============================================================================
+
+/**
+ * True when the browser reached this script over TLS — directly, or through a
+ * reverse proxy that terminated it (common on shared hosting).
+ */
+function installerRequestIsHttps(): bool
+{
+    $https = $_SERVER['HTTPS'] ?? '';
+    if ($https !== '' && strtolower((string) $https) !== 'off') {
+        return true;
+    }
+
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+    if ($forwarded !== '') {
+        return strtolower(trim(explode(',', (string) $forwarded)[0])) === 'https';
+    }
+
+    return ((int) ($_SERVER['SERVER_PORT'] ?? 0)) === 443;
+}
 
 function readInstallerData(string $dataFile): array
 {

@@ -422,22 +422,32 @@ $app->group('/api/admin', function (RouteCollectorProxy $group) {
 
 ## Session Configuration
 
-The project uses native PHP sessions (`$_SESSION`) with file-based storage. Session parameters are configured via `php.ini` or at runtime before `session_start()`.
+The project uses native PHP sessions (`$_SESSION`) with file-based storage. There is no `php.ini` in the repo: cookie parameters are set once in `backend/bootstrap.php`, before any `session_start()` can fire.
 
 ```php
+// backend/bootstrap.php — runs before every request's session_start():
+ini_set('session.gc_maxlifetime', (string) $config->sessionMaxAge);
+session_set_cookie_params([
+    'lifetime' => $config->sessionMaxAge,   // client-side expiry
+    'path'     => '/',
+    'secure'   => $config->sessionCookieSecure, // never sent over plain HTTP
+    'httponly' => true,                     // JavaScript cannot read it — blunts XSS theft
+    'samesite' => 'Lax',                    // blocks the common CSRF shapes
+]);
+
 // Session is started in the AdminSessionAuth middleware:
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_name('_session');
     session_start();
 }
-
-// php.ini or runtime configuration:
-// session.gc_maxlifetime = 7200   (garbage collection floor; NOT the timeout, see below)
-// session.cookie_httponly = 1     (JavaScript cannot access - prevents XSS theft)
-// session.cookie_secure = 1       (HTTPS only in production)
-// session.cookie_samesite = Lax   (Prevents CSRF in most cases)
-// session.save_handler = files    (File-based session storage)
 ```
+
+`sessionCookieSecure` is derived, not hard-coded — a `Secure` cookie is dropped by the browser over HTTP, which would make local development and the E2E suite (both on `http://localhost`) unable to hold a session at all. `AppConfig::resolveSessionCookieSecure()` decides, in order:
+
+1. `SESSION_COOKIE_SECURE` when set — the override, both ways.
+2. `APP_URL` starts with `https://` — the deployment is HTTPS-facing.
+3. The request arrived over TLS (`HTTPS`, `X-Forwarded-Proto`, port 443) — so an install that never set `APP_URL` still gets `Secure` on the sessions it establishes over HTTPS.
+4. Otherwise off — plain-HTTP development.
 
 No database-backed session table is needed -- the project uses PHP's native file-based session handler.
 
