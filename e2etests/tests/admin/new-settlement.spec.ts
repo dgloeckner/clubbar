@@ -17,69 +17,8 @@
 import { test, expect } from '../../fixtures/auth.fixture'
 import { NewSettlementPage } from '../../pages/NewSettlementPage'
 import { JournalPage } from '../../pages/JournalPage'
-import { FACTORY_IBAN } from '../../utils/settlements'
-import { generateUUID } from '../../utils/transactions'
+import { seedMember } from '../../utils/exclusions'
 import type { APIRequestContext } from '@playwright/test'
-
-interface SeededMember {
-  memberId: string
-  lastName: string
-  transactionIds: string[]
-  totalCents: number
-}
-
-/**
- * A member holding `amounts.length` unsettled purchases.
- *
- * A negative amount is synced as a storno so a member can be pushed into
- * credit, which is how the excluded sections get something to show.
- */
-async function seedMember(
-  adminRequest: APIRequestContext,
-  terminalRequest: APIRequestContext,
-  options: { tag: string; amounts: number[]; withMandate?: boolean }
-): Promise<SeededMember> {
-  const { tag, amounts, withMandate = true } = options
-  const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
-  const lastName = `NewSet${tag}${suffix}`
-
-  const memberResponse = await adminRequest.post('/api/admin/members', {
-    data: {
-      first_name: 'Run',
-      last_name: lastName,
-      email: `newset-${tag}-${suffix}@test.example`.toLowerCase(),
-      preferred_language: 'de',
-      ...(withMandate ? { iban: FACTORY_IBAN, mandate_signed_at: '2024-01-01' } : {}),
-    },
-  })
-  expect(memberResponse.status(), await memberResponse.text()).toBe(201)
-  const member = await memberResponse.json()
-
-  const transactionIds = amounts.map(() => generateUUID())
-  const syncResponse = await terminalRequest.post('/api/sync/transactions', {
-    data: {
-      transactions: amounts.map((amountCents, index) => ({
-        id: transactionIds[index],
-        member_id: member.id,
-        type: 'product',
-        product_id: generateUUID(),
-        quantity: 1,
-        unit_price_cents: Math.abs(amountCents),
-        amount_cents: amountCents,
-        notes: `New settlement fixture ${suffix} #${index}`,
-        created_at: new Date(Date.now() - index * 60_000).toISOString(),
-      })),
-    },
-  })
-  expect(syncResponse.status(), await syncResponse.text()).toBe(201)
-
-  return {
-    memberId: member.id,
-    lastName,
-    transactionIds,
-    totalCents: amounts.reduce((sum, cents) => sum + cents, 0),
-  }
-}
 
 async function openTransactionCount(
   adminRequest: APIRequestContext,

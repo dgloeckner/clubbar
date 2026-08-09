@@ -21,6 +21,7 @@
 import { test as base, Page } from '@playwright/test'
 import { LoginPage, MembersPage, ProductsPage, SettlementsPage, CategoriesPage, JournalPage, SettingsPage, AuditLogPage, DashboardPage } from '../pages'
 import { ProfilePage } from '../pages/ProfilePage'
+import { ExcludedFromCollectionPage } from '../pages/ExcludedFromCollectionPage'
 
 interface PageObjectFixtures {
   loginPage: LoginPage
@@ -40,6 +41,7 @@ interface PageObjectFixtures {
   authenticatedAuditLogPage: AuditLogPage
   authenticatedProfilePage: ProfilePage
   authenticatedDashboardPage: DashboardPage
+  authenticatedExcludedPage: ExcludedFromCollectionPage
 }
 
 /**
@@ -304,6 +306,17 @@ const authenticatedDashboardPageFixture = async (
 }
 
 /**
+ * Fixture: authenticatedExcludedPage
+ * Provides the Excluded from Collection surface (#188), already authenticated.
+ */
+const authenticatedExcludedPageFixture = async (
+  { page }: { page: Page },
+  use: (value: ExcludedFromCollectionPage) => Promise<void>
+) => {
+  await use(new ExcludedFromCollectionPage(page))
+}
+
+/**
  * Extend base test with custom fixtures
  */
 export const test = base.extend<PageObjectFixtures>({
@@ -324,6 +337,7 @@ export const test = base.extend<PageObjectFixtures>({
   authenticatedAuditLogPage: authenticatedAuditLogPageFixture,
   authenticatedProfilePage: authenticatedProfilePageFixture,
   authenticatedDashboardPage: authenticatedDashboardPageFixture,
+  authenticatedExcludedPage: authenticatedExcludedPageFixture,
 })
 
 // Re-export expect for convenience

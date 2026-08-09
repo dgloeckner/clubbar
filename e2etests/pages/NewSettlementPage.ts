@@ -194,6 +194,15 @@ export class NewSettlementPage extends BasePage {
     await expect(this.memberCheckbox(memberId)).toHaveCount(0)
   }
 
+  /**
+   * The mirror of the above: the member is back among the collectable ones.
+   * Clearing a collection hold promises exactly this, so the promise is worth
+   * asserting rather than inferring from the row merely being visible.
+   */
+  async expectMemberSelectable(memberId: string) {
+    await expect(this.memberCheckbox(memberId)).toHaveCount(1)
+  }
+
   // ── Creating the run ──────────────────────────────────────────────
 
   /** Click create and return the created settlement's id. */

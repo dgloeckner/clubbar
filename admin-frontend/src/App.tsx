@@ -13,6 +13,7 @@ import { theme } from './styles/design-system'
 // Pages
 import { LoginPage } from './pages/LoginPage'
 import { MembersPage } from './pages/MembersPage'
+import { ExcludedFromCollectionPage } from './pages/ExcludedFromCollectionPage'
 import { ProductsPage } from './pages/ProductsPage'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { JournalPage } from './pages/JournalPage'
@@ -98,6 +99,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <MembersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/members/excluded"
+        element={
+          <ProtectedRoute>
+            <ExcludedFromCollectionPage />
           </ProtectedRoute>
         }
       />

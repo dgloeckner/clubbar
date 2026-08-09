@@ -9,6 +9,7 @@ import { StatCard } from '../components/common/StatCard'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
+import { MembersTabs } from '../components/members/MembersTabs'
 import { useFormatters } from '../hooks/useFormatters'
 import { UsersIcon, BankIcon, CalendarIcon, EditIcon, PlusIcon, DownloadIcon, ScanIcon } from '../components/icons'
 import { downloadBlob } from '../api/client'
@@ -498,6 +499,8 @@ export function MembersPage() {
 
   return (
     <div data-testid="members-page" style={{ padding: '20px' }}>
+      <MembersTabs />
+
       {/* Stats Grid */}
       <div
         data-testid="members-stats-grid"

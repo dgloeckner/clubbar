@@ -758,5 +758,68 @@
     "1y": "1Y",
     "2y": "2Y",
     "all": "All"
+  },
+  "excluded": {
+    "title": "Excluded from collection",
+    "tabs": {
+      "all": "All members",
+      "excluded": "Excluded from collection",
+      "allShort": "All",
+      "excludedShort": "Excluded"
+    },
+    "tiles": {
+      "creditLabel": "In credit",
+      "creditSub_one": "{{count}} member · the club owes this out",
+      "creditSub_other": "{{count}} members · the club owes this out",
+      "creditNobody": "Nobody",
+      "heldLabel": "Held back from the next run",
+      "heldSub_one": "{{count}} member · owed to the club, not collected",
+      "heldSub_other": "{{count}} members · owed to the club, not collected",
+      "heldNobody": "Nobody",
+      "unavailable": "—"
+    },
+    "count_one": "{{count}} member",
+    "count_other": "{{count}} members",
+    "none": "None",
+    "credit": {
+      "title": "In credit — the club owes them",
+      "note": "These members are never collected from. Pay a refund by hand and record it as a manual settlement.",
+      "empty": "No member is in credit. Nothing to pay back.",
+      "total": "Total outstanding",
+      "columns": {
+        "member": "Member",
+        "balance": "Credit balance"
+      }
+    },
+    "holds": {
+      "title": "On collection hold — the next run will skip them",
+      "note": "A returned direct debit put these members on hold so the next run cannot sweep the bounced amount again and earn a second return fee. Sort out the bank details, then clear the hold.",
+      "empty": "No member is on hold. The next run will collect from everyone with a valid mandate.",
+      "total": "Total held back",
+      "columns": {
+        "member": "Member",
+        "balance": "Held back",
+        "reason": "Why",
+        "heldSince": "Held since",
+        "heldBy": "Held by"
+      },
+      "noReason": "No reason recorded",
+      "unknownAdmin": "—",
+      "clear": "Clear hold",
+      "clearAria": "Clear the collection hold on {{name}}"
+    },
+    "clearDialog": {
+      "title": "Clear the collection hold on {{name}}?",
+      "consequence": "The next collection run will include this member again, for the full {{amount}} currently held back.",
+      "provenance": "{{reason}} · held {{date}} by {{admin}}",
+      "provenanceNoAdmin": "{{reason}} · held {{date}}",
+      "warning": "Check the mandate and the bank details first — a second return costs another fee.",
+      "confirm": "Clear hold"
+    },
+    "errors": {
+      "loadCredit": "The credit balances could not be loaded.",
+      "loadHolds": "The collection holds could not be loaded.",
+      "clearFailed": "The hold could not be cleared."
+    }
   }
 }

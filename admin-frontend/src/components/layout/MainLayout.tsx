@@ -42,7 +42,10 @@ export function MainLayout({ children }: MainLayoutProps) {
     navigate('/login')
   }
 
-  const isActive = (path: string): boolean => location.pathname === path
+  // A sub-route keeps its parent lit: /members/excluded is a tab of Members,
+  // and an unlit sidebar there would read as having left the section.
+  const isActive = (path: string): boolean =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`)
 
   const navItems = [
     { label: t('nav.dashboard'), path: '/dashboard', icon: <HomeIcon size={20} />, testId: 'nav-dashboard' },
