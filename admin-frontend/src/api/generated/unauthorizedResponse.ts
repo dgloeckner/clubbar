@@ -60,6 +60,11 @@ See [ADR-0013](../../adr/0013-audit-logging.md) for details.
 import type { Error } from './error';
 
 /**
- * Not authenticated
+ * Not authenticated. `error` distinguishes why:
+
+- `admin_not_authenticated` — no session, or the account behind it is gone or disabled.
+- `session_expired` — the session passed one of its limits (2h idle, 24h absolute)
+  and was destroyed. Signing in again is the only way forward.
+
  */
 export type UnauthorizedResponse = Error;

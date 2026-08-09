@@ -256,6 +256,50 @@ test.describe('Terminal Devices Management', () => {
   })
 
   /**
+   * Token expiry (#106)
+   *
+   * The seeded "Expired Test Terminal" is the only way to see the expired state
+   * in the UI — no admin action can produce a token that is already past its
+   * lifetime.
+   */
+  test('should flag a terminal whose token has expired', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickTerminalsTab()
+
+    const expiry = await authenticatedSettingsPage.getTerminalTokenExpiry('Expired Test Terminal')
+    expect(expiry).not.toBeNull()
+    await authenticatedSettingsPage.expectTerminalTokenExpiryState('Expired Test Terminal', 'expired')
+    await authenticatedSettingsPage.expectTerminalTokenExpiryBadge('Expired Test Terminal', true)
+  })
+
+  test('should show a plain expiry date for a freshly issued token', async ({ authenticatedSettingsPage }) => {
+    await authenticatedSettingsPage.waitForLoad()
+    await authenticatedSettingsPage.clickTerminalsTab()
+
+    const testData = generateTestTerminal()
+    await authenticatedSettingsPage.clickCreateTerminalButton()
+    await authenticatedSettingsPage.fillCreateTerminalForm(testData)
+
+    const terminalsLoaded = authenticatedSettingsPage.page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/admin/terminals') &&
+        resp.request().method() === 'GET' &&
+        resp.status() === 200,
+    )
+
+    await authenticatedSettingsPage.clickCreateTerminalConfirm()
+    await authenticatedSettingsPage.waitForTokenModal()
+    await authenticatedSettingsPage.closeTokenModal()
+    await terminalsLoaded
+
+    // 90 days out, so no warning badge — just the date the token runs out.
+    const expiry = await authenticatedSettingsPage.getTerminalTokenExpiry(testData.name)
+    expect(expiry).toBeTruthy()
+    await authenticatedSettingsPage.expectTerminalTokenExpiryState(testData.name, 'valid')
+    await authenticatedSettingsPage.expectTerminalTokenExpiryBadge(testData.name, false)
+  })
+
+  /**
    * Test: Cancel create modal
    */
   test('should close create modal when cancel is clicked', async ({ authenticatedSettingsPage }) => {

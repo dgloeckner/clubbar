@@ -129,6 +129,8 @@ erDiagram
         varchar_100 name "Terminal display name"
         varchar_50 terminal_id UK "Configured terminal identifier"
         varchar_255 token_hash "Hashed API token"
+        datetime token_issued_at "When the current token was issued"
+        datetime token_expires_at "When the current token stops authenticating"
         boolean is_active "Terminal enabled"
         datetime last_sync_at "Last successful sync"
         varchar_45 last_sync_ip "IP of last sync"
@@ -477,6 +479,8 @@ Registered POS terminals with API authentication.
 | name | VARCHAR(100) | NOT NULL | Human-readable terminal name (e.g., "Bar-Terminal-1") |
 | terminal_id | VARCHAR(50) | UNIQUE, NOT NULL | Configured terminal identifier (sent in X-Terminal-Id header) |
 | token_hash | VARCHAR(255) | NOT NULL | bcrypt hash of API token (cost >= 12) |
+| token_issued_at | DATETIME | NULL | When the current token was issued; NULL once access is revoked |
+| token_expires_at | DATETIME | NULL | When the current token stops authenticating; NULL once access is revoked |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Terminal enabled for API access |
 | last_sync_at | DATETIME | NULL | Timestamp of last successful sync |
 | last_sync_ip | VARCHAR(45) | NULL | IP address of last sync (IPv4 or IPv6) |
@@ -488,6 +492,12 @@ Registered POS terminals with API authentication.
 - `is_active`
 
 **Token**: 64-character hex string; stored as bcrypt hash; shown once during creation.
+
+**Token lifetime (#106)**: a token authenticates only while
+`token_expires_at > NOW()` — `API_TOKEN_TTL_DAYS` (default 90) after it was
+issued. The check is fail-closed: a row carrying a token hash with no
+`token_expires_at` does not authenticate. Rotating the token restarts both
+columns; revoking clears them along with the hash.
 
 ---
 

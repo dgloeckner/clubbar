@@ -400,7 +400,11 @@ class ServiceFactory implements ContainerInterface
 
     public function getTerminalsService(): TerminalsService
     {
-        return $this->resolve(TerminalsService::class, fn() => new TerminalsService($this->getTerminalsRepository(), $this->getAuditService()));
+        return $this->resolve(TerminalsService::class, fn() => new TerminalsService(
+            $this->getTerminalsRepository(),
+            $this->getAuditService(),
+            $this->config,
+        ));
     }
 
     public function getTransactionsService(): TransactionsService

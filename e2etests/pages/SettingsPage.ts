@@ -918,6 +918,48 @@ export class SettingsPage {
   }
 
   /**
+   * What the terminals table says about a terminal's token lifetime (#106).
+   *
+   * Returns the cell's text, which is the expiry date plus — when the token has
+   * run out or is about to — the badge that says so. `null` if no row carries
+   * that name.
+   */
+  async getTerminalTokenExpiry(name: string): Promise<string | null> {
+    const terminalId = await this.getTerminalIdByName(name)
+    if (!terminalId) return null
+
+    const cell = this.page.getByTestId(`settings-terminal-token-expiry-${terminalId}`)
+    return (await cell.textContent())?.trim() ?? null
+  }
+
+  /**
+   * The token lifetime state the row publishes: `expired`, `expiringSoon`,
+   * `valid`, or `none` when no token is outstanding.
+   *
+   * Asserted on the attribute rather than the badge's label, which is
+   * translated and differs between the German and English UI.
+   */
+  async expectTerminalTokenExpiryState(name: string, state: string): Promise<void> {
+    const terminalId = await this.getTerminalIdByName(name)
+    expect(terminalId, `no terminal row named ${name}`).not.toBeNull()
+    await expect(this.page.getByTestId(`settings-terminal-token-expiry-${terminalId}`)).toHaveAttribute(
+      'data-token-expiry-state',
+      state,
+    )
+  }
+
+  /**
+   * A terminal whose token has run out — or is about to — carries a badge in
+   * the expiry cell; one with a healthy token shows the date alone.
+   */
+  async expectTerminalTokenExpiryBadge(name: string, visible: boolean): Promise<void> {
+    const terminalId = await this.getTerminalIdByName(name)
+    expect(terminalId, `no terminal row named ${name}`).not.toBeNull()
+    const badge = this.page.getByTestId(`settings-terminal-token-expiry-badge-${terminalId}`)
+    await (visible ? expect(badge).toBeVisible() : expect(badge).toHaveCount(0))
+  }
+
+  /**
    * How many rows carry this terminal name. Counting a known name instead of
    * the whole table (Pattern 003) keeps the assertion valid while other workers
    * add rows, and survives a list that is still reloading.
