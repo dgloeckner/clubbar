@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/config/app_router.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
-import 'package:clubbar_terminal/providers/auth_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
@@ -15,7 +14,6 @@ import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import '../test_helpers.dart';
 
-class MockAuthProvider extends Mock implements AuthProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
 class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockCartProvider extends Mock implements CartProvider {}
@@ -25,7 +23,6 @@ class MockSessionController extends Mock implements SessionController {}
 
 void main() {
   group('App Navigation', () {
-    late MockAuthProvider mockAuthProvider;
     late MockMembersProvider mockMembersProvider;
     late MockProductsProvider mockProductsProvider;
     late MockCartProvider mockCartProvider;
@@ -34,7 +31,6 @@ void main() {
     late MockSessionController mockSessionController;
 
     setUp(() {
-      mockAuthProvider = MockAuthProvider();
       mockMembersProvider = MockMembersProvider();
       mockProductsProvider = MockProductsProvider();
       mockCartProvider = MockCartProvider();
@@ -43,10 +39,6 @@ void main() {
       mockSessionController = MockSessionController();
 
       // Setup default mock behaviors
-      when(() => mockAuthProvider.isAuthenticated).thenReturn(true);
-      when(() => mockAuthProvider.addListener(any())).thenReturn(null);
-      when(() => mockAuthProvider.removeListener(any())).thenReturn(null);
-
       when(() => mockMembersProvider.selectedMember).thenReturn(null);
       when(() => mockMembersProvider.addListener(any())).thenReturn(null);
       when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
@@ -79,7 +71,6 @@ void main() {
       await tester.pumpWidget(
         MultiProvider(
           providers: [
-            ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
             ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
             ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
             ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),

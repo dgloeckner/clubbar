@@ -17,6 +17,25 @@ use PDO;
  */
 class DashboardRepository
 {
+    /**
+     * What counts as revenue (#116).
+     *
+     * Revenue is purchases — stornos and payouts are excluded, exactly as
+     * `ReportsService` has always defined it. Before, the revenue sums here took
+     * every transaction type while `countPurchasesBetween()` beside them counted
+     * purchases alone, so a storno moved one figure and not the other and the
+     * Dashboard disagreed with the Reports page for the same period, with
+     * nothing on either screen to say which was authoritative.
+     *
+     * Every revenue query below carries this, so the totals and the counts
+     * always describe the same set of rows. Two consequences worth knowing: a
+     * stornoed purchase still counts, because a storno is a row of its own type
+     * rather than a retraction of the original; and what a member still owes is
+     * a different question, answered by the unsettled balance, which
+     * deliberately sums every type.
+     */
+    private const REVENUE_FILTER = "transaction_type = 'purchase'";
+
     public function __construct(private PDO $db) {}
 
     /**
@@ -25,7 +44,8 @@ class DashboardRepository
     public function sumRevenueSince(string $date): int
     {
         $stmt = $this->db->prepare(
-            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions WHERE occurred_at >= ?'
+            'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions
+              WHERE occurred_at >= ? AND ' . self::REVENUE_FILTER
         );
         $stmt->execute([$date]);
 
@@ -79,7 +99,8 @@ class DashboardRepository
     {
         $stmt = $this->db->prepare(
             'SELECT COALESCE(SUM(amount_cents), 0) FROM transactions
-              WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)'
+              WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
+                AND ' . self::REVENUE_FILTER
         );
         $stmt->execute([$startDate, $endDate]);
 
@@ -104,6 +125,9 @@ class DashboardRepository
     /**
      * Revenue and transaction count per calendar day, ascending.
      *
+     * Same filter as the totals above, so the daily rows sum to
+     * `sumRevenueBetween()` and their counts sum to `countPurchasesBetween()`.
+     *
      * @return list<array<string, mixed>>
      */
     public function findDailyRevenue(string $startDate, string $endDate): array
@@ -114,6 +138,7 @@ class DashboardRepository
                     COUNT(*) as transaction_count
              FROM transactions
              WHERE occurred_at >= ? AND occurred_at < DATE_ADD(?, INTERVAL 1 DAY)
+               AND ' . self::REVENUE_FILTER . '
              GROUP BY DATE(occurred_at)
              ORDER BY date'
         );

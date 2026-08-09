@@ -344,24 +344,6 @@ abstract class AppLocalizations {
   /// **'Inaktiv'**
   String get memberInactive;
 
-  /// Yes label for SEPA status
-  ///
-  /// In de, this message translates to:
-  /// **'Ja'**
-  String get sepaYes;
-
-  /// No label for SEPA status
-  ///
-  /// In de, this message translates to:
-  /// **'Nein'**
-  String get sepaNo;
-
-  /// Greeting message with member name
-  ///
-  /// In de, this message translates to:
-  /// **'Willkommen, {name}'**
-  String welcomeMember(String name);
-
   /// Member owes this amount (open tab)
   ///
   /// In de, this message translates to:
@@ -409,12 +391,6 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Kategorie'**
   String get categoryDefault;
-
-  /// Default product name when translation missing
-  ///
-  /// In de, this message translates to:
-  /// **'Produkt'**
-  String get productDefault;
 
   /// Message when no products in category
   ///
@@ -518,29 +494,11 @@ abstract class AppLocalizations {
   /// **'Laden...'**
   String get loading;
 
-  /// Cancel button label
-  ///
-  /// In de, this message translates to:
-  /// **'Abbrechen'**
-  String get cancel;
-
-  /// Save button label
-  ///
-  /// In de, this message translates to:
-  /// **'Speichern'**
-  String get save;
-
   /// Button to continue shopping
   ///
   /// In de, this message translates to:
   /// **'Weiter einkaufen'**
   String get continueShopping;
-
-  /// Button to scan card
-  ///
-  /// In de, this message translates to:
-  /// **'Chip scannen'**
-  String get scanCard;
 
   /// Error when scanned card is not in database
   ///

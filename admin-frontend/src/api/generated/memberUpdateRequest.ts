@@ -63,8 +63,16 @@ export interface MemberUpdateRequest {
   first_name?: string;
   /** @maxLength 100 */
   last_name?: string;
-  /** @nullable */
+  /**
+   * @maxLength 255
+   * @nullable
+   */
   email?: string | null;
+  /**
+   * @maxLength 20
+   * @nullable
+   */
+  phone?: string | null;
   preferred_language?: string;
   /**
    * @minLength 15

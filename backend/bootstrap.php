@@ -56,21 +56,28 @@ if (!empty($GLOBALS['__SLIM_BASE_PATH'])) {
 // Add routing middleware first
 $app->addRoutingMiddleware();
 
-// Global middleware (outer to inner execution order)
-// Error handler MUST be the outermost middleware to catch routing errors
+// Global middleware. Slim 4 runs middleware LIFO: the most recently added one
+// is outermost and handles the request first, so this list reads inner-to-outer
+// and the routing middleware above ends up innermost.
+//
+// Error handler goes on before the rest so it stays outside routing and every
+// route handler, which is what lets it catch and format their exceptions.
 $app->add($factory->getErrorHandler());
 
-// OAS contract validation for terminal API paths — active in test environment only.
-// Slim 4 adds middleware in FIFO order (first added = outermost = first to handle request).
-// Placing this AFTER getErrorHandler() means it executes inside the error handler:
-// ErrorHandler → TerminalOasValidator → JsonBodyParser → CorsMiddleware → route handler
-// So validation exceptions are caught and formatted by ErrorHandler.
+// OAS contract validation for terminal API paths — active in test environment
+// only. It forwards request-validation failures to the handler and lets a
+// response that breaks terminal.yaml fail the request, which is the point.
 if (getenv('APP_ENV') === 'test') {
     $app->add($factory->getTerminalOasValidator());
 }
 
 $app->add($factory->getJsonBodyParser());
 $app->add($factory->getCorsMiddleware());
+
+// Security headers wrap everything, including the responses ErrorHandler builds
+// itself — those never reach middleware registered inside it. Slim runs the
+// most recently added middleware first, so this stays the last add() in the file.
+$app->add($factory->getSecurityHeaders());
 
 // Register routes
 $routes = require __DIR__ . '/src/routes.php';

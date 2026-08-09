@@ -152,6 +152,40 @@ export function CategoriesPage() {
 
   const mobileSortValue = list.sortValue
 
+  /**
+   * Every path into and out of the modal goes through these three helpers, so
+   * that the five pieces of modal state (mode, selection, names, icon, error)
+   * can never drift apart. The desktop create button used to reset only
+   * `selectedCategory`, which left the modal in "edit" mode with no category
+   * selected — `handleSubmit` then matched neither branch and closed silently
+   * without creating anything (#88).
+   */
+  function openCreateModal() {
+    setModalMode('create')
+    setSelectedCategory(null)
+    setFormData({ de: '', en: '' })
+    setSelectedIcon(null)
+    setFormError(null)
+    setShowModal(true)
+  }
+
+  function openEditModal(category: CategoryRuntime) {
+    setModalMode('edit')
+    setSelectedCategory(category)
+    setFormData({ de: category.names?.de || '', en: category.names?.en || '' })
+    setSelectedIcon(category.icon_name || null)
+    setFormError(null)
+    setShowModal(true)
+  }
+
+  function closeModal() {
+    setShowModal(false)
+    setModalMode('create')
+    setSelectedCategory(null)
+    setFormData({ de: '', en: '' })
+    setSelectedIcon(null)
+    setFormError(null)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -181,12 +215,15 @@ export function CategoriesPage() {
           icon_name: selectedIcon,
         }
         await getProducts().updateCategory(selectedCategory.id, updateData)
+      } else {
+        // Edit mode with no selected category: nothing can be written. Keep the
+        // modal open and say so rather than closing as if the save had worked.
+        setFormError(t('categories.formStateInvalid'))
+        return
       }
 
       // Close modal immediately
-      setShowModal(false)
-      setFormData({ de: '', en: '' })
-      setSelectedIcon(null)
+      closeModal()
 
       // Then reload categories
       await list.reload()
@@ -271,14 +308,7 @@ export function CategoriesPage() {
         {isMobile && (
           <button
             data-testid="categories-create-button"
-            onClick={() => {
-              setSelectedCategory(null)
-              setModalMode('create')
-              setFormData({ de: '', en: '' })
-              setSelectedIcon(null)
-              setFormError(null)
-              setShowModal(true)
-            }}
+            onClick={openCreateModal}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -395,14 +425,7 @@ export function CategoriesPage() {
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
                           data-testid={`categories-table-action-edit-${category.id}`}
-                          onClick={() => {
-                            setModalMode('edit')
-                            setSelectedCategory(category)
-                            setFormData({ de: category.names?.de || '', en: category.names?.en || '' })
-                            setSelectedIcon(category.icon_name || null)
-                            setFormError(null)
-                            setShowModal(true)
-                          }}
+                          onClick={() => openEditModal(category)}
                           style={{
                             display: 'flex', alignItems: 'center', gap: '4px',
                             padding: '6px 12px', borderRadius: '6px', border: 'none',
@@ -480,10 +503,7 @@ export function CategoriesPage() {
 
               <button
                 data-testid="categories-create-button"
-                onClick={() => {
-                  setSelectedCategory(null)
-                  setShowModal(true)
-                }}
+                onClick={openCreateModal}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -584,14 +604,7 @@ export function CategoriesPage() {
                       <td style={{ padding: tableSpacing.cellPadding, textAlign: 'center' }}>
                         <button
                           data-testid={`categories-table-action-edit-${category.id}`}
-                          onClick={() => {
-                            setModalMode('edit')
-                            setSelectedCategory(category)
-                            setFormData({ de: category.names?.de || '', en: category.names?.en || '' })
-                            setSelectedIcon(category.icon_name || null)
-                            setFormError(null)
-                            setShowModal(true)
-                          }}
+                          onClick={() => openEditModal(category)}
                           style={{
                             background: 'transparent',
                             border: 'none',
@@ -661,7 +674,7 @@ export function CategoriesPage() {
             justifyContent: 'center',
             zIndex: 1100,
           }}
-          onClick={() => setShowModal(false)}
+          onClick={closeModal}
         >
           <div
             data-testid="categories-form-modal-content"
@@ -724,7 +737,7 @@ export function CategoriesPage() {
               <button
                 data-testid="categories-form-cancel-button"
                 type="button"
-                onClick={() => setShowModal(false)}
+                onClick={closeModal}
                 style={{
                   padding: `${theme.spacing.md} ${theme.spacing.lg}`,
                   background: 'transparent',

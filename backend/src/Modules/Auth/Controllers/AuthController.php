@@ -391,11 +391,21 @@ class AuthController
         $body = $request->getParsedBody() ?? [];
 
         if (!$this->validator->validate($body, [
-            'email' => ['nullable', 'email'],
+            'email' => ['nullable', 'email', 'max:255'],
             'display_name' => ['nullable', 'string', 'max:255'],
             'locale' => ['nullable', 'in:de,en'],
         ])) {
             return $this->json($response, ['error' => 'validation_failed', 'messages' => $this->validator->errors()], 422);
+        }
+
+        // Same guard the admin-users endpoint applies: `admin_users.email` is
+        // UNIQUE, and without this a duplicate reached the constraint and came
+        // back as a 500 instead of a 422 naming the field (#117).
+        if (isset($body['email']) && $this->adminUsersService->emailTakenByAnother($body['email'], $adminId)) {
+            return $this->json($response, [
+                'error' => 'validation_failed',
+                'messages' => ['email' => ['Email already exists']],
+            ], 422);
         }
 
         $admin = $this->adminUsersService->updateAdminUser($adminId, $body, $adminId);

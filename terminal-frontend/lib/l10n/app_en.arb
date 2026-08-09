@@ -46,10 +46,7 @@
   "accountStatus": "Account Status",
   "memberActive": "Active",
   "memberInactive": "Inactive",
-  "sepaYes": "Yes",
-  "sepaNo": "No",
 
-  "welcomeMember": "Welcome, {name}",
   "balanceOpenTab": "Open tab: {amount}",
   "balanceCredit": "Credit: {amount}",
   "viewDetails": "Details",
@@ -60,7 +57,6 @@
   "retry": "Retry",
 
   "categoryDefault": "Category",
-  "productDefault": "Product",
   "noProducts": "No products available",
   "noCategories": "No categories available",
   "noProductsInCategory": "No products in this category",
@@ -80,10 +76,7 @@
   "errorDetails": "Error details",
 
   "loading": "Loading...",
-  "cancel": "Cancel",
-  "save": "Save",
   "continueShopping": "Continue Shopping",
-  "scanCard": "Scan Token",
 
   "rfidErrorUnknownCard": "We don't know this chip — please register at the bar",
   "rfidErrorAccountInactive": "Your account is inactive — please see the bar staff",

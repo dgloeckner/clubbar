@@ -12,17 +12,64 @@ class TotpService
     /** AES-256 takes a 32-byte key, which is 64 hex characters. */
     private const KEY_BYTES = 32;
 
+    /**
+     * Keys that appear verbatim in this public repository — in the compose
+     * files, in db/seed.sql, and formerly in .env.example. They are fine as
+     * fixtures and worthless as secrets: `cp .env.example .env` is the
+     * documented self-hosting flow, so an operator could reach production with
+     * a key any reader of the repo already has (#107).
+     */
+    private const PUBLISHED_KEYS = [
+        '0000000000000000000000000000000000000000000000000000000000000001',
+    ];
+
+    /**
+     * APP_ENV values where a published key is the intended setup: the seeded
+     * test admin's secret is encrypted with it, so E2E and unit runs need it.
+     * Anything else — including an unset APP_ENV, which reads as production —
+     * is a deployment.
+     */
+    private const DEVELOPMENT_ENVIRONMENTS = ['local', 'dev', 'development', 'test', 'testing'];
+
     private TwoFactorAuth $tfa;
     private string $encryptionKey;
 
     public function __construct()
     {
-        $issuer = Env::get('APP_ENV', 'production') === 'production' ? 'Ruderbar' : 'Ruderbar (dev)';
+        $appEnv = strtolower(Env::get('APP_ENV', 'production'));
+
         $this->tfa = new TwoFactorAuth(
-            issuer: $issuer,
+            issuer: $appEnv === 'production' ? 'Ruderbar' : 'Ruderbar (dev)',
             qrcodeprovider: new ChillerlanQrProvider(),
         );
-        $this->encryptionKey = self::decodeKey(Env::get('TOTP_ENCRYPTION_KEY'));
+
+        $keyHex = Env::get('TOTP_ENCRYPTION_KEY');
+        self::rejectPublishedKey($keyHex, $appEnv);
+        $this->encryptionKey = self::decodeKey($keyHex);
+    }
+
+    /**
+     * Refuse to start a deployment on a key from the repository.
+     *
+     * This is deliberately fatal rather than a log line. The key protects every
+     * admin's TOTP secret at rest, and its whole job is to make a leaked
+     * database dump useless — with a published key a dump yields working second
+     * factors, and nothing about the running system looks wrong. A warning in a
+     * log nobody reads would not change that.
+     */
+    private static function rejectPublishedKey(string $keyHex, string $appEnv): void
+    {
+        if (in_array($appEnv, self::DEVELOPMENT_ENVIRONMENTS, true)) {
+            return;
+        }
+
+        if (in_array(strtolower($keyHex), self::PUBLISHED_KEYS, true)) {
+            throw new \RuntimeException(
+                'TOTP_ENCRYPTION_KEY is the development key published in this repository, so anyone '
+                . 'who obtains the database can decrypt every admin TOTP secret. Generate a key of '
+                . 'your own with: openssl rand -hex 32'
+            );
+        }
     }
 
     /**

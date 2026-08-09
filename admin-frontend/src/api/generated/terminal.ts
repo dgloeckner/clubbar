@@ -67,6 +67,18 @@ export interface Terminal {
   last_sync_at?: string | null;
   /** @nullable */
   last_transaction_at?: string | null;
+  /**
+   * When the terminal's current API token was issued. Null once access has been revoked, since no token is outstanding.
+
+   * @nullable
+   */
+  token_issued_at?: string | null;
+  /**
+   * When the current API token stops authenticating. Rotating the token issues a new one with a full `API_TOKEN_TTL_DAYS` lifetime (90 days by default). A terminal whose token has expired is refused with `terminal_token_expired` until it is rotated.
+
+   * @nullable
+   */
+  token_expires_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

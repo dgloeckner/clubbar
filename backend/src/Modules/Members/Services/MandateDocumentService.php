@@ -11,6 +11,7 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Logging\Logger;
 use App\Shared\Services\AuditService;
+use App\Shared\Utils\MimeSniffer;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Psr\Http\Message\UploadedFileInterface;
@@ -44,12 +45,6 @@ class MandateDocumentService
         UploadedFileInterface $uploadedFile,
         ?string             $adminId,
     ): MandateDocumentDto {
-        $mimeType = $uploadedFile->getClientMediaType() ?? '';
-        if (!in_array($mimeType, self::ALLOWED_MIME_TYPES, true)) {
-            throw new \InvalidArgumentException(
-                "Unsupported file type '{$mimeType}'. Allowed: JPEG, PNG, PDF."
-            );
-        }
         if (($uploadedFile->getSize() ?? 0) > self::MAX_FILE_SIZE) {
             throw new \InvalidArgumentException('File exceeds the 10 MB size limit.');
         }
@@ -57,6 +52,19 @@ class MandateDocumentService
         $stream = $uploadedFile->getStream();
         $stream->rewind();
         $originalBytes = (string) $stream->getContents(); // keep original for LLM extraction
+
+        // The type comes from the bytes, never from the multipart Content-Type
+        // header: that header is written by the client and an attacker sets it
+        // freely. A file declared `application/pdf` skips the dompdf re-render
+        // below and is written to disk verbatim, so trusting the declaration is
+        // what lets arbitrary content into the mandate store — and back out
+        // again through the download endpoint (#107).
+        $mimeType = MimeSniffer::detect($originalBytes);
+        if (!in_array($mimeType, self::ALLOWED_MIME_TYPES, true)) {
+            throw new \InvalidArgumentException(
+                "Unsupported file type '{$mimeType}'. Allowed: JPEG, PNG, PDF."
+            );
+        }
 
         $content = $originalBytes;
         if ($mimeType !== 'application/pdf') {

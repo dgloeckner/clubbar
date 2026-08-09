@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:clubbar_terminal/screens/idle_waiting_screen.dart';
 import 'package:clubbar_terminal/screens/product_selection_screen.dart';
-import 'package:clubbar_terminal/screens/member_details_screen.dart';
 import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
 import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
@@ -30,7 +29,6 @@ GoRouter createAppRouter({
       if (selectedMember != null &&
           !state.matchedLocation.startsWith('/products') &&
           !state.matchedLocation.startsWith('/cart') &&
-          !state.matchedLocation.startsWith('/member-details') &&
           !state.matchedLocation.startsWith('/confirmation')) {
         return '/products';
       }
@@ -38,8 +36,7 @@ GoRouter createAppRouter({
       // If no member selected and on products/cart, return to idle
       if (selectedMember == null &&
           (state.matchedLocation.startsWith('/products') ||
-              state.matchedLocation.startsWith('/cart') ||
-              state.matchedLocation.startsWith('/member-details'))) {
+              state.matchedLocation.startsWith('/cart'))) {
         return '/idle';
       }
 
@@ -69,16 +66,6 @@ GoRouter createAppRouter({
             pageBuilder: (context, state) => CustomTransitionPage(
               key: state.pageKey,
               child: const ProductSelectionScreen(),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-            ),
-          ),
-          GoRoute(
-            path: '/member-details',
-            pageBuilder: (context, state) => CustomTransitionPage(
-              key: state.pageKey,
-              child: const MemberDetailsScreen(),
               transitionsBuilder: (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
               },

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react'
 import imageCompression from 'browser-image-compression'
 import heic2any from 'heic2any'
-import { MandateDocumentInfo, openMandateDocument } from '../api/mandateDocument'
+import { MandateDocumentInfo, downloadMandateDocument } from '../api/mandateDocument'
 import { getMembers } from '../api/generated/members/members'
 import type { ExtractionResult } from '../api/generated/extractionResult'
 import { useTranslation } from 'react-i18next'
@@ -123,6 +123,15 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
     setSelectedFile(null)
     setError(null)
     setState(mandateDoc ? 'stored' : 'idle')
+  }
+
+  async function handleDownload() {
+    setError(null)
+    try {
+      await downloadMandateDocument(memberId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('mandateDocument.downloadError'))
+    }
   }
 
   function handleReplace() {
@@ -293,7 +302,7 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
           </div>
           <div style={{ display: 'flex', gap: theme.spacing.sm }}>
             <button
-              onClick={() => openMandateDocument(memberId)}
+              onClick={handleDownload}
               style={{
                 flex: 1,
                 padding: theme.spacing.sm,
@@ -306,7 +315,7 @@ export function MandateDocumentSection({ memberId, initialDocument, onExtraction
               }}
               data-testid="mandate-document-view-btn"
             >
-              👁 {t('mandateDocument.view')}
+              ⬇ {t('mandateDocument.download')}
             </button>
             <button
               onClick={handleReplace}

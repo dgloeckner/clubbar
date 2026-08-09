@@ -27,7 +27,7 @@ class AppConfig
         $this->debug                = filter_var(Env::get('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN);
         $this->sessionMaxAge        = (int) Env::get('SESSION_MAX_AGE', '7200');
         $this->sessionRegenInterval = (int) Env::get('SESSION_REGEN_INTERVAL', '900');
-        $this->tokenTtlDays         = (int) Env::get('API_TOKEN_TTL_DAYS', '90');
+        $this->tokenTtlDays         = self::readTokenTtlDays();
         $this->logDir               = __DIR__ . '/../../../logs';
         $this->installKey           = Env::get('INSTALL_KEY', '');
         $this->appUrl               = Env::get('APP_URL', 'http://localhost:8080');
@@ -104,5 +104,20 @@ class AppConfig
         }
 
         return ((int) ($_SERVER['SERVER_PORT'] ?? 0)) === 443;
+    }
+
+    /**
+     * Lifetime of a terminal API token, in days (#106).
+     *
+     * A zero or negative value is not honoured: it would either mint tokens
+     * that are already expired or, read the other way, invite "0 = never" —
+     * and "never" is the state this setting exists to end. The default stands
+     * in instead.
+     */
+    private static function readTokenTtlDays(): int
+    {
+        $days = (int) Env::get('API_TOKEN_TTL_DAYS', '90');
+
+        return $days > 0 ? $days : 90;
     }
 }

@@ -36,8 +36,10 @@ export class CategoriesPage extends BasePage {
   private readonly iconSelectDropdown = () => this.page.getByTestId('categories-form-icon-select-dropdown')
   private readonly iconSelectOption = (iconName: string) =>
     this.page.getByTestId(`categories-form-icon-select-option-${iconName}`)
+  private readonly formTitle = () => this.page.getByTestId('categories-form-title')
   private readonly formSubmitBtn = () => this.page.getByTestId('categories-form-submit-button')
   private readonly formCancelBtn = () => this.page.getByTestId('categories-form-cancel-button')
+  private readonly formError = () => this.page.getByTestId('categories-form-error')
 
   // Language tabs
   private readonly languageTab = (lang: string) => this.page.getByTestId(`categories-form-name-tab-${lang}`)
@@ -216,6 +218,22 @@ export class CategoriesPage extends BasePage {
 
     // Click clear option
     await this.page.getByTestId('categories-form-icon-select-option-clear').click()
+  }
+
+  /**
+   * The modal heading, which reflects the modal mode ("Create ..." vs "Edit ...").
+   * Used to prove the create button opens the modal in create mode (#88).
+   */
+  async getFormTitle(): Promise<string> {
+    return ((await this.formTitle().textContent()) || '').trim()
+  }
+
+  /**
+   * The in-modal error banner, or null when the form shows no error.
+   */
+  async getFormError(): Promise<string | null> {
+    if ((await this.formError().count()) === 0) return null
+    return (await this.formError().textContent())?.trim() ?? null
   }
 
   async getSelectedIconName(): Promise<string | null> {

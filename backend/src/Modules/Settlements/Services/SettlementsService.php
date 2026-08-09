@@ -578,12 +578,32 @@ class SettlementsService
         return array_values($memberData);
     }
 
-    public function markExported(string $settlementId, string $adminUserId): bool
+    /**
+     * Record that a pain.008 file was generated for this settlement.
+     *
+     * @param array<string, mixed> $exportSummary What the file actually
+     *        collects and whom it left out — {@see SepaExportResultDto::toAuditSummary()}.
+     *        It goes into the audit entry because the HTTP response carrying
+     *        it is a file download the browser saves and forgets, and #114 is
+     *        precisely the story of an omission with nowhere to be read later.
+     *
+     * @throws NotFoundException 404 when the settlement does not exist.
+     * @throws BusinessRuleException 409 when it was cancelled.
+     */
+    public function markExported(string $settlementId, string $adminUserId, array $exportSummary = []): bool
     {
+        // An unknown id used to write an audit entry claiming an export
+        // happened, for a settlement that was never there — the UPDATE matched
+        // no row and said nothing, because PDO::execute() reports the statement
+        // ran, not that it changed anything (#114).
+        $settlement = $this->settlementsRepository->findById($settlementId);
+        if ($settlement === null) {
+            throw NotFoundException::forResource('Settlement', $settlementId);
+        }
+
         // Stamping a cancelled settlement as exported would make it look like a
         // file went out for a run that collects nothing (#114, #142 §5).
-        $settlement = $this->settlementsRepository->findById($settlementId);
-        if ($settlement !== null && !empty($settlement['is_cancelled'])) {
+        if (!empty($settlement['is_cancelled'])) {
             throw new BusinessRuleException(
                 sprintf('Settlement %s was cancelled and cannot be exported to SEPA', $settlementId)
             );
@@ -595,7 +615,7 @@ class SettlementsService
             action: AuditAction::SETTLEMENT_EXPORT,
             entityType: EntityType::SETTLEMENT,
             entityId: $settlementId,
-            newValues: ['exported_at' => date('Y-m-d H:i:s')],
+            newValues: ['exported_at' => date('Y-m-d H:i:s')] + $exportSummary,
             adminUserId: $adminUserId,
         );
 

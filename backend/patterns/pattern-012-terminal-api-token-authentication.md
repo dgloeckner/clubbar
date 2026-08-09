@@ -15,7 +15,7 @@ The Club Bar system includes offline-capable Terminal devices (Electron POS) tha
 **Key Principles (ADR-0015)**:
 1. **Separation of concerns**: Terminals authenticate as devices; members are identified by RFID (not authentication)
 2. **Device-level tokens**: One API token per terminal device
-3. **Long-lived tokens**: No automatic refresh; manual rotation by admin
+3. **Expiring tokens**: A token lives `API_TOKEN_TTL_DAYS` (default 90) from issue; there is no automatic refresh, an admin rotates it (#106)
 4. **Revocable**: Admin can revoke token instantly; terminal gets 401 on next sync
 
 ---
@@ -30,7 +30,7 @@ The Club Bar system includes offline-capable Terminal devices (Electron POS) tha
 - **Storage**:
   - Server: SHA-256 hash (never plaintext)
   - Terminal: Local config file (outside app bundle)
-- **Lifetime**: Long-lived; rotated manually via admin panel
+- **Lifetime**: `API_TOKEN_TTL_DAYS` from issue (default 90 days); rotated manually via admin panel
 - **Scope**: One token per terminal device
 
 #### Why SHA-256 and not bcrypt
@@ -167,6 +167,15 @@ class TerminalTokenAuth implements MiddlewareInterface
         $terminal = $this->findTerminalByToken($token);
 
         if (!$terminal) {
+            // The repository refuses an expired token as firmly as an unknown
+            // one; this second lookup only decides which 401 to answer with.
+            if ($this->isExpiredToken($token)) {
+                return $this->unauthorized(
+                    'terminal_token_expired',
+                    'Terminal token has expired. Rotate the token in the admin panel to issue a new one.'
+                );
+            }
+
             return $this->unauthorized('invalid_terminal_token', 'Invalid terminal token');
         }
 
@@ -198,6 +207,12 @@ class TerminalTokenAuth implements MiddlewareInterface
     {
         $sha256 = TokenService::hashToken($plainToken);
         return $this->terminalsRepository->findByTokenHash($sha256);
+    }
+
+    private function isExpiredToken(string $plainToken): bool
+    {
+        $sha256 = TokenService::hashToken($plainToken);
+        return $this->terminalsRepository->findExpiredByTokenHash($sha256) !== null;
     }
 
     /**
@@ -447,6 +462,14 @@ final class AdminController
    - No timing leaks about token validity
    - Safe against timing attacks
 
+6. **Bounded token lifetime** ✓ (#106)
+   - `token_expires_at` is set when a token is issued and enforced by
+     `TerminalsRepository::findByTokenHash()`, not by the middleware, so no
+     caller can authenticate a terminal without the check
+   - Fail-closed: a row with a token hash and no expiry does not authenticate
+   - A token lifted from a decommissioned or stolen device stops working on its
+     own, without waiting for an admin to notice that one terminal
+
 ### What This Pattern Does NOT Provide
 
 1. **Token refresh** ✗
@@ -454,12 +477,7 @@ final class AdminController
    - Rotation is manual via admin panel
    - No automatic refresh mechanism
 
-2. **Token expiration** ✗
-   - Tokens don't expire automatically
-   - Admin must rotate periodically (policy decision)
-   - Use terminal last-sync timestamp to detect stale terminals
-
-3. **Token versioning** ✗
+2. **Token versioning** ✗
    - No concept of "revisions" or "generations"
    - Rotation creates new token; old one is invalid
 
@@ -476,6 +494,8 @@ CREATE TABLE terminals (
 
     -- Authentication
     api_token_hash VARCHAR(255) NULLABLE COMMENT 'SHA-256 hash of API token (never plaintext)',
+    token_issued_at DATETIME NULLABLE COMMENT 'When the current token was issued',
+    token_expires_at DATETIME NULLABLE COMMENT 'After this instant the token no longer authenticates (#106)',
     last_sync_at TIMESTAMP NULLABLE COMMENT 'Last successful sync request timestamp',
     is_active BOOLEAN DEFAULT TRUE COMMENT 'False = token revoked, terminal cannot sync',
 
@@ -513,6 +533,14 @@ Terminal application stores token in local config file (outside app bundle):
 {
     "error": "unauthorized",
     "message": "Invalid or revoked terminal token"
+}
+
+// 401 Unauthorized - Token past its lifetime (#106). Distinct from an unknown
+// token so a terminal that simply aged out is not mistaken for a misconfigured
+// one; an admin rotates it to issue a new one.
+{
+    "error": "terminal_token_expired",
+    "message": "Terminal token has expired. Rotate the token in the admin panel to issue a new one."
 }
 
 // 401 Unauthorized - Inactive Terminal

@@ -54,13 +54,35 @@ VALUES
 -- ---------------------------------------------------------------------------
 -- Test terminal
 -- ---------------------------------------------------------------------------
-INSERT IGNORE INTO terminals (id, name, device_id, api_token_hash, is_active, created_at, updated_at)
+INSERT IGNORE INTO terminals (id, name, device_id, api_token_hash, token_issued_at, token_expires_at, is_active, created_at, updated_at)
 VALUES (
     '44e4567-e89b-12d3-a456-426614174000',
     'Test Terminal',
     'test-device-001',
     'f88cf6afb8a2a7e19112a34a967c32d6e672dfbaec2809c82be6e970b550e1ae',
+    NOW(),
+    NOW() + INTERVAL 90 DAY,
     1,
     NOW(),
+    NOW()
+);
+
+-- ---------------------------------------------------------------------------
+-- Expired test terminal (#106)
+-- ---------------------------------------------------------------------------
+-- Its token is well-formed, its terminal is active, and its lifetime ran out
+-- yesterday: the one state that cannot be produced through the API, and the
+-- one the expiry check exists for. E2E asserts it is refused with
+-- `terminal_token_expired` — see e2etests/config/test-credentials.ts.
+INSERT IGNORE INTO terminals (id, name, device_id, api_token_hash, token_issued_at, token_expires_at, is_active, created_at, updated_at)
+VALUES (
+    '44e4567-e89b-12d3-a456-426614174001',
+    'Expired Test Terminal',
+    'test-device-expired-001',
+    SHA2('expired-terminal-token-do-not-use-in-production-9z8y7x6w5v4u', 256),
+    NOW() - INTERVAL 91 DAY,
+    NOW() - INTERVAL 1 DAY,
+    1,
+    NOW() - INTERVAL 91 DAY,
     NOW()
 );

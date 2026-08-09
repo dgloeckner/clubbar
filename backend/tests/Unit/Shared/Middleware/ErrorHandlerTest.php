@@ -27,9 +27,9 @@ use Slim\Psr7\Response;
  */
 class ErrorHandlerTest extends TestCase
 {
-    private function handle(\Throwable $thrown): ResponseInterface
+    private function handle(\Throwable $thrown, bool $debug = false): ResponseInterface
     {
-        $handler = new ErrorHandler(new Logger(sys_get_temp_dir() . '/clubbar-errorhandler-test'), debug: false);
+        $handler = new ErrorHandler(new Logger(sys_get_temp_dir() . '/clubbar-errorhandler-test'), debug: $debug);
 
         $next = new class ($thrown) implements RequestHandlerInterface {
             public function __construct(private \Throwable $thrown) {}
@@ -112,5 +112,72 @@ class ErrorHandlerTest extends TestCase
 
         $this->assertSame(500, $response->getStatusCode());
         $this->assertSame('internal_error', $this->decode($response)['error']);
+    }
+
+    // ── What a 500 is allowed to say (#107) ────────────────
+    //
+    // The message of an unhandled throwable is written by whatever blew up,
+    // not by us. A PDOException in particular spells out the SQLSTATE, the
+    // table and the column — `Duplicate entry 'abc' for key members.card_uid`
+    // hands a caller probing the API a free schema map, and can echo back a
+    // fragment of another member's data embedded in the constraint message.
+    // The full text is already in the log; the response gets a fixed sentence.
+
+    public function test_a_500_does_not_echo_the_exception_message(): void
+    {
+        $response = $this->handle(new \PDOException(
+            "SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'ABC123' for key 'members.card_uid'"
+        ));
+
+        $body = $this->decode($response);
+        $this->assertSame(500, $response->getStatusCode());
+        $this->assertSame('internal_error', $body['error']);
+        $this->assertStringNotContainsString('SQLSTATE', $body['message']);
+        $this->assertStringNotContainsString('card_uid', $body['message']);
+        $this->assertStringNotContainsString('ABC123', $body['message']);
+        $this->assertNotSame('', $body['message']);
+    }
+
+    public function test_the_generic_500_message_is_the_same_whatever_failed(): void
+    {
+        $first  = $this->decode($this->handle(new \RuntimeException('connection refused')));
+        $second = $this->decode($this->handle(new \LogicException('array key missing')));
+
+        $this->assertSame($first['message'], $second['message']);
+    }
+
+    public function test_debug_mode_still_shows_the_real_500_message(): void
+    {
+        $response = $this->handle(new \RuntimeException('boom'), debug: true);
+
+        $body = $this->decode($response);
+        $this->assertSame('boom', $body['message']);
+        $this->assertArrayHasKey('trace', $body);
+    }
+
+    /**
+     * Only 500 is muted. The other statuses on this branch carry messages the
+     * caller is meant to read — Slim's own "Not found", and the
+     * InvalidArgumentException a service raises for a rejected upload, which
+     * the mandate form renders next to the field.
+     */
+    public function test_a_422_still_reports_why_the_input_was_rejected(): void
+    {
+        $response = $this->handle(new \InvalidArgumentException("Unsupported file type 'text/html'."));
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame("Unsupported file type 'text/html'.", $this->decode($response)['message']);
+    }
+
+    public function test_a_slim_404_still_reports_its_own_message(): void
+    {
+        $notFound = new \Slim\Exception\HttpNotFoundException(
+            (new ServerRequestFactory())->createServerRequest('GET', '/api/nope')
+        );
+
+        $response = $this->handle($notFound);
+
+        $this->assertSame(404, $response->getStatusCode());
+        $this->assertSame($notFound->getMessage(), $this->decode($response)['message']);
     }
 }

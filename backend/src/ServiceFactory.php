@@ -89,6 +89,7 @@ use App\Shared\Middleware\CsrfMiddleware;
 use App\Shared\Middleware\ErrorHandler;
 use App\Shared\Middleware\JsonBodyParser;
 use App\Shared\Middleware\RateLimitMiddleware;
+use App\Shared\Middleware\SecurityHeaders;
 use App\Shared\Middleware\TerminalOasValidator;
 use League\OpenAPIValidation\PSR15\ValidationMiddlewareBuilder;
 
@@ -158,6 +159,7 @@ class ServiceFactory implements ContainerInterface
         JsonBodyParser::class => 'getJsonBodyParser',
         ErrorHandler::class => 'getErrorHandler',
         RateLimitMiddleware::class => 'getRateLimitMiddleware',
+        SecurityHeaders::class => 'getSecurityHeaders',
     ];
 
     public function __construct(
@@ -363,7 +365,13 @@ class ServiceFactory implements ContainerInterface
 
     public function getSepaExportService(): SepaExportService
     {
-        return $this->resolve(SepaExportService::class, fn() => new SepaExportService($this->getSepaConfigRepository(), $this->getMembersRepository(), $this->getSettlementsRepository()));
+        return $this->resolve(SepaExportService::class, fn() => new SepaExportService(
+            $this->getSepaConfigRepository(),
+            $this->getMembersRepository(),
+            $this->getSettlementsRepository(),
+            $this->getSettlementReversalsRepository(),
+            $this->getLogger(),
+        ));
     }
 
     public function getSettlementsService(): SettlementsService
@@ -400,7 +408,11 @@ class ServiceFactory implements ContainerInterface
 
     public function getTerminalsService(): TerminalsService
     {
-        return $this->resolve(TerminalsService::class, fn() => new TerminalsService($this->getTerminalsRepository(), $this->getAuditService()));
+        return $this->resolve(TerminalsService::class, fn() => new TerminalsService(
+            $this->getTerminalsRepository(),
+            $this->getAuditService(),
+            $this->config,
+        ));
     }
 
     public function getTransactionsService(): TransactionsService
@@ -445,6 +457,11 @@ class ServiceFactory implements ContainerInterface
     public function getErrorHandler(): ErrorHandler
     {
         return $this->resolve(ErrorHandler::class, fn() => new ErrorHandler($this->logger, $this->config->debug));
+    }
+
+    public function getSecurityHeaders(): SecurityHeaders
+    {
+        return $this->resolve(SecurityHeaders::class, fn() => new SecurityHeaders());
     }
 
     /**
@@ -594,7 +611,7 @@ class ServiceFactory implements ContainerInterface
 
     public function getAdminUsersAdminController(): AdminUsersAdminController
     {
-        return $this->resolve(AdminUsersAdminController::class, fn() => new AdminUsersAdminController($this->getAdminUsersService(), $this->getAdminUsersRepository(), $this->getValidator()));
+        return $this->resolve(AdminUsersAdminController::class, fn() => new AdminUsersAdminController($this->getAdminUsersService(), $this->getValidator()));
     }
 
     public function getAuditLogService(): AuditLogService

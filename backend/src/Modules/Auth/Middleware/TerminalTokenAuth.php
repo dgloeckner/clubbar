@@ -39,6 +39,18 @@ class TerminalTokenAuth implements MiddlewareInterface
         $terminal = $this->findTerminalByToken($token);
 
         if (!$terminal) {
+            // A token that was valid until its lifetime ran out gets its own
+            // answer (#106): the terminal is not misconfigured, it needs an
+            // admin to rotate it. Nothing is disclosed to a caller that does
+            // not already hold the token.
+            if ($this->isExpiredToken($token)) {
+                return $this->unauthorized(
+                    $request,
+                    'terminal_token_expired',
+                    'Terminal token has expired. Rotate the token in the admin panel to issue a new one.'
+                );
+            }
+
             return $this->unauthorized($request, 'invalid_terminal_token', 'Invalid terminal token');
         }
 
@@ -57,9 +69,17 @@ class TerminalTokenAuth implements MiddlewareInterface
 
     private function findTerminalByToken(string $token): ?array
     {
-        // Direct SHA256 lookup: O(1) DB lookup, no per-terminal iteration
+        // Direct SHA256 lookup: O(1) DB lookup, no per-terminal iteration.
+        // The repository, not this middleware, refuses an expired token — see
+        // TerminalsRepository::findByTokenHash().
         $sha256 = TokenService::hashToken($token);
         return $this->terminalsRepository->findByTokenHash($sha256);
+    }
+
+    private function isExpiredToken(string $token): bool
+    {
+        $sha256 = TokenService::hashToken($token);
+        return $this->terminalsRepository->findExpiredByTokenHash($sha256) !== null;
     }
 
     private function unauthorized(ServerRequestInterface $request, string $code, string $message): ResponseInterface

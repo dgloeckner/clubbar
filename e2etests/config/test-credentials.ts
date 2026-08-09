@@ -27,6 +27,15 @@ export const TEST_CREDENTIALS = {
     name: 'Test Terminal',
   },
 
+  // Terminal whose token lifetime already ran out (#106). Active terminal,
+  // well-formed token, `token_expires_at` in the past — a state the API cannot
+  // produce, so it is seeded. Must match backend/db/seed.sql.
+  expiredTerminal: {
+    token: 'expired-terminal-token-do-not-use-in-production-9z8y7x6w5v4u',
+    deviceId: 'test-device-expired-001',
+    name: 'Expired Test Terminal',
+  },
+
   // TOTP secrets for two-factor authentication tests
   totp: {
     // Pre-enrolled test admin TOTP secret (base32). Matches the AES-encrypted value

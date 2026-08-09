@@ -1,0 +1,31 @@
+# Docker Hub images this project pulls, and which are therefore mirrored into
+# GHCR (see scripts/mirror-images.sh).
+#
+# Why: anonymous Docker Hub pulls are rate limited per source IP. A cloud
+# session shares its egress IP with every other session on the same host, so
+# several agents starting the stack at once exhaust the budget and every pull
+# after that fails with "429 Too Many Requests" — for hours, and with no way to
+# wait it out from inside the session. GHCR has no such limit for public
+# packages, so a mirror under our own namespace is a registry we cannot be
+# throttled off.
+#
+# Format: one upstream reference per line, `#` starts a comment.
+# The mirror name is the last path segment plus the same tag, so
+# `webdevops/php-apache:8.3` mirrors to `<namespace>/php-apache:8.3`.
+# Namespace: $CLUBBAR_MIRROR_NS (default ghcr.io/dgloeckner).
+#
+# mcr.microsoft.com/playwright is deliberately absent: Microsoft's registry is
+# not rate limited, so mirroring it would only add a copy to keep fresh.
+
+# docker-compose.yml: database
+mariadb:10.11
+
+# docker-compose.yml: backend
+webdevops/php-apache:8.3
+
+# docker-compose.yml: terminal-frontend (profile: frontend)
+node:20-alpine
+
+# docker/admin-frontend.Dockerfile: builder stage is node:20-alpine (above),
+# serving stage is httpd
+httpd:2.4-alpine
