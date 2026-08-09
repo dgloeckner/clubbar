@@ -27,7 +27,7 @@ import axios from 'axios'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
-import { ConfirmDialog } from '../components/modals/ConfirmDialog'
+import { UndoSettlementDialog } from '../components/modals/UndoSettlementDialog'
 import { useFormatters } from '../hooks/useFormatters'
 import { PeriodPicker } from '../components/forms/PeriodPicker'
 import { PillFilter, type PillFilterOption } from '../components/forms/PillFilter'
@@ -67,6 +67,20 @@ function getSettlementStatus(settlement: SettlementListItemExtended): 'active' |
   if (settlement.is_cancelled) return 'cancelled'
   if (settlement.exported_at !== null && settlement.exported_at !== undefined) return 'exported'
   return 'active'
+}
+
+/**
+ * The Undo button's colour. Red says "this undoes a live run"; the muted stone
+ * says "the gate is shut" — the button still opens the dialog, which states
+ * the backend's reason, but it is not dressed as a destructive action (#127).
+ */
+function undoButtonColor(settlement: SettlementListItemExtended): string {
+  if (settlement.is_cancelled) return '#6b7280'
+  return settlement.is_cancellable === false ? '#78716c' : '#ef4444'
+}
+
+function undoButtonHoverColor(settlement: SettlementListItemExtended): string {
+  return settlement.is_cancellable === false ? '#57534e' : '#dc2626'
 }
 
 /**
@@ -158,8 +172,9 @@ export function SettlementsPage() {
   const sortKey = list.sortKey
   const sortOrder = list.sortDirection
 
-  // Undo confirmation dialog
-  const [undoConfirm, setUndoConfirm] = useState<string | null>(null)
+  // The settlement the undo dialog is asking about — the whole row, not its
+  // id: the dialog states date, amount and member count before undoing (#127).
+  const [undoTarget, setUndoTarget] = useState<SettlementListItemExtended | null>(null)
 
   // What the last SEPA export could not collect (#114). Not an error — the
   // file downloaded and is valid — but the treasurer has to be told it asks
@@ -264,14 +279,10 @@ export function SettlementsPage() {
     }
   }
 
-  const handleUndoSettlement = (settlementId: string) => {
-    setUndoConfirm(settlementId)
-  }
-
   const handleUndoSettlementConfirmed = async () => {
-    if (!undoConfirm) return
-    const settlementId = undoConfirm
-    setUndoConfirm(null)
+    const settlementId = undoTarget?.id
+    if (!settlementId) return
+    setUndoTarget(null)
     try {
       setError(null)
       await getSettlementsFactory().cancelSettlement(settlementId)
@@ -507,15 +518,17 @@ export function SettlementsPage() {
                       >
                         {t('settlements.exportTransactions')}
                       </button>
+                      {/* Clickable while the gate refuses: the dialog carries
+                          the reason, which a phone can never hover to read. */}
                       <button
                         data-testid={`settlements-undo-btn-${settlement.id}`}
-                        onClick={() => handleUndoSettlement(settlement.id ?? '')}
-                        disabled={settlement.is_cancelled || settlement.is_cancellable === false}
+                        onClick={() => setUndoTarget(settlement)}
+                        disabled={settlement.is_cancelled}
                         title={settlement.cancellation_blocked_reason ?? undefined}
                         aria-label={t('settlements.undoSettlement')}
                         style={{
                           padding: '5px 10px',
-                          backgroundColor: settlement.is_cancelled ? '#6b7280' : '#ef4444',
+                          backgroundColor: undoButtonColor(settlement),
                           color: '#ffffff',
                           border: 'none',
                           borderRadius: 4,
@@ -864,17 +877,16 @@ export function SettlementsPage() {
                               {t('settlements.exportTransactions')}
                             </button>
 
-                            {/* Undo Settlement */}
+                            {/* Undo Settlement. Disabled only once cancelled —
+                                a settlement the gate refuses still opens the
+                                dialog, which states why (#127). */}
                             <button
                               data-testid={`settlements-undo-btn-${settlement.id}`}
-                              onClick={() => handleUndoSettlement(settlement.id ?? '')}
-                              disabled={settlement.is_cancelled || settlement.is_cancellable === false}
+                              onClick={() => setUndoTarget(settlement)}
+                              disabled={settlement.is_cancelled}
                               style={{
                                 padding: '4px 8px',
-                                backgroundColor:
-                                  settlement.is_cancelled
-                                    ? '#6b7280'
-                                    : '#ef4444',
+                                backgroundColor: undoButtonColor(settlement),
                                 color: '#ffffff',
                                 border: 'none',
                                 borderRadius: 4,
@@ -888,12 +900,12 @@ export function SettlementsPage() {
                               }}
                               onMouseEnter={(e) => {
                                 if (!settlement.is_cancelled) {
-                                  e.currentTarget.style.backgroundColor = '#dc2626'
+                                  e.currentTarget.style.backgroundColor = undoButtonHoverColor(settlement)
                                 }
                               }}
                               onMouseLeave={(e) => {
                                 if (!settlement.is_cancelled) {
-                                  e.currentTarget.style.backgroundColor = '#ef4444'
+                                  e.currentTarget.style.backgroundColor = undoButtonColor(settlement)
                                 }
                               }}
                               title={settlement.cancellation_blocked_reason ?? t('settlements.undoSettlement')}
@@ -929,13 +941,10 @@ export function SettlementsPage() {
           </>
         )}
 
-      <ConfirmDialog
-        isOpen={!!undoConfirm}
-        message={t('settlements.undoConfirm')}
-        confirmLabel={t('common.undo')}
-        variant="danger"
+      <UndoSettlementDialog
+        settlement={undoTarget}
         onConfirm={handleUndoSettlementConfirmed}
-        onCancel={() => setUndoConfirm(null)}
+        onCancel={() => setUndoTarget(null)}
       />
       </div>
     )

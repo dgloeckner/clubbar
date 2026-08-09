@@ -278,6 +278,67 @@ export function TokenDisplayModal({ isOpen, token, onClose }: TokenDisplayModalP
 
 ---
 
+#### ConfirmDialog Component
+
+The one confirmation dialog. Replaces every native `confirm()`; owns the
+`role="dialog"`, focus, Escape and backdrop handling so no caller reimplements
+them.
+
+**File**: `src/components/modals/ConfirmDialog.tsx`
+
+**Props**:
+- `isOpen` (boolean, required)
+- `title` (string, optional): Heading
+- `message` (ReactNode, required): Plain text for most callers; a node when the
+  question needs figures or a checkbox of its own
+- `confirmLabel` / `cancelLabel` (string, optional): Default to `common.confirm` / `common.cancel`
+- `variant` ('danger' | 'primary', default: 'danger'): Confirm button colour
+- `confirmDisabled` (boolean, default: false): The question is asked but cannot
+  be answered yet — e.g. an unticked acknowledgement
+- `showConfirm` (boolean, default: true): Set to `false` for a dialog that only
+  explains why an action is unavailable. A permanently disabled confirm button
+  is the dead control such a dialog exists to replace
+- `onConfirm` / `onCancel` (() => void, required)
+
+**Test IDs**: `confirm-dialog`, `confirm-dialog-content`, `confirm-dialog-title`,
+`confirm-dialog-message`, `confirm-dialog-cancel`, `confirm-dialog-ok` (absent
+when `showConfirm` is false).
+
+---
+
+#### UndoSettlementDialog Component
+
+The confirmation shown before a settlement is undone. Composes `ConfirmDialog`;
+the settlement it is given decides which of three shapes it takes (issue #127).
+
+**File**: `src/components/modals/UndoSettlementDialog.tsx`
+
+**Rules**:
+- The question **names the run**: date, total, member count, transaction count.
+  Undoing returns the transactions to the unsettled pool, so the next run
+  collects them again — a confirmation true of every settlement alike cannot
+  say what is at stake.
+- A settlement whose SEPA file exists shows a warning and keeps the confirm
+  button disabled until the admin ticks "this file was never submitted to the
+  bank". The acknowledgement resets whenever the dialog reopens.
+- A settlement the backend refuses to cancel (`is_cancellable === false`) shows
+  the backend's `cancellation_blocked_reason` and **no confirm button**.
+- Whether an undo is allowed is read from the API's `is_cancellable` /
+  `cancellation_blocked_reason` — never re-derived in the client. The rule
+  lives in the backend's `CancellationGate`; a second copy is how the button
+  and the API drift apart.
+
+**Props**:
+- `settlement` (object | null, required): The settlement in question; `null` closes the dialog
+- `onConfirm` / `onCancel` (() => void, required)
+
+**Test IDs**: the surrounding `ConfirmDialog`'s, plus
+`undo-settlement-detail-{date,amount,members,transactions}`,
+`undo-settlement-blocked-reason`, `undo-settlement-export-warning`,
+`undo-settlement-export-ack`.
+
+---
+
 ### Form Components
 
 #### CharacterCounter Component

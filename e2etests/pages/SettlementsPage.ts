@@ -34,6 +34,21 @@ export class SettlementsPage extends BasePage {
   private readonly settlementRows = () => this.page.locator('[data-testid^="settlements-table-row-"]')
   private readonly exportWarning = () => this.page.getByTestId('settlements-export-warning')
 
+  // Undo confirmation dialog (#127). It states what is about to be undone —
+  // date, amount, members, transactions — and, once a SEPA file exists for the
+  // settlement, refuses to confirm until the export is acknowledged.
+  private readonly undoButton = (settlementId: string) =>
+    this.page.getByTestId(`settlements-undo-btn-${settlementId}`)
+  private readonly undoDialog = () => this.page.getByTestId('confirm-dialog')
+  private readonly undoDialogTitle = () => this.page.getByTestId('confirm-dialog-content').getByRole('heading')
+  private readonly undoDialogConfirm = () => this.page.getByTestId('confirm-dialog-ok')
+  private readonly undoDialogCancel = () => this.page.getByTestId('confirm-dialog-cancel')
+  private readonly undoDialogDetail = (field: 'date' | 'amount' | 'members' | 'transactions') =>
+    this.page.getByTestId(`undo-settlement-detail-${field}`)
+  private readonly undoDialogBlockedReason = () => this.page.getByTestId('undo-settlement-blocked-reason')
+  private readonly undoDialogExportWarning = () => this.page.getByTestId('undo-settlement-export-warning')
+  private readonly undoDialogExportAck = () => this.page.getByTestId('undo-settlement-export-ack')
+
   // Pagination (PaginationToolbar rendered with testId="settlements")
   private readonly paginationPageButton = (pageNumber: number) =>
     this.page.getByTestId(`settlements-page-${pageNumber}`)
@@ -213,22 +228,99 @@ export class SettlementsPage extends BasePage {
   }
 
   /**
-   * Click the undo button for a settlement, confirm via the custom ConfirmDialog modal,
-   * and wait for the settlement list to reload.
+   * UNDO (#127)
+   */
+
+  /** Open the undo dialog and leave it open for inspection. */
+  async openUndoDialog(settlementId: string) {
+    await this.undoButton(settlementId).click()
+    await expect(this.undoDialog()).toBeVisible()
+  }
+
+  /** Dismiss the undo dialog without undoing anything. */
+  async dismissUndoDialog() {
+    await this.undoDialogCancel().click()
+    await expect(this.undoDialog()).toBeHidden()
+  }
+
+  /** The figures the dialog states about the settlement it is asking about. */
+  async getUndoDialogDetails(): Promise<{
+    date: string
+    amount: string
+    members: string
+    transactions: string
+  }> {
+    return {
+      date: (await this.undoDialogDetail('date').textContent())?.trim() ?? '',
+      amount: (await this.undoDialogDetail('amount').textContent())?.trim() ?? '',
+      members: (await this.undoDialogDetail('members').textContent())?.trim() ?? '',
+      transactions: (await this.undoDialogDetail('transactions').textContent())?.trim() ?? '',
+    }
+  }
+
+  async getUndoDialogTitle(): Promise<string> {
+    return (await this.undoDialogTitle().textContent())?.trim() ?? ''
+  }
+
+  /**
+   * The dialog for a settlement the backend refuses to cancel: it names the
+   * reason and offers no confirm button at all, rather than a dead disabled
+   * one whose explanation only a hover could reveal.
+   */
+  async expectUndoBlocked(reason: RegExp) {
+    await expect(this.undoDialogBlockedReason()).toBeVisible()
+    await expect(this.undoDialogBlockedReason()).toHaveText(reason)
+    await expect(this.undoDialogConfirm()).toBeHidden()
+  }
+
+  /** The warning shown when a SEPA file has already been generated. */
+  async expectUndoExportWarning() {
+    await expect(this.undoDialogExportWarning()).toBeVisible()
+  }
+
+  async expectNoUndoExportWarning() {
+    await expect(this.undoDialogExportWarning()).toBeHidden()
+  }
+
+  async expectUndoConfirmDisabled() {
+    await expect(this.undoDialogConfirm()).toBeDisabled()
+  }
+
+  async expectUndoConfirmEnabled() {
+    await expect(this.undoDialogConfirm()).toBeEnabled()
+  }
+
+  /** Tick "this file was never submitted to the bank". */
+  async acknowledgeUndoExport() {
+    await this.undoDialogExportAck().check()
+  }
+
+  /**
+   * Click the undo button for a settlement, confirm via the undo dialog, and
+   * wait for the settlement list to reload.
+   *
+   * A settlement whose SEPA file was already generated asks for an explicit
+   * acknowledgement first (#127); this ticks it when it is there.
    *
    * After undo the settlement row remains visible with status "Storniert".
    */
   async undoSettlement(settlementId: string) {
+    await this.openUndoDialog(settlementId)
+    if (await this.undoDialogExportAck().isVisible()) {
+      await this.acknowledgeUndoExport()
+    }
+    await this.confirmUndoDialog(settlementId)
+  }
+
+  /** Confirm an already-open undo dialog and wait for the reloaded list. */
+  async confirmUndoDialog(settlementId: string) {
     const responsePromise = this.page.waitForResponse(
       (resp) =>
         resp.url().includes(`/api/admin/settlements/${settlementId}/cancel`) &&
         resp.request().method() === 'DELETE' &&
         resp.status() === 200
     )
-    await this.page.getByTestId(`settlements-undo-btn-${settlementId}`).click()
-    // Custom confirm dialog should appear
-    await expect(this.page.getByTestId('confirm-dialog')).toBeVisible()
-    await this.page.getByTestId('confirm-dialog-ok').click()
+    await this.undoDialogConfirm().click()
     await responsePromise
     await this.waitForPageLoad()
   }
