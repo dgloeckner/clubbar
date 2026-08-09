@@ -8,7 +8,6 @@ import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
-import 'package:clubbar_terminal/providers/auth_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
@@ -21,7 +20,6 @@ import '../test_helpers.dart';
 
 class MockProductsProvider extends Mock implements ProductsProvider {}
 class MockCartProvider extends Mock implements CartProvider {}
-class MockAuthProvider extends Mock implements AuthProvider {}
 class MockSyncProvider extends Mock implements SyncProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
 class MockSessionController extends Mock implements SessionController {}
@@ -46,7 +44,6 @@ void main() {
   group('ProductSelectionScreen', () {
     late MockProductsProvider mockProductsProvider;
     late MockCartProvider mockCartProvider;
-    late MockAuthProvider mockAuthProvider;
     late MockSyncProvider mockSyncProvider;
     late MockMembersProvider mockMembersProvider;
     late MockSessionController mockSessionController;
@@ -55,7 +52,6 @@ void main() {
     setUp(() {
       mockProductsProvider = MockProductsProvider();
       mockCartProvider = MockCartProvider();
-      mockAuthProvider = MockAuthProvider();
       mockSyncProvider = MockSyncProvider();
       mockMembersProvider = MockMembersProvider();
       mockSessionController = MockSessionController();
@@ -63,11 +59,6 @@ void main() {
       when(() => mockSessionController.addListener(any())).thenReturn(null);
       when(() => mockSessionController.removeListener(any())).thenReturn(null);
       mockSoundService = MockSoundService();
-
-      // Setup auth provider mocks
-      when(() => mockAuthProvider.isAuthenticated).thenReturn(true);
-      when(() => mockAuthProvider.addListener(any())).thenReturn(null);
-      when(() => mockAuthProvider.removeListener(any())).thenReturn(null);
 
       // Setup sync provider mocks
       when(() => mockSyncProvider.isSyncing).thenReturn(false);
@@ -111,7 +102,6 @@ void main() {
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
               ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
               ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
@@ -153,7 +143,6 @@ void main() {
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
               ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
               ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
@@ -210,7 +199,6 @@ void main() {
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
               ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
               ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
@@ -244,7 +232,6 @@ void main() {
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
               ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
               ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
@@ -293,7 +280,6 @@ void main() {
             providers: [
               ChangeNotifierProvider<ProductsProvider>.value(value: mockProductsProvider),
               ChangeNotifierProvider<CartProvider>.value(value: mockCartProvider),
-              ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
               ChangeNotifierProvider<SyncProvider>.value(value: mockSyncProvider),
               ChangeNotifierProvider<MembersProvider>.value(value: mockMembersProvider),
               ChangeNotifierProvider<SessionController>.value(value: mockSessionController),
@@ -343,8 +329,6 @@ void main() {
                     value: mockProductsProvider),
                 ChangeNotifierProvider<CartProvider>.value(
                     value: mockCartProvider),
-                ChangeNotifierProvider<AuthProvider>.value(
-                    value: mockAuthProvider),
                 ChangeNotifierProvider<SyncProvider>.value(
                     value: mockSyncProvider),
                 ChangeNotifierProvider<MembersProvider>.value(
@@ -493,8 +477,6 @@ void main() {
                     value: mockProductsProvider),
                 ChangeNotifierProvider<CartProvider>.value(
                     value: mockCartProvider),
-                ChangeNotifierProvider<AuthProvider>.value(
-                    value: mockAuthProvider),
                 ChangeNotifierProvider<SyncProvider>.value(
                     value: mockSyncProvider),
                 ChangeNotifierProvider<MembersProvider>.value(
@@ -618,8 +600,6 @@ void main() {
                     value: mockProductsProvider),
                 ChangeNotifierProvider<CartProvider>.value(
                     value: mockCartProvider),
-                ChangeNotifierProvider<AuthProvider>.value(
-                    value: mockAuthProvider),
                 ChangeNotifierProvider<SyncProvider>.value(
                     value: mockSyncProvider),
                 ChangeNotifierProvider<MembersProvider>.value(
@@ -799,8 +779,6 @@ void main() {
                     value: mockProductsProvider),
                 ChangeNotifierProvider<CartProvider>.value(
                     value: mockCartProvider),
-                ChangeNotifierProvider<AuthProvider>.value(
-                    value: mockAuthProvider),
                 ChangeNotifierProvider<SyncProvider>.value(
                     value: mockSyncProvider),
                 ChangeNotifierProvider<MembersProvider>.value(

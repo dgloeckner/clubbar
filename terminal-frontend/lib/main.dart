@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
-import 'package:clubbar_terminal/providers/auth_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
@@ -449,7 +448,6 @@ class ClubBarTerminalApp extends StatelessWidget {
         if (dispenserHealthService != null)
           ChangeNotifierProvider<DispenserHealthService>.value(value: dispenserHealthService!),
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider<MembersProvider>.value(value: membersProvider),
         ChangeNotifierProvider<ProductsProvider>(create: (_) => productsProvider),
         ChangeNotifierProvider<CartProvider>.value(value: cartProvider),

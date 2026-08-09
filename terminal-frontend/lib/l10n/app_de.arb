@@ -237,26 +237,8 @@
   "@memberInactive": {
     "description": "Label for inactive member status"
   },
-  "sepaYes": "Ja",
-  "@sepaYes": {
-    "description": "Yes label for SEPA status"
-  },
-  "sepaNo": "Nein",
-  "@sepaNo": {
-    "description": "No label for SEPA status"
-  },
 
   "@_MEMBER_BAR": {},
-  "welcomeMember": "Willkommen, {name}",
-  "@welcomeMember": {
-    "description": "Greeting message with member name",
-    "placeholders": {
-      "name": {
-        "type": "String",
-        "example": "Max"
-      }
-    }
-  },
   "balanceOpenTab": "Offener Betrag: {amount}",
   "@balanceOpenTab": {
     "description": "Member owes this amount (open tab)",
@@ -304,10 +286,6 @@
   "categoryDefault": "Kategorie",
   "@categoryDefault": {
     "description": "Default category name when translation missing"
-  },
-  "productDefault": "Produkt",
-  "@productDefault": {
-    "description": "Default product name when translation missing"
   },
   "noProducts": "Keine Produkte verfügbar",
   "@noProducts": {
@@ -381,21 +359,9 @@
   "@loading": {
     "description": "Loading indicator text"
   },
-  "cancel": "Abbrechen",
-  "@cancel": {
-    "description": "Cancel button label"
-  },
-  "save": "Speichern",
-  "@save": {
-    "description": "Save button label"
-  },
   "continueShopping": "Weiter einkaufen",
   "@continueShopping": {
     "description": "Button to continue shopping"
-  },
-  "scanCard": "Chip scannen",
-  "@scanCard": {
-    "description": "Button to scan card"
   },
 
   "@_RFID_ERRORS": {},
